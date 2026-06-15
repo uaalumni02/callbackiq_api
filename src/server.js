@@ -5,6 +5,7 @@ import cookieParser from "cookie-parser";
 import connectDB from "./db/connection.js";
 import authRoutes from "./routes/auth.routes.js";
 import businessRoutes from "./routes/business.routes.js";
+import leadRoutes from "./routes/lead.routes.js";
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -19,6 +20,7 @@ connectDB();
 
 app.use("/api/auth", authRoutes);
 app.use("/api/businesses", businessRoutes);
+app.use("/api/leads", leadRoutes);
 
 app.get("/", (req, res) => {
   res.status(200).json({

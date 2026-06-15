@@ -102,6 +102,63 @@ class Db {
       throw error;
     }
   }
+  // ----- Lead methods -----
+
+  static async saveLead(model, data) {
+    try {
+      const lead = new model(data);
+      return await lead.save();
+    } catch (error) {
+      console.error("Error saving lead:", error);
+      throw error;
+    }
+  }
+
+  static async getLeadsByBusiness(model, businessId) {
+    try {
+      return await model
+        .find({ business: businessId })
+        .sort({ createdAt: -1 })
+        .populate("business", "businessName businessType phone");
+    } catch (error) {
+      console.error("Error fetching leads by business:", error);
+      throw error;
+    }
+  }
+
+  static async getLeadById(model, id) {
+    try {
+      return await model
+        .findById(id)
+        .populate("business", "businessName businessType phone");
+    } catch (error) {
+      console.error("Error fetching lead by ID:", error);
+      throw error;
+    }
+  }
+
+  static async updateLead(model, id, data) {
+    try {
+      return await model
+        .findByIdAndUpdate(id, data, {
+          new: true,
+          runValidators: true,
+        })
+        .populate("business", "businessName businessType phone");
+    } catch (error) {
+      console.error("Error updating lead:", error);
+      throw error;
+    }
+  }
+
+  static async deleteLead(model, id) {
+    try {
+      return await model.findByIdAndDelete(id);
+    } catch (error) {
+      console.error("Error deleting lead:", error);
+      throw error;
+    }
+  }
 }
 
 export default Db;
