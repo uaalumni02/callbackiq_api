@@ -36,6 +36,72 @@ class Db {
       throw new Error("Database error while fetching user");
     }
   }
+  // ----- Business methods -----
+
+  static async saveBusiness(model, data) {
+    try {
+      const business = new model(data);
+      return await business.save();
+    } catch (error) {
+      console.error("Error saving business:", error);
+      throw error;
+    }
+  }
+
+  static async getBusinessByOwner(model, ownerId) {
+    try {
+      return await model
+        .findOne({ owner: ownerId })
+        .populate("owner", "userName email role");
+    } catch (error) {
+      console.error("Error fetching business by owner:", error);
+      throw error;
+    }
+  }
+
+  static async getBusinessById(model, id) {
+    try {
+      return await model.findById(id).populate("owner", "userName email role");
+    } catch (error) {
+      console.error("Error fetching business by ID:", error);
+      throw error;
+    }
+  }
+
+  static async getAllBusinesses(model) {
+    try {
+      return await model
+        .find({})
+        .sort({ createdAt: -1 })
+        .populate("owner", "userName email role");
+    } catch (error) {
+      console.error("Error fetching businesses:", error);
+      throw error;
+    }
+  }
+
+  static async updateBusiness(model, id, data) {
+    try {
+      return await model
+        .findByIdAndUpdate(id, data, {
+          new: true,
+          runValidators: true,
+        })
+        .populate("owner", "userName email role");
+    } catch (error) {
+      console.error("Error updating business:", error);
+      throw error;
+    }
+  }
+
+  static async deleteBusiness(model, id) {
+    try {
+      return await model.findByIdAndDelete(id);
+    } catch (error) {
+      console.error("Error deleting business:", error);
+      throw error;
+    }
+  }
 }
 
 export default Db;
