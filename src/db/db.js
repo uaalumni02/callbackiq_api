@@ -159,6 +159,112 @@ class Db {
       throw error;
     }
   }
+  // ----- Conversation methods -----
+
+  static async saveConversation(model, data) {
+    try {
+      const conversation = new model(data);
+      return await conversation.save();
+    } catch (error) {
+      console.error("Error saving conversation:", error);
+      throw error;
+    }
+  }
+
+  static async getConversationsByBusiness(model, businessId) {
+    try {
+      return await model
+        .find({ business: businessId })
+        .sort({ lastMessageAt: -1, createdAt: -1 })
+        .populate("business", "businessName phone")
+        .populate("lead", "customerName phone serviceNeeded urgency status");
+    } catch (error) {
+      console.error("Error fetching conversations:", error);
+      throw error;
+    }
+  }
+
+  static async getConversationById(model, id) {
+    try {
+      return await model
+        .findById(id)
+        .populate("business", "businessName phone")
+        .populate("lead", "customerName phone serviceNeeded urgency status");
+    } catch (error) {
+      console.error("Error fetching conversation:", error);
+      throw error;
+    }
+  }
+
+  static async updateConversation(model, id, data) {
+    try {
+      return await model
+        .findByIdAndUpdate(id, data, {
+          new: true,
+          runValidators: true,
+        })
+        .populate("business", "businessName phone")
+        .populate("lead", "customerName phone serviceNeeded urgency status");
+    } catch (error) {
+      console.error("Error updating conversation:", error);
+      throw error;
+    }
+  }
+
+  static async deleteConversation(model, id) {
+    try {
+      return await model.findByIdAndDelete(id);
+    } catch (error) {
+      console.error("Error deleting conversation:", error);
+      throw error;
+    }
+  }
+
+  // ----- Message methods -----
+
+  static async saveMessage(model, data) {
+    try {
+      const message = new model(data);
+      return await message.save();
+    } catch (error) {
+      console.error("Error saving message:", error);
+      throw error;
+    }
+  }
+
+  static async getMessagesByConversation(model, conversationId) {
+    try {
+      return await model
+        .find({ conversation: conversationId })
+        .sort({ createdAt: 1 })
+        .populate("lead", "customerName phone serviceNeeded")
+        .populate("conversation", "customerPhone customerName status");
+    } catch (error) {
+      console.error("Error fetching messages:", error);
+      throw error;
+    }
+  }
+
+  static async getMessageById(model, id) {
+    try {
+      return await model
+        .findById(id)
+        .populate("lead", "customerName phone serviceNeeded")
+        .populate("conversation", "customerPhone customerName status");
+    } catch (error) {
+      console.error("Error fetching message:", error);
+      throw error;
+    }
+  }
+
+  static async deleteMessage(model, id) {
+    try {
+      return await model.findByIdAndDelete(id);
+    } catch (error) {
+      console.error("Error deleting message:", error);
+      throw error;
+    }
+  }
 }
 
 export default Db;
