@@ -114,6 +114,14 @@ const responseOkUpdated = (res, data) => {
   });
 };
 
+const responseCreated = (res, data, message = "Created successfully") => {
+  return res.status(201).json({
+    success: true,
+    message,
+    data,
+  });
+};
+
 export {
   responseBadRquest,
   responseNotFound,
@@ -131,4 +139,5 @@ export {
   responseInvalidConfirmation,
   responseUserNotFound,
   responseOkUpdated,
+  responseCreated
 };
