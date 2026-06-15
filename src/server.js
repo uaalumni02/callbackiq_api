@@ -8,6 +8,7 @@ import businessRoutes from "./routes/business.routes.js";
 import leadRoutes from "./routes/lead.routes.js";
 import conversationRoutes from "./routes/conversation.routes.js";
 import messageRoutes from "./routes/message.routes.js";
+import callLogRoutes from "./routes/callLog.routes.js";
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -25,6 +26,7 @@ app.use("/api/businesses", businessRoutes);
 app.use("/api/leads", leadRoutes);
 app.use("/api/conversations", conversationRoutes);
 app.use("/api/messages", messageRoutes);
+app.use("/api/calls", callLogRoutes);
 
 app.get("/", (req, res) => {
   res.status(200).json({

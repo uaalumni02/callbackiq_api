@@ -265,6 +265,69 @@ class Db {
       throw error;
     }
   }
+  // ----- Call Log methods -----
+
+  static async saveCallLog(model, data) {
+    try {
+      const callLog = new model(data);
+      return await callLog.save();
+    } catch (error) {
+      console.error("Error saving call log:", error);
+      throw error;
+    }
+  }
+
+  static async getCallLogsByBusiness(model, businessId) {
+    try {
+      return await model
+        .find({ business: businessId })
+        .sort({ createdAt: -1 })
+        .populate("business", "businessName phone")
+        .populate("lead", "customerName phone serviceNeeded urgency status")
+        .populate("conversation", "customerPhone customerName status");
+    } catch (error) {
+      console.error("Error fetching call logs:", error);
+      throw error;
+    }
+  }
+
+  static async getCallLogById(model, id) {
+    try {
+      return await model
+        .findById(id)
+        .populate("business", "businessName phone")
+        .populate("lead", "customerName phone serviceNeeded urgency status")
+        .populate("conversation", "customerPhone customerName status");
+    } catch (error) {
+      console.error("Error fetching call log:", error);
+      throw error;
+    }
+  }
+
+  static async updateCallLog(model, id, data) {
+    try {
+      return await model
+        .findByIdAndUpdate(id, data, {
+          new: true,
+          runValidators: true,
+        })
+        .populate("business", "businessName phone")
+        .populate("lead", "customerName phone serviceNeeded urgency status")
+        .populate("conversation", "customerPhone customerName status");
+    } catch (error) {
+      console.error("Error updating call log:", error);
+      throw error;
+    }
+  }
+
+  static async deleteCallLog(model, id) {
+    try {
+      return await model.findByIdAndDelete(id);
+    } catch (error) {
+      console.error("Error deleting call log:", error);
+      throw error;
+    }
+  }
 }
 
 export default Db;
