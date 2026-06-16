@@ -234,7 +234,6 @@ class BillingController {
       const stripe = getStripeClient();
 
       let event;
-
       const signature = req.headers["stripe-signature"];
 
       if (process.env.STRIPE_WEBHOOK_SECRET && signature) {
@@ -244,15 +243,16 @@ class BillingController {
           process.env.STRIPE_WEBHOOK_SECRET,
         );
       } else {
+        /*
+          Local Postman fallback only.
+          In production, always use STRIPE_WEBHOOK_SECRET.
+        */
         if (Buffer.isBuffer(req.body)) {
           event = JSON.parse(req.body.toString("utf8"));
         } else {
           event = req.body;
         }
       }
-
-      console.log("Stripe webhook event type:", event.type);
-      console.log("Stripe webhook event object:", event.data?.object);
 
       switch (event.type) {
         case "checkout.session.completed":
@@ -290,6 +290,7 @@ class BillingController {
       });
     }
   }
+
   static async handleCheckoutCompleted(session) {
     const businessId = session.metadata?.businessId;
     const plan = session.metadata?.plan || "starter";

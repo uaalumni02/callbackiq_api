@@ -13,10 +13,17 @@ import aiRoutes from "./routes/ai.routes.js";
 import alertRoutes from "./routes/alert.routes.js";
 import agentRoutes from "./routes/agent.routes.js";
 import billingRoutes from "./routes/billing.routes.js";
+import stripeWebhookRoutes from "./routes/stripeWebhook.routes.js";
 
 const app = express();
 
 app.set("trust proxy", 1);
+
+/*
+  Stripe webhooks must be registered BEFORE express.json().
+  Stripe signature verification requires the raw request body.
+*/
+app.use("/api/billing", stripeWebhookRoutes);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
