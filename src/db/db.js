@@ -408,6 +408,183 @@ class Db {
       throw error;
     }
   }
+  // ----- Dashboard methods -----
+
+  static async getDashboardMetrics({
+    Business,
+    Lead,
+    CallLog,
+    Conversation,
+    Message,
+    ownerId,
+  }) {
+    try {
+      const business = await Business.findOne({ owner: ownerId });
+
+      if (!business) {
+        return null;
+      }
+
+      const businessId = business._id;
+
+      const missedCallStatuses = ["missed", "no_answer", "busy", "failed"];
+
+      const [
+        totalCalls,
+        missedCalls,
+        answeredCalls,
+        recoveredCalls,
+        totalLeads,
+        newLeads,
+        contactedLeads,
+        bookedLeads,
+        lostLeads,
+        spamLeads,
+        activeConversations,
+        closedConversations,
+        smsSent,
+        smsReceived,
+        bookedRevenueAgg,
+        recoveredRevenueAgg,
+      ] = await Promise.all([
+        CallLog.countDocuments({ business: businessId }),
+
+        CallLog.countDocuments({
+          business: businessId,
+          status: { $in: missedCallStatuses },
+        }),
+
+        CallLog.countDocuments({
+          business: businessId,
+          status: "answered",
+        }),
+
+        CallLog.countDocuments({
+          business: businessId,
+          recovered: true,
+        }),
+
+        Lead.countDocuments({ business: businessId }),
+
+        Lead.countDocuments({ business: businessId, status: "new" }),
+
+        Lead.countDocuments({ business: businessId, status: "contacted" }),
+
+        Lead.countDocuments({ business: businessId, status: "booked" }),
+
+        Lead.countDocuments({ business: businessId, status: "lost" }),
+
+        Lead.countDocuments({ business: businessId, status: "spam" }),
+
+        Conversation.countDocuments({
+          business: businessId,
+          status: "open",
+        }),
+
+        Conversation.countDocuments({
+          business: businessId,
+          status: "closed",
+        }),
+
+        Message.countDocuments({
+          business: businessId,
+          direction: "outbound",
+        }),
+
+        Message.countDocuments({
+          business: businessId,
+          direction: "inbound",
+        }),
+
+        Lead.aggregate([
+          {
+            $match: {
+              business: businessId,
+              status: "booked",
+            },
+          },
+          {
+            $group: {
+              _id: null,
+              total: { $sum: "$estimatedValue" },
+            },
+          },
+        ]),
+
+        Lead.aggregate([
+          {
+            $match: {
+              business: businessId,
+              status: { $in: ["contacted", "booked"] },
+              source: { $in: ["missed_call", "sms"] },
+            },
+          },
+          {
+            $group: {
+              _id: null,
+              total: { $sum: "$estimatedValue" },
+            },
+          },
+        ]),
+      ]);
+
+      const bookedRevenue = bookedRevenueAgg?.[0]?.total || 0;
+      const recoveredRevenue = recoveredRevenueAgg?.[0]?.total || 0;
+
+      const missedCallRecoveryRate =
+        missedCalls > 0 ? Math.round((recoveredCalls / missedCalls) * 100) : 0;
+
+      const bookingRate =
+        totalLeads > 0 ? Math.round((bookedLeads / totalLeads) * 100) : 0;
+
+      return {
+        business: {
+          _id: business._id,
+          businessName: business.businessName,
+          businessType: business.businessType,
+          phone: business.phone,
+          estimatedJobValue: business.estimatedJobValue,
+        },
+
+        calls: {
+          totalCalls,
+          missedCalls,
+          answeredCalls,
+          recoveredCalls,
+          missedCallRecoveryRate,
+        },
+
+        leads: {
+          totalLeads,
+          newLeads,
+          contactedLeads,
+          bookedLeads,
+          lostLeads,
+          spamLeads,
+          bookingRate,
+        },
+
+        conversations: {
+          activeConversations,
+          closedConversations,
+        },
+
+        messages: {
+          smsSent,
+          smsReceived,
+          totalMessages: smsSent + smsReceived,
+        },
+
+        revenue: {
+          bookedRevenue,
+          recoveredRevenue,
+        },
+      };
+    } catch (error) {
+      console.error("Error getting dashboard metrics:", error);
+      throw error;
+    }
+  }
 }
 
 export default Db;
