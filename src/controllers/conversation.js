@@ -35,12 +35,11 @@ class ConversationController {
         data: conversation,
       });
     } catch (error) {
-      console.error("Error in createConversation:", error);
-
       if (error.isJoi) {
         return Response.responseInvalidInput(res, error.message);
       }
 
+      console.error("Error in createConversation:", error);
       return Response.responseServerError(res);
     }
   }

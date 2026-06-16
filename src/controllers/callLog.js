@@ -34,12 +34,11 @@ class CallLogController {
         data: callLog,
       });
     } catch (error) {
-      console.error("Error in createCallLog:", error);
-
       if (error.isJoi) {
         return Response.responseInvalidInput(res, error.message);
       }
 
+      console.error("Error in createCallLog:", error);
       return Response.responseServerError(res);
     }
   }
@@ -142,12 +141,11 @@ class CallLogController {
         "Call log updated successfully",
       );
     } catch (error) {
-      console.error("Error in updateCallLog:", error);
-
       if (error.isJoi) {
         return Response.responseInvalidInput(res, error.message);
       }
 
+      console.error("Error in updateCallLog:", error);
       return Response.responseServerError(res);
     }
   }

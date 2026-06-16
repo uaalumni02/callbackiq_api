@@ -93,8 +93,6 @@ class AuthController {
         "Account created successfully",
       );
     } catch (error) {
-      console.error("Register error:", error);
-
       if (error.isJoi) {
         return Response.responseInvalidInput(res, error.message);
       }
@@ -106,6 +104,7 @@ class AuthController {
         );
       }
 
+      console.error("Register error:", error);
       return Response.responseServerError(res);
     }
   }
@@ -154,12 +153,11 @@ class AuthController {
         "Login successful",
       );
     } catch (error) {
-      console.error("Login error:", error);
-
       if (error.isJoi) {
         return Response.responseInvalidInput(res, error.message);
       }
 
+      console.error("Login error:", error);
       return Response.responseServerError(res);
     }
   }

@@ -56,12 +56,11 @@ class MessageController {
         data: message,
       });
     } catch (error) {
-      console.error("Error in createMessage:", error);
-
       if (error.isJoi) {
         return Response.responseInvalidInput(res, error.message);
       }
 
+      console.error("Error in createMessage:", error);
       return Response.responseServerError(res);
     }
   }
