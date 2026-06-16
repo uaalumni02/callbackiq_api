@@ -282,7 +282,10 @@ class Db {
       return await model
         .find({ business: businessId })
         .sort({ createdAt: -1 })
-        .populate("business", "businessName phone")
+        .populate(
+          "business",
+          "businessName businessType phone smsTemplate estimatedJobValue",
+        )
         .populate("lead", "customerName phone serviceNeeded urgency status")
         .populate("conversation", "customerPhone customerName status");
     } catch (error) {
@@ -295,7 +298,10 @@ class Db {
     try {
       return await model
         .findById(id)
-        .populate("business", "businessName phone")
+        .populate(
+          "business",
+          "businessName businessType phone smsTemplate estimatedJobValue",
+        )
         .populate("lead", "customerName phone serviceNeeded urgency status")
         .populate("conversation", "customerPhone customerName status");
     } catch (error) {
@@ -311,7 +317,10 @@ class Db {
           new: true,
           runValidators: true,
         })
-        .populate("business", "businessName phone")
+        .populate(
+          "business",
+          "businessName businessType phone smsTemplate estimatedJobValue",
+        )
         .populate("lead", "customerName phone serviceNeeded urgency status")
         .populate("conversation", "customerPhone customerName status");
     } catch (error) {
