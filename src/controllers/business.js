@@ -36,12 +36,11 @@ class BusinessController {
         data: business,
       });
     } catch (error) {
-      console.error("Error in createBusiness:", error);
-
       if (error.isJoi) {
         return Response.responseInvalidInput(res, error.message);
       }
 
+      console.error("Error in createBusiness:", error);
       return Response.responseServerError(res);
     }
   }
@@ -127,12 +126,11 @@ class BusinessController {
         "Business updated successfully",
       );
     } catch (error) {
-      console.error("Error in updateMyBusiness:", error);
-
       if (error.isJoi) {
         return Response.responseInvalidInput(res, error.message);
       }
 
+      console.error("Error in updateMyBusiness:", error);
       return Response.responseServerError(res);
     }
   }
