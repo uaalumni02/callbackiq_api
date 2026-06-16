@@ -1,21 +1,27 @@
 import express from "express";
 
 import checkAuth from "../middleware/check-auth.js";
+import checkSubscription from "../middleware/check-subscription.js";
 import LeadController from "../controllers/lead.js";
 
 const router = express.Router();
 
 router
   .route("/")
-  .post(checkAuth, LeadController.createLead)
+  .post(checkAuth, checkSubscription, LeadController.createLead)
   .get(checkAuth, LeadController.getMyLeads);
 
-router.route("/:id").get(checkAuth, LeadController.getLeadById);
+router.patch(
+  "/:id/status",
+  checkAuth,
+  checkSubscription,
+  LeadController.updateLeadStatus,
+);
 
-router.route("/:id").patch(checkAuth, LeadController.updateLead);
-
-router.route("/:id/status").patch(checkAuth, LeadController.updateLeadStatus);
-
-router.route("/:id").delete(checkAuth, LeadController.deleteLead);
+router
+  .route("/:id")
+  .get(checkAuth, LeadController.getLeadById)
+  .patch(checkAuth, checkSubscription, LeadController.updateLead)
+  .delete(checkAuth, checkSubscription, LeadController.deleteLead);
 
 export default router;
