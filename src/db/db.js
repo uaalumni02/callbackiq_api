@@ -328,6 +328,77 @@ class Db {
       throw error;
     }
   }
+  // ----- Twilio helper methods -----
+
+  static async getBusinessByPhone(model, phone) {
+    try {
+      return await model.findOne({
+        $or: [
+          { phone },
+          { businessPhone: phone },
+          { twilioPhoneNumber: phone },
+        ],
+      });
+    } catch (error) {
+      console.error("Error fetching business by phone:", error);
+      throw error;
+    }
+  }
+
+  static async getFirstBusiness(model) {
+    try {
+      return await model.findOne({}).sort({ createdAt: 1 });
+    } catch (error) {
+      console.error("Error fetching first business:", error);
+      throw error;
+    }
+  }
+
+  static async getLeadByBusinessAndPhone(model, businessId, phone) {
+    try {
+      return await model.findOne({
+        business: businessId,
+        phone,
+      });
+    } catch (error) {
+      console.error("Error fetching lead by business and phone:", error);
+      throw error;
+    }
+  }
+
+  static async getConversationByBusinessAndPhone(model, businessId, phone) {
+    try {
+      return await model.findOne({
+        business: businessId,
+        customerPhone: phone,
+      });
+    } catch (error) {
+      console.error(
+        "Error fetching conversation by business and phone:",
+        error,
+      );
+      throw error;
+    }
+  }
+
+  static async updateCallLogByProviderCallId(model, providerCallId, data) {
+    try {
+      return await model
+        .findOneAndUpdate({ providerCallId }, data, {
+          new: true,
+          runValidators: true,
+        })
+        .populate(
+          "business",
+          "businessName phone smsTemplate estimatedJobValue",
+        )
+        .populate("lead", "customerName phone serviceNeeded urgency status")
+        .populate("conversation", "customerPhone customerName status");
+    } catch (error) {
+      console.error("Error updating call log by providerCallId:", error);
+      throw error;
+    }
+  }
 }
 
 export default Db;
