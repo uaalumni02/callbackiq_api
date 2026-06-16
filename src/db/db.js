@@ -731,6 +731,90 @@ class Db {
       throw error;
     }
   }
+  // ----- Subscription / Billing methods -----
+
+  static async getSubscriptionByBusiness(model, businessId) {
+    try {
+      return await model
+        .findOne({ business: businessId })
+        .populate("business", "businessName businessType phone email");
+    } catch (error) {
+      console.error("Error fetching subscription by business:", error);
+      throw error;
+    }
+  }
+
+  static async getSubscriptionByStripeCustomer(model, stripeCustomerId) {
+    try {
+      return await model
+        .findOne({ stripeCustomerId })
+        .populate("business", "businessName businessType phone email");
+    } catch (error) {
+      console.error("Error fetching subscription by Stripe customer:", error);
+      throw error;
+    }
+  }
+
+  static async getSubscriptionByStripeSubscription(
+    model,
+    stripeSubscriptionId,
+  ) {
+    try {
+      return await model
+        .findOne({ stripeSubscriptionId })
+        .populate("business", "businessName businessType phone email");
+    } catch (error) {
+      console.error(
+        "Error fetching subscription by Stripe subscription:",
+        error,
+      );
+      throw error;
+    }
+  }
+
+  static async upsertSubscriptionByBusiness(model, businessId, data) {
+    try {
+      return await model
+        .findOneAndUpdate(
+          { business: businessId },
+          {
+            ...data,
+            business: businessId,
+          },
+          {
+            new: true,
+            upsert: true,
+            runValidators: true,
+            setDefaultsOnInsert: true,
+          },
+        )
+        .populate("business", "businessName businessType phone email");
+    } catch (error) {
+      console.error("Error upserting subscription:", error);
+      throw error;
+    }
+  }
+
+  static async updateSubscriptionByStripeSubscription(
+    model,
+    stripeSubscriptionId,
+    data,
+  ) {
+    try {
+      return await model
+        .findOneAndUpdate({ stripeSubscriptionId }, data, {
+          new: true,
+          runValidators: true,
+        })
+        .populate("business", "businessName businessType phone email");
+    } catch (error) {
+      console.error(
+        "Error updating subscription by Stripe subscription:",
+        error,
+      );
+      throw error;
+    }
+  }
 }
 
 export default Db;

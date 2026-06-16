@@ -12,6 +12,7 @@ import dashboardRoutes from "./routes/dashboard.routes.js";
 import aiRoutes from "./routes/ai.routes.js";
 import alertRoutes from "./routes/alert.routes.js";
 import agentRoutes from "./routes/agent.routes.js";
+import billingRoutes from "./routes/billing.routes.js";
 
 const app = express();
 
@@ -32,6 +33,7 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/alerts", alertRoutes);
 app.use("/api/agent", agentRoutes);
+app.use("/api/billing", billingRoutes);
 
 app.get("/", (req, res) => {
   res.status(200).json({

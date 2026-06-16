@@ -1,0 +1,368 @@
+import request from "supertest";
+
+import app from "../../src/app.js";
+import Subscription from "../../src/models/subscription.js";
+import { getStripeClient } from "../../src/helpers/stripe/stripeClient.js";
+import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testDb.js";
+
+jest.mock("../../src/helpers/stripe/stripeClient.js", () => ({
+  getStripeClient: jest.fn(),
+  getPriceIdByPlan: jest.fn((plan) => {
+    const map = {
+      starter: "price_starter_test",
+      pro: "price_pro_test",
+      agency: "price_agency_test",
+    };
+
+    return map[plan];
+  }),
+}));
+
+beforeAll(async () => {
+  process.env.CLIENT_URL = "http://localhost:3001";
+  process.env.STRIPE_SECRET_KEY = "sk_test_123";
+  process.env.STRIPE_STARTER_PRICE_ID = "price_starter_test";
+  process.env.STRIPE_PRO_PRICE_ID = "price_pro_test";
+  process.env.STRIPE_AGENCY_PRICE_ID = "price_agency_test";
+
+  await connectTestDB();
+});
+
+afterEach(async () => {
+  jest.clearAllMocks();
+  delete process.env.STRIPE_WEBHOOK_SECRET;
+  await clearTestDB();
+});
+
+afterAll(async () => {
+  await closeTestDB();
+});
+
+const mockStripe = () => {
+  const stripe = {
+    customers: {
+      create: jest.fn().mockResolvedValue({
+        id: "cus_test_123",
+      }),
+    },
+
+    checkout: {
+      sessions: {
+        create: jest.fn().mockResolvedValue({
+          id: "cs_test_123",
+          url: "https://checkout.stripe.com/test-session",
+        }),
+      },
+    },
+
+    subscriptions: {
+      update: jest.fn().mockResolvedValue({
+        id: "sub_test_123",
+        status: "active",
+        current_period_start: 1710000000,
+        current_period_end: 1712592000,
+        cancel_at_period_end: true,
+      }),
+    },
+
+    webhooks: {
+      constructEvent: jest.fn(),
+    },
+  };
+
+  getStripeClient.mockReturnValue(stripe);
+
+  return stripe;
+};
+
+const registerAndCreateBusiness = async () => {
+  const registerRes = await request(app).post("/api/auth/register").send({
+    userName: "demoowner",
+    email: "owner@callbackiq.com",
+    password: "Password123",
+    businessName: "Atlanta Pro Plumbing",
+  });
+
+  const token = registerRes.body.data.token;
+
+  const businessRes = await request(app)
+    .post("/api/businesses")
+    .set("Authorization", `Bearer ${token}`)
+    .send({
+      businessName: "Atlanta Pro Plumbing",
+      businessType: "plumbing",
+      phone: "4045551234",
+      email: "owner@atlantaproplumbing.com",
+      estimatedJobValue: 800,
+    });
+
+  return {
+    token,
+    business: businessRes.body.data,
+  };
+};
+
+describe("Billing Routes", () => {
+  test("POST /api/billing/create-checkout-session rejects unauthenticated request", async () => {
+    const res = await request(app)
+      .post("/api/billing/create-checkout-session")
+      .send({
+        plan: "pro",
+      });
+
+    expect(res.status).toBe(401);
+    expect(res.body.success).toBe(false);
+  });
+
+  test("POST /api/billing/create-checkout-session creates Stripe checkout session", async () => {
+    const stripe = mockStripe();
+
+    const { token, business } = await registerAndCreateBusiness();
+
+    const res = await request(app)
+      .post("/api/billing/create-checkout-session")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        plan: "pro",
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.checkoutUrl).toBe(
+      "https://checkout.stripe.com/test-session",
+    );
+
+    expect(stripe.customers.create).toHaveBeenCalled();
+    expect(stripe.checkout.sessions.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: "subscription",
+        customer: "cus_test_123",
+        line_items: [
+          {
+            price: "price_pro_test",
+            quantity: 1,
+          },
+        ],
+      }),
+    );
+
+    const subscription = await Subscription.findOne({
+      business: business._id,
+    });
+
+    expect(subscription).toBeTruthy();
+    expect(subscription.plan).toBe("pro");
+    expect(subscription.status).toBe("incomplete");
+    expect(subscription.stripeCustomerId).toBe("cus_test_123");
+    expect(subscription.checkoutSessionId).toBe("cs_test_123");
+  });
+
+  test("POST /api/billing/create-checkout-session rejects invalid plan", async () => {
+    mockStripe();
+
+    const { token } = await registerAndCreateBusiness();
+
+    const res = await request(app)
+      .post("/api/billing/create-checkout-session")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        plan: "free",
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+  });
+
+  test("GET /api/billing/subscription returns default none subscription if missing", async () => {
+    const { token } = await registerAndCreateBusiness();
+
+    const res = await request(app)
+      .get("/api/billing/subscription")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.status).toBe("none");
+  });
+
+  test("GET /api/billing/subscription returns existing subscription", async () => {
+    const { token, business } = await registerAndCreateBusiness();
+
+    await Subscription.create({
+      business: business._id,
+      stripeCustomerId: "cus_test_123",
+      stripeSubscriptionId: "sub_test_123",
+      plan: "pro",
+      status: "active",
+    });
+
+    const res = await request(app)
+      .get("/api/billing/subscription")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.plan).toBe("pro");
+    expect(res.body.data.status).toBe("active");
+  });
+
+  test("POST /api/billing/cancel schedules subscription cancellation", async () => {
+    const stripe = mockStripe();
+
+    const { token, business } = await registerAndCreateBusiness();
+
+    await Subscription.create({
+      business: business._id,
+      stripeCustomerId: "cus_test_123",
+      stripeSubscriptionId: "sub_test_123",
+      plan: "pro",
+      status: "active",
+    });
+
+    const res = await request(app)
+      .post("/api/billing/cancel")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(stripe.subscriptions.update).toHaveBeenCalledWith("sub_test_123", {
+      cancel_at_period_end: true,
+    });
+
+    const subscription = await Subscription.findOne({
+      business: business._id,
+    });
+
+    expect(subscription.cancelAtPeriodEnd).toBe(true);
+  });
+
+  test("POST /api/billing/cancel fails if no Stripe subscription exists", async () => {
+    mockStripe();
+
+    const { token } = await registerAndCreateBusiness();
+
+    const res = await request(app)
+      .post("/api/billing/cancel")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+  });
+
+  test("POST /api/billing/webhook handles checkout.session.completed", async () => {
+    mockStripe();
+
+    const { business } = await registerAndCreateBusiness();
+
+    const res = await request(app)
+      .post("/api/billing/webhook")
+      .send({
+        type: "checkout.session.completed",
+        data: {
+          object: {
+            id: "cs_test_completed",
+            customer: "cus_test_123",
+            subscription: "sub_test_123",
+            metadata: {
+              businessId: business._id,
+              plan: "pro",
+            },
+          },
+        },
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.received).toBe(true);
+
+    const subscription = await Subscription.findOne({
+      business: business._id,
+    });
+
+    expect(subscription).toBeTruthy();
+    expect(subscription.status).toBe("active");
+    expect(subscription.plan).toBe("pro");
+    expect(subscription.stripeCustomerId).toBe("cus_test_123");
+    expect(subscription.stripeSubscriptionId).toBe("sub_test_123");
+  });
+
+  test("POST /api/billing/webhook handles customer.subscription.updated", async () => {
+    mockStripe();
+
+    const { business } = await registerAndCreateBusiness();
+
+    const res = await request(app)
+      .post("/api/billing/webhook")
+      .send({
+        type: "customer.subscription.updated",
+        data: {
+          object: {
+            id: "sub_test_123",
+            customer: "cus_test_123",
+            status: "active",
+            current_period_start: 1710000000,
+            current_period_end: 1712592000,
+            cancel_at_period_end: false,
+            metadata: {
+              businessId: business._id,
+              plan: "agency",
+            },
+            items: {
+              data: [
+                {
+                  price: {
+                    id: "price_agency_test",
+                  },
+                },
+              ],
+            },
+          },
+        },
+      });
+
+    expect(res.status).toBe(200);
+
+    const subscription = await Subscription.findOne({
+      business: business._id,
+    });
+
+    expect(subscription.plan).toBe("agency");
+    expect(subscription.status).toBe("active");
+    expect(subscription.stripeSubscriptionId).toBe("sub_test_123");
+  });
+
+  test("POST /api/billing/webhook handles invoice.payment_failed", async () => {
+    mockStripe();
+
+    const { business } = await registerAndCreateBusiness();
+
+    await Subscription.create({
+      business: business._id,
+      stripeCustomerId: "cus_test_123",
+      stripeSubscriptionId: "sub_test_123",
+      plan: "pro",
+      status: "active",
+    });
+
+    const res = await request(app)
+      .post("/api/billing/webhook")
+      .send({
+        type: "invoice.payment_failed",
+        data: {
+          object: {
+            id: "in_test_failed",
+            subscription: "sub_test_123",
+          },
+        },
+      });
+
+    expect(res.status).toBe(200);
+
+    const subscription = await Subscription.findOne({
+      business: business._id,
+    });
+
+    expect(subscription.status).toBe("past_due");
+    expect(subscription.lastPaymentStatus).toBe("failed");
+    expect(subscription.latestInvoiceId).toBe("in_test_failed");
+  });
+});
