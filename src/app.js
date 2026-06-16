@@ -9,6 +9,7 @@ import messageRoutes from "./routes/message.routes.js";
 import callLogRoutes from "./routes/callLog.routes.js";
 import twilioRoutes from "./routes/twilio.routes.js";
 import dashboardRoutes from "./routes/dashboard.routes.js";
+import aiRoutes from "./routes/ai.routes.js";
 
 const app = express();
 
@@ -26,6 +27,7 @@ app.use("/api/messages", messageRoutes);
 app.use("/api/calls", callLogRoutes);
 app.use("/api/twilio", twilioRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/ai", aiRoutes);
 
 app.get("/", (req, res) => {
   res.status(200).json({

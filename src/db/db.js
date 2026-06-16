@@ -585,6 +585,36 @@ class Db {
       throw error;
     }
   }
+  // ----- AI methods -----
+
+  static async getLeadForBusiness(model, leadId, businessId) {
+    try {
+      return await model.findOne({
+        _id: leadId,
+        business: businessId,
+      });
+    } catch (error) {
+      console.error("Error fetching lead for business:", error);
+      throw error;
+    }
+  }
+
+  static async qualifyLead(model, leadId, data) {
+    try {
+      return await model
+        .findByIdAndUpdate(leadId, data, {
+          new: true,
+          runValidators: true,
+        })
+        .populate(
+          "business",
+          "businessName businessType phone estimatedJobValue",
+        );
+    } catch (error) {
+      console.error("Error qualifying lead:", error);
+      throw error;
+    }
+  }
 }
 
 export default Db;
