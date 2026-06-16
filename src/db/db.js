@@ -615,6 +615,122 @@ class Db {
       throw error;
     }
   }
+  // ----- Alert methods -----
+
+  static async saveAlert(model, data) {
+    try {
+      const alert = new model(data);
+      return await alert.save();
+    } catch (error) {
+      console.error("Error saving alert:", error);
+      throw error;
+    }
+  }
+
+  static async getAlertsByBusiness(model, businessId) {
+    try {
+      return await model
+        .find({ business: businessId })
+        .sort({ createdAt: -1 })
+        .populate("business", "businessName businessType phone")
+        .populate("lead", "customerName phone serviceNeeded urgency status");
+    } catch (error) {
+      console.error("Error fetching alerts by business:", error);
+      throw error;
+    }
+  }
+
+  static async getUnreadAlertsByBusiness(model, businessId) {
+    try {
+      return await model
+        .find({
+          business: businessId,
+          status: { $ne: "read" },
+        })
+        .sort({ createdAt: -1 })
+        .populate("business", "businessName businessType phone")
+        .populate("lead", "customerName phone serviceNeeded urgency status");
+    } catch (error) {
+      console.error("Error fetching unread alerts:", error);
+      throw error;
+    }
+  }
+
+  static async getAlertById(model, id) {
+    try {
+      return await model
+        .findById(id)
+        .populate("business", "businessName businessType phone")
+        .populate("lead", "customerName phone serviceNeeded urgency status");
+    } catch (error) {
+      console.error("Error fetching alert by ID:", error);
+      throw error;
+    }
+  }
+
+  static async updateAlert(model, id, data) {
+    try {
+      return await model
+        .findByIdAndUpdate(id, data, {
+          new: true,
+          runValidators: true,
+        })
+        .populate("business", "businessName businessType phone")
+        .populate("lead", "customerName phone serviceNeeded urgency status");
+    } catch (error) {
+      console.error("Error updating alert:", error);
+      throw error;
+    }
+  }
+
+  static async markAlertAsRead(model, id) {
+    try {
+      return await model
+        .findByIdAndUpdate(
+          id,
+          {
+            status: "read",
+            readAt: new Date(),
+          },
+          {
+            new: true,
+            runValidators: true,
+          },
+        )
+        .populate("business", "businessName businessType phone")
+        .populate("lead", "customerName phone serviceNeeded urgency status");
+    } catch (error) {
+      console.error("Error marking alert as read:", error);
+      throw error;
+    }
+  }
+
+  static async markAllAlertsAsRead(model, businessId) {
+    try {
+      return await model.updateMany(
+        {
+          business: businessId,
+          status: { $ne: "read" },
+        },
+        {
+          status: "read",
+          readAt: new Date(),
+        },
+      );
+    } catch (error) {
+      console.error("Error marking all alerts as read:", error);
+      throw error;
+    }
+  }
+
+  static async deleteAlert(model, id) {
+    try {
+      return await model.findByIdAndDelete(id);
+    } catch (error) {
+      console.error("Error deleting alert:", error);
+      throw error;
+    }
+  }
 }
 
 export default Db;
