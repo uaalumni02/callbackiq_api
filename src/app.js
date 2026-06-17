@@ -1,5 +1,6 @@
 import express from "express";
 import cookieParser from "cookie-parser";
+import cors from "cors";
 
 import authRoutes from "./routes/auth.routes.js";
 import businessRoutes from "./routes/business.routes.js";
@@ -18,6 +19,25 @@ import stripeWebhookRoutes from "./routes/stripeWebhook.routes.js";
 const app = express();
 
 app.set("trust proxy", 1);
+
+const allowedOrigins = [
+  "http://localhost:3001",
+  "http://localhost:5173",
+  process.env.CLIENT_URL,
+].filter(Boolean);
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error(`CORS blocked origin: ${origin}`));
+    },
+    credentials: true,
+  }),
+);
 
 /*
   Stripe webhooks must be registered BEFORE express.json().
