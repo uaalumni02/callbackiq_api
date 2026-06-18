@@ -1,18 +1,16 @@
 import mongoose from "mongoose";
-const { Schema } = mongoose;
 
-const ConversationSchema = new Schema(
+const conversationSchema = new mongoose.Schema(
   {
     business: {
-      type: Schema.Types.ObjectId,
+      type: mongoose.Schema.Types.ObjectId,
       ref: "Business",
       required: true,
     },
 
     lead: {
-      type: Schema.Types.ObjectId,
+      type: mongoose.Schema.Types.ObjectId,
       ref: "Lead",
-      default: null,
     },
 
     customerPhone: {
@@ -24,33 +22,37 @@ const ConversationSchema = new Schema(
     customerName: {
       type: String,
       trim: true,
-      default: "",
+      default: "Customer",
     },
 
     status: {
       type: String,
-      enum: ["open", "closed", "spam"],
+      enum: ["open", "closed"],
       default: "open",
+    },
+
+    aiEnabled: {
+      type: Boolean,
+      default: true,
+    },
+
+    humanTakeover: {
+      type: Boolean,
+      default: false,
     },
 
     lastMessage: {
       type: String,
-      default: "",
       trim: true,
+      default: "",
     },
 
     lastMessageAt: {
       type: Date,
-      default: null,
+      default: Date.now,
     },
   },
-  {
-    timestamps: true,
-  },
+  { timestamps: true },
 );
 
-const Conversation =
-  mongoose.models.Conversation ||
-  mongoose.model("Conversation", ConversationSchema);
-
-export default Conversation;
+export default mongoose.model("Conversation", conversationSchema);

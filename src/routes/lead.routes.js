@@ -8,7 +8,7 @@ const router = express.Router();
 
 router
   .route("/")
-  .post(checkAuth, checkSubscription, LeadController.createLead)
+  .post(checkAuth, LeadController.createLead)
   .get(checkAuth, LeadController.getMyLeads);
 
 router.patch(
