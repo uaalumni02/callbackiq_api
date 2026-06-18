@@ -7,4 +7,10 @@ const router = express.Router();
 
 router.get("/", checkAuth, DashboardController.getDashboardMetrics);
 
+router.get(
+  "/business/:businessId",
+  checkAuth,
+  DashboardController.getDashboardMetrics,
+);
+
 export default router;

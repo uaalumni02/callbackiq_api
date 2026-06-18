@@ -10,6 +10,7 @@ class DashboardController {
   static async getDashboardMetrics(req, res) {
     try {
       const ownerId = req.user?.userId;
+      const businessId = req.params?.businessId || req.query?.businessId;
 
       if (!ownerId) {
         return Response.responseBadAuth(res, "Not authenticated");
@@ -22,12 +23,13 @@ class DashboardController {
         Conversation,
         Message,
         ownerId,
+        businessId,
       });
 
       if (!metrics) {
         return Response.responseInvalidInput(
           res,
-          "Business not found. Create a business before viewing dashboard metrics.",
+          "Business not found or you do not have access to this business.",
         );
       }
 

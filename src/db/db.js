@@ -417,15 +417,20 @@ class Db {
     Conversation,
     Message,
     ownerId,
+    businessId,
   }) {
     try {
-      const business = await Business.findOne({ owner: ownerId });
+      const businessQuery = businessId
+        ? { _id: businessId, owner: ownerId }
+        : { owner: ownerId };
+
+      const business = await Business.findOne(businessQuery);
 
       if (!business) {
         return null;
       }
 
-      const businessId = business._id;
+      const scopedBusinessId = business._id;
 
       const missedCallStatuses = ["missed", "no_answer", "busy", "failed"];
 
@@ -447,59 +452,62 @@ class Db {
         bookedRevenueAgg,
         recoveredRevenueAgg,
       ] = await Promise.all([
-        CallLog.countDocuments({ business: businessId }),
+        CallLog.countDocuments({ business: scopedBusinessId }),
 
         CallLog.countDocuments({
-          business: businessId,
+          business: scopedBusinessId,
           status: { $in: missedCallStatuses },
         }),
 
         CallLog.countDocuments({
-          business: businessId,
+          business: scopedBusinessId,
           status: "answered",
         }),
 
         CallLog.countDocuments({
-          business: businessId,
+          business: scopedBusinessId,
           recovered: true,
         }),
 
-        Lead.countDocuments({ business: businessId }),
+        Lead.countDocuments({ business: scopedBusinessId }),
 
-        Lead.countDocuments({ business: businessId, status: "new" }),
+        Lead.countDocuments({ business: scopedBusinessId, status: "new" }),
 
-        Lead.countDocuments({ business: businessId, status: "contacted" }),
+        Lead.countDocuments({
+          business: scopedBusinessId,
+          status: "contacted",
+        }),
 
-        Lead.countDocuments({ business: businessId, status: "booked" }),
+        Lead.countDocuments({ business: scopedBusinessId, status: "booked" }),
 
-        Lead.countDocuments({ business: businessId, status: "lost" }),
+        Lead.countDocuments({ business: scopedBusinessId, status: "lost" }),
 
-        Lead.countDocuments({ business: businessId, status: "spam" }),
+        Lead.countDocuments({ business: scopedBusinessId, status: "spam" }),
 
         Conversation.countDocuments({
-          business: businessId,
+          business: scopedBusinessId,
           status: "open",
         }),
 
         Conversation.countDocuments({
-          business: businessId,
+          business: scopedBusinessId,
           status: "closed",
         }),
 
         Message.countDocuments({
-          business: businessId,
+          business: scopedBusinessId,
           direction: "outbound",
         }),
 
         Message.countDocuments({
-          business: businessId,
+          business: scopedBusinessId,
           direction: "inbound",
         }),
 
         Lead.aggregate([
           {
             $match: {
-              business: businessId,
+              business: scopedBusinessId,
               status: "booked",
             },
           },
@@ -514,7 +522,7 @@ class Db {
         Lead.aggregate([
           {
             $match: {
-              business: businessId,
+              business: scopedBusinessId,
               status: { $in: ["contacted", "booked"] },
               source: { $in: ["missed_call", "sms"] },
             },
