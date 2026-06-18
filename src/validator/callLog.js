@@ -1,6 +1,8 @@
 import Joi from "joi";
 
 const callLogSchema = Joi.object({
+  business: Joi.string().required(),
+
   lead: Joi.string().allow(null, "").optional(),
 
   conversation: Joi.string().allow(null, "").optional(),
