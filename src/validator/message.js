@@ -1,6 +1,8 @@
 import Joi from "joi";
 
 const messageSchema = Joi.object({
+  business: Joi.string().required(),
+
   conversation: Joi.string().required(),
 
   lead: Joi.string().allow(null, "").optional(),
