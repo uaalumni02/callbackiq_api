@@ -27,7 +27,7 @@ const registerCreateBusinessAndConversation = async () => {
 
   const token = registerRes.body.data.token;
 
-  await request(app)
+  const businessRes = await request(app)
     .post("/api/businesses")
     .set("Authorization", `Bearer ${token}`)
     .send({
@@ -36,16 +36,22 @@ const registerCreateBusinessAndConversation = async () => {
       phone: "4045551234",
     });
 
+  const businessId = businessRes.body.data._id;
+
   const conversationRes = await request(app)
     .post("/api/conversations")
     .set("Authorization", `Bearer ${token}`)
     .send({
+      business: businessId,
       customerPhone: "4045559999",
       customerName: "John Smith",
     });
 
+  expect(conversationRes.status).toBe(201);
+
   return {
     token,
+    businessId,
     conversationId: conversationRes.body.data._id,
   };
 };
@@ -53,6 +59,7 @@ const registerCreateBusinessAndConversation = async () => {
 describe("Message Routes", () => {
   test("POST /api/messages rejects unauthenticated request", async () => {
     const res = await request(app).post("/api/messages").send({
+      business: "665000000000000000000002",
       conversation: "665000000000000000000001",
       direction: "outbound",
       from: "4045551234",
@@ -65,13 +72,14 @@ describe("Message Routes", () => {
   });
 
   test("POST /api/messages creates message and updates conversation lastMessage", async () => {
-    const { token, conversationId } =
+    const { token, businessId, conversationId } =
       await registerCreateBusinessAndConversation();
 
     const res = await request(app)
       .post("/api/messages")
       .set("Authorization", `Bearer ${token}`)
       .send({
+        business: businessId,
         conversation: conversationId,
         direction: "outbound",
         from: "4045551234",
@@ -83,6 +91,7 @@ describe("Message Routes", () => {
 
     expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
+    expect(res.body.data.business.toString()).toBe(businessId);
     expect(res.body.data.body).toBe("Hi, sorry we missed your call.");
 
     const savedMessage = await Message.findOne({
@@ -98,13 +107,14 @@ describe("Message Routes", () => {
   });
 
   test("POST /api/messages rejects invalid data", async () => {
-    const { token, conversationId } =
+    const { token, businessId, conversationId } =
       await registerCreateBusinessAndConversation();
 
     const res = await request(app)
       .post("/api/messages")
       .set("Authorization", `Bearer ${token}`)
       .send({
+        business: businessId,
         conversation: conversationId,
         direction: "sideways",
         from: "bad-phone",
@@ -117,13 +127,14 @@ describe("Message Routes", () => {
   });
 
   test("GET /api/messages/conversation/:conversationId returns messages", async () => {
-    const { token, conversationId } =
+    const { token, businessId, conversationId } =
       await registerCreateBusinessAndConversation();
 
     await request(app)
       .post("/api/messages")
       .set("Authorization", `Bearer ${token}`)
       .send({
+        business: businessId,
         conversation: conversationId,
         direction: "outbound",
         from: "4045551234",
@@ -142,19 +153,22 @@ describe("Message Routes", () => {
   });
 
   test("GET /api/messages/:id returns message", async () => {
-    const { token, conversationId } =
+    const { token, businessId, conversationId } =
       await registerCreateBusinessAndConversation();
 
     const createRes = await request(app)
       .post("/api/messages")
       .set("Authorization", `Bearer ${token}`)
       .send({
+        business: businessId,
         conversation: conversationId,
         direction: "outbound",
         from: "4045551234",
         to: "4045559999",
         body: "Hello",
       });
+
+    expect(createRes.status).toBe(201);
 
     const messageId = createRes.body.data._id;
 
@@ -168,19 +182,22 @@ describe("Message Routes", () => {
   });
 
   test("DELETE /api/messages/:id deletes message", async () => {
-    const { token, conversationId } =
+    const { token, businessId, conversationId } =
       await registerCreateBusinessAndConversation();
 
     const createRes = await request(app)
       .post("/api/messages")
       .set("Authorization", `Bearer ${token}`)
       .send({
+        business: businessId,
         conversation: conversationId,
         direction: "outbound",
         from: "4045551234",
         to: "4045559999",
         body: "Hello",
       });
+
+    expect(createRes.status).toBe(201);
 
     const messageId = createRes.body.data._id;
 

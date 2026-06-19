@@ -27,7 +27,7 @@ const registerAndCreateBusiness = async () => {
 
   const token = registerRes.body.data.token;
 
-  await request(app)
+  const businessRes = await request(app)
     .post("/api/businesses")
     .set("Authorization", `Bearer ${token}`)
     .send({
@@ -36,12 +36,16 @@ const registerAndCreateBusiness = async () => {
       phone: "4045551234",
     });
 
-  return token;
+  return {
+    token,
+    businessId: businessRes.body.data._id,
+  };
 };
 
 describe("Conversation Routes", () => {
   test("POST /api/conversations rejects unauthenticated request", async () => {
     const res = await request(app).post("/api/conversations").send({
+      business: "665000000000000000000001",
       customerPhone: "4045551234",
       customerName: "John Smith",
     });
@@ -51,18 +55,20 @@ describe("Conversation Routes", () => {
   });
 
   test("POST /api/conversations creates conversation", async () => {
-    const token = await registerAndCreateBusiness();
+    const { token, businessId } = await registerAndCreateBusiness();
 
     const res = await request(app)
       .post("/api/conversations")
       .set("Authorization", `Bearer ${token}`)
       .send({
+        business: businessId,
         customerPhone: "4045551234",
         customerName: "John Smith",
       });
 
     expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
+    expect(res.body.data.business.toString()).toBe(businessId);
     expect(res.body.data.customerPhone).toBe("4045551234");
     expect(res.body.data.status).toBe("open");
 
@@ -74,12 +80,13 @@ describe("Conversation Routes", () => {
   });
 
   test("POST /api/conversations rejects invalid data", async () => {
-    const token = await registerAndCreateBusiness();
+    const { token, businessId } = await registerAndCreateBusiness();
 
     const res = await request(app)
       .post("/api/conversations")
       .set("Authorization", `Bearer ${token}`)
       .send({
+        business: businessId,
         customerPhone: "bad-phone",
         status: "pending",
       });
@@ -89,12 +96,13 @@ describe("Conversation Routes", () => {
   });
 
   test("GET /api/conversations returns conversations", async () => {
-    const token = await registerAndCreateBusiness();
+    const { token, businessId } = await registerAndCreateBusiness();
 
     await request(app)
       .post("/api/conversations")
       .set("Authorization", `Bearer ${token}`)
       .send({
+        business: businessId,
         customerPhone: "4045551234",
         customerName: "John Smith",
       });
@@ -109,15 +117,18 @@ describe("Conversation Routes", () => {
   });
 
   test("GET /api/conversations/:id returns conversation", async () => {
-    const token = await registerAndCreateBusiness();
+    const { token, businessId } = await registerAndCreateBusiness();
 
     const createRes = await request(app)
       .post("/api/conversations")
       .set("Authorization", `Bearer ${token}`)
       .send({
+        business: businessId,
         customerPhone: "4045551234",
         customerName: "John Smith",
       });
+
+    expect(createRes.status).toBe(201);
 
     const conversationId = createRes.body.data._id;
 
@@ -131,15 +142,18 @@ describe("Conversation Routes", () => {
   });
 
   test("PATCH /api/conversations/:id updates conversation", async () => {
-    const token = await registerAndCreateBusiness();
+    const { token, businessId } = await registerAndCreateBusiness();
 
     const createRes = await request(app)
       .post("/api/conversations")
       .set("Authorization", `Bearer ${token}`)
       .send({
+        business: businessId,
         customerPhone: "4045551234",
         customerName: "John Smith",
       });
+
+    expect(createRes.status).toBe(201);
 
     const conversationId = createRes.body.data._id;
 
@@ -147,6 +161,7 @@ describe("Conversation Routes", () => {
       .patch(`/api/conversations/${conversationId}`)
       .set("Authorization", `Bearer ${token}`)
       .send({
+        business: businessId,
         customerName: "John Updated",
         status: "closed",
       });
@@ -158,15 +173,18 @@ describe("Conversation Routes", () => {
   });
 
   test("DELETE /api/conversations/:id deletes conversation and its messages", async () => {
-    const token = await registerAndCreateBusiness();
+    const { token, businessId } = await registerAndCreateBusiness();
 
     const createRes = await request(app)
       .post("/api/conversations")
       .set("Authorization", `Bearer ${token}`)
       .send({
+        business: businessId,
         customerPhone: "4045551234",
         customerName: "John Smith",
       });
+
+    expect(createRes.status).toBe(201);
 
     const conversationId = createRes.body.data._id;
 
@@ -174,6 +192,7 @@ describe("Conversation Routes", () => {
       .post("/api/messages")
       .set("Authorization", `Bearer ${token}`)
       .send({
+        business: businessId,
         conversation: conversationId,
         direction: "outbound",
         from: "4045551234",

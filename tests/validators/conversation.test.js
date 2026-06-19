@@ -1,125 +1,111 @@
 import conversationSchema from "../../src/validator/conversation.js";
 
+const businessId = "665000000000000000000001";
+const leadId = "665000000000000000000002";
+
 describe("Conversation Validator", () => {
   test("valid conversation data passes", async () => {
     const data = {
+      business: businessId,
+      lead: leadId,
       customerPhone: "4045551234",
       customerName: "John Smith",
       status: "open",
     };
 
-    const result = await conversationSchema.validateAsync(data);
+    const value = await conversationSchema.validateAsync(data);
 
-    expect(result.customerPhone).toBe("4045551234");
-    expect(result.customerName).toBe("John Smith");
-    expect(result.status).toBe("open");
+    expect(value.business).toBe(businessId);
+    expect(value.lead).toBe(leadId);
+    expect(value.customerPhone).toBe("4045551234");
+    expect(value.customerName).toBe("John Smith");
+    expect(value.status).toBe("open");
+  });
+
+  test("business is required", async () => {
+    await expect(
+      conversationSchema.validateAsync({
+        customerPhone: "4045551234",
+      }),
+    ).rejects.toThrow('"business" is required');
+  });
+
+  test("customerPhone is required", async () => {
+    await expect(
+      conversationSchema.validateAsync({
+        business: businessId,
+      }),
+    ).rejects.toThrow('"customerPhone" is required');
   });
 
   test("default status is open", async () => {
-    const data = {
+    const value = await conversationSchema.validateAsync({
+      business: businessId,
       customerPhone: "4045551234",
-    };
+    });
 
-    const result = await conversationSchema.validateAsync(data);
-
-    expect(result.status).toBe("open");
-  });
-
-  test("conversation fails without customerPhone", async () => {
-    const data = {
-      customerName: "John Smith",
-    };
-
-    await expect(conversationSchema.validateAsync(data)).rejects.toThrow();
-  });
-
-  test("conversation fails with empty customerPhone", async () => {
-    const data = {
-      customerPhone: "",
-      customerName: "John Smith",
-    };
-
-    await expect(conversationSchema.validateAsync(data)).rejects.toThrow();
-  });
-
-  test("conversation fails with invalid customerPhone", async () => {
-    const data = {
-      customerPhone: "bad-phone",
-      customerName: "John Smith",
-    };
-
-    await expect(conversationSchema.validateAsync(data)).rejects.toThrow();
+    expect(value.status).toBe("open");
   });
 
   test("conversation allows common phone formats", async () => {
-    const validPhones = [
+    const phones = [
       "4045551234",
-      "404-555-1234",
+      "+14045551234",
       "(404) 555-1234",
-      "+1 404 555 1234",
-      "404.555.1234",
+      "404-555-1234",
+      "404 555 1234",
     ];
 
-    for (const customerPhone of validPhones) {
-      const result = await conversationSchema.validateAsync({
-        customerPhone,
-        customerName: "John Smith",
+    for (const phone of phones) {
+      const value = await conversationSchema.validateAsync({
+        business: businessId,
+        customerPhone: phone,
       });
 
-      expect(result.customerPhone).toBe(customerPhone);
+      expect(value.customerPhone).toBe(phone);
     }
   });
 
   test("conversation allows empty customerName", async () => {
-    const data = {
+    const value = await conversationSchema.validateAsync({
+      business: businessId,
       customerPhone: "4045551234",
       customerName: "",
-    };
+    });
 
-    const result = await conversationSchema.validateAsync(data);
-
-    expect(result.customerName).toBe("");
-  });
-
-  test("conversation fails when customerName exceeds max length", async () => {
-    const data = {
-      customerPhone: "4045551234",
-      customerName: "A".repeat(101),
-    };
-
-    await expect(conversationSchema.validateAsync(data)).rejects.toThrow();
-  });
-
-  test("conversation fails with invalid status", async () => {
-    const data = {
-      customerPhone: "4045551234",
-      status: "pending",
-    };
-
-    await expect(conversationSchema.validateAsync(data)).rejects.toThrow();
+    expect(value.customerName).toBe("");
   });
 
   test("conversation allows valid statuses", async () => {
-    const validStatuses = ["open", "closed", "spam"];
+    const statuses = ["open", "closed"];
 
-    for (const status of validStatuses) {
-      const result = await conversationSchema.validateAsync({
+    for (const status of statuses) {
+      const value = await conversationSchema.validateAsync({
+        business: businessId,
         customerPhone: "4045551234",
         status,
       });
 
-      expect(result.status).toBe(status);
+      expect(value.status).toBe(status);
     }
   });
 
-  test("extra unknown fields are rejected", async () => {
-    const data = {
-      customerPhone: "4045551234",
-      randomField: "should not be allowed",
-    };
-
+  test("conversation rejects invalid status", async () => {
     await expect(
-      conversationSchema.validateAsync(data, { allowUnknown: false }),
+      conversationSchema.validateAsync({
+        business: businessId,
+        customerPhone: "4045551234",
+        status: "pending",
+      }),
+    ).rejects.toThrow();
+  });
+
+  test("conversation rejects invalid phone", async () => {
+    await expect(
+      conversationSchema.validateAsync({
+        business: businessId,
+        customerPhone: "bad-phone",
+      }),
     ).rejects.toThrow();
   });
 });

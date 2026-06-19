@@ -26,7 +26,7 @@ const registerAndCreateBusiness = async () => {
 
   const token = registerRes.body.data.token;
 
-  await request(app)
+  const businessRes = await request(app)
     .post("/api/businesses")
     .set("Authorization", `Bearer ${token}`)
     .send({
@@ -35,12 +35,16 @@ const registerAndCreateBusiness = async () => {
       phone: "4045551234",
     });
 
-  return token;
+  return {
+    token,
+    businessId: businessRes.body.data._id,
+  };
 };
 
 describe("Call Log Routes", () => {
   test("POST /api/calls rejects unauthenticated request", async () => {
     const res = await request(app).post("/api/calls").send({
+      business: "665000000000000000000001",
       from: "4045559999",
       to: "4045551234",
     });
@@ -50,12 +54,13 @@ describe("Call Log Routes", () => {
   });
 
   test("POST /api/calls creates call log", async () => {
-    const token = await registerAndCreateBusiness();
+    const { token, businessId } = await registerAndCreateBusiness();
 
     const res = await request(app)
       .post("/api/calls")
       .set("Authorization", `Bearer ${token}`)
       .send({
+        business: businessId,
         from: "4045559999",
         to: "4045551234",
         direction: "inbound",
@@ -67,6 +72,7 @@ describe("Call Log Routes", () => {
 
     expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
+    expect(res.body.data.business.toString()).toBe(businessId);
     expect(res.body.data.status).toBe("missed");
 
     const savedCallLog = await CallLog.findOne({ from: "4045559999" });
@@ -74,12 +80,13 @@ describe("Call Log Routes", () => {
   });
 
   test("POST /api/calls rejects invalid data", async () => {
-    const token = await registerAndCreateBusiness();
+    const { token, businessId } = await registerAndCreateBusiness();
 
     const res = await request(app)
       .post("/api/calls")
       .set("Authorization", `Bearer ${token}`)
       .send({
+        business: businessId,
         from: "bad-phone",
         to: "4045551234",
         status: "ignored",
@@ -90,12 +97,13 @@ describe("Call Log Routes", () => {
   });
 
   test("GET /api/calls returns call logs", async () => {
-    const token = await registerAndCreateBusiness();
+    const { token, businessId } = await registerAndCreateBusiness();
 
     await request(app)
       .post("/api/calls")
       .set("Authorization", `Bearer ${token}`)
       .send({
+        business: businessId,
         from: "4045559999",
         to: "4045551234",
       });
@@ -110,15 +118,18 @@ describe("Call Log Routes", () => {
   });
 
   test("GET /api/calls/:id returns call log", async () => {
-    const token = await registerAndCreateBusiness();
+    const { token, businessId } = await registerAndCreateBusiness();
 
     const createRes = await request(app)
       .post("/api/calls")
       .set("Authorization", `Bearer ${token}`)
       .send({
+        business: businessId,
         from: "4045559999",
         to: "4045551234",
       });
+
+    expect(createRes.status).toBe(201);
 
     const callLogId = createRes.body.data._id;
 
@@ -132,15 +143,18 @@ describe("Call Log Routes", () => {
   });
 
   test("PATCH /api/calls/:id updates call log", async () => {
-    const token = await registerAndCreateBusiness();
+    const { token, businessId } = await registerAndCreateBusiness();
 
     const createRes = await request(app)
       .post("/api/calls")
       .set("Authorization", `Bearer ${token}`)
       .send({
+        business: businessId,
         from: "4045559999",
         to: "4045551234",
       });
+
+    expect(createRes.status).toBe(201);
 
     const callLogId = createRes.body.data._id;
 
@@ -148,6 +162,7 @@ describe("Call Log Routes", () => {
       .patch(`/api/calls/${callLogId}`)
       .set("Authorization", `Bearer ${token}`)
       .send({
+        business: businessId,
         from: "4045559999",
         to: "4045551234",
         direction: "inbound",
@@ -166,15 +181,18 @@ describe("Call Log Routes", () => {
   });
 
   test("DELETE /api/calls/:id deletes call log", async () => {
-    const token = await registerAndCreateBusiness();
+    const { token, businessId } = await registerAndCreateBusiness();
 
     const createRes = await request(app)
       .post("/api/calls")
       .set("Authorization", `Bearer ${token}`)
       .send({
+        business: businessId,
         from: "4045559999",
         to: "4045551234",
       });
+
+    expect(createRes.status).toBe(201);
 
     const callLogId = createRes.body.data._id;
 
