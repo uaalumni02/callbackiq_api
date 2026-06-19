@@ -68,7 +68,12 @@ class BusinessController {
 
   static async getBusinessById(req, res) {
     try {
+      const ownerId = req.user?.userId;
       const { id } = req.params;
+
+      if (!ownerId) {
+        return Response.responseBadAuth(res, "Not authenticated");
+      }
 
       if (!mongoose.isValidObjectId(id)) {
         return Response.responseInvalidInput(res, "Invalid business ID");
@@ -80,20 +85,16 @@ class BusinessController {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
+      if (String(business.owner) !== String(ownerId)) {
+        return Response.responseBadAuth(
+          res,
+          "Not authorized to access this business",
+        );
+      }
+
       return Response.responseOk(res, business, "Business fetched");
     } catch (error) {
       console.error("Error in getBusinessById:", error);
-      return Response.responseServerError(res);
-    }
-  }
-
-  static async getAllBusinesses(req, res) {
-    try {
-      const businesses = await Db.getAllBusinesses(Business);
-
-      return Response.responseOk(res, businesses, "Businesses fetched");
-    } catch (error) {
-      console.error("Error in getAllBusinesses:", error);
       return Response.responseServerError(res);
     }
   }
@@ -114,11 +115,10 @@ class BusinessController {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      const updatedBusiness = await Db.updateBusiness(
-        Business,
-        business._id,
-        req.body,
-      );
+      const updatedBusiness = await Db.updateBusiness(Business, business._id, {
+        ...req.body,
+        owner: business.owner,
+      });
 
       return Response.responseOk(
         res,

@@ -5,10 +5,7 @@ import BusinessController from "../controllers/business.js";
 
 const router = express.Router();
 
-router
-  .route("/")
-  .post(checkAuth, BusinessController.createBusiness)
-  .get(checkAuth, BusinessController.getAllBusinesses);
+router.route("/").post(checkAuth, BusinessController.createBusiness);
 
 router
   .route("/mine")
