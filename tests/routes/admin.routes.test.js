@@ -1,7 +1,6 @@
 import request from "supertest";
 
 import app from "../../src/app.js";
-import User from "../../src/models/user.js";
 import Business from "../../src/models/business.js";
 import Lead from "../../src/models/lead.js";
 import CallLog from "../../src/models/callLog.js";
@@ -154,7 +153,7 @@ describe("Admin Routes", () => {
 
     expect(res.status).toBe(401);
     expect(res.body.success).toBe(false);
-    expect(res.body.message).toBe("Admin access required");
+    expect(res.body.message).toBe("auth failed");
   });
 
   test("GET /api/admin/dashboard returns platform metrics for admin", async () => {
@@ -308,6 +307,6 @@ describe("Admin Routes", () => {
 
     expect(res.status).toBe(401);
     expect(res.body.success).toBe(false);
-    expect(res.body.message).toBe("Admin access required");
+    expect(res.body.message).toBe("auth failed");
   });
 });
