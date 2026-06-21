@@ -1,3 +1,5 @@
+import { formatCustomerRow } from "../helpers/model/admin.js";
+
 class Db {
   static async findUserByEmailOrUserName(model, userName, email) {
     try {
@@ -820,6 +822,259 @@ class Db {
         "Error updating subscription by Stripe subscription:",
         error,
       );
+      throw error;
+    }
+  }
+  // ----- Admin methods -----
+
+  static async getAdminDashboardData({
+    User,
+    Business,
+    Lead,
+    CallLog,
+    Conversation,
+    Message,
+    Subscription,
+  }) {
+    try {
+      const [
+        users,
+        businesses,
+        subscriptions,
+        totalLeads,
+        totalCalls,
+        missedCalls,
+        totalConversations,
+        totalMessages,
+      ] = await Promise.all([
+        User.find({}).sort({ createdAt: -1 }).lean(),
+        Business.find({}).sort({ createdAt: -1 }).lean(),
+        Subscription.find({}).lean(),
+        Lead.countDocuments(),
+        CallLog.countDocuments(),
+        CallLog.countDocuments({
+          status: { $in: ["missed", "no_answer", "busy", "failed"] },
+        }),
+        Conversation.countDocuments(),
+        Message.countDocuments(),
+      ]);
+
+      const ownerMap = new Map(users.map((user) => [String(user._id), user]));
+
+      const subscriptionMap = new Map(
+        subscriptions.map((sub) => [String(sub.business), sub]),
+      );
+
+      const customers = await Promise.all(
+        businesses.map(async (business) => {
+          const [
+            leadCount,
+            callCount,
+            missedCallCount,
+            conversationCount,
+            messageCount,
+          ] = await Promise.all([
+            Lead.countDocuments({ business: business._id }),
+            CallLog.countDocuments({ business: business._id }),
+            CallLog.countDocuments({
+              business: business._id,
+              status: { $in: ["missed", "no_answer", "busy", "failed"] },
+            }),
+            Conversation.countDocuments({ business: business._id }),
+            Message.countDocuments({ business: business._id }),
+          ]);
+
+          return formatCustomerRow({
+            business,
+            owner: ownerMap.get(String(business.owner)),
+            subscription: subscriptionMap.get(String(business._id)),
+            leadCount,
+            callCount,
+            missedCallCount,
+            conversationCount,
+            messageCount,
+          });
+        }),
+      );
+
+      return {
+        summary: {
+          totalUsers: users.length,
+          totalBusinesses: businesses.length,
+          activeBusinesses: businesses.filter((b) => b.isActive).length,
+          inactiveBusinesses: businesses.filter((b) => !b.isActive).length,
+          totalSubscriptions: subscriptions.length,
+          activeSubscriptions: subscriptions.filter((s) =>
+            ["active", "trialing"].includes(s.status),
+          ).length,
+          pastDueSubscriptions: subscriptions.filter((s) =>
+            ["past_due", "unpaid"].includes(s.status),
+          ).length,
+          totalLeads,
+          totalCalls,
+          missedCalls,
+          totalConversations,
+          totalMessages,
+        },
+        customers,
+        subscriptions,
+      };
+    } catch (error) {
+      console.error("Error getting admin dashboard data:", error);
+      throw error;
+    }
+  }
+
+  static async getAdminCustomerDetails({
+    User,
+    Business,
+    Lead,
+    CallLog,
+    Conversation,
+    Message,
+    Subscription,
+    businessId,
+  }) {
+    try {
+      const business = await Business.findById(businessId).lean();
+
+      if (!business) {
+        return null;
+      }
+
+      const [owner, subscription, leads, calls, conversations, messages] =
+        await Promise.all([
+          User.findById(business.owner).select("-password").lean(),
+          Subscription.findOne({ business: businessId }).lean(),
+          Lead.find({ business: businessId })
+            .sort({ createdAt: -1 })
+            .limit(100)
+            .lean(),
+          CallLog.find({ business: businessId })
+            .sort({ createdAt: -1 })
+            .limit(100)
+            .lean(),
+          Conversation.find({ business: businessId })
+            .sort({ updatedAt: -1, createdAt: -1 })
+            .limit(100)
+            .lean(),
+          Message.find({ business: businessId })
+            .sort({ createdAt: -1 })
+            .limit(200)
+            .lean(),
+        ]);
+
+      const [
+        leadCount,
+        callCount,
+        missedCallCount,
+        answeredCallCount,
+        recoveredCallCount,
+        conversationCount,
+        messageCount,
+        bookedLeadCount,
+        lostLeadCount,
+      ] = await Promise.all([
+        Lead.countDocuments({ business: businessId }),
+        CallLog.countDocuments({ business: businessId }),
+        CallLog.countDocuments({
+          business: businessId,
+          status: { $in: ["missed", "no_answer", "busy", "failed"] },
+        }),
+        CallLog.countDocuments({
+          business: businessId,
+          status: "answered",
+        }),
+        CallLog.countDocuments({
+          business: businessId,
+          recovered: true,
+        }),
+        Conversation.countDocuments({ business: businessId }),
+        Message.countDocuments({ business: businessId }),
+        Lead.countDocuments({
+          business: businessId,
+          status: "booked",
+        }),
+        Lead.countDocuments({
+          business: businessId,
+          status: "lost",
+        }),
+      ]);
+
+      return {
+        business,
+        owner,
+        subscription: subscription || {
+          plan: "none",
+          status: "none",
+          aiEnabled: false,
+        },
+        metrics: {
+          leads: leadCount,
+          calls: callCount,
+          missedCalls: missedCallCount,
+          answeredCalls: answeredCallCount,
+          recoveredCalls: recoveredCallCount,
+          conversations: conversationCount,
+          messages: messageCount,
+          bookedLeads: bookedLeadCount,
+          lostLeads: lostLeadCount,
+        },
+        leads,
+        calls,
+        conversations,
+        messages,
+      };
+    } catch (error) {
+      console.error("Error getting admin customer details:", error);
+      throw error;
+    }
+  }
+
+  static async adminUpdateSubscriptionStatus({
+    Subscription,
+    businessId,
+    status,
+  }) {
+    try {
+      return await Subscription.findOneAndUpdate(
+        { business: businessId },
+        { business: businessId, status },
+        {
+          new: true,
+          upsert: true,
+          runValidators: true,
+          setDefaultsOnInsert: true,
+        },
+      ).populate("business", "businessName businessType phone email");
+    } catch (error) {
+      console.error("Error updating subscription status as admin:", error);
+      throw error;
+    }
+  }
+
+  static async adminUpdateBusinessStatus({ Business, businessId, isActive }) {
+    try {
+      return await Business.findByIdAndUpdate(
+        businessId,
+        { isActive },
+        {
+          new: true,
+          runValidators: true,
+        },
+      ).populate("owner", "userName email role");
+    } catch (error) {
+      console.error("Error updating business status as admin:", error);
+      throw error;
+    }
+  }
+
+  static async createAdminActionLog(AdminActionLog, payload) {
+    try {
+      const log = new AdminActionLog(payload);
+      return await log.save();
+    } catch (error) {
+      console.error("Error creating admin action log:", error);
       throw error;
     }
   }
