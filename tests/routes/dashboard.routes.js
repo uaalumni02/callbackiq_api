@@ -2,11 +2,11 @@ import request from "supertest";
 
 import app from "../../src/app.js";
 
-import Business from "../../src/models/business.js";
 import Lead from "../../src/models/lead.js";
 import CallLog from "../../src/models/callLog.js";
 import Conversation from "../../src/models/conversation.js";
 import Message from "../../src/models/message.js";
+import Subscription from "../../src/models/subscription.js";
 
 import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testDb.js";
 
@@ -21,6 +21,17 @@ afterEach(async () => {
 afterAll(async () => {
   await closeTestDB();
 });
+
+const createActiveSubscription = async (businessId) => {
+  return await Subscription.create({
+    business: businessId,
+    stripeCustomerId: "cus_test_dashboard",
+    stripeSubscriptionId: "sub_test_dashboard",
+    plan: "pro",
+    status: "active",
+    aiEnabled: true,
+  });
+};
 
 const registerAndCreateBusiness = async () => {
   const registerRes = await request(app).post("/api/auth/register").send({
@@ -42,9 +53,13 @@ const registerAndCreateBusiness = async () => {
       estimatedJobValue: 800,
     });
 
+  const business = businessRes.body.data;
+
+  await createActiveSubscription(business._id);
+
   return {
     token,
-    business: businessRes.body.data,
+    business,
   };
 };
 
@@ -208,7 +223,6 @@ describe("Dashboard Routes", () => {
     expect(res.body.data.messages.smsReceived).toBe(1);
 
     expect(res.body.data.revenue.bookedRevenue).toBe(1200);
-
     expect(res.body.data.revenue.recoveredRevenue).toBe(1800);
   });
 

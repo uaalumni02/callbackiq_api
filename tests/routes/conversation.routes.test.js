@@ -3,6 +3,7 @@ import request from "supertest";
 import app from "../../src/app.js";
 import Conversation from "../../src/models/conversation.js";
 import Message from "../../src/models/message.js";
+import Subscription from "../../src/models/subscription.js";
 import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testDb.js";
 
 beforeAll(async () => {
@@ -16,6 +17,17 @@ afterEach(async () => {
 afterAll(async () => {
   await closeTestDB();
 });
+
+const createActiveSubscription = async (businessId) => {
+  return await Subscription.create({
+    business: businessId,
+    stripeCustomerId: "cus_test_conversations",
+    stripeSubscriptionId: "sub_test_conversations",
+    plan: "pro",
+    status: "active",
+    aiEnabled: true,
+  });
+};
 
 const registerAndCreateBusiness = async () => {
   const registerRes = await request(app).post("/api/auth/register").send({
@@ -36,9 +48,13 @@ const registerAndCreateBusiness = async () => {
       phone: "4045551234",
     });
 
+  const businessId = businessRes.body.data._id;
+
+  await createActiveSubscription(businessId);
+
   return {
     token,
-    businessId: businessRes.body.data._id,
+    businessId,
   };
 };
 

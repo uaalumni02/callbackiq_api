@@ -2,7 +2,7 @@ import request from "supertest";
 
 import app from "../../src/app.js";
 import Alert from "../../src/models/alert.js";
-import Lead from "../../src/models/lead.js";
+import Subscription from "../../src/models/subscription.js";
 import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testDb.js";
 
 beforeAll(async () => {
@@ -16,6 +16,17 @@ afterEach(async () => {
 afterAll(async () => {
   await closeTestDB();
 });
+
+const createActiveSubscription = async (businessId, suffix = "123") => {
+  return await Subscription.create({
+    business: businessId,
+    stripeCustomerId: `cus_test_${suffix}`,
+    stripeSubscriptionId: `sub_test_${suffix}`,
+    plan: "pro",
+    status: "active",
+    aiEnabled: true,
+  });
+};
 
 const registerCreateBusinessAndLead = async () => {
   const registerRes = await request(app).post("/api/auth/register").send({
@@ -37,6 +48,10 @@ const registerCreateBusinessAndLead = async () => {
       estimatedJobValue: 800,
     });
 
+  const business = businessRes.body.data;
+
+  await createActiveSubscription(business._id);
+
   const leadRes = await request(app)
     .post("/api/leads")
     .set("Authorization", `Bearer ${token}`)
@@ -52,7 +67,7 @@ const registerCreateBusinessAndLead = async () => {
 
   return {
     token,
-    business: businessRes.body.data,
+    business,
     lead: leadRes.body.data,
   };
 };
@@ -335,7 +350,7 @@ describe("Alert Routes", () => {
 
     const secondToken = secondRegisterRes.body.data.token;
 
-    await request(app)
+    const secondBusinessRes = await request(app)
       .post("/api/businesses")
       .set("Authorization", `Bearer ${secondToken}`)
       .send({
@@ -343,6 +358,8 @@ describe("Alert Routes", () => {
         businessType: "plumbing",
         phone: "4045557777",
       });
+
+    await createActiveSubscription(secondBusinessRes.body.data._id, "456");
 
     const res = await request(app)
       .post("/api/alerts")

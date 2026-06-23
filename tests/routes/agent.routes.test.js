@@ -5,6 +5,7 @@ import Lead from "../../src/models/lead.js";
 import Message from "../../src/models/message.js";
 import Alert from "../../src/models/alert.js";
 import Conversation from "../../src/models/conversation.js";
+import Subscription from "../../src/models/subscription.js";
 import { runFollowUpAgent } from "../../src/helpers/ai/followUpAgent.js";
 import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testDb.js";
 
@@ -81,6 +82,17 @@ afterAll(async () => {
   await closeTestDB();
 });
 
+const createActiveSubscription = async (businessId, suffix = "agent") => {
+  return await Subscription.create({
+    business: businessId,
+    stripeCustomerId: `cus_test_${suffix}`,
+    stripeSubscriptionId: `sub_test_${suffix}`,
+    plan: "pro",
+    status: "active",
+    aiEnabled: true,
+  });
+};
+
 const registerCreateBusinessLeadConversation = async () => {
   const registerRes = await request(app).post("/api/auth/register").send({
     userName: "demoowner",
@@ -102,6 +114,8 @@ const registerCreateBusinessLeadConversation = async () => {
     });
 
   const business = businessRes.body.data;
+
+  await createActiveSubscription(business._id);
 
   const leadRes = await request(app)
     .post("/api/leads")
@@ -362,7 +376,7 @@ describe("Agent Routes", () => {
 
     const secondToken = secondRegisterRes.body.data.token;
 
-    await request(app)
+    const secondBusinessRes = await request(app)
       .post("/api/businesses")
       .set("Authorization", `Bearer ${secondToken}`)
       .send({
@@ -370,6 +384,8 @@ describe("Agent Routes", () => {
         businessType: "plumbing",
         phone: "4045557777",
       });
+
+    await createActiveSubscription(secondBusinessRes.body.data._id, "agent_2");
 
     const res = await request(app)
       .post("/api/agent/reply")

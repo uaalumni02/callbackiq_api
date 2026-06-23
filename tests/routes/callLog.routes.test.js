@@ -1,7 +1,13 @@
 import request from "supertest";
 
 import app from "../../src/app.js";
+
+import Business from "../../src/models/business.js";
+import Lead from "../../src/models/lead.js";
 import CallLog from "../../src/models/callLog.js";
+import Conversation from "../../src/models/conversation.js";
+import Message from "../../src/models/message.js";
+
 import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testDb.js";
 
 beforeAll(async () => {
@@ -33,177 +39,272 @@ const registerAndCreateBusiness = async () => {
       businessName: "Atlanta Pro Plumbing",
       businessType: "plumbing",
       phone: "4045551234",
+      estimatedJobValue: 800,
     });
 
   return {
     token,
-    businessId: businessRes.body.data._id,
+    business: businessRes.body.data,
   };
 };
 
-describe("Call Log Routes", () => {
-  test("POST /api/calls rejects unauthenticated request", async () => {
-    const res = await request(app).post("/api/calls").send({
-      business: "665000000000000000000001",
-      from: "4045559999",
-      to: "4045551234",
-    });
+describe("Dashboard Routes", () => {
+  test("GET /api/dashboard rejects unauthenticated request", async () => {
+    const res = await request(app).get("/api/dashboard");
 
     expect(res.status).toBe(401);
     expect(res.body.success).toBe(false);
   });
 
-  test("POST /api/calls creates call log", async () => {
-    const { token, businessId } = await registerAndCreateBusiness();
+  test("GET /api/dashboard returns empty metrics for new business", async () => {
+    const { token } = await registerAndCreateBusiness();
 
     const res = await request(app)
-      .post("/api/calls")
-      .set("Authorization", `Bearer ${token}`)
-      .send({
-        business: businessId,
-        from: "4045559999",
-        to: "4045551234",
-        direction: "inbound",
-        status: "missed",
-        durationSeconds: 0,
-        provider: "manual",
-        notes: "Missed customer call.",
-      });
+      .get("/api/dashboard")
+      .set("Authorization", `Bearer ${token}`);
 
-    expect(res.status).toBe(201);
+    expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(res.body.data.business.toString()).toBe(businessId);
-    expect(res.body.data.status).toBe("missed");
 
-    const savedCallLog = await CallLog.findOne({ from: "4045559999" });
-    expect(savedCallLog).toBeTruthy();
+    expect(res.body.data.calls.totalCalls).toBe(0);
+    expect(res.body.data.calls.missedCalls).toBe(0);
+
+    expect(res.body.data.leads.totalLeads).toBe(0);
+
+    expect(res.body.data.messages.smsSent).toBe(0);
+    expect(res.body.data.messages.smsReceived).toBe(0);
+
+    expect(res.body.data.revenue.bookedRevenue).toBe(0);
+    expect(res.body.data.revenue.recoveredRevenue).toBe(0);
   });
 
-  test("POST /api/calls rejects invalid data", async () => {
-    const { token, businessId } = await registerAndCreateBusiness();
+  test("GET /api/dashboard returns calculated metrics", async () => {
+    const { token, business } = await registerAndCreateBusiness();
+
+    const lead1 = await Lead.create({
+      business: business._id,
+      customerName: "John Smith",
+      phone: "4045551111",
+      serviceNeeded: "Water heater repair",
+      urgency: "high",
+      estimatedValue: 1200,
+      status: "booked",
+      source: "missed_call",
+    });
+
+    const lead2 = await Lead.create({
+      business: business._id,
+      customerName: "Sarah Jones",
+      phone: "4045552222",
+      serviceNeeded: "Drain cleaning",
+      urgency: "medium",
+      estimatedValue: 600,
+      status: "contacted",
+      source: "sms",
+    });
+
+    await Lead.create({
+      business: business._id,
+      customerName: "Bob Wilson",
+      phone: "4045553333",
+      serviceNeeded: "Leak repair",
+      urgency: "low",
+      estimatedValue: 400,
+      status: "new",
+      source: "manual",
+    });
+
+    await CallLog.create({
+      business: business._id,
+      lead: lead1._id,
+      from: "4045551111",
+      to: "4045551234",
+      direction: "inbound",
+      status: "missed",
+      recovered: true,
+      provider: "twilio",
+    });
+
+    await CallLog.create({
+      business: business._id,
+      lead: lead2._id,
+      from: "4045552222",
+      to: "4045551234",
+      direction: "inbound",
+      status: "answered",
+      provider: "twilio",
+    });
+
+    await CallLog.create({
+      business: business._id,
+      from: "4045553333",
+      to: "4045551234",
+      direction: "inbound",
+      status: "busy",
+      provider: "twilio",
+    });
+
+    const conversation1 = await Conversation.create({
+      business: business._id,
+      lead: lead1._id,
+      customerPhone: "4045551111",
+      customerName: "John Smith",
+      status: "open",
+    });
+
+    await Conversation.create({
+      business: business._id,
+      lead: lead2._id,
+      customerPhone: "4045552222",
+      customerName: "Sarah Jones",
+      status: "closed",
+    });
+
+    await Message.create({
+      business: business._id,
+      conversation: conversation1._id,
+      lead: lead1._id,
+      direction: "outbound",
+      from: "4045551234",
+      to: "4045551111",
+      body: "Hi John",
+      provider: "twilio",
+      status: "sent",
+    });
+
+    await Message.create({
+      business: business._id,
+      conversation: conversation1._id,
+      lead: lead1._id,
+      direction: "inbound",
+      from: "4045551111",
+      to: "4045551234",
+      body: "I need help",
+      provider: "twilio",
+      status: "received",
+    });
 
     const res = await request(app)
-      .post("/api/calls")
-      .set("Authorization", `Bearer ${token}`)
-      .send({
-        business: businessId,
-        from: "bad-phone",
-        to: "4045551234",
-        status: "ignored",
-      });
+      .get("/api/dashboard")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+
+    expect(res.body.data.calls.totalCalls).toBe(3);
+    expect(res.body.data.calls.missedCalls).toBe(2);
+    expect(res.body.data.calls.answeredCalls).toBe(1);
+    expect(res.body.data.calls.recoveredCalls).toBe(1);
+
+    expect(res.body.data.leads.totalLeads).toBe(3);
+    expect(res.body.data.leads.newLeads).toBe(1);
+    expect(res.body.data.leads.contactedLeads).toBe(1);
+    expect(res.body.data.leads.bookedLeads).toBe(1);
+
+    expect(res.body.data.conversations.activeConversations).toBe(1);
+    expect(res.body.data.conversations.closedConversations).toBe(1);
+
+    expect(res.body.data.messages.smsSent).toBe(1);
+    expect(res.body.data.messages.smsReceived).toBe(1);
+
+    expect(res.body.data.revenue.bookedRevenue).toBe(1200);
+
+    expect(res.body.data.revenue.recoveredRevenue).toBe(1800);
+  });
+
+  test("GET /api/dashboard fails if business does not exist", async () => {
+    const registerRes = await request(app).post("/api/auth/register").send({
+      userName: "nobusiness",
+      email: "nobusiness@callbackiq.com",
+      password: "Password123",
+      businessName: "No Business Yet",
+    });
+
+    const token = registerRes.body.data.token;
+
+    const res = await request(app)
+      .get("/api/dashboard")
+      .set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
   });
 
-  test("GET /api/calls returns call logs", async () => {
-    const { token, businessId } = await registerAndCreateBusiness();
+  test("dashboard recovery rate is calculated correctly", async () => {
+    const { token, business } = await registerAndCreateBusiness();
 
-    await request(app)
-      .post("/api/calls")
-      .set("Authorization", `Bearer ${token}`)
-      .send({
-        business: businessId,
-        from: "4045559999",
-        to: "4045551234",
-      });
+    await CallLog.create({
+      business: business._id,
+      from: "4041111111",
+      to: "4045551234",
+      status: "missed",
+      recovered: true,
+      provider: "twilio",
+    });
+
+    await CallLog.create({
+      business: business._id,
+      from: "4042222222",
+      to: "4045551234",
+      status: "missed",
+      recovered: false,
+      provider: "twilio",
+    });
 
     const res = await request(app)
-      .get("/api/calls")
+      .get("/api/dashboard")
       .set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.data.length).toBe(1);
+
+    expect(res.body.data.calls.missedCalls).toBe(2);
+    expect(res.body.data.calls.recoveredCalls).toBe(1);
+    expect(res.body.data.calls.missedCallRecoveryRate).toBe(50);
   });
 
-  test("GET /api/calls/:id returns call log", async () => {
-    const { token, businessId } = await registerAndCreateBusiness();
+  test("dashboard booking rate is calculated correctly", async () => {
+    const { token, business } = await registerAndCreateBusiness();
 
-    const createRes = await request(app)
-      .post("/api/calls")
-      .set("Authorization", `Bearer ${token}`)
-      .send({
-        business: businessId,
-        from: "4045559999",
-        to: "4045551234",
-      });
+    await Lead.create({
+      business: business._id,
+      phone: "4041111111",
+      serviceNeeded: "Water heater repair",
+      status: "booked",
+      estimatedValue: 1000,
+    });
 
-    expect(createRes.status).toBe(201);
+    await Lead.create({
+      business: business._id,
+      phone: "4042222222",
+      serviceNeeded: "Drain cleaning",
+      status: "contacted",
+      estimatedValue: 500,
+    });
 
-    const callLogId = createRes.body.data._id;
+    await Lead.create({
+      business: business._id,
+      phone: "4043333333",
+      serviceNeeded: "Leak repair",
+      status: "new",
+      estimatedValue: 300,
+    });
+
+    await Lead.create({
+      business: business._id,
+      phone: "4044444444",
+      serviceNeeded: "Leak repair",
+      status: "new",
+      estimatedValue: 300,
+    });
 
     const res = await request(app)
-      .get(`/api/calls/${callLogId}`)
+      .get("/api/dashboard")
       .set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.data._id).toBe(callLogId);
-  });
 
-  test("PATCH /api/calls/:id updates call log", async () => {
-    const { token, businessId } = await registerAndCreateBusiness();
-
-    const createRes = await request(app)
-      .post("/api/calls")
-      .set("Authorization", `Bearer ${token}`)
-      .send({
-        business: businessId,
-        from: "4045559999",
-        to: "4045551234",
-      });
-
-    expect(createRes.status).toBe(201);
-
-    const callLogId = createRes.body.data._id;
-
-    const res = await request(app)
-      .patch(`/api/calls/${callLogId}`)
-      .set("Authorization", `Bearer ${token}`)
-      .send({
-        business: businessId,
-        from: "4045559999",
-        to: "4045551234",
-        direction: "inbound",
-        status: "answered",
-        durationSeconds: 180,
-        provider: "manual",
-        missedCallTextSent: true,
-        recovered: true,
-      });
-
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.data.status).toBe("answered");
-    expect(res.body.data.durationSeconds).toBe(180);
-    expect(res.body.data.recovered).toBe(true);
-  });
-
-  test("DELETE /api/calls/:id deletes call log", async () => {
-    const { token, businessId } = await registerAndCreateBusiness();
-
-    const createRes = await request(app)
-      .post("/api/calls")
-      .set("Authorization", `Bearer ${token}`)
-      .send({
-        business: businessId,
-        from: "4045559999",
-        to: "4045551234",
-      });
-
-    expect(createRes.status).toBe(201);
-
-    const callLogId = createRes.body.data._id;
-
-    const res = await request(app)
-      .delete(`/api/calls/${callLogId}`)
-      .set("Authorization", `Bearer ${token}`);
-
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-
-    const deletedCallLog = await CallLog.findById(callLogId);
-    expect(deletedCallLog).toBeFalsy();
+    expect(res.body.data.leads.totalLeads).toBe(4);
+    expect(res.body.data.leads.bookedLeads).toBe(1);
+    expect(res.body.data.leads.bookingRate).toBe(25);
   });
 });

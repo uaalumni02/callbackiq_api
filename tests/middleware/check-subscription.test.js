@@ -1,6 +1,8 @@
 import request from "supertest";
 
 import app from "../../src/app.js";
+import Business from "../../src/models/business.js";
+import Lead from "../../src/models/lead.js";
 import Subscription from "../../src/models/subscription.js";
 import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testDb.js";
 
@@ -36,22 +38,23 @@ const registerCreateBusinessAndLead = async () => {
       estimatedJobValue: 800,
     });
 
-  const leadRes = await request(app)
-    .post("/api/leads")
-    .set("Authorization", `Bearer ${token}`)
-    .send({
-      customerName: "John Smith",
-      phone: "4045559999",
-      serviceNeeded: "Water heater repair",
-      urgency: "medium",
-      status: "new",
-      source: "manual",
-    });
+  const business = businessRes.body.data;
+
+  const lead = await Lead.create({
+    business: business._id,
+    customerName: "John Smith",
+    phone: "4045559999",
+    serviceNeeded: "Water heater replacement",
+    urgency: "medium",
+    status: "new",
+    source: "manual",
+    estimatedValue: 800,
+  });
 
   return {
     token,
-    business: businessRes.body.data,
-    lead: leadRes.body.data,
+    business,
+    lead,
   };
 };
 
@@ -76,10 +79,11 @@ describe("Subscription Enforcement Middleware", () => {
 
     await Subscription.create({
       business: business._id,
+      stripeCustomerId: "cus_test_inactive",
+      stripeSubscriptionId: "sub_test_inactive",
       plan: "pro",
       status: "past_due",
-      stripeCustomerId: "cus_test_123",
-      stripeSubscriptionId: "sub_test_123",
+      aiEnabled: true,
     });
 
     const res = await request(app)
@@ -100,10 +104,11 @@ describe("Subscription Enforcement Middleware", () => {
 
     await Subscription.create({
       business: business._id,
+      stripeCustomerId: "cus_test_active",
+      stripeSubscriptionId: "sub_test_active",
       plan: "pro",
       status: "active",
-      stripeCustomerId: "cus_test_123",
-      stripeSubscriptionId: "sub_test_123",
+      aiEnabled: true,
     });
 
     const res = await request(app)
@@ -113,9 +118,42 @@ describe("Subscription Enforcement Middleware", () => {
         status: "contacted",
       });
 
-    expect(res.status).not.toBe(403);
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.data.status).toBe("contacted");
+
+    const updatedLead = await Lead.findById(lead._id);
+
+    expect(updatedLead.status).toBe("contacted");
+  });
+
+  test("blocks paid route when business is inactive", async () => {
+    const { token, business, lead } = await registerCreateBusinessAndLead();
+
+    await Business.findByIdAndUpdate(business._id, {
+      isActive: false,
+    });
+
+    await Subscription.create({
+      business: business._id,
+      stripeCustomerId: "cus_test_active_inactive_business",
+      stripeSubscriptionId: "sub_test_active_inactive_business",
+      plan: "pro",
+      status: "active",
+      aiEnabled: true,
+    });
+
+    const res = await request(app)
+      .patch(`/api/leads/${lead._id}/status`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        status: "contacted",
+      });
+
+    expect(res.status).toBe(403);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toBe(
+      "This account is inactive. Please contact support to restore access.",
+    );
   });
 });

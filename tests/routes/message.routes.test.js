@@ -3,6 +3,7 @@ import request from "supertest";
 import app from "../../src/app.js";
 import Conversation from "../../src/models/conversation.js";
 import Message from "../../src/models/message.js";
+import Subscription from "../../src/models/subscription.js";
 import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testDb.js";
 
 beforeAll(async () => {
@@ -16,6 +17,17 @@ afterEach(async () => {
 afterAll(async () => {
   await closeTestDB();
 });
+
+const createActiveSubscription = async (businessId) => {
+  return await Subscription.create({
+    business: businessId,
+    stripeCustomerId: "cus_test_messages",
+    stripeSubscriptionId: "sub_test_messages",
+    plan: "pro",
+    status: "active",
+    aiEnabled: true,
+  });
+};
 
 const registerCreateBusinessAndConversation = async () => {
   const registerRes = await request(app).post("/api/auth/register").send({
@@ -37,6 +49,8 @@ const registerCreateBusinessAndConversation = async () => {
     });
 
   const businessId = businessRes.body.data._id;
+
+  await createActiveSubscription(businessId);
 
   const conversationRes = await request(app)
     .post("/api/conversations")
@@ -97,6 +111,7 @@ describe("Message Routes", () => {
     const savedMessage = await Message.findOne({
       conversation: conversationId,
     });
+
     const updatedConversation = await Conversation.findById(conversationId);
 
     expect(savedMessage).toBeTruthy();
@@ -209,6 +224,7 @@ describe("Message Routes", () => {
     expect(res.body.success).toBe(true);
 
     const deletedMessage = await Message.findById(messageId);
+
     expect(deletedMessage).toBeFalsy();
   });
 });
