@@ -15,4 +15,10 @@ router.get("/subscription", checkAuth, BillingController.getMySubscription);
 
 router.post("/cancel", checkAuth, BillingController.cancelSubscription);
 
+router.patch(
+  "/customers/:businessId/account-status",
+  checkAuth,
+  BillingController.updateAdminCustomerAccountStatus,
+);
+
 export default router;

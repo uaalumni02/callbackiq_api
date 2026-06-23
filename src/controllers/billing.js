@@ -372,6 +372,46 @@ class BillingController {
       },
     );
   }
+  static async updateAdminCustomerAccountStatus(req, res) {
+    try {
+      const role = String(req.user?.role || "").toLowerCase();
+
+      if (role !== "admin") {
+        return Response.responseBadAuth(res, "Admin access required");
+      }
+
+      const { businessId } = req.params;
+      const { isActive } = req.body;
+
+      if (typeof isActive !== "boolean") {
+        return Response.responseInvalidInput(
+          res,
+          "isActive must be true or false",
+        );
+      }
+
+      const business = await Business.findByIdAndUpdate(
+        businessId,
+        { isActive },
+        { new: true },
+      );
+
+      if (!business) {
+        return Response.responseInvalidInput(res, "Business not found");
+      }
+
+      return Response.responseOk(
+        res,
+        business,
+        isActive
+          ? "Customer account activated successfully"
+          : "Customer account deactivated successfully",
+      );
+    } catch (error) {
+      console.error("Error in updateAdminCustomerAccountStatus:", error);
+      return Response.responseServerError(res);
+    }
+  }
 }
 
 export default BillingController;
