@@ -1,6 +1,7 @@
 import request from "supertest";
 
 import app from "../../src/app.js";
+import User from "../../src/models/user.js";
 import Business from "../../src/models/business.js";
 import Lead from "../../src/models/lead.js";
 import CallLog from "../../src/models/callLog.js";
@@ -8,6 +9,8 @@ import Conversation from "../../src/models/conversation.js";
 import Message from "../../src/models/message.js";
 import Subscription from "../../src/models/subscription.js";
 import AdminActionLog from "../../src/models/adminActionLog.js";
+import Token from "../../src/helpers/jwt/token.js";
+import bcrypt from "../../src/helpers/bcrypt/bcrypt.js";
 import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testDb.js";
 
 beforeAll(async () => {
@@ -38,40 +41,36 @@ const registerUserAndCreateBusiness = async ({
     businessType: "plumbing",
   });
 
-  const token = registerRes.body.data.token;
-
-  const businessRes = await request(app)
-    .post("/api/businesses")
-    .set("Authorization", `Bearer ${token}`)
-    .send({
-      businessName,
-      businessType: "plumbing",
-      phone: "4045551234",
-      email,
-      estimatedJobValue: 800,
-    });
-
   return {
-    token,
+    token: registerRes.body.data.token,
     user: registerRes.body.data.user,
-    business: businessRes.body.data,
+    business: registerRes.body.data.business,
   };
 };
 
 const registerAdmin = async () => {
-  const registerRes = await request(app).post("/api/auth/register").send({
+  const hashedPassword = await bcrypt.hashPassword("Password123", 10);
+
+  const user = await User.create({
     userName: "adminuser",
     email: "admin@callbackiq.com",
-    password: "Password123",
+    password: hashedPassword,
     role: "admin",
     businessName: "CallBackIQ Admin",
     businessPhone: "4045559999",
     businessType: "other",
   });
 
+  const token = Token.sign({
+    userId: user._id,
+    userName: user.userName,
+    email: user.email,
+    role: user.role,
+  });
+
   return {
-    token: registerRes.body.data.token,
-    user: registerRes.body.data.user,
+    token,
+    user,
   };
 };
 
@@ -126,14 +125,24 @@ const seedCustomerData = async (businessId) => {
     recovered: true,
   });
 
-  await Subscription.create({
-    business: businessId,
-    stripeCustomerId: "cus_test_123",
-    stripeSubscriptionId: "sub_test_123",
-    plan: "pro",
-    status: "active",
-    aiEnabled: true,
-  });
+  await Subscription.findOneAndUpdate(
+    { business: businessId },
+    {
+      business: businessId,
+      stripeCustomerId: "cus_test_123",
+      stripeSubscriptionId: "sub_test_123",
+      plan: "pro",
+      status: "active",
+      aiEnabled: true,
+      isActive: true,
+    },
+    {
+      upsert: true,
+      returnDocument: "after",
+      runValidators: true,
+      setDefaultsOnInsert: true,
+    },
+  );
 };
 
 describe("Admin Routes", () => {

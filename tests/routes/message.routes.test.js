@@ -20,19 +20,30 @@ afterAll(async () => {
 });
 
 const createActiveSubscription = async (businessId) => {
-  await Business.findByIdAndUpdate(businessId, {
-    isActive: true,
-  });
+  await Business.findByIdAndUpdate(
+    businessId,
+    { isActive: true },
+    { returnDocument: "after" },
+  );
 
-  return await Subscription.create({
-    business: businessId,
-    stripeCustomerId: "cus_test_messages",
-    stripeSubscriptionId: "sub_test_messages",
-    plan: "pro",
-    status: "active",
-    aiEnabled: true,
-    isActive: true,
-  });
+  return await Subscription.findOneAndUpdate(
+    { business: businessId },
+    {
+      business: businessId,
+      stripeCustomerId: "cus_test_messages",
+      stripeSubscriptionId: "sub_test_messages",
+      plan: "pro",
+      status: "active",
+      aiEnabled: true,
+      cancelAtPeriodEnd: false,
+    },
+    {
+      upsert: true,
+      returnDocument: "after",
+      runValidators: true,
+      setDefaultsOnInsert: true,
+    },
+  );
 };
 
 const registerCreateBusinessAndConversation = async () => {
@@ -41,20 +52,12 @@ const registerCreateBusinessAndConversation = async () => {
     email: "owner@callbackiq.com",
     password: "Password123",
     businessName: "Atlanta Pro Plumbing",
+    businessPhone: "4045551234",
+    businessType: "plumbing",
   });
 
   const token = registerRes.body.data.token;
-
-  const businessRes = await request(app)
-    .post("/api/businesses")
-    .set("Authorization", `Bearer ${token}`)
-    .send({
-      businessName: "Atlanta Pro Plumbing",
-      businessType: "plumbing",
-      phone: "4045551234",
-    });
-
-  const businessId = businessRes.body.data._id;
+  const businessId = registerRes.body.data.business._id;
 
   await createActiveSubscription(businessId);
 

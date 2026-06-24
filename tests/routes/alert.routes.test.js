@@ -19,44 +19,57 @@ afterAll(async () => {
 });
 
 const createActiveSubscription = async (businessId, suffix = "123") => {
-  await Business.findByIdAndUpdate(businessId, {
-    isActive: true,
-  });
+  await Business.findByIdAndUpdate(
+    businessId,
+    {
+      isActive: true,
+    },
+    {
+      returnDocument: "after",
+    },
+  );
 
-  return await Subscription.create({
-    business: businessId,
-    stripeCustomerId: `cus_test_${suffix}`,
-    stripeSubscriptionId: `sub_test_${suffix}`,
-    plan: "pro",
-    status: "active",
-    aiEnabled: true,
-    isActive: true,
-  });
+  return await Subscription.findOneAndUpdate(
+    { business: businessId },
+    {
+      business: businessId,
+      stripeCustomerId: `cus_test_${suffix}`,
+      stripeSubscriptionId: `sub_test_${suffix}`,
+      plan: "pro",
+      status: "active",
+      aiEnabled: true,
+      cancelAtPeriodEnd: false,
+    },
+    {
+      upsert: true,
+      returnDocument: "after",
+      runValidators: true,
+      setDefaultsOnInsert: true,
+    },
+  );
 };
 
-const registerCreateBusinessAndLead = async () => {
+const registerCreateBusinessAndLead = async ({
+  userName = "demoowner",
+  email = "owner@callbackiq.com",
+  businessName = "Atlanta Pro Plumbing",
+  businessPhone = "4045551234",
+  businessType = "plumbing",
+  subscriptionSuffix = "123",
+} = {}) => {
   const registerRes = await request(app).post("/api/auth/register").send({
-    userName: "demoowner",
-    email: "owner@callbackiq.com",
+    userName,
+    email,
     password: "Password123",
-    businessName: "Atlanta Pro Plumbing",
+    businessName,
+    businessPhone,
+    businessType,
   });
 
   const token = registerRes.body.data.token;
+  const business = registerRes.body.data.business;
 
-  const businessRes = await request(app)
-    .post("/api/businesses")
-    .set("Authorization", `Bearer ${token}`)
-    .send({
-      businessName: "Atlanta Pro Plumbing",
-      businessType: "plumbing",
-      phone: "4045551234",
-      estimatedJobValue: 800,
-    });
-
-  const business = businessRes.body.data;
-
-  await createActiveSubscription(business._id);
+  await createActiveSubscription(business._id, subscriptionSuffix);
 
   const leadRes = await request(app)
     .post("/api/leads")
@@ -345,31 +358,18 @@ describe("Alert Routes", () => {
   test("cannot create alert for another business lead", async () => {
     const first = await registerCreateBusinessAndLead();
 
-    const secondRegisterRes = await request(app)
-      .post("/api/auth/register")
-      .send({
-        userName: "otherowner",
-        email: "other@callbackiq.com",
-        password: "Password123",
-        businessName: "Other Plumbing",
-      });
-
-    const secondToken = secondRegisterRes.body.data.token;
-
-    const secondBusinessRes = await request(app)
-      .post("/api/businesses")
-      .set("Authorization", `Bearer ${secondToken}`)
-      .send({
-        businessName: "Other Plumbing",
-        businessType: "plumbing",
-        phone: "4045557777",
-      });
-
-    await createActiveSubscription(secondBusinessRes.body.data._id, "456");
+    const second = await registerCreateBusinessAndLead({
+      userName: "otherowner",
+      email: "other@callbackiq.com",
+      businessName: "Other Plumbing",
+      businessPhone: "4045557777",
+      businessType: "plumbing",
+      subscriptionSuffix: "456",
+    });
 
     const res = await request(app)
       .post("/api/alerts")
-      .set("Authorization", `Bearer ${secondToken}`)
+      .set("Authorization", `Bearer ${second.token}`)
       .send({
         lead: first.lead._id,
         type: "hot_lead",

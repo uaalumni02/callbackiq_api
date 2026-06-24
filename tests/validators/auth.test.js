@@ -1,18 +1,18 @@
 import { registerSchema, loginSchema } from "../../src/validator/auth.js";
 
+const validRegisterData = {
+  userName: "demoowner",
+  email: "owner@callbackiq.com",
+  password: "Password123",
+  businessName: "Atlanta Pro Plumbing",
+  businessPhone: "4045551234",
+  businessType: "plumbing",
+};
+
 describe("Auth Validator", () => {
   describe("Register Schema", () => {
     test("valid owner registration data passes", async () => {
-      const data = {
-        userName: "demoowner",
-        email: "owner@callbackiq.com",
-        password: "Password123",
-        businessName: "Atlanta Pro Plumbing",
-        businessPhone: "4045551234",
-        businessType: "plumbing",
-      };
-
-      const result = await registerSchema.validateAsync(data);
+      const result = await registerSchema.validateAsync(validRegisterData);
 
       expect(result.userName).toBe("demoowner");
       expect(result.email).toBe("owner@callbackiq.com");
@@ -28,6 +28,7 @@ describe("Auth Validator", () => {
         email: "owner@callbackiq.com",
         password: "Password123",
         businessName: "Atlanta Pro Plumbing",
+        businessPhone: "4045551234",
       };
 
       const result = await registerSchema.validateAsync(data);
@@ -41,6 +42,7 @@ describe("Auth Validator", () => {
         email: "owner@callbackiq.com",
         password: "Password123",
         businessName: "Atlanta Pro Plumbing",
+        businessPhone: "4045551234",
       };
 
       const result = await registerSchema.validateAsync(data);
@@ -53,6 +55,7 @@ describe("Auth Validator", () => {
         email: "owner@callbackiq.com",
         password: "Password123",
         businessName: "Atlanta Pro Plumbing",
+        businessPhone: "4045551234",
       };
 
       await expect(registerSchema.validateAsync(data)).rejects.toThrow();
@@ -64,6 +67,7 @@ describe("Auth Validator", () => {
         email: "owner@callbackiq.com",
         password: "Password123",
         businessName: "Atlanta Pro Plumbing",
+        businessPhone: "4045551234",
       };
 
       await expect(registerSchema.validateAsync(data)).rejects.toThrow();
@@ -75,6 +79,7 @@ describe("Auth Validator", () => {
         email: "owner@callbackiq.com",
         password: "Password123",
         businessName: "Atlanta Pro Plumbing",
+        businessPhone: "4045551234",
       };
 
       await expect(registerSchema.validateAsync(data)).rejects.toThrow();
@@ -86,6 +91,7 @@ describe("Auth Validator", () => {
         email: "owner@callbackiq.com",
         password: "Password123",
         businessName: "Atlanta Pro Plumbing",
+        businessPhone: "4045551234",
       };
 
       await expect(registerSchema.validateAsync(data)).rejects.toThrow();
@@ -97,6 +103,7 @@ describe("Auth Validator", () => {
         email: "bad-email",
         password: "Password123",
         businessName: "Atlanta Pro Plumbing",
+        businessPhone: "4045551234",
       };
 
       await expect(registerSchema.validateAsync(data)).rejects.toThrow();
@@ -107,6 +114,7 @@ describe("Auth Validator", () => {
         userName: "demoowner",
         email: "owner@callbackiq.com",
         businessName: "Atlanta Pro Plumbing",
+        businessPhone: "4045551234",
       };
 
       await expect(registerSchema.validateAsync(data)).rejects.toThrow();
@@ -118,6 +126,7 @@ describe("Auth Validator", () => {
         email: "owner@callbackiq.com",
         password: "12345",
         businessName: "Atlanta Pro Plumbing",
+        businessPhone: "4045551234",
       };
 
       await expect(registerSchema.validateAsync(data)).rejects.toThrow();
@@ -129,6 +138,7 @@ describe("Auth Validator", () => {
         email: "owner@callbackiq.com",
         password: "a".repeat(51),
         businessName: "Atlanta Pro Plumbing",
+        businessPhone: "4045551234",
       };
 
       await expect(registerSchema.validateAsync(data)).rejects.toThrow();
@@ -141,6 +151,7 @@ describe("Auth Validator", () => {
         password: "Password123",
         role: "supervisor",
         businessName: "Atlanta Pro Plumbing",
+        businessPhone: "4045551234",
       };
 
       await expect(registerSchema.validateAsync(data)).rejects.toThrow();
@@ -151,6 +162,7 @@ describe("Auth Validator", () => {
         userName: "demoowner",
         email: "owner@callbackiq.com",
         password: "Password123",
+        businessPhone: "4045551234",
       };
 
       await expect(registerSchema.validateAsync(data)).rejects.toThrow();
@@ -162,6 +174,30 @@ describe("Auth Validator", () => {
         email: "owner@callbackiq.com",
         password: "Password123",
         businessName: "",
+        businessPhone: "4045551234",
+      };
+
+      await expect(registerSchema.validateAsync(data)).rejects.toThrow();
+    });
+
+    test("register fails without businessPhone", async () => {
+      const data = {
+        userName: "demoowner",
+        email: "owner@callbackiq.com",
+        password: "Password123",
+        businessName: "Atlanta Pro Plumbing",
+      };
+
+      await expect(registerSchema.validateAsync(data)).rejects.toThrow();
+    });
+
+    test("register fails with empty businessPhone", async () => {
+      const data = {
+        userName: "demoowner",
+        email: "owner@callbackiq.com",
+        password: "Password123",
+        businessName: "Atlanta Pro Plumbing",
+        businessPhone: "",
       };
 
       await expect(registerSchema.validateAsync(data)).rejects.toThrow();
@@ -173,6 +209,7 @@ describe("Auth Validator", () => {
         email: "owner@callbackiq.com",
         password: "Password123",
         businessName: "Atlanta Pro Plumbing",
+        businessPhone: "4045551234",
         businessType: "restaurant",
       };
 
@@ -181,10 +218,7 @@ describe("Auth Validator", () => {
 
     test("extra unknown fields are rejected", async () => {
       const data = {
-        userName: "demoowner",
-        email: "owner@callbackiq.com",
-        password: "Password123",
-        businessName: "Atlanta Pro Plumbing",
+        ...validRegisterData,
         randomField: "bad",
       };
 

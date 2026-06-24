@@ -92,6 +92,7 @@ class AuthController {
           currentPeriodEnd: trialEndsAt,
           priceMonthly: 199,
           aiEnabled: true,
+          isActive: true,
           cancelAtPeriodEnd: false,
           lastPaymentStatus: "trialing",
         },

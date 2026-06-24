@@ -24,7 +24,7 @@ const checkActiveBusiness = async (req, res, next) => {
       );
     }
 
-    if (!business.isActive) {
+    if (business.isActive === false) {
       return res.status(403).json({
         success: false,
         message:
@@ -39,7 +39,7 @@ const checkActiveBusiness = async (req, res, next) => {
 
     req.business = business;
 
-    next();
+    return next();
   } catch (error) {
     console.error("Error in checkActiveBusiness:", error);
     return Response.responseServerError(res);

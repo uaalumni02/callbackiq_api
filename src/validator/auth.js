@@ -19,7 +19,7 @@ const registerSchema = Joi.object({
 
   businessName: Joi.string().min(2).max(100).required(),
 
-  businessPhone: Joi.string().allow("").max(30),
+  businessPhone: Joi.string().min(7).max(30).required(),
 
   businessType: Joi.string()
     .valid("hvac", "plumbing", "roofing", "electrical", "restoration", "other")

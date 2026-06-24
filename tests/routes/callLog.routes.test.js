@@ -2,11 +2,14 @@ import request from "supertest";
 
 import app from "../../src/app.js";
 
+import User from "../../src/models/user.js";
 import Business from "../../src/models/business.js";
 import Lead from "../../src/models/lead.js";
 import CallLog from "../../src/models/callLog.js";
 import Conversation from "../../src/models/conversation.js";
 import Message from "../../src/models/message.js";
+import Token from "../../src/helpers/jwt/token.js";
+import bcrypt from "../../src/helpers/bcrypt/bcrypt.js";
 
 import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testDb.js";
 
@@ -28,24 +31,37 @@ const registerAndCreateBusiness = async () => {
     email: "owner@callbackiq.com",
     password: "Password123",
     businessName: "Atlanta Pro Plumbing",
+    businessPhone: "4045551234",
+    businessType: "plumbing",
   });
 
-  const token = registerRes.body.data.token;
-
-  const businessRes = await request(app)
-    .post("/api/businesses")
-    .set("Authorization", `Bearer ${token}`)
-    .send({
-      businessName: "Atlanta Pro Plumbing",
-      businessType: "plumbing",
-      phone: "4045551234",
-      estimatedJobValue: 800,
-    });
-
   return {
-    token,
-    business: businessRes.body.data,
+    token: registerRes.body.data.token,
+    business: registerRes.body.data.business,
   };
+};
+
+const createBareUserToken = async () => {
+  const hashedPassword = await bcrypt.hashPassword("Password123", 10);
+
+  const user = await User.create({
+    userName: "nobusiness",
+    email: "nobusiness@callbackiq.com",
+    password: hashedPassword,
+    role: "owner",
+    businessName: "No Business Yet",
+    businessPhone: "4045550000",
+    businessType: "plumbing",
+  });
+
+  const token = Token.sign({
+    userId: user._id,
+    userName: user.userName,
+    email: user.email,
+    role: user.role,
+  });
+
+  return token;
 };
 
 describe("Dashboard Routes", () => {
@@ -208,19 +224,11 @@ describe("Dashboard Routes", () => {
     expect(res.body.data.messages.smsReceived).toBe(1);
 
     expect(res.body.data.revenue.bookedRevenue).toBe(1200);
-
     expect(res.body.data.revenue.recoveredRevenue).toBe(1800);
   });
 
   test("GET /api/dashboard fails if business does not exist", async () => {
-    const registerRes = await request(app).post("/api/auth/register").send({
-      userName: "nobusiness",
-      email: "nobusiness@callbackiq.com",
-      password: "Password123",
-      businessName: "No Business Yet",
-    });
-
-    const token = registerRes.body.data.token;
+    const token = await createBareUserToken();
 
     const res = await request(app)
       .get("/api/dashboard")

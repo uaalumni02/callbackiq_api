@@ -2,6 +2,8 @@ import request from "supertest";
 
 import app from "../../src/app.js";
 import User from "../../src/models/user.js";
+import Business from "../../src/models/business.js";
+import Subscription from "../../src/models/subscription.js";
 import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testDb.js";
 
 beforeAll(async () => {
@@ -16,42 +18,57 @@ afterAll(async () => {
   await closeTestDB();
 });
 
+const validRegisterPayload = {
+  userName: "demoowner",
+  email: "owner@callbackiq.com",
+  password: "Password123",
+  businessName: "Atlanta Pro Plumbing",
+  businessPhone: "4045551234",
+  businessType: "plumbing",
+};
+
 describe("Auth Routes", () => {
-  test("POST /api/auth/register creates user and returns token", async () => {
-    const res = await request(app).post("/api/auth/register").send({
-      userName: "demoowner",
-      email: "owner@callbackiq.com",
-      password: "Password123",
-      businessName: "Atlanta Pro Plumbing",
-      businessPhone: "4045551234",
-      businessType: "plumbing",
-    });
+  test("POST /api/auth/register creates user, business, trial subscription and returns token", async () => {
+    const res = await request(app)
+      .post("/api/auth/register")
+      .send(validRegisterPayload);
 
     expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
     expect(res.body.data.token).toBeTruthy();
     expect(res.body.data.user.email).toBe("owner@callbackiq.com");
+    expect(res.body.data.business.businessName).toBe("Atlanta Pro Plumbing");
+    expect(res.body.data.business.phone).toBe("4045551234");
+    expect(res.body.data.subscription.status).toBe("trialing");
 
     const savedUser = await User.findOne({ email: "owner@callbackiq.com" });
-
     expect(savedUser).toBeTruthy();
     expect(savedUser.password).not.toBe("Password123");
+
+    const savedBusiness = await Business.findOne({ owner: savedUser._id });
+    expect(savedBusiness).toBeTruthy();
+    expect(savedBusiness.businessName).toBe("Atlanta Pro Plumbing");
+    expect(savedBusiness.phone).toBe("4045551234");
+    expect(savedBusiness.isActive).toBe(true);
+
+    const savedSubscription = await Subscription.findOne({
+      business: savedBusiness._id,
+    });
+
+    expect(savedSubscription).toBeTruthy();
+    expect(savedSubscription.plan).toBe("pro");
+    expect(savedSubscription.status).toBe("trialing");
+    expect(savedSubscription.aiEnabled).toBe(true);
   });
 
   test("POST /api/auth/register rejects duplicate user", async () => {
-    await request(app).post("/api/auth/register").send({
-      userName: "demoowner",
-      email: "owner@callbackiq.com",
-      password: "Password123",
-      businessName: "Atlanta Pro Plumbing",
-    });
+    await request(app).post("/api/auth/register").send(validRegisterPayload);
 
-    const res = await request(app).post("/api/auth/register").send({
-      userName: "demoowner",
-      email: "owner@callbackiq.com",
-      password: "Password123",
-      businessName: "Atlanta Pro Plumbing",
-    });
+    const res = await request(app)
+      .post("/api/auth/register")
+      .send({
+        ...validRegisterPayload,
+      });
 
     expect(res.status).toBe(409);
     expect(res.body.success).toBe(false);
@@ -63,6 +80,7 @@ describe("Auth Routes", () => {
       email: "bad-email",
       password: "123",
       businessName: "",
+      businessPhone: "",
     });
 
     expect(res.status).toBe(400);
@@ -70,12 +88,7 @@ describe("Auth Routes", () => {
   });
 
   test("POST /api/auth/login logs user in with username", async () => {
-    await request(app).post("/api/auth/register").send({
-      userName: "demoowner",
-      email: "owner@callbackiq.com",
-      password: "Password123",
-      businessName: "Atlanta Pro Plumbing",
-    });
+    await request(app).post("/api/auth/register").send(validRegisterPayload);
 
     const res = await request(app).post("/api/auth/login").send({
       login: "demoowner",
@@ -89,12 +102,7 @@ describe("Auth Routes", () => {
   });
 
   test("POST /api/auth/login logs user in with email", async () => {
-    await request(app).post("/api/auth/register").send({
-      userName: "demoowner",
-      email: "owner@callbackiq.com",
-      password: "Password123",
-      businessName: "Atlanta Pro Plumbing",
-    });
+    await request(app).post("/api/auth/register").send(validRegisterPayload);
 
     const res = await request(app).post("/api/auth/login").send({
       login: "owner@callbackiq.com",
@@ -107,12 +115,7 @@ describe("Auth Routes", () => {
   });
 
   test("POST /api/auth/login rejects bad password", async () => {
-    await request(app).post("/api/auth/register").send({
-      userName: "demoowner",
-      email: "owner@callbackiq.com",
-      password: "Password123",
-      businessName: "Atlanta Pro Plumbing",
-    });
+    await request(app).post("/api/auth/register").send(validRegisterPayload);
 
     const res = await request(app).post("/api/auth/login").send({
       login: "demoowner",
@@ -131,12 +134,9 @@ describe("Auth Routes", () => {
   });
 
   test("GET /api/auth/me returns current user when authenticated", async () => {
-    const registerRes = await request(app).post("/api/auth/register").send({
-      userName: "demoowner",
-      email: "owner@callbackiq.com",
-      password: "Password123",
-      businessName: "Atlanta Pro Plumbing",
-    });
+    const registerRes = await request(app)
+      .post("/api/auth/register")
+      .send(validRegisterPayload);
 
     const token = registerRes.body.data.token;
 

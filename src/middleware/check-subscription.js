@@ -3,12 +3,19 @@ import Business from "../models/business.js";
 import Subscription from "../models/subscription.js";
 import * as Response from "../helpers/response/response.js";
 
+const ACTIVE_SUBSCRIPTION_STATUSES = ["active", "trialing"];
+
 const checkSubscription = async (req, res, next) => {
   try {
     const ownerId = req.user?.userId;
+    const role = String(req.user?.role || "").toLowerCase();
 
     if (!ownerId) {
       return Response.responseBadAuth(res, "Not authenticated");
+    }
+
+    if (role === "admin") {
+      return next();
     }
 
     const business = await Db.getBusinessByOwner(Business, ownerId);
@@ -18,6 +25,13 @@ const checkSubscription = async (req, res, next) => {
         res,
         "Business not found. Create a business before using this feature.",
       );
+    }
+
+    if (business.isActive === false) {
+      return res.status(403).json({
+        success: false,
+        message: "Your account is not active",
+      });
     }
 
     const subscription = await Db.getSubscriptionByBusiness(
@@ -60,13 +74,11 @@ const checkSubscription = async (req, res, next) => {
       });
     }
 
-    const hasActiveSubscription = subscription.status === "active";
-    const hasActiveTrial =
-      subscription.status === "trialing" &&
-      subscription.trialEndsAt &&
-      subscription.trialEndsAt > now;
+    const hasValidStatus = ACTIVE_SUBSCRIPTION_STATUSES.includes(
+      subscription.status,
+    );
 
-    if (!hasActiveSubscription && !hasActiveTrial) {
+    if (!hasValidStatus) {
       return res.status(403).json({
         success: false,
         message: "Your subscription is not active",
@@ -79,23 +91,10 @@ const checkSubscription = async (req, res, next) => {
       });
     }
 
-    if (business.isActive === false || subscription.isActive === false) {
-      return res.status(403).json({
-        success: false,
-        message: "Your account is not active",
-        data: {
-          status: subscription.status,
-          plan: subscription.plan,
-          trialEndsAt: subscription.trialEndsAt,
-          cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
-        },
-      });
-    }
-
     req.business = business;
     req.subscription = subscription;
 
-    next();
+    return next();
   } catch (error) {
     console.error("Error in checkSubscription:", error);
     return Response.responseServerError(res);

@@ -1,8 +1,11 @@
 import request from "supertest";
 
 import app from "../../src/app.js";
+import User from "../../src/models/user.js";
 import Business from "../../src/models/business.js";
 import Subscription from "../../src/models/subscription.js";
+import Token from "../../src/helpers/jwt/token.js";
+import bcrypt from "../../src/helpers/bcrypt/bcrypt.js";
 import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testDb.js";
 
 beforeAll(async () => {
@@ -34,41 +37,80 @@ const registerAndCreateBusiness = async ({
     businessType: "plumbing",
   });
 
-  const token = registerRes.body.data.token;
-
-  const businessRes = await request(app)
-    .post("/api/businesses")
-    .set("Authorization", `Bearer ${token}`)
-    .send({
-      businessName,
-      businessType: "plumbing",
-      phone: "4045551234",
-      email,
-      estimatedJobValue: 800,
-    });
-
   const business = await Business.findByIdAndUpdate(
-    businessRes.body.data._id,
+    registerRes.body.data.business._id,
     { isActive },
     { returnDocument: "after" },
   );
 
   return {
-    token,
+    token: registerRes.body.data.token,
     user: registerRes.body.data.user,
     business,
   };
 };
 
-const createActiveSubscription = async (businessId) => {
-  return await Subscription.create({
-    business: businessId,
-    stripeCustomerId: "cus_test_active_business",
-    stripeSubscriptionId: "sub_test_active_business",
-    plan: "pro",
-    status: "active",
-    aiEnabled: true,
+const createBareUserToken = async () => {
+  const hashedPassword = await bcrypt.hashPassword("Password123", 10);
+
+  const user = await User.create({
+    userName: "nobusiness",
+    email: "nobusiness@callbackiq.com",
+    password: hashedPassword,
+    role: "owner",
+    businessName: "No Business",
+    businessPhone: "4045550000",
+    businessType: "plumbing",
   });
+
+  return Token.sign({
+    userId: user._id,
+    userName: user.userName,
+    email: user.email,
+    role: user.role,
+  });
+};
+
+const createAdminToken = async () => {
+  const hashedPassword = await bcrypt.hashPassword("Password123", 10);
+
+  const user = await User.create({
+    userName: "adminuser",
+    email: "admin@callbackiq.com",
+    password: hashedPassword,
+    role: "admin",
+    businessName: "CallBackIQ Admin",
+    businessPhone: "4045559999",
+    businessType: "other",
+  });
+
+  return Token.sign({
+    userId: user._id,
+    userName: user.userName,
+    email: user.email,
+    role: user.role,
+  });
+};
+
+const createActiveSubscription = async (businessId) => {
+  return await Subscription.findOneAndUpdate(
+    { business: businessId },
+    {
+      business: businessId,
+      stripeCustomerId: "cus_test_active_business",
+      stripeSubscriptionId: "sub_test_active_business",
+      plan: "pro",
+      status: "active",
+      aiEnabled: true,
+      isActive: true,
+    },
+    {
+      upsert: true,
+      returnDocument: "after",
+      runValidators: true,
+      setDefaultsOnInsert: true,
+    },
+  );
 };
 
 describe("Active Business Middleware", () => {
@@ -109,16 +151,7 @@ describe("Active Business Middleware", () => {
   });
 
   test("returns bad input when authenticated user has no business", async () => {
-    const registerRes = await request(app).post("/api/auth/register").send({
-      userName: "nobusiness",
-      email: "nobusiness@callbackiq.com",
-      password: "Password123",
-      businessName: "No Business",
-      businessPhone: "4045550000",
-      businessType: "plumbing",
-    });
-
-    const token = registerRes.body.data.token;
+    const token = await createBareUserToken();
 
     const res = await request(app)
       .get("/api/dashboard")
@@ -132,17 +165,7 @@ describe("Active Business Middleware", () => {
   });
 
   test("admin bypasses active business check", async () => {
-    const registerRes = await request(app).post("/api/auth/register").send({
-      userName: "adminuser",
-      email: "admin@callbackiq.com",
-      password: "Password123",
-      role: "admin",
-      businessName: "CallBackIQ Admin",
-      businessPhone: "4045559999",
-      businessType: "other",
-    });
-
-    const token = registerRes.body.data.token;
+    const token = await createAdminToken();
 
     const res = await request(app)
       .get("/api/admin/dashboard")

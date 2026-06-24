@@ -85,7 +85,7 @@ class BusinessController {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      if (String(business.owner) !== String(ownerId)) {
+      if (String(business.owner._id || business.owner) !== String(ownerId)) {
         return Response.responseBadAuth(
           res,
           "Not authorized to access this business",

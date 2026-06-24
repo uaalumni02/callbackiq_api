@@ -75,31 +75,31 @@ const mockStripe = () => {
   return stripe;
 };
 
-const registerAndCreateBusiness = async () => {
+const registerAndCreateBusiness = async ({
+  userName = "demoowner",
+  email = "owner@callbackiq.com",
+  businessName = "Atlanta Pro Plumbing",
+  businessPhone = "4045551234",
+  businessType = "plumbing",
+} = {}) => {
   const registerRes = await request(app).post("/api/auth/register").send({
-    userName: "demoowner",
-    email: "owner@callbackiq.com",
+    userName,
+    email,
     password: "Password123",
-    businessName: "Atlanta Pro Plumbing",
+    businessName,
+    businessPhone,
+    businessType,
   });
 
-  const token = registerRes.body.data.token;
-
-  const businessRes = await request(app)
-    .post("/api/businesses")
-    .set("Authorization", `Bearer ${token}`)
-    .send({
-      businessName: "Atlanta Pro Plumbing",
-      businessType: "plumbing",
-      phone: "4045551234",
-      email: "owner@atlantaproplumbing.com",
-      estimatedJobValue: 800,
-    });
-
   return {
-    token,
-    business: businessRes.body.data,
+    token: registerRes.body.data.token,
+    business: registerRes.body.data.business,
+    subscription: registerRes.body.data.subscription,
   };
+};
+
+const deleteAutoTrial = async (businessId) => {
+  await Subscription.deleteMany({ business: businessId });
 };
 
 describe("Billing Routes", () => {
@@ -183,6 +183,8 @@ describe("Billing Routes", () => {
   test("POST /api/billing/free-trial starts a 14-day free trial", async () => {
     const { token, business } = await registerAndCreateBusiness();
 
+    await deleteAutoTrial(business._id);
+
     const res = await request(app)
       .post("/api/billing/free-trial")
       .set("Authorization", `Bearer ${token}`);
@@ -217,23 +219,18 @@ describe("Billing Routes", () => {
   test("POST /api/billing/free-trial rejects duplicate active trial", async () => {
     const { token } = await registerAndCreateBusiness();
 
-    const firstRes = await request(app)
+    const res = await request(app)
       .post("/api/billing/free-trial")
       .set("Authorization", `Bearer ${token}`);
 
-    expect(firstRes.status).toBe(200);
-    expect(firstRes.body.success).toBe(true);
-
-    const secondRes = await request(app)
-      .post("/api/billing/free-trial")
-      .set("Authorization", `Bearer ${token}`);
-
-    expect(secondRes.status).toBe(400);
-    expect(secondRes.body.success).toBe(false);
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
   });
 
   test("GET /api/billing/subscription returns default none subscription if missing", async () => {
-    const { token } = await registerAndCreateBusiness();
+    const { token, business } = await registerAndCreateBusiness();
+
+    await deleteAutoTrial(business._id);
 
     const res = await request(app)
       .get("/api/billing/subscription")
@@ -247,13 +244,24 @@ describe("Billing Routes", () => {
   test("GET /api/billing/subscription returns existing subscription", async () => {
     const { token, business } = await registerAndCreateBusiness();
 
-    await Subscription.create({
-      business: business._id,
-      stripeCustomerId: "cus_test_123",
-      stripeSubscriptionId: "sub_test_123",
-      plan: "pro",
-      status: "active",
-    });
+    await Subscription.findOneAndUpdate(
+      { business: business._id },
+      {
+        business: business._id,
+        stripeCustomerId: "cus_test_123",
+        stripeSubscriptionId: "sub_test_123",
+        plan: "pro",
+        status: "active",
+        isActive: true,
+        aiEnabled: true,
+      },
+      {
+        upsert: true,
+        returnDocument: "after",
+        runValidators: true,
+        setDefaultsOnInsert: true,
+      },
+    );
 
     const res = await request(app)
       .get("/api/billing/subscription")
@@ -267,10 +275,6 @@ describe("Billing Routes", () => {
 
   test("GET /api/billing/subscription returns active trial", async () => {
     const { token } = await registerAndCreateBusiness();
-
-    await request(app)
-      .post("/api/billing/free-trial")
-      .set("Authorization", `Bearer ${token}`);
 
     const res = await request(app)
       .get("/api/billing/subscription")
@@ -288,18 +292,27 @@ describe("Billing Routes", () => {
   test("GET /api/billing/subscription expires old trial", async () => {
     const { token, business } = await registerAndCreateBusiness();
 
-    await Subscription.create({
-      business: business._id,
-      plan: "pro",
-      status: "trialing",
-      trialStartedAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000),
-      trialEndsAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
-      currentPeriodStart: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000),
-      currentPeriodEnd: new Date(Date.now() - 24 * 60 * 60 * 1000),
-      isActive: true,
-      aiEnabled: true,
-      priceMonthly: 199,
-    });
+    await Subscription.findOneAndUpdate(
+      { business: business._id },
+      {
+        business: business._id,
+        plan: "pro",
+        status: "trialing",
+        trialStartedAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000),
+        trialEndsAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+        currentPeriodStart: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000),
+        currentPeriodEnd: new Date(Date.now() - 24 * 60 * 60 * 1000),
+        isActive: true,
+        aiEnabled: true,
+        priceMonthly: 199,
+      },
+      {
+        upsert: true,
+        returnDocument: "after",
+        runValidators: true,
+        setDefaultsOnInsert: true,
+      },
+    );
 
     const res = await request(app)
       .get("/api/billing/subscription")
@@ -322,13 +335,24 @@ describe("Billing Routes", () => {
 
     const { token, business } = await registerAndCreateBusiness();
 
-    await Subscription.create({
-      business: business._id,
-      stripeCustomerId: "cus_test_123",
-      stripeSubscriptionId: "sub_test_123",
-      plan: "pro",
-      status: "active",
-    });
+    await Subscription.findOneAndUpdate(
+      { business: business._id },
+      {
+        business: business._id,
+        stripeCustomerId: "cus_test_123",
+        stripeSubscriptionId: "sub_test_123",
+        plan: "pro",
+        status: "active",
+        isActive: true,
+        aiEnabled: true,
+      },
+      {
+        upsert: true,
+        returnDocument: "after",
+        runValidators: true,
+        setDefaultsOnInsert: true,
+      },
+    );
 
     const res = await request(app)
       .post("/api/billing/cancel")
@@ -350,7 +374,26 @@ describe("Billing Routes", () => {
   test("POST /api/billing/cancel fails if no Stripe subscription exists", async () => {
     mockStripe();
 
-    const { token } = await registerAndCreateBusiness();
+    const { token, business } = await registerAndCreateBusiness();
+
+    await Subscription.findOneAndUpdate(
+      { business: business._id },
+      {
+        business: business._id,
+        plan: "pro",
+        status: "trialing",
+        stripeCustomerId: "",
+        stripeSubscriptionId: "",
+        isActive: true,
+        aiEnabled: true,
+      },
+      {
+        upsert: true,
+        returnDocument: "after",
+        runValidators: true,
+        setDefaultsOnInsert: true,
+      },
+    );
 
     const res = await request(app)
       .post("/api/billing/cancel")
@@ -446,13 +489,24 @@ describe("Billing Routes", () => {
 
     const { business } = await registerAndCreateBusiness();
 
-    await Subscription.create({
-      business: business._id,
-      stripeCustomerId: "cus_test_123",
-      stripeSubscriptionId: "sub_test_123",
-      plan: "pro",
-      status: "active",
-    });
+    await Subscription.findOneAndUpdate(
+      { business: business._id },
+      {
+        business: business._id,
+        stripeCustomerId: "cus_test_123",
+        stripeSubscriptionId: "sub_test_123",
+        plan: "pro",
+        status: "active",
+        isActive: true,
+        aiEnabled: true,
+      },
+      {
+        upsert: true,
+        returnDocument: "after",
+        runValidators: true,
+        setDefaultsOnInsert: true,
+      },
+    );
 
     const res = await request(app)
       .post("/api/billing/webhook")

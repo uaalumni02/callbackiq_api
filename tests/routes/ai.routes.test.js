@@ -1,10 +1,10 @@
 import request from "supertest";
 
 import app from "../../src/app.js";
+import Business from "../../src/models/business.js";
 import Lead from "../../src/models/lead.js";
 import Message from "../../src/models/message.js";
 import Alert from "../../src/models/alert.js";
-import Business from "../../src/models/business.js";
 import Conversation from "../../src/models/conversation.js";
 import Subscription from "../../src/models/subscription.js";
 import { runFollowUpAgent } from "../../src/helpers/ai/followUpAgent.js";
@@ -84,44 +84,54 @@ afterAll(async () => {
 });
 
 const createActiveSubscription = async (businessId, suffix = "agent") => {
-  await Business.findByIdAndUpdate(businessId, {
-    isActive: true,
-  });
+  await Business.findByIdAndUpdate(
+    businessId,
+    { isActive: true },
+    { returnDocument: "after" },
+  );
 
-  return await Subscription.create({
-    business: businessId,
-    stripeCustomerId: `cus_test_${suffix}`,
-    stripeSubscriptionId: `sub_test_${suffix}`,
-    plan: "pro",
-    status: "active",
-    aiEnabled: true,
-    isActive: true,
-  });
+  return await Subscription.findOneAndUpdate(
+    { business: businessId },
+    {
+      business: businessId,
+      stripeCustomerId: `cus_test_${suffix}`,
+      stripeSubscriptionId: `sub_test_${suffix}`,
+      plan: "pro",
+      status: "active",
+      aiEnabled: true,
+      isActive: true,
+      cancelAtPeriodEnd: false,
+    },
+    {
+      upsert: true,
+      returnDocument: "after",
+      runValidators: true,
+      setDefaultsOnInsert: true,
+    },
+  );
 };
 
-const registerCreateBusinessLeadConversation = async () => {
+const registerCreateBusinessLeadConversation = async ({
+  userName = "demoowner",
+  email = "owner@callbackiq.com",
+  businessName = "Atlanta Pro Plumbing",
+  businessPhone = "4045551234",
+  businessType = "plumbing",
+  subscriptionSuffix = "agent",
+} = {}) => {
   const registerRes = await request(app).post("/api/auth/register").send({
-    userName: "demoowner",
-    email: "owner@callbackiq.com",
+    userName,
+    email,
     password: "Password123",
-    businessName: "Atlanta Pro Plumbing",
+    businessName,
+    businessPhone,
+    businessType,
   });
 
   const token = registerRes.body.data.token;
+  const business = registerRes.body.data.business;
 
-  const businessRes = await request(app)
-    .post("/api/businesses")
-    .set("Authorization", `Bearer ${token}`)
-    .send({
-      businessName: "Atlanta Pro Plumbing",
-      businessType: "plumbing",
-      phone: "4045551234",
-      estimatedJobValue: 800,
-    });
-
-  const business = businessRes.body.data;
-
-  await createActiveSubscription(business._id);
+  await createActiveSubscription(business._id, subscriptionSuffix);
 
   const leadRes = await request(app)
     .post("/api/leads")
@@ -371,31 +381,18 @@ describe("Agent Routes", () => {
   test("rejects another business conversation", async () => {
     const first = await registerCreateBusinessLeadConversation();
 
-    const secondRegisterRes = await request(app)
-      .post("/api/auth/register")
-      .send({
-        userName: "otherowner",
-        email: "other@callbackiq.com",
-        password: "Password123",
-        businessName: "Other Plumbing",
-      });
-
-    const secondToken = secondRegisterRes.body.data.token;
-
-    const secondBusinessRes = await request(app)
-      .post("/api/businesses")
-      .set("Authorization", `Bearer ${secondToken}`)
-      .send({
-        businessName: "Other Plumbing",
-        businessType: "plumbing",
-        phone: "4045557777",
-      });
-
-    await createActiveSubscription(secondBusinessRes.body.data._id, "agent_2");
+    const second = await registerCreateBusinessLeadConversation({
+      userName: "otherowner",
+      email: "other@callbackiq.com",
+      businessName: "Other Plumbing",
+      businessPhone: "4045557777",
+      businessType: "plumbing",
+      subscriptionSuffix: "agent_2",
+    });
 
     const res = await request(app)
       .post("/api/agent/reply")
-      .set("Authorization", `Bearer ${secondToken}`)
+      .set("Authorization", `Bearer ${second.token}`)
       .send({
         conversationId: first.conversation._id,
         leadId: first.lead._id,
