@@ -28,17 +28,65 @@ const checkSubscription = async (req, res, next) => {
     if (!subscription) {
       return res.status(403).json({
         success: false,
-        message: "Active subscription required",
+        message: "Active subscription or free trial required",
       });
     }
 
-    if (subscription.status !== "active") {
+    const now = new Date();
+
+    const trialExpired =
+      subscription.status === "trialing" &&
+      subscription.trialEndsAt &&
+      subscription.trialEndsAt <= now;
+
+    if (trialExpired) {
+      subscription.status = "expired";
+      subscription.isActive = false;
+      subscription.aiEnabled = false;
+      await subscription.save();
+
+      business.isActive = false;
+      await business.save();
+
+      return res.status(403).json({
+        success: false,
+        message: "Your 14-day free trial has expired",
+        data: {
+          status: subscription.status,
+          plan: subscription.plan,
+          trialEndsAt: subscription.trialEndsAt,
+          cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+        },
+      });
+    }
+
+    const hasActiveSubscription = subscription.status === "active";
+    const hasActiveTrial =
+      subscription.status === "trialing" &&
+      subscription.trialEndsAt &&
+      subscription.trialEndsAt > now;
+
+    if (!hasActiveSubscription && !hasActiveTrial) {
       return res.status(403).json({
         success: false,
         message: "Your subscription is not active",
         data: {
           status: subscription.status,
           plan: subscription.plan,
+          trialEndsAt: subscription.trialEndsAt,
+          cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+        },
+      });
+    }
+
+    if (business.isActive === false || subscription.isActive === false) {
+      return res.status(403).json({
+        success: false,
+        message: "Your account is not active",
+        data: {
+          status: subscription.status,
+          plan: subscription.plan,
+          trialEndsAt: subscription.trialEndsAt,
           cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
         },
       });

@@ -2,6 +2,7 @@ import request from "supertest";
 
 import app from "../../src/app.js";
 import Alert from "../../src/models/alert.js";
+import Business from "../../src/models/business.js";
 import Subscription from "../../src/models/subscription.js";
 import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testDb.js";
 
@@ -18,6 +19,10 @@ afterAll(async () => {
 });
 
 const createActiveSubscription = async (businessId, suffix = "123") => {
+  await Business.findByIdAndUpdate(businessId, {
+    isActive: true,
+  });
+
   return await Subscription.create({
     business: businessId,
     stripeCustomerId: `cus_test_${suffix}`,
@@ -25,6 +30,7 @@ const createActiveSubscription = async (businessId, suffix = "123") => {
     plan: "pro",
     status: "active",
     aiEnabled: true,
+    isActive: true,
   });
 };
 

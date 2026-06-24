@@ -2,15 +2,75 @@ import request from "supertest";
 
 import app from "../../src/app.js";
 import Lead from "../../src/models/lead.js";
+import Message from "../../src/models/message.js";
+import Alert from "../../src/models/alert.js";
+import Business from "../../src/models/business.js";
+import Conversation from "../../src/models/conversation.js";
 import Subscription from "../../src/models/subscription.js";
-import { qualifyLeadWithAI } from "../../src/helpers/ai/openaiClient.js";
+import { runFollowUpAgent } from "../../src/helpers/ai/followUpAgent.js";
 import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testDb.js";
 
-jest.mock("../../src/helpers/ai/openaiClient.js", () => ({
-  qualifyLeadWithAI: jest.fn(),
+jest.mock("../../src/helpers/ai/followUpAgent.js", () => ({
+  runFollowUpAgent: jest.fn(),
 }));
 
+jest.mock("twilio", () => {
+  const twilioMock = jest.fn(() => ({
+    messages: {
+      create: jest.fn().mockResolvedValue({
+        sid: "SM_AGENT_TEST_123",
+      }),
+    },
+  }));
+
+  twilioMock.twiml = {
+    VoiceResponse: class {
+      constructor() {
+        this.output = "<Response>";
+      }
+
+      dial(options = {}) {
+        this.output += `<Dial action="${options.action}" method="${options.method}">`;
+
+        return {
+          number: (phone) => {
+            this.output += `<Number>${phone}</Number></Dial>`;
+          },
+        };
+      }
+
+      say(message) {
+        this.output += `<Say>${message}</Say>`;
+      }
+
+      toString() {
+        return `${this.output}</Response>`;
+      }
+    },
+
+    MessagingResponse: class {
+      constructor() {
+        this.output = "<Response></Response>";
+      }
+
+      message(text) {
+        this.output = `<Response><Message>${text}</Message></Response>`;
+      }
+
+      toString() {
+        return this.output;
+      }
+    },
+  };
+
+  return twilioMock;
+});
+
 beforeAll(async () => {
+  process.env.TWILIO_ACCOUNT_SID = "AC_TEST";
+  process.env.TWILIO_AUTH_TOKEN = "AUTH_TEST";
+  process.env.TWILIO_PHONE_NUMBER = "4041112222";
+
   await connectTestDB();
 });
 
@@ -23,7 +83,11 @@ afterAll(async () => {
   await closeTestDB();
 });
 
-const createActiveSubscription = async (businessId, suffix = "123") => {
+const createActiveSubscription = async (businessId, suffix = "agent") => {
+  await Business.findByIdAndUpdate(businessId, {
+    isActive: true,
+  });
+
   return await Subscription.create({
     business: businessId,
     stripeCustomerId: `cus_test_${suffix}`,
@@ -31,10 +95,11 @@ const createActiveSubscription = async (businessId, suffix = "123") => {
     plan: "pro",
     status: "active",
     aiEnabled: true,
+    isActive: true,
   });
 };
 
-const registerCreateBusinessAndLead = async () => {
+const registerCreateBusinessLeadConversation = async () => {
   const registerRes = await request(app).post("/api/auth/register").send({
     userName: "demoowner",
     email: "owner@callbackiq.com",
@@ -64,165 +129,247 @@ const registerCreateBusinessAndLead = async () => {
     .send({
       customerName: "John Smith",
       phone: "4045559999",
-      serviceNeeded: "Unknown - customer replied by SMS",
+      serviceNeeded: "Unknown - missed call follow-up needed",
+      urgency: "medium",
       status: "new",
-      source: "sms",
+      source: "missed_call",
     });
+
+  const lead = leadRes.body.data;
+
+  const conversationRes = await request(app)
+    .post("/api/conversations")
+    .set("Authorization", `Bearer ${token}`)
+    .send({
+      business: business._id,
+      lead: lead._id,
+      customerPhone: "4045559999",
+      customerName: "John Smith",
+    });
+
+  expect(conversationRes.status).toBe(201);
 
   return {
     token,
     business,
-    lead: leadRes.body.data,
+    lead,
+    conversation: conversationRes.body.data,
   };
 };
 
-describe("AI Routes", () => {
-  test("POST /api/ai/qualify-lead rejects unauthenticated request", async () => {
-    const res = await request(app).post("/api/ai/qualify-lead").send({
-      leadId: "665000000000000000000001",
-      messageBody: "My water heater is leaking and I need help today.",
+describe("Agent Routes", () => {
+  test("POST /api/agent/reply rejects unauthenticated request", async () => {
+    const res = await request(app).post("/api/agent/reply").send({
+      conversationId: "665000000000000000000001",
+      customerMessage: "My water heater is leaking.",
     });
 
     expect(res.status).toBe(401);
     expect(res.body.success).toBe(false);
   });
 
-  test("POST /api/ai/qualify-lead rejects invalid input", async () => {
-    const { token } = await registerCreateBusinessAndLead();
+  test("POST /api/agent/reply rejects invalid input", async () => {
+    const { token } = await registerCreateBusinessLeadConversation();
 
     const res = await request(app)
-      .post("/api/ai/qualify-lead")
+      .post("/api/agent/reply")
       .set("Authorization", `Bearer ${token}`)
       .send({
-        leadId: "",
-        messageBody: "",
+        conversationId: "",
+        customerMessage: "",
       });
 
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
   });
 
-  test("POST /api/ai/qualify-lead rejects invalid lead ID format", async () => {
-    const { token } = await registerCreateBusinessAndLead();
+  test("POST /api/agent/reply rejects invalid conversation ID", async () => {
+    const { token } = await registerCreateBusinessLeadConversation();
 
     const res = await request(app)
-      .post("/api/ai/qualify-lead")
+      .post("/api/agent/reply")
       .set("Authorization", `Bearer ${token}`)
       .send({
-        leadId: "bad-id",
-        messageBody: "My water heater is leaking.",
+        conversationId: "bad-id",
+        customerMessage: "My water heater is leaking.",
       });
 
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
   });
 
-  test("POST /api/ai/qualify-lead qualifies and updates lead", async () => {
-    qualifyLeadWithAI.mockResolvedValue({
+  test("POST /api/agent/reply creates inbound/outbound messages, updates lead, and creates hot lead alert", async () => {
+    runFollowUpAgent.mockResolvedValue({
+      reply:
+        "I’m sorry that happened. Is water actively leaking right now, and what is the service address?",
       serviceNeeded: "Water heater repair",
       urgency: "emergency",
-      address: "123 Main St Atlanta GA",
-      preferredAppointmentTime: "Today after 3 PM",
+      address: "",
+      preferredAppointmentTime: "Today",
       leadQualityScore: 95,
-      summary:
-        "Customer has an emergency water heater issue and wants service today.",
       estimatedValue: 1200,
+      summary: "Customer has emergency water heater issue.",
+      shouldAlertOwner: true,
+      alertTitle: "Emergency water heater lead",
+      alertMessage: "Customer has an emergency water heater issue today.",
     });
 
-    const { token, lead } = await registerCreateBusinessAndLead();
+    const { token, lead, conversation } =
+      await registerCreateBusinessLeadConversation();
 
     const res = await request(app)
-      .post("/api/ai/qualify-lead")
+      .post("/api/agent/reply")
       .set("Authorization", `Bearer ${token}`)
       .send({
+        conversationId: conversation._id,
         leadId: lead._id,
-        messageBody:
-          "My water heater is leaking everywhere. I need someone today after 3 PM. I am at 123 Main St Atlanta GA.",
+        customerMessage:
+          "My water heater exploded and water is leaking everywhere.",
       });
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-
-    expect(qualifyLeadWithAI).toHaveBeenCalledWith({
-      messageBody:
-        "My water heater is leaking everywhere. I need someone today after 3 PM. I am at 123 Main St Atlanta GA.",
-      businessType: "plumbing",
-    });
-
-    expect(res.body.data.lead.serviceNeeded).toBe("Water heater repair");
-    expect(res.body.data.lead.urgency).toBe("emergency");
-    expect(res.body.data.lead.address).toBe("123 Main St Atlanta GA");
-    expect(res.body.data.lead.preferredAppointmentTime).toBe(
-      "Today after 3 PM",
-    );
-    expect(res.body.data.lead.leadQualityScore).toBe(95);
-    expect(res.body.data.lead.estimatedValue).toBe(1200);
-    expect(res.body.data.lead.status).toBe("contacted");
+    expect(res.body.data.reply).toContain("Is water actively leaking");
 
     const updatedLead = await Lead.findById(lead._id);
 
     expect(updatedLead.serviceNeeded).toBe("Water heater repair");
+    expect(updatedLead.urgency).toBe("emergency");
+    expect(updatedLead.leadQualityScore).toBe(95);
+    expect(updatedLead.estimatedValue).toBe(1200);
     expect(updatedLead.status).toBe("contacted");
+
+    const messages = await Message.find({
+      conversation: conversation._id,
+    }).sort({ createdAt: 1 });
+
+    expect(messages.length).toBe(2);
+    expect(messages[0].direction).toBe("inbound");
+    expect(messages[1].direction).toBe("outbound");
+    expect(messages[1].provider).toBe("twilio");
+    expect(messages[1].providerMessageId).toBe("SM_AGENT_TEST_123");
+    expect(messages[1].status).toBe("sent");
+
+    const updatedConversation = await Conversation.findById(conversation._id);
+
+    expect(updatedConversation.lastMessage).toContain(
+      "Is water actively leaking",
+    );
+
+    const alert = await Alert.findOne({
+      lead: lead._id,
+      type: "hot_lead",
+    });
+
+    expect(alert).toBeTruthy();
+    expect(alert.priority).toBe("high");
+    expect(alert.title).toBe("Emergency water heater lead");
   });
 
-  test("does not downgrade booked lead to contacted", async () => {
-    qualifyLeadWithAI.mockResolvedValue({
+  test("does not downgrade booked lead status", async () => {
+    runFollowUpAgent.mockResolvedValue({
+      reply: "Thanks, your appointment is confirmed.",
       serviceNeeded: "Water heater repair",
       urgency: "high",
       address: "",
-      preferredAppointmentTime: "Tomorrow morning",
+      preferredAppointmentTime: "Tomorrow",
       leadQualityScore: 80,
-      summary: "Customer confirmed appointment details.",
       estimatedValue: 900,
+      summary: "Customer confirmed appointment.",
+      shouldAlertOwner: false,
     });
 
-    const { token, lead } = await registerCreateBusinessAndLead();
+    const { token, lead, conversation } =
+      await registerCreateBusinessLeadConversation();
 
     await Lead.findByIdAndUpdate(lead._id, {
       status: "booked",
     });
 
     const res = await request(app)
-      .post("/api/ai/qualify-lead")
+      .post("/api/agent/reply")
       .set("Authorization", `Bearer ${token}`)
       .send({
+        conversationId: conversation._id,
         leadId: lead._id,
-        messageBody: "Tomorrow morning works.",
+        customerMessage: "Tomorrow works.",
       });
 
     expect(res.status).toBe(200);
-    expect(res.body.data.lead.status).toBe("booked");
+
+    const updatedLead = await Lead.findById(lead._id);
+
+    expect(updatedLead.status).toBe("booked");
   });
 
-  test("sanitizes invalid AI urgency, score, and estimated value", async () => {
-    qualifyLeadWithAI.mockResolvedValue({
+  test("sanitizes invalid AI values", async () => {
+    runFollowUpAgent.mockResolvedValue({
+      reply: "Thanks, I’ll pass this along.",
       serviceNeeded: "Leak repair",
       urgency: "critical",
       address: "",
       preferredAppointmentTime: "",
       leadQualityScore: 999,
-      summary: "Customer may need leak repair.",
       estimatedValue: -500,
+      summary: "Possible leak repair.",
+      shouldAlertOwner: false,
     });
 
-    const { token, lead } = await registerCreateBusinessAndLead();
+    const { token, lead, conversation } =
+      await registerCreateBusinessLeadConversation();
 
     const res = await request(app)
-      .post("/api/ai/qualify-lead")
+      .post("/api/agent/reply")
       .set("Authorization", `Bearer ${token}`)
       .send({
+        conversationId: conversation._id,
         leadId: lead._id,
-        messageBody: "There is a leak.",
+        customerMessage: "There is a leak.",
       });
 
     expect(res.status).toBe(200);
-    expect(res.body.data.lead.urgency).toBe("medium");
-    expect(res.body.data.lead.leadQualityScore).toBe(100);
-    expect(res.body.data.lead.estimatedValue).toBe(0);
+
+    const updatedLead = await Lead.findById(lead._id);
+
+    expect(updatedLead.urgency).toBe("medium");
+    expect(updatedLead.leadQualityScore).toBe(100);
+    expect(updatedLead.estimatedValue).toBe(0);
   });
 
-  test("rejects lead that does not belong to user's business", async () => {
-    const first = await registerCreateBusinessAndLead();
+  test("does not create alert when lead is not hot", async () => {
+    runFollowUpAgent.mockResolvedValue({
+      reply: "Thanks, what day works best for service?",
+      serviceNeeded: "General plumbing",
+      urgency: "low",
+      address: "",
+      preferredAppointmentTime: "",
+      leadQualityScore: 40,
+      estimatedValue: 300,
+      summary: "Low urgency general plumbing lead.",
+      shouldAlertOwner: false,
+    });
+
+    const { token, lead, conversation } =
+      await registerCreateBusinessLeadConversation();
+
+    const res = await request(app)
+      .post("/api/agent/reply")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        conversationId: conversation._id,
+        leadId: lead._id,
+        customerMessage: "I may need service sometime next week.",
+      });
+
+    expect(res.status).toBe(200);
+
+    const alerts = await Alert.find({ lead: lead._id });
+
+    expect(alerts.length).toBe(0);
+  });
+
+  test("rejects another business conversation", async () => {
+    const first = await registerCreateBusinessLeadConversation();
 
     const secondRegisterRes = await request(app)
       .post("/api/auth/register")
@@ -244,18 +391,19 @@ describe("AI Routes", () => {
         phone: "4045557777",
       });
 
-    await createActiveSubscription(secondBusinessRes.body.data._id, "456");
+    await createActiveSubscription(secondBusinessRes.body.data._id, "agent_2");
 
     const res = await request(app)
-      .post("/api/ai/qualify-lead")
+      .post("/api/agent/reply")
       .set("Authorization", `Bearer ${secondToken}`)
       .send({
+        conversationId: first.conversation._id,
         leadId: first.lead._id,
-        messageBody: "Trying to access another business lead.",
+        customerMessage: "Trying to access another business conversation.",
       });
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(401);
     expect(res.body.success).toBe(false);
-    expect(qualifyLeadWithAI).not.toHaveBeenCalled();
+    expect(runFollowUpAgent).not.toHaveBeenCalled();
   });
 });

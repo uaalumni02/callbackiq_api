@@ -27,7 +27,7 @@ const SubscriptionSchema = new Schema(
     plan: {
       type: String,
       enum: ["starter", "pro", "agency"],
-      default: "starter",
+      default: "pro",
       validate: [validate.isValidPlan, "Invalid subscription plan"],
     },
 
@@ -38,6 +38,7 @@ const SubscriptionSchema = new Schema(
         "incomplete_expired",
         "trialing",
         "active",
+        "expired",
         "past_due",
         "canceled",
         "unpaid",
@@ -49,6 +50,31 @@ const SubscriptionSchema = new Schema(
         validate.isValidSubscriptionStatus,
         "Invalid subscription status",
       ],
+    },
+
+    trialStartedAt: {
+      type: Date,
+      default: null,
+    },
+
+    trialEndsAt: {
+      type: Date,
+      default: null,
+    },
+
+    isActive: {
+      type: Boolean,
+      default: false,
+    },
+
+    aiEnabled: {
+      type: Boolean,
+      default: true,
+    },
+
+    priceMonthly: {
+      type: Number,
+      default: 199,
     },
 
     currentPeriodStart: {

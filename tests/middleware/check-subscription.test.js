@@ -71,7 +71,7 @@ describe("Subscription Enforcement Middleware", () => {
 
     expect(res.status).toBe(403);
     expect(res.body.success).toBe(false);
-    expect(res.body.message).toBe("Active subscription required");
+    expect(res.body.message).toBe("Active subscription or free trial required");
   });
 
   test("blocks paid lead status route with inactive subscription", async () => {
@@ -84,6 +84,7 @@ describe("Subscription Enforcement Middleware", () => {
       plan: "pro",
       status: "past_due",
       aiEnabled: true,
+      isActive: false,
     });
 
     const res = await request(app)
@@ -102,6 +103,10 @@ describe("Subscription Enforcement Middleware", () => {
   test("allows paid route with active subscription", async () => {
     const { token, business, lead } = await registerCreateBusinessAndLead();
 
+    await Business.findByIdAndUpdate(business._id, {
+      isActive: true,
+    });
+
     await Subscription.create({
       business: business._id,
       stripeCustomerId: "cus_test_active",
@@ -109,6 +114,7 @@ describe("Subscription Enforcement Middleware", () => {
       plan: "pro",
       status: "active",
       aiEnabled: true,
+      isActive: true,
     });
 
     const res = await request(app)
@@ -141,6 +147,7 @@ describe("Subscription Enforcement Middleware", () => {
       plan: "pro",
       status: "active",
       aiEnabled: true,
+      isActive: true,
     });
 
     const res = await request(app)

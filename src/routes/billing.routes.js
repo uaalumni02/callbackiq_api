@@ -5,6 +5,8 @@ import BillingController from "../controllers/billing.js";
 
 const router = express.Router();
 
+router.post("/free-trial", checkAuth, BillingController.startFreeTrial);
+
 router.post(
   "/create-checkout-session",
   checkAuth,

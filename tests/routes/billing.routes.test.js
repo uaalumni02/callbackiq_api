@@ -173,6 +173,65 @@ describe("Billing Routes", () => {
     expect(res.body.success).toBe(false);
   });
 
+  test("POST /api/billing/free-trial rejects unauthenticated request", async () => {
+    const res = await request(app).post("/api/billing/free-trial");
+
+    expect(res.status).toBe(401);
+    expect(res.body.success).toBe(false);
+  });
+
+  test("POST /api/billing/free-trial starts a 14-day free trial", async () => {
+    const { token, business } = await registerAndCreateBusiness();
+
+    const res = await request(app)
+      .post("/api/billing/free-trial")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+
+    const subscription = await Subscription.findOne({
+      business: business._id,
+    });
+
+    expect(subscription).toBeTruthy();
+    expect(subscription.plan).toBe("pro");
+    expect(subscription.status).toBe("trialing");
+    expect(subscription.isActive).toBe(true);
+    expect(subscription.aiEnabled).toBe(true);
+    expect(subscription.priceMonthly).toBe(199);
+    expect(subscription.trialStartedAt).toBeTruthy();
+    expect(subscription.trialEndsAt).toBeTruthy();
+    expect(subscription.currentPeriodStart).toBeTruthy();
+    expect(subscription.currentPeriodEnd).toBeTruthy();
+
+    const trialDays = Math.round(
+      (new Date(subscription.trialEndsAt) -
+        new Date(subscription.trialStartedAt)) /
+        (1000 * 60 * 60 * 24),
+    );
+
+    expect(trialDays).toBe(14);
+  });
+
+  test("POST /api/billing/free-trial rejects duplicate active trial", async () => {
+    const { token } = await registerAndCreateBusiness();
+
+    const firstRes = await request(app)
+      .post("/api/billing/free-trial")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(firstRes.status).toBe(200);
+    expect(firstRes.body.success).toBe(true);
+
+    const secondRes = await request(app)
+      .post("/api/billing/free-trial")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(secondRes.status).toBe(400);
+    expect(secondRes.body.success).toBe(false);
+  });
+
   test("GET /api/billing/subscription returns default none subscription if missing", async () => {
     const { token } = await registerAndCreateBusiness();
 
@@ -204,6 +263,58 @@ describe("Billing Routes", () => {
     expect(res.body.success).toBe(true);
     expect(res.body.data.plan).toBe("pro");
     expect(res.body.data.status).toBe("active");
+  });
+
+  test("GET /api/billing/subscription returns active trial", async () => {
+    const { token } = await registerAndCreateBusiness();
+
+    await request(app)
+      .post("/api/billing/free-trial")
+      .set("Authorization", `Bearer ${token}`);
+
+    const res = await request(app)
+      .get("/api/billing/subscription")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.plan).toBe("pro");
+    expect(res.body.data.status).toBe("trialing");
+    expect(res.body.data.isActive).toBe(true);
+    expect(res.body.data.aiEnabled).toBe(true);
+    expect(res.body.data.trialEndsAt).toBeTruthy();
+  });
+
+  test("GET /api/billing/subscription expires old trial", async () => {
+    const { token, business } = await registerAndCreateBusiness();
+
+    await Subscription.create({
+      business: business._id,
+      plan: "pro",
+      status: "trialing",
+      trialStartedAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000),
+      trialEndsAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+      currentPeriodStart: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000),
+      currentPeriodEnd: new Date(Date.now() - 24 * 60 * 60 * 1000),
+      isActive: true,
+      aiEnabled: true,
+      priceMonthly: 199,
+    });
+
+    const res = await request(app)
+      .get("/api/billing/subscription")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+
+    const subscription = await Subscription.findOne({
+      business: business._id,
+    });
+
+    expect(subscription.status).toBe("expired");
+    expect(subscription.isActive).toBe(false);
+    expect(subscription.aiEnabled).toBe(false);
   });
 
   test("POST /api/billing/cancel schedules subscription cancellation", async () => {

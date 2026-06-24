@@ -17,14 +17,123 @@ const toDateFromUnix = (timestamp) => {
   return new Date(timestamp * 1000);
 };
 
+const addDays = (date, days) => {
+  const copy = new Date(date);
+  copy.setDate(copy.getDate() + days);
+  return copy;
+};
+
 const inferPlanFromPriceId = (priceId) => {
   if (priceId === process.env.STRIPE_STARTER_PRICE_ID) return "starter";
   if (priceId === process.env.STRIPE_PRO_PRICE_ID) return "pro";
   if (priceId === process.env.STRIPE_AGENCY_PRICE_ID) return "agency";
-  return "starter";
+  return "pro";
+};
+
+const expireTrialIfNeeded = async (business, subscription) => {
+  if (!business || !subscription) return subscription;
+
+  const now = new Date();
+
+  const trialExpired =
+    subscription.status === "trialing" &&
+    subscription.trialEndsAt &&
+    subscription.trialEndsAt <= now;
+
+  if (!trialExpired) {
+    return subscription;
+  }
+
+  subscription.status = "expired";
+  subscription.isActive = false;
+  subscription.aiEnabled = false;
+  await subscription.save();
+
+  business.isActive = false;
+  await business.save();
+
+  return subscription;
 };
 
 class BillingController {
+  static async startFreeTrial(req, res) {
+    try {
+      const ownerId = req.user?.userId;
+
+      if (!ownerId) {
+        return Response.responseBadAuth(res, "Not authenticated");
+      }
+
+      const business = await Db.getBusinessByOwner(Business, ownerId);
+
+      if (!business) {
+        return Response.responseInvalidInput(
+          res,
+          "Business not found. Create a business before starting a free trial.",
+        );
+      }
+
+      let subscription = await Db.getSubscriptionByBusiness(
+        Subscription,
+        business._id,
+      );
+
+      if (subscription) {
+        subscription = await expireTrialIfNeeded(business, subscription);
+      }
+
+      const now = new Date();
+
+      const hasActiveTrial =
+        subscription?.status === "trialing" &&
+        subscription?.trialEndsAt &&
+        subscription.trialEndsAt > now;
+
+      const hasActiveSubscription = subscription?.status === "active";
+
+      if (hasActiveTrial || hasActiveSubscription) {
+        return Response.responseInvalidInput(
+          res,
+          "This business already has active access.",
+        );
+      }
+
+      const trialEndsAt = addDays(now, 14);
+
+      subscription = await Db.upsertSubscriptionByBusiness(
+        Subscription,
+        business._id,
+        {
+          plan: "pro",
+          status: "trialing",
+          trialStartedAt: now,
+          trialEndsAt,
+          currentPeriodStart: now,
+          currentPeriodEnd: trialEndsAt,
+          cancelAtPeriodEnd: false,
+          priceMonthly: 199,
+          aiEnabled: true,
+          isActive: true,
+        },
+      );
+
+      business.isActive = true;
+      await business.save();
+
+      return Response.responseOk(
+        res,
+        {
+          business,
+          subscription,
+        },
+        "14-day free trial started successfully",
+      );
+    } catch (error) {
+      console.error("Error in startFreeTrial:", error);
+      return Response.responseServerError(res);
+    }
+  }
+
   static async createCheckoutSession(req, res) {
     try {
       const ownerId = req.user?.userId;
@@ -143,20 +252,29 @@ class BillingController {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      const subscription = await Db.getSubscriptionByBusiness(
+      let subscription = await Db.getSubscriptionByBusiness(
         Subscription,
         business._id,
       );
+
+      if (subscription) {
+        subscription = await expireTrialIfNeeded(business, subscription);
+      }
 
       return Response.responseOk(
         res,
         subscription || {
           business: business._id,
-          plan: "starter",
+          plan: "pro",
           status: "none",
           stripeCustomerId: "",
           stripeSubscriptionId: "",
           cancelAtPeriodEnd: false,
+          trialStartedAt: null,
+          trialEndsAt: null,
+          isActive: false,
+          aiEnabled: true,
+          priceMonthly: 199,
           currentPeriodStart: null,
           currentPeriodEnd: null,
         },
@@ -293,17 +411,27 @@ class BillingController {
 
   static async handleCheckoutCompleted(session) {
     const businessId = session.metadata?.businessId;
-    const plan = session.metadata?.plan || "starter";
+    const plan = session.metadata?.plan || "pro";
 
     if (!businessId) return null;
 
-    return await Db.upsertSubscriptionByBusiness(Subscription, businessId, {
-      stripeCustomerId: session.customer || "",
-      stripeSubscriptionId: session.subscription || "",
-      checkoutSessionId: session.id || "",
-      plan,
-      status: "active",
-    });
+    const subscription = await Db.upsertSubscriptionByBusiness(
+      Subscription,
+      businessId,
+      {
+        stripeCustomerId: session.customer || "",
+        stripeSubscriptionId: session.subscription || "",
+        checkoutSessionId: session.id || "",
+        plan,
+        status: "active",
+        isActive: true,
+        aiEnabled: true,
+      },
+    );
+
+    await Business.findByIdAndUpdate(businessId, { isActive: true });
+
+    return subscription;
   }
 
   static async handleSubscriptionUpdated(stripeSubscription) {
@@ -314,24 +442,33 @@ class BillingController {
       stripeSubscription.plan?.id ||
       "";
 
+    const stripeStatus = stripeSubscription.status || "none";
+    const isActive = ["active", "trialing"].includes(stripeStatus);
+
     const data = {
       stripeCustomerId: stripeSubscription.customer || "",
       stripeSubscriptionId: stripeSubscription.id || "",
       plan: stripeSubscription.metadata?.plan || inferPlanFromPriceId(priceId),
-      status: stripeSubscription.status || "none",
+      status: stripeStatus,
       currentPeriodStart: toDateFromUnix(
         stripeSubscription.current_period_start,
       ),
       currentPeriodEnd: toDateFromUnix(stripeSubscription.current_period_end),
       cancelAtPeriodEnd: Boolean(stripeSubscription.cancel_at_period_end),
+      isActive,
+      aiEnabled: isActive,
     };
 
     if (businessId) {
-      return await Db.upsertSubscriptionByBusiness(
+      const subscription = await Db.upsertSubscriptionByBusiness(
         Subscription,
         businessId,
         data,
       );
+
+      await Business.findByIdAndUpdate(businessId, { isActive });
+
+      return subscription;
     }
 
     if (stripeSubscription.id) {
@@ -355,6 +492,8 @@ class BillingController {
         latestInvoiceId: invoice.id || "",
         lastPaymentStatus: "paid",
         status: "active",
+        isActive: true,
+        aiEnabled: true,
       },
     );
   }
@@ -369,9 +508,12 @@ class BillingController {
         latestInvoiceId: invoice.id || "",
         lastPaymentStatus: "failed",
         status: "past_due",
+        isActive: false,
+        aiEnabled: false,
       },
     );
   }
+
   static async updateAdminCustomerAccountStatus(req, res) {
     try {
       const role = String(req.user?.role || "").toLowerCase();
@@ -399,6 +541,16 @@ class BillingController {
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
       }
+
+      await Subscription.findOneAndUpdate(
+        { business: business._id },
+        {
+          isActive,
+          aiEnabled: isActive,
+          status: isActive ? "active" : "canceled",
+        },
+        { new: true },
+      );
 
       return Response.responseOk(
         res,
