@@ -1,5 +1,7 @@
 import Db from "../db/db.js";
 import User from "../models/user.js";
+import Business from "../models/business.js";
+import Subscription from "../models/subscription.js";
 import Token from "../helpers/jwt/token.js";
 import bcrypt from "../helpers/bcrypt/bcrypt.js";
 import { registerSchema, loginSchema } from "../validator/auth.js";
@@ -67,6 +69,34 @@ class AuthController {
         businessType,
       });
 
+      const savedBusiness = await Db.saveBusiness(Business, {
+        owner: savedUser._id,
+        businessName,
+        businessType,
+        phone: businessPhone,
+        email,
+        isActive: true,
+      });
+
+      const trialEndsAt = new Date();
+      trialEndsAt.setDate(trialEndsAt.getDate() + 14);
+
+      const savedSubscription = await Db.upsertSubscriptionByBusiness(
+        Subscription,
+        savedBusiness._id,
+        {
+          plan: "pro",
+          status: "trialing",
+          trialEndsAt,
+          currentPeriodStart: new Date(),
+          currentPeriodEnd: trialEndsAt,
+          priceMonthly: 199,
+          aiEnabled: true,
+          cancelAtPeriodEnd: false,
+          lastPaymentStatus: "trialing",
+        },
+      );
+
       const token = Token.sign({
         userId: savedUser._id,
         userName: savedUser.userName,
@@ -89,6 +119,8 @@ class AuthController {
             businessPhone: savedUser.businessPhone,
             businessType: savedUser.businessType,
           },
+          business: savedBusiness,
+          subscription: savedSubscription,
         },
         "Account created successfully",
       );
@@ -100,7 +132,7 @@ class AuthController {
       if (error.code === 11000) {
         return Response.responseConflict(
           res,
-          "Username or email already exists",
+          "Username, email, or business already exists",
         );
       }
 
