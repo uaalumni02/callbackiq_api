@@ -78,7 +78,8 @@ class AuthController {
         isActive: true,
       });
 
-      const trialEndsAt = new Date();
+      const trialStartedAt = new Date();
+      const trialEndsAt = new Date(trialStartedAt);
       trialEndsAt.setDate(trialEndsAt.getDate() + 14);
 
       const savedSubscription = await Db.upsertSubscriptionByBusiness(
@@ -87,8 +88,9 @@ class AuthController {
         {
           plan: "pro",
           status: "trialing",
+          trialStartedAt,
           trialEndsAt,
-          currentPeriodStart: new Date(),
+          currentPeriodStart: trialStartedAt,
           currentPeriodEnd: trialEndsAt,
           priceMonthly: 199,
           aiEnabled: true,
