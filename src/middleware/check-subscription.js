@@ -3,36 +3,23 @@ import Business from "../models/business.js";
 import Subscription from "../models/subscription.js";
 import * as Response from "../helpers/response/response.js";
 
-const ACTIVE_SUBSCRIPTION_STATUSES = ["active", "trialing"];
+const ACTIVE_STATUSES = ["active", "trialing"];
 
 const checkSubscription = async (req, res, next) => {
   try {
     const ownerId = req.user?.userId;
-    const role = String(req.user?.role || "").toLowerCase();
 
     if (!ownerId) {
       return Response.responseBadAuth(res, "Not authenticated");
     }
 
-    if (role === "admin") {
-      return next();
-    }
-
     const business = await Db.getBusinessByOwner(Business, ownerId);
 
     if (!business) {
-      return Response.responseInvalidInput(
-        res,
-        "Business not found. Create a business before using this feature.",
-      );
+      return Response.responseInvalidInput(res, "Business not found");
     }
 
-    if (business.isActive === false) {
-      return res.status(403).json({
-        success: false,
-        message: "Your account is not active",
-      });
-    }
+    req.business = business;
 
     const subscription = await Db.getSubscriptionByBusiness(
       Subscription,
@@ -42,16 +29,14 @@ const checkSubscription = async (req, res, next) => {
     if (!subscription) {
       return res.status(403).json({
         success: false,
-        message: "Active subscription or free trial required",
+        message: "Active subscription required",
       });
     }
-
-    const now = new Date();
 
     const trialExpired =
       subscription.status === "trialing" &&
       subscription.trialEndsAt &&
-      subscription.trialEndsAt <= now;
+      new Date(subscription.trialEndsAt) <= new Date();
 
     if (trialExpired) {
       subscription.status = "expired";
@@ -64,34 +49,36 @@ const checkSubscription = async (req, res, next) => {
 
       return res.status(403).json({
         success: false,
-        message: "Your 14-day free trial has expired",
+        message:
+          "Your free trial has expired. Please activate your subscription.",
         data: {
           status: subscription.status,
+          subscriptionIsActive: subscription.isActive,
+          businessIsActive: business.isActive,
           plan: subscription.plan,
-          trialEndsAt: subscription.trialEndsAt,
-          cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+          aiEnabled: subscription.aiEnabled,
         },
       });
     }
 
-    const hasValidStatus = ACTIVE_SUBSCRIPTION_STATUSES.includes(
-      subscription.status,
-    );
+    const hasActiveStatus = ACTIVE_STATUSES.includes(subscription.status);
+    const subscriptionActive = subscription.isActive === true;
+    const businessActive = business.isActive === true;
 
-    if (!hasValidStatus) {
+    if (!hasActiveStatus || !subscriptionActive || !businessActive) {
       return res.status(403).json({
         success: false,
         message: "Your subscription is not active",
         data: {
           status: subscription.status,
+          subscriptionIsActive: subscription.isActive,
+          businessIsActive: business.isActive,
           plan: subscription.plan,
-          trialEndsAt: subscription.trialEndsAt,
-          cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+          aiEnabled: subscription.aiEnabled,
         },
       });
     }
 
-    req.business = business;
     req.subscription = subscription;
 
     return next();
