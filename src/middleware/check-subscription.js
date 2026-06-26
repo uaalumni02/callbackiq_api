@@ -62,10 +62,9 @@ const checkSubscription = async (req, res, next) => {
     }
 
     const hasActiveStatus = ACTIVE_STATUSES.includes(subscription.status);
-    const subscriptionActive = subscription.isActive === true;
     const businessActive = business.isActive === true;
 
-    if (!hasActiveStatus || !subscriptionActive || !businessActive) {
+    if (!hasActiveStatus || !businessActive) {
       return res.status(403).json({
         success: false,
         message: "Your subscription is not active",
@@ -77,6 +76,12 @@ const checkSubscription = async (req, res, next) => {
           aiEnabled: subscription.aiEnabled,
         },
       });
+    }
+
+    if (subscription.isActive !== true || subscription.aiEnabled !== true) {
+      subscription.isActive = true;
+      subscription.aiEnabled = true;
+      await subscription.save();
     }
 
     req.subscription = subscription;
