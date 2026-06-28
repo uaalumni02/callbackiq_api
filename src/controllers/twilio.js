@@ -12,12 +12,12 @@ const xml = (body) => `<?xml version="1.0" encoding="UTF-8"?>${body}`;
 
 const emptyTwiml = () => xml("<Response></Response>");
 
-const missedStatuses = new Set(["no-answer", "busy", "failed", "canceled"]);
+const normalizeTemplate = (template, business) => {
+  const fallback = `Hi, this is ${business.businessName}. Sorry we missed your call. What service do you need help with today?`;
 
-const getPublicApiUrl = (req) => {
-  return (
-    process.env.PUBLIC_API_BASE_URL || `${req.protocol}://${req.get("host")}`
-  );
+  const text = template || fallback;
+
+  return text.replaceAll("{{businessName}}", business.businessName);
 };
 
 class TwilioController {
@@ -25,88 +25,14 @@ class TwilioController {
     try {
       console.log("TWILIO VOICE BODY:", req.body);
 
-      const from = req.body.From;
-      const to = req.body.To;
-
-      const business = await Db.getBusinessByPhone(Business, to);
-
-      console.log("VOICE FROM:", from);
-      console.log("VOICE TO:", to);
-      console.log(
-        "VOICE BUSINESS FOUND:",
-        business?.businessName || "NO BUSINESS",
-      );
-
-      if (!business) {
-        res.type("text/xml");
-        return res.status(200).send(
-          xml(`
-<Response>
-  <Reject />
-</Response>`),
-        );
-      }
-
-      const forwardTo =
-        business.forwardingPhone || business.businessPhone || business.phone;
-
-      console.log("FORWARDING CALL TO:", forwardTo);
-
-      if (!forwardTo) {
-        res.type("text/xml");
-        return res.status(200).send(
-          xml(`
-<Response>
-  <Say>Sorry, no one is available right now.</Say>
-</Response>`),
-        );
-      }
-
-      const statusUrl = `${getPublicApiUrl(req)}/api/twilio/status`;
-
-      res.type("text/xml");
-      return res.status(200).send(
-        xml(`
-<Response>
-  <Dial
-    timeout="20"
-    action="${statusUrl}"
-    method="POST"
-    callerId="${to}"
-  >
-    <Number>${forwardTo}</Number>
-  </Dial>
-</Response>`),
-      );
-    } catch (error) {
-      console.error("Voice webhook error:", error);
-      res.type("text/xml");
-      return res.status(200).send(emptyTwiml());
-    }
-  }
-
-  static async statusWebhook(req, res) {
-    try {
-      console.log("TWILIO STATUS BODY:", req.body);
-
-      const from = req.body.From || req.body.Caller || "";
-      const to = req.body.To || req.body.Called || "";
-
-      const twilioNumber =
-        req.body.Called || req.body.To || req.body.ForwardedFrom || "";
-
+      const customerPhone = req.body.From || req.body.Caller || "";
+      const twilioNumber = req.body.To || req.body.Called || "";
       const callSid = req.body.CallSid || "";
-      const dialCallStatus = req.body.DialCallStatus || "";
-      const callStatus = req.body.CallStatus || "";
-      const status = dialCallStatus || callStatus;
 
-      console.log("STATUS FROM:", from);
-      console.log("STATUS TO:", to);
-      console.log("STATUS TWILIO NUMBER:", twilioNumber);
-      console.log("STATUS VALUE:", status);
+      console.log("MISSED/FORWARDED CALL FROM:", customerPhone);
+      console.log("TWILIO NUMBER:", twilioNumber);
 
-      if (!from || !twilioNumber) {
-        console.log("Missing from or twilioNumber.");
+      if (!customerPhone || !twilioNumber) {
         res.type("text/xml");
         return res.status(200).send(emptyTwiml());
       }
@@ -114,7 +40,7 @@ class TwilioController {
       const business = await Db.getBusinessByPhone(Business, twilioNumber);
 
       console.log(
-        "STATUS BUSINESS FOUND:",
+        "VOICE BUSINESS FOUND:",
         business?.businessName || "NO BUSINESS",
       );
 
@@ -123,60 +49,53 @@ class TwilioController {
         return res.status(200).send(emptyTwiml());
       }
 
-      const wasMissed = missedStatuses.has(status);
-
-      console.log("WAS MISSED:", wasMissed);
-
       const callLog = await Db.saveCallLog(CallLog, {
         business: business._id,
-        from,
+        from: customerPhone,
         to: twilioNumber,
         direction: "inbound",
-        status: wasMissed ? "missed" : "answered",
+        status: "missed",
         durationSeconds: 0,
         provider: "twilio",
         providerCallId: callSid,
         missedCallTextSent: false,
         recovered: false,
-        notes: `Twilio call status: ${status}`,
+        notes: "Missed call forwarded to CallBackIQ Twilio number.",
       });
 
-      if (!wasMissed) {
-        res.type("text/xml");
-        return res.status(200).send(emptyTwiml());
-      }
-
-      let lead = await Db.getLeadByBusinessAndPhone(Lead, business._id, from);
+      let lead = await Db.getLeadByBusinessAndPhone(
+        Lead,
+        business._id,
+        customerPhone,
+      );
 
       if (!lead) {
         lead = await Db.saveLead(Lead, {
           business: business._id,
           customerName: "Missed Call Lead",
-          phone: from,
+          phone: customerPhone,
           serviceNeeded: "Unknown",
           urgency: "medium",
           source: "missed_call",
           status: "new",
           estimatedValue: business.estimatedJobValue || 0,
-          notes: "Lead created automatically from missed call.",
+          notes: "Lead created automatically from missed forwarded call.",
         });
       }
 
       let conversation = await Db.getConversationByBusinessAndPhone(
         Conversation,
         business._id,
-        from,
+        customerPhone,
       );
 
-      const starterText =
-        business.smsTemplate ||
-        `Hi, this is ${business.businessName}. Sorry we missed your call. What service do you need help with today?`;
+      const starterText = normalizeTemplate(business.smsTemplate, business);
 
       if (!conversation) {
         conversation = await Db.saveConversation(Conversation, {
           business: business._id,
           lead: lead._id,
-          customerPhone: from,
+          customerPhone,
           customerName: lead.customerName,
           status: "open",
           aiEnabled: true,
@@ -184,14 +103,23 @@ class TwilioController {
           lastMessage: starterText,
           lastMessageAt: new Date(),
         });
+      } else {
+        conversation = await Db.updateConversation(
+          Conversation,
+          conversation._id,
+          {
+            lastMessage: starterText,
+            lastMessageAt: new Date(),
+          },
+        );
       }
 
-      console.log("SENDING MISSED CALL SMS TO:", from);
+      console.log("SENDING MISSED CALL SMS TO:", customerPhone);
       console.log("SENDING MISSED CALL SMS FROM:", twilioNumber);
       console.log("SMS BODY:", starterText);
 
       const sent = await sendSms({
-        to: from,
+        to: customerPhone,
         from: twilioNumber,
         body: starterText,
       });
@@ -204,16 +132,11 @@ class TwilioController {
         lead: lead._id,
         direction: "outbound",
         from: twilioNumber,
-        to: from,
+        to: customerPhone,
         body: starterText,
         provider: "twilio",
         providerMessageId: sent?.sid || "",
         status: "sent",
-      });
-
-      await Db.updateConversation(Conversation, conversation._id, {
-        lastMessage: starterText,
-        lastMessageAt: new Date(),
       });
 
       if (callLog?._id) {
@@ -224,6 +147,24 @@ class TwilioController {
           recovered: true,
         });
       }
+
+      res.type("text/xml");
+      return res.status(200).send(
+        xml(`
+<Response>
+  <Say>Thank you. The business has been notified.</Say>
+</Response>`),
+      );
+    } catch (error) {
+      console.error("Voice webhook error:", error);
+      res.type("text/xml");
+      return res.status(200).send(emptyTwiml());
+    }
+  }
+
+  static async statusWebhook(req, res) {
+    try {
+      console.log("TWILIO STATUS BODY:", req.body);
 
       res.type("text/xml");
       return res.status(200).send(emptyTwiml());
