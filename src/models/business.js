@@ -32,11 +32,26 @@ const BusinessSchema = new Schema(
       validate: [validate.isValidBusinessType, "Invalid business type"],
     },
 
+    // Twilio / CallBackIQ tracking number
     phone: {
       type: String,
       required: [true, "Business phone is required"],
       trim: true,
       validate: [validate.isValidPhone, "Please enter a valid phone number"],
+    },
+
+    // Real business/cell number calls should forward to
+    forwardingPhone: {
+      type: String,
+      trim: true,
+      default: "",
+      validate: {
+        validator(value) {
+          if (!value) return true;
+          return validate.isValidPhone(value);
+        },
+        message: "Please enter a valid forwarding phone number",
+      },
     },
 
     email: {

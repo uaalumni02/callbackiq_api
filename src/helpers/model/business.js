@@ -12,6 +12,8 @@ const isValidBusinessType = (businessType) => {
 };
 
 const isValidPhone = (phone) => {
+  if (!phone) return true;
+
   const regExp = /^[0-9+\-().\s]{7,20}$/;
   return regExp.test(phone);
 };

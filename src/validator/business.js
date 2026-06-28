@@ -1,5 +1,7 @@
 import Joi from "joi";
 
+const phonePattern = /^[0-9+\-().\s]{7,20}$/;
+
 const businessSchema = Joi.object({
   businessName: Joi.string().min(2).max(100).required(),
 
@@ -7,9 +9,11 @@ const businessSchema = Joi.object({
     .valid("hvac", "plumbing", "roofing", "electrical", "restoration", "other")
     .default("other"),
 
-  phone: Joi.string()
-    .pattern(/^[0-9+\-().\s]{7,20}$/)
-    .required(),
+  // Twilio / CallBackIQ tracking number
+  phone: Joi.string().pattern(phonePattern).required(),
+
+  // Real business/cell number calls should forward to
+  forwardingPhone: Joi.string().pattern(phonePattern).allow("").optional(),
 
   email: Joi.string().email().allow("").optional(),
 
