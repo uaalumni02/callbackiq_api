@@ -91,7 +91,8 @@ describe("Subscription Enforcement Middleware", () => {
 
     expect(res.status).toBe(403);
     expect(res.body.success).toBe(false);
-    expect(res.body.message).toBe("Active subscription or free trial required");
+
+    expect(res.body.message).toBe("Active subscription required");
   });
 
   test("blocks paid lead status route with inactive subscription", async () => {
