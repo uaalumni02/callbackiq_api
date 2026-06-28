@@ -23,10 +23,19 @@ const getPublicApiUrl = (req) => {
 class TwilioController {
   static async voiceWebhook(req, res) {
     try {
+      console.log("TWILIO VOICE BODY:", req.body);
+
       const from = req.body.From;
       const to = req.body.To;
 
       const business = await Db.getBusinessByPhone(Business, to);
+
+      console.log("VOICE FROM:", from);
+      console.log("VOICE TO:", to);
+      console.log(
+        "VOICE BUSINESS FOUND:",
+        business?.businessName || "NO BUSINESS",
+      );
 
       if (!business) {
         res.type("text/xml");
@@ -40,6 +49,8 @@ class TwilioController {
 
       const forwardTo =
         business.forwardingPhone || business.businessPhone || business.phone;
+
+      console.log("FORWARDING CALL TO:", forwardTo);
 
       if (!forwardTo) {
         res.type("text/xml");
@@ -76,19 +87,36 @@ class TwilioController {
 
   static async statusWebhook(req, res) {
     try {
-      const from = req.body.From;
-      const to = req.body.To;
+      console.log("TWILIO STATUS BODY:", req.body);
+
+      const from = req.body.From || req.body.Caller || "";
+      const to = req.body.To || req.body.Called || "";
+
+      const twilioNumber =
+        req.body.Called || req.body.To || req.body.ForwardedFrom || "";
+
       const callSid = req.body.CallSid || "";
       const dialCallStatus = req.body.DialCallStatus || "";
       const callStatus = req.body.CallStatus || "";
       const status = dialCallStatus || callStatus;
 
-      if (!from || !to) {
+      console.log("STATUS FROM:", from);
+      console.log("STATUS TO:", to);
+      console.log("STATUS TWILIO NUMBER:", twilioNumber);
+      console.log("STATUS VALUE:", status);
+
+      if (!from || !twilioNumber) {
+        console.log("Missing from or twilioNumber.");
         res.type("text/xml");
         return res.status(200).send(emptyTwiml());
       }
 
-      const business = await Db.getBusinessByPhone(Business, to);
+      const business = await Db.getBusinessByPhone(Business, twilioNumber);
+
+      console.log(
+        "STATUS BUSINESS FOUND:",
+        business?.businessName || "NO BUSINESS",
+      );
 
       if (!business) {
         res.type("text/xml");
@@ -97,10 +125,12 @@ class TwilioController {
 
       const wasMissed = missedStatuses.has(status);
 
-      await Db.saveCallLog(CallLog, {
+      console.log("WAS MISSED:", wasMissed);
+
+      const callLog = await Db.saveCallLog(CallLog, {
         business: business._id,
         from,
-        to,
+        to: twilioNumber,
         direction: "inbound",
         status: wasMissed ? "missed" : "answered",
         durationSeconds: 0,
@@ -156,18 +186,24 @@ class TwilioController {
         });
       }
 
+      console.log("SENDING MISSED CALL SMS TO:", from);
+      console.log("SENDING MISSED CALL SMS FROM:", twilioNumber);
+      console.log("SMS BODY:", starterText);
+
       const sent = await sendSms({
         to: from,
-        from: to,
+        from: twilioNumber,
         body: starterText,
       });
+
+      console.log("MISSED CALL SMS SENT:", sent?.sid || "NO SID RETURNED");
 
       await Db.saveMessage(Message, {
         business: business._id,
         conversation: conversation._id,
         lead: lead._id,
         direction: "outbound",
-        from: to,
+        from: twilioNumber,
         to: from,
         body: starterText,
         provider: "twilio",
@@ -180,6 +216,15 @@ class TwilioController {
         lastMessageAt: new Date(),
       });
 
+      if (callLog?._id) {
+        await Db.updateCallLog(CallLog, callLog._id, {
+          lead: lead._id,
+          conversation: conversation._id,
+          missedCallTextSent: true,
+          recovered: true,
+        });
+      }
+
       res.type("text/xml");
       return res.status(200).send(emptyTwiml());
     } catch (error) {
@@ -191,6 +236,8 @@ class TwilioController {
 
   static async handleInboundSms(req, res) {
     try {
+      console.log("TWILIO SMS BODY:", req.body);
+
       const from = req.body.From;
       const to = req.body.To;
       const body = req.body.Body;
@@ -202,6 +249,11 @@ class TwilioController {
       }
 
       const business = await Db.getBusinessByPhone(Business, to);
+
+      console.log(
+        "SMS BUSINESS FOUND:",
+        business?.businessName || "NO BUSINESS",
+      );
 
       if (!business) {
         res.type("text/xml");
@@ -281,6 +333,8 @@ class TwilioController {
         conversation.humanTakeover !== true &&
         conversation.status !== "closed";
 
+      console.log("SHOULD AI REPLY:", shouldAIReply);
+
       if (shouldAIReply) {
         const aiReply = await generateAIReply({
           business,
@@ -288,12 +342,16 @@ class TwilioController {
           messages,
         });
 
+        console.log("AI REPLY:", aiReply);
+
         if (aiReply) {
           const sent = await sendSms({
             to: from,
             from: to,
             body: aiReply,
           });
+
+          console.log("AI SMS SENT:", sent?.sid || "NO SID RETURNED");
 
           await Db.saveMessage(Message, {
             business: business._id,
@@ -334,6 +392,10 @@ class TwilioController {
           message: "to, from, and body are required.",
         });
       }
+
+      console.log("MANUAL SMS TO:", to);
+      console.log("MANUAL SMS FROM:", from);
+      console.log("MANUAL SMS BODY:", body);
 
       const sent = await sendSms({ to, from, body });
 
