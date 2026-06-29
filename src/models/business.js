@@ -103,9 +103,11 @@ const BusinessSchema = new Schema(
       maxlength: 500,
     },
 
+    // Set after onboarding or from Business Settings.
+    // Leaving this null prevents inaccurate ROI calculations.
     estimatedJobValue: {
       type: Number,
-      default: 500,
+      default: null,
       min: 0,
     },
 
