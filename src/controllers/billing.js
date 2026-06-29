@@ -30,6 +30,10 @@ const inferPlanFromPriceId = (priceId) => {
   return "pro";
 };
 
+const isAccessStatus = (status) => {
+  return ["trialing", "active"].includes(status);
+};
+
 const expireTrialIfNeeded = async (business, subscription) => {
   if (!business || !subscription) return subscription;
 
@@ -45,6 +49,7 @@ const expireTrialIfNeeded = async (business, subscription) => {
   }
 
   subscription.status = "expired";
+  subscription.lastPaymentStatus = "trial_expired";
   subscription.isActive = false;
   subscription.aiEnabled = false;
   await subscription.save();
@@ -106,6 +111,7 @@ class BillingController {
         {
           plan: "pro",
           status: "trialing",
+          lastPaymentStatus: "trialing",
           trialStartedAt: now,
           trialEndsAt,
           currentPeriodStart: now,
@@ -208,6 +214,11 @@ class BillingController {
         },
       });
 
+      const currentlyTrialing =
+        subscription?.status === "trialing" &&
+        subscription?.trialEndsAt &&
+        subscription.trialEndsAt > new Date();
+
       subscription = await Db.upsertSubscriptionByBusiness(
         Subscription,
         business._id,
@@ -215,7 +226,14 @@ class BillingController {
           stripeCustomerId,
           checkoutSessionId: session.id,
           plan,
-          status: "incomplete",
+          status: currentlyTrialing ? "trialing" : "incomplete",
+          lastPaymentStatus: currentlyTrialing
+            ? "trialing"
+            : "checkout_started",
+          isActive: currentlyTrialing ? true : false,
+          aiEnabled: currentlyTrialing
+            ? true
+            : (subscription?.aiEnabled ?? true),
         },
       );
 
@@ -277,6 +295,7 @@ class BillingController {
           priceMonthly: 199,
           currentPeriodStart: null,
           currentPeriodEnd: null,
+          lastPaymentStatus: "",
         },
         "Subscription fetched successfully",
       );
@@ -327,6 +346,8 @@ class BillingController {
         {
           cancelAtPeriodEnd: true,
           status: canceledSubscription.status || subscription.status,
+          lastPaymentStatus:
+            canceledSubscription.status || subscription.lastPaymentStatus,
           currentPeriodStart: toDateFromUnix(
             canceledSubscription.current_period_start,
           ),
@@ -361,10 +382,6 @@ class BillingController {
           process.env.STRIPE_WEBHOOK_SECRET,
         );
       } else {
-        /*
-          Local Postman fallback only.
-          In production, always use STRIPE_WEBHOOK_SECRET.
-        */
         if (Buffer.isBuffer(req.body)) {
           event = JSON.parse(req.body.toString("utf8"));
         } else {
@@ -415,6 +432,29 @@ class BillingController {
 
     if (!businessId) return null;
 
+    let stripeStatus = "active";
+    let currentPeriodStart = null;
+    let currentPeriodEnd = null;
+    let trialStartedAt = null;
+    let trialEndsAt = null;
+
+    if (session.subscription) {
+      const stripe = getStripeClient();
+      const stripeSubscription = await stripe.subscriptions.retrieve(
+        session.subscription,
+      );
+
+      stripeStatus = stripeSubscription.status || "active";
+      currentPeriodStart = toDateFromUnix(
+        stripeSubscription.current_period_start,
+      );
+      currentPeriodEnd = toDateFromUnix(stripeSubscription.current_period_end);
+      trialStartedAt = toDateFromUnix(stripeSubscription.trial_start);
+      trialEndsAt = toDateFromUnix(stripeSubscription.trial_end);
+    }
+
+    const isActive = isAccessStatus(stripeStatus);
+
     const subscription = await Db.upsertSubscriptionByBusiness(
       Subscription,
       businessId,
@@ -423,13 +463,18 @@ class BillingController {
         stripeSubscriptionId: session.subscription || "",
         checkoutSessionId: session.id || "",
         plan,
-        status: "active",
-        isActive: true,
-        aiEnabled: true,
+        status: stripeStatus,
+        lastPaymentStatus: stripeStatus,
+        currentPeriodStart,
+        currentPeriodEnd,
+        trialStartedAt,
+        trialEndsAt,
+        isActive,
+        aiEnabled: isActive,
       },
     );
 
-    await Business.findByIdAndUpdate(businessId, { isActive: true });
+    await Business.findByIdAndUpdate(businessId, { isActive });
 
     return subscription;
   }
@@ -443,17 +488,20 @@ class BillingController {
       "";
 
     const stripeStatus = stripeSubscription.status || "none";
-    const isActive = ["active", "trialing"].includes(stripeStatus);
+    const isActive = isAccessStatus(stripeStatus);
 
     const data = {
       stripeCustomerId: stripeSubscription.customer || "",
       stripeSubscriptionId: stripeSubscription.id || "",
       plan: stripeSubscription.metadata?.plan || inferPlanFromPriceId(priceId),
       status: stripeStatus,
+      lastPaymentStatus: stripeStatus,
       currentPeriodStart: toDateFromUnix(
         stripeSubscription.current_period_start,
       ),
       currentPeriodEnd: toDateFromUnix(stripeSubscription.current_period_end),
+      trialStartedAt: toDateFromUnix(stripeSubscription.trial_start),
+      trialEndsAt: toDateFromUnix(stripeSubscription.trial_end),
       cancelAtPeriodEnd: Boolean(stripeSubscription.cancel_at_period_end),
       isActive,
       aiEnabled: isActive,
@@ -542,12 +590,23 @@ class BillingController {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
+      const existingSubscription = await Subscription.findOne({
+        business: business._id,
+      });
+
+      const nextStatus = isActive
+        ? isAccessStatus(existingSubscription?.status)
+          ? existingSubscription.status
+          : "active"
+        : "canceled";
+
       await Subscription.findOneAndUpdate(
         { business: business._id },
         {
           isActive,
           aiEnabled: isActive,
-          status: isActive ? "active" : "canceled",
+          status: nextStatus,
+          lastPaymentStatus: isActive ? nextStatus : "admin_deactivated",
         },
         { new: true },
       );
