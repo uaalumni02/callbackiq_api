@@ -56,6 +56,16 @@ const mockStripe = () => {
     },
 
     subscriptions: {
+      retrieve: jest.fn().mockResolvedValue({
+        id: "sub_test_123",
+        status: "trialing",
+        current_period_start: 1710000000,
+        current_period_end: 1711209600,
+        trial_start: 1710000000,
+        trial_end: 1711209600,
+        cancel_at_period_end: false,
+      }),
+
       update: jest.fn().mockResolvedValue({
         id: "sub_test_123",
         status: "active",
@@ -152,7 +162,9 @@ describe("Billing Routes", () => {
 
     expect(subscription).toBeTruthy();
     expect(subscription.plan).toBe("pro");
-    expect(subscription.status).toBe("incomplete");
+    expect(subscription.status).toBe("trialing");
+    expect(subscription.lastPaymentStatus).toBe("trialing");
+    expect(subscription.isActive).toBe(true);
     expect(subscription.stripeCustomerId).toBe("cus_test_123");
     expect(subscription.checkoutSessionId).toBe("cs_test_123");
   });
@@ -433,7 +445,9 @@ describe("Billing Routes", () => {
     });
 
     expect(subscription).toBeTruthy();
-    expect(subscription.status).toBe("active");
+    expect(subscription.status).toBe("trialing");
+    expect(subscription.lastPaymentStatus).toBe("trialing");
+    expect(subscription.isActive).toBe(true);
     expect(subscription.plan).toBe("pro");
     expect(subscription.stripeCustomerId).toBe("cus_test_123");
     expect(subscription.stripeSubscriptionId).toBe("sub_test_123");
