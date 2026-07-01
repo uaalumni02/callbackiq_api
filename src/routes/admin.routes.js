@@ -1,5 +1,6 @@
 import express from "express";
 import AdminController from "../controllers/admin.js";
+import SupportController from "../controllers/support.js";
 import checkAuth from "../middleware/check-auth.js";
 
 const router = express.Router();
@@ -22,6 +23,13 @@ router.patch(
   "/customers/:businessId/business-status",
   checkAuth,
   AdminController.updateBusinessStatus,
+);
+
+router.get("/support/tickets", checkAuth, SupportController.getAllTicketsAdmin);
+router.patch(
+  "/support/tickets/:id",
+  checkAuth,
+  SupportController.updateTicketAdmin,
 );
 
 export default router;
