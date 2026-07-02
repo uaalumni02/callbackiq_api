@@ -88,6 +88,7 @@ const mockStripe = () => {
 const registerAndCreateBusiness = async ({
   userName = "demoowner",
   email = "owner@callbackiq.com",
+  role = "owner",
   businessName = "Atlanta Pro Plumbing",
   businessPhone = "4045551234",
   businessType = "plumbing",
@@ -96,9 +97,13 @@ const registerAndCreateBusiness = async ({
     userName,
     email,
     password: "Password123",
+    role,
     businessName,
     businessPhone,
     businessType,
+    smsConsent: true,
+    termsAccepted: true,
+    privacyAccepted: true,
   });
 
   return {

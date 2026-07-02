@@ -20,6 +20,7 @@ afterAll(async () => {
 const registerAndCreateBusiness = async ({
   userName = "demoowner",
   email = "owner@callbackiq.com",
+  role = "owner",
   businessName = "Atlanta Pro Plumbing",
   businessPhone = "4045551234",
   businessType = "plumbing",
@@ -28,9 +29,13 @@ const registerAndCreateBusiness = async ({
     userName,
     email,
     password: "Password123",
+    role,
     businessName,
     businessPhone,
     businessType,
+    smsConsent: true,
+    termsAccepted: true,
+    privacyAccepted: true,
   });
 
   return {
@@ -52,6 +57,9 @@ const registerAdmin = async ({
     businessName: "CallBackIQ Admin",
     businessPhone: "4045550000",
     businessType: "plumbing",
+    smsConsent: true,
+    termsAccepted: true,
+    privacyAccepted: true,
   });
 
   expect(registerRes.status).toBe(201);

@@ -24,6 +24,21 @@ const registerSchema = Joi.object({
   businessType: Joi.string()
     .valid("hvac", "plumbing", "roofing", "electrical", "restoration", "other")
     .default("other"),
+
+  smsConsent: Joi.boolean().valid(true).required().messages({
+    "any.only": "SMS consent is required",
+    "any.required": "SMS consent is required",
+  }),
+
+  termsAccepted: Joi.boolean().valid(true).required().messages({
+    "any.only": "Terms of Service acceptance is required",
+    "any.required": "Terms of Service acceptance is required",
+  }),
+
+  privacyAccepted: Joi.boolean().valid(true).required().messages({
+    "any.only": "Privacy Policy acceptance is required",
+    "any.required": "Privacy Policy acceptance is required",
+  }),
 });
 
 const loginSchema = Joi.object({

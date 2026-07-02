@@ -35,10 +35,18 @@ const createActiveSubscription = async (businessId) => {
 
 const registerAndCreateBusiness = async () => {
   const registerRes = await request(app).post("/api/auth/register").send({
-    userName: "demoowner",
-    email: "owner@callbackiq.com",
+    userName,
+    email,
     password: "Password123",
-    businessName: "Atlanta Pro Plumbing",
+    role,
+    businessName,
+    businessPhone: "4045551234",
+    businessType: "plumbing",
+
+    // Required registration acknowledgements
+    smsConsent: true,
+    termsAccepted: true,
+    privacyAccepted: true,
   });
 
   const token = registerRes.body.data.token;

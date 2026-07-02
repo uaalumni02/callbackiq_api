@@ -60,6 +60,51 @@ const UserSchema = new Schema(
       ],
       default: "other",
     },
+
+    smsConsent: {
+      type: Boolean,
+      default: false,
+      required: true,
+    },
+
+    smsConsentAt: {
+      type: Date,
+      default: null,
+    },
+
+    smsConsentIp: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    smsConsentUserAgent: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    termsAccepted: {
+      type: Boolean,
+      default: false,
+      required: true,
+    },
+
+    termsAcceptedAt: {
+      type: Date,
+      default: null,
+    },
+
+    privacyAccepted: {
+      type: Boolean,
+      default: false,
+      required: true,
+    },
+
+    privacyAcceptedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,

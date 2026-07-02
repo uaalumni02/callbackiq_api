@@ -46,14 +46,25 @@ const createActiveSubscription = async (businessId) => {
   );
 };
 
-const registerAndCreateBusiness = async () => {
+const registerAndCreateBusiness = async ({
+  userName = "demoowner",
+  email = "owner@callbackiq.com",
+  role = "owner",
+  businessName = "Atlanta Pro Plumbing",
+  businessPhone = "4045551234",
+  businessType = "plumbing",
+} = {}) => {
   const registerRes = await request(app).post("/api/auth/register").send({
-    userName: "demoowner",
-    email: "owner@callbackiq.com",
+    userName,
+    email,
     password: "Password123",
-    businessName: "Atlanta Pro Plumbing",
-    businessPhone: "4045551234",
-    businessType: "plumbing",
+    role,
+    businessName,
+    businessPhone,
+    businessType,
+    smsConsent: true,
+    termsAccepted: true,
+    privacyAccepted: true,
   });
 
   const token = registerRes.body.data.token;

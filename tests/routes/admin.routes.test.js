@@ -39,6 +39,11 @@ const registerUserAndCreateBusiness = async ({
     businessName,
     businessPhone: "4045551234",
     businessType: "plumbing",
+
+    // Required registration acknowledgements
+    smsConsent: true,
+    termsAccepted: true,
+    privacyAccepted: true,
   });
 
   return {

@@ -35,6 +35,9 @@ const registerAndCreateBusiness = async ({
     businessName,
     businessPhone: "4045551234",
     businessType: "plumbing",
+    smsConsent: true,
+    termsAccepted: true,
+    privacyAccepted: true,
   });
 
   const business = await Business.findByIdAndUpdate(

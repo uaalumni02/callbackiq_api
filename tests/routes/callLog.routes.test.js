@@ -3,7 +3,6 @@ import request from "supertest";
 import app from "../../src/app.js";
 
 import User from "../../src/models/user.js";
-import Business from "../../src/models/business.js";
 import Lead from "../../src/models/lead.js";
 import CallLog from "../../src/models/callLog.js";
 import Conversation from "../../src/models/conversation.js";
@@ -25,14 +24,25 @@ afterAll(async () => {
   await closeTestDB();
 });
 
-const registerAndCreateBusiness = async () => {
+const registerAndCreateBusiness = async ({
+  userName = "demoowner",
+  email = "owner@callbackiq.com",
+  role = "owner",
+  businessName = "Atlanta Pro Plumbing",
+  businessPhone = "4045551234",
+  businessType = "plumbing",
+} = {}) => {
   const registerRes = await request(app).post("/api/auth/register").send({
-    userName: "demoowner",
-    email: "owner@callbackiq.com",
+    userName,
+    email,
     password: "Password123",
-    businessName: "Atlanta Pro Plumbing",
-    businessPhone: "4045551234",
-    businessType: "plumbing",
+    role,
+    businessName,
+    businessPhone,
+    businessType,
+    smsConsent: true,
+    termsAccepted: true,
+    privacyAccepted: true,
   });
 
   return {
@@ -84,12 +94,9 @@ describe("Dashboard Routes", () => {
 
     expect(res.body.data.calls.totalCalls).toBe(0);
     expect(res.body.data.calls.missedCalls).toBe(0);
-
     expect(res.body.data.leads.totalLeads).toBe(0);
-
     expect(res.body.data.messages.smsSent).toBe(0);
     expect(res.body.data.messages.smsReceived).toBe(0);
-
     expect(res.body.data.revenue.bookedRevenue).toBe(0);
     expect(res.body.data.revenue.recoveredRevenue).toBe(0);
   });
@@ -211,18 +218,14 @@ describe("Dashboard Routes", () => {
     expect(res.body.data.calls.missedCalls).toBe(2);
     expect(res.body.data.calls.answeredCalls).toBe(1);
     expect(res.body.data.calls.recoveredCalls).toBe(1);
-
     expect(res.body.data.leads.totalLeads).toBe(3);
     expect(res.body.data.leads.newLeads).toBe(1);
     expect(res.body.data.leads.contactedLeads).toBe(1);
     expect(res.body.data.leads.bookedLeads).toBe(1);
-
     expect(res.body.data.conversations.activeConversations).toBe(1);
     expect(res.body.data.conversations.closedConversations).toBe(1);
-
     expect(res.body.data.messages.smsSent).toBe(1);
     expect(res.body.data.messages.smsReceived).toBe(1);
-
     expect(res.body.data.revenue.bookedRevenue).toBe(1200);
     expect(res.body.data.revenue.recoveredRevenue).toBe(1800);
   });
@@ -264,7 +267,6 @@ describe("Dashboard Routes", () => {
       .set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(200);
-
     expect(res.body.data.calls.missedCalls).toBe(2);
     expect(res.body.data.calls.recoveredCalls).toBe(1);
     expect(res.body.data.calls.missedCallRecoveryRate).toBe(50);
@@ -310,7 +312,6 @@ describe("Dashboard Routes", () => {
       .set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(200);
-
     expect(res.body.data.leads.totalLeads).toBe(4);
     expect(res.body.data.leads.bookedLeads).toBe(1);
     expect(res.body.data.leads.bookingRate).toBe(25);

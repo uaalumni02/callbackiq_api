@@ -35,6 +35,9 @@ class AuthController {
       businessName,
       businessPhone,
       businessType = "other",
+      smsConsent,
+      termsAccepted,
+      privacyAccepted,
     } = req.body;
 
     try {
@@ -42,6 +45,20 @@ class AuthController {
 
       if (!validate.isValidPassword(password)) {
         return Response.responseInvalidInput(res, "Invalid password format");
+      }
+
+      if (!smsConsent) {
+        return Response.responseInvalidInput(
+          res,
+          "SMS consent is required to create an account",
+        );
+      }
+
+      if (!termsAccepted || !privacyAccepted) {
+        return Response.responseInvalidInput(
+          res,
+          "You must accept the Terms of Service and Privacy Policy",
+        );
       }
 
       const existingUser = await Db.findUserByEmailOrUserName(
@@ -59,6 +76,8 @@ class AuthController {
 
       const hashedPassword = await bcrypt.hashPassword(password, 10);
 
+      const now = new Date();
+
       const savedUser = await Db.saveUser(User, {
         userName,
         email,
@@ -67,6 +86,16 @@ class AuthController {
         businessName,
         businessPhone,
         businessType,
+
+        smsConsent: true,
+        smsConsentAt: now,
+        smsConsentIp: req.ip || req.headers["x-forwarded-for"] || "",
+        smsConsentUserAgent: req.headers["user-agent"] || "",
+
+        termsAccepted: true,
+        termsAcceptedAt: now,
+        privacyAccepted: true,
+        privacyAcceptedAt: now,
       });
 
       const savedBusiness = await Db.saveBusiness(Business, {
@@ -121,6 +150,12 @@ class AuthController {
             businessName: savedUser.businessName,
             businessPhone: savedUser.businessPhone,
             businessType: savedUser.businessType,
+            smsConsent: savedUser.smsConsent,
+            smsConsentAt: savedUser.smsConsentAt,
+            termsAccepted: savedUser.termsAccepted,
+            termsAcceptedAt: savedUser.termsAcceptedAt,
+            privacyAccepted: savedUser.privacyAccepted,
+            privacyAcceptedAt: savedUser.privacyAcceptedAt,
           },
           business: savedBusiness,
           subscription: savedSubscription,
@@ -183,6 +218,12 @@ class AuthController {
             businessName: user.businessName,
             businessPhone: user.businessPhone,
             businessType: user.businessType,
+            smsConsent: user.smsConsent,
+            smsConsentAt: user.smsConsentAt,
+            termsAccepted: user.termsAccepted,
+            termsAcceptedAt: user.termsAcceptedAt,
+            privacyAccepted: user.privacyAccepted,
+            privacyAcceptedAt: user.privacyAcceptedAt,
           },
         },
         "Login successful",

@@ -7,6 +7,9 @@ const validRegisterData = {
   businessName: "Atlanta Pro Plumbing",
   businessPhone: "4045551234",
   businessType: "plumbing",
+  smsConsent: true,
+  termsAccepted: true,
+  privacyAccepted: true,
 };
 
 describe("Auth Validator", () => {
@@ -29,6 +32,9 @@ describe("Auth Validator", () => {
         password: "Password123",
         businessName: "Atlanta Pro Plumbing",
         businessPhone: "4045551234",
+        smsConsent: true,
+        termsAccepted: true,
+        privacyAccepted: true,
       };
 
       const result = await registerSchema.validateAsync(data);
@@ -43,6 +49,9 @@ describe("Auth Validator", () => {
         password: "Password123",
         businessName: "Atlanta Pro Plumbing",
         businessPhone: "4045551234",
+        smsConsent: true,
+        termsAccepted: true,
+        privacyAccepted: true,
       };
 
       const result = await registerSchema.validateAsync(data);
@@ -152,6 +161,9 @@ describe("Auth Validator", () => {
         role: "supervisor",
         businessName: "Atlanta Pro Plumbing",
         businessPhone: "4045551234",
+        smsConsent: true,
+        termsAccepted: true,
+        privacyAccepted: true,
       };
 
       await expect(registerSchema.validateAsync(data)).rejects.toThrow();
@@ -170,7 +182,7 @@ describe("Auth Validator", () => {
 
     test("register fails with empty businessName", async () => {
       const data = {
-        userName: "demoowner",
+        userName: "",
         email: "owner@callbackiq.com",
         password: "Password123",
         businessName: "",
@@ -211,6 +223,9 @@ describe("Auth Validator", () => {
         businessName: "Atlanta Pro Plumbing",
         businessPhone: "4045551234",
         businessType: "restaurant",
+        smsConsent: true,
+        termsAccepted: true,
+        privacyAccepted: true,
       };
 
       await expect(registerSchema.validateAsync(data)).rejects.toThrow();
@@ -253,48 +268,49 @@ describe("Auth Validator", () => {
     });
 
     test("login fails without login", async () => {
-      const data = {
-        password: "Password123",
-      };
-
-      await expect(loginSchema.validateAsync(data)).rejects.toThrow();
+      await expect(
+        loginSchema.validateAsync({
+          password: "Password123",
+        }),
+      ).rejects.toThrow();
     });
 
     test("login fails without password", async () => {
-      const data = {
-        login: "demoowner",
-      };
-
-      await expect(loginSchema.validateAsync(data)).rejects.toThrow();
+      await expect(
+        loginSchema.validateAsync({
+          login: "demoowner",
+        }),
+      ).rejects.toThrow();
     });
 
     test("login fails with empty login", async () => {
-      const data = {
-        login: "",
-        password: "Password123",
-      };
-
-      await expect(loginSchema.validateAsync(data)).rejects.toThrow();
+      await expect(
+        loginSchema.validateAsync({
+          login: "",
+          password: "Password123",
+        }),
+      ).rejects.toThrow();
     });
 
     test("login fails with empty password", async () => {
-      const data = {
-        login: "demoowner",
-        password: "",
-      };
-
-      await expect(loginSchema.validateAsync(data)).rejects.toThrow();
+      await expect(
+        loginSchema.validateAsync({
+          login: "demoowner",
+          password: "",
+        }),
+      ).rejects.toThrow();
     });
 
     test("extra unknown fields are rejected", async () => {
-      const data = {
-        login: "demoowner",
-        password: "Password123",
-        randomField: "bad",
-      };
-
       await expect(
-        loginSchema.validateAsync(data, { allowUnknown: false }),
+        loginSchema.validateAsync(
+          {
+            login: "demoowner",
+            password: "Password123",
+            randomField: "bad",
+          },
+          { allowUnknown: false },
+        ),
       ).rejects.toThrow();
     });
   });

@@ -25,6 +25,9 @@ const registerUser = async () => {
     businessName: "Atlanta Pro Plumbing",
     businessPhone: "4045551234",
     businessType: "plumbing",
+    smsConsent: true,
+    termsAccepted: true,
+    privacyAccepted: true,
   });
 
   return {

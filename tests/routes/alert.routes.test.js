@@ -52,6 +52,7 @@ const createActiveSubscription = async (businessId, suffix = "123") => {
 const registerCreateBusinessAndLead = async ({
   userName = "demoowner",
   email = "owner@callbackiq.com",
+  role = "owner",
   businessName = "Atlanta Pro Plumbing",
   businessPhone = "4045551234",
   businessType = "plumbing",
@@ -61,9 +62,13 @@ const registerCreateBusinessAndLead = async ({
     userName,
     email,
     password: "Password123",
+    role,
     businessName,
     businessPhone,
     businessType,
+    smsConsent: true,
+    termsAccepted: true,
+    privacyAccepted: true,
   });
 
   const token = registerRes.body.data.token;
