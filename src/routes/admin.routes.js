@@ -11,14 +11,40 @@ const requireAdmin = (req, res, next) => {
   if (role !== "admin") {
     return res.status(401).json({
       success: false,
-      message: "Admin access required.",
+      message: "auth failed",
     });
   }
 
   return next();
 };
 
-router.get("/dashboard", checkAuth, requireAdmin, AdminController.getAdminDashboard);
+router.get(
+  "/dashboard",
+  checkAuth,
+  requireAdmin,
+  AdminController.getAdminDashboard,
+);
+
+router.get(
+  "/customers/:businessId",
+  checkAuth,
+  requireAdmin,
+  AdminController.getCustomerDetails,
+);
+
+router.patch(
+  "/customers/:businessId/subscription-status",
+  checkAuth,
+  requireAdmin,
+  AdminController.updateSubscriptionStatus,
+);
+
+router.patch(
+  "/customers/:businessId/business-status",
+  checkAuth,
+  requireAdmin,
+  AdminController.updateBusinessStatus,
+);
 
 router.get(
   "/support/tickets",
