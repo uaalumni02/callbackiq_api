@@ -147,7 +147,6 @@ const updateMyTicket = async (req, res) => {
   try {
     const business = await getUserBusiness(req);
     const { id } = req.params;
-
     const { subject, category, priority, message } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -236,7 +235,7 @@ const updateMyTicket = async (req, res) => {
       },
       update,
       {
-        new: true,
+        returnDocument: "after",
         runValidators: true,
       },
     );
@@ -276,7 +275,7 @@ const closeMyTicket = async (req, res) => {
         resolvedAt: new Date(),
       },
       {
-        new: true,
+        returnDocument: "after",
         runValidators: true,
       },
     );
@@ -307,9 +306,17 @@ const getAllTicketsAdmin = async (req, res) => {
 
     const filter = {};
 
-    if (status && validStatuses.includes(status)) filter.status = status;
-    if (category && validCategories.includes(category)) filter.category = category;
-    if (priority && validPriorities.includes(priority)) filter.priority = priority;
+    if (status && validStatuses.includes(status)) {
+      filter.status = status;
+    }
+
+    if (category && validCategories.includes(category)) {
+      filter.category = category;
+    }
+
+    if (priority && validPriorities.includes(priority)) {
+      filter.priority = priority;
+    }
 
     const tickets = await SupportTicket.find(filter)
       .populate("business", "businessName phone email businessType")
@@ -352,14 +359,9 @@ const updateTicketAdmin = async (req, res) => {
       }
 
       update.status = status;
-
-      if (["resolved", "closed"].includes(status)) {
-        update.resolvedAt = new Date();
-      }
-
-      if (["open", "in_progress"].includes(status)) {
-        update.resolvedAt = null;
-      }
+      update.resolvedAt = ["resolved", "closed"].includes(status)
+        ? new Date()
+        : null;
     }
 
     if (priority) {
@@ -377,8 +379,15 @@ const updateTicketAdmin = async (req, res) => {
       update.adminNotes = adminNotes.trim();
     }
 
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No valid ticket updates provided.",
+      });
+    }
+
     const ticket = await SupportTicket.findByIdAndUpdate(id, update, {
-      new: true,
+      returnDocument: "after",
       runValidators: true,
     })
       .populate("business", "businessName phone email businessType")

@@ -5,30 +5,32 @@ import checkAuth from "../middleware/check-auth.js";
 
 const router = express.Router();
 
-router.get("/dashboard", checkAuth, AdminController.getAdminDashboard);
+const requireAdmin = (req, res, next) => {
+  const role = String(req.user?.role || "").toLowerCase();
+
+  if (role !== "admin") {
+    return res.status(401).json({
+      success: false,
+      message: "Admin access required.",
+    });
+  }
+
+  return next();
+};
+
+router.get("/dashboard", checkAuth, requireAdmin, AdminController.getAdminDashboard);
 
 router.get(
-  "/customers/:businessId",
+  "/support/tickets",
   checkAuth,
-  AdminController.getCustomerDetails,
+  requireAdmin,
+  SupportController.getAllTicketsAdmin,
 );
 
-router.patch(
-  "/customers/:businessId/subscription-status",
-  checkAuth,
-  AdminController.updateSubscriptionStatus,
-);
-
-router.patch(
-  "/customers/:businessId/business-status",
-  checkAuth,
-  AdminController.updateBusinessStatus,
-);
-
-router.get("/support/tickets", checkAuth, SupportController.getAllTicketsAdmin);
 router.patch(
   "/support/tickets/:id",
   checkAuth,
+  requireAdmin,
   SupportController.updateTicketAdmin,
 );
 
