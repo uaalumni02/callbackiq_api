@@ -321,6 +321,8 @@ const getAllTicketsAdmin = async (req, res) => {
     const tickets = await SupportTicket.find(filter)
       .populate("business", "businessName phone email businessType")
       .populate("user", "userName email role")
+      .populate("lastUpdatedBy", "userName email role")
+      .populate("ticketHistory.admin", "userName email role")
       .sort({ createdAt: -1 })
       .lean();
 
@@ -340,6 +342,14 @@ const updateTicketAdmin = async (req, res) => {
   try {
     const { id } = req.params;
     const { status, priority, adminNotes } = req.body;
+    const adminId = getUserId(req);
+
+    if (!adminId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized.",
+      });
+    }
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
@@ -349,6 +359,7 @@ const updateTicketAdmin = async (req, res) => {
     }
 
     const update = {};
+    const pushUpdate = {};
 
     if (status) {
       if (!validStatuses.includes(status)) {
@@ -376,22 +387,45 @@ const updateTicketAdmin = async (req, res) => {
     }
 
     if (typeof adminNotes === "string") {
-      update.adminNotes = adminNotes.trim();
+      const trimmedNote = adminNotes.trim();
+
+      update.adminNotes = trimmedNote;
+      update.lastUpdatedBy = adminId;
+      update.lastAdminUpdateAt = new Date();
+
+      if (trimmedNote) {
+        pushUpdate.ticketHistory = {
+          note: trimmedNote,
+          admin: adminId,
+          createdAt: new Date(),
+        };
+      }
     }
 
-    if (Object.keys(update).length === 0) {
+    if (
+      Object.keys(update).length === 0 &&
+      Object.keys(pushUpdate).length === 0
+    ) {
       return res.status(400).json({
         success: false,
         message: "No valid ticket updates provided.",
       });
     }
 
-    const ticket = await SupportTicket.findByIdAndUpdate(id, update, {
+    const updateQuery = { $set: update };
+
+    if (Object.keys(pushUpdate).length > 0) {
+      updateQuery.$push = pushUpdate;
+    }
+
+    const ticket = await SupportTicket.findByIdAndUpdate(id, updateQuery, {
       returnDocument: "after",
       runValidators: true,
     })
       .populate("business", "businessName phone email businessType")
-      .populate("user", "userName email role");
+      .populate("user", "userName email role")
+      .populate("lastUpdatedBy", "userName email role")
+      .populate("ticketHistory.admin", "userName email role");
 
     if (!ticket) {
       return res.status(404).json({

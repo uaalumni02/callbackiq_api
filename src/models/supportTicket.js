@@ -48,6 +48,34 @@ const supportTicketSchema = new mongoose.Schema(
       maxlength: 5000,
       default: "",
     },
+    lastUpdatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    lastAdminUpdateAt: {
+      type: Date,
+      default: null,
+    },
+    ticketHistory: [
+      {
+        note: {
+          type: String,
+          trim: true,
+          maxlength: 5000,
+          required: true,
+        },
+        admin: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+          required: true,
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
     resolvedAt: {
       type: Date,
       default: null,
