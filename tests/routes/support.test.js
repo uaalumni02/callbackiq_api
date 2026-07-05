@@ -335,6 +335,324 @@ describe("Support Routes", () => {
     expect(res.body.message).toBe("Support ticket not found.");
   });
 
+  test("PATCH /api/support/tickets/:id rejects unauthenticated request", async () => {
+    const { token } = await registerAndCreateBusiness();
+
+    const createRes = await createSupportTicket(token, {
+      subject: "Needs edit",
+      message: "This ticket will be edited.",
+    });
+
+    const res = await request(app)
+      .patch(`/api/support/tickets/${createRes.body.data._id}`)
+      .send({
+        subject: "Updated subject",
+        category: "technical",
+        priority: "high",
+        message: "Updated message.",
+      });
+
+    expect(res.status).toBe(401);
+    expect(res.body.success).toBe(false);
+  });
+
+  test("PATCH /api/support/tickets/:id updates current business ticket", async () => {
+    const { token } = await registerAndCreateBusiness();
+
+    const createRes = await createSupportTicket(token, {
+      subject: "Original subject",
+      category: "billing",
+      priority: "medium",
+      message: "Original message.",
+    });
+
+    const ticketId = createRes.body.data._id;
+
+    const res = await request(app)
+      .patch(`/api/support/tickets/${ticketId}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        subject: "Updated checkout issue",
+        category: "technical",
+        priority: "high",
+        message: "Checkout opens, but Stripe returns an error.",
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.message).toBe("Support ticket updated successfully.");
+    expect(res.body.data._id).toBe(ticketId);
+    expect(res.body.data.subject).toBe("Updated checkout issue");
+    expect(res.body.data.category).toBe("technical");
+    expect(res.body.data.priority).toBe("high");
+    expect(res.body.data.message).toBe(
+      "Checkout opens, but Stripe returns an error.",
+    );
+    expect(res.body.data.status).toBe("open");
+
+    const ticket = await SupportTicket.findById(ticketId);
+
+    expect(ticket.subject).toBe("Updated checkout issue");
+    expect(ticket.category).toBe("technical");
+    expect(ticket.priority).toBe("high");
+    expect(ticket.message).toBe("Checkout opens, but Stripe returns an error.");
+  });
+
+  test("PATCH /api/support/tickets/:id supports partial updates", async () => {
+    const { token } = await registerAndCreateBusiness();
+
+    const createRes = await createSupportTicket(token, {
+      subject: "Original subject",
+      category: "billing",
+      priority: "medium",
+      message: "Original message.",
+    });
+
+    const ticketId = createRes.body.data._id;
+
+    const res = await request(app)
+      .patch(`/api/support/tickets/${ticketId}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        priority: "high",
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.subject).toBe("Original subject");
+    expect(res.body.data.category).toBe("billing");
+    expect(res.body.data.priority).toBe("high");
+    expect(res.body.data.message).toBe("Original message.");
+
+    const ticket = await SupportTicket.findById(ticketId);
+
+    expect(ticket.priority).toBe("high");
+    expect(ticket.subject).toBe("Original subject");
+  });
+
+  test("PATCH /api/support/tickets/:id trims updated subject and message", async () => {
+    const { token } = await registerAndCreateBusiness();
+
+    const createRes = await createSupportTicket(token, {
+      subject: "Original subject",
+      message: "Original message.",
+    });
+
+    const ticketId = createRes.body.data._id;
+
+    const res = await request(app)
+      .patch(`/api/support/tickets/${ticketId}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        subject: "   Updated billing issue   ",
+        message: "   Updated message with details.   ",
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.subject).toBe("Updated billing issue");
+    expect(res.body.data.message).toBe("Updated message with details.");
+  });
+
+  test("PATCH /api/support/tickets/:id rejects invalid ticket id", async () => {
+    const { token } = await registerAndCreateBusiness();
+
+    const res = await request(app)
+      .patch("/api/support/tickets/not-a-valid-id")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        subject: "Updated subject",
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toBe("Invalid ticket id.");
+  });
+
+  test("PATCH /api/support/tickets/:id rejects empty subject", async () => {
+    const { token } = await registerAndCreateBusiness();
+
+    const createRes = await createSupportTicket(token);
+
+    const res = await request(app)
+      .patch(`/api/support/tickets/${createRes.body.data._id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        subject: "   ",
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toBe("Subject cannot be empty.");
+  });
+
+  test("PATCH /api/support/tickets/:id rejects empty message", async () => {
+    const { token } = await registerAndCreateBusiness();
+
+    const createRes = await createSupportTicket(token);
+
+    const res = await request(app)
+      .patch(`/api/support/tickets/${createRes.body.data._id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        message: "   ",
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toBe("Message cannot be empty.");
+  });
+
+  test("PATCH /api/support/tickets/:id rejects invalid category", async () => {
+    const { token } = await registerAndCreateBusiness();
+
+    const createRes = await createSupportTicket(token);
+
+    const res = await request(app)
+      .patch(`/api/support/tickets/${createRes.body.data._id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        category: "bad_category",
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toBe("Invalid support category.");
+  });
+
+  test("PATCH /api/support/tickets/:id rejects invalid priority", async () => {
+    const { token } = await registerAndCreateBusiness();
+
+    const createRes = await createSupportTicket(token);
+
+    const res = await request(app)
+      .patch(`/api/support/tickets/${createRes.body.data._id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        priority: "urgent",
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toBe("Invalid support priority.");
+  });
+
+  test("PATCH /api/support/tickets/:id rejects updates with no valid fields", async () => {
+    const { token } = await registerAndCreateBusiness();
+
+    const createRes = await createSupportTicket(token);
+
+    const res = await request(app)
+      .patch(`/api/support/tickets/${createRes.body.data._id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        randomField: "ignored",
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toBe("No valid ticket updates provided.");
+  });
+
+  test("PATCH /api/support/tickets/:id returns 404 for another business ticket", async () => {
+    const ownerOne = await registerAndCreateBusiness({
+      userName: "ownerone",
+      email: "ownerone@callbackiq.com",
+      businessName: "Owner One Plumbing",
+      businessPhone: "4045551111",
+    });
+
+    const ownerTwo = await registerAndCreateBusiness({
+      userName: "ownertwo",
+      email: "ownertwo@callbackiq.com",
+      businessName: "Owner Two HVAC",
+      businessPhone: "4045552222",
+      businessType: "hvac",
+    });
+
+    const createRes = await createSupportTicket(ownerOne.token, {
+      subject: "Owner one private ticket",
+      message: "Owner two should not edit this.",
+    });
+
+    const res = await request(app)
+      .patch(`/api/support/tickets/${createRes.body.data._id}`)
+      .set("Authorization", `Bearer ${ownerTwo.token}`)
+      .send({
+        subject: "Attempted unauthorized update",
+      });
+
+    expect(res.status).toBe(404);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toBe("Support ticket not found.");
+
+    const ticket = await SupportTicket.findById(createRes.body.data._id);
+
+    expect(ticket.subject).toBe("Owner one private ticket");
+  });
+
+  test("PATCH /api/support/tickets/:id rejects editing closed ticket", async () => {
+    const { token } = await registerAndCreateBusiness();
+
+    const createRes = await createSupportTicket(token, {
+      subject: "Closed ticket",
+      message: "This ticket will be closed.",
+    });
+
+    const ticketId = createRes.body.data._id;
+
+    await SupportTicket.findByIdAndUpdate(ticketId, {
+      status: "closed",
+      resolvedAt: new Date(),
+    });
+
+    const res = await request(app)
+      .patch(`/api/support/tickets/${ticketId}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        subject: "Should not update",
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toBe("Closed or resolved tickets cannot be edited.");
+
+    const ticket = await SupportTicket.findById(ticketId);
+
+    expect(ticket.subject).toBe("Closed ticket");
+  });
+
+  test("PATCH /api/support/tickets/:id rejects editing resolved ticket", async () => {
+    const { token } = await registerAndCreateBusiness();
+
+    const createRes = await createSupportTicket(token, {
+      subject: "Resolved ticket",
+      message: "This ticket will be resolved.",
+    });
+
+    const ticketId = createRes.body.data._id;
+
+    await SupportTicket.findByIdAndUpdate(ticketId, {
+      status: "resolved",
+      resolvedAt: new Date(),
+    });
+
+    const res = await request(app)
+      .patch(`/api/support/tickets/${ticketId}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        message: "Should not update.",
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toBe("Closed or resolved tickets cannot be edited.");
+
+    const ticket = await SupportTicket.findById(ticketId);
+
+    expect(ticket.message).toBe("This ticket will be resolved.");
+  });
+
   test("PATCH /api/support/tickets/:id/close closes current business ticket", async () => {
     const { token } = await registerAndCreateBusiness();
 
