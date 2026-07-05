@@ -10,6 +10,7 @@ const validCategories = [
   "ai",
   "other",
 ];
+
 const validPriorities = ["low", "medium", "high"];
 const validStatuses = ["open", "in_progress", "resolved", "closed"];
 
@@ -67,10 +68,10 @@ const createTicket = async (req, res) => {
     const ticket = await SupportTicket.create({
       business: business._id,
       user: userId,
-      subject,
+      subject: subject.trim(),
       category,
       priority,
-      message,
+      message: message.trim(),
     });
 
     return res.status(201).json({
@@ -142,6 +143,117 @@ const getMyTicketById = async (req, res) => {
   }
 };
 
+const updateMyTicket = async (req, res) => {
+  try {
+    const business = await getUserBusiness(req);
+    const { id } = req.params;
+
+    const { subject, category, priority, message } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid ticket id.",
+      });
+    }
+
+    const existingTicket = await SupportTicket.findOne({
+      _id: id,
+      business: business._id,
+    });
+
+    if (!existingTicket) {
+      return res.status(404).json({
+        success: false,
+        message: "Support ticket not found.",
+      });
+    }
+
+    if (["resolved", "closed"].includes(existingTicket.status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Closed or resolved tickets cannot be edited.",
+      });
+    }
+
+    const update = {};
+
+    if (typeof subject === "string") {
+      if (!subject.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: "Subject cannot be empty.",
+        });
+      }
+
+      update.subject = subject.trim();
+    }
+
+    if (typeof message === "string") {
+      if (!message.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: "Message cannot be empty.",
+        });
+      }
+
+      update.message = message.trim();
+    }
+
+    if (category) {
+      if (!validCategories.includes(category)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid support category.",
+        });
+      }
+
+      update.category = category;
+    }
+
+    if (priority) {
+      if (!validPriorities.includes(priority)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid support priority.",
+        });
+      }
+
+      update.priority = priority;
+    }
+
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No valid ticket updates provided.",
+      });
+    }
+
+    const ticket = await SupportTicket.findOneAndUpdate(
+      {
+        _id: id,
+        business: business._id,
+      },
+      update,
+      {
+        new: true,
+        runValidators: true,
+      },
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Support ticket updated successfully.",
+      data: ticket,
+    });
+  } catch (error) {
+    return res.status(error.message === "Unauthorized." ? 401 : 500).json({
+      success: false,
+      message: error.message || "Failed to update support ticket.",
+    });
+  }
+};
+
 const closeMyTicket = async (req, res) => {
   try {
     const business = await getUserBusiness(req);
@@ -163,7 +275,10 @@ const closeMyTicket = async (req, res) => {
         status: "closed",
         resolvedAt: new Date(),
       },
-      { new: true },
+      {
+        new: true,
+        runValidators: true,
+      },
     );
 
     if (!ticket) {
@@ -193,10 +308,8 @@ const getAllTicketsAdmin = async (req, res) => {
     const filter = {};
 
     if (status && validStatuses.includes(status)) filter.status = status;
-    if (category && validCategories.includes(category))
-      filter.category = category;
-    if (priority && validPriorities.includes(priority))
-      filter.priority = priority;
+    if (category && validCategories.includes(category)) filter.category = category;
+    if (priority && validPriorities.includes(priority)) filter.priority = priority;
 
     const tickets = await SupportTicket.find(filter)
       .populate("business", "businessName phone email businessType")
@@ -243,6 +356,10 @@ const updateTicketAdmin = async (req, res) => {
       if (["resolved", "closed"].includes(status)) {
         update.resolvedAt = new Date();
       }
+
+      if (["open", "in_progress"].includes(status)) {
+        update.resolvedAt = null;
+      }
     }
 
     if (priority) {
@@ -257,11 +374,12 @@ const updateTicketAdmin = async (req, res) => {
     }
 
     if (typeof adminNotes === "string") {
-      update.adminNotes = adminNotes;
+      update.adminNotes = adminNotes.trim();
     }
 
     const ticket = await SupportTicket.findByIdAndUpdate(id, update, {
       new: true,
+      runValidators: true,
     })
       .populate("business", "businessName phone email businessType")
       .populate("user", "userName email role");
@@ -290,6 +408,7 @@ export default {
   createTicket,
   getMyTickets,
   getMyTicketById,
+  updateMyTicket,
   closeMyTicket,
   getAllTicketsAdmin,
   updateTicketAdmin,
