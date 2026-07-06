@@ -17,6 +17,7 @@ import agentRoutes from "./routes/agent.routes.js";
 import billingRoutes from "./routes/billing.routes.js";
 import stripeWebhookRoutes from "./routes/stripeWebhook.routes.js";
 import supportRoutes from "./routes/support.routes.js";
+import demoRequestRoutes from "./routes/demoRequest.routes.js";
 
 const app = express();
 
@@ -65,6 +66,7 @@ app.use("/api/alerts", alertRoutes);
 app.use("/api/agent", agentRoutes);
 app.use("/api/billing", billingRoutes);
 app.use("/api/support", supportRoutes);
+app.use("/api/demo-requests", demoRequestRoutes);
 
 app.get("/", (req, res) => {
   res.status(200).json({

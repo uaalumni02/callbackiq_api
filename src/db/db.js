@@ -1185,6 +1185,56 @@ class Db {
       throw error;
     }
   }
+  // ----- Demo Request methods -----
+
+  static async saveDemoRequest(model, data) {
+    try {
+      const demoRequest = new model(data);
+      return await demoRequest.save();
+    } catch (error) {
+      console.error("Error saving demo request:", error);
+      throw error;
+    }
+  }
+
+  static async getDemoRequests(model, filter = {}) {
+    try {
+      return await model.find(filter).sort({ createdAt: -1 }).lean();
+    } catch (error) {
+      console.error("Error fetching demo requests:", error);
+      throw error;
+    }
+  }
+
+  static async getDemoRequestById(model, id) {
+    try {
+      return await model.findById(id).lean();
+    } catch (error) {
+      console.error("Error fetching demo request:", error);
+      throw error;
+    }
+  }
+
+  static async updateDemoRequest(model, id, data) {
+    try {
+      return await model.findByIdAndUpdate(id, data, {
+        returnDocument: "after",
+        runValidators: true,
+      });
+    } catch (error) {
+      console.error("Error updating demo request:", error);
+      throw error;
+    }
+  }
+
+  static async deleteDemoRequest(model, id) {
+    try {
+      return await model.findByIdAndDelete(id);
+    } catch (error) {
+      console.error("Error deleting demo request:", error);
+      throw error;
+    }
+  }
 }
 
 export default Db;
