@@ -1,4 +1,6 @@
 import mongoose from "mongoose";
+
+import Db from "../db/db.js";
 import Business from "../models/business.js";
 import SupportTicket from "../models/supportTicket.js";
 
@@ -23,7 +25,7 @@ const getUserBusiness = async (req) => {
     throw new Error("Unauthorized.");
   }
 
-  const business = await Business.findOne({ owner: userId });
+  const business = await Db.getBusinessByOwner(Business, userId);
 
   if (!business) {
     throw new Error("Business not found for this user.");
@@ -65,7 +67,7 @@ const createTicket = async (req, res) => {
       });
     }
 
-    const ticket = await SupportTicket.create({
+    const ticket = await Db.saveSupportTicket(SupportTicket, {
       business: business._id,
       user: userId,
       subject: subject.trim(),
@@ -91,9 +93,10 @@ const getMyTickets = async (req, res) => {
   try {
     const business = await getUserBusiness(req);
 
-    const tickets = await SupportTicket.find({ business: business._id })
-      .sort({ createdAt: -1 })
-      .lean();
+    const tickets = await Db.getSupportTicketsByBusiness(
+      SupportTicket,
+      business._id,
+    );
 
     return res.status(200).json({
       success: true,
@@ -119,10 +122,11 @@ const getMyTicketById = async (req, res) => {
       });
     }
 
-    const ticket = await SupportTicket.findOne({
-      _id: id,
-      business: business._id,
-    }).lean();
+    const ticket = await Db.getSupportTicketForBusiness(
+      SupportTicket,
+      id,
+      business._id,
+    );
 
     if (!ticket) {
       return res.status(404).json({
@@ -156,10 +160,11 @@ const updateMyTicket = async (req, res) => {
       });
     }
 
-    const existingTicket = await SupportTicket.findOne({
-      _id: id,
-      business: business._id,
-    });
+    const existingTicket = await Db.getSupportTicketForBusiness(
+      SupportTicket,
+      id,
+      business._id,
+    );
 
     if (!existingTicket) {
       return res.status(404).json({
@@ -228,16 +233,11 @@ const updateMyTicket = async (req, res) => {
       });
     }
 
-    const ticket = await SupportTicket.findOneAndUpdate(
-      {
-        _id: id,
-        business: business._id,
-      },
+    const ticket = await Db.updateSupportTicketForBusiness(
+      SupportTicket,
+      id,
+      business._id,
       update,
-      {
-        returnDocument: "after",
-        runValidators: true,
-      },
     );
 
     return res.status(200).json({
@@ -265,19 +265,10 @@ const closeMyTicket = async (req, res) => {
       });
     }
 
-    const ticket = await SupportTicket.findOneAndUpdate(
-      {
-        _id: id,
-        business: business._id,
-      },
-      {
-        status: "closed",
-        resolvedAt: new Date(),
-      },
-      {
-        returnDocument: "after",
-        runValidators: true,
-      },
+    const ticket = await Db.closeSupportTicketForBusiness(
+      SupportTicket,
+      id,
+      business._id,
     );
 
     if (!ticket) {
@@ -318,13 +309,7 @@ const getAllTicketsAdmin = async (req, res) => {
       filter.priority = priority;
     }
 
-    const tickets = await SupportTicket.find(filter)
-      .populate("business", "businessName phone email businessType")
-      .populate("user", "userName email role")
-      .populate("lastUpdatedBy", "userName email role")
-      .populate("ticketHistory.admin", "userName email role")
-      .sort({ createdAt: -1 })
-      .lean();
+    const tickets = await Db.getAllSupportTickets(SupportTicket, filter);
 
     return res.status(200).json({
       success: true,
@@ -418,14 +403,11 @@ const updateTicketAdmin = async (req, res) => {
       updateQuery.$push = pushUpdate;
     }
 
-    const ticket = await SupportTicket.findByIdAndUpdate(id, updateQuery, {
-      returnDocument: "after",
-      runValidators: true,
-    })
-      .populate("business", "businessName phone email businessType")
-      .populate("user", "userName email role")
-      .populate("lastUpdatedBy", "userName email role")
-      .populate("ticketHistory.admin", "userName email role");
+    const ticket = await Db.updateSupportTicketAdmin(
+      SupportTicket,
+      id,
+      updateQuery,
+    );
 
     if (!ticket) {
       return res.status(404).json({

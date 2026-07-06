@@ -825,6 +825,113 @@ class Db {
       throw error;
     }
   }
+
+  // ----- Support Ticket methods -----
+
+  static async saveSupportTicket(model, data) {
+    try {
+      const ticket = new model(data);
+      return await ticket.save();
+    } catch (error) {
+      console.error("Error saving support ticket:", error);
+      throw error;
+    }
+  }
+
+  static async getSupportTicketsByBusiness(model, businessId) {
+    try {
+      return await model
+        .find({ business: businessId })
+        .sort({ createdAt: -1 })
+        .lean();
+    } catch (error) {
+      console.error("Error fetching support tickets:", error);
+      throw error;
+    }
+  }
+
+  static async getSupportTicketForBusiness(model, ticketId, businessId) {
+    try {
+      return await model.findOne({ _id: ticketId, business: businessId });
+    } catch (error) {
+      console.error("Error fetching support ticket:", error);
+      throw error;
+    }
+  }
+
+  static async updateSupportTicketForBusiness(
+    model,
+    ticketId,
+    businessId,
+    data,
+  ) {
+    try {
+      return await model.findOneAndUpdate(
+        { _id: ticketId, business: businessId },
+        data,
+        {
+          returnDocument: "after",
+          runValidators: true,
+        },
+      );
+    } catch (error) {
+      console.error("Error updating support ticket:", error);
+      throw error;
+    }
+  }
+
+  static async closeSupportTicketForBusiness(model, ticketId, businessId) {
+    try {
+      return await model.findOneAndUpdate(
+        { _id: ticketId, business: businessId },
+        {
+          status: "closed",
+          resolvedAt: new Date(),
+        },
+        {
+          returnDocument: "after",
+          runValidators: true,
+        },
+      );
+    } catch (error) {
+      console.error("Error closing support ticket:", error);
+      throw error;
+    }
+  }
+
+  static async getAllSupportTickets(model, filter = {}) {
+    try {
+      return await model
+        .find(filter)
+        .populate("business", "businessName phone email businessType")
+        .populate("user", "userName email role")
+        .populate("lastUpdatedBy", "userName email role")
+        .populate("ticketHistory.admin", "userName email role")
+        .sort({ createdAt: -1 })
+        .lean();
+    } catch (error) {
+      console.error("Error fetching admin support tickets:", error);
+      throw error;
+    }
+  }
+
+  static async updateSupportTicketAdmin(model, ticketId, updateQuery) {
+    try {
+      return await model
+        .findByIdAndUpdate(ticketId, updateQuery, {
+          returnDocument: "after",
+          runValidators: true,
+        })
+        .populate("business", "businessName phone email businessType")
+        .populate("user", "userName email role")
+        .populate("lastUpdatedBy", "userName email role")
+        .populate("ticketHistory.admin", "userName email role");
+    } catch (error) {
+      console.error("Error updating support ticket as admin:", error);
+      throw error;
+    }
+  }
+
   // ----- Admin methods -----
 
   static async getAdminDashboardData({
