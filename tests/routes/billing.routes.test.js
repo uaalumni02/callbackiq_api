@@ -7,6 +7,7 @@ import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testDb.js";
 
 jest.mock("../../src/helpers/stripe/stripeClient.js", () => ({
   getStripeClient: jest.fn(),
+
   getPriceIdByPlan: jest.fn((plan) => {
     const map = {
       starter: "price_starter_test",
@@ -15,6 +16,13 @@ jest.mock("../../src/helpers/stripe/stripeClient.js", () => ({
     };
 
     return map[plan];
+  }),
+
+  formatStripeMoney: jest.fn((amount = 0, currency = "usd") => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: String(currency).toUpperCase(),
+    }).format((amount || 0) / 100);
   }),
 }));
 
@@ -109,12 +117,29 @@ const mockStripe = () => {
     subscriptions: {
       retrieve: jest.fn().mockResolvedValue({
         id: "sub_test_123",
-        status: "trialing",
+        customer: "cus_test_123",
+        status: "active",
         current_period_start: 1710000000,
-        current_period_end: 1711209600,
-        trial_start: 1710000000,
-        trial_end: 1711209600,
+        current_period_end: 1712592000,
+        trial_start: null,
+        trial_end: null,
         cancel_at_period_end: false,
+        metadata: {
+          businessId: "mock_business_id",
+          plan: "agency",
+        },
+        items: {
+          data: [
+            {
+              price: {
+                id: "price_agency_test",
+              },
+            },
+          ],
+        },
+        latest_invoice: {
+          id: "in_test_123",
+        },
       }),
 
       update: jest.fn().mockResolvedValue({
@@ -472,9 +497,36 @@ describe("Billing Routes", () => {
   });
 
   test("POST /api/billing/webhook handles checkout.session.completed", async () => {
-    mockStripe();
+    const stripe = mockStripe();
 
     const { business } = await registerAndCreateBusiness();
+
+    stripe.subscriptions.retrieve.mockResolvedValueOnce({
+      id: "sub_test_123",
+      customer: "cus_test_123",
+      status: "trialing",
+      current_period_start: 1710000000,
+      current_period_end: 1711209600,
+      trial_start: 1710000000,
+      trial_end: 1711209600,
+      cancel_at_period_end: false,
+      metadata: {
+        businessId: business._id,
+        plan: "pro",
+      },
+      items: {
+        data: [
+          {
+            price: {
+              id: "price_pro_test",
+            },
+          },
+        ],
+      },
+      latest_invoice: {
+        id: "in_test_123",
+      },
+    });
 
     const res = await request(app)
       .post("/api/billing/webhook")
@@ -510,9 +562,36 @@ describe("Billing Routes", () => {
   });
 
   test("POST /api/billing/webhook handles customer.subscription.updated", async () => {
-    mockStripe();
+    const stripe = mockStripe();
 
     const { business } = await registerAndCreateBusiness();
+
+    stripe.subscriptions.retrieve.mockResolvedValueOnce({
+      id: "sub_test_123",
+      customer: "cus_test_123",
+      status: "active",
+      current_period_start: 1710000000,
+      current_period_end: 1712592000,
+      trial_start: null,
+      trial_end: null,
+      cancel_at_period_end: false,
+      metadata: {
+        businessId: business._id,
+        plan: "agency",
+      },
+      items: {
+        data: [
+          {
+            price: {
+              id: "price_agency_test",
+            },
+          },
+        ],
+      },
+      latest_invoice: {
+        id: "in_test_123",
+      },
+    });
 
     const res = await request(app)
       .post("/api/billing/webhook")

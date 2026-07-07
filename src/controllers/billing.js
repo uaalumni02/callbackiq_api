@@ -348,6 +348,9 @@ class BillingController {
             plan,
           },
         },
+        saved_payment_method_options: {
+          payment_method_save: "enabled",
+        },
       });
 
       const currentlyTrialing =
@@ -708,25 +711,38 @@ class BillingController {
 
     if (!businessId) return null;
 
+    let stripeCustomerId = session.customer || "";
+    let stripeSubscriptionId = session.subscription || "";
     let stripeStatus = "active";
     let currentPeriodStart = null;
     let currentPeriodEnd = null;
     let trialStartedAt = null;
     let trialEndsAt = null;
+    let latestInvoiceId = "";
 
-    if (session.subscription) {
+    if (stripeSubscriptionId) {
       const stripe = getStripeClient();
       const stripeSubscription = await stripe.subscriptions.retrieve(
-        session.subscription,
+        stripeSubscriptionId,
+        {
+          expand: ["latest_invoice"],
+        },
       );
 
       stripeStatus = stripeSubscription.status || "active";
+      stripeCustomerId = stripeSubscription.customer || stripeCustomerId;
       currentPeriodStart = toDateFromUnix(
         stripeSubscription.current_period_start,
       );
       currentPeriodEnd = toDateFromUnix(stripeSubscription.current_period_end);
       trialStartedAt = toDateFromUnix(stripeSubscription.trial_start);
       trialEndsAt = toDateFromUnix(stripeSubscription.trial_end);
+
+      if (typeof stripeSubscription.latest_invoice === "string") {
+        latestInvoiceId = stripeSubscription.latest_invoice;
+      } else {
+        latestInvoiceId = stripeSubscription.latest_invoice?.id || "";
+      }
     }
 
     const isActive = isAccessStatus(stripeStatus);
@@ -735,9 +751,10 @@ class BillingController {
       Subscription,
       businessId,
       {
-        stripeCustomerId: session.customer || "",
-        stripeSubscriptionId: session.subscription || "",
+        stripeCustomerId,
+        stripeSubscriptionId,
         checkoutSessionId: session.id || "",
+        latestInvoiceId,
         plan,
         status: stripeStatus,
         lastPaymentStatus: stripeStatus,
@@ -756,6 +773,17 @@ class BillingController {
   }
 
   static async handleSubscriptionUpdated(stripeSubscription) {
+    const stripe = getStripeClient();
+
+    if (stripeSubscription?.id && stripe?.subscriptions?.retrieve) {
+      stripeSubscription = await stripe.subscriptions.retrieve(
+        stripeSubscription.id,
+        {
+          expand: ["latest_invoice"],
+        },
+      );
+    }
+
     const businessId = stripeSubscription.metadata?.businessId;
 
     const priceId =
@@ -766,9 +794,18 @@ class BillingController {
     const stripeStatus = stripeSubscription.status || "none";
     const isActive = isAccessStatus(stripeStatus);
 
+    let latestInvoiceId = "";
+
+    if (typeof stripeSubscription.latest_invoice === "string") {
+      latestInvoiceId = stripeSubscription.latest_invoice;
+    } else {
+      latestInvoiceId = stripeSubscription.latest_invoice?.id || "";
+    }
+
     const data = {
       stripeCustomerId: stripeSubscription.customer || "",
       stripeSubscriptionId: stripeSubscription.id || "",
+      latestInvoiceId,
       plan: stripeSubscription.metadata?.plan || inferPlanFromPriceId(priceId),
       status: stripeStatus,
       lastPaymentStatus: stripeStatus,
@@ -818,6 +855,8 @@ class BillingController {
         status: "active",
         isActive: true,
         aiEnabled: true,
+        currentPeriodStart: toDateFromUnix(invoice.period_start),
+        currentPeriodEnd: toDateFromUnix(invoice.period_end),
       },
     );
   }
@@ -834,6 +873,8 @@ class BillingController {
         status: "past_due",
         isActive: false,
         aiEnabled: false,
+        currentPeriodStart: toDateFromUnix(invoice.period_start),
+        currentPeriodEnd: toDateFromUnix(invoice.period_end),
       },
     );
   }
