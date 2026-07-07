@@ -1,6 +1,14 @@
 import nodemailer from "nodemailer";
 
 const sendPasswordResetEmail = async (email, resetToken) => {
+  if (process.env.NODE_ENV === "test") {
+    return {
+      accepted: [email],
+      messageId: "test-password-reset-email",
+      resetToken,
+    };
+  }
+
   const clientUrl = process.env.CLIENT_URL || "http://localhost:3001";
   const resetLink = `${clientUrl}/reset-password/${resetToken}`;
 

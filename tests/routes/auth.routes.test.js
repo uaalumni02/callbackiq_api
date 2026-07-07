@@ -130,6 +130,152 @@ describe("Auth Routes", () => {
     expect(res.body.success).toBe(false);
   });
 
+  test("POST /api/password-reset creates reset token for existing user", async () => {
+    await request(app).post("/api/auth/register").send(validRegisterPayload);
+
+    const res = await request(app).post("/api/password-reset").send({
+      email: "owner@callbackiq.com",
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+
+    const savedUser = await User.findOne({
+      email: "owner@callbackiq.com",
+    }).select("+resetToken +resetTokenExpiresAt");
+
+    expect(savedUser).toBeTruthy();
+    expect(savedUser.resetToken).toBeTruthy();
+    expect(savedUser.resetTokenExpiresAt).toBeTruthy();
+    expect(savedUser.resetTokenExpiresAt.getTime()).toBeGreaterThan(Date.now());
+  });
+
+  test("POST /api/password-reset returns success for unknown email without creating token", async () => {
+    const res = await request(app).post("/api/password-reset").send({
+      email: "missing@callbackiq.com",
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+
+    const missingUser = await User.findOne({
+      email: "missing@callbackiq.com",
+    }).select("+resetToken +resetTokenExpiresAt");
+
+    expect(missingUser).toBeNull();
+  });
+
+  test("POST /api/password-reset rejects invalid email", async () => {
+    const res = await request(app).post("/api/password-reset").send({
+      email: "bad-email",
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+  });
+
+  test("POST /api/password-reset/:resetToken resets password and clears reset token", async () => {
+    await request(app).post("/api/auth/register").send(validRegisterPayload);
+
+    await request(app).post("/api/password-reset").send({
+      email: "owner@callbackiq.com",
+    });
+
+    const userWithToken = await User.findOne({
+      email: "owner@callbackiq.com",
+    }).select("+resetToken +resetTokenExpiresAt");
+
+    expect(userWithToken.resetToken).toBeTruthy();
+
+    const resetRes = await request(app)
+      .post(`/api/password-reset/${userWithToken.resetToken}`)
+      .send({
+        password: "NewPassword123",
+      });
+
+    expect(resetRes.status).toBe(200);
+    expect(resetRes.body.success).toBe(true);
+
+    const updatedUser = await User.findOne({
+      email: "owner@callbackiq.com",
+    }).select("+resetToken +resetTokenExpiresAt");
+
+    expect(updatedUser.resetToken).toBeNull();
+    expect(updatedUser.resetTokenExpiresAt).toBeNull();
+    expect(updatedUser.password).not.toBe("NewPassword123");
+
+    const oldLoginRes = await request(app).post("/api/auth/login").send({
+      login: "owner@callbackiq.com",
+      password: "Password123",
+    });
+
+    expect(oldLoginRes.status).toBe(401);
+    expect(oldLoginRes.body.success).toBe(false);
+
+    const newLoginRes = await request(app).post("/api/auth/login").send({
+      login: "owner@callbackiq.com",
+      password: "NewPassword123",
+    });
+
+    expect(newLoginRes.status).toBe(200);
+    expect(newLoginRes.body.success).toBe(true);
+    expect(newLoginRes.body.data.token).toBeTruthy();
+  });
+
+  test("POST /api/password-reset/:resetToken rejects invalid token", async () => {
+    const res = await request(app).post("/api/password-reset/bad-token").send({
+      password: "NewPassword123",
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+  });
+
+  test("POST /api/password-reset/:resetToken rejects expired token", async () => {
+    await request(app).post("/api/auth/register").send(validRegisterPayload);
+
+    const expiredToken = "expired-reset-token";
+
+    await User.findOneAndUpdate(
+      { email: "owner@callbackiq.com" },
+      {
+        resetToken: expiredToken,
+        resetTokenExpiresAt: new Date(Date.now() - 60 * 1000),
+      },
+      { returnDocument: "after" },
+    );
+
+    const res = await request(app)
+      .post(`/api/password-reset/${expiredToken}`)
+      .send({
+        password: "NewPassword123",
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+  });
+
+  test("POST /api/password-reset/:resetToken rejects invalid password format", async () => {
+    await request(app).post("/api/auth/register").send(validRegisterPayload);
+
+    await request(app).post("/api/password-reset").send({
+      email: "owner@callbackiq.com",
+    });
+
+    const userWithToken = await User.findOne({
+      email: "owner@callbackiq.com",
+    }).select("+resetToken +resetTokenExpiresAt");
+
+    const res = await request(app)
+      .post(`/api/password-reset/${userWithToken.resetToken}`)
+      .send({
+        password: "123",
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+  });
+
   test("GET /api/auth/me rejects unauthenticated request", async () => {
     const res = await request(app).get("/api/auth/me");
 
