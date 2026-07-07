@@ -46,6 +46,57 @@ const mockStripe = () => {
       }),
     },
 
+    paymentMethods: {
+      list: jest.fn().mockResolvedValue({
+        data: [
+          {
+            id: "pm_test_123",
+            card: {
+              brand: "visa",
+              last4: "4242",
+              exp_month: 12,
+              exp_year: 2030,
+            },
+          },
+        ],
+      }),
+    },
+
+    invoices: {
+      list: jest.fn().mockResolvedValue({
+        data: [
+          {
+            id: "in_test_123",
+            number: "INV-001",
+            status: "paid",
+            amount_due: 19900,
+            amount_paid: 19900,
+            currency: "usd",
+            hosted_invoice_url: "https://invoice.stripe.com/test",
+            invoice_pdf: "https://invoice.stripe.com/test.pdf",
+            created: 1710000000,
+            period_start: 1710000000,
+            period_end: 1712592000,
+          },
+        ],
+      }),
+
+      retrieveUpcoming: jest.fn().mockResolvedValue({
+        amount_due: 19900,
+        currency: "usd",
+        next_payment_attempt: 1712592000,
+      }),
+    },
+
+    billingPortal: {
+      sessions: {
+        create: jest.fn().mockResolvedValue({
+          id: "bps_test_123",
+          url: "https://billing.stripe.com/session/test",
+        }),
+      },
+    },
+
     checkout: {
       sessions: {
         create: jest.fn().mockResolvedValue({

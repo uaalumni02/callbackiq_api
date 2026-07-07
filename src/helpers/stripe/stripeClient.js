@@ -24,4 +24,13 @@ const getPriceIdByPlan = (plan) => {
   return priceMap[plan];
 };
 
-export { getStripeClient, getPriceIdByPlan };
+const formatStripeMoney = (amount = 0, currency = "usd") => {
+  const value = Number(amount || 0) / 100;
+
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: String(currency || "usd").toUpperCase(),
+  }).format(value);
+};
+
+export { getStripeClient, getPriceIdByPlan, formatStripeMoney };

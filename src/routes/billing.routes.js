@@ -15,6 +15,14 @@ router.post(
 
 router.get("/subscription", checkAuth, BillingController.getMySubscription);
 
+router.get("/invoices", checkAuth, BillingController.getBillingHistory);
+
+router.post(
+  "/create-portal-session",
+  checkAuth,
+  BillingController.createBillingPortalSession,
+);
+
 router.post("/cancel", checkAuth, BillingController.cancelSubscription);
 
 router.patch(

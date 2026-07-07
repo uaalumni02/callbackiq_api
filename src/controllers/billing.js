@@ -23,12 +23,116 @@ const addDays = (date, days) => {
   return copy;
 };
 
+const formatStripeMoney = (amount = 0, currency = "usd") => {
+  const value = Number(amount || 0) / 100;
+
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: String(currency || "usd").toUpperCase(),
+  }).format(value);
+};
+
 const inferPlanFromPriceId = (priceId) => {
   if (priceId === process.env.STRIPE_STARTER_PRICE_ID) return "starter";
   if (priceId === process.env.STRIPE_PRO_PRICE_ID) return "pro";
   if (priceId === process.env.STRIPE_AGENCY_PRICE_ID) return "agency";
   return "pro";
 };
+
+const getDefaultPaymentMethod = () => ({
+  brand: "",
+  last4: "",
+  expMonth: null,
+  expYear: null,
+  display: "No payment method",
+});
+
+const getDefaultNextCharge = () => ({
+  amount: 0,
+  currency: "usd",
+  display: "$0.00",
+  nextPaymentAttempt: null,
+});
+
+const getPaymentMethodSummary = async (stripe, stripeCustomerId) => {
+  if (!stripeCustomerId || !stripe?.paymentMethods?.list) {
+    return getDefaultPaymentMethod();
+  }
+
+  try {
+    const paymentMethods = await stripe.paymentMethods.list({
+      customer: stripeCustomerId,
+      type: "card",
+      limit: 1,
+    });
+
+    const card = paymentMethods.data?.[0]?.card;
+
+    if (!card) {
+      return getDefaultPaymentMethod();
+    }
+
+    const brand = card.brand
+      ? card.brand.charAt(0).toUpperCase() + card.brand.slice(1)
+      : "Card";
+
+    return {
+      brand,
+      last4: card.last4 || "",
+      expMonth: card.exp_month || null,
+      expYear: card.exp_year || null,
+      display: `${brand} •••• ${card.last4 || "----"}`,
+    };
+  } catch (error) {
+    return getDefaultPaymentMethod();
+  }
+};
+
+const getNextChargeDetails = async (stripe, stripeCustomerId) => {
+  if (!stripeCustomerId || !stripe?.invoices?.retrieveUpcoming) {
+    return getDefaultNextCharge();
+  }
+
+  try {
+    const upcomingInvoice = await stripe.invoices.retrieveUpcoming({
+      customer: stripeCustomerId,
+    });
+
+    return {
+      amount: upcomingInvoice.amount_due || 0,
+      currency: upcomingInvoice.currency || "usd",
+      display: formatStripeMoney(
+        upcomingInvoice.amount_due || 0,
+        upcomingInvoice.currency || "usd",
+      ),
+      nextPaymentAttempt: toDateFromUnix(upcomingInvoice.next_payment_attempt),
+    };
+  } catch (error) {
+    return getDefaultNextCharge();
+  }
+};
+
+const mapStripeInvoice = (invoice) => ({
+  id: invoice.id,
+  number: invoice.number || invoice.id,
+  status: invoice.status || "unknown",
+  amountDue: invoice.amount_due || 0,
+  amountPaid: invoice.amount_paid || 0,
+  currency: invoice.currency || "usd",
+  amountDueDisplay: formatStripeMoney(
+    invoice.amount_due || 0,
+    invoice.currency || "usd",
+  ),
+  amountPaidDisplay: formatStripeMoney(
+    invoice.amount_paid || 0,
+    invoice.currency || "usd",
+  ),
+  hostedInvoiceUrl: invoice.hosted_invoice_url || "",
+  invoicePdf: invoice.invoice_pdf || "",
+  createdAt: toDateFromUnix(invoice.created),
+  periodStart: toDateFromUnix(invoice.period_start),
+  periodEnd: toDateFromUnix(invoice.period_end),
+});
 
 const isAccessStatus = (status) => {
   return ["trialing", "active"].includes(status);
@@ -230,7 +334,7 @@ class BillingController {
           lastPaymentStatus: currentlyTrialing
             ? "trialing"
             : "checkout_started",
-          isActive: currentlyTrialing ? true : false,
+          isActive: currentlyTrialing,
           aiEnabled: currentlyTrialing
             ? true
             : (subscription?.aiEnabled ?? true),
@@ -279,28 +383,164 @@ class BillingController {
         subscription = await expireTrialIfNeeded(business, subscription);
       }
 
+      const baseSubscription = subscription || {
+        business: business._id,
+        plan: "pro",
+        status: "none",
+        stripeCustomerId: "",
+        stripeSubscriptionId: "",
+        cancelAtPeriodEnd: false,
+        trialStartedAt: null,
+        trialEndsAt: null,
+        isActive: false,
+        aiEnabled: true,
+        priceMonthly: 199,
+        currentPeriodStart: null,
+        currentPeriodEnd: null,
+        latestInvoiceId: "",
+        lastPaymentStatus: "",
+      };
+
+      let billingDetails = {
+        paymentMethod: getDefaultPaymentMethod(),
+        nextCharge: getDefaultNextCharge(),
+        invoices: [],
+      };
+
+      if (baseSubscription.stripeCustomerId) {
+        const stripe = getStripeClient();
+
+        const [paymentMethod, nextCharge] = await Promise.all([
+          getPaymentMethodSummary(stripe, baseSubscription.stripeCustomerId),
+          getNextChargeDetails(stripe, baseSubscription.stripeCustomerId),
+        ]);
+
+        let invoiceList = { data: [] };
+
+        if (stripe?.invoices?.list) {
+          invoiceList = await stripe.invoices.list({
+            customer: baseSubscription.stripeCustomerId,
+            limit: 10,
+          });
+        }
+
+        billingDetails = {
+          paymentMethod,
+          nextCharge,
+          invoices: Array.isArray(invoiceList.data)
+            ? invoiceList.data.map(mapStripeInvoice)
+            : [],
+        };
+      }
+
       return Response.responseOk(
         res,
-        subscription || {
-          business: business._id,
-          plan: "pro",
-          status: "none",
-          stripeCustomerId: "",
-          stripeSubscriptionId: "",
-          cancelAtPeriodEnd: false,
-          trialStartedAt: null,
-          trialEndsAt: null,
-          isActive: false,
-          aiEnabled: true,
-          priceMonthly: 199,
-          currentPeriodStart: null,
-          currentPeriodEnd: null,
-          lastPaymentStatus: "",
+        {
+          ...(baseSubscription.toObject?.() ?? baseSubscription),
+          billingDetails,
         },
         "Subscription fetched successfully",
       );
     } catch (error) {
       console.error("Error in getMySubscription:", error);
+      return Response.responseServerError(res);
+    }
+  }
+
+  static async getBillingHistory(req, res) {
+    try {
+      const ownerId = req.user?.userId;
+
+      if (!ownerId) {
+        return Response.responseBadAuth(res, "Not authenticated");
+      }
+
+      const business = await Db.getBusinessByOwner(Business, ownerId);
+
+      if (!business) {
+        return Response.responseInvalidInput(res, "Business not found");
+      }
+
+      const subscription = await Db.getSubscriptionByBusiness(
+        Subscription,
+        business._id,
+      );
+
+      if (!subscription?.stripeCustomerId) {
+        return Response.responseOk(res, [], "No billing history found");
+      }
+
+      const stripe = getStripeClient();
+
+      if (!stripe?.invoices?.list) {
+        return Response.responseOk(res, [], "No billing history found");
+      }
+
+      const invoices = await stripe.invoices.list({
+        customer: subscription.stripeCustomerId,
+        limit: 24,
+      });
+
+      return Response.responseOk(
+        res,
+        Array.isArray(invoices.data) ? invoices.data.map(mapStripeInvoice) : [],
+        "Billing history fetched successfully",
+      );
+    } catch (error) {
+      console.error("Error in getBillingHistory:", error);
+      return Response.responseServerError(res);
+    }
+  }
+
+  static async createBillingPortalSession(req, res) {
+    try {
+      const ownerId = req.user?.userId;
+
+      if (!ownerId) {
+        return Response.responseBadAuth(res, "Not authenticated");
+      }
+
+      const business = await Db.getBusinessByOwner(Business, ownerId);
+
+      if (!business) {
+        return Response.responseInvalidInput(res, "Business not found");
+      }
+
+      const subscription = await Db.getSubscriptionByBusiness(
+        Subscription,
+        business._id,
+      );
+
+      if (!subscription?.stripeCustomerId) {
+        return Response.responseInvalidInput(
+          res,
+          "Stripe customer not found. Start checkout before managing billing.",
+        );
+      }
+
+      const stripe = getStripeClient();
+
+      if (!stripe?.billingPortal?.sessions?.create) {
+        return Response.responseInvalidInput(
+          res,
+          "Stripe billing portal is not configured.",
+        );
+      }
+
+      const portalSession = await stripe.billingPortal.sessions.create({
+        customer: subscription.stripeCustomerId,
+        return_url: `${getClientUrl()}/billing`,
+      });
+
+      return Response.responseOk(
+        res,
+        {
+          portalUrl: portalSession.url,
+        },
+        "Billing portal session created successfully",
+      );
+    } catch (error) {
+      console.error("Error in createBillingPortalSession:", error);
       return Response.responseServerError(res);
     }
   }
