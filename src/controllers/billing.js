@@ -234,28 +234,65 @@ const getPaymentMethodSummary = async (
   }
 };
 
-const getNextChargeDetails = async (stripe, stripeCustomerId) => {
-  if (!stripeCustomerId || !stripe?.invoices?.retrieveUpcoming) {
+const getNextChargeDetails = async (
+  stripe,
+  stripeCustomerId,
+  stripeSubscriptionId,
+) => {
+  if (!stripeCustomerId && !stripeSubscriptionId) {
     return getDefaultNextCharge();
   }
 
   try {
-    const upcomingInvoice = await stripe.invoices.retrieveUpcoming({
-      customer: stripeCustomerId,
-    });
+    if (stripe?.invoices?.retrieveUpcoming && stripeCustomerId) {
+      const upcomingInvoice = await stripe.invoices.retrieveUpcoming({
+        customer: stripeCustomerId,
+        subscription: stripeSubscriptionId || undefined,
+      });
 
-    return {
-      amount: upcomingInvoice.amount_due || 0,
-      currency: upcomingInvoice.currency || "usd",
-      display: formatStripeMoney(
-        upcomingInvoice.amount_due || 0,
-        upcomingInvoice.currency || "usd",
-      ),
-      nextPaymentAttempt: toDateFromUnix(upcomingInvoice.next_payment_attempt),
-    };
+      return {
+        amount: upcomingInvoice.amount_due || 0,
+        currency: upcomingInvoice.currency || "usd",
+        display: formatStripeMoney(
+          upcomingInvoice.amount_due || 0,
+          upcomingInvoice.currency || "usd",
+        ),
+        nextPaymentAttempt:
+          toDateFromUnix(upcomingInvoice.next_payment_attempt) ||
+          toDateFromUnix(upcomingInvoice.period_end),
+      };
+    }
+  } catch (error) {
+    // Fall through to subscription fallback below.
+  }
+
+  try {
+    if (stripeSubscriptionId && stripe?.subscriptions?.retrieve) {
+      const stripeSubscription = await stripe.subscriptions.retrieve(
+        stripeSubscriptionId,
+        {
+          expand: ["items.data.price"],
+        },
+      );
+
+      const price = stripeSubscription.items?.data?.[0]?.price;
+      const unitAmount = price?.unit_amount || 0;
+      const currency = price?.currency || "usd";
+
+      return {
+        amount: unitAmount,
+        currency,
+        display: formatStripeMoney(unitAmount, currency),
+        nextPaymentAttempt: toDateFromUnix(
+          stripeSubscription.current_period_end,
+        ),
+      };
+    }
   } catch (error) {
     return getDefaultNextCharge();
   }
+
+  return getDefaultNextCharge();
 };
 
 const mapStripeInvoice = (invoice) => ({
@@ -565,7 +602,11 @@ class BillingController {
             baseSubscription.stripeCustomerId,
             baseSubscription.stripeSubscriptionId,
           ),
-          getNextChargeDetails(stripe, baseSubscription.stripeCustomerId),
+          getNextChargeDetails(
+            stripe,
+            baseSubscription.stripeCustomerId,
+            baseSubscription.stripeSubscriptionId,
+          ),
         ]);
 
         let invoiceList = { data: [] };
