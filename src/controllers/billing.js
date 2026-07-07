@@ -54,35 +54,67 @@ const getDefaultNextCharge = () => ({
   nextPaymentAttempt: null,
 });
 
-const getPaymentMethodSummary = async (stripe, stripeCustomerId) => {
-  if (!stripeCustomerId || !stripe?.paymentMethods?.list) {
+const mapCardToPaymentMethod = (card) => {
+  if (!card) return getDefaultPaymentMethod();
+
+  const brand = card.brand
+    ? card.brand.charAt(0).toUpperCase() + card.brand.slice(1)
+    : "Card";
+
+  return {
+    brand,
+    last4: card.last4 || "",
+    expMonth: card.exp_month || null,
+    expYear: card.exp_year || null,
+    display: `${brand} •••• ${card.last4 || "----"}`,
+  };
+};
+
+const getPaymentMethodSummary = async (
+  stripe,
+  stripeCustomerId,
+  stripeSubscriptionId,
+) => {
+  if (!stripeCustomerId && !stripeSubscriptionId) {
     return getDefaultPaymentMethod();
   }
 
   try {
-    const paymentMethods = await stripe.paymentMethods.list({
-      customer: stripeCustomerId,
-      type: "card",
-      limit: 1,
-    });
+    if (stripeSubscriptionId && stripe?.subscriptions?.retrieve) {
+      const stripeSubscription = await stripe.subscriptions.retrieve(
+        stripeSubscriptionId,
+        {
+          expand: [
+            "default_payment_method",
+            "latest_invoice.payment_intent.payment_method",
+          ],
+        },
+      );
 
-    const card = paymentMethods.data?.[0]?.card;
+      const subscriptionPaymentMethod =
+        stripeSubscription.default_payment_method ||
+        stripeSubscription.latest_invoice?.payment_intent?.payment_method;
 
-    if (!card) {
-      return getDefaultPaymentMethod();
+      if (subscriptionPaymentMethod?.card) {
+        return mapCardToPaymentMethod(subscriptionPaymentMethod.card);
+      }
     }
 
-    const brand = card.brand
-      ? card.brand.charAt(0).toUpperCase() + card.brand.slice(1)
-      : "Card";
+    if (stripeCustomerId && stripe?.paymentMethods?.list) {
+      const paymentMethods = await stripe.paymentMethods.list({
+        customer: stripeCustomerId,
+        type: "card",
+        limit: 1,
+      });
 
-    return {
-      brand,
-      last4: card.last4 || "",
-      expMonth: card.exp_month || null,
-      expYear: card.exp_year || null,
-      display: `${brand} •••• ${card.last4 || "----"}`,
-    };
+      const card = paymentMethods.data?.[0]?.card;
+
+      if (card) {
+        return mapCardToPaymentMethod(card);
+      }
+    }
+
+    return getDefaultPaymentMethod();
   } catch (error) {
     return getDefaultPaymentMethod();
   }
@@ -411,7 +443,11 @@ class BillingController {
         const stripe = getStripeClient();
 
         const [paymentMethod, nextCharge] = await Promise.all([
-          getPaymentMethodSummary(stripe, baseSubscription.stripeCustomerId),
+          getPaymentMethodSummary(
+            stripe,
+            baseSubscription.stripeCustomerId,
+            baseSubscription.stripeSubscriptionId,
+          ),
           getNextChargeDetails(stripe, baseSubscription.stripeCustomerId),
         ]);
 
