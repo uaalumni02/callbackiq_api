@@ -39,6 +39,19 @@ const inferPlanFromPriceId = (priceId) => {
   return "pro";
 };
 
+const getSubscriptionPeriodDates = (stripeSubscription) => {
+  const item = stripeSubscription?.items?.data?.[0];
+
+  return {
+    currentPeriodStart: toDateFromUnix(
+      stripeSubscription?.current_period_start || item?.current_period_start,
+    ),
+    currentPeriodEnd: toDateFromUnix(
+      stripeSubscription?.current_period_end || item?.current_period_end,
+    ),
+  };
+};
+
 const getDefaultPaymentMethod = () => ({
   brand: "",
   last4: "",
@@ -886,10 +899,9 @@ class BillingController {
 
       stripeStatus = stripeSubscription.status || "active";
       stripeCustomerId = stripeSubscription.customer || stripeCustomerId;
-      currentPeriodStart = toDateFromUnix(
-        stripeSubscription.current_period_start,
-      );
-      currentPeriodEnd = toDateFromUnix(stripeSubscription.current_period_end);
+      const periodDates = getSubscriptionPeriodDates(stripeSubscription);
+      currentPeriodStart = periodDates.currentPeriodStart;
+      currentPeriodEnd = periodDates.currentPeriodEnd;
       trialStartedAt = toDateFromUnix(stripeSubscription.trial_start);
       trialEndsAt = toDateFromUnix(stripeSubscription.trial_end);
 
@@ -964,10 +976,7 @@ class BillingController {
       plan: stripeSubscription.metadata?.plan || inferPlanFromPriceId(priceId),
       status: stripeStatus,
       lastPaymentStatus: stripeStatus,
-      currentPeriodStart: toDateFromUnix(
-        stripeSubscription.current_period_start,
-      ),
-      currentPeriodEnd: toDateFromUnix(stripeSubscription.current_period_end),
+      ...getSubscriptionPeriodDates(stripeSubscription),
       trialStartedAt: toDateFromUnix(stripeSubscription.trial_start),
       trialEndsAt: toDateFromUnix(stripeSubscription.trial_end),
       cancelAtPeriodEnd: Boolean(stripeSubscription.cancel_at_period_end),
@@ -1017,10 +1026,9 @@ class BillingController {
         },
       );
 
-      currentPeriodStart = toDateFromUnix(
-        stripeSubscription.current_period_start,
-      );
-      currentPeriodEnd = toDateFromUnix(stripeSubscription.current_period_end);
+      const periodDates = getSubscriptionPeriodDates(stripeSubscription);
+      currentPeriodStart = periodDates.currentPeriodStart;
+      currentPeriodEnd = periodDates.currentPeriodEnd;
     }
 
     return await Db.updateSubscriptionByStripeSubscription(
