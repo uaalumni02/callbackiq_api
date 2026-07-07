@@ -54,19 +54,132 @@ const getDefaultNextCharge = () => ({
   nextPaymentAttempt: null,
 });
 
-const mapCardToPaymentMethod = (card) => {
-  if (!card) return getDefaultPaymentMethod();
+const formatPaymentMethodType = (type = "") => {
+  if (!type) return "Payment Method";
 
-  const brand = card.brand
-    ? card.brand.charAt(0).toUpperCase() + card.brand.slice(1)
-    : "Card";
+  const labels = {
+    card: "Card",
+    link: "Link",
+    cashapp: "Cash App Pay",
+    amazon_pay: "Amazon Pay",
+    klarna: "Klarna",
+    us_bank_account: "Bank Account",
+    sepa_debit: "SEPA Debit",
+    acss_debit: "ACSS Debit",
+    au_becs_debit: "BECS Debit",
+    bacs_debit: "Bacs Debit",
+    paypal: "PayPal",
+    affirm: "Affirm",
+    afterpay_clearpay: "Afterpay / Clearpay",
+  };
+
+  return (
+    labels[type] ||
+    String(type)
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (char) => char.toUpperCase())
+  );
+};
+
+const mapStripePaymentMethod = (paymentMethod) => {
+  if (!paymentMethod) return getDefaultPaymentMethod();
+
+  if (paymentMethod.card) {
+    const card = paymentMethod.card;
+    const brand = card.brand
+      ? card.brand.charAt(0).toUpperCase() + card.brand.slice(1)
+      : "Card";
+
+    return {
+      brand,
+      type: "card",
+      last4: card.last4 || "",
+      expMonth: card.exp_month || null,
+      expYear: card.exp_year || null,
+      display: `${brand} •••• ${card.last4 || "----"}`,
+    };
+  }
+
+  if (paymentMethod.type === "link") {
+    const email =
+      paymentMethod.link?.email || paymentMethod.billing_details?.email || "";
+
+    return {
+      brand: "Link",
+      type: "link",
+      last4: "",
+      expMonth: null,
+      expYear: null,
+      display: email ? `Link • ${email}` : "Link",
+    };
+  }
+
+  if (paymentMethod.type === "cashapp") {
+    return {
+      brand: "Cash App",
+      type: "cashapp",
+      last4: "",
+      expMonth: null,
+      expYear: null,
+      display: "Cash App Pay",
+    };
+  }
+
+  if (paymentMethod.type === "amazon_pay") {
+    return {
+      brand: "Amazon Pay",
+      type: "amazon_pay",
+      last4: "",
+      expMonth: null,
+      expYear: null,
+      display: "Amazon Pay",
+    };
+  }
+
+  if (paymentMethod.type === "klarna") {
+    return {
+      brand: "Klarna",
+      type: "klarna",
+      last4: "",
+      expMonth: null,
+      expYear: null,
+      display: "Klarna",
+    };
+  }
+
+  if (paymentMethod.type === "us_bank_account") {
+    return {
+      brand: "Bank Account",
+      type: "us_bank_account",
+      last4: paymentMethod.us_bank_account?.last4 || "",
+      expMonth: null,
+      expYear: null,
+      display: `Bank Account •••• ${
+        paymentMethod.us_bank_account?.last4 || "----"
+      }`,
+    };
+  }
+
+  if (paymentMethod.type === "sepa_debit") {
+    return {
+      brand: "SEPA Debit",
+      type: "sepa_debit",
+      last4: paymentMethod.sepa_debit?.last4 || "",
+      expMonth: null,
+      expYear: null,
+      display: `SEPA Debit •••• ${paymentMethod.sepa_debit?.last4 || "----"}`,
+    };
+  }
+
+  const label = formatPaymentMethodType(paymentMethod.type);
 
   return {
-    brand,
-    last4: card.last4 || "",
-    expMonth: card.exp_month || null,
-    expYear: card.exp_year || null,
-    display: `${brand} •••• ${card.last4 || "----"}`,
+    brand: label,
+    type: paymentMethod.type || "",
+    last4: "",
+    expMonth: null,
+    expYear: null,
+    display: label,
   };
 };
 
@@ -86,6 +199,8 @@ const getPaymentMethodSummary = async (
         {
           expand: [
             "default_payment_method",
+            "latest_invoice",
+            "latest_invoice.payment_intent",
             "latest_invoice.payment_intent.payment_method",
           ],
         },
@@ -95,22 +210,21 @@ const getPaymentMethodSummary = async (
         stripeSubscription.default_payment_method ||
         stripeSubscription.latest_invoice?.payment_intent?.payment_method;
 
-      if (subscriptionPaymentMethod?.card) {
-        return mapCardToPaymentMethod(subscriptionPaymentMethod.card);
+      if (subscriptionPaymentMethod) {
+        return mapStripePaymentMethod(subscriptionPaymentMethod);
       }
     }
 
     if (stripeCustomerId && stripe?.paymentMethods?.list) {
       const paymentMethods = await stripe.paymentMethods.list({
         customer: stripeCustomerId,
-        type: "card",
         limit: 1,
       });
 
-      const card = paymentMethods.data?.[0]?.card;
+      const paymentMethod = paymentMethods.data?.[0];
 
-      if (card) {
-        return mapCardToPaymentMethod(card);
+      if (paymentMethod) {
+        return mapStripePaymentMethod(paymentMethod);
       }
     }
 
@@ -846,6 +960,28 @@ class BillingController {
   static async handleInvoicePaid(invoice) {
     if (!invoice.subscription) return null;
 
+    const stripe = getStripeClient();
+
+    let currentPeriodStart = toDateFromUnix(invoice.period_start);
+    let currentPeriodEnd = toDateFromUnix(invoice.period_end);
+
+    if (
+      (!currentPeriodStart || !currentPeriodEnd) &&
+      stripe?.subscriptions?.retrieve
+    ) {
+      const stripeSubscription = await stripe.subscriptions.retrieve(
+        invoice.subscription,
+        {
+          expand: ["latest_invoice"],
+        },
+      );
+
+      currentPeriodStart = toDateFromUnix(
+        stripeSubscription.current_period_start,
+      );
+      currentPeriodEnd = toDateFromUnix(stripeSubscription.current_period_end);
+    }
+
     return await Db.updateSubscriptionByStripeSubscription(
       Subscription,
       invoice.subscription,
@@ -855,14 +991,36 @@ class BillingController {
         status: "active",
         isActive: true,
         aiEnabled: true,
-        currentPeriodStart: toDateFromUnix(invoice.period_start),
-        currentPeriodEnd: toDateFromUnix(invoice.period_end),
+        currentPeriodStart,
+        currentPeriodEnd,
       },
     );
   }
 
   static async handleInvoicePaymentFailed(invoice) {
     if (!invoice.subscription) return null;
+
+    const stripe = getStripeClient();
+
+    let currentPeriodStart = toDateFromUnix(invoice.period_start);
+    let currentPeriodEnd = toDateFromUnix(invoice.period_end);
+
+    if (
+      (!currentPeriodStart || !currentPeriodEnd) &&
+      stripe?.subscriptions?.retrieve
+    ) {
+      const stripeSubscription = await stripe.subscriptions.retrieve(
+        invoice.subscription,
+        {
+          expand: ["latest_invoice"],
+        },
+      );
+
+      currentPeriodStart = toDateFromUnix(
+        stripeSubscription.current_period_start,
+      );
+      currentPeriodEnd = toDateFromUnix(stripeSubscription.current_period_end);
+    }
 
     return await Db.updateSubscriptionByStripeSubscription(
       Subscription,
@@ -873,8 +1031,8 @@ class BillingController {
         status: "past_due",
         isActive: false,
         aiEnabled: false,
-        currentPeriodStart: toDateFromUnix(invoice.period_start),
-        currentPeriodEnd: toDateFromUnix(invoice.period_end),
+        currentPeriodStart,
+        currentPeriodEnd,
       },
     );
   }
