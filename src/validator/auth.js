@@ -46,4 +46,21 @@ const loginSchema = Joi.object({
   password: Joi.string().required(),
 });
 
-export { registerSchema, loginSchema };
+const requestPasswordResetSchema = Joi.object({
+  email: Joi.string().email().min(3).max(100).required(),
+});
+
+const resetPasswordSchema = Joi.object({
+  password: Joi.string()
+    .min(6)
+    .max(50)
+    .pattern(/^[\w@!$%*?&-]*$/)
+    .required(),
+});
+
+export {
+  registerSchema,
+  loginSchema,
+  requestPasswordResetSchema,
+  resetPasswordSchema,
+};

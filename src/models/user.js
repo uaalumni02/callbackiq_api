@@ -105,6 +105,17 @@ const UserSchema = new Schema(
       type: Date,
       default: null,
     },
+    resetToken: {
+      type: String,
+      default: null,
+      select: false,
+    },
+
+    resetTokenExpiresAt: {
+      type: Date,
+      default: null,
+      select: false,
+    },
   },
   {
     timestamps: true,
@@ -114,6 +125,8 @@ const UserSchema = new Schema(
 UserSchema.methods.toJSON = function () {
   const obj = this.toObject();
   delete obj.password;
+  delete obj.resetToken;
+  delete obj.resetTokenExpiresAt;
   return obj;
 };
 

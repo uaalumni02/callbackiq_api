@@ -4,9 +4,17 @@ import Business from "../models/business.js";
 import Subscription from "../models/subscription.js";
 import Token from "../helpers/jwt/token.js";
 import bcrypt from "../helpers/bcrypt/bcrypt.js";
-import { registerSchema, loginSchema } from "../validator/auth.js";
+import crypto from "crypto";
+import {
+  registerSchema,
+  loginSchema,
+  requestPasswordResetSchema,
+  resetPasswordSchema,
+} from "../validator/auth.js";
 import * as validate from "../helpers/model/user.js";
 import * as Response from "../helpers/response/response.js";
+
+import sendPasswordResetEmail from "../helpers/email/mailer.js";
 
 const isProduction = process.env.NODE_ENV === "production";
 
@@ -255,6 +263,97 @@ class AuthController {
       return Response.responseOk(res, user, "Current user fetched");
     } catch (error) {
       console.error("Me error:", error);
+      return Response.responseServerError(res);
+    }
+  }
+
+  static async requestPasswordReset(req, res) {
+    try {
+      await requestPasswordResetSchema.validateAsync(req.body);
+
+      const { email } = req.body;
+      const normalizedEmail = email.toLowerCase().trim();
+
+      const user = await Db.findUserByEmail(User, normalizedEmail);
+
+      if (!user) {
+        return Response.responseOk(
+          res,
+          null,
+          "If an account exists with that email, a password reset link has been sent",
+        );
+      }
+
+      const resetToken = crypto.randomBytes(32).toString("hex");
+      const resetTokenExpiresAt = new Date(Date.now() + 30 * 60 * 1000);
+
+      await Db.savePasswordResetToken(
+        User,
+        user._id,
+        resetToken,
+        resetTokenExpiresAt,
+      );
+
+      try {
+        await sendPasswordResetEmail(user.email, resetToken);
+      } catch (emailError) {
+        console.error("Password reset email error:", emailError);
+        return Response.responseServerError(
+          res,
+          "Unable to send password reset email",
+        );
+      }
+
+      return Response.responseOk(
+        res,
+        null,
+        "If an account exists with that email, a password reset link has been sent",
+      );
+    } catch (error) {
+      if (error.isJoi) {
+        return Response.responseInvalidInput(res, error.message);
+      }
+
+      console.error("Request password reset error:", error);
+      return Response.responseServerError(res);
+    }
+  }
+
+  static async resetPassword(req, res) {
+    try {
+      await resetPasswordSchema.validateAsync(req.body);
+
+      const { resetToken } = req.params;
+      const { password } = req.body;
+
+      if (!resetToken) {
+        return Response.responseInvalidInput(res, "Reset token is required");
+      }
+
+      if (!validate.isValidPassword(password)) {
+        return Response.responseInvalidInput(res, "Invalid password format");
+      }
+
+      const user = await Db.findUserByPasswordResetToken(User, resetToken);
+
+      if (!user) {
+        return Response.responseInvalidInput(
+          res,
+          "Invalid or expired reset token",
+        );
+      }
+
+      const hashedPassword = await bcrypt.hashPassword(password, 10);
+
+      await Db.saveResetPassword(User, user._id, hashedPassword);
+
+      return Response.responseOk(res, null, "Password reset successfully");
+    } catch (error) {
+      if (error.isJoi) {
+        return Response.responseInvalidInput(res, error.message);
+      }
+
+      console.error("Reset password error:", error);
       return Response.responseServerError(res);
     }
   }

@@ -38,6 +38,71 @@ class Db {
       throw new Error("Database error while fetching user");
     }
   }
+
+  // ----- Password Reset methods -----
+
+  static async findUserByEmail(model, email) {
+    try {
+      return await model.findOne({ email });
+    } catch (error) {
+      console.error("Error finding user by email:", error);
+      throw error;
+    }
+  }
+
+  static async savePasswordResetToken(model, userId, resetToken, expiresAt) {
+    try {
+      return await model.findByIdAndUpdate(
+        userId,
+        {
+          resetToken,
+          resetTokenExpiresAt: expiresAt,
+        },
+        {
+          returnDocument: "after",
+          runValidators: true,
+        },
+      );
+    } catch (error) {
+      console.error("Error saving password reset token:", error);
+      throw error;
+    }
+  }
+
+  static async findUserByPasswordResetToken(model, resetToken) {
+    try {
+      return await model
+        .findOne({
+          resetToken,
+          resetTokenExpiresAt: { $gt: new Date() },
+        })
+        .select("+password +resetToken +resetTokenExpiresAt");
+    } catch (error) {
+      console.error("Error finding password reset token:", error);
+      throw error;
+    }
+  }
+
+  static async saveResetPassword(model, userId, password) {
+    try {
+      return await model.findByIdAndUpdate(
+        userId,
+        {
+          password,
+          resetToken: null,
+          resetTokenExpiresAt: null,
+        },
+        {
+          returnDocument: "after",
+          runValidators: true,
+        },
+      );
+    } catch (error) {
+      console.error("Error saving reset password:", error);
+      throw error;
+    }
+  }
+
   // ----- Business methods -----
 
   static async saveBusiness(model, data) {

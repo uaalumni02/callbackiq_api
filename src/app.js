@@ -18,6 +18,7 @@ import billingRoutes from "./routes/billing.routes.js";
 import stripeWebhookRoutes from "./routes/stripeWebhook.routes.js";
 import supportRoutes from "./routes/support.routes.js";
 import demoRequestRoutes from "./routes/demoRequest.routes.js";
+import passwordResetRoutes from "./routes/passwordReset.routes.js";
 
 const app = express();
 
@@ -67,6 +68,7 @@ app.use("/api/agent", agentRoutes);
 app.use("/api/billing", billingRoutes);
 app.use("/api/support", supportRoutes);
 app.use("/api/demo-requests", demoRequestRoutes);
+app.use("/api/password-reset", passwordResetRoutes);
 
 app.get("/", (req, res) => {
   res.status(200).json({
