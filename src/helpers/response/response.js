@@ -34,10 +34,10 @@ const responseConflict = (res) => {
   });
 };
 
-const responseBadAuth = (res) => {
+const responseBadAuth = (res, message = "auth failed") => {
   return res.status(401).json({
     success: false,
-    message: "auth failed",
+    message,
   });
 };
 
@@ -139,5 +139,5 @@ export {
   responseInvalidConfirmation,
   responseUserNotFound,
   responseOkUpdated,
-  responseCreated
+  responseCreated,
 };
