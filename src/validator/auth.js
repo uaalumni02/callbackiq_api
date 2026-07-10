@@ -42,8 +42,11 @@ const registerSchema = Joi.object({
 });
 
 const loginSchema = Joi.object({
-  login: Joi.string().required(),
-  password: Joi.string().required(),
+  login: Joi.string().trim().min(1).max(100).required(),
+
+  password: Joi.string().min(1).max(200).required(),
+
+  securityChallengeToken: Joi.string().trim().max(4096).allow("").optional(),
 });
 
 const requestPasswordResetSchema = Joi.object({

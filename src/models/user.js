@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+
 const { Schema } = mongoose;
 
 import * as validate from "../helpers/model/user.js";
@@ -25,6 +26,7 @@ const UserSchema = new Schema(
     password: {
       type: String,
       required: [true, "Password is required"],
+      select: false,
     },
 
     role: {
@@ -105,6 +107,7 @@ const UserSchema = new Schema(
       type: Date,
       default: null,
     },
+
     resetToken: {
       type: String,
       default: null,
@@ -116,6 +119,70 @@ const UserSchema = new Schema(
       default: null,
       select: false,
     },
+
+    /*
+     * Login protection
+     *
+     * failedLoginAttempts:
+     * Number of failures inside the current 15-minute observation window.
+     *
+     * loginBlockedUntil:
+     * Date before which login attempts remain temporarily blocked.
+     *
+     * loginLockoutLevel:
+     * Number of recent temporary blocks. Determines progressive delay.
+     *
+     * securityChallengeRequired:
+     * Requires CAPTCHA after sustained suspicious activity.
+     */
+    failedLoginAttempts: {
+      type: Number,
+      default: 0,
+      min: 0,
+      select: false,
+    },
+
+    lastFailedLoginAt: {
+      type: Date,
+      default: null,
+      select: false,
+    },
+
+    loginBlockedUntil: {
+      type: Date,
+      default: null,
+      select: false,
+    },
+
+    loginLockoutLevel: {
+      type: Number,
+      default: 0,
+      min: 0,
+      select: false,
+    },
+
+    lastLoginLockoutAt: {
+      type: Date,
+      default: null,
+      select: false,
+    },
+
+    securityChallengeRequired: {
+      type: Boolean,
+      default: false,
+      select: false,
+    },
+
+    securityChallengeRequiredAt: {
+      type: Date,
+      default: null,
+      select: false,
+    },
+
+    lastSuccessfulLoginAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -124,9 +191,18 @@ const UserSchema = new Schema(
 
 UserSchema.methods.toJSON = function () {
   const obj = this.toObject();
+
   delete obj.password;
   delete obj.resetToken;
   delete obj.resetTokenExpiresAt;
+  delete obj.failedLoginAttempts;
+  delete obj.lastFailedLoginAt;
+  delete obj.loginBlockedUntil;
+  delete obj.loginLockoutLevel;
+  delete obj.lastLoginLockoutAt;
+  delete obj.securityChallengeRequired;
+  delete obj.securityChallengeRequiredAt;
+
   return obj;
 };
 

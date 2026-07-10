@@ -2,6 +2,7 @@ import Db from "../db/db.js";
 import User from "../models/user.js";
 import Business from "../models/business.js";
 import Subscription from "../models/subscription.js";
+import { verifyTurnstileToken } from "../helpers/security/turnstile.js";
 import Token from "../helpers/jwt/token.js";
 import bcrypt from "../helpers/bcrypt/bcrypt.js";
 import crypto from "crypto";
@@ -31,6 +32,35 @@ const clearCookieOptions = {
   secure: isProduction,
   sameSite: isProduction ? "none" : "lax",
   path: "/",
+};
+
+const GENERIC_LOGIN_MESSAGE = "Invalid login or password";
+
+const DUMMY_PASSWORD_HASH =
+  process.env.DUMMY_PASSWORD_HASH ||
+  "$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
+
+const SECURITY_DECAY_MS = 24 * 60 * 60 * 1000;
+
+const getRetryAfterSeconds = (blockedUntil) => {
+  if (!blockedUntil) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    Math.ceil((new Date(blockedUntil).getTime() - Date.now()) / 1000),
+  );
+};
+
+const hasSecurityStateExpired = (lastFailedLoginAt) => {
+  if (!lastFailedLoginAt) {
+    return false;
+  }
+
+  return (
+    Date.now() - new Date(lastFailedLoginAt).getTime() >= SECURITY_DECAY_MS
+  );
 };
 
 class AuthController {
@@ -188,22 +218,81 @@ class AuthController {
   }
 
   static async login(req, res) {
-    const { login, password } = req.body;
+    const { login, password, securityChallengeToken = "" } = req.body;
 
     try {
       await loginSchema.validateAsync(req.body);
 
-      const user = await Db.findUserByLogin(User, login);
+      const normalizedLogin = login.trim();
+      let user = await Db.findUserByLogin(User, normalizedLogin);
+
+      /*
+       * Always perform a password-hash comparison, even when the account does
+       * not exist. This reduces the obvious timing difference between existing
+       * and nonexistent accounts.
+       */
+      const passwordHash = user?.password || DUMMY_PASSWORD_HASH;
+      const isMatch = await bcrypt.comparePassword(password, passwordHash);
 
       if (!user) {
-        return Response.responseBadAuth(res, "Invalid login or password");
+        return Response.responseBadAuth(res, GENERIC_LOGIN_MESSAGE);
       }
 
-      const isMatch = await bcrypt.comparePassword(password, user.password);
+      /*
+       * Reset old security escalation after 24 hours without another failure.
+       */
+      if (hasSecurityStateExpired(user.lastFailedLoginAt)) {
+        await Db.decayLoginSecurityState(User, user._id);
+        user = await Db.findUserByLogin(User, normalizedLogin);
+      }
+
+      const retryAfterSeconds = getRetryAfterSeconds(user.loginBlockedUntil);
+
+      /*
+       * Do not return an account-specific lock message. A generic 401 prevents
+       * the blocked state from becoming an easy account-enumeration signal.
+       *
+       * IP-level abuse is handled separately by loginRateLimit with HTTP 429.
+       */
+      if (retryAfterSeconds > 0) {
+        return Response.responseBadAuth(res, GENERIC_LOGIN_MESSAGE);
+      }
 
       if (!isMatch) {
-        return Response.responseBadAuth(res, "Invalid login or password");
+        await Db.recordFailedLogin(User, user._id);
+
+        return Response.responseBadAuth(res, GENERIC_LOGIN_MESSAGE);
       }
+
+      /*
+       * CAPTCHA is checked only after the password is correct. This prevents
+       * the CAPTCHA-required response from revealing that an account exists.
+       */
+      if (user.securityChallengeRequired) {
+        const challengeResult = await verifyTurnstileToken(
+          securityChallengeToken,
+          req,
+        );
+
+        if (!challengeResult.success) {
+          return res.status(403).json({
+            success: false,
+            message:
+              "Additional verification is required before you can sign in.",
+            code: "SECURITY_CHALLENGE_REQUIRED",
+            actionRequired: {
+              type: "captcha",
+              passwordResetAvailable: true,
+            },
+          });
+        }
+      }
+
+      /*
+       * Clear failure counts, temporary delays, escalation, and CAPTCHA state
+       * after a successful password and challenge verification.
+       */
+      await Db.clearLoginSecurityState(User, user._id);
 
       const token = Token.sign({
         userId: user._id,
@@ -232,6 +321,7 @@ class AuthController {
             termsAcceptedAt: user.termsAcceptedAt,
             privacyAccepted: user.privacyAccepted,
             privacyAcceptedAt: user.privacyAcceptedAt,
+            lastSuccessfulLoginAt: new Date(),
           },
         },
         "Login successful",
