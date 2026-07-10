@@ -6,6 +6,7 @@ import Lead from "../models/lead.js";
 import qualifyLeadSchema from "../validator/ai.js";
 import { qualifyLeadWithAI } from "../helpers/ai/openaiClient.js";
 import * as Response from "../helpers/response/response.js";
+import SocketService from "../services/socket.service.js";
 
 const sanitizeUrgency = (urgency) => {
   const allowed = ["low", "medium", "high", "emergency"];
@@ -79,6 +80,10 @@ class AiController {
       };
 
       const qualifiedLead = await Db.qualifyLead(Lead, leadId, updateData);
+
+      SocketService.emitLeadUpdated(business._id, qualifiedLead);
+
+      SocketService.emitDashboardRefresh(business._id, "lead_qualified");
 
       return Response.responseOk(
         res,

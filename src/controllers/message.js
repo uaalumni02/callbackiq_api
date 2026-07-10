@@ -6,6 +6,7 @@ import Conversation from "../models/conversation.js";
 import Message from "../models/message.js";
 import messageValidator from "../validator/message.js";
 import * as Response from "../helpers/response/response.js";
+import SocketService from "../services/socket.service.js";
 
 class MessageController {
   static async createMessage(req, res) {
@@ -45,10 +46,20 @@ class MessageController {
         business: business._id,
       });
 
-      await Db.updateConversation(Conversation, conversation._id, {
-        lastMessage: req.body.body,
-        lastMessageAt: new Date(),
-      });
+      const updatedConversation = await Db.updateConversation(
+        Conversation,
+        conversation._id,
+        {
+          lastMessage: req.body.body,
+          lastMessageAt: new Date(),
+        },
+      );
+
+      SocketService.emitMessageCreated(business._id, message);
+
+      SocketService.emitConversationUpdated(business._id, updatedConversation);
+
+      SocketService.emitDashboardRefresh(business._id, "message_created");
 
       return res.status(201).json({
         success: true,
@@ -178,6 +189,17 @@ class MessageController {
       }
 
       await Db.deleteMessage(Message, id);
+
+      SocketService.emitToBusiness(business._id, "message:deleted", {
+        messageId: id,
+        conversationId:
+          message.conversation?._id?.toString() ||
+          message.conversation?.toString() ||
+          null,
+        deletedAt: new Date().toISOString(),
+      });
+
+      SocketService.emitDashboardRefresh(business._id, "message_deleted");
 
       return res.status(200).json({
         success: true,

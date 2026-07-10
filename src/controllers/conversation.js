@@ -6,6 +6,7 @@ import Conversation from "../models/conversation.js";
 import Message from "../models/message.js";
 import conversationValidator from "../validator/conversation.js";
 import * as Response from "../helpers/response/response.js";
+import SocketService from "../services/socket.service.js";
 
 class ConversationController {
   static async createConversation(req, res) {
@@ -28,6 +29,10 @@ class ConversationController {
         ...req.body,
         business: business._id,
       });
+
+      SocketService.emitConversationCreated(business._id, conversation);
+
+      SocketService.emitDashboardRefresh(business._id, "conversation_created");
 
       return res.status(201).json({
         success: true,
@@ -147,6 +152,10 @@ class ConversationController {
         req.body,
       );
 
+      SocketService.emitConversationUpdated(business._id, updatedConversation);
+
+      SocketService.emitDashboardRefresh(business._id, "conversation_updated");
+
       return Response.responseOk(
         res,
         updatedConversation,
@@ -192,6 +201,13 @@ class ConversationController {
 
       await Message.deleteMany({ conversation: id });
       await Db.deleteConversation(Conversation, id);
+
+      SocketService.emitToBusiness(business._id, "conversation:deleted", {
+        conversationId: id,
+        deletedAt: new Date().toISOString(),
+      });
+
+      SocketService.emitDashboardRefresh(business._id, "conversation_deleted");
 
       return res.status(200).json({
         success: true,

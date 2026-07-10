@@ -5,6 +5,7 @@ import Lead from "../models/lead.js";
 import Business from "../models/business.js";
 import leadValidator from "../validator/lead.js";
 import * as Response from "../helpers/response/response.js";
+import SocketService from "../services/socket.service.js";
 
 class LeadController {
   static async createLead(req, res) {
@@ -30,6 +31,9 @@ class LeadController {
         ...req.body,
         business: business._id,
       });
+
+      SocketService.emitLeadCreated(business._id, lead);
+      SocketService.emitDashboardRefresh(business._id, "lead_created");
 
       return res.status(201).json({
         success: true,
@@ -139,6 +143,9 @@ class LeadController {
 
       const updatedLead = await Db.updateLead(Lead, id, req.body);
 
+      SocketService.emitLeadUpdated(business._id, updatedLead);
+      SocketService.emitDashboardRefresh(business._id, "lead_updated");
+
       return Response.responseOk(res, updatedLead, "Lead updated successfully");
     } catch (error) {
       console.error("Error in updateLead:", error);
@@ -192,6 +199,9 @@ class LeadController {
 
       const updatedLead = await Db.updateLead(Lead, id, { status });
 
+      SocketService.emitLeadUpdated(business._id, updatedLead);
+      SocketService.emitDashboardRefresh(business._id, "lead_status_updated");
+
       return Response.responseOk(
         res,
         updatedLead,
@@ -233,6 +243,13 @@ class LeadController {
       }
 
       await Db.deleteLead(Lead, id);
+
+      SocketService.emitToBusiness(business._id, "lead:deleted", {
+        leadId: id,
+        deletedAt: new Date().toISOString(),
+      });
+
+      SocketService.emitDashboardRefresh(business._id, "lead_deleted");
 
       return res.status(200).json({
         success: true,

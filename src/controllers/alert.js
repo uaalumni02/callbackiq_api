@@ -6,6 +6,7 @@ import Lead from "../models/lead.js";
 import Alert from "../models/alert.js";
 import { alertSchema, updateAlertSchema } from "../validator/alert.js";
 import * as Response from "../helpers/response/response.js";
+import SocketService from "../services/socket.service.js";
 
 class AlertController {
   static async createAlert(req, res) {
@@ -24,7 +25,7 @@ class AlertController {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      let leadId = req.body.lead || null;
+      const leadId = req.body.lead || null;
 
       if (leadId) {
         if (!mongoose.isValidObjectId(leadId)) {
@@ -43,6 +44,8 @@ class AlertController {
         lead: leadId,
         business: business._id,
       });
+
+      SocketService.emitAlertCreated(business._id, alert);
 
       return res.status(201).json({
         success: true,
@@ -155,6 +158,8 @@ class AlertController {
 
       const updatedAlert = await Db.updateAlert(Alert, id, req.body);
 
+      SocketService.emitAlertUpdated(business._id, updatedAlert);
+
       return Response.responseOk(
         res,
         updatedAlert,
@@ -204,6 +209,8 @@ class AlertController {
 
       const updatedAlert = await Db.markAlertAsRead(Alert, id);
 
+      SocketService.emitAlertUpdated(business._id, updatedAlert);
+
       return Response.responseOk(res, updatedAlert, "Alert marked as read");
     } catch (error) {
       console.error("Error in markAlertRead:", error);
@@ -226,6 +233,12 @@ class AlertController {
       }
 
       const result = await Db.markAllAlertsAsRead(Alert, business._id);
+
+      SocketService.emitToBusiness(business._id, "alerts:all_read", {
+        matchedCount: result.matchedCount ?? 0,
+        modifiedCount: result.modifiedCount ?? 0,
+        readAt: new Date().toISOString(),
+      });
 
       return Response.responseOk(res, result, "All alerts marked as read");
     } catch (error) {
@@ -264,6 +277,11 @@ class AlertController {
       }
 
       await Db.deleteAlert(Alert, id);
+
+      SocketService.emitToBusiness(business._id, "alert:deleted", {
+        alertId: id,
+        deletedAt: new Date().toISOString(),
+      });
 
       return res.status(200).json({
         success: true,

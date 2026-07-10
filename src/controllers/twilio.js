@@ -7,6 +7,7 @@ import CallLog from "../models/callLog.js";
 
 import { generateAIReply } from "../services/aiReplyService.js";
 import { sendSms } from "../services/twilioSmsService.js";
+import SocketService from "../services/socket.service.js";
 
 const xml = (body) => `<?xml version="1.0" encoding="UTF-8"?>${body}`;
 
@@ -49,8 +50,13 @@ class TwilioController {
         return res.status(200).send(emptyTwiml());
       }
 
+      const businessId = business._id;
+
+      /*
+       * Create the initial missed-call record.
+       */
       const callLog = await Db.saveCallLog(CallLog, {
-        business: business._id,
+        business: businessId,
         from: customerPhone,
         to: twilioNumber,
         direction: "inbound",
@@ -63,15 +69,20 @@ class TwilioController {
         notes: "Missed call forwarded to CallBackIQ Twilio number.",
       });
 
+      SocketService.emitCallCreated(businessId, callLog);
+
+      /*
+       * Find or create the lead.
+       */
       let lead = await Db.getLeadByBusinessAndPhone(
         Lead,
-        business._id,
+        businessId,
         customerPhone,
       );
 
       if (!lead) {
         lead = await Db.saveLead(Lead, {
-          business: business._id,
+          business: businessId,
           customerName: "Missed Call Lead",
           phone: customerPhone,
           serviceNeeded: "Unknown",
@@ -81,11 +92,16 @@ class TwilioController {
           estimatedValue: business.estimatedJobValue || 0,
           notes: "Lead created automatically from missed forwarded call.",
         });
+
+        SocketService.emitLeadCreated(businessId, lead);
       }
 
+      /*
+       * Find or create the conversation.
+       */
       let conversation = await Db.getConversationByBusinessAndPhone(
         Conversation,
-        business._id,
+        businessId,
         customerPhone,
       );
 
@@ -93,7 +109,7 @@ class TwilioController {
 
       if (!conversation) {
         conversation = await Db.saveConversation(Conversation, {
-          business: business._id,
+          business: businessId,
           lead: lead._id,
           customerPhone,
           customerName: lead.customerName,
@@ -103,15 +119,20 @@ class TwilioController {
           lastMessage: starterText,
           lastMessageAt: new Date(),
         });
+
+        SocketService.emitConversationCreated(businessId, conversation);
       } else {
         conversation = await Db.updateConversation(
           Conversation,
           conversation._id,
           {
+            lead: conversation.lead || lead._id,
             lastMessage: starterText,
             lastMessageAt: new Date(),
           },
         );
+
+        SocketService.emitConversationUpdated(businessId, conversation);
       }
 
       console.log("SENDING MISSED CALL SMS TO:", customerPhone);
@@ -126,8 +147,11 @@ class TwilioController {
 
       console.log("MISSED CALL SMS SENT:", sent?.sid || "NO SID RETURNED");
 
-      await Db.saveMessage(Message, {
-        business: business._id,
+      /*
+       * Save and emit the outbound missed-call message.
+       */
+      const outboundMessage = await Db.saveMessage(Message, {
+        business: businessId,
         conversation: conversation._id,
         lead: lead._id,
         direction: "outbound",
@@ -139,16 +163,34 @@ class TwilioController {
         status: "sent",
       });
 
+      SocketService.emitMessageCreated(businessId, outboundMessage);
+
+      /*
+       * Mark the missed call as recovered after the SMS succeeds.
+       */
+      let updatedCallLog = callLog;
+
       if (callLog?._id) {
-        await Db.updateCallLog(CallLog, callLog._id, {
+        updatedCallLog = await Db.updateCallLog(CallLog, callLog._id, {
           lead: lead._id,
           conversation: conversation._id,
           missedCallTextSent: true,
           recovered: true,
         });
+
+        SocketService.emitCallUpdated(businessId, updatedCallLog);
       }
 
+      /*
+       * Tell connected dashboards to refetch their authoritative metrics.
+       */
+      SocketService.emitDashboardRefresh(
+        businessId,
+        "missed_call_recovery_completed",
+      );
+
       res.type("text/xml");
+
       return res.status(200).send(
         xml(`
 <Response>
@@ -157,6 +199,7 @@ class TwilioController {
       );
     } catch (error) {
       console.error("Voice webhook error:", error);
+
       res.type("text/xml");
       return res.status(200).send(emptyTwiml());
     }
@@ -170,6 +213,7 @@ class TwilioController {
       return res.status(200).send(emptyTwiml());
     } catch (error) {
       console.error("Status webhook error:", error);
+
       res.type("text/xml");
       return res.status(200).send(emptyTwiml());
     }
@@ -201,11 +245,16 @@ class TwilioController {
         return res.status(200).send(emptyTwiml());
       }
 
-      let lead = await Db.getLeadByBusinessAndPhone(Lead, business._id, from);
+      const businessId = business._id;
+
+      /*
+       * Find, create, or update the lead.
+       */
+      let lead = await Db.getLeadByBusinessAndPhone(Lead, businessId, from);
 
       if (!lead) {
         lead = await Db.saveLead(Lead, {
-          business: business._id,
+          business: businessId,
           customerName: "New SMS Lead",
           phone: from,
           serviceNeeded: "Unknown",
@@ -215,22 +264,29 @@ class TwilioController {
           estimatedValue: business.estimatedJobValue || 0,
           notes: body,
         });
+
+        SocketService.emitLeadCreated(businessId, lead);
       } else if (lead.status === "new") {
         lead = await Db.updateLead(Lead, lead._id, {
           status: "contacted",
           notes: body,
         });
+
+        SocketService.emitLeadUpdated(businessId, lead);
       }
 
+      /*
+       * Find, create, or update the conversation.
+       */
       let conversation = await Db.getConversationByBusinessAndPhone(
         Conversation,
-        business._id,
+        businessId,
         from,
       );
 
       if (!conversation) {
         conversation = await Db.saveConversation(Conversation, {
-          business: business._id,
+          business: businessId,
           lead: lead._id,
           customerPhone: from,
           customerName: lead.customerName,
@@ -240,19 +296,27 @@ class TwilioController {
           lastMessage: body,
           lastMessageAt: new Date(),
         });
+
+        SocketService.emitConversationCreated(businessId, conversation);
       } else {
         conversation = await Db.updateConversation(
           Conversation,
           conversation._id,
           {
+            lead: conversation.lead || lead._id,
             lastMessage: body,
             lastMessageAt: new Date(),
           },
         );
+
+        SocketService.emitConversationUpdated(businessId, conversation);
       }
 
-      await Db.saveMessage(Message, {
-        business: business._id,
+      /*
+       * Save and emit the customer's inbound message.
+       */
+      const inboundMessage = await Db.saveMessage(Message, {
+        business: businessId,
         conversation: conversation._id,
         lead: lead._id,
         direction: "inbound",
@@ -263,6 +327,8 @@ class TwilioController {
         providerMessageId,
         status: "received",
       });
+
+      SocketService.emitMessageCreated(businessId, inboundMessage);
 
       const messages = await Db.getMessagesByConversation(
         Message,
@@ -294,8 +360,11 @@ class TwilioController {
 
           console.log("AI SMS SENT:", sent?.sid || "NO SID RETURNED");
 
-          await Db.saveMessage(Message, {
-            business: business._id,
+          /*
+           * Save and emit the AI-generated outbound message.
+           */
+          const outboundMessage = await Db.saveMessage(Message, {
+            business: businessId,
             conversation: conversation._id,
             lead: lead._id,
             direction: "outbound",
@@ -307,17 +376,32 @@ class TwilioController {
             status: "sent",
           });
 
-          await Db.updateConversation(Conversation, conversation._id, {
-            lastMessage: aiReply,
-            lastMessageAt: new Date(),
-          });
+          SocketService.emitMessageCreated(businessId, outboundMessage);
+
+          /*
+           * Update and emit the conversation with the AI response as the
+           * latest message.
+           */
+          conversation = await Db.updateConversation(
+            Conversation,
+            conversation._id,
+            {
+              lastMessage: aiReply,
+              lastMessageAt: new Date(),
+            },
+          );
+
+          SocketService.emitConversationUpdated(businessId, conversation);
         }
       }
+
+      SocketService.emitDashboardRefresh(businessId, "inbound_sms_processed");
 
       res.type("text/xml");
       return res.status(200).send(emptyTwiml());
     } catch (error) {
       console.error("Inbound SMS error:", error);
+
       res.type("text/xml");
       return res.status(200).send(emptyTwiml());
     }
@@ -338,7 +422,11 @@ class TwilioController {
       console.log("MANUAL SMS FROM:", from);
       console.log("MANUAL SMS BODY:", body);
 
-      const sent = await sendSms({ to, from, body });
+      const sent = await sendSms({
+        to,
+        from,
+        body,
+      });
 
       return res.status(200).json({
         success: true,
@@ -347,6 +435,7 @@ class TwilioController {
       });
     } catch (error) {
       console.error("Manual SMS error:", error);
+
       return res.status(500).json({
         success: false,
         message: "Failed to send SMS.",
