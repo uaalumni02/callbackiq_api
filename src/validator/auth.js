@@ -25,10 +25,7 @@ const registerSchema = Joi.object({
     .valid("hvac", "plumbing", "roofing", "electrical", "restoration", "other")
     .default("other"),
 
-  smsConsent: Joi.boolean().valid(true).required().messages({
-    "any.only": "SMS consent is required",
-    "any.required": "SMS consent is required",
-  }),
+  smsConsent: Joi.boolean().default(false),
 
   termsAccepted: Joi.boolean().valid(true).required().messages({
     "any.only": "Terms of Service acceptance is required",

@@ -85,13 +85,10 @@ class AuthController {
         return Response.responseInvalidInput(res, "Invalid password format");
       }
 
-      if (!smsConsent) {
-        return Response.responseInvalidInput(
-          res,
-          "SMS consent is required to create an account",
-        );
-      }
-
+      /*
+       * Legal acceptance (Terms of Service + Privacy Policy) is required to
+       * create an account. This is separate from SMS consent below.
+       */
       if (!termsAccepted || !privacyAccepted) {
         return Response.responseInvalidInput(
           res,
@@ -116,6 +113,13 @@ class AuthController {
 
       const now = new Date();
 
+      /*
+       * SMS consent is optional and never blocks account creation. Only
+       * record consent metadata (timestamp/IP/user agent) when the user
+       * actually opted in, so we don't imply consent that wasn't given.
+       */
+      const smsConsentGiven = Boolean(smsConsent);
+
       const savedUser = await Db.saveUser(User, {
         userName,
         email,
@@ -125,10 +129,14 @@ class AuthController {
         businessPhone,
         businessType,
 
-        smsConsent: true,
-        smsConsentAt: now,
-        smsConsentIp: req.ip || req.headers["x-forwarded-for"] || "",
-        smsConsentUserAgent: req.headers["user-agent"] || "",
+        smsConsent: smsConsentGiven,
+        smsConsentAt: smsConsentGiven ? now : null,
+        smsConsentIp: smsConsentGiven
+          ? req.ip || req.headers["x-forwarded-for"] || ""
+          : "",
+        smsConsentUserAgent: smsConsentGiven
+          ? req.headers["user-agent"] || ""
+          : "",
 
         termsAccepted: true,
         termsAcceptedAt: now,

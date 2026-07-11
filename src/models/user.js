@@ -66,7 +66,6 @@ const UserSchema = new Schema(
     smsConsent: {
       type: Boolean,
       default: false,
-      required: true,
     },
 
     smsConsentAt: {
