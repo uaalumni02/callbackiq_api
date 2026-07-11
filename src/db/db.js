@@ -11,16 +11,6 @@ class Db {
     }
   }
 
-  static async findUserByLogin(model, login) {
-    try {
-      return await model.findOne({
-        $or: [{ userName: login }, { email: login }],
-      });
-    } catch (error) {
-      throw new Error("Database error while finding user");
-    }
-  }
-
   static async saveUser(model, userData) {
     try {
       const user = new model(userData);
