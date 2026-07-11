@@ -166,6 +166,21 @@ class SocketService {
     return this.emitToBusiness(businessId, "alert:updated", alert);
   }
 
+  static emitConversationIntelligenceUpdated(businessId, intelligence) {
+    this.emitToBusiness(
+      businessId,
+      "conversation-intelligence:updated",
+      intelligence,
+    );
+  }
+
+  static emitConversationIntelligenceDeleted(businessId, conversationId) {
+    this.emitToBusiness(businessId, "conversation-intelligence:deleted", {
+      conversationId,
+      deletedAt: new Date().toISOString(),
+    });
+  }
+
   /**
    * Mainly useful for tests or controlled server shutdown.
    */
