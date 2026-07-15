@@ -558,8 +558,9 @@ class Db {
       return await model
         .find({ business: businessId })
         .sort({ lastMessageAt: -1, createdAt: -1 })
-        .populate("business", "businessName phone")
-        .populate("lead", "customerName phone serviceNeeded urgency status");
+        .populate("business", "businessName phone owner")
+        .populate("lead", "customerName phone serviceNeeded urgency status")
+        .populate("archivedBy", "userName email role");
     } catch (error) {
       console.error("Error fetching conversations:", error);
       throw error;
@@ -570,8 +571,9 @@ class Db {
     try {
       return await model
         .findById(id)
-        .populate("business", "businessName phone")
-        .populate("lead", "customerName phone serviceNeeded urgency status");
+        .populate("business", "businessName phone owner")
+        .populate("lead", "customerName phone serviceNeeded urgency status")
+        .populate("archivedBy", "userName email role");
     } catch (error) {
       console.error("Error fetching conversation:", error);
       throw error;
@@ -585,8 +587,9 @@ class Db {
           new: true,
           runValidators: true,
         })
-        .populate("business", "businessName phone")
-        .populate("lead", "customerName phone serviceNeeded urgency status");
+        .populate("business", "businessName phone owner")
+        .populate("lead", "customerName phone serviceNeeded urgency status")
+        .populate("archivedBy", "userName email role");
     } catch (error) {
       console.error("Error updating conversation:", error);
       throw error;
@@ -829,6 +832,7 @@ class Db {
         spamLeads,
         activeConversations,
         closedConversations,
+        archivedConversations,
         smsSent,
         smsReceived,
         bookedRevenueAgg,
@@ -874,6 +878,11 @@ class Db {
         Conversation.countDocuments({
           business: scopedBusinessId,
           status: "closed",
+        }),
+
+        Conversation.countDocuments({
+          business: scopedBusinessId,
+          status: "archived",
         }),
 
         Message.countDocuments({
@@ -957,6 +966,9 @@ class Db {
         conversations: {
           activeConversations,
           closedConversations,
+          archivedConversations,
+          totalConversations:
+            activeConversations + closedConversations + archivedConversations,
         },
 
         messages: {

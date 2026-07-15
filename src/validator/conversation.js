@@ -11,6 +11,8 @@ const conversationSchema = Joi.object({
 
   customerName: Joi.string().allow("").max(100).optional(),
 
+  // Conversations are archived only through POST /:id/archive so the
+  // pre-archive state can be captured safely.
   status: Joi.string().valid("open", "closed").default("open"),
 
   aiEnabled: Joi.boolean().optional(),
