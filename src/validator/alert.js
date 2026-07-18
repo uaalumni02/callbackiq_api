@@ -1,43 +1,67 @@
 import Joi from "joi";
 
+const ALERT_TYPES = [
+  "hot_lead",
+  "missed_call",
+  "customer_reply",
+  "booked_job",
+  "system",
+];
+
+const ALERT_CHANNELS = ["in_app", "email", "sms"];
+const ALERT_STATUSES = ["pending", "sent", "failed", "read"];
+const ALERT_PRIORITIES = ["low", "medium", "high"];
+
 const alertSchema = Joi.object({
-  lead: Joi.string().allow(null, "").optional(),
+  lead: Joi.string().hex().length(24).allow(null, "").optional(),
 
   type: Joi.string()
-    .valid("hot_lead", "missed_call", "booked_job", "system")
+    .valid(...ALERT_TYPES)
     .required(),
 
-  channel: Joi.string().valid("in_app", "email", "sms").default("in_app"),
+  channel: Joi.string()
+    .valid(...ALERT_CHANNELS)
+    .default("in_app"),
 
-  title: Joi.string().min(2).max(120).required(),
+  title: Joi.string().trim().min(2).max(120).required(),
 
-  message: Joi.string().min(2).max(1000).required(),
+  message: Joi.string().trim().min(2).max(1000).required(),
 
   status: Joi.string()
-    .valid("pending", "sent", "failed", "read")
+    .valid(...ALERT_STATUSES)
     .default("pending"),
 
-  priority: Joi.string().valid("low", "medium", "high").default("medium"),
+  priority: Joi.string()
+    .valid(...ALERT_PRIORITIES)
+    .default("medium"),
 
-  metadata: Joi.object().default({}),
+  metadata: Joi.object().unknown(true).default({}),
+
+  dedupeKey: Joi.string().trim().max(200).allow(null, "").optional(),
 });
 
 const updateAlertSchema = Joi.object({
   type: Joi.string()
-    .valid("hot_lead", "missed_call", "booked_job", "system")
+    .valid(...ALERT_TYPES)
     .optional(),
 
-  channel: Joi.string().valid("in_app", "email", "sms").optional(),
+  channel: Joi.string()
+    .valid(...ALERT_CHANNELS)
+    .optional(),
 
-  title: Joi.string().min(2).max(120).optional(),
+  title: Joi.string().trim().min(2).max(120).optional(),
 
-  message: Joi.string().min(2).max(1000).optional(),
+  message: Joi.string().trim().min(2).max(1000).optional(),
 
-  status: Joi.string().valid("pending", "sent", "failed", "read").optional(),
+  status: Joi.string()
+    .valid(...ALERT_STATUSES)
+    .optional(),
 
-  priority: Joi.string().valid("low", "medium", "high").optional(),
+  priority: Joi.string()
+    .valid(...ALERT_PRIORITIES)
+    .optional(),
 
-  metadata: Joi.object().optional(),
+  metadata: Joi.object().unknown(true).optional(),
 }).min(1);
 
 export { alertSchema, updateAlertSchema };

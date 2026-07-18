@@ -5,7 +5,36 @@ import Lead from "../models/lead.js";
 import Business from "../models/business.js";
 import leadValidator from "../validator/lead.js";
 import * as Response from "../helpers/response/response.js";
+import AlertService from "../services/alert.service.js";
 import SocketService from "../services/socket.service.js";
+
+const isHotLead = (lead) => {
+  return (
+    Number(lead?.leadQualityScore || 0) >= 80 ||
+    lead?.urgency === "emergency"
+  );
+};
+
+const createHotLeadAlertWhenNeeded = async ({
+  businessId,
+  previousLead,
+  updatedLead,
+}) => {
+  if (!updatedLead || isHotLead(previousLead) || !isHotLead(updatedLead)) {
+    return;
+  }
+
+  await AlertService.createHotLeadAlert({
+    businessId,
+    leadId: updatedLead._id,
+    customerName: updatedLead.customerName,
+    customerPhone: updatedLead.phone,
+    score: updatedLead.leadQualityScore,
+    urgency: updatedLead.urgency,
+    serviceNeeded: updatedLead.serviceNeeded,
+    estimatedValue: updatedLead.estimatedValue,
+  });
+};
 
 class LeadController {
   static async createLead(req, res) {
@@ -34,6 +63,30 @@ class LeadController {
 
       SocketService.emitLeadCreated(business._id, lead);
       SocketService.emitDashboardRefresh(business._id, "lead_created");
+
+      if (isHotLead(lead)) {
+        await AlertService.createHotLeadAlert({
+          businessId: business._id,
+          leadId: lead._id,
+          customerName: lead.customerName,
+          customerPhone: lead.phone,
+          score: lead.leadQualityScore,
+          urgency: lead.urgency,
+          serviceNeeded: lead.serviceNeeded,
+          estimatedValue: lead.estimatedValue,
+        });
+      }
+
+      if (lead.status === "booked") {
+        await AlertService.createBookedJobAlert({
+          businessId: business._id,
+          leadId: lead._id,
+          customerName: lead.customerName,
+          customerPhone: lead.phone,
+          serviceNeeded: lead.serviceNeeded,
+          estimatedValue: lead.estimatedValue,
+        });
+      }
 
       return res.status(201).json({
         success: true,
@@ -141,10 +194,28 @@ class LeadController {
         return Response.responseBadAuth(res, "You cannot update this lead");
       }
 
+      const previousStatus = lead.status;
       const updatedLead = await Db.updateLead(Lead, id, req.body);
 
       SocketService.emitLeadUpdated(business._id, updatedLead);
       SocketService.emitDashboardRefresh(business._id, "lead_updated");
+
+      await createHotLeadAlertWhenNeeded({
+        businessId: business._id,
+        previousLead: lead,
+        updatedLead,
+      });
+
+      if (previousStatus !== "booked" && updatedLead.status === "booked") {
+        await AlertService.createBookedJobAlert({
+          businessId: business._id,
+          leadId: updatedLead._id,
+          customerName: updatedLead.customerName,
+          customerPhone: updatedLead.phone,
+          serviceNeeded: updatedLead.serviceNeeded,
+          estimatedValue: updatedLead.estimatedValue,
+        });
+      }
 
       return Response.responseOk(res, updatedLead, "Lead updated successfully");
     } catch (error) {
@@ -197,10 +268,22 @@ class LeadController {
         );
       }
 
+      const previousStatus = lead.status;
       const updatedLead = await Db.updateLead(Lead, id, { status });
 
       SocketService.emitLeadUpdated(business._id, updatedLead);
       SocketService.emitDashboardRefresh(business._id, "lead_status_updated");
+
+      if (previousStatus !== "booked" && updatedLead.status === "booked") {
+        await AlertService.createBookedJobAlert({
+          businessId: business._id,
+          leadId: updatedLead._id,
+          customerName: updatedLead.customerName,
+          customerPhone: updatedLead.phone,
+          serviceNeeded: updatedLead.serviceNeeded,
+          estimatedValue: updatedLead.estimatedValue,
+        });
+      }
 
       return Response.responseOk(
         res,

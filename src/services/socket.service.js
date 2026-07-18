@@ -33,11 +33,6 @@ const requireIo = () => {
 };
 
 class SocketService {
-  /**
-   * Stores the Socket.IO server instance.
-   *
-   * Call this once from server.js after creating the Socket.IO server.
-   */
   static initialize(io) {
     if (!io) {
       throw new Error(
@@ -58,9 +53,6 @@ class SocketService {
     return Boolean(ioInstance);
   }
 
-  /**
-   * Emits an event to every authenticated connection for one business.
-   */
   static emitToBusiness(businessId, eventName, payload = null) {
     const io = requireIo();
     const normalizedBusinessId = normalizeId(businessId);
@@ -74,9 +66,6 @@ class SocketService {
     return true;
   }
 
-  /**
-   * Emits an event to one authenticated user's active connections.
-   */
   static emitToUser(userId, eventName, payload = null) {
     const io = requireIo();
     const normalizedUserId = normalizeId(userId);
@@ -90,9 +79,6 @@ class SocketService {
     return true;
   }
 
-  /**
-   * Emits an event to platform administrators.
-   */
   static emitToAdmins(eventName, payload = null) {
     const io = requireIo();
 
@@ -105,12 +91,6 @@ class SocketService {
     return true;
   }
 
-  /**
-   * Tells the frontend that its dashboard metrics should be fetched again.
-   *
-   * This keeps MongoDB and the existing dashboard endpoint as the source of
-   * truth instead of duplicating reporting calculations in every controller.
-   */
   static emitDashboardRefresh(businessId, reason = "data_changed") {
     return this.emitToBusiness(businessId, "dashboard:refresh", {
       reason,
@@ -166,8 +146,22 @@ class SocketService {
     return this.emitToBusiness(businessId, "alert:updated", alert);
   }
 
+  static emitAlertDeleted(businessId, alertId) {
+    return this.emitToBusiness(businessId, "alert:deleted", {
+      alertId: normalizeId(alertId),
+      deletedAt: new Date().toISOString(),
+    });
+  }
+
+  static emitAllAlertsRead(businessId, payload = {}) {
+    return this.emitToBusiness(businessId, "alerts:all_read", {
+      ...payload,
+      readAt: payload.readAt || new Date().toISOString(),
+    });
+  }
+
   static emitConversationIntelligenceUpdated(businessId, intelligence) {
-    this.emitToBusiness(
+    return this.emitToBusiness(
       businessId,
       "conversation-intelligence:updated",
       intelligence,
@@ -175,15 +169,16 @@ class SocketService {
   }
 
   static emitConversationIntelligenceDeleted(businessId, conversationId) {
-    this.emitToBusiness(businessId, "conversation-intelligence:deleted", {
-      conversationId,
-      deletedAt: new Date().toISOString(),
-    });
+    return this.emitToBusiness(
+      businessId,
+      "conversation-intelligence:deleted",
+      {
+        conversationId,
+        deletedAt: new Date().toISOString(),
+      },
+    );
   }
 
-  /**
-   * Mainly useful for tests or controlled server shutdown.
-   */
   static reset() {
     ioInstance = null;
   }

@@ -6,6 +6,7 @@ import Lead from "../models/lead.js";
 import qualifyLeadSchema from "../validator/ai.js";
 import { qualifyLeadWithAI } from "../helpers/ai/openaiClient.js";
 import * as Response from "../helpers/response/response.js";
+import AlertService from "../services/alert.service.js";
 import SocketService from "../services/socket.service.js";
 
 const sanitizeUrgency = (urgency) => {
@@ -28,6 +29,12 @@ const sanitizeEstimatedValue = (value) => {
   if (Number.isNaN(numberValue)) return 0;
 
   return Math.max(0, numberValue);
+};
+
+const isHotLead = (lead) => {
+  return (
+    Number(lead?.leadQualityScore || 0) >= 80 || lead?.urgency === "emergency"
+  );
 };
 
 class AiController {
@@ -59,6 +66,8 @@ class AiController {
         return Response.responseInvalidInput(res, "Lead not found");
       }
 
+      const wasHotLead = isHotLead(lead);
+
       const aiResult = await qualifyLeadWithAI({
         messageBody,
         businessType: business.businessType,
@@ -82,8 +91,20 @@ class AiController {
       const qualifiedLead = await Db.qualifyLead(Lead, leadId, updateData);
 
       SocketService.emitLeadUpdated(business._id, qualifiedLead);
-
       SocketService.emitDashboardRefresh(business._id, "lead_qualified");
+
+      if (!wasHotLead && isHotLead(qualifiedLead)) {
+        await AlertService.createHotLeadAlert({
+          businessId: business._id,
+          leadId: qualifiedLead._id,
+          customerName: qualifiedLead.customerName,
+          customerPhone: qualifiedLead.phone,
+          score: qualifiedLead.leadQualityScore,
+          urgency: qualifiedLead.urgency,
+          serviceNeeded: qualifiedLead.serviceNeeded,
+          estimatedValue: qualifiedLead.estimatedValue,
+        });
+      }
 
       return Response.responseOk(
         res,

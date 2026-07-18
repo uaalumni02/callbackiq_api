@@ -7,6 +7,7 @@ import CallLog from "../models/callLog.js";
 
 import { generateAIReply } from "../services/aiReplyService.js";
 import { sendSms } from "../services/twilioSmsService.js";
+import AlertService from "../services/alert.service.js";
 import SocketService from "../services/socket.service.js";
 
 const xml = (body) => `<?xml version="1.0" encoding="UTF-8"?>${body}`;
@@ -134,6 +135,20 @@ class TwilioController {
 
         SocketService.emitConversationUpdated(businessId, conversation);
       }
+
+      /*
+       * Create the business-facing missed-call alert before sending SMS.
+       * Twilio may retry webhooks, so the alert service uses the Call SID (or
+       * call-log ID fallback) as an idempotency key.
+       */
+      await AlertService.createMissedCallAlert({
+        businessId,
+        leadId: lead._id,
+        customerName: lead.customerName,
+        customerPhone,
+        callLogId: callLog._id,
+        providerCallId: callSid,
+      });
 
       console.log("SENDING MISSED CALL SMS TO:", customerPhone);
       console.log("SENDING MISSED CALL SMS FROM:", twilioNumber);
@@ -329,6 +344,26 @@ class TwilioController {
       });
 
       SocketService.emitMessageCreated(businessId, inboundMessage);
+
+      /*
+       * Surface each customer response in the Alert Center. Provider message
+       * IDs keep this idempotent if Twilio retries the webhook.
+       */
+      await AlertService.createCustomerReplyAlert({
+        businessId,
+        leadId: lead._id,
+        conversationId: conversation._id,
+        messageId: inboundMessage._id,
+        providerMessageId,
+        customerName: lead.customerName,
+        customerPhone: from,
+        messageBody: body,
+        priority:
+          conversation.humanTakeover === true ||
+          ["high", "emergency"].includes(lead.urgency)
+            ? "high"
+            : "medium",
+      });
 
       const messages = await Db.getMessagesByConversation(
         Message,

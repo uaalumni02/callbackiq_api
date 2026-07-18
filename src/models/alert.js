@@ -1,7 +1,8 @@
 import mongoose from "mongoose";
-const { Schema } = mongoose;
 
 import * as validate from "../helpers/model/alert.js";
+
+const { Schema } = mongoose;
 
 const AlertSchema = new Schema(
   {
@@ -9,6 +10,7 @@ const AlertSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "Business",
       required: [true, "Business is required"],
+      index: true,
     },
 
     lead: {
@@ -19,7 +21,13 @@ const AlertSchema = new Schema(
 
     type: {
       type: String,
-      enum: ["hot_lead", "missed_call", "booked_job", "system"],
+      enum: [
+        "hot_lead",
+        "missed_call",
+        "customer_reply",
+        "booked_job",
+        "system",
+      ],
       required: true,
       validate: [validate.isValidAlertType, "Invalid alert type"],
     },
@@ -64,6 +72,17 @@ const AlertSchema = new Schema(
       default: {},
     },
 
+    /*
+     * Automatic alert workflows use this value to remain idempotent when a
+     * provider retries a webhook or two requests run concurrently.
+     */
+    dedupeKey: {
+      type: String,
+      trim: true,
+      maxlength: 200,
+      default: null,
+    },
+
     readAt: {
       type: Date,
       default: null,
@@ -76,6 +95,32 @@ const AlertSchema = new Schema(
   },
   {
     timestamps: true,
+  },
+);
+
+AlertSchema.index({
+  business: 1,
+  createdAt: -1,
+});
+
+AlertSchema.index({
+  business: 1,
+  readAt: 1,
+  createdAt: -1,
+});
+
+AlertSchema.index(
+  {
+    business: 1,
+    dedupeKey: 1,
+  },
+  {
+    unique: true,
+    partialFilterExpression: {
+      dedupeKey: {
+        $type: "string",
+      },
+    },
   },
 );
 

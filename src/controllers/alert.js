@@ -6,6 +6,7 @@ import Lead from "../models/lead.js";
 import Alert from "../models/alert.js";
 import { alertSchema, updateAlertSchema } from "../validator/alert.js";
 import * as Response from "../helpers/response/response.js";
+import AlertService from "../services/alert.service.js";
 import SocketService from "../services/socket.service.js";
 
 class AlertController {
@@ -17,7 +18,10 @@ class AlertController {
         return Response.responseBadAuth(res, "Not authenticated");
       }
 
-      await alertSchema.validateAsync(req.body);
+      const validatedBody = await alertSchema.validateAsync(req.body, {
+        abortEarly: false,
+        stripUnknown: true,
+      });
 
       const business = await Db.getBusinessByOwner(Business, ownerId);
 
@@ -25,13 +29,9 @@ class AlertController {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      const leadId = req.body.lead || null;
+      const leadId = validatedBody.lead || null;
 
       if (leadId) {
-        if (!mongoose.isValidObjectId(leadId)) {
-          return Response.responseInvalidInput(res, "Invalid lead ID");
-        }
-
         const lead = await Db.getLeadForBusiness(Lead, leadId, business._id);
 
         if (!lead) {
@@ -39,18 +39,25 @@ class AlertController {
         }
       }
 
-      const alert = await Db.saveAlert(Alert, {
-        ...req.body,
-        lead: leadId,
-        business: business._id,
+      const result = await AlertService.create({
+        businessId: business._id,
+        leadId,
+        type: validatedBody.type,
+        channel: validatedBody.channel,
+        title: validatedBody.title,
+        message: validatedBody.message,
+        status: validatedBody.status,
+        priority: validatedBody.priority,
+        metadata: validatedBody.metadata,
+        dedupeKey: validatedBody.dedupeKey || null,
       });
 
-      SocketService.emitAlertCreated(business._id, alert);
-
-      return res.status(201).json({
+      return res.status(result.created ? 201 : 200).json({
         success: true,
-        message: "Alert created successfully",
-        data: alert,
+        message: result.created
+          ? "Alert created successfully"
+          : "Alert already exists",
+        data: result.alert,
       });
     } catch (error) {
       if (error.isJoi) {
@@ -108,14 +115,10 @@ class AlertController {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      const alert = await Db.getAlertById(Alert, id);
+      const alert = await Db.getAlertForBusiness(Alert, id, business._id);
 
       if (!alert) {
         return Response.responseInvalidInput(res, "Alert not found");
-      }
-
-      if (String(alert.business._id) !== String(business._id)) {
-        return Response.responseBadAuth(res, "You cannot access this alert");
       }
 
       return Response.responseOk(res, alert, "Alert fetched");
@@ -138,7 +141,10 @@ class AlertController {
         return Response.responseInvalidInput(res, "Invalid alert ID");
       }
 
-      await updateAlertSchema.validateAsync(req.body);
+      const validatedBody = await updateAlertSchema.validateAsync(req.body, {
+        abortEarly: false,
+        stripUnknown: true,
+      });
 
       const business = await Db.getBusinessByOwner(Business, ownerId);
 
@@ -146,17 +152,26 @@ class AlertController {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      const alert = await Db.getAlertById(Alert, id);
+      const updates = {
+        ...validatedBody,
+      };
 
-      if (!alert) {
+      if (validatedBody.status === "read") {
+        updates.readAt = new Date();
+      } else if (validatedBody.status) {
+        updates.readAt = null;
+      }
+
+      const updatedAlert = await Db.updateAlertForBusiness(
+        Alert,
+        id,
+        business._id,
+        updates,
+      );
+
+      if (!updatedAlert) {
         return Response.responseInvalidInput(res, "Alert not found");
       }
-
-      if (String(alert.business._id) !== String(business._id)) {
-        return Response.responseBadAuth(res, "You cannot update this alert");
-      }
-
-      const updatedAlert = await Db.updateAlert(Alert, id, req.body);
 
       SocketService.emitAlertUpdated(business._id, updatedAlert);
 
@@ -194,20 +209,15 @@ class AlertController {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      const alert = await Db.getAlertById(Alert, id);
+      const updatedAlert = await Db.markAlertAsReadForBusiness(
+        Alert,
+        id,
+        business._id,
+      );
 
-      if (!alert) {
+      if (!updatedAlert) {
         return Response.responseInvalidInput(res, "Alert not found");
       }
-
-      if (String(alert.business._id) !== String(business._id)) {
-        return Response.responseBadAuth(
-          res,
-          "You cannot mark this alert as read",
-        );
-      }
-
-      const updatedAlert = await Db.markAlertAsRead(Alert, id);
 
       SocketService.emitAlertUpdated(business._id, updatedAlert);
 
@@ -232,12 +242,13 @@ class AlertController {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      const result = await Db.markAllAlertsAsRead(Alert, business._id);
+      const readAt = new Date();
+      const result = await Db.markAllAlertsAsRead(Alert, business._id, readAt);
 
-      SocketService.emitToBusiness(business._id, "alerts:all_read", {
+      SocketService.emitAllAlertsRead(business._id, {
         matchedCount: result.matchedCount ?? 0,
         modifiedCount: result.modifiedCount ?? 0,
-        readAt: new Date().toISOString(),
+        readAt: readAt.toISOString(),
       });
 
       return Response.responseOk(res, result, "All alerts marked as read");
@@ -266,22 +277,17 @@ class AlertController {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      const alert = await Db.getAlertById(Alert, id);
+      const deletedAlert = await Db.deleteAlertForBusiness(
+        Alert,
+        id,
+        business._id,
+      );
 
-      if (!alert) {
+      if (!deletedAlert) {
         return Response.responseInvalidInput(res, "Alert not found");
       }
 
-      if (String(alert.business._id) !== String(business._id)) {
-        return Response.responseBadAuth(res, "You cannot delete this alert");
-      }
-
-      await Db.deleteAlert(Alert, id);
-
-      SocketService.emitToBusiness(business._id, "alert:deleted", {
-        alertId: id,
-        deletedAt: new Date().toISOString(),
-      });
+      SocketService.emitAlertDeleted(business._id, id);
 
       return res.status(200).json({
         success: true,
