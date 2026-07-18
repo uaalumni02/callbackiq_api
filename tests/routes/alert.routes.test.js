@@ -49,6 +49,11 @@ const createActiveSubscription = async (businessId, suffix = "123") => {
   );
 };
 
+/*
+ * createLead defaults to true. Alert list tests pass createLead: false because
+ * creating an emergency lead triggers an automatic hot_lead alert, which would
+ * otherwise pollute the alert counts those tests assert on.
+ */
 const registerCreateBusinessAndLead = async ({
   userName = "demoowner",
   email = "owner@callbackiq.com",
@@ -57,6 +62,7 @@ const registerCreateBusinessAndLead = async ({
   businessPhone = "4045551234",
   businessType = "plumbing",
   subscriptionSuffix = "123",
+  createLead = true,
 } = {}) => {
   const registerRes = await request(app).post("/api/auth/register").send({
     userName,
@@ -75,6 +81,14 @@ const registerCreateBusinessAndLead = async ({
   const business = registerRes.body.data.business;
 
   await createActiveSubscription(business._id, subscriptionSuffix);
+
+  if (!createLead) {
+    return {
+      token,
+      business,
+      lead: null,
+    };
+  }
 
   const leadRes = await request(app)
     .post("/api/leads")
@@ -131,7 +145,8 @@ describe("Alert Routes", () => {
     expect(res.body.data.type).toBe("hot_lead");
     expect(res.body.data.status).toBe("pending");
     expect(res.body.data.priority).toBe("high");
-    expect(String(res.body.data.business)).toBe(String(business._id));
+    // AlertService populates business before returning, so compare the _id.
+    expect(String(res.body.data.business._id)).toBe(String(business._id));
 
     const savedAlert = await Alert.findOne({
       title: "New hot lead",
@@ -175,7 +190,9 @@ describe("Alert Routes", () => {
   });
 
   test("GET /api/alerts returns alerts for authenticated business", async () => {
-    const { token } = await registerCreateBusinessAndLead();
+    const { token } = await registerCreateBusinessAndLead({
+      createLead: false,
+    });
 
     await request(app)
       .post("/api/alerts")
@@ -197,7 +214,9 @@ describe("Alert Routes", () => {
   });
 
   test("GET /api/alerts?unreadOnly=true returns unread alerts only", async () => {
-    const { token, business } = await registerCreateBusinessAndLead();
+    const { token, business } = await registerCreateBusinessAndLead({
+      createLead: false,
+    });
 
     await Alert.create({
       business: business._id,
