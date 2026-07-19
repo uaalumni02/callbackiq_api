@@ -1,7 +1,6 @@
 import Db from "../db/db.js";
 import User from "../models/user.js";
 import Business from "../models/business.js";
-import Subscription from "../models/subscription.js";
 import { verifyTurnstileToken } from "../helpers/security/turnstile.js";
 import Token from "../helpers/jwt/token.js";
 import bcrypt from "../helpers/bcrypt/bcrypt.js";
@@ -14,6 +13,10 @@ import {
 } from "../validator/auth.js";
 import * as validate from "../helpers/model/user.js";
 import * as Response from "../helpers/response/response.js";
+import {
+  grantFreeTrial,
+  createInactiveSubscription,
+} from "../helpers/billing/trial.js";
 
 import sendPasswordResetEmail from "../helpers/email/mailer.js";
 
@@ -61,6 +64,12 @@ const hasSecurityStateExpired = (lastFailedLoginAt) => {
   return (
     Date.now() - new Date(lastFailedLoginAt).getTime() >= SECURITY_DECAY_MS
   );
+};
+
+const trialGrantedMessage = (granted) => {
+  return granted
+    ? "Account created successfully"
+    : "Account created successfully. This business has already used its free trial, so choose a plan to activate CallBackIQ.";
 };
 
 class AuthController {
@@ -153,27 +162,31 @@ class AuthController {
         isActive: true,
       });
 
-      const trialStartedAt = new Date();
-      const trialEndsAt = new Date(trialStartedAt);
-      trialEndsAt.setDate(trialEndsAt.getDate() + 14);
+      /*
+       * The signup trial goes through the same helper as the billing
+       * endpoint. Creating it inline here previously skipped the trialUsedAt
+       * stamp and the redemption record, so an expired signup trial still
+       * looked unused and a second trial could be claimed afterward.
+       */
+      const trialResult = await grantFreeTrial({
+        business: savedBusiness,
+        ownerId: savedUser._id,
+        grantedBy: "self",
+      });
 
-      const savedSubscription = await Db.upsertSubscriptionByBusiness(
-        Subscription,
-        savedBusiness._id,
-        {
-          plan: "pro",
-          status: "trialing",
-          trialStartedAt,
-          trialEndsAt,
-          currentPeriodStart: trialStartedAt,
-          currentPeriodEnd: trialEndsAt,
-          priceMonthly: 199,
-          aiEnabled: true,
-          isActive: true,
-          cancelAtPeriodEnd: false,
-          lastPaymentStatus: "trialing",
-        },
-      );
+      let savedSubscription = trialResult.subscription;
+
+      /*
+       * A denied trial means this identity has already used one, typically a
+       * repeat signup on the same business phone or email. That is not a
+       * reason to block the account â€” it just starts without free access.
+       */
+      if (!trialResult.granted) {
+        savedSubscription = await createInactiveSubscription(savedBusiness._id);
+
+        savedBusiness.isActive = false;
+        await savedBusiness.save();
+      }
 
       const token = Token.sign({
         userId: savedUser._id,
@@ -205,8 +218,9 @@ class AuthController {
           },
           business: savedBusiness,
           subscription: savedSubscription,
+          trialGranted: trialResult.granted,
         },
-        "Account created successfully",
+        trialGrantedMessage(trialResult.granted),
       );
     } catch (error) {
       if (error.isJoi) {
