@@ -1657,6 +1657,50 @@ class Db {
       throw error;
     }
   }
+
+  // ----- Trial Redemption methods -----
+
+  static async findTrialRedemption(model, { ownerId, emailKey, phoneKey }) {
+    try {
+      const conditions = [];
+
+      if (ownerId) conditions.push({ owner: ownerId });
+      if (emailKey) conditions.push({ emailKey });
+      if (phoneKey) conditions.push({ phoneKey });
+
+      if (!conditions.length) return null;
+
+      return await model.findOne({ $or: conditions }).lean();
+    } catch (error) {
+      console.error("Error finding trial redemption:", error);
+      throw error;
+    }
+  }
+
+  static async createTrialRedemption(model, data) {
+    try {
+      const redemption = new model(data);
+      return await redemption.save();
+    } catch (error) {
+      if (error?.code === 11000) {
+        // Surface duplicate-key so the caller can return a clean 400.
+        error.isDuplicateTrial = true;
+      }
+
+      console.error("Error creating trial redemption:", error);
+      throw error;
+    }
+  }
+
+  static async deleteTrialRedemptionsForBusiness(model, businessId) {
+    try {
+      return await model.deleteMany({ business: businessId });
+    } catch (error) {
+      console.error("Error deleting trial redemptions:", error);
+      throw error;
+    }
+  }
+
   // ----- Demo Request methods -----
 
   static async saveDemoRequest(model, data) {

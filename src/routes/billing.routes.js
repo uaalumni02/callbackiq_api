@@ -31,4 +31,10 @@ router.patch(
   BillingController.updateAdminCustomerAccountStatus,
 );
 
+router.post(
+  "/customers/:businessId/trial-override",
+  checkAuth,
+  BillingController.adminGrantTrialOverride,
+);
+
 export default router;

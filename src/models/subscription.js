@@ -62,6 +62,25 @@ const SubscriptionSchema = new Schema(
       default: null,
     },
 
+    // Permanent record that this business has consumed its free trial.
+    // Never cleared by trial expiry, cancellation, or downgrade.
+    trialUsedAt: {
+      type: Date,
+      default: null,
+    },
+
+    trialCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    // Set by an admin to allow one additional trial. Cleared on redemption.
+    trialOverrideGrantedAt: {
+      type: Date,
+      default: null,
+    },
+
     isActive: {
       type: Boolean,
       default: false,

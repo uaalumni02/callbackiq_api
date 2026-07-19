@@ -1,12 +1,15 @@
 import Db from "../db/db.js";
 import Business from "../models/business.js";
 import Subscription from "../models/subscription.js";
+import TrialRedemption from "../models/trialRedemption.js";
 import { checkoutSchema } from "../validator/billing.js";
 import {
   getStripeClient,
   getPriceIdByPlan,
 } from "../helpers/stripe/stripeClient.js";
 import * as Response from "../helpers/response/response.js";
+
+const TRIAL_DAYS = 14;
 
 const getClientUrl = () => {
   return process.env.CLIENT_URL || "http://localhost:3001";
@@ -21,6 +24,35 @@ const addDays = (date, days) => {
   const copy = new Date(date);
   copy.setDate(copy.getDate() + days);
   return copy;
+};
+
+const normalizeEmail = (email = "") => {
+  return String(email || "")
+    .trim()
+    .toLowerCase();
+};
+
+const normalizePhone = (phone = "") => {
+  const digits = String(phone || "").replace(/\D/g, "");
+
+  if (!digits) return "";
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
+
+  return `+${digits}`;
+};
+
+const buildTrialIdentity = (business, ownerId) => {
+  const emailKey =
+    normalizeEmail(business?.email) || normalizeEmail(business?.owner?.email);
+
+  const phoneKey = normalizePhone(business?.phone || business?.businessPhone);
+
+  return {
+    ownerId,
+    emailKey,
+    phoneKey,
+  };
 };
 
 const formatStripeMoney = (amount = 0, currency = "usd") => {
@@ -360,6 +392,15 @@ const expireTrialIfNeeded = async (business, subscription) => {
   return subscription;
 };
 
+// A business is trial-eligible only if it has never consumed one, or an
+// admin has granted a one-time override.
+const canStartTrial = (subscription) => {
+  if (!subscription) return true;
+  if (subscription.trialOverrideGrantedAt) return true;
+
+  return !subscription.trialUsedAt;
+};
+
 class BillingController {
   static async startFreeTrial(req, res) {
     try {
@@ -403,7 +444,63 @@ class BillingController {
         );
       }
 
-      const trialEndsAt = addDays(now, 14);
+      const overrideGranted = Boolean(subscription?.trialOverrideGrantedAt);
+
+      if (!canStartTrial(subscription)) {
+        return Response.responseInvalidInput(
+          res,
+          "This business has already used its free trial. Choose a plan to continue.",
+        );
+      }
+
+      const identity = buildTrialIdentity(business, ownerId);
+
+      if (!identity.emailKey) {
+        return Response.responseInvalidInput(
+          res,
+          "A business email is required before starting a free trial.",
+        );
+      }
+
+      // Identity-level check so a new account with the same email or
+      // business phone cannot farm additional trials.
+      if (!overrideGranted) {
+        const existingRedemption = await Db.findTrialRedemption(
+          TrialRedemption,
+          identity,
+        );
+
+        if (existingRedemption) {
+          return Response.responseInvalidInput(
+            res,
+            "A free trial has already been used for this account. Choose a plan to continue.",
+          );
+        }
+
+        // Written before the subscription is updated so the unique index
+        // is the source of truth under concurrent requests.
+        try {
+          await Db.createTrialRedemption(TrialRedemption, {
+            business: business._id,
+            owner: ownerId,
+            emailKey: identity.emailKey,
+            phoneKey: identity.phoneKey,
+            grantedBy: "self",
+            redeemedAt: now,
+          });
+        } catch (error) {
+          if (error?.isDuplicateTrial) {
+            return Response.responseInvalidInput(
+              res,
+              "A free trial has already been used for this account. Choose a plan to continue.",
+            );
+          }
+
+          throw error;
+        }
+      }
+
+      const trialEndsAt = addDays(now, TRIAL_DAYS);
 
       subscription = await Db.upsertSubscriptionByBusiness(
         Subscription,
@@ -414,6 +511,9 @@ class BillingController {
           lastPaymentStatus: "trialing",
           trialStartedAt: now,
           trialEndsAt,
+          trialUsedAt: subscription?.trialUsedAt || now,
+          trialCount: (subscription?.trialCount || 0) + 1,
+          trialOverrideGrantedAt: null,
           currentPeriodStart: now,
           currentPeriodEnd: trialEndsAt,
           cancelAtPeriodEnd: false,
@@ -432,7 +532,7 @@ class BillingController {
           business,
           subscription,
         },
-        "14-day free trial started successfully",
+        `${TRIAL_DAYS}-day free trial started successfully`,
       );
     } catch (error) {
       console.error("Error in startFreeTrial:", error);
@@ -591,6 +691,9 @@ class BillingController {
         cancelAtPeriodEnd: false,
         trialStartedAt: null,
         trialEndsAt: null,
+        trialUsedAt: null,
+        trialCount: 0,
+        trialOverrideGrantedAt: null,
         isActive: false,
         aiEnabled: true,
         priceMonthly: 199,
@@ -640,11 +743,14 @@ class BillingController {
         };
       }
 
+      const hasActiveAccess = isAccessStatus(baseSubscription.status);
+
       return Response.responseOk(
         res,
         {
           ...(baseSubscription.toObject?.() ?? baseSubscription),
           billingDetails,
+          canStartTrial: !hasActiveAccess && canStartTrial(baseSubscription),
         },
         "Subscription fetched successfully",
       );
@@ -914,24 +1020,38 @@ class BillingController {
 
     const isActive = isAccessStatus(stripeStatus);
 
+    const data = {
+      stripeCustomerId,
+      stripeSubscriptionId,
+      checkoutSessionId: session.id || "",
+      latestInvoiceId,
+      plan,
+      status: stripeStatus,
+      lastPaymentStatus: stripeStatus,
+      currentPeriodStart,
+      currentPeriodEnd,
+      trialStartedAt,
+      trialEndsAt,
+      isActive,
+      aiEnabled: isActive,
+    };
+
+    // A Stripe-side trial also consumes the free trial allowance.
+    if (trialStartedAt) {
+      const existing = await Subscription.findOne({
+        business: businessId,
+      }).lean();
+
+      if (!existing?.trialUsedAt) {
+        data.trialUsedAt = trialStartedAt;
+        data.trialCount = (existing?.trialCount || 0) + 1;
+      }
+    }
+
     const subscription = await Db.upsertSubscriptionByBusiness(
       Subscription,
       businessId,
-      {
-        stripeCustomerId,
-        stripeSubscriptionId,
-        checkoutSessionId: session.id || "",
-        latestInvoiceId,
-        plan,
-        status: stripeStatus,
-        lastPaymentStatus: stripeStatus,
-        currentPeriodStart,
-        currentPeriodEnd,
-        trialStartedAt,
-        trialEndsAt,
-        isActive,
-        aiEnabled: isActive,
-      },
+      data,
     );
 
     await Business.findByIdAndUpdate(businessId, { isActive });
@@ -1084,6 +1204,45 @@ class BillingController {
         currentPeriodEnd,
       },
     );
+  }
+
+  static async adminGrantTrialOverride(req, res) {
+    try {
+      const role = String(req.user?.role || "").toLowerCase();
+
+      if (role !== "admin") {
+        return Response.responseBadAuth(res, "Admin access required");
+      }
+
+      const { businessId } = req.params;
+
+      const business = await Business.findById(businessId);
+
+      if (!business) {
+        return Response.responseInvalidInput(res, "Business not found");
+      }
+
+      // Clearing the redemption rows releases the identity-level locks so
+      // the next startFreeTrial call can write a fresh one.
+      await Db.deleteTrialRedemptionsForBusiness(TrialRedemption, businessId);
+
+      const subscription = await Db.upsertSubscriptionByBusiness(
+        Subscription,
+        businessId,
+        {
+          trialOverrideGrantedAt: new Date(),
+        },
+      );
+
+      return Response.responseOk(
+        res,
+        subscription,
+        "Additional free trial granted",
+      );
+    } catch (error) {
+      console.error("Error in adminGrantTrialOverride:", error);
+      return Response.responseServerError(res);
+    }
   }
 
   static async updateAdminCustomerAccountStatus(req, res) {
