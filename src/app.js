@@ -27,18 +27,34 @@ const app = express();
 
 app.set("trust proxy", 1);
 
-app.use(cors(expressCorsOptions));
-
 /*
-  Stripe webhooks must be registered BEFORE express.json().
-  Stripe signature verification requires the raw request body.
+  Stripe webhook routes must be registered before:
+
+  - cors()
+  - express.json()
+  - express.urlencoded()
+  - cookieParser()
+
+  Stripe signature verification requires the original raw request body.
+
+  This mount path combined with "/webhook" inside
+  stripeWebhook.routes.js creates:
+
+  POST /api/billing/webhook
 */
 app.use("/api/billing", stripeWebhookRoutes);
 
+/*
+  Normal middleware for frontend and API requests.
+*/
+app.use(cors(expressCorsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+/*
+  Application routes.
+*/
 app.use("/api/auth", authRoutes);
 app.use("/api/businesses", businessRoutes);
 app.use("/api/leads", leadRoutes);
@@ -57,8 +73,11 @@ app.use("/api/demo-requests", demoRequestRoutes);
 app.use("/api/password-reset", passwordResetRoutes);
 app.use("/api/conversation-intelligence", conversationIntelligenceRoutes);
 
+/*
+  API health-check route.
+*/
 app.get("/", (req, res) => {
-  res.status(200).json({
+  return res.status(200).json({
     success: true,
     message: "CallBackIQ API is running",
   });
