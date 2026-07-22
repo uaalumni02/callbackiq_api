@@ -19,7 +19,7 @@ class MessageController {
 
       await messageValidator.validateAsync(req.body);
 
-      const business = await Db.getBusinessByOwner(Business, ownerId);
+      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -56,9 +56,7 @@ class MessageController {
       );
 
       SocketService.emitMessageCreated(business._id, message);
-
       SocketService.emitConversationUpdated(business._id, updatedConversation);
-
       SocketService.emitDashboardRefresh(business._id, "message_created");
 
       return res.status(201).json({
@@ -89,7 +87,7 @@ class MessageController {
         return Response.responseInvalidInput(res, "Invalid conversation ID");
       }
 
-      const business = await Db.getBusinessByOwner(Business, ownerId);
+      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -136,7 +134,7 @@ class MessageController {
         return Response.responseInvalidInput(res, "Invalid message ID");
       }
 
-      const business = await Db.getBusinessByOwner(Business, ownerId);
+      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -172,7 +170,7 @@ class MessageController {
         return Response.responseInvalidInput(res, "Invalid message ID");
       }
 
-      const business = await Db.getBusinessByOwner(Business, ownerId);
+      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -188,7 +186,7 @@ class MessageController {
         return Response.responseBadAuth(res, "You cannot delete this message");
       }
 
-      await Db.deleteMessage(Message, id);
+      await Db.deleteMessageForBusiness(Message, id, business._id);
 
       SocketService.emitToBusiness(business._id, "message:deleted", {
         messageId: id,

@@ -17,6 +17,13 @@ import {
 import { isAdminUser } from "../helpers/model/admin.js";
 import * as Response from "../helpers/response/response.js";
 
+const createAdminLog = async (req, payload) => {
+  return Db.createAdminActionLog(AdminActionLog, {
+    admin: req.user.userId,
+    ...payload,
+  });
+};
+
 class AdminController {
   static async getAdminDashboard(req, res) {
     try {
@@ -34,8 +41,7 @@ class AdminController {
         Subscription,
       });
 
-      await Db.createAdminActionLog(AdminActionLog, {
-        admin: req.user.userId,
+      await createAdminLog(req, {
         action: "view_dashboard",
         message: "Admin dashboard viewed",
       });
@@ -57,7 +63,9 @@ class AdminController {
         return Response.responseBadAuth(res, "Admin access required");
       }
 
-      await adminBusinessIdSchema.validateAsync(req.params);
+      const { businessId } = await adminBusinessIdSchema.validateAsync(
+        req.params,
+      );
 
       const data = await Db.getAdminCustomerDetails({
         User,
@@ -67,7 +75,7 @@ class AdminController {
         Conversation,
         Message,
         Subscription,
-        businessId: req.params.businessId,
+        businessId,
       });
 
       if (!data) {
@@ -77,9 +85,8 @@ class AdminController {
         );
       }
 
-      await Db.createAdminActionLog(AdminActionLog, {
-        admin: req.user.userId,
-        targetBusiness: req.params.businessId,
+      await createAdminLog(req, {
+        targetBusiness: businessId,
         action: "view_customer",
         message: "Admin customer detail viewed",
       });
@@ -105,21 +112,22 @@ class AdminController {
         return Response.responseBadAuth(res, "Admin access required");
       }
 
-      await adminBusinessIdSchema.validateAsync(req.params);
-      await adminSubscriptionStatusSchema.validateAsync(req.body);
+      const [{ businessId }, { status }] = await Promise.all([
+        adminBusinessIdSchema.validateAsync(req.params),
+        adminSubscriptionStatusSchema.validateAsync(req.body),
+      ]);
 
       const subscription = await Db.adminUpdateSubscriptionStatus({
         Subscription,
-        businessId: req.params.businessId,
-        status: req.body.status,
+        businessId,
+        status,
       });
 
-      await Db.createAdminActionLog(AdminActionLog, {
-        admin: req.user.userId,
-        targetBusiness: req.params.businessId,
+      await createAdminLog(req, {
+        targetBusiness: businessId,
         action: "update_subscription_status",
-        message: `Subscription status updated to ${req.body.status}`,
-        metadata: { status: req.body.status },
+        message: `Subscription status updated to ${status}`,
+        metadata: { status },
       });
 
       return Response.responseOk(
@@ -143,25 +151,26 @@ class AdminController {
         return Response.responseBadAuth(res, "Admin access required");
       }
 
-      await adminBusinessIdSchema.validateAsync(req.params);
-      await adminBusinessStatusSchema.validateAsync(req.body);
+      const [{ businessId }, { isActive }] = await Promise.all([
+        adminBusinessIdSchema.validateAsync(req.params),
+        adminBusinessStatusSchema.validateAsync(req.body),
+      ]);
 
       const business = await Db.adminUpdateBusinessStatus({
         Business,
-        businessId: req.params.businessId,
-        isActive: req.body.isActive,
+        businessId,
+        isActive,
       });
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      await Db.createAdminActionLog(AdminActionLog, {
-        admin: req.user.userId,
-        targetBusiness: req.params.businessId,
+      await createAdminLog(req, {
+        targetBusiness: businessId,
         action: "update_business_status",
-        message: `Business active status updated to ${req.body.isActive}`,
-        metadata: { isActive: req.body.isActive },
+        message: `Business active status updated to ${isActive}`,
+        metadata: { isActive },
       });
 
       return Response.responseOk(

@@ -77,10 +77,7 @@ class ConversationIntelligenceController {
         ? await Db.getLeadById(Lead, conversation.lead._id || conversation.lead)
         : null;
 
-      const messages = await Db.getMessagesByConversation(
-        Message,
-        conversationId,
-      );
+      const messages = await Db.getMessagesForAI(Message, conversationId);
 
       if (!messages?.length) {
         return Response.responseInvalidInput(

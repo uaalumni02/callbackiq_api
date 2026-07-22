@@ -14,9 +14,12 @@ class BusinessController {
         return Response.responseBadAuth(res, "Not authenticated");
       }
 
-      await businessValidator.validateAsync(req.body);
+      const payload = await businessValidator.validateAsync(req.body);
 
-      const existingBusiness = await Db.getBusinessByOwner(Business, ownerId);
+      const existingBusiness = await Db.getBusinessScopeByOwner(
+        Business,
+        ownerId,
+      );
 
       if (existingBusiness) {
         return Response.responseConflict(
@@ -26,7 +29,7 @@ class BusinessController {
       }
 
       const business = await Db.saveBusiness(Business, {
-        ...req.body,
+        ...payload,
         owner: ownerId,
       });
 
@@ -85,7 +88,7 @@ class BusinessController {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      if (String(business.owner._id || business.owner) !== String(ownerId)) {
+      if (String(business.owner?._id || business.owner) !== String(ownerId)) {
         return Response.responseBadAuth(
           res,
           "Not authorized to access this business",
@@ -107,18 +110,22 @@ class BusinessController {
         return Response.responseBadAuth(res, "Not authenticated");
       }
 
-      await businessValidator.validateAsync(req.body);
+      const payload = await businessValidator.validateAsync(req.body);
+      const { owner: ignoredOwner, ...updates } = payload;
 
-      const business = await Db.getBusinessByOwner(Business, ownerId);
+      void ignoredOwner;
 
-      if (!business) {
+      const updatedBusiness = await Db.updateBusinessByOwner(
+        Business,
+        ownerId,
+        updates,
+      );
+
+      if (!updatedBusiness) {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      const updatedBusiness = await Db.updateBusiness(Business, business._id, {
-        ...req.body,
-        owner: business.owner,
-      });
+      req.business = updatedBusiness;
 
       return Response.responseOk(
         res,
@@ -143,13 +150,11 @@ class BusinessController {
         return Response.responseBadAuth(res, "Not authenticated");
       }
 
-      const business = await Db.getBusinessByOwner(Business, ownerId);
+      const deletedBusiness = await Db.deleteBusinessByOwner(Business, ownerId);
 
-      if (!business) {
+      if (!deletedBusiness) {
         return Response.responseInvalidInput(res, "Business not found");
       }
-
-      await Db.deleteBusiness(Business, business._id);
 
       return res.status(200).json({
         success: true,

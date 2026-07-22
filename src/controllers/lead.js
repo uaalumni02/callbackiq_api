@@ -10,8 +10,7 @@ import SocketService from "../services/socket.service.js";
 
 const isHotLead = (lead) => {
   return (
-    Number(lead?.leadQualityScore || 0) >= 80 ||
-    lead?.urgency === "emergency"
+    Number(lead?.leadQualityScore || 0) >= 80 || lead?.urgency === "emergency"
   );
 };
 
@@ -47,7 +46,7 @@ class LeadController {
 
       await leadValidator.validateAsync(req.body);
 
-      const business = await Db.getBusinessByOwner(Business, ownerId);
+      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(
@@ -112,7 +111,7 @@ class LeadController {
         return Response.responseBadAuth(res, "Not authenticated");
       }
 
-      const business = await Db.getBusinessByOwner(Business, ownerId);
+      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -140,7 +139,7 @@ class LeadController {
         return Response.responseInvalidInput(res, "Invalid lead ID");
       }
 
-      const business = await Db.getBusinessByOwner(Business, ownerId);
+      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -178,7 +177,7 @@ class LeadController {
 
       await leadValidator.validateAsync(req.body);
 
-      const business = await Db.getBusinessByOwner(Business, ownerId);
+      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -195,7 +194,16 @@ class LeadController {
       }
 
       const previousStatus = lead.status;
-      const updatedLead = await Db.updateLead(Lead, id, req.body);
+      const updatedLead = await Db.updateLeadForBusiness(
+        Lead,
+        id,
+        business._id,
+        req.body,
+      );
+
+      if (!updatedLead) {
+        return Response.responseInvalidInput(res, "Lead not found");
+      }
 
       SocketService.emitLeadUpdated(business._id, updatedLead);
       SocketService.emitDashboardRefresh(business._id, "lead_updated");
@@ -249,7 +257,7 @@ class LeadController {
         return Response.responseInvalidInput(res, "Invalid lead status");
       }
 
-      const business = await Db.getBusinessByOwner(Business, ownerId);
+      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -269,7 +277,16 @@ class LeadController {
       }
 
       const previousStatus = lead.status;
-      const updatedLead = await Db.updateLead(Lead, id, { status });
+      const updatedLead = await Db.updateLeadForBusiness(
+        Lead,
+        id,
+        business._id,
+        { status },
+      );
+
+      if (!updatedLead) {
+        return Response.responseInvalidInput(res, "Lead not found");
+      }
 
       SocketService.emitLeadUpdated(business._id, updatedLead);
       SocketService.emitDashboardRefresh(business._id, "lead_status_updated");
@@ -309,7 +326,7 @@ class LeadController {
         return Response.responseInvalidInput(res, "Invalid lead ID");
       }
 
-      const business = await Db.getBusinessByOwner(Business, ownerId);
+      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -325,7 +342,7 @@ class LeadController {
         return Response.responseBadAuth(res, "You cannot delete this lead");
       }
 
-      await Db.deleteLead(Lead, id);
+      await Db.deleteLeadForBusiness(Lead, id, business._id);
 
       SocketService.emitToBusiness(business._id, "lead:deleted", {
         leadId: id,

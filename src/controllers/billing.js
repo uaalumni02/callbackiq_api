@@ -374,24 +374,48 @@ const expireTrialIfNeeded = async (business, subscription) => {
   const trialExpired =
     subscription.status === "trialing" &&
     subscription.trialEndsAt &&
-    subscription.trialEndsAt <= now;
+    new Date(subscription.trialEndsAt) <= now;
 
   if (!trialExpired) {
     return subscription;
   }
 
-  subscription.status = "expired";
-  subscription.lastPaymentStatus = "trial_expired";
-  subscription.isActive = false;
-  subscription.aiEnabled = false;
-  await subscription.save();
+  const [updatedSubscription, updatedBusiness] = await Promise.all([
+    Subscription.findByIdAndUpdate(
+      subscription._id,
+      {
+        $set: {
+          status: "expired",
+          lastPaymentStatus: "trial_expired",
+          isActive: false,
+          aiEnabled: false,
+        },
+      },
+      {
+        returnDocument: "after",
+        runValidators: true,
+      },
+    ),
+    Business.findByIdAndUpdate(
+      business._id,
+      {
+        $set: {
+          isActive: false,
+        },
+      },
+      {
+        returnDocument: "after",
+        runValidators: true,
+      },
+    ),
+  ]);
 
-  business.isActive = false;
-  await business.save();
+  if (updatedBusiness) {
+    business.isActive = false;
+  }
 
-  return subscription;
+  return updatedSubscription || subscription;
 };
-
 // A business is trial-eligible only if it has never consumed one, or an
 // admin has granted a one-time override.
 const canStartTrial = (subscription) => {
@@ -399,6 +423,45 @@ const canStartTrial = (subscription) => {
   if (subscription.trialOverrideGrantedAt) return true;
 
   return !subscription.trialUsedAt;
+};
+
+const getRequestBusiness = async (req, ownerId) => {
+  if (req.business) {
+    return req.business;
+  }
+
+  const business = await Db.getBusinessByOwner(Business, ownerId);
+
+  if (business) {
+    req.business = business;
+  }
+
+  return business;
+};
+
+const getRequestSubscription = async (req, businessId) => {
+  if (
+    req.subscription &&
+    String(req.subscription.business?._id || req.subscription.business) ===
+      String(businessId)
+  ) {
+    return req.subscription;
+  }
+
+  /*
+   * Query the model directly so this controller remains compatible with both
+   * the original and optimized Db helper versions. A full Mongoose document
+   * is required because trial-expiration logic may update the subscription.
+   */
+  const subscription = await Subscription.findOne({
+    business: businessId,
+  });
+
+  if (subscription) {
+    req.subscription = subscription;
+  }
+
+  return subscription;
 };
 
 class BillingController {
@@ -410,7 +473,7 @@ class BillingController {
         return Response.responseBadAuth(res, "Not authenticated");
       }
 
-      const business = await Db.getBusinessByOwner(Business, ownerId);
+      const business = await getRequestBusiness(req, ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(
@@ -419,10 +482,7 @@ class BillingController {
         );
       }
 
-      let subscription = await Db.getSubscriptionByBusiness(
-        Subscription,
-        business._id,
-      );
+      let subscription = await getRequestSubscription(req, business._id);
 
       if (subscription) {
         subscription = await expireTrialIfNeeded(business, subscription);
@@ -523,13 +583,27 @@ class BillingController {
         },
       );
 
-      business.isActive = true;
-      await business.save();
+      const activeBusiness =
+        (await Business.findByIdAndUpdate(
+          business._id,
+          {
+            $set: {
+              isActive: true,
+            },
+          },
+          {
+            returnDocument: "after",
+            runValidators: true,
+          },
+        ).populate("owner", "userName email role")) || business;
+
+      req.business = activeBusiness;
+      req.subscription = subscription;
 
       return Response.responseOk(
         res,
         {
-          business,
+          business: activeBusiness,
           subscription,
         },
         `${TRIAL_DAYS}-day free trial started successfully`,
@@ -561,7 +635,7 @@ class BillingController {
         );
       }
 
-      const business = await Db.getBusinessByOwner(Business, ownerId);
+      const business = await getRequestBusiness(req, ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -569,10 +643,7 @@ class BillingController {
 
       const stripe = getStripeClient();
 
-      let subscription = await Db.getSubscriptionByBusiness(
-        Subscription,
-        business._id,
-      );
+      let subscription = await getRequestSubscription(req, business._id);
 
       let stripeCustomerId = subscription?.stripeCustomerId;
 
@@ -667,16 +738,13 @@ class BillingController {
         return Response.responseBadAuth(res, "Not authenticated");
       }
 
-      const business = await Db.getBusinessByOwner(Business, ownerId);
+      const business = await getRequestBusiness(req, ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      let subscription = await Db.getSubscriptionByBusiness(
-        Subscription,
-        business._id,
-      );
+      let subscription = await getRequestSubscription(req, business._id);
 
       if (subscription) {
         subscription = await expireTrialIfNeeded(business, subscription);
@@ -712,7 +780,7 @@ class BillingController {
       if (baseSubscription.stripeCustomerId) {
         const stripe = getStripeClient();
 
-        const [paymentMethod, nextCharge] = await Promise.all([
+        const [paymentMethod, nextCharge, invoiceList] = await Promise.all([
           getPaymentMethodSummary(
             stripe,
             baseSubscription.stripeCustomerId,
@@ -723,21 +791,18 @@ class BillingController {
             baseSubscription.stripeCustomerId,
             baseSubscription.stripeSubscriptionId,
           ),
+          stripe?.invoices?.list
+            ? stripe.invoices.list({
+                customer: baseSubscription.stripeCustomerId,
+                limit: 10,
+              })
+            : Promise.resolve({ data: [] }),
         ]);
-
-        let invoiceList = { data: [] };
-
-        if (stripe?.invoices?.list) {
-          invoiceList = await stripe.invoices.list({
-            customer: baseSubscription.stripeCustomerId,
-            limit: 10,
-          });
-        }
 
         billingDetails = {
           paymentMethod,
           nextCharge,
-          invoices: Array.isArray(invoiceList.data)
+          invoices: Array.isArray(invoiceList?.data)
             ? invoiceList.data.map(mapStripeInvoice)
             : [],
         };
@@ -768,16 +833,13 @@ class BillingController {
         return Response.responseBadAuth(res, "Not authenticated");
       }
 
-      const business = await Db.getBusinessByOwner(Business, ownerId);
+      const business = await getRequestBusiness(req, ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      const subscription = await Db.getSubscriptionByBusiness(
-        Subscription,
-        business._id,
-      );
+      const subscription = await getRequestSubscription(req, business._id);
 
       if (!subscription?.stripeCustomerId) {
         return Response.responseOk(res, [], "No billing history found");
@@ -813,16 +875,13 @@ class BillingController {
         return Response.responseBadAuth(res, "Not authenticated");
       }
 
-      const business = await Db.getBusinessByOwner(Business, ownerId);
+      const business = await getRequestBusiness(req, ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      const subscription = await Db.getSubscriptionByBusiness(
-        Subscription,
-        business._id,
-      );
+      const subscription = await getRequestSubscription(req, business._id);
 
       if (!subscription?.stripeCustomerId) {
         return Response.responseInvalidInput(
@@ -866,16 +925,13 @@ class BillingController {
         return Response.responseBadAuth(res, "Not authenticated");
       }
 
-      const business = await Db.getBusinessByOwner(Business, ownerId);
+      const business = await getRequestBusiness(req, ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      const subscription = await Db.getSubscriptionByBusiness(
-        Subscription,
-        business._id,
-      );
+      const subscription = await getRequestSubscription(req, business._id);
 
       if (!subscription || !subscription.stripeSubscriptionId) {
         return Response.responseInvalidInput(
@@ -1263,19 +1319,16 @@ class BillingController {
         );
       }
 
-      const business = await Business.findByIdAndUpdate(
-        businessId,
-        { isActive },
-        { new: true },
-      );
+      const [business, existingSubscription] = await Promise.all([
+        Business.findById(businessId),
+        Subscription.findOne({ business: businessId }).select(
+          "_id business status",
+        ),
+      ]);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
       }
-
-      const existingSubscription = await Subscription.findOne({
-        business: business._id,
-      });
 
       const nextStatus = isActive
         ? isAccessStatus(existingSubscription?.status)
@@ -1283,20 +1336,37 @@ class BillingController {
           : "active"
         : "canceled";
 
-      await Subscription.findOneAndUpdate(
-        { business: business._id },
-        {
-          isActive,
-          aiEnabled: isActive,
-          status: nextStatus,
-          lastPaymentStatus: isActive ? nextStatus : "admin_deactivated",
-        },
-        { new: true },
-      );
+      const [updatedBusiness] = await Promise.all([
+        Business.findByIdAndUpdate(
+          businessId,
+          { $set: { isActive } },
+          {
+            returnDocument: "after",
+            runValidators: true,
+          },
+        ),
+        Subscription.findOneAndUpdate(
+          { business: businessId },
+          {
+            $set: {
+              isActive,
+              aiEnabled: isActive,
+              status: nextStatus,
+              lastPaymentStatus: isActive ? nextStatus : "admin_deactivated",
+            },
+          },
+          {
+            returnDocument: "after",
+            runValidators: true,
+          },
+        ),
+      ]);
+
+      const responseBusiness = updatedBusiness || business;
 
       return Response.responseOk(
         res,
-        business,
+        responseBusiness,
         isActive
           ? "Customer account activated successfully"
           : "Customer account deactivated successfully",

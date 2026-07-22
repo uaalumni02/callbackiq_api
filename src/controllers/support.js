@@ -25,11 +25,20 @@ const getUserBusiness = async (req) => {
     throw new Error("Unauthorized.");
   }
 
-  const business = await Db.getBusinessByOwner(Business, userId);
+  if (req.business) {
+    return req.business;
+  }
+
+  const business =
+    typeof Db.getBusinessScopeByOwner === "function"
+      ? await Db.getBusinessScopeByOwner(Business, userId)
+      : await Db.getBusinessByOwner(Business, userId);
 
   if (!business) {
     throw new Error("Business not found for this user.");
   }
+
+  req.business = business;
 
   return business;
 };

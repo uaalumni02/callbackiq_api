@@ -39,7 +39,10 @@ class TwilioController {
         return res.status(200).send(emptyTwiml());
       }
 
-      const business = await Db.getBusinessByPhone(Business, twilioNumber);
+      const business = await Db.getBusinessByPhoneForWebhook(
+        Business,
+        twilioNumber,
+      );
 
       console.log(
         "VOICE BUSINESS FOUND:",
@@ -248,7 +251,7 @@ class TwilioController {
         return res.status(200).send(emptyTwiml());
       }
 
-      const business = await Db.getBusinessByPhone(Business, to);
+      const business = await Db.getBusinessByPhoneForWebhook(Business, to);
 
       console.log(
         "SMS BUSINESS FOUND:",
@@ -365,10 +368,7 @@ class TwilioController {
             : "medium",
       });
 
-      const messages = await Db.getMessagesByConversation(
-        Message,
-        conversation._id,
-      );
+      const messages = await Db.getMessagesForAI(Message, conversation._id);
 
       const shouldAIReply =
         conversation.aiEnabled !== false &&

@@ -23,7 +23,7 @@ class AlertController {
         stripUnknown: true,
       });
 
-      const business = await Db.getBusinessByOwner(Business, ownerId);
+      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -78,7 +78,7 @@ class AlertController {
         return Response.responseBadAuth(res, "Not authenticated");
       }
 
-      const business = await Db.getBusinessByOwner(Business, ownerId);
+      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -109,7 +109,7 @@ class AlertController {
         return Response.responseInvalidInput(res, "Invalid alert ID");
       }
 
-      const business = await Db.getBusinessByOwner(Business, ownerId);
+      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -146,7 +146,7 @@ class AlertController {
         stripUnknown: true,
       });
 
-      const business = await Db.getBusinessByOwner(Business, ownerId);
+      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -203,7 +203,7 @@ class AlertController {
         return Response.responseInvalidInput(res, "Invalid alert ID");
       }
 
-      const business = await Db.getBusinessByOwner(Business, ownerId);
+      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -236,7 +236,7 @@ class AlertController {
         return Response.responseBadAuth(res, "Not authenticated");
       }
 
-      const business = await Db.getBusinessByOwner(Business, ownerId);
+      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -271,7 +271,7 @@ class AlertController {
         return Response.responseInvalidInput(res, "Invalid alert ID");
       }
 
-      const business = await Db.getBusinessByOwner(Business, ownerId);
+      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");

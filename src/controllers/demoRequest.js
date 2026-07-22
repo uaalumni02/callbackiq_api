@@ -43,12 +43,8 @@ class DemoRequestController {
         return Response.responseBadAuth(res, "Admin access required");
       }
 
-      const { status } = req.query;
-      const filter = {};
-
-      if (status) {
-        filter.status = status;
-      }
+      const status = String(req.query?.status || "").trim();
+      const filter = status ? { status } : {};
 
       const demoRequests = await Db.getDemoRequests(DemoRequest, filter);
 

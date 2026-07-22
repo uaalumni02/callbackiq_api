@@ -72,6 +72,20 @@ const trialGrantedMessage = (granted) => {
     : "Account created successfully. This business has already used its free trial, so choose a plan to activate CallBackIQ.";
 };
 
+const getConsentIp = (req) => {
+  const forwardedFor = req.headers["x-forwarded-for"];
+
+  if (Array.isArray(forwardedFor)) {
+    return forwardedFor[0] || req.ip || "";
+  }
+
+  if (typeof forwardedFor === "string" && forwardedFor.trim()) {
+    return forwardedFor.split(",")[0].trim();
+  }
+
+  return req.ip || "";
+};
+
 class AuthController {
   static async register(req, res) {
     const {
@@ -90,6 +104,11 @@ class AuthController {
     try {
       await registerSchema.validateAsync(req.body);
 
+      const normalizedEmail = String(email || "")
+        .trim()
+        .toLowerCase();
+      const normalizedUserName = String(userName || "").trim();
+
       if (!validate.isValidPassword(password)) {
         return Response.responseInvalidInput(res, "Invalid password format");
       }
@@ -107,8 +126,8 @@ class AuthController {
 
       const existingUser = await Db.findUserByEmailOrUserName(
         User,
-        userName,
-        email,
+        normalizedUserName,
+        normalizedEmail,
       );
 
       if (existingUser) {
@@ -130,8 +149,8 @@ class AuthController {
       const smsConsentGiven = Boolean(smsConsent);
 
       const savedUser = await Db.saveUser(User, {
-        userName,
-        email,
+        userName: normalizedUserName,
+        email: normalizedEmail,
         password: hashedPassword,
         role,
         businessName,
@@ -140,9 +159,7 @@ class AuthController {
 
         smsConsent: smsConsentGiven,
         smsConsentAt: smsConsentGiven ? now : null,
-        smsConsentIp: smsConsentGiven
-          ? req.ip || req.headers["x-forwarded-for"] || ""
-          : "",
+        smsConsentIp: smsConsentGiven ? getConsentIp(req) : "",
         smsConsentUserAgent: smsConsentGiven
           ? req.headers["user-agent"] || ""
           : "",
@@ -158,7 +175,7 @@ class AuthController {
         businessName,
         businessType,
         phone: businessPhone,
-        email,
+        email: normalizedEmail,
         isActive: true,
       });
 
@@ -265,7 +282,14 @@ class AuthController {
        */
       if (hasSecurityStateExpired(user.lastFailedLoginAt)) {
         await Db.decayLoginSecurityState(User, user._id);
-        user = await Db.findUserByLogin(User, normalizedLogin);
+
+        user.failedLoginAttempts = 0;
+        user.lastFailedLoginAt = null;
+        user.loginBlockedUntil = null;
+        user.loginLockoutLevel = 0;
+        user.lastLoginLockoutAt = null;
+        user.securityChallengeRequired = false;
+        user.securityChallengeRequiredAt = null;
       }
 
       const retryAfterSeconds = getRetryAfterSeconds(user.loginBlockedUntil);
@@ -314,13 +338,14 @@ class AuthController {
        * Clear failure counts, temporary delays, escalation, and CAPTCHA state
        * after a successful password and challenge verification.
        */
-      await Db.clearLoginSecurityState(User, user._id);
+      const authenticatedUser =
+        (await Db.clearLoginSecurityState(User, user._id)) || user;
 
       const token = Token.sign({
-        userId: user._id,
-        userName: user.userName,
-        email: user.email,
-        role: user.role,
+        userId: authenticatedUser._id,
+        userName: authenticatedUser.userName,
+        email: authenticatedUser.email,
+        role: authenticatedUser.role,
       });
 
       res.cookie("token", token, cookieOptions);
@@ -330,20 +355,21 @@ class AuthController {
         {
           token,
           user: {
-            _id: user._id,
-            userName: user.userName,
-            email: user.email,
-            role: user.role,
-            businessName: user.businessName,
-            businessPhone: user.businessPhone,
-            businessType: user.businessType,
-            smsConsent: user.smsConsent,
-            smsConsentAt: user.smsConsentAt,
-            termsAccepted: user.termsAccepted,
-            termsAcceptedAt: user.termsAcceptedAt,
-            privacyAccepted: user.privacyAccepted,
-            privacyAcceptedAt: user.privacyAcceptedAt,
-            lastSuccessfulLoginAt: new Date(),
+            _id: authenticatedUser._id,
+            userName: authenticatedUser.userName,
+            email: authenticatedUser.email,
+            role: authenticatedUser.role,
+            businessName: authenticatedUser.businessName,
+            businessPhone: authenticatedUser.businessPhone,
+            businessType: authenticatedUser.businessType,
+            smsConsent: authenticatedUser.smsConsent,
+            smsConsentAt: authenticatedUser.smsConsentAt,
+            termsAccepted: authenticatedUser.termsAccepted,
+            termsAcceptedAt: authenticatedUser.termsAcceptedAt,
+            privacyAccepted: authenticatedUser.privacyAccepted,
+            privacyAcceptedAt: authenticatedUser.privacyAcceptedAt,
+            lastSuccessfulLoginAt:
+              authenticatedUser.lastSuccessfulLoginAt || new Date(),
           },
         },
         "Login successful",

@@ -116,7 +116,7 @@ class ConversationController {
       };
     }
 
-    const business = await Db.getBusinessByOwner(Business, requesterId);
+    const business = await Db.getBusinessScopeByOwner(Business, requesterId);
 
     if (!business) {
       Response.responseInvalidInput(res, "Business not found");
@@ -147,7 +147,7 @@ class ConversationController {
 
       await conversationValidator.validateAsync(req.body);
 
-      const business = await Db.getBusinessByOwner(Business, ownerId);
+      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -186,7 +186,7 @@ class ConversationController {
         return Response.responseBadAuth(res, "Not authenticated");
       }
 
-      const business = await Db.getBusinessByOwner(Business, ownerId);
+      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");

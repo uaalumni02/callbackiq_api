@@ -5,7 +5,9 @@ import * as Response from "../helpers/response/response.js";
 const checkActiveBusiness = async (req, res, next) => {
   try {
     const ownerId = req.user?.userId;
-    const role = String(req.user?.role || "").toLowerCase();
+    const role = String(req.user?.role || "")
+      .trim()
+      .toLowerCase();
 
     if (!ownerId) {
       return Response.responseBadAuth(res, "Not authenticated");
@@ -15,7 +17,16 @@ const checkActiveBusiness = async (req, res, next) => {
       return next();
     }
 
-    const business = await Db.getBusinessByOwner(Business, ownerId);
+    /*
+     * Reuse a business already loaded by checkSubscription. This prevents two
+     * identical business queries when both middleware functions protect a
+     * route. If it has not been loaded, use the lightweight tenant lookup.
+     */
+    const business =
+      req.business ||
+      (await (typeof Db.getBusinessScopeByOwner === "function"
+        ? Db.getBusinessScopeByOwner(Business, ownerId)
+        : Db.getBusinessByOwner(Business, ownerId)));
 
     if (!business) {
       return Response.responseInvalidInput(

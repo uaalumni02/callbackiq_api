@@ -1,5 +1,66 @@
 import { formatCustomerRow } from "../helpers/model/admin.js";
 
+const BUSINESS_SCOPE_FIELDS = [
+  "_id",
+  "owner",
+  "businessName",
+  "businessType",
+  "phone",
+  "forwardingPhone",
+  "email",
+  "website",
+  "address",
+  "city",
+  "state",
+  "zipCode",
+  "timezone",
+  "smsTemplate",
+  "estimatedJobValue",
+  "isActive",
+  "createdAt",
+  "updatedAt",
+].join(" ");
+
+const CONVERSATION_INTELLIGENCE_CONVERSATION_FIELDS = [
+  "_id",
+  "business",
+  "lead",
+  "customerPhone",
+  "customerName",
+  "status",
+  "aiEnabled",
+  "humanTakeover",
+  "lastMessage",
+  "lastMessageAt",
+  "archivedAt",
+  "archivedBy",
+  "archiveSnapshot",
+  "createdAt",
+  "updatedAt",
+  "__v",
+].join(" ");
+
+const CONVERSATION_INTELLIGENCE_LEAD_FIELDS = [
+  "_id",
+  "business",
+  "customerName",
+  "phone",
+  "email",
+  "serviceNeeded",
+  "urgency",
+  "address",
+  "preferredAppointmentTime",
+  "leadQualityScore",
+  "estimatedValue",
+  "status",
+  "source",
+  "summary",
+  "notes",
+  "createdAt",
+  "updatedAt",
+  "__v",
+].join(" ");
+
 class Db {
   static async findUserByEmailOrUserName(model, userName, email) {
     try {
@@ -441,6 +502,22 @@ class Db {
     }
   }
 
+  /*
+   * Lightweight tenant lookup for authenticated request handlers.
+   * Avoids hydrating a Mongoose document and populating the owner when the
+   * controller only needs the business scope and core settings.
+   */
+  static async getBusinessScopeByOwner(model, ownerId) {
+    try {
+      return await model
+        .findOne({ owner: ownerId })
+        .select(BUSINESS_SCOPE_FIELDS)
+        .lean();
+    } catch (error) {
+      console.error("Error fetching business scope by owner:", error);
+      throw error;
+    }
+  }
   static async getBusinessById(model, id) {
     try {
       return await model.findById(id).populate("owner", "userName email role");
@@ -501,13 +578,13 @@ class Db {
       return await model
         .find({ business: businessId })
         .sort({ createdAt: -1 })
-        .populate("business", "businessName businessType phone");
+        .populate("business", "businessName businessType phone")
+        .lean();
     } catch (error) {
       console.error("Error fetching leads by business:", error);
       throw error;
     }
   }
-
   static async getLeadById(model, id) {
     try {
       return await model
@@ -518,7 +595,6 @@ class Db {
       throw error;
     }
   }
-
   static async updateLead(model, id, data) {
     try {
       return await model
@@ -533,11 +609,44 @@ class Db {
     }
   }
 
+  static async updateLeadForBusiness(model, id, businessId, data) {
+    try {
+      return await model
+        .findOneAndUpdate(
+          {
+            _id: id,
+            business: businessId,
+          },
+          data,
+          {
+            returnDocument: "after",
+            runValidators: true,
+          },
+        )
+        .populate("business", "businessName businessType phone");
+    } catch (error) {
+      console.error("Error updating lead for business:", error);
+      throw error;
+    }
+  }
+
   static async deleteLead(model, id) {
     try {
       return await model.findByIdAndDelete(id);
     } catch (error) {
       console.error("Error deleting lead:", error);
+      throw error;
+    }
+  }
+
+  static async deleteLeadForBusiness(model, id, businessId) {
+    try {
+      return await model.findOneAndDelete({
+        _id: id,
+        business: businessId,
+      });
+    } catch (error) {
+      console.error("Error deleting lead for business:", error);
       throw error;
     }
   }
@@ -560,13 +669,13 @@ class Db {
         .sort({ lastMessageAt: -1, createdAt: -1 })
         .populate("business", "businessName phone owner")
         .populate("lead", "customerName phone serviceNeeded urgency status")
-        .populate("archivedBy", "userName email role");
+        .populate("archivedBy", "userName email role")
+        .lean();
     } catch (error) {
       console.error("Error fetching conversations:", error);
       throw error;
     }
   }
-
   static async getConversationById(model, id) {
     try {
       return await model
@@ -579,7 +688,22 @@ class Db {
       throw error;
     }
   }
-
+  static async getConversationForBusiness(model, id, businessId) {
+    try {
+      return await model
+        .findOne({
+          _id: id,
+          business: businessId,
+        })
+        .populate("business", "businessName phone owner")
+        .populate("lead", "customerName phone serviceNeeded urgency status")
+        .populate("archivedBy", "userName email role")
+        .lean();
+    } catch (error) {
+      console.error("Error fetching conversation for business:", error);
+      throw error;
+    }
+  }
   static async updateConversation(model, id, data) {
     try {
       return await model
@@ -623,13 +747,31 @@ class Db {
         .find({ conversation: conversationId })
         .sort({ createdAt: 1 })
         .populate("lead", "customerName phone serviceNeeded")
-        .populate("conversation", "customerPhone customerName status");
+        .populate("conversation", "customerPhone customerName status")
+        .lean();
     } catch (error) {
       console.error("Error fetching messages:", error);
       throw error;
     }
   }
 
+  /*
+   * AI workflows only need message content and chronology. Skipping populate
+   * keeps inbound-SMS and conversation-analysis requests lightweight.
+   */
+  static async getMessagesForAI(model, conversationId) {
+    try {
+      return await model
+        .find({ conversation: conversationId })
+        .select(
+          "_id business conversation lead direction from to body provider status createdAt updatedAt",
+        )
+        .sort({ createdAt: 1 });
+    } catch (error) {
+      console.error("Error fetching messages for AI:", error);
+      throw error;
+    }
+  }
   static async getMessageById(model, id) {
     try {
       return await model
@@ -641,12 +783,38 @@ class Db {
       throw error;
     }
   }
-
+  static async getMessageForBusiness(model, id, businessId) {
+    try {
+      return await model
+        .findOne({
+          _id: id,
+          business: businessId,
+        })
+        .populate("lead", "customerName phone serviceNeeded")
+        .populate("conversation", "customerPhone customerName status")
+        .lean();
+    } catch (error) {
+      console.error("Error fetching message for business:", error);
+      throw error;
+    }
+  }
   static async deleteMessage(model, id) {
     try {
       return await model.findByIdAndDelete(id);
     } catch (error) {
       console.error("Error deleting message:", error);
+      throw error;
+    }
+  }
+
+  static async deleteMessageForBusiness(model, id, businessId) {
+    try {
+      return await model.findOneAndDelete({
+        _id: id,
+        business: businessId,
+      });
+    } catch (error) {
+      console.error("Error deleting message for business:", error);
       throw error;
     }
   }
@@ -672,13 +840,13 @@ class Db {
           "businessName businessType phone smsTemplate estimatedJobValue",
         )
         .populate("lead", "customerName phone serviceNeeded urgency status")
-        .populate("conversation", "customerPhone customerName status");
+        .populate("conversation", "customerPhone customerName status")
+        .lean();
     } catch (error) {
       console.error("Error fetching call logs:", error);
       throw error;
     }
   }
-
   static async getCallLogById(model, id) {
     try {
       return await model
@@ -694,7 +862,25 @@ class Db {
       throw error;
     }
   }
-
+  static async getCallLogForBusiness(model, id, businessId) {
+    try {
+      return await model
+        .findOne({
+          _id: id,
+          business: businessId,
+        })
+        .populate(
+          "business",
+          "businessName businessType phone smsTemplate estimatedJobValue",
+        )
+        .populate("lead", "customerName phone serviceNeeded urgency status")
+        .populate("conversation", "customerPhone customerName status")
+        .lean();
+    } catch (error) {
+      console.error("Error fetching call log for business:", error);
+      throw error;
+    }
+  }
   static async updateCallLog(model, id, data) {
     try {
       return await model
@@ -714,11 +900,49 @@ class Db {
     }
   }
 
+  static async updateCallLogForBusiness(model, id, businessId, data) {
+    try {
+      return await model
+        .findOneAndUpdate(
+          {
+            _id: id,
+            business: businessId,
+          },
+          data,
+          {
+            returnDocument: "after",
+            runValidators: true,
+          },
+        )
+        .populate(
+          "business",
+          "businessName businessType phone smsTemplate estimatedJobValue",
+        )
+        .populate("lead", "customerName phone serviceNeeded urgency status")
+        .populate("conversation", "customerPhone customerName status");
+    } catch (error) {
+      console.error("Error updating call log for business:", error);
+      throw error;
+    }
+  }
+
   static async deleteCallLog(model, id) {
     try {
       return await model.findByIdAndDelete(id);
     } catch (error) {
       console.error("Error deleting call log:", error);
+      throw error;
+    }
+  }
+
+  static async deleteCallLogForBusiness(model, id, businessId) {
+    try {
+      return await model.findOneAndDelete({
+        _id: id,
+        business: businessId,
+      });
+    } catch (error) {
+      console.error("Error deleting call log for business:", error);
       throw error;
     }
   }
@@ -739,6 +963,22 @@ class Db {
     }
   }
 
+  static async getBusinessByPhoneForWebhook(model, phone) {
+    try {
+      return await model
+        .findOne({
+          $or: [
+            { phone },
+            { businessPhone: phone },
+            { twilioPhoneNumber: phone },
+          ],
+        })
+        .select(BUSINESS_SCOPE_FIELDS);
+    } catch (error) {
+      console.error("Error fetching webhook business by phone:", error);
+      throw error;
+    }
+  }
   static async getFirstBusiness(model) {
     try {
       return await model.findOne({}).sort({ createdAt: 1 });
@@ -750,22 +990,25 @@ class Db {
 
   static async getLeadByBusinessAndPhone(model, businessId, phone) {
     try {
-      return await model.findOne({
-        business: businessId,
-        phone,
-      });
+      return await model
+        .findOne({
+          business: businessId,
+          phone,
+        })
+        .sort({ createdAt: -1 });
     } catch (error) {
       console.error("Error fetching lead by business and phone:", error);
       throw error;
     }
   }
-
   static async getConversationByBusinessAndPhone(model, businessId, phone) {
     try {
-      return await model.findOne({
-        business: businessId,
-        customerPhone: phone,
-      });
+      return await model
+        .findOne({
+          business: businessId,
+          customerPhone: phone,
+        })
+        .sort({ lastMessageAt: -1, createdAt: -1 });
     } catch (error) {
       console.error(
         "Error fetching conversation by business and phone:",
@@ -774,7 +1017,6 @@ class Db {
       throw error;
     }
   }
-
   static async updateCallLogByProviderCallId(model, providerCallId, data) {
     try {
       return await model
@@ -809,132 +1051,202 @@ class Db {
         ? { _id: businessId, owner: ownerId }
         : { owner: ownerId };
 
-      const business = await Business.findOne(businessQuery);
+      const business = await Business.findOne(businessQuery)
+        .select("_id businessName businessType phone estimatedJobValue owner")
+        .lean();
 
       if (!business) {
         return null;
       }
 
       const scopedBusinessId = business._id;
-
       const missedCallStatuses = ["missed", "no_answer", "busy", "failed"];
 
-      const [
-        totalCalls,
-        missedCalls,
-        answeredCalls,
-        recoveredCalls,
-        totalLeads,
-        newLeads,
-        contactedLeads,
-        bookedLeads,
-        lostLeads,
-        spamLeads,
-        activeConversations,
-        closedConversations,
-        archivedConversations,
-        smsSent,
-        smsReceived,
-        bookedRevenueAgg,
-        recoveredRevenueAgg,
-      ] = await Promise.all([
-        CallLog.countDocuments({ business: scopedBusinessId }),
-
-        CallLog.countDocuments({
-          business: scopedBusinessId,
-          status: { $in: missedCallStatuses },
-        }),
-
-        CallLog.countDocuments({
-          business: scopedBusinessId,
-          status: "answered",
-        }),
-
-        CallLog.countDocuments({
-          business: scopedBusinessId,
-          recovered: true,
-        }),
-
-        Lead.countDocuments({ business: scopedBusinessId }),
-
-        Lead.countDocuments({ business: scopedBusinessId, status: "new" }),
-
-        Lead.countDocuments({
-          business: scopedBusinessId,
-          status: "contacted",
-        }),
-
-        Lead.countDocuments({ business: scopedBusinessId, status: "booked" }),
-
-        Lead.countDocuments({ business: scopedBusinessId, status: "lost" }),
-
-        Lead.countDocuments({ business: scopedBusinessId, status: "spam" }),
-
-        Conversation.countDocuments({
-          business: scopedBusinessId,
-          status: "open",
-        }),
-
-        Conversation.countDocuments({
-          business: scopedBusinessId,
-          status: "closed",
-        }),
-
-        Conversation.countDocuments({
-          business: scopedBusinessId,
-          status: "archived",
-        }),
-
-        Message.countDocuments({
-          business: scopedBusinessId,
-          direction: "outbound",
-        }),
-
-        Message.countDocuments({
-          business: scopedBusinessId,
-          direction: "inbound",
-        }),
-
-        Lead.aggregate([
-          {
-            $match: {
-              business: scopedBusinessId,
-              status: "booked",
+      const [callResults, leadResults, conversationResults, messageResults] =
+        await Promise.all([
+          CallLog.aggregate([
+            {
+              $match: {
+                business: scopedBusinessId,
+              },
             },
-          },
-          {
-            $group: {
-              _id: null,
-              total: { $sum: "$estimatedValue" },
+            {
+              $group: {
+                _id: null,
+                totalCalls: { $sum: 1 },
+                missedCalls: {
+                  $sum: {
+                    $cond: [{ $in: ["$status", missedCallStatuses] }, 1, 0],
+                  },
+                },
+                answeredCalls: {
+                  $sum: {
+                    $cond: [{ $eq: ["$status", "answered"] }, 1, 0],
+                  },
+                },
+                recoveredCalls: {
+                  $sum: {
+                    $cond: [{ $eq: ["$recovered", true] }, 1, 0],
+                  },
+                },
+              },
             },
-          },
-        ]),
+          ]),
 
-        Lead.aggregate([
-          {
-            $match: {
-              business: scopedBusinessId,
-              status: { $in: ["contacted", "booked"] },
-              source: { $in: ["missed_call", "sms"] },
+          Lead.aggregate([
+            {
+              $match: {
+                business: scopedBusinessId,
+              },
             },
-          },
-          {
-            $group: {
-              _id: null,
-              total: { $sum: "$estimatedValue" },
+            {
+              $group: {
+                _id: null,
+                totalLeads: { $sum: 1 },
+                newLeads: {
+                  $sum: {
+                    $cond: [{ $eq: ["$status", "new"] }, 1, 0],
+                  },
+                },
+                contactedLeads: {
+                  $sum: {
+                    $cond: [{ $eq: ["$status", "contacted"] }, 1, 0],
+                  },
+                },
+                bookedLeads: {
+                  $sum: {
+                    $cond: [{ $eq: ["$status", "booked"] }, 1, 0],
+                  },
+                },
+                lostLeads: {
+                  $sum: {
+                    $cond: [{ $eq: ["$status", "lost"] }, 1, 0],
+                  },
+                },
+                spamLeads: {
+                  $sum: {
+                    $cond: [{ $eq: ["$status", "spam"] }, 1, 0],
+                  },
+                },
+                bookedRevenue: {
+                  $sum: {
+                    $cond: [
+                      { $eq: ["$status", "booked"] },
+                      { $ifNull: ["$estimatedValue", 0] },
+                      0,
+                    ],
+                  },
+                },
+                recoveredRevenue: {
+                  $sum: {
+                    $cond: [
+                      {
+                        $and: [
+                          { $in: ["$status", ["contacted", "booked"]] },
+                          { $in: ["$source", ["missed_call", "sms"]] },
+                        ],
+                      },
+                      { $ifNull: ["$estimatedValue", 0] },
+                      0,
+                    ],
+                  },
+                },
+              },
             },
-          },
-        ]),
-      ]);
+          ]),
 
-      const bookedRevenue = bookedRevenueAgg?.[0]?.total || 0;
-      const recoveredRevenue = recoveredRevenueAgg?.[0]?.total || 0;
+          Conversation.aggregate([
+            {
+              $match: {
+                business: scopedBusinessId,
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                activeConversations: {
+                  $sum: {
+                    $cond: [{ $eq: ["$status", "open"] }, 1, 0],
+                  },
+                },
+                closedConversations: {
+                  $sum: {
+                    $cond: [{ $eq: ["$status", "closed"] }, 1, 0],
+                  },
+                },
+                archivedConversations: {
+                  $sum: {
+                    $cond: [{ $eq: ["$status", "archived"] }, 1, 0],
+                  },
+                },
+              },
+            },
+          ]),
+
+          Message.aggregate([
+            {
+              $match: {
+                business: scopedBusinessId,
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                smsSent: {
+                  $sum: {
+                    $cond: [{ $eq: ["$direction", "outbound"] }, 1, 0],
+                  },
+                },
+                smsReceived: {
+                  $sum: {
+                    $cond: [{ $eq: ["$direction", "inbound"] }, 1, 0],
+                  },
+                },
+              },
+            },
+          ]),
+        ]);
+
+      const callMetrics = callResults[0] || {
+        totalCalls: 0,
+        missedCalls: 0,
+        answeredCalls: 0,
+        recoveredCalls: 0,
+      };
+
+      const leadMetrics = leadResults[0] || {
+        totalLeads: 0,
+        newLeads: 0,
+        contactedLeads: 0,
+        bookedLeads: 0,
+        lostLeads: 0,
+        spamLeads: 0,
+        bookedRevenue: 0,
+        recoveredRevenue: 0,
+      };
+
+      const conversationMetrics = conversationResults[0] || {
+        activeConversations: 0,
+        closedConversations: 0,
+        archivedConversations: 0,
+      };
+
+      const messageMetrics = messageResults[0] || {
+        smsSent: 0,
+        smsReceived: 0,
+      };
 
       const missedCallRecoveryRate =
-        missedCalls > 0 ? Math.round((recoveredCalls / missedCalls) * 100) : 0;
+        callMetrics.missedCalls > 0
+          ? Math.round(
+              (callMetrics.recoveredCalls / callMetrics.missedCalls) * 100,
+            )
+          : 0;
 
       const bookingRate =
-        totalLeads > 0 ? Math.round((bookedLeads / totalLeads) * 100) : 0;
+        leadMetrics.totalLeads > 0
+          ? Math.round((leadMetrics.bookedLeads / leadMetrics.totalLeads) * 100)
+          : 0;
 
       return {
         business: {
@@ -946,40 +1258,42 @@ class Db {
         },
 
         calls: {
-          totalCalls,
-          missedCalls,
-          answeredCalls,
-          recoveredCalls,
+          totalCalls: callMetrics.totalCalls,
+          missedCalls: callMetrics.missedCalls,
+          answeredCalls: callMetrics.answeredCalls,
+          recoveredCalls: callMetrics.recoveredCalls,
           missedCallRecoveryRate,
         },
 
         leads: {
-          totalLeads,
-          newLeads,
-          contactedLeads,
-          bookedLeads,
-          lostLeads,
-          spamLeads,
+          totalLeads: leadMetrics.totalLeads,
+          newLeads: leadMetrics.newLeads,
+          contactedLeads: leadMetrics.contactedLeads,
+          bookedLeads: leadMetrics.bookedLeads,
+          lostLeads: leadMetrics.lostLeads,
+          spamLeads: leadMetrics.spamLeads,
           bookingRate,
         },
 
         conversations: {
-          activeConversations,
-          closedConversations,
-          archivedConversations,
+          activeConversations: conversationMetrics.activeConversations,
+          closedConversations: conversationMetrics.closedConversations,
+          archivedConversations: conversationMetrics.archivedConversations,
           totalConversations:
-            activeConversations + closedConversations + archivedConversations,
+            conversationMetrics.activeConversations +
+            conversationMetrics.closedConversations +
+            conversationMetrics.archivedConversations,
         },
 
         messages: {
-          smsSent,
-          smsReceived,
-          totalMessages: smsSent + smsReceived,
+          smsSent: messageMetrics.smsSent,
+          smsReceived: messageMetrics.smsReceived,
+          totalMessages: messageMetrics.smsSent + messageMetrics.smsReceived,
         },
 
         revenue: {
-          bookedRevenue,
-          recoveredRevenue,
+          bookedRevenue: leadMetrics.bookedRevenue,
+          recoveredRevenue: leadMetrics.recoveredRevenue,
         },
       };
     } catch (error) {
@@ -987,8 +1301,6 @@ class Db {
       throw error;
     }
   }
-  // ----- AI methods -----
-
   static async getLeadForBusiness(model, leadId, businessId) {
     try {
       return await model.findOne({
@@ -1000,7 +1312,6 @@ class Db {
       throw error;
     }
   }
-
   static async qualifyLead(model, leadId, data) {
     try {
       return await model
@@ -1035,13 +1346,13 @@ class Db {
         .find({ business: businessId })
         .sort({ createdAt: -1 })
         .populate("business", "businessName businessType phone")
-        .populate("lead", "customerName phone serviceNeeded urgency status");
+        .populate("lead", "customerName phone serviceNeeded urgency status")
+        .lean();
     } catch (error) {
       console.error("Error fetching alerts by business:", error);
       throw error;
     }
   }
-
   static async getUnreadAlertsByBusiness(model, businessId) {
     try {
       return await model
@@ -1051,13 +1362,13 @@ class Db {
         })
         .sort({ createdAt: -1 })
         .populate("business", "businessName businessType phone")
-        .populate("lead", "customerName phone serviceNeeded urgency status");
+        .populate("lead", "customerName phone serviceNeeded urgency status")
+        .lean();
     } catch (error) {
       console.error("Error fetching unread alerts:", error);
       throw error;
     }
   }
-
   static async getAlertById(model, id) {
     try {
       return await model
@@ -1069,7 +1380,6 @@ class Db {
       throw error;
     }
   }
-
   static async getAlertForBusiness(model, id, businessId) {
     try {
       return await model
@@ -1084,7 +1394,6 @@ class Db {
       throw error;
     }
   }
-
   static async updateAlert(model, id, data) {
     try {
       return await model
@@ -1416,64 +1725,114 @@ class Db {
     Subscription,
   }) {
     try {
+      const missedCallStatuses = ["missed", "no_answer", "busy", "failed"];
+
       const [
         users,
         businesses,
         subscriptions,
-        totalLeads,
-        totalCalls,
-        missedCalls,
-        totalConversations,
-        totalMessages,
+        leadCounts,
+        callCounts,
+        conversationCounts,
+        messageCounts,
       ] = await Promise.all([
         User.find({}).sort({ createdAt: -1 }).lean(),
         Business.find({}).sort({ createdAt: -1 }).lean(),
         Subscription.find({}).lean(),
-        Lead.countDocuments(),
-        CallLog.countDocuments(),
-        CallLog.countDocuments({
-          status: { $in: ["missed", "no_answer", "busy", "failed"] },
-        }),
-        Conversation.countDocuments(),
-        Message.countDocuments(),
+        Lead.aggregate([
+          {
+            $group: {
+              _id: "$business",
+              total: { $sum: 1 },
+            },
+          },
+        ]),
+        CallLog.aggregate([
+          {
+            $group: {
+              _id: "$business",
+              total: { $sum: 1 },
+              missed: {
+                $sum: {
+                  $cond: [{ $in: ["$status", missedCallStatuses] }, 1, 0],
+                },
+              },
+            },
+          },
+        ]),
+        Conversation.aggregate([
+          {
+            $group: {
+              _id: "$business",
+              total: { $sum: 1 },
+            },
+          },
+        ]),
+        Message.aggregate([
+          {
+            $group: {
+              _id: "$business",
+              total: { $sum: 1 },
+            },
+          },
+        ]),
       ]);
 
       const ownerMap = new Map(users.map((user) => [String(user._id), user]));
-
       const subscriptionMap = new Map(
         subscriptions.map((sub) => [String(sub.business), sub]),
       );
+      const leadCountMap = new Map(
+        leadCounts.map((entry) => [String(entry._id), entry.total]),
+      );
+      const callCountMap = new Map(
+        callCounts.map((entry) => [String(entry._id), entry]),
+      );
+      const conversationCountMap = new Map(
+        conversationCounts.map((entry) => [String(entry._id), entry.total]),
+      );
+      const messageCountMap = new Map(
+        messageCounts.map((entry) => [String(entry._id), entry.total]),
+      );
 
-      const customers = await Promise.all(
-        businesses.map(async (business) => {
-          const [
-            leadCount,
-            callCount,
-            missedCallCount,
-            conversationCount,
-            messageCount,
-          ] = await Promise.all([
-            Lead.countDocuments({ business: business._id }),
-            CallLog.countDocuments({ business: business._id }),
-            CallLog.countDocuments({
-              business: business._id,
-              status: { $in: ["missed", "no_answer", "busy", "failed"] },
-            }),
-            Conversation.countDocuments({ business: business._id }),
-            Message.countDocuments({ business: business._id }),
-          ]);
+      const customers = businesses.map((business) => {
+        const businessKey = String(business._id);
+        const callMetrics = callCountMap.get(businessKey) || {
+          total: 0,
+          missed: 0,
+        };
 
-          return formatCustomerRow({
-            business,
-            owner: ownerMap.get(String(business.owner)),
-            subscription: subscriptionMap.get(String(business._id)),
-            leadCount,
-            callCount,
-            missedCallCount,
-            conversationCount,
-            messageCount,
-          });
-        }),
+        return formatCustomerRow({
+          business,
+          owner: ownerMap.get(String(business.owner)),
+          subscription: subscriptionMap.get(businessKey),
+          leadCount: leadCountMap.get(businessKey) || 0,
+          callCount: callMetrics.total || 0,
+          missedCallCount: callMetrics.missed || 0,
+          conversationCount: conversationCountMap.get(businessKey) || 0,
+          messageCount: messageCountMap.get(businessKey) || 0,
+        });
+      });
+
+      const totalLeads = leadCounts.reduce(
+        (sum, entry) => sum + (entry.total || 0),
+        0,
+      );
+      const totalCalls = callCounts.reduce(
+        (sum, entry) => sum + (entry.total || 0),
+        0,
+      );
+      const missedCalls = callCounts.reduce(
+        (sum, entry) => sum + (entry.missed || 0),
+        0,
+      );
+      const totalConversations = conversationCounts.reduce(
+        (sum, entry) => sum + (entry.total || 0),
+        0,
+      );
+      const totalMessages = messageCounts.reduce(
+        (sum, entry) => sum + (entry.total || 0),
+        0,
       );
 
       return {
@@ -1503,7 +1862,6 @@ class Db {
       throw error;
     }
   }
-
   static async getAdminCustomerDetails({
     User,
     Business,
@@ -1521,64 +1879,102 @@ class Db {
         return null;
       }
 
-      const [owner, subscription, leads, calls, conversations, messages] =
-        await Promise.all([
-          User.findById(business.owner).select("-password").lean(),
-          Subscription.findOne({ business: businessId }).lean(),
-          Lead.find({ business: businessId })
-            .sort({ createdAt: -1 })
-            .limit(100)
-            .lean(),
-          CallLog.find({ business: businessId })
-            .sort({ createdAt: -1 })
-            .limit(100)
-            .lean(),
-          Conversation.find({ business: businessId })
-            .sort({ updatedAt: -1, createdAt: -1 })
-            .limit(100)
-            .lean(),
-          Message.find({ business: businessId })
-            .sort({ createdAt: -1 })
-            .limit(200)
-            .lean(),
-        ]);
+      const missedCallStatuses = ["missed", "no_answer", "busy", "failed"];
 
       const [
-        leadCount,
-        callCount,
-        missedCallCount,
-        answeredCallCount,
-        recoveredCallCount,
-        conversationCount,
-        messageCount,
-        bookedLeadCount,
-        lostLeadCount,
+        owner,
+        subscription,
+        leads,
+        calls,
+        conversations,
+        messages,
+        leadMetricResults,
+        callMetricResults,
+        conversationMetricResults,
+        messageMetricResults,
       ] = await Promise.all([
-        Lead.countDocuments({ business: businessId }),
-        CallLog.countDocuments({ business: businessId }),
-        CallLog.countDocuments({
-          business: businessId,
-          status: { $in: ["missed", "no_answer", "busy", "failed"] },
-        }),
-        CallLog.countDocuments({
-          business: businessId,
-          status: "answered",
-        }),
-        CallLog.countDocuments({
-          business: businessId,
-          recovered: true,
-        }),
-        Conversation.countDocuments({ business: businessId }),
-        Message.countDocuments({ business: businessId }),
-        Lead.countDocuments({
-          business: businessId,
-          status: "booked",
-        }),
-        Lead.countDocuments({
-          business: businessId,
-          status: "lost",
-        }),
+        User.findById(business.owner).select("-password").lean(),
+        Subscription.findOne({ business: businessId }).lean(),
+        Lead.find({ business: businessId })
+          .sort({ createdAt: -1 })
+          .limit(100)
+          .lean(),
+        CallLog.find({ business: businessId })
+          .sort({ createdAt: -1 })
+          .limit(100)
+          .lean(),
+        Conversation.find({ business: businessId })
+          .sort({ lastMessageAt: -1, createdAt: -1 })
+          .limit(100)
+          .lean(),
+        Message.find({ business: businessId })
+          .sort({ createdAt: -1 })
+          .limit(200)
+          .lean(),
+        Lead.aggregate([
+          { $match: { business: business._id } },
+          {
+            $group: {
+              _id: null,
+              total: { $sum: 1 },
+              booked: {
+                $sum: {
+                  $cond: [{ $eq: ["$status", "booked"] }, 1, 0],
+                },
+              },
+              lost: {
+                $sum: {
+                  $cond: [{ $eq: ["$status", "lost"] }, 1, 0],
+                },
+              },
+            },
+          },
+        ]),
+        CallLog.aggregate([
+          { $match: { business: business._id } },
+          {
+            $group: {
+              _id: null,
+              total: { $sum: 1 },
+              missed: {
+                $sum: {
+                  $cond: [{ $in: ["$status", missedCallStatuses] }, 1, 0],
+                },
+              },
+              answered: {
+                $sum: {
+                  $cond: [{ $eq: ["$status", "answered"] }, 1, 0],
+                },
+              },
+              recovered: {
+                $sum: {
+                  $cond: [{ $eq: ["$recovered", true] }, 1, 0],
+                },
+              },
+            },
+          },
+        ]),
+        Conversation.aggregate([
+          { $match: { business: business._id } },
+          { $count: "total" },
+        ]),
+        Message.aggregate([
+          { $match: { business: business._id } },
+          { $count: "total" },
+        ]),
       ]);
+
+      const leadMetrics = leadMetricResults[0] || {
+        total: 0,
+        booked: 0,
+        lost: 0,
+      };
+      const callMetrics = callMetricResults[0] || {
+        total: 0,
+        missed: 0,
+        answered: 0,
+        recovered: 0,
+      };
 
       return {
         business,
@@ -1589,15 +1985,15 @@ class Db {
           aiEnabled: false,
         },
         metrics: {
-          leads: leadCount,
-          calls: callCount,
-          missedCalls: missedCallCount,
-          answeredCalls: answeredCallCount,
-          recoveredCalls: recoveredCallCount,
-          conversations: conversationCount,
-          messages: messageCount,
-          bookedLeads: bookedLeadCount,
-          lostLeads: lostLeadCount,
+          leads: leadMetrics.total,
+          calls: callMetrics.total,
+          missedCalls: callMetrics.missed,
+          answeredCalls: callMetrics.answered,
+          recoveredCalls: callMetrics.recovered,
+          conversations: conversationMetricResults[0]?.total || 0,
+          messages: messageMetricResults[0]?.total || 0,
+          bookedLeads: leadMetrics.booked,
+          lostLeads: leadMetrics.lost,
         },
         leads,
         calls,
@@ -1609,7 +2005,6 @@ class Db {
       throw error;
     }
   }
-
   static async adminUpdateSubscriptionStatus({
     Subscription,
     businessId,
@@ -1758,11 +2153,36 @@ class Db {
     return ConversationIntelligence.findOne({
       conversation: conversationId,
     })
-      .populate("conversation")
-      .populate("lead")
+      .populate({
+        path: "conversation",
+        select: CONVERSATION_INTELLIGENCE_CONVERSATION_FIELDS,
+      })
+      .populate({
+        path: "lead",
+        select: CONVERSATION_INTELLIGENCE_LEAD_FIELDS,
+      })
       .lean();
   }
 
+  static async getConversationIntelligenceForBusinessByConversation(
+    ConversationIntelligence,
+    conversationId,
+    businessId,
+  ) {
+    return ConversationIntelligence.findOne({
+      conversation: conversationId,
+      business: businessId,
+    })
+      .populate({
+        path: "conversation",
+        select: CONVERSATION_INTELLIGENCE_CONVERSATION_FIELDS,
+      })
+      .populate({
+        path: "lead",
+        select: CONVERSATION_INTELLIGENCE_LEAD_FIELDS,
+      })
+      .lean();
+  }
   static async getConversationIntelligenceDocument(
     ConversationIntelligence,
     conversationId,
@@ -1812,8 +2232,14 @@ class Db {
 
     const [records, total] = await Promise.all([
       ConversationIntelligence.find(query)
-        .populate("conversation")
-        .populate("lead")
+        .populate({
+          path: "conversation",
+          select: CONVERSATION_INTELLIGENCE_CONVERSATION_FIELDS,
+        })
+        .populate({
+          path: "lead",
+          select: CONVERSATION_INTELLIGENCE_LEAD_FIELDS,
+        })
         .sort({
           "urgency.score": -1,
           "buyingLikelihood.score": -1,
@@ -1837,7 +2263,6 @@ class Db {
       },
     };
   }
-
   static async getConversationIntelligenceOpportunities(
     ConversationIntelligence,
     businessId,
@@ -1877,8 +2302,14 @@ class Db {
 
     const [records, total] = await Promise.all([
       ConversationIntelligence.find(query)
-        .populate("conversation")
-        .populate("lead")
+        .populate({
+          path: "conversation",
+          select: CONVERSATION_INTELLIGENCE_CONVERSATION_FIELDS,
+        })
+        .populate({
+          path: "lead",
+          select: CONVERSATION_INTELLIGENCE_LEAD_FIELDS,
+        })
         .sort({
           "urgency.score": -1,
           "buyingLikelihood.score": -1,
@@ -1902,7 +2333,6 @@ class Db {
       },
     };
   }
-
   static async saveConversationIntelligence(ConversationIntelligence, payload) {
     return ConversationIntelligence.findOneAndUpdate(
       {
@@ -1939,12 +2369,44 @@ class Db {
     );
   }
 
+  static async updateConversationIntelligenceForBusiness(
+    ConversationIntelligence,
+    conversationId,
+    businessId,
+    updates,
+  ) {
+    return ConversationIntelligence.findOneAndUpdate(
+      {
+        conversation: conversationId,
+        business: businessId,
+      },
+      {
+        $set: updates,
+      },
+      {
+        returnDocument: "after",
+        runValidators: true,
+      },
+    );
+  }
+
   static async deleteConversationIntelligence(
     ConversationIntelligence,
     conversationId,
   ) {
     return ConversationIntelligence.findOneAndDelete({
       conversation: conversationId,
+    });
+  }
+
+  static async deleteConversationIntelligenceForBusiness(
+    ConversationIntelligence,
+    conversationId,
+    businessId,
+  ) {
+    return ConversationIntelligence.findOneAndDelete({
+      conversation: conversationId,
+      business: businessId,
     });
   }
 
