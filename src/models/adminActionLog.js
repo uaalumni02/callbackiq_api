@@ -7,10 +7,13 @@ const adminActionLogSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+
     targetBusiness: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Business",
+      default: null,
     },
+
     action: {
       type: String,
       required: true,
@@ -21,16 +24,50 @@ const adminActionLogSchema = new mongoose.Schema(
         "update_business_status",
       ],
     },
+
     message: {
       type: String,
       default: "",
+      trim: true,
+      maxlength: 1000,
     },
+
     metadata: {
       type: mongoose.Schema.Types.Mixed,
       default: {},
     },
   },
-  { timestamps: true },
+  {
+    timestamps: true,
+  },
 );
 
-export default mongoose.model("AdminActionLog", adminActionLogSchema);
+/*
+ * Supports viewing an administrator's most recent actions.
+ */
+adminActionLogSchema.index({
+  admin: 1,
+  createdAt: -1,
+});
+
+/*
+ * Supports a customer/business audit timeline.
+ */
+adminActionLogSchema.index({
+  targetBusiness: 1,
+  createdAt: -1,
+});
+
+/*
+ * Supports filtering the audit log by action type.
+ */
+adminActionLogSchema.index({
+  action: 1,
+  createdAt: -1,
+});
+
+const AdminActionLog =
+  mongoose.models.AdminActionLog ||
+  mongoose.model("AdminActionLog", adminActionLogSchema);
+
+export default AdminActionLog;

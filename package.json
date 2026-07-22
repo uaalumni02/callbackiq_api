@@ -1,6 +1,7 @@
 {
   "name": "callbackiq_api",
   "version": "1.0.0",
+  "private": true,
   "main": "index.js",
   "type": "module",
   "scripts": {
@@ -14,8 +15,8 @@
     "test:conversation": "jest tests/validators/conversation.test.js --runInBand",
     "test:message": "jest tests/validators/message.test.js --runInBand",
     "test:calllog": "jest tests/validators/callLog.test.js --runInBand",
-    "start:dev": "nodemon --exec babel-node src/server",
-    "build": "babel src -d build",
+    "start:dev": "nodemon --watch src --ext js --exec babel-node src/server.js",
+    "build": "babel src -d build --delete-dir-on-start",
     "start": "node build/server.js"
   },
   "keywords": [],

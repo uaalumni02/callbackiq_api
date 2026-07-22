@@ -30,13 +30,6 @@ export const normalizePhone = (phone = "") => {
   return `+${digits}`;
 };
 
-/*
- * The identity a trial is charged against.
- *
- * A flag on Subscription cannot stop trial farming, because a new signup
- * produces a brand new Subscription document. These keys are what the
- * unique indexes on TrialRedemption enforce across accounts.
- */
 export const buildTrialIdentity = (business, ownerId) => {
   const emailKey =
     normalizeEmail(business?.email) || normalizeEmail(business?.owner?.email);
@@ -50,11 +43,6 @@ export const buildTrialIdentity = (business, ownerId) => {
   };
 };
 
-/*
- * Eligibility is a lifetime question, not a status question. An expired or
- * canceled subscription is not eligible again; only a never-used trial or an
- * explicit admin override is.
- */
 export const canStartTrial = (subscription) => {
   if (!subscription) return true;
   if (subscription.trialOverrideGrantedAt) return true;
@@ -62,17 +50,6 @@ export const canStartTrial = (subscription) => {
   return !subscription.trialUsedAt;
 };
 
-/*
- * The single place a free trial is granted.
- *
- * Both registration and the billing endpoint route through here so the
- * redemption record and the trialUsedAt stamp can never be written by one
- * path and skipped by the other.
- *
- * Returns { granted: true, subscription } or { granted: false, reason }.
- * Callers decide how to surface a denial — registration degrades to a
- * no-trial account, billing returns a 400.
- */
 export const grantFreeTrial = async ({
   business,
   ownerId,
@@ -82,15 +59,26 @@ export const grantFreeTrial = async ({
   const overrideGranted = Boolean(subscription?.trialOverrideGrantedAt);
 
   if (!canStartTrial(subscription)) {
-    return { granted: false, reason: TRIAL_DENIED_ALREADY_USED };
+    return {
+      granted: false,
+      reason: TRIAL_DENIED_ALREADY_USED,
+    };
   }
 
   const identity = buildTrialIdentity(business, ownerId);
 
   if (!identity.emailKey) {
-    return { granted: false, reason: TRIAL_DENIED_MISSING_EMAIL };
+    return {
+      granted: false,
+      reason: TRIAL_DENIED_MISSING_EMAIL,
+    };
   }
 
+  /*
+   * Normal first-use requests perform a friendly read so callers receive a
+   * clean denial without relying on an exception. The unique indexes remain
+   * the source of truth for concurrent requests.
+   */
   if (!overrideGranted) {
     const existingRedemption = await Db.findTrialRedemption(
       TrialRedemption,
@@ -98,32 +86,41 @@ export const grantFreeTrial = async ({
     );
 
     if (existingRedemption) {
-      return { granted: false, reason: TRIAL_DENIED_ALREADY_USED };
-    }
-
-    /*
-     * Written before the subscription so the unique index is the arbiter
-     * under concurrent requests, not the read above.
-     */
-    try {
-      await Db.createTrialRedemption(TrialRedemption, {
-        business: business._id,
-        owner: ownerId,
-        emailKey: identity.emailKey,
-        phoneKey: identity.phoneKey,
-        grantedBy,
-        redeemedAt: new Date(),
-      });
-    } catch (error) {
-      if (error?.isDuplicateTrial) {
-        return { granted: false, reason: TRIAL_DENIED_ALREADY_USED };
-      }
-
-      throw error;
+      return {
+        granted: false,
+        reason: TRIAL_DENIED_ALREADY_USED,
+      };
     }
   }
 
   const now = new Date();
+
+  /*
+   * Always write a fresh redemption record, including after an admin override.
+   * This restores the lifetime identity lock after the additional trial is
+   * consumed. The admin override flow clears the previous business redemption
+   * before this method is called.
+   */
+  try {
+    await Db.createTrialRedemption(TrialRedemption, {
+      business: business._id,
+      owner: ownerId,
+      emailKey: identity.emailKey,
+      phoneKey: identity.phoneKey,
+      grantedBy: overrideGranted ? "admin" : grantedBy,
+      redeemedAt: now,
+    });
+  } catch (error) {
+    if (error?.isDuplicateTrial) {
+      return {
+        granted: false,
+        reason: TRIAL_DENIED_ALREADY_USED,
+      };
+    }
+
+    throw error;
+  }
+
   const trialEndsAt = addDays(now, TRIAL_DAYS);
 
   const updatedSubscription = await Db.upsertSubscriptionByBusiness(
@@ -147,15 +144,14 @@ export const grantFreeTrial = async ({
     },
   );
 
-  return { granted: true, subscription: updatedSubscription };
+  return {
+    granted: true,
+    subscription: updatedSubscription,
+  };
 };
 
-/*
- * Placeholder subscription for an account that could not be given a trial.
- * The account still exists and can subscribe — it just starts locked.
- */
 export const createInactiveSubscription = async (businessId) => {
-  return await Db.upsertSubscriptionByBusiness(Subscription, businessId, {
+  return Db.upsertSubscriptionByBusiness(Subscription, businessId, {
     plan: "pro",
     status: "none",
     lastPaymentStatus: "trial_unavailable",

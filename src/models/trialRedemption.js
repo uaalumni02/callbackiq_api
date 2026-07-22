@@ -1,16 +1,13 @@
 import mongoose from "mongoose";
+
 const { Schema } = mongoose;
 
 /*
  * One row per free trial ever granted.
  *
  * Uniqueness is enforced at the index level so a duplicate trial is
- * impossible even under concurrent requests. Each key is a separate
- * index because any one of them matching means the trial is spent:
- *
- * - owner:    same user account
- * - emailKey: same normalized email across new accounts
- * - phoneKey: same business phone across new accounts
+ * impossible even under concurrent requests. Each identity key has a
+ * separate unique index because a match on any one means the trial is spent.
  */
 const TrialRedemptionSchema = new Schema(
   {
@@ -18,7 +15,6 @@ const TrialRedemptionSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "Business",
       required: [true, "Business is required"],
-      index: true,
     },
 
     owner: {
@@ -56,15 +52,51 @@ const TrialRedemptionSchema = new Schema(
   },
 );
 
-TrialRedemptionSchema.index({ owner: 1 }, { unique: true });
-
-TrialRedemptionSchema.index({ emailKey: 1 }, { unique: true });
-
 TrialRedemptionSchema.index(
-  { phoneKey: 1 },
+  {
+    owner: 1,
+  },
   {
     unique: true,
-    partialFilterExpression: { phoneKey: { $gt: "" } },
+    name: "trial_redemption_owner_unique",
+  },
+);
+
+TrialRedemptionSchema.index(
+  {
+    emailKey: 1,
+  },
+  {
+    unique: true,
+    name: "trial_redemption_email_unique",
+  },
+);
+
+TrialRedemptionSchema.index(
+  {
+    phoneKey: 1,
+  },
+  {
+    unique: true,
+    partialFilterExpression: {
+      phoneKey: {
+        $gt: "",
+      },
+    },
+    name: "trial_redemption_phone_unique",
+  },
+);
+
+/*
+ * Supports business-level cleanup and audit history sorted newest first.
+ */
+TrialRedemptionSchema.index(
+  {
+    business: 1,
+    redeemedAt: -1,
+  },
+  {
+    name: "trial_redemption_business_recent",
   },
 );
 

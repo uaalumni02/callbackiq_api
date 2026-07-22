@@ -27,7 +27,21 @@ const getCustomerLabel = ({ customerName, customerPhone }) => {
 const populateAlert = async (alertId) => {
   return Alert.findById(alertId)
     .populate("business", "businessName businessType phone")
-    .populate("lead", "customerName phone serviceNeeded urgency status");
+    .populate("lead", "customerName phone serviceNeeded urgency status")
+    .lean();
+};
+
+const findExistingAlert = async (businessId, dedupeKey) => {
+  if (!dedupeKey) {
+    return null;
+  }
+
+  return Alert.findOne({
+    business: businessId,
+    dedupeKey,
+  })
+    .select("_id")
+    .lean();
 };
 
 class AlertService {
@@ -75,20 +89,11 @@ class AlertService {
       readAt: normalizedStatus === "read" ? now : null,
     };
 
-    if (dedupeKey) {
-      const existing = await Alert.findOne({
-        business: businessId,
-        dedupeKey,
-      });
-
-      if (existing) {
-        return {
-          alert: await populateAlert(existing._id),
-          created: false,
-        };
-      }
-    }
-
+    /*
+     * Do not perform a read before every automatic insert. The compound unique
+     * index on business + dedupeKey is the concurrency-safe source of truth.
+     * A duplicate webhook reaches the duplicate-key branch below.
+     */
     try {
       const createdAlert = await Alert.create(payload);
       const populatedAlert = await populateAlert(createdAlert._id);
@@ -100,13 +105,8 @@ class AlertService {
         created: true,
       };
     } catch (error) {
-      // A Twilio webhook can be delivered more than once. The compound unique
-      // index protects against duplicate automatic alerts in concurrent runs.
       if (error?.code === 11000 && dedupeKey) {
-        const existing = await Alert.findOne({
-          business: businessId,
-          dedupeKey,
-        });
+        const existing = await findExistingAlert(businessId, dedupeKey);
 
         return {
           alert: existing ? await populateAlert(existing._id) : null,

@@ -85,6 +85,30 @@ const VALID_RISK_TYPES = [
 
 const VALID_RISK_SEVERITIES = ["low", "medium", "high", "critical"];
 
+const toBoundedInteger = (value, fallback, minimum, maximum) => {
+  const parsedValue = Number.parseInt(value, 10);
+
+  if (!Number.isInteger(parsedValue)) {
+    return fallback;
+  }
+
+  return Math.min(maximum, Math.max(minimum, parsedValue));
+};
+
+const MAX_TRANSCRIPT_MESSAGES = toBoundedInteger(
+  process.env.CONVERSATION_INTELLIGENCE_MAX_MESSAGES,
+  200,
+  10,
+  1000,
+);
+
+const MAX_TRANSCRIPT_CHARACTERS = toBoundedInteger(
+  process.env.CONVERSATION_INTELLIGENCE_MAX_CHARACTERS,
+  50000,
+  5000,
+  200000,
+);
+
 const clamp = (value, minimum, maximum) => {
   const numericValue = Number(value);
 
@@ -234,27 +258,63 @@ const buildTranscript = (messages) => {
     return "";
   }
 
-  return messages
+  const chronologicalMessages = messages
     .filter((message) => {
       return message && typeof message.body === "string" && message.body.trim();
     })
     .sort((first, second) => {
       const firstDate = new Date(first.createdAt || 0).getTime();
-
       const secondDate = new Date(second.createdAt || 0).getTime();
 
       return firstDate - secondDate;
     })
-    .map((message) => {
-      const speaker = message.direction === "inbound" ? "Customer" : "Business";
+    .slice(-MAX_TRANSCRIPT_MESSAGES);
 
-      const timestamp = message.createdAt
-        ? new Date(message.createdAt).toISOString()
-        : "Unknown time";
+  const lines = chronologicalMessages.map((message) => {
+    const speaker = message.direction === "inbound" ? "Customer" : "Business";
 
-      return `[${timestamp}] ${speaker}: ${message.body.trim()}`;
-    })
-    .join("\n");
+    const timestamp = message.createdAt
+      ? new Date(message.createdAt).toISOString()
+      : "Unknown time";
+
+    return `[${timestamp}] ${speaker}: ${message.body.trim()}`;
+  });
+
+  if (!lines.length) {
+    return "";
+  }
+
+  /*
+   * Keep the most recent complete transcript lines within the configured
+   * character budget. This prevents unusually long conversations from
+   * producing unbounded AI payloads while retaining the newest context.
+   */
+  const selectedLines = [];
+  let selectedCharacterCount = 0;
+
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = lines[index];
+    const nextCharacterCount =
+      selectedCharacterCount + line.length + (selectedLines.length ? 1 : 0);
+
+    if (
+      selectedLines.length > 0 &&
+      nextCharacterCount > MAX_TRANSCRIPT_CHARACTERS
+    ) {
+      break;
+    }
+
+    selectedLines.push(line);
+    selectedCharacterCount = nextCharacterCount;
+  }
+
+  selectedLines.reverse();
+
+  if (selectedLines.length < lines.length) {
+    selectedLines.unshift("[Earlier conversation messages omitted]");
+  }
+
+  return selectedLines.join("\n");
 };
 
 const buildBusinessContext = (business) => {

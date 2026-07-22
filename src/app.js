@@ -25,36 +25,41 @@ import conversationIntelligenceRoutes from "./routes/conversationIntelligence.ro
 
 const app = express();
 
+const bodyLimit = process.env.API_BODY_LIMIT || "1mb";
+
+app.disable("x-powered-by");
 app.set("trust proxy", 1);
 
 /*
-  Stripe webhook routes must be registered before:
-
-  - cors()
-  - express.json()
-  - express.urlencoded()
-  - cookieParser()
-
-  Stripe signature verification requires the original raw request body.
-
-  This mount path combined with "/webhook" inside
-  stripeWebhook.routes.js creates:
-
-  POST /api/billing/webhook
-*/
+ * Stripe webhook routes must be registered before CORS and all body-parsing
+ * middleware. Stripe signature verification requires the original raw body.
+ *
+ * This mount path combined with "/webhook" inside stripeWebhook.routes.js:
+ *
+ * POST /api/billing/webhook
+ */
 app.use("/api/billing", stripeWebhookRoutes);
 
 /*
-  Normal middleware for frontend and API requests.
-*/
+ * Normal middleware for frontend and API requests.
+ *
+ * The explicit limit prevents unexpectedly large JSON or form requests from
+ * consuming excessive process memory. It does not affect the Stripe webhook
+ * because that route is mounted above these parsers.
+ */
 app.use(cors(expressCorsOptions));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: bodyLimit }));
+app.use(
+  express.urlencoded({
+    extended: true,
+    limit: bodyLimit,
+  }),
+);
 app.use(cookieParser());
 
 /*
-  Application routes.
-*/
+ * Application routes.
+ */
 app.use("/api/auth", authRoutes);
 app.use("/api/businesses", businessRoutes);
 app.use("/api/leads", leadRoutes);
@@ -74,8 +79,8 @@ app.use("/api/password-reset", passwordResetRoutes);
 app.use("/api/conversation-intelligence", conversationIntelligenceRoutes);
 
 /*
-  API health-check route.
-*/
+ * API health-check route.
+ */
 app.get("/", (req, res) => {
   return res.status(200).json({
     success: true,
