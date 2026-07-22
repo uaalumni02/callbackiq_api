@@ -72,6 +72,42 @@ const MessageSchema = new Schema(
   },
 );
 
+/*
+ * Supports loading a complete transcript in chronological order.
+ */
+MessageSchema.index({
+  conversation: 1,
+  createdAt: 1,
+});
+
+/*
+ * Supports recent message queries and business dashboard calculations.
+ */
+MessageSchema.index({
+  business: 1,
+  createdAt: -1,
+});
+
+/*
+ * Supports Twilio Message SID lookups without indexing the empty-string
+ * value used by manual and system records.
+ *
+ * This is non-unique to avoid causing deployment failures if retry data
+ * already contains duplicate provider IDs.
+ */
+MessageSchema.index(
+  {
+    providerMessageId: 1,
+  },
+  {
+    partialFilterExpression: {
+      providerMessageId: {
+        $gt: "",
+      },
+    },
+  },
+);
+
 const Message =
   mongoose.models.Message || mongoose.model("Message", MessageSchema);
 

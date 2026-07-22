@@ -10,7 +10,6 @@ const AlertSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "Business",
       required: [true, "Business is required"],
-      index: true,
     },
 
     lead: {
@@ -106,6 +105,12 @@ AlertSchema.index({
 AlertSchema.index({
   business: 1,
   readAt: 1,
+  createdAt: -1,
+});
+
+AlertSchema.index({
+  business: 1,
+  status: 1,
   createdAt: -1,
 });
 

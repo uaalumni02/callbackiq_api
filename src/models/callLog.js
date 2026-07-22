@@ -103,6 +103,53 @@ const CallLogSchema = new Schema(
   },
 );
 
+/*
+ * Supports recent call history and dashboard queries for one business.
+ */
+CallLogSchema.index({
+  business: 1,
+  createdAt: -1,
+});
+
+/*
+ * Supports filtering calls by answered, missed, busy, no_answer, and
+ * other statuses while retaining newest-first sorting.
+ */
+CallLogSchema.index({
+  business: 1,
+  status: 1,
+  createdAt: -1,
+});
+
+/*
+ * Supports caller-history lookups within a specific business.
+ */
+CallLogSchema.index({
+  business: 1,
+  from: 1,
+  createdAt: -1,
+});
+
+/*
+ * Supports Twilio Call SID lookups without indexing the empty-string
+ * value used by manual and non-provider call records.
+ *
+ * This is non-unique to avoid causing deployment failures if existing
+ * retry data contains duplicate provider IDs.
+ */
+CallLogSchema.index(
+  {
+    providerCallId: 1,
+  },
+  {
+    partialFilterExpression: {
+      providerCallId: {
+        $gt: "",
+      },
+    },
+  },
+);
+
 const CallLog =
   mongoose.models.CallLog || mongoose.model("CallLog", CallLogSchema);
 

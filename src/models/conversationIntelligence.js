@@ -10,7 +10,6 @@ const ConversationIntelligenceSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "Business",
       required: [true, "Business is required"],
-      index: true,
     },
 
     conversation: {
@@ -18,14 +17,12 @@ const ConversationIntelligenceSchema = new Schema(
       ref: "Conversation",
       required: [true, "Conversation is required"],
       unique: true,
-      index: true,
     },
 
     lead: {
       type: Schema.Types.ObjectId,
       ref: "Lead",
       default: null,
-      index: true,
     },
 
     status: {
@@ -434,24 +431,73 @@ const ConversationIntelligenceSchema = new Schema(
   },
 );
 
+/*
+ * Supports sorting and filtering by buying likelihood for one business.
+ */
 ConversationIntelligenceSchema.index({
   business: 1,
   "buyingLikelihood.score": -1,
 });
 
+/*
+ * Supports sorting and filtering by urgency for one business.
+ */
 ConversationIntelligenceSchema.index({
   business: 1,
   "urgency.score": -1,
 });
 
+/*
+ * Supports sorting and filtering by likely estimated revenue.
+ */
 ConversationIntelligenceSchema.index({
   business: 1,
   "estimatedRevenue.likely": -1,
 });
 
+/*
+ * Supports pending, processing, completed, and failed analysis lists.
+ */
 ConversationIntelligenceSchema.index({
   business: 1,
   status: 1,
+  updatedAt: -1,
+});
+
+/*
+ * Supports the default newest-analysis list when no status is selected.
+ */
+ConversationIntelligenceSchema.index({
+  business: 1,
+  updatedAt: -1,
+});
+
+/*
+ * Supports finding intelligence records related to a particular lead.
+ */
+ConversationIntelligenceSchema.index({
+  business: 1,
+  lead: 1,
+  updatedAt: -1,
+});
+
+/*
+ * Supports the high-priority opportunities and incomplete-action workflow.
+ * The fields follow the expected filter and sorting order:
+ *
+ * business equality
+ * action completion equality
+ * urgency descending
+ * buying likelihood descending
+ * estimated revenue descending
+ * latest analysis descending
+ */
+ConversationIntelligenceSchema.index({
+  business: 1,
+  "nextBestAction.completed": 1,
+  "urgency.score": -1,
+  "buyingLikelihood.score": -1,
+  "estimatedRevenue.likely": -1,
   updatedAt: -1,
 });
 

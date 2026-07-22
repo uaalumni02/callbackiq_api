@@ -103,6 +103,50 @@ const LeadSchema = new Schema(
   },
 );
 
+/*
+ * Supports the default recent-leads list and business-level counts.
+ */
+LeadSchema.index({
+  business: 1,
+  createdAt: -1,
+});
+
+/*
+ * Supports status filters such as new, contacted, booked, lost, and spam.
+ */
+LeadSchema.index({
+  business: 1,
+  status: 1,
+  createdAt: -1,
+});
+
+/*
+ * Supports detecting and locating previous leads from the same caller.
+ */
+LeadSchema.index({
+  business: 1,
+  phone: 1,
+  createdAt: -1,
+});
+
+/*
+ * Supports urgency filters for high-priority and emergency leads.
+ */
+LeadSchema.index({
+  business: 1,
+  urgency: 1,
+  createdAt: -1,
+});
+
+/*
+ * Supports hot-lead sorting by lead quality score.
+ */
+LeadSchema.index({
+  business: 1,
+  leadQualityScore: -1,
+  createdAt: -1,
+});
+
 const Lead = mongoose.models.Lead || mongoose.model("Lead", LeadSchema);
 
 export default Lead;

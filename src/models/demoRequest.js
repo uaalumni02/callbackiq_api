@@ -79,4 +79,27 @@ const demoRequestSchema = new mongoose.Schema(
   },
 );
 
+/*
+ * Supports the default admin list sorted newest first.
+ */
+demoRequestSchema.index({
+  createdAt: -1,
+});
+
+/*
+ * Supports admin status filters while retaining newest-first sorting.
+ */
+demoRequestSchema.index({
+  status: 1,
+  createdAt: -1,
+});
+
+/*
+ * Supports finding previous requests submitted by an email address.
+ */
+demoRequestSchema.index({
+  email: 1,
+  createdAt: -1,
+});
+
 export default mongoose.model("DemoRequest", demoRequestSchema);

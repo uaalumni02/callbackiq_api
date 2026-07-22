@@ -131,6 +131,24 @@ const SubscriptionSchema = new Schema(
   },
 );
 
+/*
+ * Supports finding trialing subscriptions that have reached their
+ * expiration date.
+ */
+SubscriptionSchema.index({
+  status: 1,
+  trialEndsAt: 1,
+});
+
+/*
+ * Supports billing jobs that inspect active, canceled, or past-due
+ * subscriptions by the end of their current billing period.
+ */
+SubscriptionSchema.index({
+  status: 1,
+  currentPeriodEnd: 1,
+});
+
 const Subscription =
   mongoose.models.Subscription ||
   mongoose.model("Subscription", SubscriptionSchema);

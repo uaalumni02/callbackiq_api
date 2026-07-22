@@ -121,6 +121,24 @@ const BusinessSchema = new Schema(
   },
 );
 
+/*
+ * Supports frequent ownership lookups such as getBusinessByOwner().
+ * This is intentionally not unique so future agency or multi-business
+ * ownership functionality is not blocked.
+ */
+BusinessSchema.index({
+  owner: 1,
+});
+
+/*
+ * Supports Twilio webhook routing by the CallBackIQ tracking number.
+ * This is intentionally not made unique during this update so existing
+ * records cannot cause index creation to fail.
+ */
+BusinessSchema.index({
+  phone: 1,
+});
+
 const Business =
   mongoose.models.Business || mongoose.model("Business", BusinessSchema);
 

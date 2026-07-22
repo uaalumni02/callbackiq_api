@@ -94,11 +94,46 @@ const conversationSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+/*
+ * Supports open, closed, and archived conversation lists sorted by the
+ * most recent customer or business activity.
+ */
 conversationSchema.index({
   business: 1,
   status: 1,
   lastMessageAt: -1,
   createdAt: -1,
+});
+
+/*
+ * Supports an all-conversations list when no status filter is supplied.
+ * The status index above cannot efficiently provide this sort unless
+ * status is constrained by the query.
+ */
+conversationSchema.index({
+  business: 1,
+  lastMessageAt: -1,
+  createdAt: -1,
+});
+
+/*
+ * Supports locating the active customer conversation when an inbound
+ * Twilio message or call is received.
+ */
+conversationSchema.index({
+  business: 1,
+  customerPhone: 1,
+  status: 1,
+  lastMessageAt: -1,
+});
+
+/*
+ * Supports retrieving conversations associated with a specific lead.
+ */
+conversationSchema.index({
+  business: 1,
+  lead: 1,
+  lastMessageAt: -1,
 });
 
 export default mongoose.model("Conversation", conversationSchema);

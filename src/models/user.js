@@ -188,6 +188,24 @@ const UserSchema = new Schema(
   },
 );
 
+/*
+ * Supports password-reset token lookup and expiration validation.
+ * Documents with resetToken set to null are excluded from the index.
+ */
+UserSchema.index(
+  {
+    resetToken: 1,
+    resetTokenExpiresAt: 1,
+  },
+  {
+    partialFilterExpression: {
+      resetToken: {
+        $type: "string",
+      },
+    },
+  },
+);
+
 UserSchema.methods.toJSON = function () {
   const obj = this.toObject();
 
