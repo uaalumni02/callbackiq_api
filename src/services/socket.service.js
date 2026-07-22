@@ -1,30 +1,78 @@
 let ioInstance = null;
+let uninitializedWarningShown = false;
 
 const normalizeId = (value) => {
-  if (!value) {
+  if (value === null || value === undefined) {
     return null;
   }
 
   if (typeof value === "string") {
-    return value;
+    const normalizedValue = value.trim();
+
+    return normalizedValue || null;
   }
 
-  if (value._id) {
-    return value._id.toString();
+  if (typeof value === "number" || typeof value === "bigint") {
+    return String(value);
   }
 
-  if (typeof value.toString === "function") {
-    return value.toString();
+  /*
+   * MongoDB and Mongoose ObjectId instances expose toHexString().
+   *
+   * This check must happen before reading value._id. Mongoose ObjectId has an
+   * _id getter that returns the same ObjectId instance. Recursing into that
+   * value causes "Maximum call stack size exceeded".
+   */
+  if (typeof value?.toHexString === "function") {
+    const hexadecimalValue = value.toHexString();
+
+    return typeof hexadecimalValue === "string" && hexadecimalValue.trim()
+      ? hexadecimalValue.trim()
+      : null;
+  }
+
+  /*
+   * Handle populated Mongoose documents and plain objects containing an ID.
+   * Only recurse when the nested ID is a different object/value.
+   */
+  if (typeof value === "object") {
+    const nestedId = value._id ?? value.id ?? null;
+
+    if (nestedId !== null && nestedId !== undefined && nestedId !== value) {
+      return normalizeId(nestedId);
+    }
+  }
+
+  if (typeof value?.toString === "function") {
+    const normalizedValue = value.toString().trim();
+
+    if (normalizedValue && normalizedValue !== "[object Object]") {
+      return normalizedValue;
+    }
   }
 
   return null;
 };
 
+const normalizeEventName = (eventName) => {
+  if (typeof eventName !== "string") {
+    return null;
+  }
+
+  const normalizedEventName = eventName.trim();
+
+  return normalizedEventName || null;
+};
+
 const requireIo = () => {
   if (!ioInstance) {
-    console.warn(
-      "Socket service attempted to emit before Socket.IO was initialized.",
-    );
+    if (!uninitializedWarningShown) {
+      uninitializedWarningShown = true;
+
+      console.warn(
+        "Socket service attempted to emit before Socket.IO was initialized.",
+      );
+    }
 
     return null;
   }
@@ -32,15 +80,29 @@ const requireIo = () => {
   return ioInstance;
 };
 
+const emitToRoom = (roomName, eventName, payload) => {
+  const io = requireIo();
+  const normalizedEventName = normalizeEventName(eventName);
+
+  if (!io || !roomName || !normalizedEventName) {
+    return false;
+  }
+
+  io.to(roomName).emit(normalizedEventName, payload);
+
+  return true;
+};
+
 class SocketService {
   static initialize(io) {
-    if (!io) {
+    if (!io || typeof io.to !== "function") {
       throw new Error(
         "A valid Socket.IO server instance is required for initialization.",
       );
     }
 
     ioInstance = io;
+    uninitializedWarningShown = false;
 
     return ioInstance;
   }
@@ -54,41 +116,27 @@ class SocketService {
   }
 
   static emitToBusiness(businessId, eventName, payload = null) {
-    const io = requireIo();
     const normalizedBusinessId = normalizeId(businessId);
 
-    if (!io || !normalizedBusinessId || !eventName) {
+    if (!normalizedBusinessId) {
       return false;
     }
 
-    io.to(`business:${normalizedBusinessId}`).emit(eventName, payload);
-
-    return true;
+    return emitToRoom(`business:${normalizedBusinessId}`, eventName, payload);
   }
 
   static emitToUser(userId, eventName, payload = null) {
-    const io = requireIo();
     const normalizedUserId = normalizeId(userId);
 
-    if (!io || !normalizedUserId || !eventName) {
+    if (!normalizedUserId) {
       return false;
     }
 
-    io.to(`user:${normalizedUserId}`).emit(eventName, payload);
-
-    return true;
+    return emitToRoom(`user:${normalizedUserId}`, eventName, payload);
   }
 
   static emitToAdmins(eventName, payload = null) {
-    const io = requireIo();
-
-    if (!io || !eventName) {
-      return false;
-    }
-
-    io.to("role:admin").emit(eventName, payload);
-
-    return true;
+    return emitToRoom("role:admin", eventName, payload);
   }
 
   static emitDashboardRefresh(businessId, reason = "data_changed") {
@@ -173,15 +221,22 @@ class SocketService {
       businessId,
       "conversation-intelligence:deleted",
       {
-        conversationId,
+        conversationId: normalizeId(conversationId),
         deletedAt: new Date().toISOString(),
       },
     );
   }
 
+  /*
+   * Used by tests and controlled shutdown code. This does not close the actual
+   * Socket.IO server; server.js remains responsible for calling io.close().
+   */
   static reset() {
     ioInstance = null;
+    uninitializedWarningShown = false;
   }
 }
+
+export { normalizeId };
 
 export default SocketService;

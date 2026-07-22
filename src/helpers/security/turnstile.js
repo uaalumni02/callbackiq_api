@@ -1,6 +1,16 @@
 const TURNSTILE_VERIFY_URL =
   "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
+const toBoundedInteger = (value, fallback, minimum, maximum) => {
+  const parsedValue = Number.parseInt(value, 10);
+
+  if (!Number.isInteger(parsedValue)) {
+    return fallback;
+  }
+
+  return Math.min(maximum, Math.max(minimum, parsedValue));
+};
+
 const getClientIp = (req) => {
   const forwardedFor = req.headers["x-forwarded-for"];
 
@@ -12,7 +22,7 @@ const getClientIp = (req) => {
 };
 
 const verifyTurnstileToken = async (token, req) => {
-  const secretKey = process.env.TURNSTILE_SECRET_KEY;
+  const secretKey = String(process.env.TURNSTILE_SECRET_KEY || "").trim();
 
   if (!secretKey) {
     console.error(
@@ -25,18 +35,28 @@ const verifyTurnstileToken = async (token, req) => {
     };
   }
 
-  if (!token || typeof token !== "string") {
+  const normalizedToken = typeof token === "string" ? token.trim() : "";
+
+  if (!normalizedToken) {
     return {
       success: false,
       reason: "challenge_token_missing",
     };
   }
 
+  const controller = new AbortController();
+  const timeout = setTimeout(
+    () => {
+      controller.abort();
+    },
+    toBoundedInteger(process.env.TURNSTILE_TIMEOUT_MS, 5000, 1000, 30000),
+  );
+
   try {
     const formData = new URLSearchParams();
 
     formData.append("secret", secretKey);
-    formData.append("response", token);
+    formData.append("response", normalizedToken);
 
     const clientIp = getClientIp(req);
 
@@ -50,7 +70,7 @@ const verifyTurnstileToken = async (token, req) => {
         "Content-Type": "application/x-www-form-urlencoded",
       },
       body: formData.toString(),
-      signal: AbortSignal.timeout(5000),
+      signal: controller.signal,
     });
 
     if (!response.ok) {
@@ -66,19 +86,39 @@ const verifyTurnstileToken = async (token, req) => {
 
     const result = await response.json();
 
+    const expectedHostname = String(
+      process.env.TURNSTILE_EXPECTED_HOSTNAME || "",
+    ).trim();
+
+    const expectedAction = String(
+      process.env.TURNSTILE_EXPECTED_ACTION || "",
+    ).trim();
+
+    const hostnameMatches =
+      !expectedHostname || result.hostname === expectedHostname;
+
+    const actionMatches = !expectedAction || result.action === expectedAction;
+
+    const success = result.success === true && hostnameMatches && actionMatches;
+
     return {
-      success: result.success === true,
-      reason: result.success === true ? null : "challenge_invalid",
+      success,
+      reason: success ? null : "challenge_invalid",
       errors: Array.isArray(result["error-codes"]) ? result["error-codes"] : [],
     };
   } catch (error) {
-    console.error("Turnstile verification error:", error);
+    console.error("Turnstile verification error:", {
+      message: error?.message || "Unknown Turnstile error",
+      name: error?.name || null,
+    });
 
     return {
       success: false,
       reason: "challenge_service_error",
     };
+  } finally {
+    clearTimeout(timeout);
   }
 };
 
-export { verifyTurnstileToken };
+export { getClientIp, verifyTurnstileToken };

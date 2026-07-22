@@ -1,36 +1,71 @@
 import Stripe from "stripe";
 
 let stripeClient = null;
+let cachedSecretKey = "";
 
 const getStripeClient = () => {
-  if (!process.env.STRIPE_SECRET_KEY) {
+  const secretKey = String(process.env.STRIPE_SECRET_KEY || "").trim();
+
+  if (!secretKey) {
     throw new Error("STRIPE_SECRET_KEY is missing");
   }
 
-  if (!stripeClient) {
-    stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY);
+  /*
+   * Initialize lazily so tests can configure or mock the environment after
+   * importing this module.
+   */
+  if (!stripeClient || secretKey !== cachedSecretKey) {
+    stripeClient = new Stripe(secretKey);
+    cachedSecretKey = secretKey;
   }
 
   return stripeClient;
 };
 
 const getPriceIdByPlan = (plan) => {
+  const normalizedPlan = String(plan || "")
+    .trim()
+    .toLowerCase();
+
   const priceMap = {
     starter: process.env.STRIPE_STARTER_PRICE_ID,
     pro: process.env.STRIPE_PRO_PRICE_ID,
     agency: process.env.STRIPE_AGENCY_PRICE_ID,
   };
 
-  return priceMap[plan];
+  const priceId = priceMap[normalizedPlan];
+
+  return typeof priceId === "string" && priceId.trim()
+    ? priceId.trim()
+    : undefined;
 };
 
 const formatStripeMoney = (amount = 0, currency = "usd") => {
-  const value = Number(amount || 0) / 100;
+  const numericAmount = Number(amount);
+  const value = Number.isFinite(numericAmount) ? numericAmount / 100 : 0;
+  const normalizedCurrency = String(currency || "usd").toUpperCase();
 
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: String(currency || "usd").toUpperCase(),
-  }).format(value);
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: normalizedCurrency,
+    }).format(value);
+  } catch {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(value);
+  }
 };
 
-export { getStripeClient, getPriceIdByPlan, formatStripeMoney };
+const resetStripeClient = () => {
+  stripeClient = null;
+  cachedSecretKey = "";
+};
+
+export {
+  getStripeClient,
+  getPriceIdByPlan,
+  formatStripeMoney,
+  resetStripeClient,
+};

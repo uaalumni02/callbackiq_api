@@ -21,6 +21,12 @@ import * as Response from "../helpers/response/response.js";
 import ConversationIntelligenceService from "../services/conversationIntelligence.service.js";
 import SocketService from "../services/socket.service.js";
 
+const getMessagesForAnalysis = async (conversationId) => {
+  return typeof Db.getMessagesForAI === "function"
+    ? Db.getMessagesForAI(Message, conversationId)
+    : Db.getMessagesByConversation(Message, conversationId);
+};
+
 class ConversationIntelligenceController {
   static async analyzeConversation(req, res) {
     try {
@@ -77,7 +83,7 @@ class ConversationIntelligenceController {
         ? await Db.getLeadById(Lead, conversation.lead._id || conversation.lead)
         : null;
 
-      const messages = await Db.getMessagesForAI(Message, conversationId);
+      const messages = await getMessagesForAnalysis(conversationId);
 
       if (!messages?.length) {
         return Response.responseInvalidInput(

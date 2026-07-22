@@ -1,7 +1,22 @@
 import { rateLimit } from "express-rate-limit";
 
-const LOGIN_WINDOW_MS = 15 * 60 * 1000;
-const LOGIN_MAX_REQUESTS_PER_IP = 20;
+const toPositiveInteger = (value, fallback) => {
+  const parsedValue = Number.parseInt(value, 10);
+
+  return Number.isInteger(parsedValue) && parsedValue > 0
+    ? parsedValue
+    : fallback;
+};
+
+const LOGIN_WINDOW_MS = toPositiveInteger(
+  process.env.LOGIN_RATE_LIMIT_WINDOW_MS,
+  15 * 60 * 1000,
+);
+
+const LOGIN_MAX_REQUESTS_PER_IP = toPositiveInteger(
+  process.env.LOGIN_RATE_LIMIT_MAX,
+  20,
+);
 
 const loginRateLimit = rateLimit({
   windowMs: LOGIN_WINDOW_MS,
@@ -10,6 +25,10 @@ const loginRateLimit = rateLimit({
   standardHeaders: "draft-8",
   legacyHeaders: false,
 
+  /*
+   * Only failed login responses count against the limit. Successful requests
+   * are removed from the counter after the response completes.
+   */
   skipSuccessfulRequests: true,
 
   message: {
@@ -31,5 +50,7 @@ const loginRateLimit = rateLimit({
     });
   },
 });
+
+export { LOGIN_MAX_REQUESTS_PER_IP, LOGIN_WINDOW_MS };
 
 export default loginRateLimit;

@@ -8,6 +8,12 @@ import conversationValidator from "../validator/conversation.js";
 import * as Response from "../helpers/response/response.js";
 import SocketService from "../services/socket.service.js";
 
+const getBusinessForOwner = async (ownerId) => {
+  return typeof Db.getBusinessScopeByOwner === "function"
+    ? Db.getBusinessScopeByOwner(Business, ownerId)
+    : Db.getBusinessByOwner(Business, ownerId);
+};
+
 const ADMIN_ROLES = new Set([
   "admin",
   "administrator",
@@ -116,7 +122,7 @@ class ConversationController {
       };
     }
 
-    const business = await Db.getBusinessScopeByOwner(Business, requesterId);
+    const business = await getBusinessForOwner(requesterId);
 
     if (!business) {
       Response.responseInvalidInput(res, "Business not found");
@@ -147,7 +153,7 @@ class ConversationController {
 
       await conversationValidator.validateAsync(req.body);
 
-      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
+      const business = await getBusinessForOwner(ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -186,7 +192,7 @@ class ConversationController {
         return Response.responseBadAuth(res, "Not authenticated");
       }
 
-      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
+      const business = await getBusinessForOwner(ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");

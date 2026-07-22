@@ -9,6 +9,12 @@ import * as Response from "../helpers/response/response.js";
 import AlertService from "../services/alert.service.js";
 import SocketService from "../services/socket.service.js";
 
+const getBusinessForOwner = async (ownerId) => {
+  return typeof Db.getBusinessScopeByOwner === "function"
+    ? Db.getBusinessScopeByOwner(Business, ownerId)
+    : Db.getBusinessByOwner(Business, ownerId);
+};
+
 class AlertController {
   static async createAlert(req, res) {
     try {
@@ -23,7 +29,7 @@ class AlertController {
         stripUnknown: true,
       });
 
-      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
+      const business = await getBusinessForOwner(ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -78,7 +84,7 @@ class AlertController {
         return Response.responseBadAuth(res, "Not authenticated");
       }
 
-      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
+      const business = await getBusinessForOwner(ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -109,7 +115,7 @@ class AlertController {
         return Response.responseInvalidInput(res, "Invalid alert ID");
       }
 
-      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
+      const business = await getBusinessForOwner(ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -146,7 +152,7 @@ class AlertController {
         stripUnknown: true,
       });
 
-      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
+      const business = await getBusinessForOwner(ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -203,7 +209,7 @@ class AlertController {
         return Response.responseInvalidInput(res, "Invalid alert ID");
       }
 
-      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
+      const business = await getBusinessForOwner(ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -236,7 +242,7 @@ class AlertController {
         return Response.responseBadAuth(res, "Not authenticated");
       }
 
-      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
+      const business = await getBusinessForOwner(ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -271,7 +277,7 @@ class AlertController {
         return Response.responseInvalidInput(res, "Invalid alert ID");
       }
 
-      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
+      const business = await getBusinessForOwner(ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");

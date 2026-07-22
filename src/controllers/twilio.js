@@ -10,6 +10,18 @@ import { sendSms } from "../services/twilioSmsService.js";
 import AlertService from "../services/alert.service.js";
 import SocketService from "../services/socket.service.js";
 
+const getBusinessForWebhook = async (phone) => {
+  return typeof Db.getBusinessByPhoneForWebhook === "function"
+    ? Db.getBusinessByPhoneForWebhook(Business, phone)
+    : Db.getBusinessByPhone(Business, phone);
+};
+
+const getMessagesForReply = async (conversationId) => {
+  return typeof Db.getMessagesForAI === "function"
+    ? Db.getMessagesForAI(Message, conversationId)
+    : Db.getMessagesByConversation(Message, conversationId);
+};
+
 const xml = (body) => `<?xml version="1.0" encoding="UTF-8"?>${body}`;
 
 const emptyTwiml = () => xml("<Response></Response>");
@@ -39,10 +51,7 @@ class TwilioController {
         return res.status(200).send(emptyTwiml());
       }
 
-      const business = await Db.getBusinessByPhoneForWebhook(
-        Business,
-        twilioNumber,
-      );
+      const business = await getBusinessForWebhook(twilioNumber);
 
       console.log(
         "VOICE BUSINESS FOUND:",
@@ -251,7 +260,7 @@ class TwilioController {
         return res.status(200).send(emptyTwiml());
       }
 
-      const business = await Db.getBusinessByPhoneForWebhook(Business, to);
+      const business = await getBusinessForWebhook(to);
 
       console.log(
         "SMS BUSINESS FOUND:",
@@ -368,7 +377,7 @@ class TwilioController {
             : "medium",
       });
 
-      const messages = await Db.getMessagesForAI(Message, conversation._id);
+      const messages = await getMessagesForReply(conversation._id);
 
       const shouldAIReply =
         conversation.aiEnabled !== false &&

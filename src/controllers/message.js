@@ -8,6 +8,21 @@ import messageValidator from "../validator/message.js";
 import * as Response from "../helpers/response/response.js";
 import SocketService from "../services/socket.service.js";
 
+const getBusinessForOwner = async (ownerId) => {
+  return typeof Db.getBusinessScopeByOwner === "function"
+    ? Db.getBusinessScopeByOwner(Business, ownerId)
+    : Db.getBusinessByOwner(Business, ownerId);
+};
+
+const deleteMessageForBusiness = async (id, businessId) => {
+  if (typeof Db.deleteMessageForBusiness === "function") {
+    return Db.deleteMessageForBusiness(Message, id, businessId);
+  }
+
+  return Db.deleteMessage(Message, id);
+};
+
+
 class MessageController {
   static async createMessage(req, res) {
     try {
@@ -19,7 +34,7 @@ class MessageController {
 
       await messageValidator.validateAsync(req.body);
 
-      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
+      const business = await getBusinessForOwner(ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -87,7 +102,7 @@ class MessageController {
         return Response.responseInvalidInput(res, "Invalid conversation ID");
       }
 
-      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
+      const business = await getBusinessForOwner(ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -134,7 +149,7 @@ class MessageController {
         return Response.responseInvalidInput(res, "Invalid message ID");
       }
 
-      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
+      const business = await getBusinessForOwner(ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -170,7 +185,7 @@ class MessageController {
         return Response.responseInvalidInput(res, "Invalid message ID");
       }
 
-      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
+      const business = await getBusinessForOwner(ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -186,7 +201,7 @@ class MessageController {
         return Response.responseBadAuth(res, "You cannot delete this message");
       }
 
-      await Db.deleteMessageForBusiness(Message, id, business._id);
+      await deleteMessageForBusiness(id, business._id);
 
       SocketService.emitToBusiness(business._id, "message:deleted", {
         messageId: id,

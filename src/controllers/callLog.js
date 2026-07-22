@@ -6,6 +6,29 @@ import CallLog from "../models/callLog.js";
 import callLogValidator from "../validator/callLog.js";
 import * as Response from "../helpers/response/response.js";
 
+const getBusinessForOwner = async (ownerId) => {
+  return typeof Db.getBusinessScopeByOwner === "function"
+    ? Db.getBusinessScopeByOwner(Business, ownerId)
+    : Db.getBusinessByOwner(Business, ownerId);
+};
+
+const updateCallLogForBusiness = async (id, businessId, data) => {
+  if (typeof Db.updateCallLogForBusiness === "function") {
+    return Db.updateCallLogForBusiness(CallLog, id, businessId, data);
+  }
+
+  return Db.updateCallLog(CallLog, id, data);
+};
+
+const deleteCallLogForBusiness = async (id, businessId) => {
+  if (typeof Db.deleteCallLogForBusiness === "function") {
+    return Db.deleteCallLogForBusiness(CallLog, id, businessId);
+  }
+
+  return Db.deleteCallLog(CallLog, id);
+};
+
+
 class CallLogController {
   static async createCallLog(req, res) {
     try {
@@ -17,7 +40,7 @@ class CallLogController {
 
       await callLogValidator.validateAsync(req.body);
 
-      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
+      const business = await getBusinessForOwner(ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -51,7 +74,7 @@ class CallLogController {
         return Response.responseBadAuth(res, "Not authenticated");
       }
 
-      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
+      const business = await getBusinessForOwner(ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -79,7 +102,7 @@ class CallLogController {
         return Response.responseInvalidInput(res, "Invalid call log ID");
       }
 
-      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
+      const business = await getBusinessForOwner(ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -117,7 +140,7 @@ class CallLogController {
 
       await callLogValidator.validateAsync(req.body);
 
-      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
+      const business = await getBusinessForOwner(ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -133,12 +156,7 @@ class CallLogController {
         return Response.responseBadAuth(res, "You cannot update this call log");
       }
 
-      const updatedCallLog = await Db.updateCallLogForBusiness(
-        CallLog,
-        id,
-        business._id,
-        req.body,
-      );
+      const updatedCallLog = await updateCallLogForBusiness(id, business._id, req.body);
 
       if (!updatedCallLog) {
         return Response.responseInvalidInput(res, "Call log not found");
@@ -172,7 +190,7 @@ class CallLogController {
         return Response.responseInvalidInput(res, "Invalid call log ID");
       }
 
-      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
+      const business = await getBusinessForOwner(ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -188,7 +206,7 @@ class CallLogController {
         return Response.responseBadAuth(res, "You cannot delete this call log");
       }
 
-      await Db.deleteCallLogForBusiness(CallLog, id, business._id);
+      await deleteCallLogForBusiness(id, business._id);
 
       return res.status(200).json({
         success: true,

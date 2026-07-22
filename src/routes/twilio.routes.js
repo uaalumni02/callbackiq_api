@@ -14,23 +14,11 @@ const router = express.Router();
  * validate the X-Twilio-Signature header before allowing a request to create
  * calls, leads, conversations, messages, alerts, or AI replies.
  */
-router.post(
-  "/voice",
-  validateTwilioSignature,
-  TwilioController.voiceWebhook,
-);
+router.post("/voice", validateTwilioSignature, TwilioController.voiceWebhook);
 
-router.post(
-  "/status",
-  validateTwilioSignature,
-  TwilioController.statusWebhook,
-);
+router.post("/status", validateTwilioSignature, TwilioController.statusWebhook);
 
-router.post(
-  "/sms",
-  validateTwilioSignature,
-  TwilioController.handleInboundSms,
-);
+router.post("/sms", validateTwilioSignature, TwilioController.handleInboundSms);
 
 /*
  * Authenticated in-app SMS endpoint.

@@ -8,6 +8,28 @@ import * as Response from "../helpers/response/response.js";
 import AlertService from "../services/alert.service.js";
 import SocketService from "../services/socket.service.js";
 
+const getBusinessForOwner = async (ownerId) => {
+  return typeof Db.getBusinessScopeByOwner === "function"
+    ? Db.getBusinessScopeByOwner(Business, ownerId)
+    : Db.getBusinessByOwner(Business, ownerId);
+};
+
+const updateLeadForBusiness = async (id, businessId, data) => {
+  if (typeof Db.updateLeadForBusiness === "function") {
+    return Db.updateLeadForBusiness(Lead, id, businessId, data);
+  }
+
+  return Db.updateLead(Lead, id, data);
+};
+
+const deleteLeadForBusiness = async (id, businessId) => {
+  if (typeof Db.deleteLeadForBusiness === "function") {
+    return Db.deleteLeadForBusiness(Lead, id, businessId);
+  }
+
+  return Db.deleteLead(Lead, id);
+};
+
 const isHotLead = (lead) => {
   return (
     Number(lead?.leadQualityScore || 0) >= 80 || lead?.urgency === "emergency"
@@ -46,7 +68,7 @@ class LeadController {
 
       await leadValidator.validateAsync(req.body);
 
-      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
+      const business = await getBusinessForOwner(ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(
@@ -111,7 +133,7 @@ class LeadController {
         return Response.responseBadAuth(res, "Not authenticated");
       }
 
-      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
+      const business = await getBusinessForOwner(ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -139,7 +161,7 @@ class LeadController {
         return Response.responseInvalidInput(res, "Invalid lead ID");
       }
 
-      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
+      const business = await getBusinessForOwner(ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -177,7 +199,7 @@ class LeadController {
 
       await leadValidator.validateAsync(req.body);
 
-      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
+      const business = await getBusinessForOwner(ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -194,8 +216,7 @@ class LeadController {
       }
 
       const previousStatus = lead.status;
-      const updatedLead = await Db.updateLeadForBusiness(
-        Lead,
+      const updatedLead = await updateLeadForBusiness(
         id,
         business._id,
         req.body,
@@ -257,7 +278,7 @@ class LeadController {
         return Response.responseInvalidInput(res, "Invalid lead status");
       }
 
-      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
+      const business = await getBusinessForOwner(ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -277,12 +298,9 @@ class LeadController {
       }
 
       const previousStatus = lead.status;
-      const updatedLead = await Db.updateLeadForBusiness(
-        Lead,
-        id,
-        business._id,
-        { status },
-      );
+      const updatedLead = await updateLeadForBusiness(id, business._id, {
+        status,
+      });
 
       if (!updatedLead) {
         return Response.responseInvalidInput(res, "Lead not found");
@@ -326,7 +344,7 @@ class LeadController {
         return Response.responseInvalidInput(res, "Invalid lead ID");
       }
 
-      const business = await Db.getBusinessScopeByOwner(Business, ownerId);
+      const business = await getBusinessForOwner(ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -342,7 +360,7 @@ class LeadController {
         return Response.responseBadAuth(res, "You cannot delete this lead");
       }
 
-      await Db.deleteLeadForBusiness(Lead, id, business._id);
+      await deleteLeadForBusiness(id, business._id);
 
       SocketService.emitToBusiness(business._id, "lead:deleted", {
         leadId: id,
