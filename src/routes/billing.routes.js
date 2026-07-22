@@ -5,35 +5,37 @@ import BillingController from "../controllers/billing.js";
 
 const router = express.Router();
 
-router.post("/free-trial", checkAuth, BillingController.startFreeTrial);
+/*
+ * All routes in this router are user or administrator operations. The Stripe
+ * webhook is mounted through stripeWebhook.routes.js before this router.
+ */
+router.use(checkAuth);
+
+router.post("/free-trial", BillingController.startFreeTrial);
 
 router.post(
   "/create-checkout-session",
-  checkAuth,
   BillingController.createCheckoutSession,
 );
 
-router.get("/subscription", checkAuth, BillingController.getMySubscription);
+router.get("/subscription", BillingController.getMySubscription);
 
-router.get("/invoices", checkAuth, BillingController.getBillingHistory);
+router.get("/invoices", BillingController.getBillingHistory);
 
 router.post(
   "/create-portal-session",
-  checkAuth,
   BillingController.createBillingPortalSession,
 );
 
-router.post("/cancel", checkAuth, BillingController.cancelSubscription);
+router.post("/cancel", BillingController.cancelSubscription);
 
 router.patch(
   "/customers/:businessId/account-status",
-  checkAuth,
   BillingController.updateAdminCustomerAccountStatus,
 );
 
 router.post(
   "/customers/:businessId/trial-override",
-  checkAuth,
   BillingController.adminGrantTrialOverride,
 );
 

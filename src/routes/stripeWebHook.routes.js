@@ -5,23 +5,20 @@ import BillingController from "../controllers/billing.js";
 const router = express.Router();
 
 /*
-  Stripe webhook endpoint:
-
-  POST /api/billing/webhook
-
-  The "/api/billing" portion is added when this router is mounted
-  in app.js.
-
-  Do not add checkAuth to this route. Stripe authenticates webhook
-  requests through the stripe-signature header.
-
-  express.raw() preserves the original request body required by
-  stripe.webhooks.constructEvent().
-*/
+ * Stripe webhook endpoint:
+ *
+ * POST /api/billing/webhook
+ *
+ * Do not add checkAuth. Stripe authenticates requests with the
+ * stripe-signature header.
+ *
+ * express.raw() must remain before express.json() in app.js.
+ */
 router.post(
   "/webhook",
   express.raw({
     type: "application/json",
+    limit: process.env.STRIPE_WEBHOOK_BODY_LIMIT || "1mb",
   }),
   BillingController.handleStripeWebhook,
 );

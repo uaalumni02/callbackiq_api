@@ -4,13 +4,11 @@ import Business from "../models/business.js";
 
 const TOKEN_COOKIE_NAME = "token";
 
-/**
- * Parses a Cookie request header without requiring another dependency.
- *
- * Example header:
- * token=abc123; theme=dark
- */
 const parseCookies = (cookieHeader = "") => {
+  if (typeof cookieHeader !== "string" || !cookieHeader.trim()) {
+    return {};
+  }
+
   return cookieHeader.split(";").reduce((cookies, cookie) => {
     const separatorIndex = cookie.indexOf("=");
 
@@ -35,6 +33,16 @@ const parseCookies = (cookieHeader = "") => {
   }, {});
 };
 
+const getBearerToken = (authorizationHeader) => {
+  if (typeof authorizationHeader !== "string") {
+    return null;
+  }
+
+  const match = authorizationHeader.match(/^Bearer\s+(.+)$/i);
+
+  return match?.[1]?.trim() || null;
+};
+
 /**
  * Extracts the JWT from one of the supported Socket.IO authentication methods.
  *
@@ -50,13 +58,10 @@ const getSocketToken = (socket) => {
     return authToken.trim();
   }
 
-  const authorizationHeader = socket.handshake.headers?.authorization;
+  const bearerToken = getBearerToken(socket.handshake.headers?.authorization);
 
-  if (
-    typeof authorizationHeader === "string" &&
-    authorizationHeader.startsWith("Bearer ")
-  ) {
-    return authorizationHeader.slice(7).trim();
+  if (bearerToken) {
+    return bearerToken;
   }
 
   const cookies = parseCookies(socket.handshake.headers?.cookie);
@@ -77,6 +82,11 @@ const createSocketError = (message, code) => {
   };
 
   return error;
+};
+
+const joinUserRooms = async (socket, userId, role) => {
+  await socket.join(`user:${userId}`);
+  await socket.join(`role:${role}`);
 };
 
 /**
@@ -111,9 +121,13 @@ const socketAuth = async (socket, next) => {
       );
     }
 
-    const user = await User.findById(userId).select(
-      "_id userName email role businessName",
-    );
+    /*
+     * This is a read-only authentication query, so lean() avoids creating a
+     * full Mongoose document for every new Socket.IO connection.
+     */
+    const user = await User.findById(userId)
+      .select("_id userName email role businessName")
+      .lean();
 
     if (!user) {
       return next(
@@ -124,37 +138,35 @@ const socketAuth = async (socket, next) => {
       );
     }
 
+    const normalizedRole = String(user.role || "")
+      .trim()
+      .toLowerCase();
+    const normalizedUserId = String(user._id);
+
     socket.data.user = {
-      userId: user._id.toString(),
+      userId: normalizedUserId,
       userName: user.userName,
       email: user.email,
-      role: user.role,
+      role: normalizedRole,
     };
 
     /*
-     * Every authenticated connection receives a private user room.
-     * This can later support account-specific notifications.
+     * Platform administrators do not automatically enter every customer room.
      */
-    socket.join(`user:${user._id}`);
-
-    /*
-     * Platform administrators do not currently belong to a single business.
-     * They receive an admin room but are not automatically placed into every
-     * customer's room.
-     */
-    if (user.role === "admin") {
+    if (normalizedRole === "admin") {
       socket.data.businessId = null;
-      socket.join("role:admin");
+      socket.data.business = null;
+
+      await joinUserRooms(socket, normalizedUserId, normalizedRole);
 
       return next();
     }
 
     /*
-     * The current data model connects businesses directly to their owners.
-     * Members will require a BusinessMember relationship before they can be
-     * securely resolved to a business.
+     * Members require an explicit BusinessMember relationship before secure
+     * business-room access can be granted.
      */
-    if (user.role === "member") {
+    if (normalizedRole === "member") {
       return next(
         createSocketError(
           "A business membership is required for real-time access.",
@@ -163,9 +175,11 @@ const socketAuth = async (socket, next) => {
       );
     }
 
-    const business = await Business.findOne({ owner: user._id }).select(
-      "_id businessName isActive owner",
-    );
+    const business = await Business.findOne({
+      owner: user._id,
+    })
+      .select("_id businessName isActive owner")
+      .lean();
 
     if (!business) {
       return next(
@@ -176,7 +190,7 @@ const socketAuth = async (socket, next) => {
       );
     }
 
-    if (!business.isActive) {
+    if (business.isActive !== true) {
       return next(
         createSocketError(
           "This business account is inactive.",
@@ -185,14 +199,19 @@ const socketAuth = async (socket, next) => {
       );
     }
 
-    socket.data.businessId = business._id.toString();
+    const businessId = String(business._id);
+
+    socket.data.businessId = businessId;
     socket.data.business = {
-      businessId: business._id.toString(),
+      businessId,
       businessName: business.businessName,
     };
 
-    socket.join(`business:${business._id}`);
-    socket.join(`role:${user.role}`);
+    /*
+     * Rooms are joined only after all authentication and tenant checks pass.
+     */
+    await joinUserRooms(socket, normalizedUserId, normalizedRole);
+    await socket.join(`business:${businessId}`);
 
     return next();
   } catch (error) {
@@ -220,6 +239,6 @@ const socketAuth = async (socket, next) => {
   }
 };
 
-export { getSocketToken, parseCookies };
+export { getBearerToken, getSocketToken, parseCookies };
 
 export default socketAuth;

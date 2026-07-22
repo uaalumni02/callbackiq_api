@@ -1,23 +1,49 @@
+const normalizeOrigin = (value) => {
+  const normalizedValue = String(value || "").trim();
+
+  if (!normalizedValue) {
+    return "";
+  }
+
+  return normalizedValue.replace(/\/+$/, "");
+};
+
+const parseConfiguredOrigins = (...values) => {
+  return values.flatMap((value) => {
+    return String(value || "")
+      .split(",")
+      .map(normalizeOrigin)
+      .filter(Boolean);
+  });
+};
+
 const allowedOrigins = [
   "http://localhost:3001",
   "http://localhost:5173",
-  process.env.CLIENT_URL,
-].filter(Boolean);
+  ...parseConfiguredOrigins(
+    process.env.CLIENT_URL,
+    process.env.FRONTEND_URL,
+    process.env.ALLOWED_ORIGINS,
+  ),
+].filter((origin, index, origins) => origins.indexOf(origin) === index);
+
+const allowedOriginSet = new Set(allowedOrigins);
 
 /**
  * Determines whether an origin is allowed to access CallBackIQ.
  *
  * Requests without an Origin header are allowed because they may come from
- * server-to-server clients, development tools, mobile applications, or
- * same-origin requests.
+ * server-to-server clients, development tools, mobile applications, same-origin
+ * traffic, Stripe, or Twilio.
  */
 const isAllowedOrigin = (origin) => {
-  return !origin || allowedOrigins.includes(origin);
+  if (!origin) {
+    return true;
+  }
+
+  return allowedOriginSet.has(normalizeOrigin(origin));
 };
 
-/**
- * Shared CORS origin validator for Express.
- */
 const corsOrigin = (origin, callback) => {
   if (isAllowedOrigin(origin)) {
     return callback(null, true);
@@ -26,24 +52,24 @@ const corsOrigin = (origin, callback) => {
   return callback(new Error(`CORS blocked origin: ${origin}`));
 };
 
-/**
- * Shared Express CORS configuration.
- */
 const expressCorsOptions = {
   origin: corsOrigin,
   credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Authorization", "Content-Type", "X-Requested-With"],
+  maxAge: 86400,
 };
 
-/**
- * Shared Socket.IO CORS configuration.
- *
- * Socket.IO accepts an array of trusted origins, while Express uses the
- * callback above so requests without an Origin header can also be handled.
+/*
+ * Socket.IO supports the same callback-style origin validation used by Express.
+ * This also allows clients that do not send an Origin header.
  */
 const socketCorsOptions = {
-  origin: allowedOrigins,
+  origin: corsOrigin,
   credentials: true,
   methods: ["GET", "POST"],
+  allowedHeaders: ["Authorization", "Content-Type"],
+  maxAge: 86400,
 };
 
 export {
