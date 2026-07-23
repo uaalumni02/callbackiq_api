@@ -136,11 +136,11 @@ const SAFE_REPLIES = Object.freeze({
   fallback:
     "Thanks for reaching out. I can collect the details for the team, and they will follow up to confirm next steps.",
   appointment:
-    "I can note your preferred day and time. The team will follow up to confirm availability and finalize the appointment.",
+    "You can reply with the days and times that work best for you. The business will respond as soon as possible to confirm availability.",
   pricing:
     "I can collect the service details, but the team will need to confirm pricing before any work is approved.",
   availability:
-    "I can record when you need service. The team will follow up to confirm availability and timing.",
+    "Please leave the days and times that work best for you. The business will respond as soon as possible to confirm availability.",
   dispatch:
     "I have recorded the urgency. The team will follow up with any confirmed dispatch or arrival information.",
   serviceArea:
@@ -152,7 +152,7 @@ const SAFE_REPLIES = Object.freeze({
   promptInjection:
     "I can only help with service requests and verified information about this business. What service do you need help with?",
   offTopic:
-    "I can only help with service requests and questions related to this business. What service can the team help you with?",
+    "I’m here to help with service requests, service details, and scheduling preferences for this business. What service can the team help you with?",
   emergency:
     "This may be dangerous. Move to a safe location and call 911 if anyone is in immediate danger. For a suspected gas leak, leave the area and contact 911 or your gas utility emergency line from a safe location. The business is being alerted.",
   hazardousDIY:
@@ -909,7 +909,7 @@ const chooseFallbackReply = ({ category, violations = [] }) => {
     return SAFE_REPLIES.serviceArea;
   }
 
-  if (category === "off_topic") {
+  if (category === "off_topic" || category === "abusive") {
     return SAFE_REPLIES.offTopic;
   }
 
@@ -956,8 +956,30 @@ export const sanitizeOutboundReply = ({
   isFirstAIReply = false,
   addDisclosure = true,
 }) => {
+  /*
+   * Scheduling questions should collect the customer's preferred days and
+   * times without claiming that the business has confirmed availability.
+   */
+  const isSchedulingReply =
+    category === "appointment_preference" ||
+    actionType === "collect_appointment_preference";
+
+  /*
+   * The first abusive, inappropriate, or unrelated message receives a concise
+   * professional redirect. Existing spam and automation-loop protections can
+   * still stop replies when the behavior continues.
+   */
+  const isInappropriateReply =
+    category === "abusive" || category === "off_topic";
+
+  const selectedReply = isSchedulingReply
+    ? SAFE_REPLIES.appointment
+    : isInappropriateReply
+      ? SAFE_REPLIES.offTopic
+      : reply;
+
   const replyWithDisclosure = addAIDisclosureIfNeeded({
-    reply,
+    reply: selectedReply,
     businessName,
     isFirstAIReply,
     disclosureEnabled:

@@ -292,6 +292,16 @@ const normalizeModelResult = ({
 
   let decision = enumValue(result?.decision, GUARDRAIL_DECISIONS, "send");
 
+  const requiresControlledResponse =
+    messageCategory === "abusive" ||
+    messageCategory === "off_topic" ||
+    messageCategory === "appointment_preference" ||
+    actionType === "collect_appointment_preference";
+
+  if (requiresControlledResponse) {
+    decision = "send_fixed_response";
+  }
+
   const riskFlags = cleanStringArray(result?.riskFlags).filter((flag) =>
     RISK_FLAGS.includes(flag),
   );
@@ -338,7 +348,7 @@ const normalizeModelResult = ({
     actionType:
       decision === "no_reply"
         ? "no_reply"
-        : sanitizedReply.usedFallback
+        : decision === "send_fixed_response" || sanitizedReply.usedFallback
           ? "send_fixed_response"
           : actionType,
     messageCategory,
@@ -459,9 +469,10 @@ REPLY RULES:
 - Ask at most one question.
 - Acknowledge first, then ask for only the next missing qualification detail.
 - When collecting time information, describe it only as a preference that the team must confirm.
+- For appointment or scheduling questions, tell the customer they can reply with the days and times that work best for them and that the business will respond as soon as possible to confirm availability.
 - When information is not verified, say the team will confirm it.
 - Do not disparage competitors or argue with the customer.
-- For off-topic requests, politely redirect to the business's service context.
+- For abusive, inappropriate, or off-topic messages, do not silently ignore the first message. Send one concise professional response explaining that you can help with service requests, service details, and scheduling preferences. Repeated messages may still be stopped by the spam and automation-loop guardrails.
 - If the customer requests a person, acknowledge the request and set shouldAlertOwner true. Do not claim that a person is currently available.
 - Do not set or change a human-takeover state. This service only proposes a reply and owner alert.
 
