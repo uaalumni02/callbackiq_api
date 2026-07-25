@@ -10,7 +10,7 @@ const ALERT_TYPES = [
 
 const ALERT_CHANNELS = ["in_app", "email", "sms"];
 const ALERT_STATUSES = ["pending", "sent", "failed", "read"];
-const ALERT_PRIORITIES = ["low", "medium", "high"];
+const ALERT_PRIORITIES = ["low", "medium", "high", "critical"];
 
 const alertSchema = Joi.object({
   lead: Joi.string().hex().length(24).allow(null, "").optional(),

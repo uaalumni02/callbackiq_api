@@ -73,10 +73,9 @@ const buildFallbackResult = (error) => {
 /**
  * Returns the complete guarded decision object.
  *
- * The Twilio/controller layer should use this function instead of relying only
- * on a reply string. It must honor decision === "no_reply", persist STOP/HELP
- * state, create owner alerts when requested, and avoid sending an SMS when the
- * result has an empty reply.
+ * The Twilio/controller layer must use this function so it can honor
+ * no_reply decisions, apply structured lead updates, trigger owner alerts,
+ * and activate human takeover for safety or explicit human requests.
  */
 export const generateAIReplyResult = async ({
   business,
@@ -137,8 +136,7 @@ export const generateAIReplyResult = async ({
 /**
  * Backward-compatible string-only wrapper.
  *
- * New integration code should prefer generateAIReplyResult so it can honor
- * no_reply decisions, owner alerts, and guardrail metadata.
+ * New integration code should prefer generateAIReplyResult.
  */
 export const generateAIReply = async (parameters) => {
   const result = await generateAIReplyResult(parameters);

@@ -233,11 +233,10 @@ const buildDeterministicResult = ({ guardrail, lead = {} }) => {
     messageCategory: guardrail.category,
     reply: normalizeSmsReply(guardrail.reply, ""),
     serviceNeeded: cleanText(lead.serviceNeeded),
-    urgency: enumValue(
-      cleanText(lead.urgency),
-      URGENCY_LEVELS,
-      guardrail.category === "emergency" ? "emergency" : "medium",
-    ),
+    urgency:
+      guardrail.category === "emergency"
+        ? "emergency"
+        : enumValue(cleanText(lead.urgency), URGENCY_LEVELS, "medium"),
     address: cleanText(lead.address),
     preferredAppointmentTime: cleanText(lead.preferredAppointmentTime),
     leadQualityScore: Math.round(clamp(lead.leadQualityScore, 0, 100)),

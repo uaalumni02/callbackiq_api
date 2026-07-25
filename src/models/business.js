@@ -3,6 +3,55 @@ const { Schema } = mongoose;
 
 import * as validate from "../helpers/model/business.js";
 
+const BusinessFeaturesSchema = new Schema(
+  {
+    missedCallSmsEnabled: {
+      type: Boolean,
+      default: true,
+    },
+
+    aiQualificationEnabled: {
+      type: Boolean,
+      default: true,
+    },
+
+    aiBookingEnabled: {
+      type: Boolean,
+      default: false,
+    },
+
+    automatedFollowUpEnabled: {
+      type: Boolean,
+      default: false,
+    },
+
+    voiceAiEnabled: {
+      type: Boolean,
+      default: false,
+    },
+
+    revenueTrackingEnabled: {
+      type: Boolean,
+      default: false,
+    },
+
+    calendarProvider: {
+      type: String,
+      enum: [
+        "internal",
+        "google",
+        "jobber",
+        "housecall_pro",
+        "servicetitan",
+      ],
+      default: "internal",
+    },
+  },
+  {
+    _id: false,
+  },
+);
+
 const BusinessSchema = new Schema(
   {
     owner: {
@@ -109,6 +158,17 @@ const BusinessSchema = new Schema(
       type: Number,
       default: null,
       min: 0,
+    },
+
+    /*
+     * Phase 0 rollout controls.
+     *
+     * Existing production functionality remains enabled. Features that have
+     * not been built yet remain disabled until their implementation phase.
+     */
+    features: {
+      type: BusinessFeaturesSchema,
+      default: () => ({}),
     },
 
     isActive: {

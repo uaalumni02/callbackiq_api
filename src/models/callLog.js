@@ -63,6 +63,12 @@ const CallLogSchema = new Schema(
       default: "manual",
     },
 
+    /*
+     * Twilio Call SID.
+     *
+     * The existing providerCallId name is retained so historical data and
+     * current controller code do not require a rename migration.
+     */
     providerCallId: {
       type: String,
       trim: true,
@@ -86,6 +92,10 @@ const CallLogSchema = new Schema(
       default: false,
     },
 
+    /*
+     * "Recovered" now means an unhandled inquiry became a confirmed booking.
+     * Sending an SMS alone must not set this field to true.
+     */
     recovered: {
       type: Boolean,
       default: false,
@@ -131,17 +141,18 @@ CallLogSchema.index({
 });
 
 /*
- * Supports Twilio Call SID lookups without indexing the empty-string
- * value used by manual and non-provider call records.
+ * Prevents the same Twilio Call SID from being stored twice for one business.
  *
- * This is non-unique to avoid causing deployment failures if existing
- * retry data contains duplicate provider IDs.
+ * Run the Phase 0 duplicate audit before deploying this unique index against
+ * an existing production database.
  */
 CallLogSchema.index(
   {
+    business: 1,
     providerCallId: 1,
   },
   {
+    unique: true,
     partialFilterExpression: {
       providerCallId: {
         $gt: "",

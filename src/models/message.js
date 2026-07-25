@@ -55,6 +55,13 @@ const MessageSchema = new Schema(
       default: "manual",
     },
 
+    /*
+     * Twilio Message SID for inbound and outbound messages.
+     *
+     * The existing providerMessageId name is retained to avoid an unnecessary
+     * data migration. Manual and system messages continue using an empty
+     * string and are excluded from the unique provider index below.
+     */
     providerMessageId: {
       type: String,
       default: "",
@@ -89,17 +96,19 @@ MessageSchema.index({
 });
 
 /*
- * Supports Twilio Message SID lookups without indexing the empty-string
- * value used by manual and system records.
+ * Prevents the same Twilio Message SID from being stored twice for one
+ * business while excluding manual and system messages that have no SID.
  *
- * This is non-unique to avoid causing deployment failures if retry data
- * already contains duplicate provider IDs.
+ * Run the Phase 0 duplicate audit before deploying this unique index against
+ * an existing production database.
  */
 MessageSchema.index(
   {
+    business: 1,
     providerMessageId: 1,
   },
   {
+    unique: true,
     partialFilterExpression: {
       providerMessageId: {
         $gt: "",

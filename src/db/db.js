@@ -16,6 +16,7 @@ const BUSINESS_SCOPE_FIELDS = [
   "timezone",
   "smsTemplate",
   "estimatedJobValue",
+  "features",
   "isActive",
   "createdAt",
   "updatedAt",
@@ -553,6 +554,37 @@ class Db {
     }
   }
 
+  static async updateBusinessByOwner(model, ownerId, data) {
+    try {
+      return await model
+        .findOneAndUpdate(
+          {
+            owner: ownerId,
+          },
+          data,
+          {
+            returnDocument: "after",
+            runValidators: true,
+          },
+        )
+        .populate("owner", "userName email role");
+    } catch (error) {
+      console.error("Error updating business by owner:", error);
+      throw error;
+    }
+  }
+
+  static async deleteBusinessByOwner(model, ownerId) {
+    try {
+      return await model.findOneAndDelete({
+        owner: ownerId,
+      });
+    } catch (error) {
+      console.error("Error deleting business by owner:", error);
+      throw error;
+    }
+  }
+
   static async deleteBusiness(model, id) {
     try {
       return await model.findByIdAndDelete(id);
@@ -1052,7 +1084,9 @@ class Db {
         : { owner: ownerId };
 
       const business = await Business.findOne(businessQuery)
-        .select("_id businessName businessType phone estimatedJobValue owner")
+        .select(
+          "_id businessName businessType phone estimatedJobValue features owner",
+        )
         .lean();
 
       if (!business) {
@@ -1142,7 +1176,7 @@ class Db {
                     $cond: [
                       {
                         $and: [
-                          { $in: ["$status", ["contacted", "booked"]] },
+                          { $eq: ["$status", "booked"] },
                           { $in: ["$source", ["missed_call", "sms"]] },
                         ],
                       },
@@ -1255,6 +1289,7 @@ class Db {
           businessType: business.businessType,
           phone: business.phone,
           estimatedJobValue: business.estimatedJobValue,
+          features: business.features || {},
         },
 
         calls: {

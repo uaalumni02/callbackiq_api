@@ -1,5 +1,7 @@
 import twilio from "twilio";
 
+import { isSmsSuppressed } from "./messaging/contactPreference.service.js";
+
 let twilioClient = null;
 let cachedAccountSid = "";
 let cachedAuthToken = "";
@@ -52,10 +54,39 @@ const normalizeRequiredText = (value, fieldName) => {
   return normalizedValue;
 };
 
-export const sendSms = async ({ to, from, body }) => {
+export const sendSms = async ({
+  to,
+  from,
+  body,
+  businessId = null,
+  allowOptedOut = false,
+}) => {
   const normalizedTo = normalizeRequiredText(to, "to");
   const normalizedFrom = normalizeRequiredText(from, "from");
   const normalizedBody = normalizeRequiredText(body, "body");
+
+  /*
+   * Automated workflows must include businessId so local STOP preferences are
+   * enforced. Command confirmations such as STOP, START, and HELP may pass
+   * allowOptedOut=true.
+   */
+  if (businessId && !allowOptedOut) {
+    const suppressed = await isSmsSuppressed({
+      businessId,
+      phone: normalizedTo,
+    });
+
+    if (suppressed) {
+      return {
+        sid: "",
+        status: "suppressed",
+        suppressed: true,
+        reason: "customer_opted_out",
+        to: normalizedTo,
+        from: normalizedFrom,
+      };
+    }
+  }
 
   const client = getTwilioClient();
 

@@ -1,6 +1,8 @@
 import Alert from "../models/alert.js";
 import SocketService from "./socket.service.js";
 
+const ALERT_PRIORITIES = new Set(["low", "medium", "high", "critical"]);
+
 const truncate = (value, maximumLength = 220) => {
   const text = String(value || "").trim();
 
@@ -9,6 +11,10 @@ const truncate = (value, maximumLength = 220) => {
   }
 
   return `${text.slice(0, maximumLength - 1)}…`;
+};
+
+const normalizePriority = (value, fallback = "medium") => {
+  return ALERT_PRIORITIES.has(value) ? value : fallback;
 };
 
 const getCustomerLabel = ({ customerName, customerPhone }) => {
@@ -80,7 +86,7 @@ class AlertService {
       channel,
       title,
       message,
-      priority,
+      priority: normalizePriority(priority),
       status: normalizedStatus,
       metadata,
       dedupeKey: dedupeKey || null,
@@ -90,9 +96,8 @@ class AlertService {
     };
 
     /*
-     * Do not perform a read before every automatic insert. The compound unique
-     * index on business + dedupeKey is the concurrency-safe source of truth.
-     * A duplicate webhook reaches the duplicate-key branch below.
+     * The compound unique index on business + dedupeKey is the
+     * concurrency-safe source of truth.
      */
     try {
       const createdAlert = await Alert.create(payload);
@@ -187,7 +192,7 @@ class AlertService {
       type: "customer_reply",
       title: "New customer reply",
       message: `${customer}: ${truncate(messageBody)}`,
-      priority,
+      priority: normalizePriority(priority),
       metadata: {
         conversationId: conversationId ? String(conversationId) : null,
         messageId: messageId ? String(messageId) : null,
@@ -195,6 +200,73 @@ class AlertService {
         customerPhone: customerPhone || null,
       },
       dedupeKey: `customer_reply:${providerMessageId || messageId}`,
+    });
+  }
+
+  /**
+   * Creates one deduplicated operational alert for a guarded AI decision.
+   *
+   * Phase 0 uses the existing "system" alert type. A dedicated safety or
+   * intervention alert type can be introduced in the later Alerts phase.
+   */
+  static async createAIReviewAlert({
+    businessId,
+    leadId,
+    conversationId,
+    messageId,
+    providerMessageId,
+    customerName,
+    customerPhone,
+    result,
+  }) {
+    const customer = getCustomerLabel({
+      customerName,
+      customerPhone,
+    });
+
+    const messageCategory = String(result?.messageCategory || "unknown");
+    const riskFlags = Array.isArray(result?.riskFlags)
+      ? result.riskFlags
+      : [];
+
+    const isEmergency =
+      messageCategory === "emergency" ||
+      riskFlags.includes("safety_hazard") ||
+      riskFlags.includes("hazardous_diy_request");
+
+    const title =
+      String(result?.alertTitle || "").trim() ||
+      (isEmergency
+        ? "Emergency safety concern detected"
+        : "Customer message needs review");
+
+    const message =
+      String(result?.alertMessage || "").trim() ||
+      `${customer}'s latest message requires human review.`;
+
+    return this.createAutomatic({
+      businessId,
+      leadId,
+      type: "system",
+      title: truncate(title, 120),
+      message: truncate(message, 1000),
+      priority: normalizePriority(
+        result?.alertPriority,
+        isEmergency ? "critical" : "high",
+      ),
+      metadata: {
+        conversationId: conversationId ? String(conversationId) : null,
+        messageId: messageId ? String(messageId) : null,
+        providerMessageId: providerMessageId || null,
+        customerPhone: customerPhone || null,
+        messageCategory,
+        decision: result?.decision || null,
+        actionType: result?.actionType || null,
+        riskFlags,
+        confidence: Number(result?.confidence) || 0,
+        guardrail: result?.guardrail || {},
+      },
+      dedupeKey: `ai_review:${providerMessageId || messageId}`,
     });
   }
 
@@ -238,7 +310,7 @@ class AlertService {
       message: `${customer} requires attention${
         details.length ? `: ${details.join(", ")}` : ""
       }.`,
-      priority: "high",
+      priority: urgency === "emergency" ? "critical" : "high",
       metadata: {
         leadScore: Number(score) || 0,
         urgency: urgency || null,
@@ -301,7 +373,7 @@ class AlertService {
       type: "system",
       title,
       message,
-      priority,
+      priority: normalizePriority(priority),
       metadata,
       dedupeKey,
     });

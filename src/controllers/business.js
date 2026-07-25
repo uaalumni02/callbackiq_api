@@ -1,9 +1,31 @@
+
 import mongoose from "mongoose";
 
 import Db from "../db/db.js";
 import Business from "../models/business.js";
-import businessValidator from "../validator/business.js";
+import {
+  businessCreateSchema,
+  businessUpdateSchema,
+} from "../validator/business.js";
 import * as Response from "../helpers/response/response.js";
+
+const buildBusinessUpdateDocument = (payload = {}) => {
+  const updates = {
+    ...payload,
+  };
+
+  const featureUpdates = updates.features || null;
+
+  delete updates.features;
+
+  if (featureUpdates) {
+    Object.entries(featureUpdates).forEach(([key, value]) => {
+      updates[`features.${key}`] = value;
+    });
+  }
+
+  return updates;
+};
 
 class BusinessController {
   static async createBusiness(req, res) {
@@ -14,7 +36,10 @@ class BusinessController {
         return Response.responseBadAuth(res, "Not authenticated");
       }
 
-      const payload = await businessValidator.validateAsync(req.body);
+      const payload = await businessCreateSchema.validateAsync(req.body, {
+        abortEarly: false,
+        stripUnknown: false,
+      });
 
       const existingBusiness = await Db.getBusinessScopeByOwner(
         Business,
@@ -110,10 +135,12 @@ class BusinessController {
         return Response.responseBadAuth(res, "Not authenticated");
       }
 
-      const payload = await businessValidator.validateAsync(req.body);
-      const { owner: ignoredOwner, ...updates } = payload;
+      const payload = await businessUpdateSchema.validateAsync(req.body, {
+        abortEarly: false,
+        stripUnknown: false,
+      });
 
-      void ignoredOwner;
+      const updates = buildBusinessUpdateDocument(payload);
 
       const updatedBusiness = await Db.updateBusinessByOwner(
         Business,

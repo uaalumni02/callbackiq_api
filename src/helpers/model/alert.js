@@ -1,26 +1,27 @@
-const validTypes = [
+const ALERT_TYPES = new Set([
   "hot_lead",
   "missed_call",
   "customer_reply",
   "booked_job",
   "system",
-];
+]);
 
-const validChannels = ["in_app", "email", "sms"];
-const validStatuses = ["pending", "sent", "failed", "read"];
-const validPriorities = ["low", "medium", "high"];
+const ALERT_CHANNELS = new Set(["in_app", "email", "sms"]);
+const ALERT_STATUSES = new Set(["pending", "sent", "failed", "read"]);
+const ALERT_PRIORITIES = new Set(["low", "medium", "high", "critical"]);
 
-const isValidAlertType = (type) => validTypes.includes(type);
+export const isValidAlertType = (value) => {
+  return ALERT_TYPES.has(value);
+};
 
-const isValidAlertChannel = (channel) => validChannels.includes(channel);
+export const isValidAlertChannel = (value) => {
+  return ALERT_CHANNELS.has(value);
+};
 
-const isValidAlertStatus = (status) => validStatuses.includes(status);
+export const isValidAlertStatus = (value) => {
+  return ALERT_STATUSES.has(value);
+};
 
-const isValidAlertPriority = (priority) => validPriorities.includes(priority);
-
-export {
-  isValidAlertType,
-  isValidAlertChannel,
-  isValidAlertStatus,
-  isValidAlertPriority,
+export const isValidAlertPriority = (value) => {
+  return ALERT_PRIORITIES.has(value);
 };

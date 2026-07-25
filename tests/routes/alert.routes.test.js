@@ -156,6 +156,28 @@ describe("Alert Routes", () => {
     expect(String(savedAlert.lead)).toBe(String(lead._id));
   });
 
+
+  test("POST /api/alerts accepts critical priority", async () => {
+    const { token } = await registerCreateBusinessAndLead({
+      createLead: false,
+    });
+
+    const response = await request(app)
+      .post("/api/alerts")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        type: "system",
+        channel: "in_app",
+        title: "Emergency safety concern",
+        message: "Customer reported a possible gas leak.",
+        priority: "critical",
+      });
+
+    expect(response.status).toBe(201);
+    expect(response.body.success).toBe(true);
+    expect(response.body.data.priority).toBe("critical");
+  });
+
   test("POST /api/alerts rejects invalid alert data", async () => {
     const { token } = await registerCreateBusinessAndLead();
 

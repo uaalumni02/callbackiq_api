@@ -59,9 +59,13 @@ const AlertSchema = new Schema(
       validate: [validate.isValidAlertStatus, "Invalid alert status"],
     },
 
+    /*
+     * Critical is required for safety and emergency alerts. The matching
+     * helper in src/helpers/model/alert.js must also accept "critical".
+     */
     priority: {
       type: String,
-      enum: ["low", "medium", "high"],
+      enum: ["low", "medium", "high", "critical"],
       default: "medium",
       validate: [validate.isValidAlertPriority, "Invalid alert priority"],
     },

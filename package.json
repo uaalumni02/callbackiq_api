@@ -7,6 +7,7 @@
   "scripts": {
     "test": "jest --runInBand",
     "test:watch": "jest --watch --runInBand",
+    "test:phase0": "jest tests/unit/businessFeatures.test.js tests/unit/twilioEventKey.test.js tests/unit/contactPreference.service.test.js tests/unit/twilioWebhookEvent.service.test.js tests/integration/twilioWebhookIdempotency.test.js tests/integration/twilioOptOut.test.js tests/integration/businessFeatures.test.js tests/integration/providerUniqueIndexes.test.js tests/routes/twilio.routes.test.js tests/routes/business.routes.test.js tests/routes/dashboard.routes.test.js tests/routes/alert.routes.test.js --runInBand",
     "test:validators": "jest tests/validators --runInBand",
     "test:routes": "jest tests/routes --runInBand",
     "test:auth": "jest tests/validators/auth.test.js --runInBand",

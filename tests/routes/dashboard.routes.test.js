@@ -228,6 +228,18 @@ describe("Dashboard Routes", () => {
     expect(res.body.data.messages.smsReceived).toBe(1);
     expect(res.body.data.revenue.bookedRevenue).toBe(1200);
     expect(res.body.data.revenue.recoveredRevenue).toBe(1200);
+
+    expect(res.body.data.business.features).toEqual(
+      expect.objectContaining({
+        missedCallSmsEnabled: true,
+        aiQualificationEnabled: true,
+        aiBookingEnabled: false,
+        automatedFollowUpEnabled: false,
+        voiceAiEnabled: false,
+        revenueTrackingEnabled: false,
+        calendarProvider: "internal",
+      }),
+    );
   });
 
   test("GET /api/dashboard fails if business does not exist", async () => {
