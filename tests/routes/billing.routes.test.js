@@ -188,6 +188,10 @@ const registerAndCreateBusiness = async ({
     privacyAccepted: true,
   });
 
+  expect(registerRes.status).toBe(201);
+  expect(registerRes.body.success).toBe(true);
+  expect(registerRes.body.data).toBeDefined();
+
   return {
     token: registerRes.body.data.token,
     business: registerRes.body.data.business,
@@ -483,26 +487,39 @@ describe("Billing Routes", () => {
     expect(subscription.trialCount).toBe(1);
   });
 
-  test("POST /api/billing/free-trial blocks a new account reusing the same business phone", async () => {
-    const first = await registerAndCreateBusiness();
-
-    await resetTrialState(first.business._id);
-    await startTrial(first.token);
-
-    const second = await registerAndCreateBusiness({
-      userName: "secondowner",
-      email: "second@callbackiq.com",
-      businessName: "Atlanta Pro Plumbing Two",
+  test("registration blocks a second business from reusing the same tracking phone", async () => {
+    const first = await registerAndCreateBusiness({
+      userName: "firstowner",
+      email: "first@callbackiq.com",
+      businessName: "Atlanta Pro Plumbing",
       businessPhone: "4045551234",
     });
 
-    await Subscription.deleteMany({ business: second.business._id });
+    expect(first.token).toBeTruthy();
+    expect(first.business.phone).toBe("4045551234");
 
-    const res = await startTrial(second.token);
+    const duplicateRegistration = await request(app)
+      .post("/api/auth/register")
+      .send({
+        userName: "secondowner",
+        email: "second@callbackiq.com",
+        password: "Password123",
+        role: "owner",
+        businessName: "Atlanta Pro Plumbing Two",
+        businessPhone: "4045551234",
+        businessType: "plumbing",
+        smsConsent: true,
+        termsAccepted: true,
+        privacyAccepted: true,
+      });
 
-    expect(res.status).toBe(400);
-    expect(res.body.success).toBe(false);
+    expect(duplicateRegistration.status).toBe(409);
+    expect(duplicateRegistration.body.success).toBe(false);
 
+    /*
+     * The rejected registration must not create another trial redemption for
+     * the same tracking phone.
+     */
     const redemptions = await TrialRedemption.countDocuments({
       phoneKey: "+14045551234",
     });

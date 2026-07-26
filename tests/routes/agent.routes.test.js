@@ -126,14 +126,18 @@ const registerCreateBusinessLeadConversation = async ({
     password: "Password123",
     role,
     businessName,
-    businessPhone: "4045551234",
-    businessType: "plumbing",
+    businessPhone,
+    businessType,
 
     // Required registration acknowledgements
     smsConsent: true,
     termsAccepted: true,
     privacyAccepted: true,
   });
+
+  expect(registerRes.status).toBe(201);
+  expect(registerRes.body.success).toBe(true);
+  expect(registerRes.body.data).toBeDefined();
 
   const token = registerRes.body.data.token;
   const business = registerRes.body.data.business;

@@ -137,6 +137,27 @@ class AuthController {
         );
       }
 
+      const normalizedBusinessPhone = String(
+        businessPhone || "",
+      ).trim();
+
+      /*
+       * Reject a duplicate tracking number before creating the User. Without
+       * this check, the Business insert can fail on its unique phone index
+       * after the User has already been saved, leaving an orphaned account.
+       * The unique database index remains the final concurrency safeguard.
+       */
+      const existingBusinessPhone = await Business.exists({
+        phone: normalizedBusinessPhone,
+      });
+
+      if (existingBusinessPhone) {
+        return Response.responseConflict(
+          res,
+          "This business phone is already registered",
+        );
+      }
+
       const hashedPassword = await bcrypt.hashPassword(password, 10);
 
       const now = new Date();
@@ -154,7 +175,7 @@ class AuthController {
         password: hashedPassword,
         role,
         businessName,
-        businessPhone,
+        businessPhone: normalizedBusinessPhone,
         businessType,
 
         smsConsent: smsConsentGiven,
@@ -174,7 +195,7 @@ class AuthController {
         owner: savedUser._id,
         businessName,
         businessType,
-        phone: businessPhone,
+        phone: normalizedBusinessPhone,
         email: normalizedEmail,
         isActive: true,
       });

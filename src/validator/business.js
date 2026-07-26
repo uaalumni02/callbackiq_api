@@ -1,4 +1,3 @@
-
 import Joi from "joi";
 
 const phonePattern = /^[0-9+\-().\s]{7,20}$/;
@@ -20,34 +19,28 @@ const commonBusinessFields = {
     "other",
   ),
 
-  // Twilio / CallBackIQ tracking number
   phone: Joi.string().pattern(phonePattern),
 
-  // Real business/cell number calls should forward to
   forwardingPhone: Joi.string().pattern(phonePattern).allow(""),
 
   email: Joi.string().email().allow(""),
 
-  website: Joi.string().trim().allow(""),
+  website: Joi.string().trim().uri({ allowRelative: false }).allow(""),
 
-  address: Joi.string().trim().allow(""),
+  address: Joi.string().trim().max(200).allow(""),
 
-  city: Joi.string().trim().allow(""),
+  city: Joi.string().trim().max(100).allow(""),
 
-  state: Joi.string().trim().allow(""),
+  state: Joi.string().trim().max(100).allow(""),
 
-  zipCode: Joi.string().trim().allow(""),
+  zipCode: Joi.string().trim().max(20).allow(""),
 
-  timezone: Joi.string().trim(),
+  timezone: Joi.string().trim().max(100),
 
   smsTemplate: Joi.string().trim().max(500).allow(""),
 
-  estimatedJobValue: Joi.number().min(0),
+  estimatedJobValue: Joi.number().min(0).allow(null),
 
-  /*
-   * Owners may control only Phase 0 features that are already implemented.
-   * Unfinished feature flags remain server-controlled.
-   */
   features: ownerEditableFeaturesSchema.optional(),
 };
 
@@ -62,7 +55,7 @@ const businessCreateSchema = Joi.object({
 
   timezone: commonBusinessFields.timezone.default("America/New_York"),
 
-  estimatedJobValue: commonBusinessFields.estimatedJobValue.default(500),
+  estimatedJobValue: commonBusinessFields.estimatedJobValue.default(null),
 }).unknown(false);
 
 const businessUpdateSchema = Joi.object({

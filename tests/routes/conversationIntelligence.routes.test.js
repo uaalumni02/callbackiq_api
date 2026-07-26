@@ -50,6 +50,10 @@ afterAll(async () => {
 
 let testAccountNumber = 0;
 
+const buildTestBusinessPhone = (sequence) => {
+  return `404555${String(sequence).padStart(4, "0")}`;
+};
+
 const createActiveSubscription = async (businessId) => {
   return Subscription.findOneAndUpdate(
     {
@@ -82,6 +86,7 @@ const registerAndCreateBusiness = async ({
   userName,
   email,
   businessName = "Atlanta Pro Plumbing",
+  businessPhone,
   role = "owner",
 } = {}) => {
   testAccountNumber += 1;
@@ -91,15 +96,17 @@ const registerAndCreateBusiness = async ({
   const uniqueEmail =
     email || `intelligence-owner-${testAccountNumber}@callbackiq.com`;
 
+  const resolvedBusinessPhone =
+    businessPhone || buildTestBusinessPhone(testAccountNumber);
+
   const registerRes = await request(app).post("/api/auth/register").send({
     userName: uniqueUserName,
     email: uniqueEmail,
     password: "Password123",
     role,
     businessName,
-    businessPhone: "4045551234",
+    businessPhone: resolvedBusinessPhone,
     businessType: "plumbing",
-
     smsConsent: true,
     termsAccepted: true,
     privacyAccepted: true,
@@ -107,6 +114,7 @@ const registerAndCreateBusiness = async ({
 
   expect(registerRes.status).toBe(201);
   expect(registerRes.body.success).toBe(true);
+  expect(registerRes.body.data).toBeDefined();
 
   const token = registerRes.body.data.token;
 
@@ -117,8 +125,8 @@ const registerAndCreateBusiness = async ({
   expect(user).not.toBeNull();
 
   /*
-   * Registration may already create the user's business depending on the
-   * current registration flow. Reuse that business when it exists.
+   * Registration normally creates the business. Retain the fallback so this
+   * test remains compatible with registration-flow changes.
    */
   let business = await Business.findOne({
     owner: user._id,
@@ -131,7 +139,7 @@ const registerAndCreateBusiness = async ({
       .send({
         businessName,
         businessType: "plumbing",
-        phone: "4045551234",
+        phone: resolvedBusinessPhone,
         forwardingPhone: "4045550199",
         email: uniqueEmail,
         timezone: "America/New_York",
@@ -150,7 +158,7 @@ const registerAndCreateBusiness = async ({
         $set: {
           businessName,
           businessType: "plumbing",
-          phone: business.phone || "4045551234",
+          phone: business.phone || resolvedBusinessPhone,
           forwardingPhone: business.forwardingPhone || "4045550199",
           email: business.email || uniqueEmail,
           timezone: business.timezone || "America/New_York",
@@ -173,7 +181,6 @@ const registerAndCreateBusiness = async ({
     business,
   };
 };
-
 const createConversationFixture = async (
   business,
   {

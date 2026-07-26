@@ -6,6 +6,7 @@ import { expressCorsOptions } from "./config/cors.js";
 
 import authRoutes from "./routes/auth.routes.js";
 import businessRoutes from "./routes/business.routes.js";
+import businessFactsRoutes from "./routes/businessFacts.routes.js";
 import leadRoutes from "./routes/lead.routes.js";
 import conversationRoutes from "./routes/conversation.routes.js";
 import messageRoutes from "./routes/message.routes.js";
@@ -22,6 +23,11 @@ import supportRoutes from "./routes/support.routes.js";
 import demoRequestRoutes from "./routes/demoRequest.routes.js";
 import passwordResetRoutes from "./routes/passwordReset.routes.js";
 import conversationIntelligenceRoutes from "./routes/conversationIntelligence.routes.js";
+import healthRoutes from "./routes/health.routes.js";
+
+import requestContext from "./middleware/request-context.js";
+import notFound from "./middleware/not-found.js";
+import errorHandler from "./middleware/error-handler.js";
 
 const app = express();
 
@@ -31,10 +37,21 @@ app.disable("x-powered-by");
 app.set("trust proxy", 1);
 
 /*
- * Stripe webhook routes must be registered before CORS and all body-parsing
- * middleware. Stripe signature verification requires the original raw body.
+ * Attach one request ID to every request.
  *
- * This mount path combined with "/webhook" inside stripeWebhook.routes.js:
+ * This must be registered before the routes so that application logs,
+ * error responses, Stripe webhook processing, and health checks all use
+ * the same request ID.
+ */
+app.use(requestContext);
+
+/*
+ * Stripe webhook routes must be registered before JSON and URL-encoded
+ * body parsers. Stripe signature verification requires the original
+ * raw request body.
+ *
+ * This mount path combined with "/webhook" inside
+ * stripeWebhook.routes.js produces:
  *
  * POST /api/billing/webhook
  */
@@ -42,10 +59,6 @@ app.use("/api/billing", stripeWebhookRoutes);
 
 /*
  * Normal middleware for frontend and API requests.
- *
- * The explicit limit prevents unexpectedly large JSON or form requests from
- * consuming excessive process memory. It does not affect the Stripe webhook
- * because that route is mounted above these parsers.
  */
 app.use(cors(expressCorsOptions));
 app.use(express.json({ limit: bodyLimit }));
@@ -58,10 +71,33 @@ app.use(
 app.use(cookieParser());
 
 /*
+ * Health and readiness routes.
+ *
+ * Assuming health.routes.js defines "/", "/live", and "/ready",
+ * these endpoints become:
+ *
+ * GET /api/health
+ * GET /api/health/live
+ * GET /api/health/ready
+ */
+app.use("/api/health", healthRoutes);
+
+/*
  * Application routes.
  */
 app.use("/api/auth", authRoutes);
+
+/*
+ * Register the more specific business-facts routes before the general
+ * business routes.
+ *
+ * Assuming businessFacts.routes.js defines "/mine/facts", the endpoint is:
+ *
+ * GET/PUT /api/businesses/mine/facts
+ */
+app.use("/api/businesses", businessFactsRoutes);
 app.use("/api/businesses", businessRoutes);
+
 app.use("/api/leads", leadRoutes);
 app.use("/api/conversations", conversationRoutes);
 app.use("/api/messages", messageRoutes);
@@ -79,7 +115,7 @@ app.use("/api/password-reset", passwordResetRoutes);
 app.use("/api/conversation-intelligence", conversationIntelligenceRoutes);
 
 /*
- * API health-check route.
+ * Root status route.
  */
 app.get("/", (req, res) => {
   return res.status(200).json({
@@ -87,5 +123,11 @@ app.get("/", (req, res) => {
     message: "CallBackIQ API is running",
   });
 });
+
+/*
+ * These must remain after every valid application route.
+ */
+app.use(notFound);
+app.use(errorHandler);
 
 export default app;

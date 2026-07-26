@@ -18,11 +18,7 @@
     "test:calllog": "jest tests/validators/callLog.test.js --runInBand",
     "start:dev": "nodemon --watch src --ext js --exec babel-node src/server.js",
     "build": "babel src -d build --delete-dir-on-start",
-    "start": "node build/server.js",
-    "validate:env": "node scripts/validate-environment.js",
-    "smoke:test": "node scripts/smoke-test.js",
-    "backup:db": "bash scripts/backup-mongodb.sh",
-    "restore:verify": "node scripts/verify-restoration.js"
+    "start": "node build/server.js"
   },
   "keywords": [],
   "author": "",

@@ -3,38 +3,32 @@ const { Schema } = mongoose;
 
 import * as validate from "../helpers/model/business.js";
 
-const BusinessFeaturesSchema = new Schema(
+const FeatureSettingsSchema = new Schema(
   {
     missedCallSmsEnabled: {
       type: Boolean,
       default: true,
     },
-
     aiQualificationEnabled: {
       type: Boolean,
       default: true,
     },
-
     aiBookingEnabled: {
       type: Boolean,
       default: false,
     },
-
     automatedFollowUpEnabled: {
       type: Boolean,
       default: false,
     },
-
     voiceAiEnabled: {
       type: Boolean,
       default: false,
     },
-
     revenueTrackingEnabled: {
       type: Boolean,
       default: false,
     },
-
     calendarProvider: {
       type: String,
       enum: [
@@ -47,9 +41,161 @@ const BusinessFeaturesSchema = new Schema(
       default: "internal",
     },
   },
+  { _id: false },
+);
+
+const VerifiedFactSchema = new Schema(
   {
-    _id: false,
+    value: {
+      type: Schema.Types.Mixed,
+      default: null,
+    },
+    verified: {
+      type: Boolean,
+      default: false,
+    },
+    verifiedAt: {
+      type: Date,
+      default: null,
+    },
+    verifiedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    source: {
+      type: String,
+      enum: ["owner", "admin", "integration", "migration"],
+      default: "owner",
+    },
   },
+  { _id: false },
+);
+
+const VerifiedFactsSchema = new Schema(
+  {
+    businessHours: {
+      type: VerifiedFactSchema,
+      default: () => ({}),
+    },
+    approvedServices: {
+      type: VerifiedFactSchema,
+      default: () => ({}),
+    },
+    serviceAreas: {
+      type: VerifiedFactSchema,
+      default: () => ({}),
+    },
+    pricing: {
+      type: VerifiedFactSchema,
+      default: () => ({}),
+    },
+    schedulingRules: {
+      type: VerifiedFactSchema,
+      default: () => ({}),
+    },
+    availabilityPolicy: {
+      type: VerifiedFactSchema,
+      default: () => ({}),
+    },
+    emergencyServiceAvailable: {
+      type: VerifiedFactSchema,
+      default: () => ({}),
+    },
+    financing: {
+      type: VerifiedFactSchema,
+      default: () => ({}),
+    },
+    warrantyPolicy: {
+      type: VerifiedFactSchema,
+      default: () => ({}),
+    },
+    cancellationPolicy: {
+      type: VerifiedFactSchema,
+      default: () => ({}),
+    },
+    brandsServiced: {
+      type: VerifiedFactSchema,
+      default: () => ({}),
+    },
+    diagnosticFee: {
+      type: VerifiedFactSchema,
+      default: () => ({}),
+    },
+  },
+  { _id: false },
+);
+
+const AICapabilitiesSchema = new Schema(
+  {
+    canCollectLeadDetails: {
+      type: Boolean,
+      default: true,
+    },
+    canCollectAddress: {
+      type: Boolean,
+      default: true,
+    },
+    canCollectAppointmentPreference: {
+      type: Boolean,
+      default: true,
+    },
+    canConfirmAppointment: {
+      type: Boolean,
+      default: false,
+    },
+    canConfirmAvailability: {
+      type: Boolean,
+      default: false,
+    },
+    canConfirmDispatch: {
+      type: Boolean,
+      default: false,
+    },
+    canQuotePrices: {
+      type: Boolean,
+      default: false,
+    },
+    canConfirmWarranty: {
+      type: Boolean,
+      default: false,
+    },
+    canConfirmServiceArea: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  { _id: false },
+);
+
+const IntegrationStateSchema = new Schema(
+  {
+    provider: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    status: {
+      type: String,
+      enum: ["disconnected", "pending", "connected", "failed"],
+      default: "disconnected",
+    },
+    verified: {
+      type: Boolean,
+      default: false,
+    },
+    verifiedAt: {
+      type: Date,
+      default: null,
+    },
+    externalAccountId: {
+      type: String,
+      trim: true,
+      default: "",
+      select: false,
+    },
+  },
+  { _id: false },
 );
 
 const BusinessSchema = new Schema(
@@ -58,6 +204,7 @@ const BusinessSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "User",
       required: [true, "Business owner is required"],
+      index: true,
     },
 
     businessName: {
@@ -107,7 +254,14 @@ const BusinessSchema = new Schema(
       type: String,
       lowercase: true,
       trim: true,
-      validate: [validate.isValidEmail, "Please enter a valid email"],
+      default: "",
+      validate: {
+        validator(value) {
+          if (!value) return true;
+          return validate.isValidEmail(value);
+        },
+        message: "Please enter a valid email",
+      },
     },
 
     website: {
@@ -160,20 +314,58 @@ const BusinessSchema = new Schema(
       min: 0,
     },
 
-    /*
-     * Phase 0 rollout controls.
-     *
-     * Existing production functionality remains enabled. Features that have
-     * not been built yet remain disabled until their implementation phase.
-     */
     features: {
-      type: BusinessFeaturesSchema,
+      type: FeatureSettingsSchema,
       default: () => ({}),
+    },
+
+    aiKnowledge: {
+      verifiedFacts: {
+        type: VerifiedFactsSchema,
+        default: () => ({}),
+      },
+      lastReviewedAt: {
+        type: Date,
+        default: null,
+      },
+      lastReviewedBy: {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+        default: null,
+      },
+    },
+
+    aiCapabilities: {
+      type: AICapabilitiesSchema,
+      default: () => ({}),
+    },
+
+    aiSettings: {
+      aiDisclosureEnabled: {
+        type: Boolean,
+        default: true,
+      },
+    },
+
+    integrations: {
+      calendar: {
+        type: IntegrationStateSchema,
+        default: () => ({
+          provider: "internal",
+          status: "disconnected",
+          verified: false,
+        }),
+      },
+      dispatch: {
+        type: IntegrationStateSchema,
+        default: () => ({}),
+      },
     },
 
     isActive: {
       type: Boolean,
       default: true,
+      index: true,
     },
   },
   {
@@ -181,23 +373,8 @@ const BusinessSchema = new Schema(
   },
 );
 
-/*
- * Supports frequent ownership lookups such as getBusinessByOwner().
- * This is intentionally not unique so future agency or multi-business
- * ownership functionality is not blocked.
- */
-BusinessSchema.index({
-  owner: 1,
-});
-
-/*
- * Supports Twilio webhook routing by the CallBackIQ tracking number.
- * This is intentionally not made unique during this update so existing
- * records cannot cause index creation to fail.
- */
-BusinessSchema.index({
-  phone: 1,
-});
+BusinessSchema.index({ owner: 1, createdAt: -1 });
+BusinessSchema.index({ phone: 1 }, { unique: true });
 
 const Business =
   mongoose.models.Business || mongoose.model("Business", BusinessSchema);
