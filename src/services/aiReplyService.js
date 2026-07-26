@@ -3,16 +3,16 @@ import {
   cleanText,
   normalizeSmsReply,
 } from "../helpers/ai/aiGuardrails.js";
-
 import {
+  getOpenAIClient,
   resetFollowUpOpenAIClient,
   runFollowUpAgent,
 } from "../helpers/ai/followUpAgent.js";
-
 import {
   qualifyLeadWithAI,
   resetQualificationOpenAIClient,
 } from "../helpers/ai/qualifyLeadWithAI.js";
+import { buildAIConfigurationContext } from "./businessConfiguration.service.js";
 
 const fallbackReply = SAFE_REPLIES.fallback;
 
@@ -40,43 +40,34 @@ const getLatestInboundMessage = (messages) => {
   return "";
 };
 
-const buildFallbackResult = (error) => {
-  return {
-    decision: "send_fixed_response",
-    actionType: "send_fixed_response",
-    messageCategory: "unknown",
-    reply: fallbackReply,
-    serviceNeeded: "",
-    urgency: "medium",
-    address: "",
-    preferredAppointmentTime: "",
-    leadQualityScore: 0,
-    estimatedValue: 0,
-    summary: "The guarded AI reply pipeline could not complete.",
-    shouldAlertOwner: true,
-    alertPriority: "high",
-    alertTitle: "AI reply fallback used",
-    alertMessage:
-      "The AI reply pipeline failed and a safe fallback response was selected.",
-    riskFlags: ["other"],
-    confidence: 0,
-    guardrail: {
-      skipAI: false,
-      reason: "ai_pipeline_error",
-      usedFallback: true,
-      violations: [],
-      errorMessage: cleanText(error?.message, "Unknown AI error"),
-    },
-  };
-};
+const buildFallbackResult = (error) => ({
+  decision: "send_fixed_response",
+  actionType: "send_fixed_response",
+  messageCategory: "unknown",
+  reply: fallbackReply,
+  serviceNeeded: "",
+  urgency: "medium",
+  address: "",
+  preferredAppointmentTime: "",
+  leadQualityScore: 0,
+  estimatedValue: 0,
+  summary: "The guarded AI reply pipeline could not complete.",
+  shouldAlertOwner: true,
+  alertPriority: "high",
+  alertTitle: "AI reply fallback used",
+  alertMessage:
+    "The AI reply pipeline failed and a safe fallback response was selected.",
+  riskFlags: ["other"],
+  confidence: 0,
+  guardrail: {
+    skipAI: false,
+    reason: "ai_pipeline_error",
+    usedFallback: true,
+    violations: [],
+    errorMessage: cleanText(error?.message, "Unknown AI error"),
+  },
+});
 
-/**
- * Returns the complete guarded decision object.
- *
- * The Twilio/controller layer must use this function so it can honor
- * no_reply decisions, apply structured lead updates, trigger owner alerts,
- * and activate human takeover for safety or explicit human requests.
- */
 export const generateAIReplyResult = async ({
   business,
   lead,
@@ -106,12 +97,15 @@ export const generateAIReplyResult = async ({
   }
 
   try {
-    const inboundAssessment = await qualifyLeadWithAI({
-      messageBody: latestCustomerMessage,
-      business,
-      businessType: business?.businessType || "other",
-      recentMessages: messages,
-    });
+    const [inboundAssessment, businessConfiguration] = await Promise.all([
+      qualifyLeadWithAI({
+        messageBody: latestCustomerMessage,
+        business,
+        businessType: business?.businessType || "other",
+        recentMessages: messages,
+      }),
+      buildAIConfigurationContext(business),
+    ]);
 
     return await runFollowUpAgent({
       business,
@@ -121,6 +115,7 @@ export const generateAIReplyResult = async ({
       lead,
       recentMessages: messages,
       inboundAssessment,
+      businessConfiguration,
     });
   } catch (error) {
     console.error("Guarded AI reply generation error:", {
@@ -133,11 +128,6 @@ export const generateAIReplyResult = async ({
   }
 };
 
-/**
- * Backward-compatible string-only wrapper.
- *
- * New integration code should prefer generateAIReplyResult.
- */
 export const generateAIReply = async (parameters) => {
   const result = await generateAIReplyResult(parameters);
 
@@ -153,4 +143,4 @@ export const resetOpenAIReplyClient = () => {
   resetQualificationOpenAIClient();
 };
 
-export { fallbackReply };
+export { fallbackReply, getOpenAIClient };

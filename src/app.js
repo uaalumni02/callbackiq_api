@@ -7,6 +7,7 @@ import { expressCorsOptions } from "./config/cors.js";
 import authRoutes from "./routes/auth.routes.js";
 import businessRoutes from "./routes/business.routes.js";
 import businessFactsRoutes from "./routes/businessFacts.routes.js";
+import businessConfigurationRoutes from "./routes/businessConfiguration.routes.js";
 import leadRoutes from "./routes/lead.routes.js";
 import conversationRoutes from "./routes/conversation.routes.js";
 import messageRoutes from "./routes/message.routes.js";
@@ -30,36 +31,15 @@ import notFound from "./middleware/not-found.js";
 import errorHandler from "./middleware/error-handler.js";
 
 const app = express();
-
 const bodyLimit = process.env.API_BODY_LIMIT || "1mb";
 
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
-
-/*
- * Attach one request ID to every request.
- *
- * This must be registered before the routes so that application logs,
- * error responses, Stripe webhook processing, and health checks all use
- * the same request ID.
- */
 app.use(requestContext);
 
-/*
- * Stripe webhook routes must be registered before JSON and URL-encoded
- * body parsers. Stripe signature verification requires the original
- * raw request body.
- *
- * This mount path combined with "/webhook" inside
- * stripeWebhook.routes.js produces:
- *
- * POST /api/billing/webhook
- */
+/* Stripe signature verification requires the untouched raw body. */
 app.use("/api/billing", stripeWebhookRoutes);
 
-/*
- * Normal middleware for frontend and API requests.
- */
 app.use(cors(expressCorsOptions));
 app.use(express.json({ limit: bodyLimit }));
 app.use(
@@ -70,34 +50,11 @@ app.use(
 );
 app.use(cookieParser());
 
-/*
- * Health and readiness routes.
- *
- * Assuming health.routes.js defines "/", "/live", and "/ready",
- * these endpoints become:
- *
- * GET /api/health
- * GET /api/health/live
- * GET /api/health/ready
- */
 app.use("/api/health", healthRoutes);
-
-/*
- * Application routes.
- */
 app.use("/api/auth", authRoutes);
-
-/*
- * Register the more specific business-facts routes before the general
- * business routes.
- *
- * Assuming businessFacts.routes.js defines "/mine/facts", the endpoint is:
- *
- * GET/PUT /api/businesses/mine/facts
- */
 app.use("/api/businesses", businessFactsRoutes);
 app.use("/api/businesses", businessRoutes);
-
+app.use("/api/business-configuration", businessConfigurationRoutes);
 app.use("/api/leads", leadRoutes);
 app.use("/api/conversations", conversationRoutes);
 app.use("/api/messages", messageRoutes);
@@ -112,11 +69,11 @@ app.use("/api/billing", billingRoutes);
 app.use("/api/support", supportRoutes);
 app.use("/api/demo-requests", demoRequestRoutes);
 app.use("/api/password-reset", passwordResetRoutes);
-app.use("/api/conversation-intelligence", conversationIntelligenceRoutes);
+app.use(
+  "/api/conversation-intelligence",
+  conversationIntelligenceRoutes,
+);
 
-/*
- * Root status route.
- */
 app.get("/", (req, res) => {
   return res.status(200).json({
     success: true,
@@ -124,9 +81,6 @@ app.get("/", (req, res) => {
   });
 });
 
-/*
- * These must remain after every valid application route.
- */
 app.use(notFound);
 app.use(errorHandler);
 
