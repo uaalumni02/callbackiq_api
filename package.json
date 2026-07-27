@@ -25,7 +25,10 @@
     "backup:db": "bash scripts/backup-mongodb.sh",
     "restore:verify": "node scripts/verify-restoration.js",
     "seed:phase2-8": "node scripts/seed-phase2-8-workflows.js",
-    "audit:phase2-8": "node scripts/audit-phase2-8-readiness.js"
+    "audit:phase2-8": "node scripts/audit-phase2-8-readiness.js",
+    "test:coverage": "jest --config jest.coverage.config.cjs --coverage --runInBand",
+    "test:coverage:changed": "jest --config jest.coverage.config.cjs --coverage --runInBand tests/unit tests/middleware tests/integration",
+    "coverage:check": "node scripts/check-coverage.js"
   },
   "keywords": [],
   "author": "",

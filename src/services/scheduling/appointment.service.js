@@ -506,7 +506,7 @@ class AppointmentService {
       replacement.status = "confirmed";
       replacement.confirmedAt = new Date();
       replacement.heldExpiresAt = null;
-      replacement.provider = providerResult.provider || original.provider;
+      replacement.provider = providerResult.provider || original.provider || "internal";
       replacement.externalAppointmentId = providerResult.externalAppointmentId || null;
       replacement.externalCalendarId = providerResult.externalCalendarId || null;
       await replacement.save();
@@ -534,7 +534,7 @@ class AppointmentService {
         leadId: replacement.lead,
         conversationId: replacement.conversation,
         appointmentId: replacement._id,
-        provider: original.provider,
+        provider: original.provider || "internal",
         error,
       });
       throw error;

@@ -12,7 +12,7 @@ import AutomationTriggerService from "../services/automation/automationTrigger.s
  * proven SMS reply pipeline: a customer response immediately suppresses stale
  * follow-ups and records a deduplicated conversion event.
  */
-const inboundSmsLifecycle = async (req, _res, next) => {
+const inboundSmsLifecycle = async (req, res, next) => {
   try {
     const businessPhone = String(req.body?.To || "").trim();
     const customerPhone = String(req.body?.From || "").trim();
