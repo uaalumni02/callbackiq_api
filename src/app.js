@@ -3,7 +3,6 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 
 import { expressCorsOptions } from "./config/cors.js";
-
 import authRoutes from "./routes/auth.routes.js";
 import businessRoutes from "./routes/business.routes.js";
 import businessFactsRoutes from "./routes/businessFacts.routes.js";
@@ -25,7 +24,12 @@ import demoRequestRoutes from "./routes/demoRequest.routes.js";
 import passwordResetRoutes from "./routes/passwordReset.routes.js";
 import conversationIntelligenceRoutes from "./routes/conversationIntelligence.routes.js";
 import healthRoutes from "./routes/health.routes.js";
-
+import appointmentRoutes from "./routes/appointment.routes.js";
+import availabilityRoutes from "./routes/availability.routes.js";
+import integrationRoutes from "./routes/integration.routes.js";
+import automationRoutes from "./routes/automation.routes.js";
+import revenueRecoveryRoutes from "./routes/revenueRecovery.routes.js";
+import interventionRoutes from "./routes/intervention.routes.js";
 import requestContext from "./middleware/request-context.js";
 import notFound from "./middleware/not-found.js";
 import errorHandler from "./middleware/error-handler.js";
@@ -39,7 +43,6 @@ app.use(requestContext);
 
 /* Stripe signature verification requires the untouched raw body. */
 app.use("/api/billing", stripeWebhookRoutes);
-
 app.use(cors(expressCorsOptions));
 app.use(express.json({ limit: bodyLimit }));
 app.use(
@@ -49,7 +52,6 @@ app.use(
   }),
 );
 app.use(cookieParser());
-
 app.use("/api/health", healthRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/businesses", businessFactsRoutes);
@@ -69,10 +71,15 @@ app.use("/api/billing", billingRoutes);
 app.use("/api/support", supportRoutes);
 app.use("/api/demo-requests", demoRequestRoutes);
 app.use("/api/password-reset", passwordResetRoutes);
-app.use(
-  "/api/conversation-intelligence",
-  conversationIntelligenceRoutes,
-);
+app.use("/api/conversation-intelligence", conversationIntelligenceRoutes);
+
+/* Provider-neutral scheduling and recovery platform routes. */
+app.use("/api/availability", availabilityRoutes);
+app.use("/api/appointments", appointmentRoutes);
+app.use("/api/integrations", integrationRoutes);
+app.use("/api/automation", automationRoutes);
+app.use("/api/analytics/revenue-recovery", revenueRecoveryRoutes);
+app.use("/api/interventions", interventionRoutes);
 
 app.get("/", (req, res) => {
   return res.status(200).json({

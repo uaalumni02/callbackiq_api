@@ -2,27 +2,33 @@ import express from "express";
 
 import checkAuth from "../middleware/check-auth.js";
 import checkSubscription from "../middleware/check-subscription.js";
+import inboundSmsLifecycle from "../middleware/inbound-sms-lifecycle.js";
+import missedCallAutomationLifecycle from "../middleware/missed-call-automation-lifecycle.js";
 import validateTwilioSignature from "../middleware/validate-twilio-signature.js";
 import TwilioController from "../controllers/twilio.js";
 
 const router = express.Router();
 
 /*
- * Public Twilio webhook endpoints.
- *
- * These routes must not use checkAuth because Twilio is the caller. Instead,
- * validate the X-Twilio-Signature header before allowing a request to create
- * calls, leads, conversations, messages, alerts, or AI replies.
+ * Public Twilio webhook endpoints. Signature validation remains first.
+ * The SMS lifecycle middleware only cancels obsolete durable follow-ups and
+ * records the response event; the existing controller retains ownership of
+ * idempotency, STOP/HELP, safety, qualification, AI, sending and persistence.
  */
 router.post("/voice", validateTwilioSignature, TwilioController.voiceWebhook);
+router.post(
+  "/status",
+  validateTwilioSignature,
+  missedCallAutomationLifecycle,
+  TwilioController.statusWebhook,
+);
+router.post(
+  "/sms",
+  validateTwilioSignature,
+  inboundSmsLifecycle,
+  TwilioController.handleInboundSms,
+);
 
-router.post("/status", validateTwilioSignature, TwilioController.statusWebhook);
-
-router.post("/sms", validateTwilioSignature, TwilioController.handleInboundSms);
-
-/*
- * Authenticated in-app SMS endpoint.
- */
 router.post(
   "/send-sms",
   checkAuth,

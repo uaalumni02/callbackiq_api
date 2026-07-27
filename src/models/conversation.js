@@ -1,139 +1,114 @@
 import mongoose from "mongoose";
 
-const archiveSnapshotSchema = new mongoose.Schema(
+const { Schema } = mongoose;
+
+const archiveSnapshotSchema = new Schema(
   {
-    status: {
-      type: String,
-      enum: ["open", "closed"],
-      required: true,
-    },
-
-    aiEnabled: {
-      type: Boolean,
-      required: true,
-    },
-
-    humanTakeover: {
-      type: Boolean,
-      required: true,
-    },
+    status: { type: String, enum: ["open", "closed"], required: true },
+    aiEnabled: { type: Boolean, required: true },
+    humanTakeover: { type: Boolean, required: true },
   },
   { _id: false },
 );
 
-const conversationSchema = new mongoose.Schema(
+const BookingSlotSchema = new Schema(
+  {
+    startAt: { type: Date, required: true },
+    endAt: { type: Date, required: true },
+    timezone: { type: String, default: "America/New_York" },
+    label: { type: String, trim: true, default: "" },
+  },
+  { _id: false },
+);
+
+const BookingStateSchema = new Schema(
+  {
+    status: {
+      type: String,
+      enum: [
+        "not_started",
+        "collecting_service",
+        "collecting_location",
+        "collecting_preference",
+        "offering_slots",
+        "awaiting_confirmation",
+        "booking",
+        "booked",
+        "failed",
+        "human_takeover",
+      ],
+      default: "not_started",
+    },
+    serviceOffering: {
+      type: Schema.Types.ObjectId,
+      ref: "ServiceOffering",
+      default: null,
+    },
+    postalCode: { type: String, trim: true, default: "" },
+    preferredStart: { type: Date, default: null },
+    preferredEnd: { type: Date, default: null },
+    offeredSlots: { type: [BookingSlotSchema], default: [] },
+    selectedSlot: { type: BookingSlotSchema, default: null },
+    appointment: {
+      type: Schema.Types.ObjectId,
+      ref: "Appointment",
+      default: null,
+    },
+    expiresAt: { type: Date, default: null },
+    lastError: { type: String, trim: true, default: "" },
+  },
+  { _id: false },
+);
+
+const conversationSchema = new Schema(
   {
     business: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: "Business",
       required: true,
     },
-
-    lead: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Lead",
-    },
-
-    customerPhone: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-
-    customerName: {
-      type: String,
-      trim: true,
-      default: "Customer",
-    },
-
+    lead: { type: Schema.Types.ObjectId, ref: "Lead" },
+    customerPhone: { type: String, required: true, trim: true },
+    customerName: { type: String, trim: true, default: "Customer" },
     status: {
       type: String,
       enum: ["open", "closed", "archived"],
       default: "open",
     },
-
-    aiEnabled: {
-      type: Boolean,
-      default: true,
-    },
-
-    humanTakeover: {
-      type: Boolean,
-      default: false,
-    },
-
-    lastMessage: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-
-    lastMessageAt: {
-      type: Date,
-      default: Date.now,
-    },
-
-    archivedAt: {
-      type: Date,
-      default: null,
-    },
-
-    archivedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      default: null,
-    },
-
-    // Restoring uses this snapshot so archiving does not permanently change
-    // the prior open/closed or AI/manual state.
-    archiveSnapshot: {
-      type: archiveSnapshotSchema,
-      default: null,
-    },
+    aiEnabled: { type: Boolean, default: true },
+    humanTakeover: { type: Boolean, default: false },
+    bookingState: { type: BookingStateSchema, default: () => ({}) },
+    lastMessage: { type: String, trim: true, default: "" },
+    lastMessageAt: { type: Date, default: Date.now },
+    archivedAt: { type: Date, default: null },
+    archivedBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    archiveSnapshot: { type: archiveSnapshotSchema, default: null },
   },
   { timestamps: true },
 );
 
-/*
- * Supports open, closed, and archived conversation lists sorted by the
- * most recent customer or business activity.
- */
 conversationSchema.index({
   business: 1,
   status: 1,
   lastMessageAt: -1,
   createdAt: -1,
 });
-
-/*
- * Supports an all-conversations list when no status filter is supplied.
- * The status index above cannot efficiently provide this sort unless
- * status is constrained by the query.
- */
-conversationSchema.index({
-  business: 1,
-  lastMessageAt: -1,
-  createdAt: -1,
-});
-
-/*
- * Supports locating the active customer conversation when an inbound
- * Twilio message or call is received.
- */
+conversationSchema.index({ business: 1, lastMessageAt: -1, createdAt: -1 });
 conversationSchema.index({
   business: 1,
   customerPhone: 1,
   status: 1,
   lastMessageAt: -1,
 });
-
-/*
- * Supports retrieving conversations associated with a specific lead.
- */
+conversationSchema.index({ business: 1, lead: 1, lastMessageAt: -1 });
 conversationSchema.index({
   business: 1,
-  lead: 1,
-  lastMessageAt: -1,
+  "bookingState.status": 1,
+  "bookingState.expiresAt": 1,
 });
 
-export default mongoose.model("Conversation", conversationSchema);
+const Conversation =
+  mongoose.models.Conversation ||
+  mongoose.model("Conversation", conversationSchema);
+
+export default Conversation;

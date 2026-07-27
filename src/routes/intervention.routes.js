@@ -1,0 +1,11 @@
+import express from "express";
+import InterventionController from "../controllers/intervention.js";
+import checkAuth from "../middleware/check-auth.js";
+import checkSubscription from "../middleware/check-subscription.js";
+const router = express.Router();
+router.use(checkAuth, checkSubscription);
+router.get("/", InterventionController.list);
+router.post("/:id/acknowledge", InterventionController.acknowledge);
+router.post("/:id/resolve", InterventionController.resolve);
+router.patch("/:id/assign", InterventionController.assign);
+export default router;

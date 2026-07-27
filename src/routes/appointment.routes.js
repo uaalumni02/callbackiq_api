@@ -1,0 +1,14 @@
+import express from "express";
+import AppointmentController from "../controllers/appointment.js";
+import checkAuth from "../middleware/check-auth.js";
+import checkSubscription from "../middleware/check-subscription.js";
+const router = express.Router();
+router.use(checkAuth, checkSubscription);
+router.post("/", AppointmentController.create);
+router.get("/", AppointmentController.list);
+router.get("/:id", AppointmentController.get);
+router.patch("/:id", AppointmentController.update);
+router.post("/:id/confirm", AppointmentController.confirm);
+router.post("/:id/cancel", AppointmentController.cancel);
+router.post("/:id/reschedule", AppointmentController.reschedule);
+export default router;

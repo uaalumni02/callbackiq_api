@@ -1,0 +1,12 @@
+import express from "express";
+import AutomationController from "../controllers/automation.js";
+import checkAuth from "../middleware/check-auth.js";
+import checkSubscription from "../middleware/check-subscription.js";
+const router = express.Router();
+router.use(checkAuth, checkSubscription);
+router.get("/workflows", AutomationController.listWorkflows);
+router.post("/workflows", AutomationController.createWorkflow);
+router.patch("/workflows/:id", AutomationController.updateWorkflow);
+router.delete("/workflows/:id", AutomationController.deleteWorkflow);
+router.get("/jobs", AutomationController.listJobs);
+export default router;
