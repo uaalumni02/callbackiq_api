@@ -25,17 +25,6 @@ const SEVERITY_RANK = {
 const escapeRegex = (value) =>
   String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-const normalizeId = (value) => {
-  if (value === null || value === undefined || value === "") return null;
-  if (typeof value?.toHexString === "function") return value.toHexString();
-  if (typeof value === "object") {
-    const nested = value._id ?? value.id;
-    if (nested !== undefined && nested !== value) return normalizeId(nested);
-  }
-  const normalized = String(value).trim();
-  return normalized || null;
-};
-
 const populate = (query) =>
   query
     .populate(
@@ -71,42 +60,52 @@ const compareInterventions = (first, second) => {
   );
 };
 
-const notFound = (res) =>
-  res
-    .status(404)
-    .json({ success: false, message: "Intervention not found." });
+const sendNotFound = (res) =>
+  res.status(404).json({
+    success: false,
+    message: "Intervention not found.",
+  });
 
-const conflict = (res, message) =>
-  res.status(409).json({ success: false, message });
+const sendStateConflict = (res) =>
+  res.status(409).json({
+    success: false,
+    message: "The intervention changed before this action completed. Refresh and try again.",
+  });
 
-const getActorId = (req) => normalizeId(req.user?.userId || req.user?._id);
+const getScopedIntervention = ({ interventionId, businessId }) =>
+  Alert.findOne({
+    _id: interventionId,
+    business: businessId,
+  });
 
-/*
- * The current data model has one business owner and no BusinessMember model.
- * Until membership is implemented, assignment is deliberately restricted to
- * the business owner so an arbitrary cross-tenant User ID cannot be attached.
- */
+const getDefaultAssignee = ({ requestedAssignee, business, user }) =>
+  requestedAssignee || business?.owner || user?.userId || null;
+
+const normalizeId = (value) => {
+  if (value == null) return null;
+
+  const candidate = value?._id ?? value;
+  const normalized = String(candidate).trim();
+  return normalized || null;
+};
+
 const resolveAssignableUserId = ({ business, requestedAssignee }) => {
-  if (requestedAssignee === null || requestedAssignee === undefined || requestedAssignee === "") {
-    return null;
-  }
+  const requestedAssigneeId = normalizeId(requestedAssignee);
+
+  // An explicit null means the intervention should be unassigned.
+  if (!requestedAssigneeId) return null;
 
   const ownerId = normalizeId(business?.owner);
-  const assigneeId = normalizeId(requestedAssignee);
-
-  if (!ownerId || assigneeId !== ownerId) {
+  if (!ownerId || requestedAssigneeId !== ownerId) {
     const error = new Error(
-      "Only the business owner can be assigned until team membership is configured.",
+      "Only the business owner can be assigned to an intervention.",
     );
     error.statusCode = 403;
     throw error;
   }
 
-  return assigneeId;
+  return ownerId;
 };
-
-const getScopedAlert = async (id, businessId) =>
-  populate(Alert.findOne({ _id: id, business: businessId }));
 
 class InterventionController {
   static async list(req, res, next) {
@@ -115,6 +114,7 @@ class InterventionController {
         user: req.user,
         requestedBusinessId: req.query.businessId,
       });
+
       const filter = {
         business: business._id,
         $or: [
@@ -136,12 +136,19 @@ class InterventionController {
       };
 
       if (req.query.priority) filter.priority = req.query.priority;
+
       if (req.query.type && INTERVENTION_TYPES.includes(req.query.type)) {
         filter.type = req.query.type;
       }
-      if (req.query.resolved === "true") filter.resolvedAt = { $ne: null };
-      else if (req.query.resolved !== "all") filter.resolvedAt = null;
+
+      if (req.query.resolved === "true") {
+        filter.resolvedAt = { $ne: null };
+      } else if (req.query.resolved !== "all") {
+        filter.resolvedAt = null;
+      }
+
       if (req.query.assignedTo) filter.assignedTo = req.query.assignedTo;
+
       if (req.query.search) {
         const search = new RegExp(escapeRegex(req.query.search), "i");
         filter.$and = [
@@ -162,6 +169,9 @@ class InterventionController {
         Math.max(Number(req.query.limit) || 100, 1),
         250,
       );
+
+      // Query enough records before sorting so critical work is not excluded
+      // by MongoDB's initial due-date ordering.
       const alerts = await populate(Alert.find(filter))
         .sort({ dueAt: 1, createdAt: -1 })
         .limit(250)
@@ -184,41 +194,51 @@ class InterventionController {
         user: req.user,
         requestedBusinessId: req.body.businessId,
       });
-      const existing = await getScopedAlert(req.params.id, business._id);
 
-      if (!existing) return notFound(res);
+      const existing = await getScopedIntervention({
+        interventionId: req.params.id,
+        businessId: business._id,
+      });
+
+      if (!existing) return sendNotFound(res);
+
       if (existing.resolvedAt) {
-        return conflict(res, "A resolved intervention cannot be acknowledged.");
+        return res.status(409).json({
+          success: false,
+          message: "A resolved intervention cannot be acknowledged.",
+        });
       }
+
       if (existing.acknowledgedAt) {
-        return res.status(200).json({ success: true, data: existing });
+        const current = await populate(
+          Alert.findOne({
+            _id: req.params.id,
+            business: business._id,
+          }),
+        );
+
+        return res.status(200).json({ success: true, data: current });
       }
 
       const now = new Date();
-      const actorId = getActorId(req);
-      const requestedAssignee = Object.prototype.hasOwnProperty.call(
-        req.body,
-        "assignedTo",
-      )
-        ? req.body.assignedTo
-        : existing.assignedTo || business.owner;
-      const assigneeId = resolveAssignableUserId({
+      const assignedTo = getDefaultAssignee({
+        requestedAssignee: req.body.assignedTo,
         business,
-        requestedAssignee,
+        user: req.user,
       });
-
       const set = {
         status: "acknowledged",
         acknowledgedAt: now,
-        acknowledgedBy: actorId,
+        acknowledgedBy: req.user.userId,
       };
-      if (!existing.assignedTo && assigneeId) {
-        set.assignedTo = assigneeId;
+
+      if (assignedTo) {
+        set.assignedTo = assignedTo;
         set.assignedAt = now;
-        set.assignedBy = actorId;
+        set.assignedBy = req.user.userId;
       }
 
-      let alert = await populate(
+      const alert = await populate(
         Alert.findOneAndUpdate(
           {
             _id: req.params.id,
@@ -231,13 +251,14 @@ class InterventionController {
         ),
       );
 
-      const changed = Boolean(alert);
-      /* A concurrent acknowledgement won the race: return its result. */
-      if (!alert) alert = await getScopedAlert(req.params.id, business._id);
-      if (!alert) return notFound(res);
+      if (!alert) return sendStateConflict(res);
 
-      if (changed) SocketService.emitAlertUpdated(business._id, alert);
-      return res.status(200).json({ success: true, data: alert });
+      SocketService.emitAlertUpdated(business._id, alert);
+
+      return res.status(200).json({
+        success: true,
+        data: alert,
+      });
     } catch (error) {
       return next(error);
     }
@@ -249,41 +270,52 @@ class InterventionController {
         user: req.user,
         requestedBusinessId: req.body.businessId,
       });
-      const existing = await getScopedAlert(req.params.id, business._id);
 
-      if (!existing) return notFound(res);
-      /* Resolution is idempotent: never rewrite the original audit timestamp. */
+      const existing = await getScopedIntervention({
+        interventionId: req.params.id,
+        businessId: business._id,
+      });
+
+      if (!existing) return sendNotFound(res);
+
       if (existing.resolvedAt) {
-        return res.status(200).json({ success: true, data: existing });
+        const current = await populate(
+          Alert.findOne({
+            _id: req.params.id,
+            business: business._id,
+          }),
+        );
+
+        return res.status(200).json({ success: true, data: current });
       }
 
       const now = new Date();
-      const actorId = getActorId(req);
+      const assignedTo = getDefaultAssignee({
+        requestedAssignee: existing.assignedTo,
+        business,
+        user: req.user,
+      });
       const resolution =
-        String(req.body.resolution || "Resolved by staff.").trim() ||
-        "Resolved by staff.";
+        String(req.body.resolution || "").trim() || "Resolved by staff.";
       const set = {
         status: "resolved",
         resolvedAt: now,
-        resolvedBy: actorId,
-        resolution: resolution.slice(0, 2000),
+        resolvedBy: req.user.userId,
+        resolution,
         actionRequired: false,
         readAt: existing.readAt || now,
         acknowledgedAt: existing.acknowledgedAt || now,
-        acknowledgedBy: normalizeId(existing.acknowledgedBy) || actorId,
+        acknowledgedBy: existing.acknowledgedBy || req.user.userId,
       };
 
-      if (!existing.assignedTo) {
-        const assigneeId = resolveAssignableUserId({
-          business,
-          requestedAssignee: business.owner,
-        });
-        set.assignedTo = assigneeId;
+      if (assignedTo) set.assignedTo = assignedTo;
+
+      if (!existing.assignedTo && assignedTo) {
         set.assignedAt = now;
-        set.assignedBy = actorId;
+        set.assignedBy = req.user.userId;
       }
 
-      let alert = await populate(
+      const alert = await populate(
         Alert.findOneAndUpdate(
           {
             _id: req.params.id,
@@ -295,18 +327,18 @@ class InterventionController {
         ),
       );
 
-      const changed = Boolean(alert);
-      if (!alert) alert = await getScopedAlert(req.params.id, business._id);
-      if (!alert) return notFound(res);
+      if (!alert) return sendStateConflict(res);
 
-      if (changed) {
-        SocketService.emitAlertUpdated(business._id, alert);
-        SocketService.emitDashboardRefresh(
-          business._id,
-          "intervention:resolved",
-        );
-      }
-      return res.status(200).json({ success: true, data: alert });
+      SocketService.emitAlertUpdated(business._id, alert);
+      SocketService.emitDashboardRefresh(
+        business._id,
+        "intervention:resolved",
+      );
+
+      return res.status(200).json({
+        success: true,
+        data: alert,
+      });
     } catch (error) {
       return next(error);
     }
@@ -318,34 +350,38 @@ class InterventionController {
         user: req.user,
         requestedBusinessId: req.body.businessId,
       });
-      const existing = await getScopedAlert(req.params.id, business._id);
 
-      if (!existing) return notFound(res);
+      const existing = await getScopedIntervention({
+        interventionId: req.params.id,
+        businessId: business._id,
+      });
+
+      if (!existing) return sendNotFound(res);
+
       if (existing.resolvedAt) {
-        return conflict(res, "A resolved intervention cannot be reassigned.");
-      }
-      if (!Object.prototype.hasOwnProperty.call(req.body, "assignedTo")) {
-        return res.status(400).json({
+        return res.status(409).json({
           success: false,
-          message: "assignedTo is required and may be null to unassign.",
+          message: "A resolved intervention cannot be reassigned.",
         });
       }
 
-      const assigneeId = resolveAssignableUserId({
+      const hasExplicitAssignee = Object.prototype.hasOwnProperty.call(
+        req.body,
+        "assignedTo",
+      );
+      const requestedAssignee = hasExplicitAssignee
+        ? req.body.assignedTo
+        : business.owner;
+      const assignedTo = resolveAssignableUserId({
         business,
-        requestedAssignee: req.body.assignedTo,
+        requestedAssignee,
       });
-      if (normalizeId(existing.assignedTo) === assigneeId) {
-        return res.status(200).json({ success: true, data: existing });
-      }
 
-      const actorId = getActorId(req);
-      const now = new Date();
-      const set = assigneeId
+      const assignmentUpdate = assignedTo
         ? {
-            assignedTo: assigneeId,
-            assignedAt: now,
-            assignedBy: actorId,
+            assignedTo,
+            assignedAt: new Date(),
+            assignedBy: req.user.userId,
           }
         : {
             assignedTo: null,
@@ -355,16 +391,24 @@ class InterventionController {
 
       const alert = await populate(
         Alert.findOneAndUpdate(
-          { _id: req.params.id, business: business._id, resolvedAt: null },
-          { $set: set },
+          {
+            _id: req.params.id,
+            business: business._id,
+            resolvedAt: null,
+          },
+          { $set: assignmentUpdate },
           { returnDocument: "after", runValidators: true },
         ),
       );
 
-      if (!alert) return notFound(res);
+      if (!alert) return sendStateConflict(res);
 
       SocketService.emitAlertUpdated(business._id, alert);
-      return res.status(200).json({ success: true, data: alert });
+
+      return res.status(200).json({
+        success: true,
+        data: alert,
+      });
     } catch (error) {
       return next(error);
     }
@@ -375,7 +419,6 @@ export {
   INTERVENTION_TYPES,
   SEVERITY_RANK,
   compareInterventions,
-  normalizeId,
   resolveAssignableUserId,
 };
 export default InterventionController;
