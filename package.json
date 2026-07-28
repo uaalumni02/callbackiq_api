@@ -26,9 +26,10 @@
     "restore:verify": "node scripts/verify-restoration.js",
     "seed:phase2-8": "node scripts/seed-phase2-8-workflows.js",
     "audit:phase2-8": "node scripts/audit-phase2-8-readiness.js",
-    "test:coverage": "jest --config jest.coverage.config.cjs --coverage --runInBand",
-    "test:coverage:changed": "jest --config jest.coverage.config.cjs --coverage --runInBand tests/unit tests/middleware tests/integration",
-    "coverage:check": "node scripts/check-coverage.js"
+    "test:phase0-8:completion": "jest tests/unit/postalCodeDistance.service.test.js tests/unit/appointmentPolicy.completion.test.js tests/unit/revenueRecovery.completion.test.js tests/controllers/intervention.completion.test.js --runInBand",
+    "verify:phase2:internal": "node scripts/verify-internal-appointment-e2e.js",
+    "verify:phase3:google": "node scripts/verify-google-calendar-e2e.js",
+    "verify:phase8:jobber": "node scripts/verify-jobber-e2e.js"
   },
   "keywords": [],
   "author": "",

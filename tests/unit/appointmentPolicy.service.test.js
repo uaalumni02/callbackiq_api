@@ -114,13 +114,57 @@ describe("appointment policy service", () => {
 
   test.each([
     [null],
-    [{ type: "radius", zipCodes: [] }],
     [{ type: "zip_codes", zipCodes: [] }],
   ])("allows the ZIP when no ZIP restriction exists", async (area) => {
     ServiceArea.findOne.mockReturnValue(leanResult(area));
-    await expect(validateServiceArea({ businessId: "b1", postalCode: "30318" })).resolves.toEqual({
+    await expect(
+      validateServiceArea({ businessId: "b1", postalCode: "30318" }),
+    ).resolves.toEqual({
       supported: true,
       reason: "no_restriction_configured",
+    });
+  });
+
+  test("fails closed when a radius service area is incomplete", async () => {
+    ServiceArea.findOne.mockReturnValue(
+      leanResult({
+        type: "radius",
+        centerPostalCode: "",
+        radiusMiles: null,
+      }),
+    );
+
+    await expect(
+      validateServiceArea({ businessId: "b1", postalCode: "30318" }),
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      code: "SERVICE_AREA_CONFIGURATION_INCOMPLETE",
+    });
+  });
+
+  test("validates configured radius service areas", async () => {
+    ServiceArea.findOne.mockReturnValue(
+      leanResult({
+        type: "radius",
+        centerPostalCode: "30318",
+        radiusMiles: 25,
+      }),
+    );
+    const distanceResolver = jest.fn().mockResolvedValue(12.345);
+
+    await expect(
+      validateServiceArea({
+        businessId: "b1",
+        postalCode: "30309",
+        distanceResolver,
+      }),
+    ).resolves.toEqual({
+      supported: true,
+      reason: "matched_radius",
+      mode: "radius",
+      distanceMiles: 12.35,
+      radiusMiles: 25,
+      centerPostalCode: "30318",
     });
   });
 
@@ -128,13 +172,19 @@ describe("appointment policy service", () => {
     ServiceArea.findOne.mockReturnValue(
       leanResult({ type: "zip_codes", zipCodes: ["30318", "30309-1234"] }),
     );
-    await expect(validateServiceArea({ businessId: "b1", postalCode: "30318-9999" })).resolves.toEqual({
+    await expect(
+      validateServiceArea({ businessId: "b1", postalCode: "30318-9999" }),
+    ).resolves.toEqual({
       supported: true,
       reason: "matched",
+      mode: "zip_codes",
     });
-    await expect(validateServiceArea({ businessId: "b1", postalCode: "99999" })).resolves.toEqual({
+    await expect(
+      validateServiceArea({ businessId: "b1", postalCode: "99999" }),
+    ).resolves.toEqual({
       supported: false,
       reason: "outside_configured_service_area",
+      mode: "zip_codes",
     });
   });
 

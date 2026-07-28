@@ -368,11 +368,25 @@ describe("Phase 2-8 controllers", () => {
       expect(res.json).toHaveBeenCalledWith({ success: true, data: [{ _id: "alert1" }] });
     });
 
-    test("uses default intervention limit", async () => {
-      const query = chain([]);
+    test("queries enough records for severity ordering and returns the default 100", async () => {
+      const alerts = Array.from({ length: 101 }, (_, index) => ({
+        _id: `alert-${index}`,
+        priority: index === 100 ? "critical" : "low",
+        createdAt: new Date(2026, 6, 27, 12, 0, index).toISOString(),
+      }));
+      const query = chain(alerts);
+      const res = makeRes();
+
       Alert.find.mockReturnValue(query);
-      await InterventionController.list(makeReq(), makeRes(), jest.fn());
-      expect(query.limit).toHaveBeenCalledWith(100);
+      await InterventionController.list(makeReq(), res, jest.fn());
+
+      expect(query.limit).toHaveBeenCalledWith(250);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: expect.any(Array),
+      });
+      expect(res.json.mock.calls[0][0].data).toHaveLength(100);
+      expect(res.json.mock.calls[0][0].data[0]._id).toBe("alert-100");
     });
 
     test.each([

@@ -6,7 +6,7 @@ import RevenueRecoveryService from "../../src/services/analytics/revenueRecovery
 
 jest.mock("../../src/models/appointment.js", () => ({ __esModule: true, default: { aggregate: jest.fn() } }));
 jest.mock("../../src/models/callLog.js", () => ({ __esModule: true, default: { countDocuments: jest.fn() } }));
-jest.mock("../../src/models/conversionEvent.js", () => ({ __esModule: true, default: { aggregate: jest.fn() } }));
+jest.mock("../../src/models/conversionEvent.js", () => ({ __esModule: true, default: { aggregate: jest.fn(), countDocuments: jest.fn() } }));
 jest.mock("../../src/models/lead.js", () => ({
   __esModule: true,
   default: { countDocuments: jest.fn(), aggregate: jest.fn(), find: jest.fn() },
@@ -26,7 +26,8 @@ describe("RevenueRecoveryService", () => {
 
   test("calculates a traceable summary and rates", async () => {
     CallLog.countDocuments.mockResolvedValue(10);
-    Lead.countDocuments.mockResolvedValueOnce(8).mockResolvedValueOnce(4);
+    Lead.countDocuments.mockResolvedValueOnce(8).mockResolvedValueOnce(4).mockResolvedValueOnce(2);
+    ConversionEvent.countDocuments.mockResolvedValue(1);
     Appointment.aggregate.mockResolvedValue([{ count: 3, estimated: 1800, actual: 1500 }]);
     Lead.aggregate.mockResolvedValue([{ count: 2, estimated: 1200, actual: 900 }]);
     ConversionEvent.aggregate.mockResolvedValue([{ average: 17.6 }]);
@@ -44,6 +45,9 @@ describe("RevenueRecoveryService", () => {
       responseRate: 0.8,
       qualificationRate: 0.5,
       bookingRate: 0.3,
+      humanInterventions: 1,
+      lostOpportunities: 2,
+      humanInterventionRate: 0.125,
       estimatedRecoveredRevenue: 1200,
       actualRecoveredRevenue: 900,
       estimatedBookedRevenue: 1800,
@@ -55,6 +59,7 @@ describe("RevenueRecoveryService", () => {
   test("uses default dates and zero-safe summaries", async () => {
     CallLog.countDocuments.mockResolvedValue(0);
     Lead.countDocuments.mockResolvedValue(0);
+    ConversionEvent.countDocuments.mockResolvedValue(0);
     Appointment.aggregate.mockResolvedValue([]);
     Lead.aggregate.mockResolvedValue([]);
     ConversionEvent.aggregate.mockResolvedValue([]);

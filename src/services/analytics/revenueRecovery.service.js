@@ -18,58 +18,76 @@ class RevenueRecoveryService {
   static async summary({ businessId, startDate, endDate }) {
     const { start, end } = getRange({ startDate, endDate });
     const dateFilter = { $gte: start, $lte: end };
-    const [missedCalls, customersReached, qualifiedLeads, booked, recovered, responseTiming] =
-      await Promise.all([
-        CallLog.countDocuments({
-          business: businessId,
-          status: { $in: ["missed", "voicemail", "failed", "busy", "no_answer"] },
-          createdAt: dateFilter,
-        }),
-        Lead.countDocuments({
-          business: businessId,
-          firstRespondedAt: dateFilter,
-        }),
-        Lead.countDocuments({ business: businessId, qualifiedAt: dateFilter }),
-        Appointment.aggregate([
-          {
-            $match: {
-              business: businessId,
-              status: { $in: ["confirmed", "completed", "no_show"] },
-              confirmedAt: dateFilter,
-            },
+    const [
+      missedCalls,
+      customersReached,
+      qualifiedLeads,
+      humanInterventions,
+      lostOpportunities,
+      booked,
+      recovered,
+      responseTiming,
+    ] = await Promise.all([
+      CallLog.countDocuments({
+        business: businessId,
+        status: { $in: ["missed", "voicemail", "failed", "busy", "no_answer"] },
+        createdAt: dateFilter,
+      }),
+      Lead.countDocuments({
+        business: businessId,
+        firstRespondedAt: dateFilter,
+      }),
+      Lead.countDocuments({ business: businessId, qualifiedAt: dateFilter }),
+      ConversionEvent.countDocuments({
+        business: businessId,
+        type: "human_takeover",
+        occurredAt: dateFilter,
+      }),
+      Lead.countDocuments({
+        business: businessId,
+        status: "lost",
+        createdAt: dateFilter,
+      }),
+      Appointment.aggregate([
+        {
+          $match: {
+            business: businessId,
+            status: { $in: ["confirmed", "completed", "no_show"] },
+            confirmedAt: dateFilter,
           },
-          {
-            $group: {
-              _id: null,
-              count: { $sum: 1 },
-              estimated: { $sum: "$estimatedValue" },
-              actual: { $sum: "$actualRevenue" },
-            },
+        },
+        {
+          $group: {
+            _id: null,
+            count: { $sum: 1 },
+            estimated: { $sum: "$estimatedValue" },
+            actual: { $sum: "$actualRevenue" },
           },
-        ]),
-        Lead.aggregate([
-          { $match: { business: businessId, recovered: true, bookedAt: dateFilter } },
-          {
-            $group: {
-              _id: null,
-              count: { $sum: 1 },
-              estimated: { $sum: "$estimatedValue" },
-              actual: { $sum: "$actualRevenue" },
-            },
+        },
+      ]),
+      Lead.aggregate([
+        { $match: { business: businessId, recovered: true, bookedAt: dateFilter } },
+        {
+          $group: {
+            _id: null,
+            count: { $sum: 1 },
+            estimated: { $sum: "$estimatedValue" },
+            actual: { $sum: "$actualRevenue" },
           },
-        ]),
-        ConversionEvent.aggregate([
-          {
-            $match: {
-              business: businessId,
-              type: "first_response",
-              occurredAt: dateFilter,
-              "metadata.responseSeconds": { $type: "number" },
-            },
+        },
+      ]),
+      ConversionEvent.aggregate([
+        {
+          $match: {
+            business: businessId,
+            type: "first_response",
+            occurredAt: dateFilter,
+            "metadata.responseSeconds": { $type: "number" },
           },
-          { $group: { _id: null, average: { $avg: "$metadata.responseSeconds" } } },
-        ]),
-      ]);
+        },
+        { $group: { _id: null, average: { $avg: "$metadata.responseSeconds" } } },
+      ]),
+    ]);
 
     const appointmentSummary = booked[0] || { count: 0, estimated: 0, actual: 0 };
     const recoveredSummary = recovered[0] || { count: 0, estimated: 0, actual: 0 };
@@ -80,9 +98,15 @@ class RevenueRecoveryService {
       qualifiedLeads,
       appointmentsBooked: appointmentSummary.count,
       recoveredLeads: recoveredSummary.count,
+      humanInterventions,
+      lostOpportunities,
       responseRate: safeRate(customersReached, missedCalls),
       qualificationRate: safeRate(qualifiedLeads, customersReached),
       bookingRate: safeRate(appointmentSummary.count, missedCalls),
+      humanInterventionRate: safeRate(
+        humanInterventions,
+        customersReached || missedCalls,
+      ),
       estimatedRecoveredRevenue: recoveredSummary.estimated || 0,
       actualRecoveredRevenue: recoveredSummary.actual || 0,
       estimatedBookedRevenue: appointmentSummary.estimated || 0,

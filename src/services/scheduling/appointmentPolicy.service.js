@@ -3,9 +3,17 @@ import AvailabilityRule from "../../models/availabilityRule.js";
 import SchedulingPolicy from "../../models/schedulingPolicy.js";
 import ServiceArea from "../../models/serviceArea.js";
 import ServiceOffering from "../../models/serviceOffering.js";
+import getPostalCodeDistanceMiles from "../location/postalCodeDistance.service.js";
 import { formatDateKey, getUtcDayOfWeekForDateKey } from "./timezone.service.js";
 
 const ZIP_PATTERN = /^\d{5}(?:-\d{4})?$/;
+
+const serviceError = (message, statusCode, code) => {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  if (code) error.code = code;
+  return error;
+};
 
 export const getSchedulingPolicy = async (businessId) => {
   const policy = await SchedulingPolicy.findOne({ business: businessId }).lean();
@@ -27,9 +35,7 @@ export const getSchedulingPolicy = async (businessId) => {
 
 export const getBookableService = async ({ businessId, serviceOfferingId }) => {
   if (!serviceOfferingId) {
-    const error = new Error("serviceOfferingId is required.");
-    error.statusCode = 400;
-    throw error;
+    throw serviceError("serviceOfferingId is required.", 400);
   }
 
   const service = await ServiceOffering.findOne({
@@ -39,22 +45,25 @@ export const getBookableService = async ({ businessId, serviceOfferingId }) => {
   }).lean();
 
   if (!service) {
-    const error = new Error("The requested service offering was not found.");
-    error.statusCode = 404;
-    throw error;
+    throw serviceError("The requested service offering was not found.", 404);
   }
 
   if (!service.aiCanBook && service.aiCanDiscuss === false) {
-    const error = new Error("The requested service is not available for booking.");
-    error.statusCode = 409;
-    error.code = "SERVICE_NOT_BOOKABLE";
-    throw error;
+    throw serviceError(
+      "The requested service is not available for booking.",
+      409,
+      "SERVICE_NOT_BOOKABLE",
+    );
   }
 
   return service;
 };
 
-export const validateServiceArea = async ({ businessId, postalCode }) => {
+export const validateServiceArea = async ({
+  businessId,
+  postalCode,
+  distanceResolver = getPostalCodeDistanceMiles,
+}) => {
   const normalizedPostalCode = String(postalCode || "").trim();
 
   if (!normalizedPostalCode) {
@@ -62,33 +71,87 @@ export const validateServiceArea = async ({ businessId, postalCode }) => {
   }
 
   if (!ZIP_PATTERN.test(normalizedPostalCode)) {
-    const error = new Error("postalCode must be a valid US ZIP code.");
-    error.statusCode = 400;
-    throw error;
+    throw serviceError("postalCode must be a valid US ZIP code.", 400);
   }
 
   const area = await ServiceArea.findOne({ business: businessId }).lean();
 
-  if (!area || area.type !== "zip_codes" || area.zipCodes.length === 0) {
+  if (!area) {
     return { supported: true, reason: "no_restriction_configured" };
   }
 
   const fiveDigitZip = normalizedPostalCode.slice(0, 5);
-  const supported = area.zipCodes.some((value) => value.slice(0, 5) === fiveDigitZip);
 
-  return {
-    supported,
-    reason: supported ? "matched" : "outside_configured_service_area",
-  };
+  if (area.type === "zip_codes") {
+    const configuredZipCodes = Array.isArray(area.zipCodes) ? area.zipCodes : [];
+
+    if (configuredZipCodes.length === 0) {
+      return { supported: true, reason: "no_restriction_configured" };
+    }
+
+    const supported = configuredZipCodes.some(
+      (value) => String(value || "").slice(0, 5) === fiveDigitZip,
+    );
+
+    return {
+      supported,
+      reason: supported ? "matched" : "outside_configured_service_area",
+      mode: "zip_codes",
+    };
+  }
+
+  if (area.type === "radius") {
+    const centerPostalCode = String(area.centerPostalCode || "").trim().slice(0, 5);
+    const radiusMiles = Number(area.radiusMiles);
+
+    if (!ZIP_PATTERN.test(centerPostalCode) || !Number.isFinite(radiusMiles) || radiusMiles <= 0) {
+      throw serviceError(
+        "The radius service area is missing a valid center ZIP code or radius.",
+        409,
+        "SERVICE_AREA_CONFIGURATION_INCOMPLETE",
+      );
+    }
+
+    const distanceMiles = await distanceResolver({
+      originPostalCode: centerPostalCode,
+      destinationPostalCode: fiveDigitZip,
+    });
+    const supported = distanceMiles <= radiusMiles;
+
+    return {
+      supported,
+      reason: supported ? "matched_radius" : "outside_configured_service_area",
+      mode: "radius",
+      distanceMiles: Number(distanceMiles.toFixed(2)),
+      radiusMiles,
+      centerPostalCode,
+    };
+  }
+
+  return { supported: true, reason: "no_restriction_configured" };
 };
 
-export const validateBookingWindow = ({ startAt, policy, now = new Date() }) => {
+export const validateBookingWindow = ({
+  startAt,
+  policy = {},
+  now = new Date(),
+  timeZone = policy.timezone || policy.timeZone || "America/New_York",
+}) => {
   const start = new Date(startAt);
 
   if (Number.isNaN(start.getTime())) {
-    const error = new Error("startAt must be a valid date.");
-    error.statusCode = 400;
-    throw error;
+    throw serviceError("startAt must be a valid date.", 400);
+  }
+
+  if (
+    policy.allowSameDayBooking === false &&
+    formatDateKey(start, timeZone) === formatDateKey(now, timeZone)
+  ) {
+    throw serviceError(
+      "Same-day booking is disabled for this business.",
+      409,
+      "SAME_DAY_BOOKING_DISABLED",
+    );
   }
 
   const minimumStart = new Date(
@@ -99,19 +162,22 @@ export const validateBookingWindow = ({ startAt, policy, now = new Date() }) => 
   );
 
   if (start < minimumStart) {
-    const error = new Error("The selected time does not meet the minimum notice requirement.");
-    error.statusCode = 409;
-    error.code = "MINIMUM_NOTICE_NOT_MET";
-    throw error;
+    throw serviceError(
+      "The selected time does not meet the minimum notice requirement.",
+      409,
+      "MINIMUM_NOTICE_NOT_MET",
+    );
   }
 
   if (start > maximumStart) {
-    const error = new Error("The selected time is beyond the maximum advance-booking period.");
-    error.statusCode = 409;
-    error.code = "MAXIMUM_ADVANCE_EXCEEDED";
-    throw error;
+    throw serviceError(
+      "The selected time is beyond the maximum advance-booking period.",
+      409,
+      "MAXIMUM_ADVANCE_EXCEEDED",
+    );
   }
 };
+
 export const getSlotCapacity = async ({ businessId, startAt, timeZone }) => {
   const dateKey = formatDateKey(startAt, timeZone || "America/New_York");
   const dayOfWeek = getUtcDayOfWeekForDateKey(dateKey);
@@ -129,4 +195,3 @@ export const getSlotCapacity = async ({ businessId, startAt, timeZone }) => {
     Math.min(100, Number(exception?.capacity || rule?.capacity || 1)),
   );
 };
-
