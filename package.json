@@ -17,6 +17,7 @@
     "test:conversation": "jest tests/validators/conversation.test.js --runInBand",
     "test:message": "jest tests/validators/message.test.js --runInBand",
     "test:calllog": "jest tests/validators/callLog.test.js --runInBand",
+    "test:integrations": "jest tests/unit/integrationSettings.test.js tests/unit/googleCalendarProvider.test.js tests/unit/integrationWebhookSignature.test.js --runInBand",
     "start:dev": "nodemon --watch src --ext js --exec babel-node src/server.js",
     "build": "babel src -d build --delete-dir-on-start",
     "start": "node build/server.js",

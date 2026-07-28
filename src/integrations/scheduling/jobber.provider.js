@@ -6,29 +6,7 @@ import {
   getJobberConnection,
   jobberGraphqlRequest,
 } from "../../services/integrations/jobberConnection.service.js";
-
-/*
- * Jobber's approved scopes and account schema determine which request/job/visit
- * mutations are available. The adapter accepts reviewed GraphQL operation
- * templates through IntegrationConnection.metadata. This keeps Jobber object
- * names out of the rest of CallBackIQ and prevents hard-coding an unapproved
- * mutation into the SMS workflow.
- */
-const requireOperation = async (businessId, operationKey) => {
-  const connection = await getJobberConnection(businessId);
-  const operation = connection?.metadata?.operations?.[operationKey];
-
-  if (!operation?.query || !operation?.resultPath) {
-    const error = new Error(
-      `Jobber ${operationKey} is not configured for this account. Save a reviewed mutation template in IntegrationConnection.metadata.operations.${operationKey}.`,
-    );
-    error.statusCode = 409;
-    error.code = "JOBBER_OPERATION_NOT_CONFIGURED";
-    throw error;
-  }
-
-  return operation;
-};
+import { syncLeadToJobber } from "../../services/integrations/jobberWorkflow.service.js";
 
 const getAtPath = (value, path) =>
   String(path || "")
@@ -36,9 +14,24 @@ const getAtPath = (value, path) =>
     .filter(Boolean)
     .reduce((current, key) => current?.[key], value);
 
+const requireOperation = async (businessId, operationKey) => {
+  const connection = await getJobberConnection(businessId);
+  const operation = connection?.metadata?.operations?.[operationKey];
+  if (!operation?.query || !operation?.resultPath) {
+    const error = new Error(
+      `Jobber ${operationKey} requires an approved GraphQL operation for this account. ` +
+        "Lead-to-request sync works without this operation; direct visit scheduling is optional.",
+    );
+    error.statusCode = 409;
+    error.code = "JOBBER_OPERATION_NOT_CONFIGURED";
+    throw error;
+  }
+  return operation;
+};
+
 class JobberProvider extends SchedulingProvider {
   async getAvailability(options) {
-    /* CallBackIQ rules remain authoritative until a Jobber availability query is configured. */
+    // CallBackIQ/Google remains the scheduling authority; Jobber receives the operational handoff.
     return generateInternalSlots({ ...options, business: this.business });
   }
 
@@ -52,11 +45,28 @@ class JobberProvider extends SchedulingProvider {
     });
     const result = getAtPath(data, operation.resultPath);
     assertNoJobberUserErrors(result, operationKey);
-
     return { result, operation };
   }
 
   async createAppointment({ appointment, service }) {
+    const businessId = this.business._id || this.business.id;
+    if (appointment.lead) {
+      const handoff = await syncLeadToJobber({
+        businessId,
+        leadId: appointment.lead,
+      });
+      const connection = await getJobberConnection(businessId);
+      const operation = connection?.metadata?.operations?.createAppointment;
+      if (!operation?.query) {
+        return {
+          provider: "jobber",
+          externalAppointmentId: handoff.requestId,
+          externalCalendarId: "jobber-request",
+          raw: { handoff, schedulingAuthority: "callbackiq" },
+        };
+      }
+    }
+
     const { result, operation } = await this.runMutation({
       operationKey: "createAppointment",
       variables: {
@@ -74,11 +84,7 @@ class JobberProvider extends SchedulingProvider {
       },
     });
     const externalId = getAtPath(result, operation.externalIdPath || "id");
-
-    if (!externalId) {
-      throw new Error("Jobber returned no external appointment ID.");
-    }
-
+    if (!externalId) throw new Error("Jobber returned no external appointment ID.");
     await ExternalRecordMapping.findOneAndUpdate(
       {
         business: this.business._id,
@@ -97,7 +103,6 @@ class JobberProvider extends SchedulingProvider {
       },
       { upsert: true, new: true },
     );
-
     return {
       provider: "jobber",
       externalAppointmentId: String(externalId),
@@ -107,6 +112,14 @@ class JobberProvider extends SchedulingProvider {
   }
 
   async updateAppointment({ appointment, changes }) {
+    if (appointment.externalCalendarId === "jobber-request") {
+      return {
+        provider: "jobber",
+        externalAppointmentId: appointment.externalAppointmentId,
+        externalCalendarId: "jobber-request",
+        raw: { requestOnly: true },
+      };
+    }
     const { result } = await this.runMutation({
       operationKey: "updateAppointment",
       variables: {
@@ -117,7 +130,6 @@ class JobberProvider extends SchedulingProvider {
         },
       },
     });
-
     return {
       provider: "jobber",
       externalAppointmentId: appointment.externalAppointmentId,
@@ -127,6 +139,9 @@ class JobberProvider extends SchedulingProvider {
   }
 
   async cancelAppointment({ appointment }) {
+    if (appointment.externalCalendarId === "jobber-request") {
+      return { canceled: true, requestPreserved: true };
+    }
     const { result } = await this.runMutation({
       operationKey: "cancelAppointment",
       variables: { input: { id: appointment.externalAppointmentId } },
@@ -135,6 +150,9 @@ class JobberProvider extends SchedulingProvider {
   }
 
   async getAppointment({ appointment }) {
+    if (appointment.externalCalendarId === "jobber-request") {
+      return { id: appointment.externalAppointmentId, type: "request" };
+    }
     const businessId = this.business._id || this.business.id;
     const operation = await requireOperation(businessId, "getAppointment");
     const data = await jobberGraphqlRequest({
