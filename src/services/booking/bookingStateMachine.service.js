@@ -18,7 +18,11 @@ const NEGATIVE = /^(no|nope|not that|different|another|change it|cancel)[.!\s]*$
 const EXACT_PRICE = /\b(exact|final|total)\b.{0,25}\b(price|cost|quote|charge)\b|\bhow much (?:will|does) it cost\b/i;
 const ZIP_PATTERN = /\b(\d{5})(?:-\d{4})?\b/;
 
-const fixedResult = ({ reply, category = "appointment_preference", actionType = "send_fixed_response" }) => ({
+const fixedResult = ({
+  reply,
+  category = "appointment_preference",
+  actionType = "send_fixed_response",
+}) => ({
   decision: "send_fixed_response",
   actionType,
   messageCategory: category,
@@ -56,6 +60,7 @@ const formatSlot = (slot, timeZone) =>
 
 const findDateRange = (message, timeZone) => {
   const explicitDates = String(message).match(/\b20\d{2}-\d{2}-\d{2}\b/g);
+
   if (explicitDates?.length) {
     return {
       startDate: explicitDates[0],
@@ -69,14 +74,29 @@ const findDateRange = (message, timeZone) => {
     const value = new Date(now.getTime() + days * 86_400_000);
     return formatDateKey(value, timeZone);
   };
-  if (/\btoday\b/i.test(message)) return { startDate: todayKey, endDate: todayKey };
+
+  if (/\btoday\b/i.test(message)) {
+    return { startDate: todayKey, endDate: todayKey };
+  }
+
   if (/\btomorrow\b/i.test(message)) {
     const key = addDays(1);
     return { startDate: key, endDate: key };
   }
 
-  const weekdays = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-  const wanted = weekdays.findIndex((day) => new RegExp(`\\b${day}\\b`, "i").test(message));
+  const weekdays = [
+    "sunday",
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+  ];
+  const wanted = weekdays.findIndex((day) =>
+    new RegExp(`\\b${day}\\b`, "i").test(message),
+  );
+
   if (wanted >= 0) {
     const shortWeekday = new Intl.DateTimeFormat("en-US", {
       timeZone,
@@ -93,7 +113,9 @@ const findDateRange = (message, timeZone) => {
     };
     const current = weekdayIndex[shortWeekday] ?? 0;
     let daysAhead = (wanted - current + 7) % 7;
+
     if (daysAhead === 0) daysAhead = 7;
+
     const key = addDays(daysAhead);
     return { startDate: key, endDate: key };
   }
@@ -107,13 +129,26 @@ const findDateRange = (message, timeZone) => {
 
 const selectOfferedSlot = (message, offeredSlots, timeZone) => {
   const text = String(message || "").trim().toLowerCase();
-  if (/\b(first|1|one)\b/.test(text)) return offeredSlots[0] || null;
-  if (/\b(second|2|two)\b/.test(text)) return offeredSlots[1] || null;
-  if (/\b(third|3|three)\b/.test(text)) return offeredSlots[2] || null;
+  const explicitSelections = new Set();
+
+  if (/\b(first|1|one)\b/.test(text)) explicitSelections.add(0);
+  if (/\b(second|2|two)\b/.test(text)) explicitSelections.add(1);
+  if (/\b(third|3|three)\b/.test(text)) explicitSelections.add(2);
+
+  // A reply that names more than one option is ambiguous. Never choose one
+  // appointment silently or advance to confirmation.
+  if (explicitSelections.size > 1) return null;
+
+  if (explicitSelections.size === 1) {
+    const [selectedIndex] = explicitSelections;
+    return offeredSlots[selectedIndex] || null;
+  }
 
   return (
     offeredSlots.find((slot) => {
-      const label = String(slot.label || formatSlot(slot, timeZone)).toLowerCase();
+      const label = String(
+        slot.label || formatSlot(slot, timeZone),
+      ).toLowerCase();
       const localTime = new Intl.DateTimeFormat("en-US", {
         timeZone,
         hour: "numeric",
@@ -121,6 +156,7 @@ const selectOfferedSlot = (message, offeredSlots, timeZone) => {
       })
         .format(new Date(slot.startAt))
         .toLowerCase();
+
       return text.includes(label) || text.includes(localTime);
     }) || null
   );
@@ -137,6 +173,7 @@ class BookingStateMachineService {
   static async findConversation({ business, lead, conversation }) {
     if (conversation) return conversation;
     if (!lead?._id) return null;
+
     return Conversation.findOne({
       business: business._id,
       lead: lead._id,
@@ -148,14 +185,24 @@ class BookingStateMachineService {
     const enabled = Boolean(business?.features?.aiBookingEnabled);
     if (!enabled) return { handled: false };
 
-    const activeConversation = await this.findConversation({ business, lead, conversation });
-    if (!activeConversation || activeConversation.humanTakeover) return { handled: false };
+    const activeConversation = await this.findConversation({
+      business,
+      lead,
+      conversation,
+    });
+
+    if (!activeConversation || activeConversation.humanTakeover) {
+      return { handled: false };
+    }
 
     const text = String(customerMessage || "").trim();
-    const currentStatus = activeConversation.bookingState?.status || "not_started";
+    const currentStatus =
+      activeConversation.bookingState?.status || "not_started";
     const stateActive = currentStatus !== "not_started";
 
-    if (!stateActive && !BOOKING_INTENT.test(text)) return { handled: false };
+    if (!stateActive && !BOOKING_INTENT.test(text)) {
+      return { handled: false };
+    }
 
     if (HUMAN_INTENT.test(text)) {
       await escalateToHumanTool({
@@ -165,10 +212,12 @@ class BookingStateMachineService {
         reason: "customer_requested_human",
         customerMessage: text,
       });
+
       return {
         handled: true,
         result: fixedResult({
-          reply: "I’ve paused the automated booking and alerted the team. A person will follow up directly.",
+          reply:
+            "I’ve paused the automated booking and alerted the team. A person will follow up directly.",
           category: "human_requested",
         }),
       };
@@ -178,14 +227,20 @@ class BookingStateMachineService {
       return {
         handled: true,
         result: fixedResult({
-          reply: "I can help schedule the visit, but the team must confirm final scope and pricing after reviewing the job.",
+          reply:
+            "I can help schedule the visit, but the team must confirm final scope and pricing after reviewing the job.",
           category: "pricing_request",
         }),
       };
     }
 
     let status = currentStatus;
-    if (status === "failed" || (activeConversation.bookingState?.expiresAt && activeConversation.bookingState.expiresAt < new Date())) {
+    const offerExpired = Boolean(
+      activeConversation.bookingState?.expiresAt &&
+        activeConversation.bookingState.expiresAt < new Date(),
+    );
+
+    if (status === "failed" || offerExpired) {
       await updateState(activeConversation, {
         status: "collecting_service",
         offeredSlots: [],
@@ -194,15 +249,34 @@ class BookingStateMachineService {
         lastError: "",
       });
       status = "collecting_service";
+
+      // The customer's reply belongs to the stale offer. Return after the
+      // reset so words such as "first" are not treated as a new service.
+      if (offerExpired) {
+        return {
+          handled: true,
+          result: fixedResult({
+            reply:
+              "That appointment offer expired. What service would you like to schedule?",
+          }),
+        };
+      }
     }
 
     if (status === "not_started" || status === "collecting_service") {
-      const matches = await searchServicesTool({ businessId: business._id, query: text });
+      const matches = await searchServicesTool({
+        businessId: business._id,
+        query: text,
+      });
+
       if (matches.length !== 1) {
-        await updateState(activeConversation, { status: "collecting_service" });
+        await updateState(activeConversation, {
+          status: "collecting_service",
+        });
         const choices = matches.length
           ? ` I found: ${matches.map((item) => item.name).join(", ")}.`
           : "";
+
         return {
           handled: true,
           result: fixedResult({
@@ -216,10 +290,12 @@ class BookingStateMachineService {
         status: "collecting_location",
         serviceOffering: selectedService.id,
       });
+
       if (lead && (!lead.serviceNeeded || lead.serviceNeeded === "Unknown")) {
         lead.serviceNeeded = selectedService.name;
         await lead.save();
       }
+
       return {
         handled: true,
         result: fixedResult({
@@ -229,15 +305,24 @@ class BookingStateMachineService {
     }
 
     if (status === "collecting_location") {
-      const zip = text.match(ZIP_PATTERN)?.[1] || activeConversation.bookingState?.postalCode;
+      const zip =
+        text.match(ZIP_PATTERN)?.[1] ||
+        activeConversation.bookingState?.postalCode;
+
       if (!zip) {
         return {
           handled: true,
-          result: fixedResult({ reply: "Please send the service address and 5-digit ZIP code." }),
+          result: fixedResult({
+            reply: "Please send the service address and 5-digit ZIP code.",
+          }),
         };
       }
 
-      const area = await validateServiceAreaTool({ businessId: business._id, postalCode: zip });
+      const area = await validateServiceAreaTool({
+        businessId: business._id,
+        postalCode: zip,
+      });
+
       if (!area.supported) {
         await escalateToHumanTool({
           businessId: business._id,
@@ -246,10 +331,12 @@ class BookingStateMachineService {
           reason: "unsupported_service_area",
           customerMessage: text,
         });
+
         return {
           handled: true,
           result: fixedResult({
-            reply: "That ZIP code is outside the currently approved automated service area. I’ve sent the request to the team to review directly.",
+            reply:
+              "That ZIP code is outside the currently approved automated service area. I’ve sent the request to the team to review directly.",
             category: "service_area_question",
           }),
         };
@@ -259,14 +346,17 @@ class BookingStateMachineService {
         lead.address = text;
         await lead.save();
       }
+
       await updateState(activeConversation, {
         status: "collecting_preference",
         postalCode: zip,
       });
+
       return {
         handled: true,
         result: fixedResult({
-          reply: "What day works best? You can reply with a weekday, tomorrow, next week, or a date like 2026-08-03.",
+          reply:
+            "What day works best? You can reply with a weekday, tomorrow, next week, or a date like 2026-08-03.",
         }),
       };
     }
@@ -274,28 +364,33 @@ class BookingStateMachineService {
     if (status === "collecting_preference") {
       const timeZone = business.timezone || "America/New_York";
       const range = findDateRange(text, timeZone);
+
       if (!range) {
         return {
           handled: true,
           result: fixedResult({
-            reply: "Please tell me the day you prefer, such as Tuesday, tomorrow, next week, or 2026-08-03.",
+            reply:
+              "Please tell me the day you prefer, such as Tuesday, tomorrow, next week, or 2026-08-03.",
           }),
         };
       }
 
       const availability = await getAvailabilityTool({
         business,
-        serviceOfferingId: activeConversation.bookingState.serviceOffering,
+        serviceOfferingId:
+          activeConversation.bookingState.serviceOffering,
         startDate: range.startDate,
         endDate: range.endDate,
         postalCode: activeConversation.bookingState.postalCode,
       });
       const offeredSlots = availability.slots.slice(0, 3);
+
       if (offeredSlots.length === 0) {
         return {
           handled: true,
           result: fixedResult({
-            reply: "I don’t see an available time in that window. Please send another day or date range.",
+            reply:
+              "I don’t see an available time in that window. Please send another day or date range.",
           }),
         };
       }
@@ -303,7 +398,9 @@ class BookingStateMachineService {
       await updateState(activeConversation, {
         status: "offering_slots",
         preferredStart: new Date(offeredSlots[0].startAt),
-        preferredEnd: new Date(offeredSlots[offeredSlots.length - 1].endAt),
+        preferredEnd: new Date(
+          offeredSlots[offeredSlots.length - 1].endAt,
+        ),
         offeredSlots: offeredSlots.map((slot) => ({
           startAt: new Date(slot.startAt),
           endAt: new Date(slot.endAt),
@@ -313,6 +410,7 @@ class BookingStateMachineService {
         selectedSlot: null,
         expiresAt: new Date(Date.now() + 30 * 60_000),
       });
+
       await ConversionEventService.record({
         businessId: business._id,
         leadId: lead?._id,
@@ -323,6 +421,7 @@ class BookingStateMachineService {
         idempotencyKey: `appointment_offered:${activeConversation._id}:${offeredSlots[0].startAt}`,
         metadata: { offeredSlots },
       });
+
       await AutomationTriggerService.schedule({
         businessId: business._id,
         trigger: "appointment_offered_not_selected",
@@ -330,12 +429,19 @@ class BookingStateMachineService {
         conversationId: activeConversation._id,
         triggerInstanceId: `${activeConversation._id}:${offeredSlots[0].startAt}`,
       });
+
       const options = offeredSlots
-        .map((slot, index) => `${index + 1}) ${formatSlot(slot, timeZone)}`)
+        .map(
+          (slot, index) =>
+            `${index + 1}) ${formatSlot(slot, timeZone)}`,
+        )
         .join("; ");
+
       return {
         handled: true,
-        result: fixedResult({ reply: `I have ${options}. Which option works best?` }),
+        result: fixedResult({
+          reply: `I have ${options}. Which option works best?`,
+        }),
       };
     }
 
@@ -345,14 +451,26 @@ class BookingStateMachineService {
         activeConversation.bookingState.offeredSlots || [],
         business.timezone || "America/New_York",
       );
+
       if (!slot) {
         if (findDateRange(text, business.timezone || "America/New_York")) {
-          await updateState(activeConversation, { status: "collecting_preference" });
-          return this.handle({ business, lead, conversation: activeConversation, customerMessage: text });
+          await updateState(activeConversation, {
+            status: "collecting_preference",
+          });
+          return this.handle({
+            business,
+            lead,
+            conversation: activeConversation,
+            customerMessage: text,
+          });
         }
+
         return {
           handled: true,
-          result: fixedResult({ reply: "Please reply with the option number, or send another day." }),
+          result: fixedResult({
+            reply:
+              "Please reply with the option number, or send another day.",
+          }),
         };
       }
 
@@ -361,12 +479,19 @@ class BookingStateMachineService {
         selectedSlot: slot,
         expiresAt: new Date(Date.now() + 15 * 60_000),
       });
+
       const serviceName = lead?.serviceNeeded || "the requested service";
-      const address = lead?.address || `ZIP ${activeConversation.bookingState.postalCode}`;
+      const address =
+        lead?.address ||
+        `ZIP ${activeConversation.bookingState.postalCode}`;
+
       return {
         handled: true,
         result: fixedResult({
-          reply: `Just to confirm, would you like me to book ${formatSlot(slot, business.timezone || "America/New_York")} for ${serviceName} at ${address}? Reply YES to confirm.`,
+          reply: `Just to confirm, would you like me to book ${formatSlot(
+            slot,
+            business.timezone || "America/New_York",
+          )} for ${serviceName} at ${address}? Reply YES to confirm.`,
         }),
       };
     }
@@ -379,27 +504,38 @@ class BookingStateMachineService {
           offeredSlots: [],
           expiresAt: null,
         });
+
         return {
           handled: true,
-          result: fixedResult({ reply: "No problem. What other day would you prefer?" }),
+          result: fixedResult({
+            reply: "No problem. What other day would you prefer?",
+          }),
         };
       }
+
       if (!AFFIRMATIVE.test(text)) {
         return {
           handled: true,
-          result: fixedResult({ reply: "Please reply YES to book that exact time, or NO to choose another day." }),
+          result: fixedResult({
+            reply:
+              "Please reply YES to book that exact time, or NO to choose another day.",
+          }),
         };
       }
 
       const selectedSlot = activeConversation.bookingState.selectedSlot;
       await updateState(activeConversation, { status: "booking" });
+
       try {
         const bookingInput = {
           lead: lead?._id,
           conversation: activeConversation._id,
-          serviceOfferingId: activeConversation.bookingState.serviceOffering,
-          customerName: lead?.customerName || activeConversation.customerName,
-          customerPhone: lead?.phone || activeConversation.customerPhone,
+          serviceOfferingId:
+            activeConversation.bookingState.serviceOffering,
+          customerName:
+            lead?.customerName || activeConversation.customerName,
+          customerPhone:
+            lead?.phone || activeConversation.customerPhone,
           customerEmail: lead?.email || "",
           address: {
             street: lead?.address || "",
@@ -411,23 +547,31 @@ class BookingStateMachineService {
           estimatedValue: lead?.estimatedValue || 0,
         };
         const isReschedule =
-          activeConversation.bookingState.lastError === "reschedule_requested" &&
+          activeConversation.bookingState.lastError ===
+            "reschedule_requested" &&
           activeConversation.bookingState.appointment;
         const appointment = isReschedule
           ? await rescheduleAppointmentTool({
               business,
-              appointmentId: activeConversation.bookingState.appointment,
+              appointmentId:
+                activeConversation.bookingState.appointment,
               input: bookingInput,
-              idempotencyKey: `ai-reschedule:${activeConversation._id}:${new Date(selectedSlot.startAt).toISOString()}`,
+              idempotencyKey: `ai-reschedule:${activeConversation._id}:${new Date(
+                selectedSlot.startAt,
+              ).toISOString()}`,
             })
           : await createAppointmentTool({
               business,
-              idempotencyKey: `ai-book:${activeConversation._id}:${new Date(selectedSlot.startAt).toISOString()}`,
+              idempotencyKey: `ai-book:${activeConversation._id}:${new Date(
+                selectedSlot.startAt,
+              ).toISOString()}`,
               input: bookingInput,
             });
 
         if (appointment.status !== "confirmed") {
-          throw new Error("The appointment provider did not return a confirmed appointment.");
+          throw new Error(
+            "The appointment provider did not return a confirmed appointment.",
+          );
         }
 
         await updateState(activeConversation, {
@@ -436,10 +580,16 @@ class BookingStateMachineService {
           expiresAt: null,
           lastError: "",
         });
+
         return {
           handled: true,
           result: fixedResult({
-            reply: `You’re booked for ${formatSlot(appointment, appointment.timezone)} for ${lead?.serviceNeeded || "your service request"}. Final scope and pricing may require technician evaluation. Reply here if you need to cancel or reschedule.`,
+            reply: `You’re booked for ${formatSlot(
+              appointment,
+              appointment.timezone,
+            )} for ${
+              lead?.serviceNeeded || "your service request"
+            }. Final scope and pricing may require technician evaluation. Reply here if you need to cancel or reschedule.`,
           }),
         };
       } catch (error) {
@@ -448,6 +598,7 @@ class BookingStateMachineService {
           lastError: error.message,
           expiresAt: null,
         });
+
         return {
           handled: true,
           result: fixedResult({
@@ -461,6 +612,7 @@ class BookingStateMachineService {
 
     if (status === "booked") {
       const appointmentId = activeConversation.bookingState.appointment;
+
       if (/\bcancel\b/i.test(text)) {
         try {
           await cancelAppointmentTool({
@@ -476,29 +628,37 @@ class BookingStateMachineService {
             expiresAt: null,
             lastError: "",
           });
+
           return {
             handled: true,
-            result: fixedResult({ reply: "Your appointment has been canceled. Reply with a new preferred day if you’d like to reschedule." }),
+            result: fixedResult({
+              reply:
+                "Your appointment has been canceled. Reply with a new preferred day if you’d like to reschedule.",
+            }),
           };
         } catch (error) {
           return {
             handled: true,
             result: fixedResult({
-              reply: "I couldn’t confirm the cancellation automatically. I’ve alerted the team to handle it directly.",
+              reply:
+                "I couldn’t confirm the cancellation automatically. I’ve alerted the team to handle it directly.",
             }),
           };
         }
       }
+
       if (/\breschedule|change (?:the )?(?:time|day|appointment)\b/i.test(text)) {
         await updateState(activeConversation, {
           status: "collecting_preference",
           lastError: "reschedule_requested",
         });
+
         return {
           handled: true,
           result: fixedResult({ reply: "What new day would you prefer?" }),
         };
       }
+
       return { handled: false };
     }
 

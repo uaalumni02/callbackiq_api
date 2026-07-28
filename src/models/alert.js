@@ -5,7 +5,6 @@ import * as validate from "../helpers/model/alert.js";
 const { Schema } = mongoose;
 
 const alertTypes = [...validate.ALERT_TYPES];
-
 const AlertSchema = new Schema(
   {
     business: {
@@ -63,17 +62,22 @@ const AlertSchema = new Schema(
     metadata: { type: Schema.Types.Mixed, default: {} },
     dedupeKey: { type: String, trim: true, maxlength: 200, default: null },
 
+    /* Intervention ownership and audit trail. */
     assignedTo: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    assignedAt: { type: Date, default: null },
+    assignedBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
     acknowledgedAt: { type: Date, default: null },
+    acknowledgedBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
     resolvedAt: { type: Date, default: null },
+    resolvedBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
     resolution: { type: String, trim: true, default: "", maxlength: 2000 },
+
     actionRequired: { type: Boolean, default: false },
     dueAt: { type: Date, default: null },
     reason: { type: String, trim: true, default: "", maxlength: 1000 },
     recommendedAction: { type: String, trim: true, default: "", maxlength: 1000 },
     aiSummary: { type: String, trim: true, default: "", maxlength: 2000 },
     lastCustomerMessage: { type: String, trim: true, default: "", maxlength: 1600 },
-
     readAt: { type: Date, default: null },
     sentAt: { type: Date, default: null },
   },
@@ -91,6 +95,7 @@ AlertSchema.index({
   createdAt: -1,
 });
 AlertSchema.index({ business: 1, assignedTo: 1, resolvedAt: 1, dueAt: 1 });
+AlertSchema.index({ business: 1, resolvedAt: 1, acknowledgedAt: 1, priority: 1 });
 AlertSchema.index(
   { business: 1, dedupeKey: 1 },
   {
