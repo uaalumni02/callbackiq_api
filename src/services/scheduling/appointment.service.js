@@ -11,7 +11,6 @@ import SocketService from "../socket.service.js";
 import AvailabilityService from "./availability.service.js";
 import {
   getBookableService,
-  getSchedulingPolicy,
   getSlotCapacity,
 } from "./appointmentPolicy.service.js";
 import SchedulingProviderFactory from "./schedulingProviderFactory.js";
@@ -203,7 +202,6 @@ const createHold = async ({
         idempotencyKey,
       });
       if (existing) return existing;
-      /* A unique slot claim collision means this lane is occupied. */
     }
   }
 
@@ -247,15 +245,25 @@ class AppointmentService {
       throw error;
     }
 
-    const key = String(idempotencyKey || input.idempotencyKey || crypto.randomUUID()).trim();
-    const existing = await Appointment.findOne({ business: business._id, idempotencyKey: key });
+    const key = String(
+      idempotencyKey || input.idempotencyKey || crypto.randomUUID(),
+    ).trim();
+    const existing = await Appointment.findOne({
+      business: business._id,
+      idempotencyKey: key,
+    });
     if (existing) return existing;
 
     const service = await getBookableService({
       businessId: business._id,
       serviceOfferingId: input.serviceOfferingId || input.serviceOffering,
     });
-    const hold = await createHold({ business, service, input, idempotencyKey: key });
+    const hold = await createHold({
+      business,
+      service,
+      input,
+      idempotencyKey: key,
+    });
 
     if (!confirm || hold.status !== "held") {
       return hold;
@@ -265,7 +273,10 @@ class AppointmentService {
   }
 
   static async confirm({ business, appointmentId }) {
-    const appointment = await getAppointmentForBusiness(business._id, appointmentId);
+    const appointment = await getAppointmentForBusiness(
+      business._id,
+      appointmentId,
+    );
 
     if (appointment.status === "confirmed") return appointment;
     assertTransition(appointment.status, "confirmed");
@@ -297,7 +308,8 @@ class AppointmentService {
       appointment.activeSlotKey = null;
       appointment.slotClaimKeys = [];
       appointment.capacityLane = null;
-      appointment.failureReason = "The slot was unavailable during the final availability check.";
+      appointment.failureReason =
+        "The slot was unavailable during the final availability check.";
       await appointment.save();
       const error = new Error("The selected appointment time is no longer available.");
       error.statusCode = 409;
@@ -312,10 +324,15 @@ class AppointmentService {
     const provider = SchedulingProviderFactory.getProvider(business);
 
     try {
-      const providerResult = await provider.createAppointment({ appointment, service });
+      const providerResult = await provider.createAppointment({
+        appointment,
+        service,
+      });
       appointment.provider = providerResult.provider || appointment.provider;
-      appointment.externalAppointmentId = providerResult.externalAppointmentId || null;
-      appointment.externalCalendarId = providerResult.externalCalendarId || null;
+      appointment.externalAppointmentId =
+        providerResult.externalAppointmentId || null;
+      appointment.externalCalendarId =
+        providerResult.externalCalendarId || null;
       appointment.status = "confirmed";
       appointment.confirmedAt = new Date();
       appointment.heldExpiresAt = null;
@@ -334,12 +351,20 @@ class AppointmentService {
           leadId: appointment.lead,
           customerName: appointment.customerName,
           customerPhone: appointment.customerPhone,
-          serviceNeeded: service?.name || lead?.serviceNeeded || "Service appointment",
+          serviceNeeded:
+            service?.name || lead?.serviceNeeded || "Service appointment",
           estimatedValue: appointment.estimatedValue,
         });
       }
-      SocketService.emitToBusiness(business._id, "appointment:confirmed", appointment);
-      SocketService.emitDashboardRefresh(business._id, "appointment_confirmed");
+      SocketService.emitToBusiness(
+        business._id,
+        "appointment:confirmed",
+        appointment,
+      );
+      SocketService.emitDashboardRefresh(
+        business._id,
+        "appointment_confirmed",
+      );
       return appointment;
     } catch (error) {
       appointment.status = "failed";
@@ -354,7 +379,7 @@ class AppointmentService {
         leadId: appointment.lead,
         conversationId: appointment.conversation,
         appointmentId: appointment._id,
-        provider: appointment.provider,
+        provider: appointment.provider || "internal",
         error,
       });
       error.safeCustomerMessage =
@@ -364,7 +389,10 @@ class AppointmentService {
   }
 
   static async cancel({ business, appointmentId, reason = "" }) {
-    const appointment = await getAppointmentForBusiness(business._id, appointmentId);
+    const appointment = await getAppointmentForBusiness(
+      business._id,
+      appointmentId,
+    );
     if (appointment.status === "canceled") return appointment;
     assertTransition(appointment.status, "canceled");
     const provider = SchedulingProviderFactory.getProvider(
@@ -380,7 +408,7 @@ class AppointmentService {
         leadId: appointment.lead,
         conversationId: appointment.conversation,
         appointmentId: appointment._id,
-        provider: appointment.provider,
+        provider: appointment.provider || "internal",
         error,
       });
       throw error;
@@ -391,7 +419,10 @@ class AppointmentService {
     appointment.activeSlotKey = null;
     appointment.slotClaimKeys = [];
     appointment.capacityLane = null;
-    appointment.notes = [appointment.notes, reason ? `Cancellation: ${reason}` : ""]
+    appointment.notes = [
+      appointment.notes,
+      reason ? `Cancellation: ${reason}` : "",
+    ]
       .filter(Boolean)
       .join("\n");
     await appointment.save();
@@ -413,7 +444,8 @@ class AppointmentService {
       appointmentId: appointment._id,
       type: "appointment_canceled",
       title: "Appointment canceled",
-      message: "A confirmed appointment was canceled and may need recovery follow-up.",
+      message:
+        "A confirmed appointment was canceled and may need recovery follow-up.",
       priority: "medium",
       recommendedAction: "Offer the customer a new appointment time.",
       dedupeKey: `appointment_canceled:${appointment._id}`,
@@ -429,19 +461,28 @@ class AppointmentService {
         occurredAt: appointment.canceledAt,
       });
     }
-    SocketService.emitToBusiness(business._id, "appointment:canceled", appointment);
+    SocketService.emitToBusiness(
+      business._id,
+      "appointment:canceled",
+      appointment,
+    );
     return appointment;
   }
 
   static async reschedule({ business, appointmentId, input, idempotencyKey }) {
-    const original = await getAppointmentForBusiness(business._id, appointmentId);
+    const original = await getAppointmentForBusiness(
+      business._id,
+      appointmentId,
+    );
     assertTransition(original.status, "rescheduled");
     const service = await getBookableService({
       businessId: business._id,
       serviceOfferingId: original.serviceOffering,
     });
     const key = String(
-      idempotencyKey || input.idempotencyKey || `reschedule:${original._id}:${crypto.randomUUID()}`,
+      idempotencyKey ||
+        input.idempotencyKey ||
+        `reschedule:${original._id}:${crypto.randomUUID()}`,
     );
     const nextInput = {
       ...input,
@@ -462,7 +503,9 @@ class AppointmentService {
       business,
       serviceOfferingId: service._id,
       startAt: nextInput.startAt,
-      endAt: nextInput.endAt || addMinutes(nextInput.startAt, service.durationMinutes),
+      endAt:
+        nextInput.endAt ||
+        addMinutes(nextInput.startAt, service.durationMinutes),
       postalCode: nextInput.address?.postalCode,
       excludeAppointmentId: original._id,
     });
@@ -491,7 +534,10 @@ class AppointmentService {
     try {
       const providerResult = await provider.updateAppointment({
         appointment: original,
-        changes: { startAt: replacement.startAt, endAt: replacement.endAt },
+        changes: {
+          startAt: replacement.startAt,
+          endAt: replacement.endAt,
+        },
         service,
       });
       original.status = "rescheduled";
@@ -506,21 +552,30 @@ class AppointmentService {
       replacement.status = "confirmed";
       replacement.confirmedAt = new Date();
       replacement.heldExpiresAt = null;
-      replacement.provider = providerResult.provider || original.provider || "internal";
-      replacement.externalAppointmentId = providerResult.externalAppointmentId || null;
-      replacement.externalCalendarId = providerResult.externalCalendarId || null;
+      replacement.provider =
+        providerResult.provider || original.provider || "internal";
+      replacement.externalAppointmentId =
+        providerResult.externalAppointmentId || null;
+      replacement.externalCalendarId =
+        providerResult.externalCalendarId || null;
       await replacement.save();
 
       if (replacement.lead) {
         await Lead.updateOne(
           { _id: replacement.lead, business: business._id },
-          { $set: { appointment: replacement._id, bookedAt: replacement.confirmedAt } },
+          {
+            $set: {
+              appointment: replacement._id,
+              bookedAt: replacement.confirmedAt,
+            },
+          },
         );
       }
-      SocketService.emitToBusiness(business._id, "appointment:rescheduled", {
-        original,
-        replacement,
-      });
+      SocketService.emitToBusiness(
+        business._id,
+        "appointment:rescheduled",
+        { original, replacement },
+      );
       return replacement;
     } catch (error) {
       replacement.status = "failed";
@@ -542,7 +597,10 @@ class AppointmentService {
   }
 
   static async update({ businessId, appointmentId, changes }) {
-    const appointment = await getAppointmentForBusiness(businessId, appointmentId);
+    const appointment = await getAppointmentForBusiness(
+      businessId,
+      appointmentId,
+    );
     const allowed = [
       "customerName",
       "customerPhone",
@@ -555,14 +613,19 @@ class AppointmentService {
 
     for (const field of allowed) {
       if (Object.prototype.hasOwnProperty.call(changes, field)) {
-        appointment[field] = field === "address" ? normalizeAddress(changes[field]) : changes[field];
+        appointment[field] =
+          field === "address"
+            ? normalizeAddress(changes[field])
+            : changes[field];
       }
     }
 
     if (changes.status && changes.status !== appointment.status) {
       assertTransition(appointment.status, changes.status);
       if (!["completed", "no_show"].includes(changes.status)) {
-        const error = new Error("Use the dedicated confirm, cancel, or reschedule endpoint.");
+        const error = new Error(
+          "Use the dedicated confirm, cancel, or reschedule endpoint.",
+        );
         error.statusCode = 400;
         throw error;
       }
