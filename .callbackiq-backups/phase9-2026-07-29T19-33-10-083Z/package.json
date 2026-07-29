@@ -38,10 +38,7 @@
     "verify:phase2:internal": "node scripts/verify-internal-appointment-e2e.js",
     "verify:phase3:google": "node scripts/verify-google-calendar-e2e.js",
     "verify:phase8:jobber": "node scripts/verify-jobber-e2e.js",
-    "ensure:phase0:indexes": "node scripts/ensure-phase0-provider-indexes.js",
-    "verify:phase9:structure": "node scripts/verify-phase9-structure.js",
-    "test:phase9": "jest tests/unit/conversationRelay.server.test.js tests/unit/sendConfirmationSms.tool.test.js tests/unit/voiceAgent.service.test.js tests/unit/voiceRouting.service.test.js tests/unit/voiceSession.model.test.js tests/unit/voiceSessionFallback.service.test.js tests/unit/voiceSettings.controller.test.js tests/unit/voiceWebhook.controller.test.js tests/unit/voiceBookingStateMachineReuse.test.js tests/unit/safetyAssessmentService.voiceCompatibility.test.js --runInBand",
-    "certify:phase9": "npm run verify:phase9:structure && npm run test:phase0-8:completion && npm run test:phase9 && npm run build"
+    "ensure:phase0:indexes": "node scripts/ensure-phase0-provider-indexes.js"
   },
   "keywords": [],
   "author": "",
@@ -70,8 +67,7 @@
     "resend": "^6.17.1",
     "socket.io": "^4.8.3",
     "stripe": "^22.2.1",
-    "twilio": "^6.0.2",
-    "ws": "^8.18.3"
+    "twilio": "^6.0.2"
   },
   "devDependencies": {
     "@babel/preset-env": "^7.29.7",
@@ -88,9 +84,6 @@
     },
     "setupFiles": [
       "<rootDir>/jest.setup.js"
-    ],
-    "testPathIgnorePatterns": [
-      "<rootDir>/tools/api_overlay/"
     ]
   }
 }

@@ -30,7 +30,6 @@ import integrationRoutes from "./routes/integration.routes.js";
 import automationRoutes from "./routes/automation.routes.js";
 import revenueRecoveryRoutes from "./routes/revenueRecovery.routes.js";
 import interventionRoutes from "./routes/intervention.routes.js";
-import voiceSettingsRoutes from "./routes/voiceSettings.routes.js";
 import requestContext from "./middleware/request-context.js";
 import notFound from "./middleware/not-found.js";
 import errorHandler from "./middleware/error-handler.js";
@@ -83,7 +82,6 @@ app.use("/api/integrations", integrationRoutes);
 app.use("/api/automation", automationRoutes);
 app.use("/api/analytics/revenue-recovery", revenueRecoveryRoutes);
 app.use("/api/interventions", interventionRoutes);
-app.use("/api/voice-settings", voiceSettingsRoutes);
 
 app.get("/", (req, res) => {
   return res.status(200).json({

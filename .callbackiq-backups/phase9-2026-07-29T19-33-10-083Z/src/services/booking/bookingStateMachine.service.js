@@ -181,19 +181,7 @@ class BookingStateMachineService {
     }).sort({ lastMessageAt: -1 });
   }
 
-  static async handle({
-    business,
-    lead,
-    conversation,
-    customerMessage,
-    channel = "sms",
-    source = "booking_state_machine",
-  }) {
-    const bookingChannel = channel === "voice" ? "voice" : "sms";
-    const bookingSource = String(source || "booking_state_machine");
-    const bookingIdempotencyPrefix =
-      bookingChannel === "voice" ? "voice-" : "";
-    const bookingEventPrefix = bookingChannel === "voice" ? "voice:" : "";
+  static async handle({ business, lead, conversation, customerMessage }) {
     const enabled = Boolean(business?.features?.aiBookingEnabled);
     if (!enabled) return { handled: false };
 
@@ -212,11 +200,7 @@ class BookingStateMachineService {
       activeConversation.bookingState?.status || "not_started";
     const stateActive = currentStatus !== "not_started";
 
-    if (
-      !stateActive &&
-      bookingChannel !== "voice" &&
-      !BOOKING_INTENT.test(text)
-    ) {
+    if (!stateActive && !BOOKING_INTENT.test(text)) {
       return { handled: false };
     }
 
@@ -432,9 +416,9 @@ class BookingStateMachineService {
         leadId: lead?._id,
         conversationId: activeConversation._id,
         type: "appointment_offered",
-        channel: bookingChannel,
-        source: bookingSource,
-        idempotencyKey: `${bookingEventPrefix}appointment_offered:${activeConversation._id}:${offeredSlots[0].startAt}`,
+        channel: "sms",
+        source: "booking_state_machine",
+        idempotencyKey: `appointment_offered:${activeConversation._id}:${offeredSlots[0].startAt}`,
         metadata: { offeredSlots },
       });
 
@@ -478,8 +462,6 @@ class BookingStateMachineService {
             lead,
             conversation: activeConversation,
             customerMessage: text,
-            channel: bookingChannel,
-            source: bookingSource,
           });
         }
 
@@ -563,8 +545,6 @@ class BookingStateMachineService {
           endAt: selectedSlot.endAt,
           timezone: business.timezone || "America/New_York",
           estimatedValue: lead?.estimatedValue || 0,
-          source: bookingChannel,
-          bookedBy: "ai",
         };
         const isReschedule =
           activeConversation.bookingState.lastError ===
@@ -576,13 +556,13 @@ class BookingStateMachineService {
               appointmentId:
                 activeConversation.bookingState.appointment,
               input: bookingInput,
-              idempotencyKey: `${bookingIdempotencyPrefix}ai-reschedule:${activeConversation._id}:${new Date(
+              idempotencyKey: `ai-reschedule:${activeConversation._id}:${new Date(
                 selectedSlot.startAt,
               ).toISOString()}`,
             })
           : await createAppointmentTool({
               business,
-              idempotencyKey: `${bookingIdempotencyPrefix}ai-book:${activeConversation._id}:${new Date(
+              idempotencyKey: `ai-book:${activeConversation._id}:${new Date(
                 selectedSlot.startAt,
               ).toISOString()}`,
               input: bookingInput,
@@ -638,9 +618,7 @@ class BookingStateMachineService {
           await cancelAppointmentTool({
             business,
             appointmentId,
-            reason: `Customer requested cancellation by ${
-              bookingChannel === "sms" ? "SMS" : "voice"
-            }.`,
+            reason: "Customer requested cancellation by SMS.",
           });
           await updateState(activeConversation, {
             status: "not_started",

@@ -198,38 +198,6 @@ const IntegrationStateSchema = new Schema(
   { _id: false },
 );
 
-const VoiceSettingsSchema = new Schema(
-  {
-    answerMode: {
-      type: String,
-      enum: ["after_hours", "overflow", "always", "disabled"],
-      default: "disabled",
-    },
-    overflowRingSeconds: { type: Number, min: 5, max: 60, default: 20 },
-    transferPhone: {
-      type: String,
-      trim: true,
-      default: "",
-      validate: {
-        validator(value) {
-          if (!value) return true;
-          return validate.isValidPhone(value);
-        },
-        message: "Please enter a valid voice transfer phone number",
-      },
-    },
-    welcomeGreeting: {
-      type: String,
-      trim: true,
-      maxlength: 300,
-      default: "Thanks for calling. How can I help you today?",
-    },
-    voiceName: { type: String, trim: true, maxlength: 200, default: "" },
-    recordingEnabled: { type: Boolean, default: false },
-  },
-  { _id: false },
-);
-
 const BusinessSchema = new Schema(
   {
     owner: {
@@ -348,10 +316,6 @@ const BusinessSchema = new Schema(
 
     features: {
       type: FeatureSettingsSchema,
-      default: () => ({}),
-    },
-    voiceSettings: {
-      type: VoiceSettingsSchema,
       default: () => ({}),
     },
 

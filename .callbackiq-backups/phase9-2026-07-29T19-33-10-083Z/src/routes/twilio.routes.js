@@ -6,7 +6,6 @@ import inboundSmsLifecycle from "../middleware/inbound-sms-lifecycle.js";
 import missedCallAutomationLifecycle from "../middleware/missed-call-automation-lifecycle.js";
 import validateTwilioSignature from "../middleware/validate-twilio-signature.js";
 import TwilioController from "../controllers/twilio.js";
-import VoiceWebhookController from "../controllers/voiceWebhook.js";
 
 const router = express.Router();
 
@@ -16,10 +15,7 @@ const router = express.Router();
  * records the response event; the existing controller retains ownership of
  * idempotency, STOP/HELP, safety, qualification, AI, sending and persistence.
  */
-router.post("/voice", validateTwilioSignature, VoiceWebhookController.initial);
-router.post("/voice-overflow", validateTwilioSignature, VoiceWebhookController.overflow);
-router.post("/voice-complete", validateTwilioSignature, VoiceWebhookController.complete);
-router.post("/voice-transfer-complete", validateTwilioSignature, VoiceWebhookController.transferComplete);
+router.post("/voice", validateTwilioSignature, TwilioController.voiceWebhook);
 router.post(
   "/status",
   validateTwilioSignature,

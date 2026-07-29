@@ -50,7 +50,7 @@ const LeadSchema = new Schema(
     },
     source: {
       type: String,
-      enum: ["missed_call", "manual", "sms", "voice", "web", "other"],
+      enum: ["missed_call", "manual", "sms", "web", "other"],
       default: "manual",
     },
     summary: { type: String, trim: true, default: "", maxlength: 1000 },

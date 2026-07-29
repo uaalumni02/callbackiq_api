@@ -13,7 +13,6 @@ import {
   startAutomationWorker,
   stopAutomationWorker,
 } from "./workers/automation.worker.js";
-import { initializeConversationRelayServer } from "./voice/conversationRelay.server.js";
 
 const port = Number(process.env.PORT) || 3000;
 const shutdownTimeoutMs =
@@ -29,7 +28,6 @@ const io = new Server(httpServer, {
 });
 
 SocketService.initialize(io);
-const conversationRelayServer = initializeConversationRelayServer(httpServer);
 io.use(socketAuth);
 
 io.on("connection", (socket) => {
@@ -95,7 +93,6 @@ const shutdown = async (signal, exitCode = 0) => {
 
   try {
     stopAutomationWorker();
-    await conversationRelayServer.close();
     await closeSocketServer();
     await closeHttpServer();
     if (mongoose.connection.readyState !== 0) {
