@@ -11,77 +11,145 @@ import {
   listGoogleCalendars,
   selectGoogleCalendar,
 } from "../services/integrations/googleCalendarConnection.service.js";
-import { listGoogleCalendarDirectory } from "../services/integrations/googleCalendarDirectory.service.js";
+import {
+  getGoogleSettings,
+} from "../services/integrations/integrationSettings.service.js";
 import {
   buildJobberAuthorizationUrl,
   disconnectJobber,
   exchangeJobberAuthorizationCode,
 } from "../services/integrations/jobberOAuth.service.js";
-import {
-  getGoogleSettings,
-  getJobberSettings,
-  saveGoogleSettings,
-  saveJobberSettings,
-} from "../services/integrations/integrationSettings.service.js";
 
-const publicStatus = (connection) =>
-  connection
-    ? {
-        provider: connection.provider,
-        status: connection.status,
-        scopes: connection.scopes,
-        providerAccountId: connection.providerAccountId,
-        providerCalendarId: connection.providerCalendarId,
-        apiVersion: connection.apiVersion,
-        metadata: connection.metadata,
-        lastSuccessfulSyncAt: connection.lastSuccessfulSyncAt,
-        lastErrorAt: connection.lastErrorAt,
-        lastErrorMessage: connection.lastErrorMessage,
-        updatedAt: connection.updatedAt,
-      }
-    : { status: "disconnected" };
+const sanitizeMetadata = (metadata = {}) => {
+  const googleCalendar = metadata.googleCalendar || {};
+  const channel = googleCalendar.channel || {};
 
-const statusWithSettings = (connection, provider) => {
-  const status = publicStatus(connection);
-
-  if (
-    provider === "google_calendar" &&
-    connection?.metadata?.googleCalendar
-  ) {
-    status.settings = getGoogleSettings(connection);
-  }
-
-  if (provider === "jobber" && connection?.metadata?.jobber) {
-    status.settings = getJobberSettings(connection);
-  }
-
-  return status;
+  return {
+    ...metadata,
+    ...(metadata.googleCalendar
+      ? {
+          googleCalendar: {
+            ...googleCalendar,
+            channel: channel.id
+              ? {
+                  id: channel.id,
+                  resourceId: channel.resourceId || "",
+                  resourceUri: channel.resourceUri || "",
+                  expiration: channel.expiration || null,
+                  calendarId: channel.calendarId || "",
+                }
+              : {},
+          },
+        }
+      : {}),
+  };
 };
 
-const ownedBusiness = (req, location = "query") =>
-  getOwnedBusiness({
-    user: req.user,
-    requestedBusinessId: req[location]?.businessId,
-  });
+const publicStatus = (connection) => {
+  if (!connection) return { status: "disconnected" };
+
+  const hasGoogleSettings = Boolean(connection.metadata?.googleCalendar);
+  const googleSettings =
+    connection.provider === "google_calendar" && hasGoogleSettings
+      ? getGoogleSettings(connection)
+      : null;
+  const result = {
+    provider: connection.provider,
+    status:
+      connection.status === "expired"
+        ? "reconnect_required"
+        : connection.status,
+  };
+
+  const copyWhenDefined = (key, value = connection[key]) => {
+    if (value !== undefined) result[key] = value;
+  };
+
+  copyWhenDefined("scopes", connection.scopes || connection.grantedScopes);
+  copyWhenDefined("providerAccountId");
+  copyWhenDefined("providerAccountEmail");
+  copyWhenDefined("providerCalendarId");
+
+  const providerCalendarName =
+    connection.providerCalendarName ||
+    connection.metadata?.selectedCalendarSummary;
+  if (providerCalendarName) {
+    result.providerCalendarName = providerCalendarName;
+  }
+
+  if (
+    connection.availabilityCalendarIds !== undefined ||
+    hasGoogleSettings
+  ) {
+    result.availabilityCalendarIds =
+      googleSettings?.availabilityCalendarIds ||
+      connection.availabilityCalendarIds ||
+      [];
+  }
+  if (hasGoogleSettings) {
+    result.syncEnabled = googleSettings?.syncEnabled;
+    result.watchEnabled = googleSettings?.watchEnabled;
+    result.sendUpdates = googleSettings?.sendUpdates;
+  }
+
+  copyWhenDefined("apiVersion");
+  result.metadata = sanitizeMetadata(connection.metadata || {});
+  copyWhenDefined("connectedAt");
+  copyWhenDefined("lastVerifiedAt");
+  copyWhenDefined("disconnectedAt");
+  copyWhenDefined("lastSuccessfulSyncAt");
+  copyWhenDefined("lastErrorAt");
+  copyWhenDefined("lastErrorCode");
+  copyWhenDefined("lastErrorMessage");
+  copyWhenDefined("updatedAt");
+
+  return result;
+};
+
+const frontendBaseUrl = () =>
+  String(process.env.FRONTEND_URL || "http://localhost:3001").replace(
+    /\/$/,
+    "",
+  );
+
+const loadGoogleCalendarSyncService = () =>
+  import("../services/integrations/googleCalendarSync.service.js");
+
+const shouldStartWatch = (connection) => {
+  const settings = getGoogleSettings(connection);
+  return (
+    settings.watchEnabled &&
+    String(process.env.GOOGLE_CALENDAR_WEBHOOK_URL || "").startsWith("https://")
+  );
+};
 
 class IntegrationController {
   static async googleConnect(req, res, next) {
     try {
-      const business = await ownedBusiness(req);
-      const authorizationUrl = await buildGoogleAuthorizationUrl(business._id);
-      return res.status(200).json({ success: true, data: { authorizationUrl } });
+      const business = await getOwnedBusiness({
+        user: req.user,
+        requestedBusinessId: req.query.businessId,
+      });
+      const authorizationUrl = await buildGoogleAuthorizationUrl(
+        business._id,
+        req.user?.userId,
+      );
+      return res.status(200).json({
+        success: true,
+        data: { authorizationUrl },
+      });
     } catch (error) {
       return next(error);
     }
   }
 
   static async googleCallback(req, res) {
-    const frontendUrl = String(
-      process.env.FRONTEND_URL || "http://localhost:3001",
-    ).replace(/\/$/, "");
+    const frontendUrl = frontendBaseUrl();
     try {
       if (!req.query.code || !req.query.state) {
-        throw new Error("Google did not return an authorization code and state.");
+        throw new Error(
+          "Google did not return an authorization code and state.",
+        );
       }
       const { businessId } = await exchangeGoogleAuthorizationCode({
         code: req.query.code,
@@ -111,84 +179,11 @@ class IntegrationController {
 
   static async googleStatus(req, res, next) {
     try {
-      const business = await ownedBusiness(req);
+      const business = await getOwnedBusiness({
+        user: req.user,
+        requestedBusinessId: req.query.businessId,
+      });
       const connection = await getGoogleConnection(business._id);
-      return res.status(200).json({
-        success: true,
-        data: {
-          ...statusWithSettings(connection, "google_calendar"),
-        },
-      });
-    } catch (error) {
-      return next(error);
-    }
-  }
-
-  static async googleCalendars(req, res, next) {
-    try {
-      const business = await ownedBusiness(req);
-      const useDirectory =
-        String(req.query.directory || "").toLowerCase() === "true";
-      const calendars = useDirectory
-        ? await listGoogleCalendarDirectory(business._id)
-        : await listGoogleCalendars(business._id);
-      return res.status(200).json({ success: true, data: calendars });
-    } catch (error) {
-      return next(error);
-    }
-  }
-
-  static async googleSaveSettings(req, res, next) {
-    try {
-      const business = await ownedBusiness(req, "body");
-      const connection = await saveGoogleSettings({
-        businessId: business._id,
-        settings: req.body.settings || req.body,
-      });
-      await Business.updateOne(
-        { _id: business._id },
-        {
-          $set: {
-            "features.calendarProvider": "google",
-            "integrations.calendar.provider": "google",
-            "integrations.calendar.status": "connected",
-            "integrations.calendar.verified": true,
-            "integrations.calendar.verifiedAt": new Date(),
-          },
-        },
-      );
-      return res.status(200).json({
-        success: true,
-        data: {
-          ...publicStatus(connection),
-          settings: getGoogleSettings(connection),
-        },
-      });
-    } catch (error) {
-      return next(error);
-    }
-  }
-
-  // Backward-compatible endpoint used by the existing UI.
-  static async googleSelectCalendar(req, res, next) {
-    try {
-      const business = await ownedBusiness(req, "body");
-      const connection = await selectGoogleCalendar({
-        businessId: business._id,
-        calendarId: req.body.calendarId,
-      });
-      await Business.updateOne(
-        { _id: business._id },
-        {
-          $set: {
-            "features.calendarProvider": "google",
-            "integrations.calendar.provider": "google",
-            "integrations.calendar.status": "connected",
-            "integrations.calendar.verified": true,
-            "integrations.calendar.verifiedAt": new Date(),
-          },
-        },
-      );
       return res.status(200).json({
         success: true,
         data: publicStatus(connection),
@@ -198,53 +193,86 @@ class IntegrationController {
     }
   }
 
-  static async googleSync(req, res, next) {
+  static async googleCalendars(req, res, next) {
     try {
-      const business = await ownedBusiness(req, "body");
-      const { syncGoogleCalendar } = await import(
-        "../services/integrations/googleCalendarSync.service.js"
-      );
-      const result = await syncGoogleCalendar({
-        businessId: business._id,
-        forceFull: req.body.forceFull === true,
+      const business = await getOwnedBusiness({
+        user: req.user,
+        requestedBusinessId: req.query.businessId,
       });
-      return res.status(200).json({ success: true, data: result });
+      const calendars = await listGoogleCalendars(business._id, true);
+      return res.status(200).json({ success: true, data: calendars });
     } catch (error) {
       return next(error);
     }
   }
 
-  static async googleStartWatch(req, res, next) {
+  static async googleSelectCalendar(req, res, next) {
     try {
-      const business = await ownedBusiness(req, "body");
-      const { startGoogleCalendarWatch } = await import(
-        "../services/integrations/googleCalendarSync.service.js"
+      const business = await getOwnedBusiness({
+        user: req.user,
+        requestedBusinessId: req.body.businessId,
+      });
+      const hasAdvancedSelection =
+        req.body.bookingCalendarId !== undefined ||
+        req.body.providerCalendarId !== undefined ||
+        req.body.availabilityCalendarIds !== undefined ||
+        req.body.syncEnabled !== undefined ||
+        req.body.watchEnabled !== undefined ||
+        req.body.sendUpdates !== undefined;
+      let connection = await selectGoogleCalendar(
+        hasAdvancedSelection
+          ? {
+              businessId: business._id,
+              calendarId: req.body.calendarId,
+              bookingCalendarId:
+                req.body.bookingCalendarId || req.body.providerCalendarId,
+              availabilityCalendarIds: req.body.availabilityCalendarIds,
+              syncEnabled: req.body.syncEnabled,
+              watchEnabled: req.body.watchEnabled,
+              sendUpdates: req.body.sendUpdates,
+            }
+          : {
+              businessId: business._id,
+              calendarId: req.body.calendarId,
+            },
       );
-      const connection = await startGoogleCalendarWatch(business._id);
-      return res.status(200).json({
-        success: true,
-        data: {
-          ...publicStatus(connection),
-          settings: getGoogleSettings(connection),
+
+      let watch = null;
+      if (shouldStartWatch(connection)) {
+        try {
+          const { startGoogleCalendarWatch } =
+            await loadGoogleCalendarSyncService();
+          connection = await startGoogleCalendarWatch(business._id);
+          watch = {
+            enabled: true,
+            expiration:
+              connection.metadata?.googleCalendar?.channel?.expiration || null,
+          };
+        } catch (watchError) {
+          watch = {
+            enabled: false,
+            warning: watchError.message,
+          };
+        }
+      }
+
+      await Business.updateOne(
+        { _id: business._id },
+        {
+          $set: {
+            "features.calendarProvider": "google",
+            "integrations.calendar.provider": "google",
+            "integrations.calendar.status": "connected",
+            "integrations.calendar.verified": true,
+            "integrations.calendar.verifiedAt": new Date(),
+          },
         },
-      });
-    } catch (error) {
-      return next(error);
-    }
-  }
-
-  static async googleStopWatch(req, res, next) {
-    try {
-      const business = await ownedBusiness(req, "body");
-      const { stopGoogleCalendarWatch } = await import(
-        "../services/integrations/googleCalendarSync.service.js"
       );
-      const connection = await stopGoogleCalendarWatch(business._id);
       return res.status(200).json({
         success: true,
         data: {
           ...publicStatus(connection),
-          settings: getGoogleSettings(connection),
+          watch,
         },
       });
     } catch (error) {
@@ -254,20 +282,10 @@ class IntegrationController {
 
   static async googleDisconnect(req, res, next) {
     try {
-      const business = await ownedBusiness(req, "body");
-      let existingConnection = null;
-      try {
-        existingConnection = await getGoogleConnection(business._id);
-      } catch {
-        existingConnection = null;
-      }
-      const channel = getGoogleSettings(existingConnection).channel;
-      if (channel?.id) {
-        const { stopGoogleCalendarWatch } = await import(
-          "../services/integrations/googleCalendarSync.service.js"
-        );
-        await stopGoogleCalendarWatch(business._id).catch(() => null);
-      }
+      const business = await getOwnedBusiness({
+        user: req.user,
+        requestedBusinessId: req.body?.businessId || req.query.businessId,
+      });
       const connection = await disconnectGoogleCalendar(business._id);
       await Business.updateOne(
         { _id: business._id },
@@ -281,7 +299,10 @@ class IntegrationController {
           },
         },
       );
-      return res.status(200).json({ success: true, data: publicStatus(connection) });
+      return res.status(200).json({
+        success: true,
+        data: publicStatus(connection),
+      });
     } catch (error) {
       return next(error);
     }
@@ -289,9 +310,77 @@ class IntegrationController {
 
   static async googleTest(req, res, next) {
     try {
-      const business = await ownedBusiness(req, "body");
-      const result = await new GoogleCalendarProvider({ business }).testConnection();
+      const business = await getOwnedBusiness({
+        user: req.user,
+        requestedBusinessId: req.body?.businessId,
+      });
+      const result = await new GoogleCalendarProvider({
+        business,
+      }).testConnection();
+      await Business.updateOne(
+        { _id: business._id },
+        {
+          $set: {
+            "integrations.calendar.status": "connected",
+            "integrations.calendar.verified": true,
+            "integrations.calendar.verifiedAt": new Date(),
+          },
+        },
+      );
       return res.status(200).json({ success: true, data: result });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  static async googleSync(req, res, next) {
+    try {
+      const business = await getOwnedBusiness({
+        user: req.user,
+        requestedBusinessId: req.body?.businessId,
+      });
+      const { syncGoogleCalendar } = await loadGoogleCalendarSyncService();
+      const result = await syncGoogleCalendar({
+        businessId: business._id,
+        forceFull: req.body?.forceFull === true,
+      });
+      return res.status(200).json({ success: true, data: result });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  static async googleStartWatch(req, res, next) {
+    try {
+      const business = await getOwnedBusiness({
+        user: req.user,
+        requestedBusinessId: req.body?.businessId,
+      });
+      const { startGoogleCalendarWatch } =
+        await loadGoogleCalendarSyncService();
+      const connection = await startGoogleCalendarWatch(business._id);
+      return res.status(200).json({
+        success: true,
+        data: publicStatus(connection),
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  static async googleStopWatch(req, res, next) {
+    try {
+      const business = await getOwnedBusiness({
+        user: req.user,
+        requestedBusinessId: req.body?.businessId || req.query.businessId,
+      });
+      const { stopGoogleCalendarWatch } =
+        await loadGoogleCalendarSyncService();
+      const connection = await stopGoogleCalendarWatch(business._id);
+      return res.status(200).json({
+        success: true,
+        data: publicStatus(connection),
+      });
     } catch (error) {
       return next(error);
     }
@@ -299,21 +388,27 @@ class IntegrationController {
 
   static async jobberConnect(req, res, next) {
     try {
-      const business = await ownedBusiness(req);
+      const business = await getOwnedBusiness({
+        user: req.user,
+        requestedBusinessId: req.query.businessId,
+      });
       const authorizationUrl = await buildJobberAuthorizationUrl(business._id);
-      return res.status(200).json({ success: true, data: { authorizationUrl } });
+      return res.status(200).json({
+        success: true,
+        data: { authorizationUrl },
+      });
     } catch (error) {
       return next(error);
     }
   }
 
   static async jobberCallback(req, res) {
-    const frontendUrl = String(
-      process.env.FRONTEND_URL || "http://localhost:3001",
-    ).replace(/\/$/, "");
+    const frontendUrl = frontendBaseUrl();
     try {
       if (!req.query.code || !req.query.state) {
-        throw new Error("Jobber did not return an authorization code and state.");
+        throw new Error(
+          "Jobber did not return an authorization code and state.",
+        );
       }
       const { businessId } = await exchangeJobberAuthorizationCode({
         code: req.query.code,
@@ -341,78 +436,12 @@ class IntegrationController {
     }
   }
 
-  static async jobberStatus(req, res, next) {
-    try {
-      const business = await ownedBusiness(req);
-      const connection = await IntegrationConnection.findOne({
-        business: business._id,
-        provider: "jobber",
-      });
-      return res.status(200).json({
-        success: true,
-        data: {
-          ...statusWithSettings(connection, "jobber"),
-        },
-      });
-    } catch (error) {
-      return next(error);
-    }
-  }
-
-  static async jobberSaveSettings(req, res, next) {
-    try {
-      const business = await ownedBusiness(req, "body");
-      const connection = await saveJobberSettings({
-        businessId: business._id,
-        settings: req.body.settings || req.body,
-      });
-      return res.status(200).json({
-        success: true,
-        data: {
-          ...publicStatus(connection),
-          settings: getJobberSettings(connection),
-        },
-      });
-    } catch (error) {
-      return next(error);
-    }
-  }
-
-  static async jobberSyncLead(req, res, next) {
-    try {
-      const business = await ownedBusiness(req, "body");
-      const { syncLeadToJobber } = await import(
-        "../services/integrations/jobberWorkflow.service.js"
-      );
-      const result = await syncLeadToJobber({
-        businessId: business._id,
-        leadId: req.params.leadId,
-      });
-      return res.status(200).json({ success: true, data: result });
-    } catch (error) {
-      return next(error);
-    }
-  }
-
-  static async jobberSyncPending(req, res, next) {
-    try {
-      const business = await ownedBusiness(req, "body");
-      const { syncPendingQualifiedLeadsToJobber } = await import(
-        "../services/integrations/jobberWorkflow.service.js"
-      );
-      const result = await syncPendingQualifiedLeadsToJobber({
-        businessId: business._id,
-        limit: req.body.limit,
-      });
-      return res.status(200).json({ success: true, data: result });
-    } catch (error) {
-      return next(error);
-    }
-  }
-
   static async jobberDisconnect(req, res, next) {
     try {
-      const business = await ownedBusiness(req, "body");
+      const business = await getOwnedBusiness({
+        user: req.user,
+        requestedBusinessId: req.body.businessId,
+      });
       const connection = await disconnectJobber(business._id);
       await Business.updateOne(
         { _id: business._id },
@@ -425,7 +454,29 @@ class IntegrationController {
           },
         },
       );
-      return res.status(200).json({ success: true, data: publicStatus(connection) });
+      return res.status(200).json({
+        success: true,
+        data: publicStatus(connection),
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  static async jobberStatus(req, res, next) {
+    try {
+      const business = await getOwnedBusiness({
+        user: req.user,
+        requestedBusinessId: req.query.businessId,
+      });
+      const connection = await IntegrationConnection.findOne({
+        business: business._id,
+        provider: "jobber",
+      });
+      return res.status(200).json({
+        success: true,
+        data: publicStatus(connection),
+      });
     } catch (error) {
       return next(error);
     }
@@ -433,7 +484,10 @@ class IntegrationController {
 
   static async jobberTest(req, res, next) {
     try {
-      const business = await ownedBusiness(req, "body");
+      const business = await getOwnedBusiness({
+        user: req.user,
+        requestedBusinessId: req.body.businessId,
+      });
       const result = await new JobberProvider({ business }).testConnection();
       return res.status(200).json({ success: true, data: result });
     } catch (error) {

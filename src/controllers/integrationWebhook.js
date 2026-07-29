@@ -2,6 +2,7 @@ import crypto from "crypto";
 
 import IntegrationConnection from "../models/integrationConnection.js";
 import IntegrationWebhookEvent from "../models/integrationWebhookEvent.js";
+import { hashGoogleChannelToken } from "../services/integrations/googleCalendarSync.service.js";
 import { processIntegrationWebhookEvent } from "../workers/integrationWebhook.worker.js";
 
 const safeEqual = (left, right) => {
@@ -11,7 +12,9 @@ const safeEqual = (left, right) => {
 };
 
 const rawBody = (req) =>
-  Buffer.isBuffer(req.body) ? req.body : Buffer.from(JSON.stringify(req.body || {}));
+  Buffer.isBuffer(req.body)
+    ? req.body
+    : Buffer.from(JSON.stringify(req.body || {}));
 
 const enqueue = async (data) => {
   try {
@@ -38,18 +41,31 @@ class IntegrationWebhookController {
       const messageNumber = String(req.get("x-goog-message-number") || "");
       const token = String(req.get("x-goog-channel-token") || "");
       if (!channelId || !resourceId || !messageNumber) {
-        return res.status(400).json({ success: false, message: "Missing Google notification headers." });
+        return res.status(400).json({
+          success: false,
+          message: "Missing Google notification headers.",
+        });
       }
+
       const connection = await IntegrationConnection.findOne({
         provider: "google_calendar",
         status: "connected",
         "metadata.googleCalendar.channel.id": channelId,
         "metadata.googleCalendar.channel.resourceId": resourceId,
       });
-      const expectedToken = connection?.metadata?.googleCalendar?.channel?.token;
-      if (!connection || !expectedToken || !safeEqual(token, expectedToken)) {
-        return res.status(401).json({ success: false, message: "Invalid Google notification channel." });
+      const channel = connection?.metadata?.googleCalendar?.channel || {};
+      const expectedHash =
+        channel.tokenHash ||
+        (channel.token ? hashGoogleChannelToken(channel.token) : "");
+      const providedHash = token ? hashGoogleChannelToken(token) : "";
+
+      if (!connection || !expectedHash || !safeEqual(providedHash, expectedHash)) {
+        return res.status(401).json({
+          success: false,
+          message: "Invalid Google notification channel.",
+        });
       }
+
       await enqueue({
         provider: "google_calendar",
         business: connection.business,
@@ -80,10 +96,14 @@ class IntegrationWebhookController {
         .update(body)
         .digest("base64");
       if (!secret || !provided || !safeEqual(provided, calculated)) {
-        return res.status(401).json({ success: false, message: "Invalid Jobber webhook signature." });
+        return res.status(401).json({
+          success: false,
+          message: "Invalid Jobber webhook signature.",
+        });
       }
       const payload = JSON.parse(body.toString("utf8") || "{}");
-      const webhook = payload?.data?.webHookEvent || payload?.webHookEvent || {};
+      const webhook =
+        payload?.data?.webHookEvent || payload?.webHookEvent || {};
       const eventParts = [
         webhook.accountId,
         webhook.topic,

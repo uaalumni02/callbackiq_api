@@ -1,7 +1,6 @@
 import express from "express";
 import cookieParser from "cookie-parser";
 import cors from "cors";
-
 import { expressCorsOptions } from "./config/cors.js";
 import authRoutes from "./routes/auth.routes.js";
 import businessRoutes from "./routes/business.routes.js";
@@ -19,6 +18,7 @@ import alertRoutes from "./routes/alert.routes.js";
 import agentRoutes from "./routes/agent.routes.js";
 import billingRoutes from "./routes/billing.routes.js";
 import stripeWebhookRoutes from "./routes/stripeWebhook.routes.js";
+import integrationWebhookRoutes from "./routes/integrationWebhook.routes.js";
 import supportRoutes from "./routes/support.routes.js";
 import demoRequestRoutes from "./routes/demoRequest.routes.js";
 import passwordResetRoutes from "./routes/passwordReset.routes.js";
@@ -41,8 +41,10 @@ app.disable("x-powered-by");
 app.set("trust proxy", 1);
 app.use(requestContext);
 
-/* Stripe signature verification requires the untouched raw body. */
+/* Signature verification requires the untouched request body. */
 app.use("/api/billing", stripeWebhookRoutes);
+app.use("/api/integration-webhooks", integrationWebhookRoutes);
+
 app.use(cors(expressCorsOptions));
 app.use(express.json({ limit: bodyLimit }));
 app.use(
@@ -87,7 +89,6 @@ app.get("/", (req, res) => {
     message: "CallBackIQ API is running",
   });
 });
-
 app.use(notFound);
 app.use(errorHandler);
 
