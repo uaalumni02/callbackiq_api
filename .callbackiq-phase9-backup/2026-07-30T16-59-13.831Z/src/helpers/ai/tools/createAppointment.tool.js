@@ -3,13 +3,7 @@ import AppointmentService from "../../../services/scheduling/appointment.service
 export const createAppointmentTool = ({ business, input, idempotencyKey }) =>
   AppointmentService.create({
     business,
-    input: {
-      ...input,
-      // Preserve the channel supplied by the shared booking state machine.
-      // SMS remains the backward-compatible default for older callers.
-      source: input?.source || "sms",
-      bookedBy: "ai",
-    },
+    input: { ...input, source: "sms", bookedBy: "ai" },
     idempotencyKey,
     confirm: true,
   });

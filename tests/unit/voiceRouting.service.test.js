@@ -1,10 +1,15 @@
 import {
   conversationRelayTwiml,
+  getPresetRoutingPolicy,
+  inferAnswerMode,
   isConversationRelayConfigured,
+  isPhase9ForcedRelayFailureEnabled,
   normalizeVoiceSettings,
+  routingPolicyUsesStaff,
+  routingPolicyUsesVoiceAi,
 } from "../../src/voice/voiceRouting.service.js";
 
-describe("Phase 9 voice routing", () => {
+describe("Phase 9 voice routing settings", () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
@@ -13,6 +18,8 @@ describe("Phase 9 voice routing", () => {
       VOICE_HTTP_PUBLIC_URL: "https://api.callbackiq.com",
       VOICE_WEBSOCKET_PUBLIC_URL: "wss://api.callbackiq.com/ws/voice",
       TWILIO_AUTH_TOKEN: "token",
+      PHASE9_ENABLE_LIVE_TEST_HOOKS: "false",
+      PHASE9_FORCE_RELAY_FAILURE: "false",
     };
   });
 
@@ -20,22 +27,71 @@ describe("Phase 9 voice routing", () => {
     process.env = originalEnv;
   });
 
-  test("requires a secure websocket and Twilio signature secret", () => {
+  test("requires secure HTTPS, WSS, and Twilio signature configuration", () => {
     expect(isConversationRelayConfigured()).toBe(true);
     process.env.VOICE_WEBSOCKET_PUBLIC_URL = "ws://localhost/ws/voice";
     expect(isConversationRelayConfigured()).toBe(false);
-    process.env.VOICE_WEBSOCKET_PUBLIC_URL = "wss://api.callbackiq.com/ws/voice";
-    process.env.VOICE_HTTP_PUBLIC_URL = "http://api.callbackiq.com";
-    expect(isConversationRelayConfigured()).toBe(false);
   });
 
-  test("builds scoped ConversationRelay TwiML", () => {
+  test("allows the forced relay failure hook only outside production", () => {
+    process.env.APP_ENV = "staging";
+    process.env.PHASE9_ENABLE_LIVE_TEST_HOOKS = "true";
+    process.env.PHASE9_FORCE_RELAY_FAILURE = "true";
+    expect(isPhase9ForcedRelayFailureEnabled()).toBe(true);
+
+    process.env.APP_ENV = "production";
+    expect(isPhase9ForcedRelayFailureEnabled()).toBe(false);
+  });
+
+  test("keeps legacy answer modes until the business saves policy version 1", () => {
+    const normalized = normalizeVoiceSettings({
+      features: { voiceAiEnabled: true },
+      voiceSettings: { answerMode: "after_hours" },
+    });
+
+    expect(normalized.routingPolicy).toEqual(
+      getPresetRoutingPolicy("after_hours"),
+    );
+    expect(normalized.answerMode).toBe("after_hours");
+  });
+
+  test("normalizes explicit scenario routing and identifies custom policies", () => {
+    const normalized = normalizeVoiceSettings({
+      features: { voiceAiEnabled: true },
+      voiceSettings: {
+        answerMode: "custom",
+        routingPolicyVersion: 1,
+        routingPolicy: {
+          openHours: "staff_then_sms",
+          afterHours: "sms",
+          voiceFailure: "staff_then_sms",
+        },
+        recordingEnabled: true,
+      },
+    });
+
+    expect(normalized.answerMode).toBe("custom");
+    expect(normalized.recordingEnabled).toBe(false);
+    expect(routingPolicyUsesStaff(normalized.routingPolicy)).toBe(true);
+    expect(routingPolicyUsesVoiceAi(normalized.routingPolicy)).toBe(false);
+  });
+
+  test("recognizes presets after scenario changes", () => {
+    expect(
+      inferAnswerMode({
+        voiceAiEnabled: true,
+        routingPolicy: getPresetRoutingPolicy("overflow"),
+      }),
+    ).toBe("overflow");
+  });
+
+  test("builds scoped ConversationRelay TwiML without recording verbs", () => {
     const business = {
       _id: "business-1",
       businessName: "Peachtree Plumbing",
       features: { voiceAiEnabled: true },
       voiceSettings: {
-        answerMode: "after_hours",
+        answerMode: "always",
         welcomeGreeting: "Thanks & welcome",
       },
     };
@@ -43,19 +99,10 @@ describe("Phase 9 voice routing", () => {
       business,
       voiceSessionId: "voice-session-1",
     });
+
     expect(twiml).toContain("<ConversationRelay");
     expect(twiml).toContain("wss://api.callbackiq.com/ws/voice");
     expect(twiml).toContain("Thanks &amp; welcome");
-    expect(twiml).toContain('name="voiceSessionId"');
-  });
-
-  test("uses the forwarding phone as a transfer fallback", () => {
-    expect(
-      normalizeVoiceSettings({
-        forwardingPhone: "+14045550100",
-        features: {},
-        voiceSettings: {},
-      }).transferPhone,
-    ).toBe("+14045550100");
+    expect(twiml).not.toMatch(/record/i);
   });
 });

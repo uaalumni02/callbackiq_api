@@ -94,14 +94,7 @@
       "<rootDir>/jest.setup.js"
     ],
     "testPathIgnorePatterns": [
-      "<rootDir>/tools/api_overlay/",
-      "<rootDir>/.callbackiq-phase9-backup/"
-    ],
-    "watchPathIgnorePatterns": [
-      "<rootDir>/.callbackiq-phase9-backup/"
-    ],
-    "modulePathIgnorePatterns": [
-      "<rootDir>/.callbackiq-phase9-backup/"
+      "<rootDir>/tools/api_overlay/"
     ]
   }
 }

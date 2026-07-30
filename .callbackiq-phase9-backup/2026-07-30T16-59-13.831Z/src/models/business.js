@@ -198,52 +198,12 @@ const IntegrationStateSchema = new Schema(
   { _id: false },
 );
 
-const VoiceRoutingPolicySchema = new Schema(
-  {
-    openHours: {
-      type: String,
-      enum: [
-        "voice_ai",
-        "sms",
-        "staff_then_voice_ai",
-        "staff_then_sms",
-      ],
-      default: "staff_then_voice_ai",
-    },
-    afterHours: {
-      type: String,
-      enum: [
-        "voice_ai",
-        "sms",
-        "staff_then_voice_ai",
-        "staff_then_sms",
-      ],
-      default: "voice_ai",
-    },
-    voiceFailure: {
-      type: String,
-      enum: ["sms", "staff_then_sms"],
-      default: "sms",
-    },
-  },
-  { _id: false },
-);
-
 const VoiceSettingsSchema = new Schema(
   {
     answerMode: {
       type: String,
-      enum: ["after_hours", "overflow", "always", "disabled", "custom"],
+      enum: ["after_hours", "overflow", "always", "disabled"],
       default: "disabled",
-    },
-    routingPolicyVersion: {
-      type: Number,
-      min: 0,
-      default: 0,
-    },
-    routingPolicy: {
-      type: VoiceRoutingPolicySchema,
-      default: () => ({}),
     },
     overflowRingSeconds: { type: Number, min: 5, max: 60, default: 20 },
     transferPhone: {
