@@ -229,6 +229,20 @@ const VoiceRoutingPolicySchema = new Schema(
   { _id: false },
 );
 
+const CommunicationLimitsSchema = new Schema(
+  {
+    smsBusinessHourly: { type: Number, min: 1, max: 1000000, default: 300 },
+    smsBusinessDaily: { type: Number, min: 1, max: 1000000, default: 3000 },
+    smsCustomerHourly: { type: Number, min: 1, max: 100000, default: 30 },
+    smsCustomerDaily: { type: Number, min: 1, max: 100000, default: 120 },
+    aiBusinessHourly: { type: Number, min: 1, max: 1000000, default: 150 },
+    aiBusinessDaily: { type: Number, min: 1, max: 1000000, default: 1000 },
+    aiCustomerHourly: { type: Number, min: 1, max: 100000, default: 20 },
+    aiCustomerDaily: { type: Number, min: 1, max: 100000, default: 60 },
+    alertThresholdPercent: { type: Number, min: 50, max: 100, default: 80 },
+  },
+  { _id: false },
+);
 const VoiceSettingsSchema = new Schema(
   {
     answerMode: {
@@ -265,6 +279,8 @@ const VoiceSettingsSchema = new Schema(
       default: "Thanks for calling. How can I help you today?",
     },
     voiceName: { type: String, trim: true, maxlength: 200, default: "" },
+    maxConcurrentCalls: { type: Number, min: 1, max: 100, default: 25 },
+    maxCallDurationSeconds: { type: Number, min: 60, max: 7200, default: 3600 },
     recordingEnabled: { type: Boolean, default: false },
   },
   { _id: false },
@@ -388,6 +404,10 @@ const BusinessSchema = new Schema(
 
     features: {
       type: FeatureSettingsSchema,
+      default: () => ({}),
+    },
+    communicationLimits: {
+      type: CommunicationLimitsSchema,
       default: () => ({}),
     },
     voiceSettings: {

@@ -6,6 +6,10 @@ import Message from "../models/message.js";
 import VoiceSession from "../models/voiceSession.js";
 import { sendSms } from "../services/twilioSmsService.js";
 import { isSmsSuppressed } from "../services/messaging/contactPreference.service.js";
+import {
+  logOperationalError,
+  logOperationalWarning,
+} from "../helpers/logging/safeLogger.js";
 import SocketService from "../services/socket.service.js";
 import VoiceTranscriptService from "./voiceTranscript.service.js";
 
@@ -15,7 +19,10 @@ const emit = (method, ...args) => {
       SocketService[method](...args);
     }
   } catch (error) {
-    console.warn(`Voice socket event ${method} failed:`, error.message);
+    logOperationalWarning("voice.socket_event_failed", {
+      method,
+      errorCode: error?.code || error?.name || "error",
+    });
   }
 };
 
@@ -240,7 +247,14 @@ class VoiceSessionService {
       } catch (error) {
         suppressionReason =
           "SMS preference status could not be verified, so delivery was suppressed.";
-        console.error("Voice fallback SMS preference check failed:", error);
+        logOperationalError(
+          "voice.fallback_sms_preference_check_failed",
+          error,
+          {
+            businessId: business._id,
+            voiceSessionId: session._id,
+          },
+        );
       }
     }
 
@@ -264,7 +278,19 @@ class VoiceSessionService {
     } else {
       let sent = null;
       try {
-        sent = await sendSms({ to, from, body });
+        sent = await sendSms({
+          business,
+          businessId: business._id,
+          from,
+          to,
+          body,
+          actorType: "voice",
+          source: "voice_fallback",
+          usageCategory: "voice_fallback",
+          conversationId: conversation?._id || null,
+          leadId: lead?._id || null,
+          metadata: { voiceSessionId: session._id },
+        });
       } catch (error) {
         await VoiceSession.findByIdAndUpdate(session._id, {
           $set: {
@@ -302,9 +328,15 @@ class VoiceSessionService {
             body,
             provider: "twilio",
             providerMessageId,
-            status: "sent",
+            status: sent?.status || "sent",
             isAiGenerated: false,
-            metadata: { voiceSessionId: session._id },
+            generatedBy: "voice",
+            usageCategory: "voice_fallback",
+            actorType: "voice",
+            metadata: {
+              source: "voice_fallback",
+              voiceSessionId: session._id,
+            },
           });
           emit("emitMessageCreated", business._id, message);
 
@@ -321,9 +353,14 @@ class VoiceSessionService {
             emit("emitCallUpdated", business._id, callLog);
           }
         } catch (error) {
-          console.error(
-            "Voice fallback SMS was sent but could not be fully logged:",
+          logOperationalError(
+            "voice.fallback_sms_local_persistence_failed",
             error,
+            {
+              businessId: business._id,
+              voiceSessionId: session._id,
+              providerMessageId,
+            },
           );
           await VoiceSession.findByIdAndUpdate(session._id, {
             $set: {

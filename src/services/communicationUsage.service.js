@@ -1,0 +1,340 @@
+import crypto from "crypto";
+
+import CommunicationUsage from "../models/communicationUsage.js";
+import AlertService from "./alert.service.js";
+import normalizePhone from "../helpers/normalizePhone.js";
+import { logOperationalError } from "../helpers/logging/safeLogger.js";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const HOUR_MS = 60 * 60 * 1000;
+
+const positiveInteger = (value, fallback, minimum = 1, maximum = 1_000_000) => {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(maximum, Math.max(minimum, parsed));
+};
+
+const percent = (value, fallback = 80) =>
+  positiveInteger(value, fallback, 50, 100);
+
+const toPlainObject = (value) => {
+  if (!value) return {};
+  return typeof value.toObject === "function" ? value.toObject() : value;
+};
+
+const customerScopeKey = (phone) => {
+  const normalized = normalizePhone(phone);
+  if (!normalized) return "";
+  return crypto.createHash("sha256").update(normalized).digest("hex");
+};
+
+export const DEFAULT_COMMUNICATION_LIMITS = Object.freeze({
+  smsBusinessHourly: positiveInteger(process.env.DEFAULT_SMS_BUSINESS_HOURLY_LIMIT, 300),
+  smsBusinessDaily: positiveInteger(process.env.DEFAULT_SMS_BUSINESS_DAILY_LIMIT, 3000),
+  smsCustomerHourly: positiveInteger(process.env.DEFAULT_SMS_CUSTOMER_HOURLY_LIMIT, 30),
+  smsCustomerDaily: positiveInteger(process.env.DEFAULT_SMS_CUSTOMER_DAILY_LIMIT, 120),
+  aiBusinessHourly: positiveInteger(process.env.DEFAULT_AI_BUSINESS_HOURLY_LIMIT, 150),
+  aiBusinessDaily: positiveInteger(process.env.DEFAULT_AI_BUSINESS_DAILY_LIMIT, 1000),
+  aiCustomerHourly: positiveInteger(process.env.DEFAULT_AI_CUSTOMER_HOURLY_LIMIT, 20),
+  aiCustomerDaily: positiveInteger(process.env.DEFAULT_AI_CUSTOMER_DAILY_LIMIT, 60),
+  alertThresholdPercent: percent(process.env.DEFAULT_COMMUNICATION_ALERT_THRESHOLD_PERCENT, 80),
+});
+
+export const getCommunicationLimits = (business) => {
+  const configured = toPlainObject(toPlainObject(business).communicationLimits);
+  return {
+    smsBusinessHourly: positiveInteger(
+      configured.smsBusinessHourly,
+      DEFAULT_COMMUNICATION_LIMITS.smsBusinessHourly,
+    ),
+    smsBusinessDaily: positiveInteger(
+      configured.smsBusinessDaily,
+      DEFAULT_COMMUNICATION_LIMITS.smsBusinessDaily,
+    ),
+    smsCustomerHourly: positiveInteger(
+      configured.smsCustomerHourly,
+      DEFAULT_COMMUNICATION_LIMITS.smsCustomerHourly,
+    ),
+    smsCustomerDaily: positiveInteger(
+      configured.smsCustomerDaily,
+      DEFAULT_COMMUNICATION_LIMITS.smsCustomerDaily,
+    ),
+    aiBusinessHourly: positiveInteger(
+      configured.aiBusinessHourly,
+      DEFAULT_COMMUNICATION_LIMITS.aiBusinessHourly,
+    ),
+    aiBusinessDaily: positiveInteger(
+      configured.aiBusinessDaily,
+      DEFAULT_COMMUNICATION_LIMITS.aiBusinessDaily,
+    ),
+    aiCustomerHourly: positiveInteger(
+      configured.aiCustomerHourly,
+      DEFAULT_COMMUNICATION_LIMITS.aiCustomerHourly,
+    ),
+    aiCustomerDaily: positiveInteger(
+      configured.aiCustomerDaily,
+      DEFAULT_COMMUNICATION_LIMITS.aiCustomerDaily,
+    ),
+    alertThresholdPercent: percent(
+      configured.alertThresholdPercent,
+      DEFAULT_COMMUNICATION_LIMITS.alertThresholdPercent,
+    ),
+  };
+};
+
+const getWindowStart = (window, now) => {
+  const date = new Date(now);
+  if (window === "hour") {
+    date.setUTCMinutes(0, 0, 0);
+  } else {
+    date.setUTCHours(0, 0, 0, 0);
+  }
+  return date;
+};
+
+const getExpiry = (windowStart, window) =>
+  new Date(windowStart.getTime() + (window === "hour" ? 3 * HOUR_MS : 3 * DAY_MS));
+
+const buildSpecs = ({ business, customerPhone, metric, now }) => {
+  const businessId = business?._id || business?.id || business;
+  const normalizedCustomer = customerScopeKey(customerPhone);
+  const limits = getCommunicationLimits(business);
+  const isSms = metric === "sms_outbound";
+  const prefix = isSms ? "sms" : "ai";
+  const specs = [
+    {
+      businessId,
+      scope: "business",
+      scopeKey: String(businessId),
+      metric,
+      window: "hour",
+      windowStart: getWindowStart("hour", now),
+      limit: limits[`${prefix}BusinessHourly`],
+    },
+    {
+      businessId,
+      scope: "business",
+      scopeKey: String(businessId),
+      metric,
+      window: "day",
+      windowStart: getWindowStart("day", now),
+      limit: limits[`${prefix}BusinessDaily`],
+    },
+  ];
+
+  if (normalizedCustomer) {
+    specs.push(
+      {
+        businessId,
+        scope: "customer",
+        scopeKey: normalizedCustomer,
+        metric,
+        window: "hour",
+        windowStart: getWindowStart("hour", now),
+        limit: limits[`${prefix}CustomerHourly`],
+      },
+      {
+        businessId,
+        scope: "customer",
+        scopeKey: normalizedCustomer,
+        metric,
+        window: "day",
+        windowStart: getWindowStart("day", now),
+        limit: limits[`${prefix}CustomerDaily`],
+      },
+    );
+  }
+
+  return { specs, limits };
+};
+
+const reserveCounter = async (spec) => {
+  const identity = {
+    business: spec.businessId,
+    scope: spec.scope,
+    scopeKey: spec.scopeKey,
+    metric: spec.metric,
+    window: spec.window,
+    windowStart: spec.windowStart,
+  };
+
+  try {
+    return await CommunicationUsage.findOneAndUpdate(
+      {
+        ...identity,
+        $or: [{ count: { $lt: spec.limit } }, { count: { $exists: false } }],
+      },
+      {
+        $setOnInsert: {
+          ...identity,
+          expiresAt: getExpiry(spec.windowStart, spec.window),
+        },
+        $inc: { count: 1 },
+      },
+      { upsert: true, returnDocument: "after" },
+    );
+  } catch (error) {
+    // When the row exists at its limit, the attempted upsert collides with the
+    // unique identity index. Treat that as an ordinary denied reservation.
+    if (error?.code === 11000) return null;
+    throw error;
+  }
+};
+
+const rollback = async (documents) => {
+  await Promise.allSettled(
+    documents
+      .filter(Boolean)
+      .map((document) =>
+        CommunicationUsage.updateOne(
+          { _id: document._id, count: { $gt: 0 } },
+          { $inc: { count: -1 } },
+        ),
+      ),
+  );
+};
+
+const createThresholdAlert = async ({ businessId, spec, document, thresholdPercent }) => {
+  const ratio = document.count / spec.limit;
+  if (ratio * 100 < thresholdPercent) return;
+
+  const percentage = Math.min(100, Math.round(ratio * 100));
+  const audience = spec.scope === "business" ? "business" : "customer";
+  const metricLabel = spec.metric === "sms_outbound" ? "outbound SMS" : "AI reply";
+  const windowLabel = spec.window === "hour" ? "hourly" : "daily";
+
+  try {
+    await AlertService.createSystemAlert({
+      businessId,
+      title: `${metricLabel} usage is at ${percentage}%`,
+      message: `The ${audience} ${windowLabel} ${metricLabel} allowance has used ${document.count} of ${spec.limit}. Review unusual traffic before the allowance is exhausted.`,
+      priority: percentage >= 100 ? "high" : "medium",
+      metadata: {
+        source: "communication_usage_budget",
+        metric: spec.metric,
+        scope: spec.scope,
+        window: spec.window,
+        count: document.count,
+        limit: spec.limit,
+        percentage,
+      },
+      dedupeKey: `communication_usage:${spec.metric}:${spec.scope}:${spec.scopeKey}:${spec.window}:${spec.windowStart.toISOString()}`,
+    });
+  } catch (error) {
+    // Alert persistence must never consume or reject an otherwise valid send.
+    logOperationalError("communication_usage.threshold_alert_failed", error, {
+      businessId,
+      metric: spec.metric,
+      scope: spec.scope,
+      window: spec.window,
+    });
+  }
+};
+
+const shouldFailClosed = () => {
+  if (process.env.COMMUNICATION_USAGE_FAIL_CLOSED === "true") return true;
+  if (process.env.COMMUNICATION_USAGE_FAIL_CLOSED === "false") return false;
+  return String(process.env.NODE_ENV || "development").toLowerCase() === "production";
+};
+
+export const reserveCommunicationUsage = async ({
+  business,
+  customerPhone = "",
+  metric,
+  bypass = false,
+  now = new Date(),
+}) => {
+  if (bypass) return { allowed: true, bypassed: true, reservations: [] };
+  if (!business?._id && !business?.id) {
+    return { allowed: false, reason: "business_context_required", reservations: [] };
+  }
+  if (!["sms_outbound", "ai_operation"].includes(metric)) {
+    throw new Error(`Unsupported communication usage metric: ${metric}`);
+  }
+
+  if (CommunicationUsage.db && CommunicationUsage.db.readyState !== 1) {
+    return shouldFailClosed()
+      ? {
+          allowed: false,
+          reason: "usage_tracking_unavailable",
+          reservations: [],
+        }
+      : {
+          allowed: true,
+          degraded: true,
+          reason: "usage_tracking_unavailable",
+          reservations: [],
+        };
+  }
+
+  const { specs, limits } = buildSpecs({ business, customerPhone, metric, now });
+  const reserved = [];
+
+  try {
+    for (const spec of specs) {
+      const document = await reserveCounter(spec);
+      if (!document) {
+        await rollback(reserved);
+        await createThresholdAlert({
+          businessId: business._id || business.id,
+          spec,
+          document: { count: spec.limit },
+          thresholdPercent: limits.alertThresholdPercent,
+        });
+        return {
+          allowed: false,
+          reason: `${spec.scope}_${spec.window}_${metric}_limit`,
+          limit: spec.limit,
+          scope: spec.scope,
+          window: spec.window,
+          reservations: [],
+        };
+      }
+
+      reserved.push(document);
+      await createThresholdAlert({
+        businessId: business._id || business.id,
+        spec,
+        document,
+        thresholdPercent: limits.alertThresholdPercent,
+      });
+    }
+
+    return { allowed: true, reservations: reserved };
+  } catch (error) {
+    await rollback(reserved);
+    logOperationalError("communication_usage.reservation_failed", error, {
+      businessId: business._id || business.id,
+      metric,
+    });
+
+    if (shouldFailClosed()) {
+      return {
+        allowed: false,
+        reason: "usage_tracking_unavailable",
+        reservations: [],
+      };
+    }
+
+    return {
+      allowed: true,
+      degraded: true,
+      reason: "usage_tracking_unavailable",
+      reservations: [],
+    };
+  }
+};
+
+export const reserveSmsUsage = (parameters) =>
+  reserveCommunicationUsage({ ...parameters, metric: "sms_outbound" });
+
+export const reserveAiUsage = (parameters) =>
+  reserveCommunicationUsage({ ...parameters, metric: "ai_operation" });
+
+export default {
+  DEFAULT_COMMUNICATION_LIMITS,
+  getCommunicationLimits,
+  reserveCommunicationUsage,
+  reserveSmsUsage,
+  reserveAiUsage,
+};

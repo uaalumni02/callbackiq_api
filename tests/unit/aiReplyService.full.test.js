@@ -21,6 +21,8 @@ import {
 } from "../../src/services/aiReplyService.js";
 import { buildAIConfigurationContext } from "../../src/services/businessConfiguration.service.js";
 import BookingStateMachineService from "../../src/services/booking/bookingStateMachine.service.js";
+import { reserveAiUsage } from "../../src/services/communicationUsage.service.js";
+import { logOperationalError } from "../../src/helpers/logging/safeLogger.js";
 
 jest.mock("../../src/helpers/ai/aiGuardrails.js", () => ({
   __esModule: true,
@@ -52,6 +54,14 @@ jest.mock("../../src/services/booking/bookingStateMachine.service.js", () => ({
   default: { handle: jest.fn() },
 }));
 
+jest.mock("../../src/services/communicationUsage.service.js", () => ({
+  __esModule: true,
+  reserveAiUsage: jest.fn(),
+}));
+jest.mock("../../src/helpers/logging/safeLogger.js", () => ({
+  __esModule: true,
+  logOperationalError: jest.fn(),
+}));
 const business = {
   _id: "b1",
   businessName: "Peachtree Plumbing",
@@ -66,6 +76,7 @@ describe("aiReplyService complete behavior", () => {
     BookingStateMachineService.handle.mockResolvedValue({ handled: false });
     qualifyLeadWithAI.mockResolvedValue({ urgency: "medium" });
     buildAIConfigurationContext.mockResolvedValue({ scheduling: { enabled: true } });
+    reserveAiUsage.mockResolvedValue({ allowed: true, reservations: [] });
     runFollowUpAgent.mockResolvedValue({
       decision: "send_ai_response",
       reply: "How can we help?",
@@ -227,7 +238,7 @@ describe("aiReplyService complete behavior", () => {
     [{}, "Unknown AI error"],
   ])("returns a safe fallback on pipeline failure %#", async (error, expectedMessage) => {
     qualifyLeadWithAI.mockRejectedValue(error);
-    const consoleSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+
     const result = await generateAIReplyResult({ business, lead, customerMessage: "Need help" });
     expect(result).toMatchObject({
       decision: "send_fixed_response",
@@ -246,11 +257,14 @@ describe("aiReplyService complete behavior", () => {
         errorMessage: expectedMessage,
       },
     });
-    expect(consoleSpy).toHaveBeenCalledWith("Guarded AI reply generation error:", {
-      message: error.message || "Unknown OpenAI error",
-      status: error.status || null,
-      requestId: error.request_id || null,
-    });
+    expect(logOperationalError).toHaveBeenCalledWith(
+      "ai_reply.generation_failed",
+      error,
+      {
+        businessId: business._id,
+        requestId: error.request_id || null,
+      },
+    );
   });
 
   test("generateAIReply suppresses no_reply decisions", async () => {

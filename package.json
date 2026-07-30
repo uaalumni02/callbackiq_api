@@ -45,7 +45,8 @@
     "test:phase9:unit": "jest tests/unit/conversationRelay.server.test.js tests/unit/createAppointment.tool.test.js tests/unit/voiceFailure.service.test.js tests/unit/voiceRouting.service.test.js tests/unit/voiceRoutingPolicy.service.test.js tests/unit/voiceSettings.controller.test.js tests/unit/voiceWebhook.controller.test.js --runInBand",
     "test:phase9:completion": "jest tests/completion/phase9.voice.completion.test.js --runInBand",
     "verify:phase9:live": "node scripts/verify-phase9-live.js",
-    "migrate:phase9:disable-recording": "node --env-file=.env scripts/disable-legacy-voice-recording.js"
+    "migrate:phase9:disable-recording": "node --env-file=.env scripts/disable-legacy-voice-recording.js",
+    "test:communication-safety": "node scripts/verify-communication-safety-structure.js && jest --runInBand tests/unit/communicationSafety.aiCounter.test.js tests/unit/communicationSafety.smsPolicy.test.js tests/unit/communicationSafety.usageBudgets.test.js tests/unit/communicationSafety.rateLimit.test.js tests/unit/communicationSafety.voiceCapacity.test.js tests/unit/communicationSafety.voiceRelayLimits.test.js tests/unit/communicationSafety.safeLogger.test.js tests/unit/automation.service.test.js tests/routes/twilio.routes.test.js tests/routes/agent.routes.test.js tests/unit/conversationRelay.server.test.js"
   },
   "keywords": [],
   "author": "",
@@ -95,13 +96,17 @@
     ],
     "testPathIgnorePatterns": [
       "<rootDir>/tools/api_overlay/",
-      "<rootDir>/.callbackiq-phase9-backup/"
+      "<rootDir>/.callbackiq-phase9-backup/",
+      "<rootDir>/.callbackiq-backups/"
     ],
     "watchPathIgnorePatterns": [
-      "<rootDir>/.callbackiq-phase9-backup/"
+      "<rootDir>/.callbackiq-phase9-backup/",
+      "<rootDir>/.callbackiq-backups/"
     ],
     "modulePathIgnorePatterns": [
-      "<rootDir>/.callbackiq-phase9-backup/"
-    ]
+      "<rootDir>/.callbackiq-phase9-backup/",
+      "<rootDir>/.callbackiq-backups/"
+    ],
+    "watchman": false
   }
 }

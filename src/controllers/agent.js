@@ -1,5 +1,4 @@
 import mongoose from "mongoose";
-import twilio from "twilio";
 
 import Db from "../db/db.js";
 import Business from "../models/business.js";
@@ -9,12 +8,11 @@ import Message from "../models/message.js";
 import Alert from "../models/alert.js";
 import agentReplySchema from "../validator/agent.js";
 import { runFollowUpAgent } from "../helpers/ai/followUpAgent.js";
+import { isBusinessFeatureEnabled } from "../helpers/businessFeatures.js";
 import * as Response from "../helpers/response/response.js";
-
-const client = twilio(
-  process.env.TWILIO_ACCOUNT_SID,
-  process.env.TWILIO_AUTH_TOKEN,
-);
+import { sendSms } from "../services/twilioSmsService.js";
+import { reserveAiUsage } from "../services/communicationUsage.service.js";
+import { logOperationalError } from "../helpers/logging/safeLogger.js";
 
 const sanitizeUrgency = (urgency) => {
   const allowed = ["low", "medium", "high", "emergency"];
@@ -23,65 +21,59 @@ const sanitizeUrgency = (urgency) => {
 
 const sanitizeScore = (score) => {
   const numberScore = Number(score);
-
   if (Number.isNaN(numberScore)) return 50;
-
   return Math.min(100, Math.max(0, numberScore));
 };
 
 const sanitizeEstimatedValue = (value) => {
   const numberValue = Number(value);
-
   if (Number.isNaN(numberValue)) return 0;
-
   return Math.max(0, numberValue);
 };
 
-const shouldCreateHotLeadAlert = (agentResult) => {
-  return (
-    agentResult.shouldAlertOwner === true ||
-    agentResult.urgency === "emergency" ||
-    Number(agentResult.leadQualityScore) >= 85
-  );
-};
+const shouldCreateHotLeadAlert = (agentResult) =>
+  agentResult.shouldAlertOwner === true ||
+  agentResult.urgency === "emergency" ||
+  Number(agentResult.leadQualityScore) >= 85;
 
 class AgentController {
   static async replyToConversation(req, res) {
     try {
       const ownerId = req.user?.userId;
-
       if (!ownerId) {
         return Response.responseBadAuth(res, "Not authenticated");
       }
 
       await agentReplySchema.validateAsync(req.body);
-
       const { conversationId, leadId, customerMessage } = req.body;
 
       if (!mongoose.isValidObjectId(conversationId)) {
         return Response.responseInvalidInput(res, "Invalid conversation ID");
       }
-
       if (leadId && !mongoose.isValidObjectId(leadId)) {
         return Response.responseInvalidInput(res, "Invalid lead ID");
       }
 
-      const business = await Db.getBusinessByOwner(Business, ownerId);
-
+      const business =
+        req.business || (await Db.getBusinessByOwner(Business, ownerId));
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
+      }
+      if (!isBusinessFeatureEnabled(business, "aiQualificationEnabled")) {
+        return res.status(403).json({
+          success: false,
+          message: "AI qualification is not enabled for this business.",
+        });
       }
 
       const conversation = await Db.getConversationById(
         Conversation,
         conversationId,
       );
-
       if (!conversation) {
         return Response.responseInvalidInput(res, "Conversation not found");
       }
-
-      if (String(conversation.business._id) !== String(business._id)) {
+      if (String(conversation.business?._id || conversation.business) !== String(business._id)) {
         return Response.responseBadAuth(
           res,
           "You cannot access this conversation",
@@ -89,10 +81,8 @@ class AgentController {
       }
 
       let lead = null;
-
       if (leadId) {
         lead = await Db.getLeadForBusiness(Lead, leadId, business._id);
-
         if (!lead) {
           return Response.responseInvalidInput(res, "Lead not found");
         }
@@ -108,6 +98,22 @@ class AgentController {
         Message,
         conversationId,
       );
+      const aiUsage = await reserveAiUsage({
+        business,
+        customerPhone: conversation.customerPhone,
+      });
+      if (!aiUsage.allowed) {
+        return res.status(429).json({
+          success: false,
+          message:
+            "The AI reply allowance has been reached. The conversation was not changed.",
+          data: {
+            reason: aiUsage.reason,
+            scope: aiUsage.scope || null,
+            window: aiUsage.window || null,
+          },
+        });
+      }
 
       const inboundMessage = await Db.saveMessage(Message, {
         business: business._id,
@@ -119,9 +125,14 @@ class AgentController {
         body: customerMessage,
         provider: "manual",
         status: "received",
+        actorType: "user",
+        actorId: ownerId,
+        usageCategory: "agent_reply_input",
+        metadata: { source: "agent_reply_endpoint" },
       });
 
       const agentResult = await runFollowUpAgent({
+        business,
         businessName: business.businessName,
         businessType: business.businessType,
         customerMessage,
@@ -134,7 +145,6 @@ class AgentController {
         "Thanks for the details. I’ll send this to the owner so they can follow up.";
 
       let updatedLead = lead;
-
       if (lead) {
         const updateData = {
           serviceNeeded:
@@ -152,26 +162,39 @@ class AgentController {
           summary: agentResult.summary || lead.summary || "",
           status: lead.status === "booked" ? "booked" : "contacted",
         };
-
         updatedLead = await Db.qualifyLead(Lead, lead._id, updateData);
       }
 
       let smsSent = false;
+      let smsSuppressed = false;
+      let smsFailureReason = "";
       let providerMessageId = "";
 
       try {
-        if (process.env.TWILIO_PHONE_NUMBER) {
-          const sentMessage = await client.messages.create({
-            from: process.env.TWILIO_PHONE_NUMBER,
-            to: conversation.customerPhone,
-            body: aiReply,
-          });
-
-          smsSent = true;
-          providerMessageId = sentMessage.sid;
-        }
+        const sentMessage = await sendSms({
+          business,
+          businessId: business._id,
+          from: business.phone,
+          to: conversation.customerPhone,
+          body: aiReply,
+          actorId: ownerId,
+          actorType: "user",
+          source: "agent_reply",
+          usageCategory: "ai_reply",
+          conversationId: conversation._id,
+          leadId: updatedLead?._id || null,
+          metadata: { aiGenerated: true, generatedBy: "ai" },
+        });
+        smsSuppressed = sentMessage?.suppressed === true;
+        smsFailureReason = sentMessage?.reason || "";
+        smsSent = !smsSuppressed && Boolean(sentMessage?.sid);
+        providerMessageId = sentMessage?.sid || "";
       } catch (smsError) {
-        console.error("Error sending agent SMS:", smsError.message);
+        smsFailureReason = smsError?.code || smsError?.message || "provider_error";
+        logOperationalError("agent_reply.sms_failed", smsError, {
+          businessId: business._id,
+          conversationId: conversation._id,
+        });
       }
 
       const outboundMessage = await Db.saveMessage(Message, {
@@ -179,12 +202,23 @@ class AgentController {
         conversation: conversation._id,
         lead: updatedLead?._id || null,
         direction: "outbound",
-        from: process.env.TWILIO_PHONE_NUMBER || business.phone,
+        from: business.phone,
         to: conversation.customerPhone,
         body: aiReply,
-        provider: process.env.TWILIO_PHONE_NUMBER ? "twilio" : "system",
+        provider: smsSent ? "twilio" : "system",
         providerMessageId,
         status: smsSent ? "sent" : "failed",
+        isAiGenerated: true,
+        generatedBy: "ai",
+        usageCategory: "ai_reply",
+        actorType: "ai",
+        actorId: ownerId,
+        metadata: {
+          aiGenerated: true,
+          source: "agent_reply_endpoint",
+          smsSuppressed,
+          smsFailureReason,
+        },
       });
 
       await Db.updateConversation(Conversation, conversation._id, {
@@ -193,7 +227,6 @@ class AgentController {
       });
 
       let alert = null;
-
       if (updatedLead && shouldCreateHotLeadAlert(agentResult)) {
         alert = await Db.saveAlert(Alert, {
           business: business._id,
@@ -228,6 +261,8 @@ class AgentController {
           outboundMessage,
           alert,
           smsSent,
+          smsSuppressed,
+          smsFailureReason,
         },
         "Agent reply processed successfully",
       );
@@ -235,8 +270,10 @@ class AgentController {
       if (error.isJoi) {
         return Response.responseInvalidInput(res, error.message);
       }
-
-      console.error("Error in replyToConversation:", error);
+      logOperationalError("agent_reply.failed", error, {
+        businessId: req.business?._id,
+        conversationId: req.body?.conversationId,
+      });
       return Response.responseServerError(res);
     }
   }

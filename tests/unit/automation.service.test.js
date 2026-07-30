@@ -1,4 +1,3 @@
-import twilio from "twilio";
 import Alert from "../../src/models/alert.js";
 import Appointment from "../../src/models/appointment.js";
 import AutomationJob from "../../src/models/automationJob.js";
@@ -8,9 +7,14 @@ import Conversation from "../../src/models/conversation.js";
 import Lead from "../../src/models/lead.js";
 import Message from "../../src/models/message.js";
 import SocketService from "../../src/services/socket.service.js";
+import { sendSms } from "../../src/services/twilioSmsService.js";
 import AutomationService from "../../src/services/automation/automation.service.js";
 
-jest.mock("twilio", () => ({ __esModule: true, default: jest.fn() }));
+jest.mock("../../src/services/twilioSmsService.js", () => ({
+  __esModule: true,
+  sendSms: jest.fn(),
+  resetTwilioClient: jest.fn(),
+}));
 jest.mock("../../src/models/alert.js", () => ({ __esModule: true, default: { findOne: jest.fn(), create: jest.fn() } }));
 jest.mock("../../src/models/appointment.js", () => ({ __esModule: true, default: { findOne: jest.fn() } }));
 jest.mock("../../src/models/automationJob.js", () => ({ __esModule: true, default: { findById: jest.fn(), updateMany: jest.fn() } }));
@@ -81,7 +85,6 @@ describe("AutomationService", () => {
     TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,
     TWILIO_MESSAGING_SERVICE_SID: process.env.TWILIO_MESSAGING_SERVICE_SID,
   };
-  let messagesCreate;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -89,8 +92,11 @@ describe("AutomationService", () => {
     process.env.TWILIO_ACCOUNT_SID = "AC123";
     process.env.TWILIO_AUTH_TOKEN = "token";
     delete process.env.TWILIO_MESSAGING_SERVICE_SID;
-    messagesCreate = jest.fn().mockResolvedValue({ sid: "SM1", status: "queued" });
-    twilio.mockReturnValue({ messages: { create: messagesCreate } });
+    sendSms.mockResolvedValue({
+      sid: "SM1",
+      status: "queued",
+      suppressed: false,
+    });
     AutomationService.resetTwilioClient();
 
     Business.findById.mockReturnValue(leanQuery({
@@ -232,12 +238,20 @@ describe("AutomationService", () => {
     AutomationJob.findById.mockReturnValue(populatedQuery(populated));
     jest.spyOn(AutomationService, "suppressionReason").mockResolvedValue(null);
     await expect(AutomationService.execute({ _id: "job-1" })).resolves.toBe(populated);
-    expect(twilio).toHaveBeenCalledWith("AC123", "token");
-    expect(messagesCreate).toHaveBeenCalledWith({
-      to: "+14045550100",
-      body: "Hello Jane from CallBackIQ Plumbing",
-      from: "+14045550101",
-    });
+    expect(sendSms).toHaveBeenCalledWith(
+      expect.objectContaining({
+        business: populated.business,
+        businessId: "b1",
+        to: "+14045550100",
+        from: "+14045550101",
+        body: "Hello Jane from CallBackIQ Plumbing",
+        actorType: "automation",
+        source: "automation_workflow",
+        usageCategory: "automation",
+        conversationId: "c1",
+        leadId: "l1",
+      }),
+    );
     expect(Message.create).toHaveBeenCalledWith(expect.objectContaining({
       body: "Hello Jane from CallBackIQ Plumbing",
       providerMessageId: "SM1",
@@ -249,13 +263,21 @@ describe("AutomationService", () => {
 
   test("uses Messaging Service and default queued status", async () => {
     process.env.TWILIO_MESSAGING_SERVICE_SID = "MG123";
-    messagesCreate.mockResolvedValue({ sid: "SM2" });
+    sendSms.mockResolvedValueOnce({
+      sid: "SM2",
+      status: "queued",
+      suppressed: false,
+    });
     const populated = doc({ lead: null });
     AutomationJob.findById.mockReturnValue(populatedQuery(populated));
     jest.spyOn(AutomationService, "suppressionReason").mockResolvedValue(null);
     await AutomationService.execute({ _id: "job-1" });
-    expect(messagesCreate).toHaveBeenCalledWith(expect.objectContaining({ messagingServiceSid: "MG123" }));
-    expect(messagesCreate.mock.calls[0][0]).not.toHaveProperty("from");
+    expect(sendSms).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messagingServiceSid: "MG123",
+        from: "+14045550101",
+      }),
+    );
     expect(Message.create).toHaveBeenCalledWith(expect.objectContaining({ lead: null, status: "queued" }));
   });
 
@@ -297,6 +319,11 @@ describe("AutomationService", () => {
 
   test("marks failed actions after the maximum attempt", async () => {
     delete process.env.TWILIO_ACCOUNT_SID;
+    sendSms.mockRejectedValueOnce(
+      new Error(
+        "TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN are required for automation SMS.",
+      ),
+    );
     const populated = doc({ attemptNumber: 3, workflow: { allowedDays: [1], quietHoursStart: "22:00", quietHoursEnd: "07:00", maximumAttempts: 3 } });
     AutomationJob.findById.mockReturnValue(populatedQuery(populated));
     jest.spyOn(AutomationService, "suppressionReason").mockResolvedValue(null);

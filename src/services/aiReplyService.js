@@ -15,6 +15,8 @@ import {
 } from "../helpers/ai/qualifyLeadWithAI.js";
 import { buildAIConfigurationContext } from "./businessConfiguration.service.js";
 import BookingStateMachineService from "./booking/bookingStateMachine.service.js";
+import { reserveAiUsage } from "./communicationUsage.service.js";
+import { logOperationalError } from "../helpers/logging/safeLogger.js";
 
 const fallbackReply = SAFE_REPLIES.fallback;
 
@@ -147,6 +149,24 @@ export const generateAIReplyResult = async ({
     });
     if (booking.handled) return booking.result;
 
+    const aiUsage = await reserveAiUsage({
+      business,
+      customerPhone: lead?.phone || conversation?.customerPhone || "",
+    });
+    if (!aiUsage.allowed) {
+      const usageError = new Error("The AI reply allowance has been reached.");
+      usageError.code = aiUsage.reason || "AI_USAGE_LIMIT";
+      const fallback = buildFallbackResult(usageError);
+      return {
+        ...fallback,
+        guardrail: {
+          ...fallback.guardrail,
+          skipAI: true,
+          reason: usageError.code,
+        },
+      };
+    }
+
     const [inboundAssessment, businessConfiguration] = await Promise.all([
       qualifyLeadWithAI({
         messageBody: latestCustomerMessage,
@@ -167,9 +187,8 @@ export const generateAIReplyResult = async ({
       businessConfiguration,
     });
   } catch (error) {
-    console.error("Guarded AI reply generation error:", {
-      message: error?.message || "Unknown OpenAI error",
-      status: error?.status || null,
+    logOperationalError("ai_reply.generation_failed", error, {
+      businessId: business?._id || business?.id,
       requestId: error?.request_id || null,
     });
     return buildFallbackResult(error);

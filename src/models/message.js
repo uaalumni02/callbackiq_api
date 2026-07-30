@@ -73,6 +73,20 @@ const MessageSchema = new Schema(
       enum: ["queued", "sent", "delivered", "failed", "received"],
       default: "sent",
     },
+    isAiGenerated: { type: Boolean, default: false },
+    generatedBy: {
+      type: String,
+      enum: ["ai", "guardrail", "user", "automation", "voice", "system", ""],
+      default: "",
+    },
+    usageCategory: { type: String, trim: true, maxlength: 80, default: "" },
+    actorType: {
+      type: String,
+      enum: ["user", "ai", "automation", "voice", "webhook", "system", ""],
+      default: "",
+    },
+    actorId: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    metadata: { type: Schema.Types.Mixed, default: {} },
   },
   {
     timestamps: true,
@@ -92,6 +106,11 @@ MessageSchema.index({
  */
 MessageSchema.index({
   business: 1,
+  createdAt: -1,
+});
+MessageSchema.index({
+  business: 1,
+  isAiGenerated: 1,
   createdAt: -1,
 });
 

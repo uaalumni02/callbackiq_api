@@ -9,6 +9,10 @@ import { generateAIReplyResult } from "../services/aiReplyService.js";
 import { sendSms } from "../services/twilioSmsService.js";
 import AlertService from "../services/alert.service.js";
 import SocketService from "../services/socket.service.js";
+import {
+  logOperationalEvent,
+  logOperationalError,
+} from "../helpers/logging/safeLogger.js";
 
 import {
   evaluateDeterministicInboundGuardrails,
@@ -103,6 +107,12 @@ const saveOutboundMessage = async ({
   to,
   body,
   sent,
+  isAiGenerated = false,
+  generatedBy = "system",
+  usageCategory = "sms",
+  actorType = "system",
+  actorId = null,
+  metadata = {},
 }) => {
   if (!sent || sent.suppressed === true) {
     return null;
@@ -119,8 +129,13 @@ const saveOutboundMessage = async ({
     provider: "twilio",
     providerMessageId: sent.sid || "",
     status: "sent",
+    isAiGenerated,
+    generatedBy,
+    usageCategory,
+    actorType,
+    actorId,
+    metadata,
   });
-
   SocketService.emitMessageCreated(businessId, outboundMessage);
 
   return outboundMessage;
@@ -271,14 +286,15 @@ class TwilioController {
     let webhookEvent = null;
 
     try {
-      console.log("TWILIO VOICE BODY:", req.body);
-
       const customerPhone = req.body.From || req.body.Caller || "";
       const twilioNumber = req.body.To || req.body.Called || "";
       const callSid = req.body.CallSid || "";
 
-      console.log("MISSED/FORWARDED CALL FROM:", customerPhone);
-      console.log("TWILIO NUMBER:", twilioNumber);
+      logOperationalEvent("twilio.voice.received", {
+        from: customerPhone,
+        to: twilioNumber,
+        providerCallSid: callSid,
+      });
 
       if (!customerPhone || !twilioNumber) {
         return sendXmlResponse(res);
@@ -286,10 +302,10 @@ class TwilioController {
 
       const business = await getBusinessForWebhook(twilioNumber);
 
-      console.log(
-        "VOICE BUSINESS FOUND:",
-        business?.businessName || "NO BUSINESS",
-      );
+      logOperationalEvent("twilio.voice.business_resolved", {
+        businessId: business?._id || null,
+        resolved: Boolean(business),
+      });
 
       if (!business) {
         return sendXmlResponse(res);
@@ -311,7 +327,10 @@ class TwilioController {
       });
 
       if (!claim.claimed) {
-        console.log("DUPLICATE TWILIO VOICE WEBHOOK:", eventIdentity.eventKey);
+        logOperationalEvent("twilio.voice.duplicate", {
+          eventKey: eventIdentity.eventKey,
+          businessId,
+        });
         return sendCachedWebhookResponse(res, claim.event);
       }
 
@@ -401,31 +420,43 @@ class TwilioController {
       );
 
       let missedCallTextSent = false;
-
       if (missedCallSmsEnabled) {
         const sent = await sendSms({
-          to: customerPhone,
-          from: twilioNumber,
-          body: starterText,
+          business,
           businessId,
+          from: business.phone,
+          to: customerPhone,
+          body: starterText,
+          actorType: "webhook",
+          source: "missed_call_recovery",
+          usageCategory: "missed_call_recovery",
+          conversationId: conversation._id,
+          leadId: lead._id,
+          metadata: { providerCallSid: callSid },
         });
 
         if (sent?.suppressed === true) {
-          console.log(
-            "MISSED CALL SMS SUPPRESSED:",
-            sent.reason || "customer_opted_out",
-          );
+          logOperationalEvent("twilio.voice.sms_suppressed", {
+            businessId,
+            reason: sent.reason || "customer_opted_out",
+          });
         } else {
-          console.log("MISSED CALL SMS SENT:", sent?.sid || "NO SID RETURNED");
-
+          logOperationalEvent("twilio.voice.sms_sent", {
+            businessId,
+            providerMessageId: sent?.sid || "",
+          });
           await saveOutboundMessage({
             businessId,
             conversation,
             lead,
-            from: twilioNumber,
+            from: business.phone,
             to: customerPhone,
             body: starterText,
             sent,
+            generatedBy: "automation",
+            usageCategory: "missed_call_recovery",
+            actorType: "automation",
+            metadata: { source: "missed_call_recovery" },
           });
 
           conversation = await updateConversationLastMessage({
@@ -433,11 +464,10 @@ class TwilioController {
             conversation,
             lastMessage: starterText,
           });
-
           missedCallTextSent = true;
         }
       } else {
-        console.log("MISSED CALL SMS DISABLED FOR BUSINESS:", businessId);
+        logOperationalEvent("twilio.voice.sms_disabled", { businessId });
       }
 
       const updatedCallLog = await Db.updateCallLog(CallLog, callLog._id, {
@@ -473,7 +503,9 @@ class TwilioController {
         responseBody,
       });
     } catch (error) {
-      console.error("Voice webhook error:", error);
+      logOperationalError("twilio.voice.failed", error, {
+        businessId: webhookEvent?.business,
+      });
 
       const responseBody = emptyTwiml();
 
@@ -483,7 +515,9 @@ class TwilioController {
           contentType: "text/xml",
           responseBody,
         }).catch((eventError) => {
-          console.error("Unable to mark voice webhook as failed:", eventError);
+          logOperationalError("twilio.voice.event_failure_persist_failed", eventError, {
+            webhookEventId: webhookEvent?._id,
+          });
         });
       }
 
@@ -499,7 +533,15 @@ class TwilioController {
     let webhookEvent = null;
 
     try {
-      console.log("TWILIO STATUS BODY:", req.body);
+      logOperationalEvent("twilio.status.received", {
+        status:
+          req.body.CallStatus ||
+          req.body.MessageStatus ||
+          req.body.SmsStatus ||
+          "",
+        providerCallSid: req.body.CallSid || "",
+        providerMessageId: req.body.MessageSid || req.body.SmsSid || "",
+      });
 
       const business = await getBusinessFromWebhookPhones([
         req.body.To,
@@ -528,7 +570,10 @@ class TwilioController {
       });
 
       if (!claim.claimed) {
-        console.log("DUPLICATE TWILIO STATUS WEBHOOK:", eventIdentity.eventKey);
+        logOperationalEvent("twilio.status.duplicate", {
+          eventKey: eventIdentity.eventKey,
+          businessId: business._id,
+        });
         return sendCachedWebhookResponse(res, claim.event);
       }
 
@@ -548,7 +593,9 @@ class TwilioController {
         responseBody,
       });
     } catch (error) {
-      console.error("Status webhook error:", error);
+      logOperationalError("twilio.status.failed", error, {
+        businessId: webhookEvent?.business,
+      });
 
       const responseBody = emptyTwiml();
 
@@ -558,7 +605,9 @@ class TwilioController {
           contentType: "text/xml",
           responseBody,
         }).catch((eventError) => {
-          console.error("Unable to mark status webhook as failed:", eventError);
+          logOperationalError("twilio.status.event_failure_persist_failed", eventError, {
+            webhookEventId: webhookEvent?._id,
+          });
         });
       }
 
@@ -574,8 +623,6 @@ class TwilioController {
     let webhookEvent = null;
 
     try {
-      console.log("TWILIO SMS BODY:", req.body);
-
       const from = req.body.From;
       const to = req.body.To;
       const body = req.body.Body;
@@ -587,11 +634,13 @@ class TwilioController {
       }
 
       const business = await getBusinessForWebhook(to);
-
-      console.log(
-        "SMS BUSINESS FOUND:",
-        business?.businessName || "NO BUSINESS",
-      );
+      logOperationalEvent("twilio.sms.received", {
+        from,
+        to,
+        providerMessageId,
+        businessId: business?._id || null,
+        resolved: Boolean(business),
+      });
 
       if (!business) {
         return sendXmlResponse(res);
@@ -613,7 +662,10 @@ class TwilioController {
       });
 
       if (!claim.claimed) {
-        console.log("DUPLICATE TWILIO SMS WEBHOOK:", eventIdentity.eventKey);
+        logOperationalEvent("twilio.sms.duplicate", {
+          eventKey: eventIdentity.eventKey,
+          businessId,
+        });
         return sendCachedWebhookResponse(res, claim.event);
       }
 
@@ -731,22 +783,35 @@ class TwilioController {
 
         if (commandResult.reply) {
           const sent = await sendSms({
-            to: from,
-            from: to,
-            body: commandResult.reply,
+            business,
             businessId,
+            from: business.phone,
+            to: from,
+            body: commandResult.reply,
             allowOptedOut: commandResult.allowOptedOutReply,
+            actorType: "webhook",
+            source: "inbound_sms_command",
+            usageCategory: "compliance",
+            conversationId: conversation._id,
+            leadId: lead._id,
+            metadata: { action: commandResult.action },
           });
-
           if (sent?.suppressed !== true) {
             await saveOutboundMessage({
               businessId,
               conversation,
               lead,
-              from: to,
+              from: business.phone,
               to: from,
               body: commandResult.reply,
               sent,
+              generatedBy: "guardrail",
+              usageCategory: "compliance",
+              actorType: "webhook",
+              metadata: {
+                source: "inbound_sms_command",
+                action: commandResult.action,
+              },
             });
 
             conversation = await updateConversationLastMessage({
@@ -843,31 +908,61 @@ class TwilioController {
         aiResult.decision !== "no_reply" &&
         String(aiResult.reply || "").trim()
       ) {
+        const isAiGenerated = aiResult?.guardrail?.skipAI !== true;
+        const usageCategory =
+          aiResult?.messageCategory === "emergency"
+            ? "safety"
+            : isAiGenerated
+              ? "ai_reply"
+              : "guardrail_reply";
         const sent = await sendSms({
-          to: from,
-          from: to,
-          body: aiResult.reply,
+          business,
           businessId,
+          from: business.phone,
+          to: from,
+          body: aiResult.reply,
+          actorType: isAiGenerated ? "ai" : "webhook",
+          source: "inbound_sms_reply",
+          usageCategory,
+          conversationId: conversation._id,
+          leadId: lead._id,
+          metadata: {
+            aiGenerated: isAiGenerated,
+            generatedBy: isAiGenerated ? "ai" : "guardrail",
+            decision: aiResult.decision,
+            messageCategory: aiResult.messageCategory,
+          },
         });
-
         if (sent?.suppressed === true) {
-          console.log(
-            "AI SMS SUPPRESSED:",
-            sent.reason || "customer_opted_out",
-          );
+          logOperationalEvent("twilio.sms.reply_suppressed", {
+            businessId,
+            reason: sent.reason || "customer_opted_out",
+          });
         } else {
-          console.log("AI SMS SENT:", sent?.sid || "NO SID RETURNED");
+          logOperationalEvent("twilio.sms.reply_sent", {
+            businessId,
+            providerMessageId: sent?.sid || "",
+          });
 
           await saveOutboundMessage({
             businessId,
             conversation,
             lead,
-            from: to,
+            from: business.phone,
             to: from,
             body: aiResult.reply,
             sent,
+            isAiGenerated,
+            generatedBy: isAiGenerated ? "ai" : "guardrail",
+            usageCategory,
+            actorType: isAiGenerated ? "ai" : "webhook",
+            metadata: {
+              aiGenerated: isAiGenerated,
+              source: "inbound_sms_reply",
+              decision: aiResult.decision,
+              messageCategory: aiResult.messageCategory,
+            },
           });
-
           conversation = await updateConversationLastMessage({
             businessId,
             conversation,
@@ -892,7 +987,9 @@ class TwilioController {
         responseBody,
       });
     } catch (error) {
-      console.error("Inbound SMS error:", error);
+      logOperationalError("twilio.sms.failed", error, {
+        businessId: webhookEvent?.business,
+      });
 
       const responseBody = emptyTwiml();
 
@@ -902,7 +999,9 @@ class TwilioController {
           contentType: "text/xml",
           responseBody,
         }).catch((eventError) => {
-          console.error("Unable to mark SMS webhook as failed:", eventError);
+          logOperationalError("twilio.sms.event_failure_persist_failed", eventError, {
+            webhookEventId: webhookEvent?._id,
+          });
         });
       }
 
@@ -916,20 +1015,47 @@ class TwilioController {
 
   static async sendManualSms(req, res) {
     try {
-      const { to, from, body } = req.body;
+      const { to, body } = req.body;
+      const business = req.business;
+      const actorId = req.user?.userId || null;
 
-      if (!to || !from || !body) {
+      if (!to || !body) {
         return res.status(400).json({
           success: false,
-          message: "to, from, and body are required.",
+          message: "to and body are required.",
+        });
+      }
+      if (!business?._id) {
+        return res.status(403).json({
+          success: false,
+          message: "An active business subscription is required.",
         });
       }
 
       const sent = await sendSms({
+        business,
+        businessId: business._id,
         to,
-        from,
         body,
+        actorId,
+        actorType: "user",
+        source: "manual_sms",
+        usageCategory: "manual_sms",
+        metadata: { route: "/api/twilio/send-sms" },
       });
+
+      if (sent?.suppressed === true) {
+        return res.status(sent.policyBlocked ? 429 : 409).json({
+          success: false,
+          message: sent.policyBlocked
+            ? "The communication allowance has been reached."
+            : "SMS was not sent because the customer opted out.",
+          data: {
+            status: sent.status,
+            reason: sent.reason,
+          },
+        });
+      }
 
       return res.status(200).json({
         success: true,
@@ -937,9 +1063,18 @@ class TwilioController {
         data: sent,
       });
     } catch (error) {
-      console.error("Manual SMS error:", error);
+      logOperationalError("manual_sms.failed", error, {
+        businessId: req.business?._id,
+        actorId: req.user?.userId,
+        to: req.body?.to,
+      });
 
-      return res.status(500).json({
+      const statusCode =
+        error?.code === "SMS_SENDER_NOT_OWNED" ||
+        error?.code === "SMS_BUSINESS_CONTEXT_REQUIRED"
+          ? 403
+          : 500;
+      return res.status(statusCode).json({
         success: false,
         message: "Failed to send SMS.",
       });

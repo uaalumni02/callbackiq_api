@@ -1,42 +1,68 @@
 import express from "express";
-
 import checkAuth from "../middleware/check-auth.js";
 import checkSubscription from "../middleware/check-subscription.js";
 import inboundSmsLifecycle from "../middleware/inbound-sms-lifecycle.js";
 import missedCallAutomationLifecycle from "../middleware/missed-call-automation-lifecycle.js";
 import validateTwilioSignature from "../middleware/validate-twilio-signature.js";
+import {
+  manualSmsRateLimit,
+  twilioSmsWebhookRateLimit,
+  twilioStatusWebhookRateLimit,
+  twilioVoiceWebhookRateLimit,
+} from "../middleware/twilio-webhook-rate-limit.js";
 import TwilioController from "../controllers/twilio.js";
 import VoiceWebhookController from "../controllers/voiceWebhook.js";
 
 const router = express.Router();
 
 /*
- * Public Twilio webhook endpoints. Signature validation remains first.
- * The SMS lifecycle middleware only cancels obsolete durable follow-ups and
- * records the response event; the existing controller retains ownership of
- * idempotency, STOP/HELP, safety, qualification, AI, sending and persistence.
+ * Signature validation remains first for every public provider webhook. The
+ * rate limiter therefore processes only requests Twilio authenticated, and
+ * the controller's durable idempotency remains the final retry safeguard.
  */
-router.post("/voice", validateTwilioSignature, VoiceWebhookController.initial);
-router.post("/voice-overflow", validateTwilioSignature, VoiceWebhookController.overflow);
-router.post("/voice-complete", validateTwilioSignature, VoiceWebhookController.complete);
-router.post("/voice-transfer-complete", validateTwilioSignature, VoiceWebhookController.transferComplete);
+router.post(
+  "/voice",
+  validateTwilioSignature,
+  twilioVoiceWebhookRateLimit,
+  VoiceWebhookController.initial,
+);
+router.post(
+  "/voice-overflow",
+  validateTwilioSignature,
+  twilioVoiceWebhookRateLimit,
+  VoiceWebhookController.overflow,
+);
+router.post(
+  "/voice-complete",
+  validateTwilioSignature,
+  twilioVoiceWebhookRateLimit,
+  VoiceWebhookController.complete,
+);
+router.post(
+  "/voice-transfer-complete",
+  validateTwilioSignature,
+  twilioVoiceWebhookRateLimit,
+  VoiceWebhookController.transferComplete,
+);
 router.post(
   "/status",
   validateTwilioSignature,
+  twilioStatusWebhookRateLimit,
   missedCallAutomationLifecycle,
   TwilioController.statusWebhook,
 );
 router.post(
   "/sms",
   validateTwilioSignature,
+  twilioSmsWebhookRateLimit,
   inboundSmsLifecycle,
   TwilioController.handleInboundSms,
 );
-
 router.post(
   "/send-sms",
   checkAuth,
   checkSubscription,
+  manualSmsRateLimit,
   TwilioController.sendManualSms,
 );
 

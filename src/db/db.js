@@ -17,6 +17,8 @@ const BUSINESS_SCOPE_FIELDS = [
   "smsTemplate",
   "estimatedJobValue",
   "features",
+  "communicationLimits",
+  "voiceSettings",
   "isActive",
   "createdAt",
   "updatedAt",
@@ -796,7 +798,7 @@ class Db {
       return await model
         .find({ conversation: conversationId })
         .select(
-          "_id business conversation lead direction from to body provider status createdAt updatedAt",
+          "_id business conversation lead direction from to body provider providerMessageId status isAiGenerated generatedBy usageCategory actorType actorId metadata createdAt updatedAt",
         )
         .sort({ createdAt: 1 });
     } catch (error) {

@@ -1,4 +1,7 @@
-import twilio from "twilio";
+import {
+  resetTwilioClient as resetCentralTwilioClient,
+  sendSms,
+} from "../twilioSmsService.js";
 
 import Alert from "../../models/alert.js";
 import Appointment from "../../models/appointment.js";
@@ -10,21 +13,7 @@ import Lead from "../../models/lead.js";
 import Message from "../../models/message.js";
 import SocketService from "../socket.service.js";
 
-let twilioClient = null;
-
-const getTwilioClient = () => {
-  if (twilioClient) return twilioClient;
-
-  const accountSid = String(process.env.TWILIO_ACCOUNT_SID || "").trim();
-  const authToken = String(process.env.TWILIO_AUTH_TOKEN || "").trim();
-
-  if (!accountSid || !authToken) {
-    throw new Error("TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN are required for automation SMS.");
-  }
-
-  twilioClient = twilio(accountSid, authToken);
-  return twilioClient;
-};
+// Twilio client creation and outbound policy enforcement are centralized.
 
 const interpolate = (template, values) =>
   String(template || "").replace(/{{\s*([a-zA-Z0-9_.]+)\s*}}/g, (_, path) => {
@@ -63,16 +52,8 @@ const withinQuietHours = ({ now, timeZone, start, end }) => {
     : current >= startMinutes || current < endMinutes;
 };
 
-const buildSendPayload = ({ business, to, body }) => {
-  const messagingServiceSid = String(process.env.TWILIO_MESSAGING_SERVICE_SID || "").trim();
-  return {
-    to,
-    body,
-    ...(messagingServiceSid
-      ? { messagingServiceSid }
-      : { from: business.phone }),
-  };
-};
+const getAutomationMessagingServiceSid = () =>
+  String(process.env.TWILIO_MESSAGING_SERVICE_SID || "").trim();
 
 class AutomationService {
   static async suppressionReason(job) {
@@ -187,13 +168,41 @@ class AutomationService {
 
       if (populated.action === "send_sms") {
         if (!body) throw new Error("Automation SMS template rendered an empty message.");
-        const result = await getTwilioClient().messages.create(
-          buildSendPayload({
-            business: populated.business,
-            to: populated.conversation.customerPhone,
-            body,
-          }),
-        );
+        const result = await sendSms({
+          business: populated.business,
+          businessId: populated.business._id,
+          from: populated.business.phone,
+          to: populated.conversation.customerPhone,
+          body,
+          actorType: "automation",
+          source: "automation_workflow",
+          usageCategory: "automation",
+          conversationId: populated.conversation._id,
+          leadId: populated.lead?._id || null,
+          messagingServiceSid: getAutomationMessagingServiceSid(),
+          metadata: {
+            automationJobId: populated._id,
+            workflowId: populated.workflow?._id || populated.workflow || null,
+          },
+        });
+
+        if (result?.suppressed === true) {
+          populated.status = result.policyBlocked ? "scheduled" : "canceled";
+          populated.executeAt = result.policyBlocked
+            ? new Date(Date.now() + 60 * 60_000)
+            : populated.executeAt;
+          populated.canceledAt = result.policyBlocked ? null : new Date();
+          populated.failureReason =
+            result.reason ||
+            (result.policyBlocked
+              ? "communication_usage_limit"
+              : "customer_opted_out");
+          populated.lockedAt = null;
+          populated.lockedBy = null;
+          await populated.save();
+          return populated;
+        }
+
         const message = await Message.create({
           business: populated.business._id,
           conversation: populated.conversation._id,
@@ -205,6 +214,15 @@ class AutomationService {
           provider: "twilio",
           providerMessageId: result.sid,
           status: result.status || "queued",
+          isAiGenerated: false,
+          generatedBy: "automation",
+          usageCategory: "automation",
+          actorType: "automation",
+          metadata: {
+            source: "automation_workflow",
+            automationJobId: populated._id,
+            workflowId: populated.workflow?._id || populated.workflow || null,
+          },
         });
         SocketService.emitMessageCreated(populated.business._id, message);
       } else if (populated.action === "create_alert" || populated.action === "mark_for_review") {
@@ -270,7 +288,7 @@ class AutomationService {
   }
 
   static resetTwilioClient() {
-    twilioClient = null;
+    resetCentralTwilioClient();
   }
 }
 
