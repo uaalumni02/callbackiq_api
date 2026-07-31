@@ -260,6 +260,7 @@ const VoiceSettingsSchema = new Schema(
       default: () => ({}),
     },
     overflowRingSeconds: { type: Number, min: 5, max: 60, default: 20 },
+    liveTransferEnabled: { type: Boolean, default: false },
     transferPhone: {
       type: String,
       trim: true,
@@ -270,6 +271,18 @@ const VoiceSettingsSchema = new Schema(
           return validate.isValidPhone(value);
         },
         message: "Please enter a valid voice transfer phone number",
+      },
+    },
+    liveTransferPhone: {
+      type: String,
+      trim: true,
+      default: "",
+      validate: {
+        validator(value) {
+          if (!value) return true;
+          return validate.isValidPhone(value);
+        },
+        message: "Please enter a valid live-transfer phone number",
       },
     },
     welcomeGreeting: {

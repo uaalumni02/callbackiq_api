@@ -95,7 +95,10 @@ jest.mock("../../src/services/conversionEvent.service.js", () => ({
 
 jest.mock("../../src/voice/voiceAvailability.service.js", () => ({
   __esModule: true,
-  default: { describeBusinessHours: jest.fn() },
+  default: {
+    describeBusinessHours: jest.fn(),
+    isBusinessOpen: jest.fn().mockResolvedValue(true),
+  },
 }));
 
 jest.mock("../../src/models/alert.js", () => ({
@@ -115,10 +118,12 @@ jest.mock("../../src/services/socket.service.js", () => ({
 const setNested = (target, path, value) => {
   const parts = path.split(".");
   let cursor = target;
+
   for (const part of parts.slice(0, -1)) {
     cursor[part] = cursor[part] || {};
     cursor = cursor[part];
   }
+
   cursor[parts.at(-1)] = value;
 };
 
@@ -153,7 +158,12 @@ const makeSession = () => {
     businessName: "Peachtree Plumbing",
     timezone: "America/New_York",
     features: { aiBookingEnabled: true, voiceAiEnabled: true },
+    voiceSettings: {
+      liveTransferEnabled: false,
+      liveTransferPhone: "+14045550199",
+    },
   };
+
   return {
     _id: "voice-session-1",
     providerCallSid: "CA123",
@@ -184,7 +194,7 @@ describe("Phase 9 completion gate using production voice orchestration", () => {
     jest.clearAllMocks();
     assessInboundSafety.mockResolvedValue({ isEmergency: false });
     searchServicesTool.mockResolvedValue([
-      { id: "service-1", name: "Drain cleaning" },
+      { id: "service-1", name: "Drain cleaning", score: 1 },
     ]);
     validateServiceAreaTool.mockResolvedValue({ supported: true });
     getAvailabilityTool.mockResolvedValue({ slots: [slot] });
@@ -208,6 +218,7 @@ describe("Phase 9 completion gate using production voice orchestration", () => {
         },
       },
     });
+
     expect(route).toBe(VOICE_ROUTE.RELAY);
   });
 
@@ -218,6 +229,7 @@ describe("Phase 9 completion gate using production voice orchestration", () => {
       session,
       customerMessage: "I need drain cleaning",
     });
+
     expect(serviceReply.reply).toMatch(/drain cleaning/i);
     expect(searchServicesTool).toHaveBeenCalledWith({
       businessId: "business-1",
@@ -228,6 +240,7 @@ describe("Phase 9 completion gate using production voice orchestration", () => {
       session,
       customerMessage: "123 Main Street, Atlanta GA 30303",
     });
+
     expect(areaReply.reply).toMatch(/what day works best/i);
     expect(validateServiceAreaTool).toHaveBeenCalledWith({
       businessId: "business-1",
@@ -238,6 +251,7 @@ describe("Phase 9 completion gate using production voice orchestration", () => {
       session,
       customerMessage: "2026-08-03",
     });
+
     expect(slotsReply.reply).toMatch(/1\)/);
     expect(getAvailabilityTool).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -251,12 +265,14 @@ describe("Phase 9 completion gate using production voice orchestration", () => {
       session,
       customerMessage: "first",
     });
+
     expect(selectionReply.reply).toMatch(/say yes to confirm/i);
 
     const bookingReply = await VoiceAgentService.handlePrompt({
       session,
       customerMessage: "yes",
     });
+
     expect(bookingReply.reply).toMatch(/booked/i);
     expect(createAppointmentTool).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -273,8 +289,10 @@ describe("Phase 9 completion gate using production voice orchestration", () => {
     );
   });
 
-  test("gate 7: transfers immediately when the caller requests a human", async () => {
+  test("gate 7: transfers only when the caller explicitly asks and live transfer is enabled", async () => {
     const session = makeSession();
+    session.business.voiceSettings.liveTransferEnabled = true;
+
     const result = await VoiceAgentService.handlePrompt({
       session,
       customerMessage: "Please transfer me to a person",
@@ -294,7 +312,7 @@ describe("Phase 9 completion gate using production voice orchestration", () => {
     expect(searchServicesTool).not.toHaveBeenCalled();
   });
 
-  test("gate 8: performs critical safety escalation before booking", async () => {
+  test("gate 8: performs critical safety escalation before booking without a blind transfer", async () => {
     const session = makeSession();
     assessInboundSafety.mockResolvedValue({
       isEmergency: true,
@@ -308,12 +326,19 @@ describe("Phase 9 completion gate using production voice orchestration", () => {
     });
 
     expect(result.reply).toMatch(/911/i);
+    expect(result.handoff).toEqual(expect.objectContaining({ type: "end" }));
+    expect(result.callbackCaptured).toBe(true);
     expect(session.lead.urgency).toBe("emergency");
-    expect(session.status).toBe("transferring");
-    expect(session.transferredToHuman).toBe(true);
-    expect(session.transferReason).toBe("safety_emergency:gas");
+    expect(session.status).not.toBe("transferring");
+    expect(session.transferredToHuman).toBe(false);
+    expect(session.transferReason).toBe(
+      "callback_captured:safety_emergency:gas",
+    );
     expect(Alert.findOneAndUpdate).toHaveBeenCalledWith(
-      expect.any(Object),
+      expect.objectContaining({
+        dedupeKey:
+          "voice_callback:voice-session-1:safety_emergency:gas",
+      }),
       expect.objectContaining({
         $setOnInsert: expect.objectContaining({
           priority: "critical",

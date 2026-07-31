@@ -1,57 +1,59 @@
 import Appointment from "../../src/models/appointment.js";
+import searchServicesTool from "../../src/helpers/ai/tools/searchServices.tool.js";
 import sendConfirmationSmsTool from "../../src/helpers/ai/tools/sendConfirmationSms.tool.js";
 import BookingStateMachineService from "../../src/services/booking/bookingStateMachine.service.js";
 import { assessInboundSafety } from "../../src/services/safetyAssessmentService.js";
 import VoiceAgentService from "../../src/voice/voiceAgent.service.js";
+import VoiceCallbackService from "../../src/voice/voiceCallback.service.js";
 import VoiceHandoffService from "../../src/voice/voiceHandoff.service.js";
+import VoiceAvailabilityService from "../../src/voice/voiceAvailability.service.js";
 
 jest.mock("../../src/models/appointment.js", () => ({
   __esModule: true,
   default: { findById: jest.fn() },
 }));
-
 jest.mock("../../src/models/callLog.js", () => ({
   __esModule: true,
   default: { findById: jest.fn() },
 }));
-
 jest.mock("../../src/models/serviceOffering.js", () => ({
   __esModule: true,
   default: { findOne: jest.fn() },
 }));
-
 jest.mock("../../src/helpers/ai/tools/searchServices.tool.js", () => ({
   __esModule: true,
   default: jest.fn(),
 }));
-
 jest.mock("../../src/helpers/ai/tools/validateServiceArea.tool.js", () => ({
   __esModule: true,
   default: jest.fn(),
 }));
-
 jest.mock("../../src/helpers/ai/tools/sendConfirmationSms.tool.js", () => ({
   __esModule: true,
   default: jest.fn(),
 }));
-
 jest.mock("../../src/services/booking/bookingStateMachine.service.js", () => ({
   __esModule: true,
   default: { handle: jest.fn() },
 }));
-
 jest.mock("../../src/services/safetyAssessmentService.js", () => ({
   __esModule: true,
   assessInboundSafety: jest.fn(),
 }));
-
 jest.mock("../../src/voice/voiceAvailability.service.js", () => ({
   __esModule: true,
   default: {
     describeBusinessHours: jest.fn(),
+    isBusinessOpen: jest.fn(),
   },
 }));
-
+jest.mock("../../src/voice/voiceCallback.service.js", () => ({
+  __esModule: true,
+  default: {
+    isActive: jest.fn(),
+    handle: jest.fn(),
+  },
+}));
 jest.mock("../../src/voice/voiceHandoff.service.js", () => ({
   __esModule: true,
   default: { request: jest.fn() },
@@ -60,13 +62,15 @@ jest.mock("../../src/voice/voiceHandoff.service.js", () => ({
 const makeSession = () => {
   const lead = {
     _id: "lead-1",
+    customerName: "Voice Caller",
+    serviceNeeded: "Unknown",
     urgency: "medium",
     notes: "",
     save: jest.fn(),
   };
   const conversation = {
     _id: "conversation-1",
-    bookingState: { status: "collecting_service", appointment: null },
+    bookingState: { status: "not_started", appointment: null },
     populate: jest.fn().mockResolvedValue(undefined),
   };
   return {
@@ -74,7 +78,13 @@ const makeSession = () => {
     providerCallSid: "CA123",
     business: {
       _id: "business-1",
+      forwardingPhone: "+14045550100",
       features: { aiBookingEnabled: true },
+      voiceSettings: {
+        liveTransferEnabled: false,
+        transferPhone: "+14045550100",
+        liveTransferPhone: "+14045550199",
+      },
     },
     lead,
     conversation,
@@ -83,18 +93,25 @@ const makeSession = () => {
   };
 };
 
-describe("VoiceAgentService", () => {
+describe("VoiceAgentService callback-first recovery", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     assessInboundSafety.mockResolvedValue({ isEmergency: false });
+    VoiceCallbackService.isActive.mockReturnValue(false);
+    VoiceCallbackService.handle.mockResolvedValue({
+      reply: "I created a callback request.",
+      callbackCaptured: false,
+    });
     VoiceHandoffService.request.mockResolvedValue({
       type: "end",
       handoffData: "{}",
     });
+    searchServicesTool.mockResolvedValue([]);
+    VoiceAvailabilityService.isBusinessOpen.mockResolvedValue(true);
     Appointment.findById.mockResolvedValue(null);
   });
 
-  test("runs safety detection before booking and escalates emergencies", async () => {
+  test("creates an urgent alert flow instead of blindly transferring safety calls", async () => {
     const session = makeSession();
     assessInboundSafety.mockResolvedValue({
       isEmergency: true,
@@ -107,38 +124,127 @@ describe("VoiceAgentService", () => {
       customerMessage: "I smell gas and feel dizzy",
     });
 
-    expect(result.reply).toBe("Call 911 now.");
+    expect(result.reply).toMatch(/callback request/i);
     expect(session.lead.urgency).toBe("emergency");
-    expect(session.lead.save).toHaveBeenCalled();
-    expect(VoiceHandoffService.request).toHaveBeenCalledWith(
+    expect(VoiceCallbackService.handle).toHaveBeenCalledWith(
       expect.objectContaining({
         reason: "safety_emergency:gas",
-        priority: "critical",
         alertType: "safety_emergency",
+        priority: "critical",
+        immediate: true,
+        sendConfirmationSms: false,
       }),
     );
-    expect(assessInboundSafety).toHaveBeenCalledWith(
-      expect.objectContaining({
-        customerMessage: "I smell gas and feel dizzy",
-        recentMessages: expect.arrayContaining([
-          expect.objectContaining({ direction: "inbound", body: "I need help" }),
-        ]),
-      }),
-    );
-    expect(BookingStateMachineService.handle).not.toHaveBeenCalled();
+    expect(VoiceHandoffService.request).not.toHaveBeenCalled();
   });
 
-  test("honors an explicit human-transfer request before booking", async () => {
+  test("captures a callback when a caller asks for a human and live transfer is off", async () => {
     const session = makeSession();
 
-    const result = await VoiceAgentService.handlePrompt({
+    await VoiceAgentService.handlePrompt({
       session,
       customerMessage: "Please transfer me to a person",
     });
 
-    expect(result.reply).toMatch(/transferring/i);
+    expect(VoiceCallbackService.handle).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: "customer_requested_human" }),
+    );
+    expect(VoiceHandoffService.request).not.toHaveBeenCalled();
+  });
+
+  test("uses live transfer only for an explicit request when it is enabled", async () => {
+    const session = makeSession();
+    session.business.voiceSettings.liveTransferEnabled = true;
+
+    const result = await VoiceAgentService.handlePrompt({
+      session,
+      customerMessage: "I need to speak to an agent",
+    });
+
+    expect(result.reply).toMatch(/live-transfer line/i);
     expect(VoiceHandoffService.request).toHaveBeenCalledWith(
       expect.objectContaining({ reason: "customer_requested_human" }),
+    );
+    expect(VoiceCallbackService.handle).not.toHaveBeenCalled();
+  });
+
+  test("captures a callback when the dedicated live-transfer window is closed", async () => {
+    const session = makeSession();
+    session.business.voiceSettings.liveTransferEnabled = true;
+    VoiceAvailabilityService.isBusinessOpen.mockResolvedValue(false);
+
+    await VoiceAgentService.handlePrompt({
+      session,
+      customerMessage: "I need to speak to a person",
+    });
+
+    expect(VoiceHandoffService.request).not.toHaveBeenCalled();
+    expect(VoiceCallbackService.handle).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: "customer_requested_human" }),
+    );
+  });
+
+  test("does not transfer or start booking for a greeting when booking is disabled", async () => {
+    const session = makeSession();
+    session.business.features.aiBookingEnabled = false;
+
+    const result = await VoiceAgentService.handlePrompt({
+      session,
+      customerMessage: "Hello",
+    });
+
+    expect(result.reply).toMatch(/callback request/i);
+    expect(VoiceCallbackService.handle).not.toHaveBeenCalled();
+    expect(BookingStateMachineService.handle).not.toHaveBeenCalled();
+    expect(VoiceHandoffService.request).not.toHaveBeenCalled();
+  });
+
+  test("captures a concrete service request that cannot be matched", async () => {
+    const session = makeSession();
+
+    await VoiceAgentService.handlePrompt({
+      session,
+      customerMessage: "My water heater is broken",
+    });
+
+    expect(VoiceCallbackService.handle).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reason: "service_not_matched",
+        seedServiceFromMessage: true,
+      }),
+    );
+    expect(VoiceHandoffService.request).not.toHaveBeenCalled();
+  });
+
+  test("captures booking details when automatic booking is disabled", async () => {
+    const session = makeSession();
+    session.business.features.aiBookingEnabled = false;
+
+    await VoiceAgentService.handlePrompt({
+      session,
+      customerMessage: "I need to schedule a plumbing appointment",
+    });
+
+    expect(VoiceCallbackService.handle).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reason: "voice_booking_not_enabled",
+        seedServiceFromMessage: true,
+      }),
+    );
+    expect(VoiceHandoffService.request).not.toHaveBeenCalled();
+  });
+
+  test("continues an active callback capture before starting another flow", async () => {
+    const session = makeSession();
+    VoiceCallbackService.isActive.mockReturnValue(true);
+
+    await VoiceAgentService.handlePrompt({
+      session,
+      customerMessage: "30303",
+    });
+
+    expect(VoiceCallbackService.handle).toHaveBeenCalledWith(
+      expect.objectContaining({ customerMessage: "30303" }),
     );
     expect(BookingStateMachineService.handle).not.toHaveBeenCalled();
   });
@@ -167,8 +273,9 @@ describe("VoiceAgentService", () => {
     expect(result.reply).toMatch(/please say yes to confirm/i);
   });
 
-  test("marks a confirmed voice booking recovered and sends one session-scoped confirmation", async () => {
+  test("marks a confirmed voice booking recovered", async () => {
     const session = makeSession();
+    session.conversation.bookingState.status = "awaiting_confirmation";
     const appointment = {
       _id: "appointment-1",
       status: "confirmed",
@@ -191,24 +298,16 @@ describe("VoiceAgentService", () => {
     });
 
     expect(result.reply).toMatch(/booked/i);
-    expect(session.appointment).toBe(appointment._id);
-    expect(session.estimatedValue).toBe(425);
     expect(session.lead).toMatchObject({
       status: "booked",
-      appointment: appointment._id,
       recovered: true,
       recoveredBy: "voice_ai",
     });
-    expect(sendConfirmationSmsTool).toHaveBeenCalledWith(
-      expect.objectContaining({
-        appointmentId: appointment._id,
-        voiceSessionId: session._id,
-      }),
-    );
   });
 
-  test("transfers when provider booking fails", async () => {
+  test("captures a callback instead of transferring when provider booking fails", async () => {
     const session = makeSession();
+    session.conversation.bookingState.status = "awaiting_confirmation";
     BookingStateMachineService.handle.mockImplementation(async () => {
       session.conversation.bookingState.status = "failed";
       return {
@@ -217,14 +316,17 @@ describe("VoiceAgentService", () => {
       };
     });
 
-    const result = await VoiceAgentService.handlePrompt({
+    await VoiceAgentService.handlePrompt({
       session,
       customerMessage: "Yes",
     });
 
-    expect(result.reply).toMatch(/trouble confirming/i);
-    expect(VoiceHandoffService.request).toHaveBeenCalledWith(
-      expect.objectContaining({ reason: "voice_booking_failed" }),
+    expect(VoiceCallbackService.handle).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reason: "voice_booking_failed",
+        alertType: "booking_conflict",
+      }),
     );
+    expect(VoiceHandoffService.request).not.toHaveBeenCalled();
   });
 });

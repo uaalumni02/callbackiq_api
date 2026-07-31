@@ -14,19 +14,29 @@ const response = () => {
 
 const makeBusiness = (overrides = {}) => {
   const business = {
-    features: { voiceAiEnabled: true, aiBookingEnabled: true },
+    features: { voiceAiEnabled: true, aiBookingEnabled: false },
     voiceSettings: {
       answerMode: "overflow",
-      routingPolicyVersion: 0,
+      routingPolicyVersion: 1,
+      routingPolicy: {
+        openHours: "staff_then_voice_ai",
+        afterHours: "voice_ai",
+        voiceFailure: "sms",
+      },
+      liveTransferEnabled: false,
       overflowRingSeconds: 20,
       transferPhone: "+14045550100",
+      liveTransferPhone: "",
       welcomeGreeting: "Thanks for calling.",
-      recordingEnabled: true,
+      recordingEnabled: false,
     },
     forwardingPhone: "",
     set: jest.fn((path, value) => {
       if (path === "features.voiceAiEnabled") {
         business.features.voiceAiEnabled = value;
+      }
+      if (path === "features.aiBookingEnabled") {
+        business.features.aiBookingEnabled = value;
       }
       if (path === "voiceSettings") business.voiceSettings = value;
     }),
@@ -36,7 +46,7 @@ const makeBusiness = (overrides = {}) => {
   return business;
 };
 
-describe("VoiceSettingsController configurable routing", () => {
+describe("VoiceSettingsController callback-first settings", () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
@@ -55,62 +65,195 @@ describe("VoiceSettingsController configurable routing", () => {
     process.env = originalEnv;
   });
 
-  test("saves independent open-hours, after-hours, and failure actions", async () => {
-    const business = makeBusiness();
-    getOwnedBusiness.mockResolvedValue(business);
-    const req = {
-      user: { userId: "owner" },
-      body: {
-        voiceAiEnabled: true,
-        routingPolicy: {
-          openHours: "staff_then_sms",
-          afterHours: "voice_ai",
-          voiceFailure: "staff_then_sms",
-        },
-        transferPhone: "+14045550109",
-      },
-    };
-    const res = response();
-    const next = jest.fn();
-
-    await VoiceSettingsController.update(req, res, next);
-
-    expect(next).not.toHaveBeenCalled();
-    expect(business.voiceSettings).toEqual(
-      expect.objectContaining({
-        answerMode: "custom",
-        routingPolicyVersion: 1,
-        routingPolicy: req.body.routingPolicy,
-        transferPhone: "+14045550109",
-        recordingEnabled: false,
-      }),
-    );
-    expect(business.save).toHaveBeenCalled();
-  });
-
-  test("maps legacy presets to an explicit versioned routing policy", async () => {
+  test("returns separate booking and live-transfer controls", async () => {
     const business = makeBusiness();
     getOwnedBusiness.mockResolvedValue(business);
     const res = response();
 
-    await VoiceSettingsController.update(
-      {
-        user: { userId: "owner" },
-        body: { answerMode: "after_hours" },
-      },
+    await VoiceSettingsController.get(
+      { user: { userId: "owner" }, query: {} },
       res,
       jest.fn(),
     );
 
-    expect(business.voiceSettings.routingPolicy).toEqual({
-      openHours: "staff_then_sms",
-      afterHours: "voice_ai",
-      voiceFailure: "sms",
-    });
-    expect(business.voiceSettings.answerMode).toBe("after_hours");
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          voiceAiEnabled: true,
+          aiBookingEnabled: false,
+          liveTransferEnabled: false,
+          liveTransferPhone: "",
+        }),
+      }),
+    );
   });
 
-  test("rejects attempts to enable inert call recording", async () => {
+  test("saves automatic booking and optional live transfer independently", async () => {
+    const business = makeBusiness();
+    getOwnedBusiness.mockResolvedValue(business);
+    const res = response();
+    const next = jest.fn();
+
+    await VoiceSettingsController.update(
+      {
+        user: { userId: "owner" },
+        body: {
+          aiBookingEnabled: true,
+          liveTransferEnabled: true,
+          transferPhone: "+14045550109",
+          liveTransferPhone: "+14045550188",
+        },
+      },
+      res,
+      next,
+    );
+
+    expect(next).not.toHaveBeenCalled();
+    expect(business.set).toHaveBeenCalledWith(
+      "features.aiBookingEnabled",
+      true,
+    );
+    expect(business.voiceSettings).toMatchObject({
+      liveTransferEnabled: true,
+      transferPhone: "+14045550109",
+      liveTransferPhone: "+14045550188",
+    });
+  });
+
+  test("voice answering is ready when booking is off because callback capture is available", async () => {
+    const business = makeBusiness({
+      features: { voiceAiEnabled: true, aiBookingEnabled: false },
+      voiceSettings: {
+        answerMode: "always",
+        routingPolicyVersion: 1,
+        routingPolicy: {
+          openHours: "voice_ai",
+          afterHours: "voice_ai",
+          voiceFailure: "sms",
+        },
+        liveTransferEnabled: false,
+        transferPhone: "",
+        liveTransferPhone: "",
+        recordingEnabled: false,
+      },
+    });
+    getOwnedBusiness.mockResolvedValue(business);
+    const res = response();
+
+    await VoiceSettingsController.readiness(
+      { user: { userId: "owner" }, query: {} },
+      res,
+      jest.fn(),
+    );
+
+    const payload = res.json.mock.calls[0][0].data;
+    expect(payload.ready).toBe(true);
+    expect(payload.checks.aiBookingEnabled).toBe(false);
+    expect(payload.checks.callbackCaptureAvailable).toBe(true);
+    expect(payload.capabilities).toEqual(
+      expect.objectContaining({
+        voiceAnsweringReady: true,
+        callbackCaptureEnabled: true,
+        automaticBookingEnabled: false,
+        liveTransferEnabled: false,
+      }),
+    );
+    expect(payload.recoveryPolicy.bookingUnavailable).toBe(
+      "capture_callback",
+    );
+  });
+
+  test("requires a dedicated phone when optional live transfer is enabled", async () => {
+    const business = makeBusiness({
+      voiceSettings: {
+        answerMode: "always",
+        routingPolicyVersion: 1,
+        routingPolicy: {
+          openHours: "voice_ai",
+          afterHours: "voice_ai",
+          voiceFailure: "sms",
+        },
+        liveTransferEnabled: true,
+        transferPhone: "+14045550109",
+        liveTransferPhone: "",
+        recordingEnabled: false,
+      },
+    });
+    getOwnedBusiness.mockResolvedValue(business);
+    const res = response();
+
+    await VoiceSettingsController.readiness(
+      { user: { userId: "owner" }, query: {} },
+      res,
+      jest.fn(),
+    );
+
+    const payload = res.json.mock.calls[0][0].data;
+    expect(payload.ready).toBe(false);
+    expect(payload.checks.liveTransferPhoneConfigured).toBe(false);
+    expect(payload.recoveryPolicy.explicitHumanRequest).toBe(
+      "capture_callback",
+    );
+  });
+
+  test("uses live transfer only when enabled with a dedicated phone", async () => {
+    const business = makeBusiness({
+      voiceSettings: {
+        answerMode: "always",
+        routingPolicyVersion: 1,
+        routingPolicy: {
+          openHours: "voice_ai",
+          afterHours: "voice_ai",
+          voiceFailure: "sms",
+        },
+        liveTransferEnabled: true,
+        transferPhone: "+14045550109",
+        liveTransferPhone: "+14045550188",
+        recordingEnabled: false,
+      },
+    });
+    getOwnedBusiness.mockResolvedValue(business);
+    const res = response();
+
+    await VoiceSettingsController.readiness(
+      { user: { userId: "owner" }, query: {} },
+      res,
+      jest.fn(),
+    );
+
+    const payload = res.json.mock.calls[0][0].data;
+    expect(payload.ready).toBe(true);
+    expect(payload.capabilities.liveTransferEnabled).toBe(true);
+    expect(payload.recoveryPolicy.explicitHumanRequest).toBe(
+      "live_transfer_during_open_hours",
+    );
+    expect(payload.recoveryPolicy.liveTransferWindow).toBe(
+      "configured_business_hours_only",
+    );
+  });
+
+  test("rejects invalid dedicated live-transfer phone numbers", async () => {
+    getOwnedBusiness.mockResolvedValue(makeBusiness());
+    const next = jest.fn();
+
+    await VoiceSettingsController.update(
+      {
+        user: { userId: "owner" },
+        body: { liveTransferPhone: "123" },
+      },
+      response(),
+      next,
+    );
+
+    expect(next).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusCode: 400,
+        message: "Enter a valid live-transfer phone number.",
+      }),
+    );
+  });
+
+  test("rejects attempts to enable call recording", async () => {
     getOwnedBusiness.mockResolvedValue(makeBusiness());
     const next = jest.fn();
 
@@ -128,66 +271,6 @@ describe("VoiceSettingsController configurable routing", () => {
         statusCode: 409,
         code: "VOICE_RECORDING_NOT_AVAILABLE",
       }),
-    );
-  });
-
-  test("does not require WSS or AI booking for an SMS-only routing policy", async () => {
-    delete process.env.VOICE_WEBSOCKET_PUBLIC_URL;
-    delete process.env.TWILIO_AUTH_TOKEN;
-    const business = makeBusiness({
-      features: { voiceAiEnabled: true, aiBookingEnabled: false },
-      voiceSettings: {
-        answerMode: "custom",
-        routingPolicyVersion: 1,
-        routingPolicy: {
-          openHours: "sms",
-          afterHours: "sms",
-          voiceFailure: "sms",
-        },
-        transferPhone: "",
-        recordingEnabled: false,
-      },
-    });
-    getOwnedBusiness.mockResolvedValue(business);
-    const res = response();
-
-    await VoiceSettingsController.readiness(
-      { user: { userId: "owner" }, query: {} },
-      res,
-      jest.fn(),
-    );
-
-    const payload = res.json.mock.calls[0][0];
-    expect(payload.data.ready).toBe(true);
-    expect(payload.data.requirements.usesVoiceAi).toBe(false);
-    expect(payload.data.checks.conversationRelayConfigured).toBe(true);
-  });
-
-  test("requires a transfer phone only when a selected route uses staff", async () => {
-    const business = makeBusiness({
-      voiceSettings: {
-        answerMode: "custom",
-        routingPolicyVersion: 1,
-        routingPolicy: {
-          openHours: "staff_then_voice_ai",
-          afterHours: "voice_ai",
-          voiceFailure: "sms",
-        },
-        transferPhone: "",
-        recordingEnabled: false,
-      },
-    });
-    getOwnedBusiness.mockResolvedValue(business);
-    const res = response();
-
-    await VoiceSettingsController.readiness(
-      { user: { userId: "owner" }, query: {} },
-      res,
-      jest.fn(),
-    );
-
-    expect(res.json.mock.calls[0][0].data.checks.transferPhoneConfigured).toBe(
-      false,
     );
   });
 });

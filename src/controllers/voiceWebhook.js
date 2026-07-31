@@ -371,11 +371,17 @@ class VoiceWebhookController {
       }
 
       if (handoff.reasonCode === "live-agent-handoff") {
-        if (settings.transferPhone) {
+        const liveTransferPhone = String(
+          business.voiceSettings?.liveTransferPhone || "",
+        ).trim();
+        if (
+          business.voiceSettings?.liveTransferEnabled === true &&
+          liveTransferPhone
+        ) {
           return sendXml(
             res,
             dialTwiml({
-              transferPhone: settings.transferPhone,
+              transferPhone: liveTransferPhone,
               timeout: settings.overflowRingSeconds,
               actionPath: buildTransferActionPath({
                 reason: handoff.reason || "live_agent_handoff",

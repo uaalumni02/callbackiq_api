@@ -11,7 +11,7 @@ import VoiceCallbackService from "./voiceCallback.service.js";
 import VoiceHandoffService from "./voiceHandoff.service.js";
 
 const HUMAN_REQUEST =
-  /\b(?:transfer me|connect me|put me through|live (?:person|agent)|human being|representative|operator|staff member|someone from (?:the )?team|(?:talk|speak)(?:\s+to|\s+with)\s+(?:(?:a|an|the)\s+)?(?:person|human|representative|agent|operator|someone|staff(?:\s+member)?))\b/i;
+  /\b(transfer me|live person|human being|representative|operator|staff member|talk to someone|speak to someone|someone from the team|talk to (?:a )?(?:person|human|representative|agent|operator)|speak to (?:a )?(?:person|human|representative|agent|operator))\b/i;
 const CALLBACK_REQUEST =
   /\b(call me back|callback|call back|have (?:the )?team call|ask (?:the )?team to call|leave (?:a )?message)\b/i;
 const BUSINESS_HOURS =
@@ -77,24 +77,7 @@ const hasCatalogServiceMatch = async ({ businessId, text }) => {
 
   try {
     const matches = await searchServicesTool({ businessId, query: text });
-    const normalizedText = String(text || "").trim().toLowerCase();
-
-    return matches.some((match) => {
-      const score = Number(match?.score);
-
-      if (Number.isFinite(score)) {
-        return score > 0;
-      }
-
-      // Keep compatibility with older mocks or alternate tool adapters that
-      // return a matched service without a score. Only accept it when the
-      // returned service name is actually present in the caller's request.
-      const serviceName = String(match?.name || "").trim().toLowerCase();
-
-      return Boolean(
-        serviceName && normalizedText.includes(serviceName),
-      );
-    });
+    return matches.some((match) => Number(match?.score) > 0);
   } catch (error) {
     console.error("Voice service-intent lookup failed:", error);
     return false;

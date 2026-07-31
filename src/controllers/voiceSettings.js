@@ -24,7 +24,16 @@ const ANSWER_MODES = new Set([
 ]);
 const PHONE_PATTERN = /^\+?[0-9()\-.\s]{7,20}$/;
 
-const serialize = (business) => normalizeVoiceSettings(business);
+const serialize = (business) => ({
+  ...normalizeVoiceSettings(business),
+  aiBookingEnabled: Boolean(business?.features?.aiBookingEnabled),
+  liveTransferEnabled: Boolean(
+    business?.voiceSettings?.liveTransferEnabled,
+  ),
+  liveTransferPhone: String(
+    business?.voiceSettings?.liveTransferPhone || "",
+  ).trim(),
+});
 
 const validationError = (message, statusCode = 400, code = "") => {
   const error = new Error(message);
@@ -37,8 +46,8 @@ const validateRoutingPolicy = (value, currentPolicy) => {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw validationError("Voice routing policy must be an object.");
   }
-
   const policy = { ...currentPolicy };
+
   for (const key of ["openHours", "afterHours"]) {
     if (!Object.hasOwn(value, key)) continue;
     if (!VOICE_ROUTING_ACTIONS.includes(value[key])) {
@@ -53,15 +62,18 @@ const validateRoutingPolicy = (value, currentPolicy) => {
     }
     policy.voiceFailure = value.voiceFailure;
   }
-
   return policy;
 };
 
 const validateUpdate = (body, currentSettings) => {
   const update = {};
 
-  if (Object.hasOwn(body, "voiceAiEnabled")) {
-    update.voiceAiEnabled = Boolean(body.voiceAiEnabled);
+  for (const key of [
+    "voiceAiEnabled",
+    "aiBookingEnabled",
+    "liveTransferEnabled",
+  ]) {
+    if (Object.hasOwn(body, key)) update[key] = Boolean(body[key]);
   }
 
   if (Object.hasOwn(body, "answerMode")) {
@@ -86,12 +98,18 @@ const validateUpdate = (body, currentSettings) => {
     update.overflowRingSeconds = seconds;
   }
 
-  if (Object.hasOwn(body, "transferPhone")) {
-    const phone = String(body.transferPhone || "").trim();
+  for (const field of ["transferPhone", "liveTransferPhone"]) {
+    if (!Object.hasOwn(body, field)) continue;
+
+    const phone = String(body[field] || "").trim();
     if (phone && !PHONE_PATTERN.test(phone)) {
-      throw validationError("Enter a valid transfer phone number.");
+      throw validationError(
+        field === "liveTransferPhone"
+          ? "Enter a valid live-transfer phone number."
+          : "Enter a valid staff-routing phone number.",
+      );
     }
-    update.transferPhone = phone;
+    update[field] = phone;
   }
 
   if (Object.hasOwn(body, "welcomeGreeting")) {
@@ -146,15 +164,11 @@ class VoiceSettingsController {
       const current = serialize(business);
       const update = validateUpdate(req.body || {}, current);
       const voiceSettings = voiceSettingsObject(business);
-
       let voiceAiEnabled = Object.hasOwn(update, "voiceAiEnabled")
         ? update.voiceAiEnabled
         : current.voiceAiEnabled;
       let routingPolicy = { ...current.routingPolicy };
 
-      // Presets remain available for backward compatibility and quick setup.
-      // Scenario-specific fields take precedence and make the mode custom when
-      // they do not exactly match a preset.
       if (
         Object.hasOwn(update, "answerMode") &&
         update.answerMode !== "custom" &&
@@ -163,30 +177,33 @@ class VoiceSettingsController {
         routingPolicy = getPresetRoutingPolicy(update.answerMode);
         voiceAiEnabled = update.answerMode !== "disabled";
       }
-
       if (Object.hasOwn(update, "routingPolicy")) {
         routingPolicy = update.routingPolicy;
       }
 
       const answerMode = inferAnswerMode({ voiceAiEnabled, routingPolicy });
       business.set("features.voiceAiEnabled", voiceAiEnabled);
+      if (Object.hasOwn(update, "aiBookingEnabled")) {
+        business.set("features.aiBookingEnabled", update.aiBookingEnabled);
+      }
 
       voiceSettings.answerMode = answerMode;
       voiceSettings.routingPolicyVersion = 1;
       voiceSettings.routingPolicy = routingPolicy;
-
+      if (Object.hasOwn(update, "liveTransferEnabled")) {
+        voiceSettings.liveTransferEnabled = update.liveTransferEnabled;
+      }
       for (const key of [
         "overflowRingSeconds",
         "transferPhone",
+        "liveTransferPhone",
         "welcomeGreeting",
         "voiceName",
       ]) {
         if (Object.hasOwn(update, key)) voiceSettings[key] = update[key];
       }
 
-      // Clear every legacy true value. No Phase 9 TwiML can enable recording.
       voiceSettings.recordingEnabled = false;
-
       business.set("voiceSettings", voiceSettings);
       await business.save();
 
@@ -206,7 +223,10 @@ class VoiceSettingsController {
       const usesVoiceAi = routingPolicyUsesVoiceAi(settings.routingPolicy);
       const usesStaff = routingPolicyUsesStaff(settings.routingPolicy);
       const relayConfigured = isConversationRelayConfigured();
-
+      const transferPhoneConfigured = Boolean(settings.transferPhone);
+      const liveTransferPhoneConfigured = Boolean(
+        settings.liveTransferPhone,
+      );
       const checks = {
         voiceFeatureEnabled: settings.voiceAiEnabled,
         routingPolicyConfigured:
@@ -218,9 +238,13 @@ class VoiceSettingsController {
           !settings.voiceAiEnabled || /^https:\/\//i.test(getVoiceHttpBaseUrl()),
         twilioSignatureValidationConfigured:
           !usesVoiceAi || Boolean(process.env.TWILIO_AUTH_TOKEN),
-        aiBookingEnabled:
-          !usesVoiceAi || Boolean(business.features?.aiBookingEnabled),
-        transferPhoneConfigured: !usesStaff || Boolean(settings.transferPhone),
+        transferPhoneConfigured: !usesStaff || transferPhoneConfigured,
+        liveTransferPhoneConfigured:
+          !usesVoiceAi ||
+          !settings.liveTransferEnabled ||
+          liveTransferPhoneConfigured,
+        aiBookingEnabled: settings.aiBookingEnabled,
+        callbackCaptureAvailable: true,
         recordingSupported: VOICE_RECORDING_SUPPORTED,
         recordingDisabled: settings.recordingEnabled === false,
         recordingPolicy: VOICE_RECORDING_POLICY,
@@ -229,33 +253,48 @@ class VoiceSettingsController {
         forcedFailureTestModeDisabled:
           !isPhase9ForcedRelayFailureEnabled(),
       };
-
       const required = [
         "voiceFeatureEnabled",
         "routingPolicyConfigured",
         "httpCallbackConfigured",
         "transferPhoneConfigured",
+        "liveTransferPhoneConfigured",
         "recordingDisabled",
         "forcedFailureTestModeDisabled",
         ...(usesVoiceAi
           ? [
               "secureWebSocketConfigured",
               "twilioSignatureValidationConfigured",
-              "aiBookingEnabled",
               "conversationRelayConfigured",
             ]
           : []),
       ];
+      const voiceAnsweringReady = required.every((key) => checks[key]);
 
       return res.status(200).json({
         success: true,
         data: {
-          ready: required.every((key) => checks[key]),
+          ready: voiceAnsweringReady,
           checks,
-          requirements: {
-            usesVoiceAi,
-            usesStaff,
+          capabilities: {
+            voiceAnsweringReady,
+            callbackCaptureEnabled: true,
+            automaticBookingEnabled: settings.aiBookingEnabled,
+            liveTransferEnabled:
+              settings.liveTransferEnabled && liveTransferPhoneConfigured,
           },
+          recoveryPolicy: {
+            bookingUnavailable: "capture_callback",
+            lowConfidence: "capture_callback",
+            unsupportedRequest: "capture_callback",
+            explicitHumanRequest:
+              settings.liveTransferEnabled && liveTransferPhoneConfigured
+                ? "live_transfer_during_open_hours"
+                : "capture_callback",
+            liveTransferWindow: "configured_business_hours_only",
+            failedLiveTransfer: "sms_and_alert",
+          },
+          requirements: { usesVoiceAi, usesStaff },
           settings,
         },
       });
