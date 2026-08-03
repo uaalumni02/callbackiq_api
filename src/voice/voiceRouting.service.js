@@ -205,6 +205,34 @@ export const normalizeVoiceSettings = (business) => {
       600,
     ),
     maxConcurrentCalls: boundedInteger(raw.maxConcurrentCalls, 25, 1, 100),
+    dailyVoiceMinutes: boundedInteger(
+      raw.dailyVoiceMinutes,
+      240,
+      1,
+      100000,
+    ),
+    monthlyVoiceMinutes: boundedInteger(
+      raw.monthlyVoiceMinutes,
+      4000,
+      1,
+      1000000,
+    ),
+    voiceHardCapEnabled: raw.voiceHardCapEnabled !== false,
+    voiceOverageEnabled: raw.voiceOverageEnabled === true,
+    voiceUsageWarningThresholds: Array.isArray(
+      raw.voiceUsageWarningThresholds,
+    )
+      ? raw.voiceUsageWarningThresholds
+      : [70, 85, 100],
+    callerVelocityLimitPerHour: boundedInteger(
+      raw.callerVelocityLimitPerHour,
+      10,
+      1,
+      1000,
+    ),
+    agentConfirmationRequired: raw.agentConfirmationRequired !== false,
+    answeringMachineDetectionEnabled:
+      raw.answeringMachineDetectionEnabled !== false,
   };
 };
 

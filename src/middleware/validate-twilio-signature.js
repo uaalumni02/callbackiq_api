@@ -1,4 +1,6 @@
-import twilio from "twilio";
+import {
+  validateTwilioRequestWithRotation,
+} from "../services/twilioSignatureRotation.service.js";
 
 let missingTokenWarningShown = false;
 
@@ -45,9 +47,13 @@ const validateTwilioSignature = (req, res, next) => {
     return next();
   }
 
-  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const hasAuthToken = [
+    process.env.TWILIO_AUTH_TOKEN,
+    process.env.TWILIO_AUTH_TOKEN_NEXT,
+    process.env.TWILIO_AUTH_TOKEN_PREVIOUS,
+  ].some((value) => Boolean(String(value || "").trim()));
 
-  if (!authToken) {
+  if (!hasAuthToken) {
     if (process.env.NODE_ENV === "production") {
       console.error(
         "TWILIO_AUTH_TOKEN is required to validate production webhooks.",
@@ -80,12 +86,11 @@ const validateTwilioSignature = (req, res, next) => {
 
   const webhookUrl = getWebhookUrl(req);
 
-  const isValid = twilio.validateRequest(
-    authToken,
+  const isValid = validateTwilioRequestWithRotation({
     signature,
-    webhookUrl,
-    req.body || {},
-  );
+    url: webhookUrl,
+    params: req.body || {},
+  });
 
   if (!isValid) {
     console.warn("Rejected Twilio webhook with an invalid signature", {

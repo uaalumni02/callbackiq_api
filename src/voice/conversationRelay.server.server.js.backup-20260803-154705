@@ -1,6 +1,4 @@
-import {
-  validateTwilioRequestWithRotation,
-} from "../services/twilioSignatureRotation.service.js";
+import twilio from "twilio";
 import { WebSocket, WebSocketServer } from "ws";
 
 import VoiceAgentService from "./voiceAgent.service.js";
@@ -22,8 +20,6 @@ import {
   VOICE_ROUTE,
 } from "./voiceRoutingPolicy.service.js";
 import VoiceCapacityService from "../services/voiceCapacity.service.js";
-import VoiceUsageService from "../services/voiceUsage.service.js";
-import VoiceFraudDetectionService from "../services/voiceFraudDetection.service.js";
 import {
   logOperationalError,
   logOperationalWarning,
@@ -101,16 +97,11 @@ export const validateConversationRelaySignature = (request) => {
     return true;
   }
 
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
   const signature = request.headers?.["x-twilio-signature"];
   const publicUrl = signatureUrlForRequest(request);
-
-  if (!signature || !publicUrl) return false;
-
-  return validateTwilioRequestWithRotation({
-    signature,
-    url: publicUrl,
-    params: {},
-  });
+  if (!authToken || !signature || !publicUrl) return false;
+  return twilio.validateRequest(authToken, signature, publicUrl, {});
 };
 
 const safeSend = (socket, payload) => {
@@ -161,8 +152,6 @@ export const initializeConversationRelayServer = (
     voiceTranscriptService = VoiceTranscriptService,
     voiceFailureService = VoiceFailureService,
     voiceCapacityService = VoiceCapacityService,
-    voiceUsageService = VoiceUsageService,
-    voiceFraudDetectionService = VoiceFraudDetectionService,
     signatureValidator = validateConversationRelaySignature,
     failureEndDelayMs = DEFAULT_END_DELAY_MS,
     failureCloseDelayMs = DEFAULT_CLOSE_DELAY_MS,
@@ -249,8 +238,6 @@ export const initializeConversationRelayServer = (
     let intentionalEnd = false;
     let failureStarted = false;
     let capacityReserved = false;
-    let voiceUsageReservedSeconds = 0;
-    let voiceUsageReconciled = false;
     let messageChain = Promise.resolve();
     let endTimer = null;
     let closeTimer = null;
@@ -355,53 +342,6 @@ export const initializeConversationRelayServer = (
       }
     };
 
-    const reconcileVoiceUsageSafely = async () => {
-      if (
-        voiceUsageReconciled ||
-        !session?._id ||
-        !voiceUsageReservedSeconds
-      ) {
-        return;
-      }
-
-      voiceUsageReconciled = true;
-
-      const startedAt = new Date(
-        session.startedAt || Date.now(),
-      ).getTime();
-
-      const actualSeconds = Math.max(
-        1,
-        Math.ceil((Date.now() - startedAt) / 1000),
-      );
-
-      try {
-        await voiceUsageService.reconcileVoiceUsage({
-          businessId:
-            session.business?._id || session.business,
-          sessionId: session._id,
-          reservedSeconds: voiceUsageReservedSeconds,
-          actualSeconds,
-          openAiInputTokens:
-            Number(session.openAiUsage?.inputTokens) || 0,
-          openAiOutputTokens:
-            Number(session.openAiUsage?.outputTokens) || 0,
-          transferAttempts:
-            Number(session.metadata?.transferAttempts) || 0,
-        });
-      } catch (error) {
-        logOperationalError(
-          "conversation_relay.usage_reconciliation_failed",
-          error,
-          {
-            businessId:
-              session.business?._id || session.business,
-            voiceSessionId: session._id,
-          },
-        );
-      }
-    };
-
     const closeTransport = (code = 1011, reason = "Voice session ended.") => {
       if (socket.readyState === WebSocket.CLOSED) return;
       try {
@@ -486,7 +426,6 @@ export const initializeConversationRelayServer = (
         () => sendEndPacket("voice-failure", reason),
         failureEndDelayMs,
       );
-      await reconcileVoiceUsageSafely();
       await releaseCapacity();
       await persistFallbackSafely(reason);
     };
@@ -499,7 +438,6 @@ export const initializeConversationRelayServer = (
         "I’m not hearing a response, so I’m ending the call now. I’ll preserve the call record for the configured follow-up workflow.",
         { interruptible: false, preemptible: true },
       );
-      await reconcileVoiceUsageSafely();
       await releaseCapacity();
       await persistFallbackSafely("Caller provided no input after two prompts.");
       endTimer = schedule(
@@ -660,7 +598,6 @@ export const initializeConversationRelayServer = (
         clearIdleTimers();
         clearTimer(durationTimer);
         clearTimer(durationWarningTimer);
-        await reconcileVoiceUsageSafely();
         await releaseCapacity();
         endTimer = schedule(() => {
           const sent = safeSend(socket, result.handoff);
@@ -733,26 +670,6 @@ export const initializeConversationRelayServer = (
       clearTimer(handshakeTimer);
       handshakeTimer = null;
 
-
-      const velocity =
-        await voiceFraudDetectionService.evaluateCallerVelocity({
-          businessId:
-            session.business?._id || session.business,
-          callerPhone: session.from,
-          maxCalls:
-            session.business?.voiceSettings
-              ?.callerVelocityLimitPerHour || 10,
-        });
-
-      if (!velocity.allowed) {
-        const error = new Error(
-          "Caller activity exceeded the voice safety limit. Callback recovery was used.",
-        );
-        error.code =
-          velocity.reason || "VOICE_CALLER_VELOCITY_LIMIT";
-        throw error;
-      }
-
       const capacity = await voiceCapacityService.acquireVoiceCapacity({
         business: session.business,
         session,
@@ -766,25 +683,6 @@ export const initializeConversationRelayServer = (
         throw error;
       }
       capacityReserved = true;
-
-      const usage = await voiceUsageService.reserveVoiceUsage({
-        business: session.business,
-        sessionId: session._id,
-        reserveSeconds: 60,
-      });
-
-      if (!usage.allowed) {
-        const error = new Error(
-          "The business voice allowance is exhausted. Callback recovery was used.",
-        );
-        error.code =
-          usage.reason || "VOICE_ALLOWANCE_EXHAUSTED";
-        throw error;
-      }
-
-      voiceUsageReservedSeconds =
-        Number(usage.reservedSeconds) || 0;
-
       scheduleDurationLimit();
       resetIdleTimers();
       await appendTranscriptSafely({
@@ -913,7 +811,6 @@ export const initializeConversationRelayServer = (
       const reason = reasonBuffer?.toString?.() || "";
       messageChain = messageChain
         .then(async () => {
-          await reconcileVoiceUsageSafely();
           await releaseCapacity();
           if (!session?._id) return;
           if (

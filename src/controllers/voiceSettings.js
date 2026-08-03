@@ -88,6 +88,10 @@ export const validateUpdate = (body = {}, currentSettings = {}) => {
     "voiceAiEnabled",
     "aiBookingEnabled",
     "liveTransferEnabled",
+    "voiceHardCapEnabled",
+    "voiceOverageEnabled",
+    "agentConfirmationRequired",
+    "answeringMachineDetectionEnabled",
   ]) {
     if (Object.hasOwn(body, key)) update[key] = Boolean(body[key]);
   }
@@ -116,6 +120,42 @@ export const validateUpdate = (body = {}, currentSettings = {}) => {
       throw validationError("Maximum call duration must be between 60 and 600 seconds.");
     }
     update.maxCallDurationSeconds = seconds;
+  }
+  if (Object.hasOwn(body, "maxConcurrentCalls")) {
+    const calls = Number(body.maxConcurrentCalls);
+    if (!Number.isInteger(calls) || calls < 1 || calls > 100) {
+      throw validationError(
+        "Maximum concurrent calls must be between 1 and 100.",
+      );
+    }
+    update.maxConcurrentCalls = calls;
+  }
+  if (Object.hasOwn(body, "dailyVoiceMinutes")) {
+    const minutes = Number(body.dailyVoiceMinutes);
+    if (!Number.isInteger(minutes) || minutes < 1 || minutes > 100000) {
+      throw validationError(
+        "Daily voice allowance must be between 1 and 100000 minutes.",
+      );
+    }
+    update.dailyVoiceMinutes = minutes;
+  }
+  if (Object.hasOwn(body, "monthlyVoiceMinutes")) {
+    const minutes = Number(body.monthlyVoiceMinutes);
+    if (!Number.isInteger(minutes) || minutes < 1 || minutes > 1000000) {
+      throw validationError(
+        "Monthly voice allowance must be between 1 and 1000000 minutes.",
+      );
+    }
+    update.monthlyVoiceMinutes = minutes;
+  }
+  if (Object.hasOwn(body, "callerVelocityLimitPerHour")) {
+    const calls = Number(body.callerVelocityLimitPerHour);
+    if (!Number.isInteger(calls) || calls < 1 || calls > 1000) {
+      throw validationError(
+        "Caller velocity limit must be between 1 and 1000 calls per hour.",
+      );
+    }
+    update.callerVelocityLimitPerHour = calls;
   }
   if (Object.hasOwn(body, "transferPhone")) {
     update.transferPhone = normalizeRequiredPhone(
@@ -235,6 +275,14 @@ class VoiceSettingsController {
         "welcomeGreeting",
         "voiceName",
         "liveTransferEnabled",
+        "maxConcurrentCalls",
+        "dailyVoiceMinutes",
+        "monthlyVoiceMinutes",
+        "voiceHardCapEnabled",
+        "voiceOverageEnabled",
+        "callerVelocityLimitPerHour",
+        "agentConfirmationRequired",
+        "answeringMachineDetectionEnabled",
       ]) {
         if (Object.hasOwn(update, key)) merged[key] = update[key];
       }
