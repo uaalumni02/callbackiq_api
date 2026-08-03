@@ -14,35 +14,12 @@ jest.mock("twilio", () => ({
   },
 }));
 
-const createRelayInfrastructureStubs = () => ({
-  voiceCapacityService: {
-    acquireVoiceCapacity: jest.fn().mockResolvedValue({ allowed: true }),
-    releaseVoiceCapacity: jest.fn().mockResolvedValue(undefined),
-  },
-  voiceUsageService: {
-    reserveVoiceUsage: jest.fn().mockResolvedValue({
-      allowed: true,
-      reservedSeconds: 60,
-    }),
-    reconcileVoiceUsage: jest.fn().mockResolvedValue(undefined),
-  },
-  voiceFraudDetectionService: {
-    evaluateCallerVelocity: jest.fn().mockResolvedValue({
-      allowed: true,
-      remaining: 9,
-    }),
-  },
-});
-
 const startServer = async (options) => {
   const httpServer = http.createServer((_req, res) => {
     res.statusCode = 404;
     res.end();
   });
-  const relay = initializeConversationRelayServer(httpServer, {
-    ...createRelayInfrastructureStubs(),
-    ...(options || {}),
-  });
+  const relay = initializeConversationRelayServer(httpServer, options);
 
   await new Promise((resolve) => {
     httpServer.listen(0, "127.0.0.1", resolve);

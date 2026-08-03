@@ -108,16 +108,17 @@ class VoiceSessionService {
             to: normalizedTo,
             status: "routing",
             startedAt: new Date(),
+            lastActivityAt: new Date(),
+            metadata: {
+              callerIdUsable: usableCaller,
+              originalCallerIdClassification: usableCaller
+                ? "usable"
+                : "anonymous_or_restricted",
+            },
           },
-          // Do not write the metadata parent in $setOnInsert while also writing
-          // metadata.* children in $set. MongoDB rejects that as a conflicting
-          // update path, which prevented new voice sessions from being created.
           $set: {
             lastActivityAt: new Date(),
             "metadata.callerIdUsable": usableCaller,
-            "metadata.originalCallerIdClassification": usableCaller
-              ? "usable"
-              : "anonymous_or_restricted",
           },
         },
         { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },

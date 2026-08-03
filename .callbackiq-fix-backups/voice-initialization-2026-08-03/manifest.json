@@ -1,0 +1,16 @@
+{
+  "appliedAt": "2026-08-03T23:41:25.639Z",
+  "projectRoot": "/Users/demecobell/Documents/callbackiq_api",
+  "backedUpFiles": [
+    "src/voice/voiceSession.service.js",
+    "src/models/voiceSession.js"
+  ],
+  "createdFiles": [
+    "tests/unit/voiceSessionInitialization.service.test.js"
+  ],
+  "changes": {
+    "voiceSessionService": "Removed conflicting parent/child metadata update paths.",
+    "voiceSessionModel": "Lifecycle enum already complete; unchanged.",
+    "regressionTest": "Installed voice-session initialization regression test."
+  }
+}
