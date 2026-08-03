@@ -1,3 +1,8 @@
+import {
+  normalizePhoneToE164,
+  phoneNumbersEqual,
+} from "./voicePhone.service.js";
+
 const escapeXml = (value) =>
   String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -7,31 +12,32 @@ const escapeXml = (value) =>
     .replaceAll("'", "&apos;");
 
 const xml = (body) => `<?xml version="1.0" encoding="UTF-8"?>${body}`;
-const trimTrailingSlash = (value) => String(value || "").replace(/\/+$/, "");
+const trimTrailingSlash = (value) => String(value || "").trim().replace(/\/+$/, "");
+const boundedInteger = (value, fallback, minimum, maximum) => {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(maximum, Math.max(minimum, parsed));
+};
 
 export const VOICE_RECORDING_SUPPORTED = false;
 export const VOICE_RECORDING_POLICY =
   "disabled_pending_consent_and_retention_policy";
+
 export const VOICE_ROUTING_ACTIONS = Object.freeze([
   "voice_ai",
   "sms",
   "staff_then_voice_ai",
   "staff_then_sms",
 ]);
-
 export const VOICE_FAILURE_ACTIONS = Object.freeze([
   "sms",
   "staff_then_sms",
 ]);
-const PRESET_POLICIES = Object.freeze({
+
+export const PRESET_POLICIES = Object.freeze({
   disabled: Object.freeze({
     openHours: "sms",
     afterHours: "sms",
-    voiceFailure: "sms",
-  }),
-  always: Object.freeze({
-    openHours: "voice_ai",
-    afterHours: "voice_ai",
     voiceFailure: "sms",
   }),
   after_hours: Object.freeze({
@@ -44,200 +50,270 @@ const PRESET_POLICIES = Object.freeze({
     afterHours: "staff_then_voice_ai",
     voiceFailure: "sms",
   }),
+  always: Object.freeze({
+    openHours: "voice_ai",
+    afterHours: "voice_ai",
+    voiceFailure: "sms",
+  }),
 });
-const isRoutingAction = (value) => VOICE_ROUTING_ACTIONS.includes(value);
-const isFailureAction = (value) => VOICE_FAILURE_ACTIONS.includes(value);
 
 export const getPresetRoutingPolicy = (answerMode = "disabled") => ({
   ...(PRESET_POLICIES[answerMode] || PRESET_POLICIES.disabled),
 });
 
-export const inferAnswerMode = ({ voiceAiEnabled, routingPolicy }) => {
+export const normalizeRoutingPolicy = (value, answerMode = "disabled") => {
+  const fallback = getPresetRoutingPolicy(answerMode);
+  const source = value && typeof value === "object" ? value : {};
+  const openHours = VOICE_ROUTING_ACTIONS.includes(source.openHours)
+    ? source.openHours
+    : fallback.openHours;
+  const afterHours = VOICE_ROUTING_ACTIONS.includes(source.afterHours)
+    ? source.afterHours
+    : fallback.afterHours;
+  const voiceFailure = VOICE_FAILURE_ACTIONS.includes(source.voiceFailure)
+    ? source.voiceFailure
+    : fallback.voiceFailure;
+  return { openHours, afterHours, voiceFailure };
+};
+
+export const inferAnswerMode = (value) => {
+  const voiceAiEnabled =
+    value && typeof value === "object" && Object.hasOwn(value, "voiceAiEnabled")
+      ? Boolean(value.voiceAiEnabled)
+      : true;
   if (!voiceAiEnabled) return "disabled";
-  for (const mode of ["always", "after_hours", "overflow"]) {
-    const preset = PRESET_POLICIES[mode];
+  const policy = value?.routingPolicy || value;
+  const normalized = normalizeRoutingPolicy(policy, "disabled");
+  for (const [mode, preset] of Object.entries(PRESET_POLICIES)) {
     if (
-      preset.openHours === routingPolicy?.openHours &&
-      preset.afterHours === routingPolicy?.afterHours &&
-      preset.voiceFailure === routingPolicy?.voiceFailure
+      preset.openHours === normalized.openHours &&
+      preset.afterHours === normalized.afterHours &&
+      preset.voiceFailure === normalized.voiceFailure
     ) {
       return mode;
     }
   }
-
   return "custom";
 };
-export const normalizeRoutingPolicy = (business) => {
-  const settings = business?.voiceSettings || {};
-  const version = Number(settings.routingPolicyVersion || 0);
-  const answerMode = [
-    "after_hours",
-    "overflow",
-    "always",
-    "disabled",
-    "custom",
-  ].includes(settings.answerMode)
-    ? settings.answerMode
-    : "disabled";
-  // Existing businesses keep the exact legacy answer-mode semantics until
-  // they save the new scenario policy. The version marker prevents Mongoose
-  // defaults on old documents from silently changing live call behavior.
-  const fallback = getPresetRoutingPolicy(answerMode);
-  if (version < 1) return fallback;
-  return {
-    openHours: isRoutingAction(settings.routingPolicy?.openHours)
-      ? settings.routingPolicy.openHours
-      : fallback.openHours,
-    afterHours: isRoutingAction(settings.routingPolicy?.afterHours)
-      ? settings.routingPolicy.afterHours
-      : fallback.afterHours,
-    voiceFailure: isFailureAction(settings.routingPolicy?.voiceFailure)
-      ? settings.routingPolicy.voiceFailure
-      : fallback.voiceFailure,
-  };
-};
-export const routingPolicyUsesVoiceAi = (routingPolicy) =>
-  [routingPolicy?.openHours, routingPolicy?.afterHours].some((value) =>
-    ["voice_ai", "staff_then_voice_ai"].includes(value),
+
+export const routingPolicyUsesVoiceAi = (policy) =>
+  [policy?.openHours, policy?.afterHours].some((action) =>
+    ["voice_ai", "staff_then_voice_ai"].includes(action),
   );
 
-export const routingPolicyUsesStaff = (routingPolicy) =>
-  [
-    routingPolicy?.openHours,
-    routingPolicy?.afterHours,
-    routingPolicy?.voiceFailure,
-  ].some((value) => String(value || "").startsWith("staff_then_"));
+export const routingPolicyUsesStaff = (policy) =>
+  [policy?.openHours, policy?.afterHours, policy?.voiceFailure].some((action) =>
+    ["staff_then_voice_ai", "staff_then_sms"].includes(action),
+  );
+
 export const getVoiceHttpBaseUrl = () =>
   trimTrailingSlash(
     process.env.VOICE_HTTP_PUBLIC_URL ||
-      process.env.API_PUBLIC_URL ||
-      process.env.PUBLIC_API_URL ||
+      process.env.TWILIO_WEBHOOK_BASE_URL ||
       "",
   );
 
-export const getVoiceWebSocketUrl = () =>
-  String(process.env.VOICE_WEBSOCKET_PUBLIC_URL || "").trim();
-
-const LEGACY_GENERIC_WELCOME_GREETING =
-  /^thanks for calling(?:[,.!?])?\s*how can i help you today(?:[?.!])?$/i;
-const resolveWelcomeGreeting = (business) => {
-  const businessName =
-    String(business?.businessName || "").trim() || "the business";
-  const configuredGreeting = String(
-    business?.voiceSettings?.welcomeGreeting || "",
-  ).trim();
-  const businessGreeting = `Thanks for calling ${businessName}. How can I help you today?`;
-
-  // Existing records may contain the original generic schema default. Resolve
-  // that value at call time so the greeting identifies the business matched
-  // from Twilio's called number without requiring a database migration.
-  if (
-    !configuredGreeting ||
-    LEGACY_GENERIC_WELCOME_GREETING.test(configuredGreeting)
-  ) {
-    return businessGreeting;
-  }
-
-  return configuredGreeting;
-};
-
-export const isPhase9ForcedRelayFailureEnabled = () => {
-  const environment = String(
-    process.env.APP_ENV || process.env.NODE_ENV || "development",
-  ).toLowerCase();
-  return (
-    environment !== "production" &&
-    process.env.PHASE9_ENABLE_LIVE_TEST_HOOKS === "true" &&
-    process.env.PHASE9_FORCE_RELAY_FAILURE === "true"
-  );
+export const getVoiceWebSocketUrl = () => {
+  const configured = trimTrailingSlash(process.env.VOICE_WEBSOCKET_PUBLIC_URL);
+  if (!configured) return "";
+  if (/\/ws\/voice(?:\?.*)?$/i.test(configured)) return configured;
+  return `${configured}/ws/voice`;
 };
 
 export const isConversationRelayConfigured = () =>
-  /^https:\/\//i.test(getVoiceHttpBaseUrl()) &&
   /^wss:\/\//i.test(getVoiceWebSocketUrl()) &&
-  Boolean(process.env.TWILIO_AUTH_TOKEN);
-export const normalizeVoiceSettings = (business) => {
-  const routingPolicy = normalizeRoutingPolicy(business);
-  const voiceAiEnabled = Boolean(business?.features?.voiceAiEnabled);
-  const persistedMode = business?.voiceSettings?.answerMode || "disabled";
-  const answerMode =
-    Number(business?.voiceSettings?.routingPolicyVersion || 0) >= 1
-      ? inferAnswerMode({ voiceAiEnabled, routingPolicy })
-      : persistedMode;
-  return {
-    voiceAiEnabled,
-    answerMode,
-    routingPolicyVersion: Number(
-      business?.voiceSettings?.routingPolicyVersion || 0,
-    ),
-    routingPolicy,
-    overflowRingSeconds: Math.min(
-      60,
-      Math.max(5, Number(business?.voiceSettings?.overflowRingSeconds) || 20),
-    ),
-    transferPhone:
-      business?.voiceSettings?.transferPhone || business?.forwardingPhone || "",
-    welcomeGreeting: resolveWelcomeGreeting(business),
-    voiceName: business?.voiceSettings?.voiceName || "",
-    // Recording is fail-closed. A legacy true value never changes TwiML.
-    recordingEnabled: false,
-    recordingSupported: VOICE_RECORDING_SUPPORTED,
-    recordingPolicy: VOICE_RECORDING_POLICY,
-  };
-};
-const absoluteActionUrl = (actionPath) => {
-  const baseUrl = getVoiceHttpBaseUrl();
-  const path = String(actionPath || "");
-  return /^https:\/\//i.test(path) ? path : `${baseUrl}${path}`;
+  /^https:\/\//i.test(getVoiceHttpBaseUrl()) &&
+  Boolean(String(process.env.TWILIO_AUTH_TOKEN || "").trim());
+
+export const isPhase9ForcedRelayFailureEnabled = () => {
+  const environment = String(
+    process.env.APP_ENV || process.env.NODE_ENV || "",
+  ).toLowerCase();
+  if (environment === "production") return false;
+  return (
+    String(process.env.PHASE9_ENABLE_LIVE_TEST_HOOKS || "").toLowerCase() ===
+      "true" &&
+    String(process.env.PHASE9_FORCE_RELAY_FAILURE || "").toLowerCase() ===
+      "true"
+  );
 };
 
-export const conversationRelayTwiml = ({
-  business,
-  voiceSessionId,
-  actionPath = "/api/twilio/voice-complete",
-}) => {
-  const settings = normalizeVoiceSettings(business);
-  const voiceAttribute = settings.voiceName
-    ? ` voice="${escapeXml(settings.voiceName)}"`
-    : "";
-  return xml(
-    `<Response><Connect action="${escapeXml(
-      absoluteActionUrl(actionPath),
-    )}"><ConversationRelay url="${escapeXml(
-      getVoiceWebSocketUrl(),
-    )}" welcomeGreeting="${escapeXml(
-      settings.welcomeGreeting,
-    )}" welcomeGreetingInterruptible="any" language="en-US"${voiceAttribute}><Parameter name="voiceSessionId" value="${escapeXml(
-      voiceSessionId,
-    )}" /><Parameter name="businessId" value="${escapeXml(
-      business._id,
-    )}" /></ConversationRelay></Connect></Response>`,
-  );
+const cleanGreeting = (value) => {
+  const text = String(value || "").replace(/[\u0000-\u001F\u007F]/g, " ").replace(/\s+/g, " ").trim();
+  // Treat the legacy generic default as unset so the business name is spoken.
+  if (/^thanks for calling\.? how can i help you today\??$/i.test(text)) return "";
+  return text.slice(0, 300);
 };
-export const dialTwiml = ({
-  transferPhone,
-  timeout,
-  actionPath = "/api/twilio/voice-overflow",
-}) =>
-  xml(
-    `<Response><Dial timeout="${Math.min(
-      60,
-      Math.max(5, Number(timeout) || 20),
-    )}" answerOnBridge="true" action="${escapeXml(
-      absoluteActionUrl(actionPath),
-    )}" method="POST"><Number>${escapeXml(
-      transferPhone,
-    )}</Number></Dial></Response>`,
+
+const dynamicGreeting = (businessName) => {
+  const name = String(businessName || "").replace(/\s+/g, " ").trim().slice(0, 120);
+  return name
+    ? `Thanks for calling ${name}. How can I help you today?`
+    : "Thanks for calling. How can I help you today?";
+};
+
+export const normalizeVoiceSettings = (business) => {
+  const raw = business?.voiceSettings || {};
+  const answerMode = ["after_hours", "overflow", "always", "disabled", "custom"].includes(
+    raw.answerMode,
+  )
+    ? raw.answerMode
+    : "disabled";
+  const routingPolicy = normalizeRoutingPolicy(raw.routingPolicy, answerMode);
+  const transferPhone = normalizePhoneToE164(
+    raw.transferPhone || business?.forwardingPhone,
   );
-export const sayTwiml = (message, { hangup = true } = {}) =>
-  xml(
-    `<Response><Say>${escapeXml(message)}</Say>${
+  let liveTransferPhone = normalizePhoneToE164(raw.liveTransferPhone);
+  const trackingPhone = normalizePhoneToE164(business?.phone);
+  const liveTransferLoops = Boolean(
+    liveTransferPhone &&
+      phoneNumbersEqual(liveTransferPhone, trackingPhone),
+  );
+  if (liveTransferLoops) liveTransferPhone = "";
+
+  const configuredWelcomeGreeting = cleanGreeting(raw.welcomeGreeting);
+  const resolvedWelcomeGreeting =
+    configuredWelcomeGreeting || dynamicGreeting(business?.businessName);
+
+  return {
+    voiceAiEnabled: Boolean(business?.features?.voiceAiEnabled),
+    aiBookingEnabled: Boolean(business?.features?.aiBookingEnabled),
+    trackingPhone,
+    answerMode,
+    routingPolicyVersion: 1,
+    routingPolicy,
+    overflowRingSeconds: boundedInteger(raw.overflowRingSeconds, 20, 15, 25),
+    transferPhone,
+    // Preserve the owner's enabled/disabled choice when the dedicated number is
+    // merely missing so readiness can report the configuration blocker. Disable
+    // only an actual routing loop, which must never be treated as usable.
+    liveTransferEnabled: Boolean(raw.liveTransferEnabled && !liveTransferLoops),
+    liveTransferPhone,
+    configuredWelcomeGreeting,
+    // Backward-compatible public field: callers and existing tests expect the
+    // resolved business-identifying greeting here. The frontend uses
+    // configuredWelcomeGreeting for the editable custom value.
+    welcomeGreeting: resolvedWelcomeGreeting,
+    resolvedWelcomeGreeting,
+    voiceName: String(raw.voiceName || "").trim().slice(0, 80),
+    recordingEnabled: false,
+    recordingPolicy: VOICE_RECORDING_POLICY,
+    maxCallDurationSeconds: boundedInteger(
+      raw.maxCallDurationSeconds,
+      600,
+      60,
+      600,
+    ),
+    maxConcurrentCalls: boundedInteger(raw.maxConcurrentCalls, 25, 1, 100),
+  };
+};
+
+export const emptyTwiml = () => xml("<Response></Response>");
+
+export const sayTwiml = (message, { hangup = true, voice = "" } = {}) => {
+  const voiceAttribute = voice ? ` voice="${escapeXml(voice)}"` : "";
+  return xml(
+    `<Response><Say${voiceAttribute}>${escapeXml(message)}</Say>${
       hangup ? "<Hangup/>" : ""
     }</Response>`,
   );
+};
 
-export const emptyTwiml = () => xml("<Response></Response>");
+const appendQuery = (path, params = {}) => {
+  const base = String(path || "");
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value != null && String(value) !== "") query.set(key, String(value));
+  }
+  if (!query.size) return base;
+  return `${base}${base.includes("?") ? "&" : "?"}${query.toString()}`;
+};
+
+export const conversationRelayTwiml = ({
+  websocketUrl = getVoiceWebSocketUrl(),
+  actionPath = "/api/twilio/voice-complete",
+  greeting,
+  businessName,
+  business,
+  voiceName,
+  providerCallSid = "",
+  voiceSessionId = "",
+  businessId = "",
+} = {}) => {
+  const normalizedBusiness = business ? normalizeVoiceSettings(business) : null;
+  const effectiveBusinessName =
+    businessName || business?.businessName || "";
+  const effectiveGreeting =
+    greeting !== undefined
+      ? greeting
+      : normalizedBusiness?.welcomeGreeting || "";
+  const resolvedGreeting =
+    cleanGreeting(effectiveGreeting) || dynamicGreeting(effectiveBusinessName);
+  const effectiveVoiceName =
+    voiceName !== undefined ? voiceName : normalizedBusiness?.voiceName || "";
+  const effectiveBusinessId =
+    businessId || business?._id?.toString?.() || business?._id || "";
+  const action = appendQuery(actionPath, { callSid: providerCallSid });
+  const voiceAttribute = effectiveVoiceName
+    ? ` voice="${escapeXml(effectiveVoiceName)}"`
+    : "";
+  const parameters = [
+    ["voiceSessionId", voiceSessionId],
+    ["businessId", effectiveBusinessId],
+    ["providerCallSid", providerCallSid],
+  ]
+    .filter(([, value]) => Boolean(value))
+    .map(
+      ([name, value]) =>
+        `<Parameter name="${escapeXml(name)}" value="${escapeXml(value)}"/>`,
+    )
+    .join("");
+  return xml(
+    `<Response><Connect action="${escapeXml(action)}"><ConversationRelay url="${escapeXml(
+      websocketUrl,
+    )}" welcomeGreeting="${escapeXml(resolvedGreeting)}" language="en-US" interruptible="any" interruptSensitivity="medium" dtmfDetection="true" reportInputDuringAgentSpeech="any" ignoreBackchannel="true" speechTimeout="1200"${voiceAttribute}>${parameters}</ConversationRelay></Connect></Response>`,
+  );
+};
+
+export const dialTwiml = ({
+  phone,
+  timeoutSeconds = 20,
+  actionPath = "/api/twilio/voice-overflow",
+  screeningPath = "",
+  providerCallSid = "",
+} = {}) => {
+  const normalizedPhone = normalizePhoneToE164(phone);
+  if (!normalizedPhone) return sayTwiml("The staff line is not configured.");
+  const timeout = boundedInteger(timeoutSeconds, 20, 15, 25);
+  const action = appendQuery(actionPath, { callSid: providerCallSid });
+  const screen = appendQuery(screeningPath, { callSid: providerCallSid });
+  const numberAttributes = screen
+    ? ` url="${escapeXml(screen)}" method="POST"`
+    : "";
+  return xml(
+    `<Response><Dial action="${escapeXml(action)}" method="POST" timeout="${timeout}" answerOnBridge="true"><Number${numberAttributes}>${escapeXml(
+      normalizedPhone,
+    )}</Number></Dial></Response>`,
+  );
+};
+
+export const staffScreenPromptTwiml = ({
+  decisionPath = "/api/twilio/voice-staff-screen-decision",
+  providerCallSid = "",
+} = {}) => {
+  const action = appendQuery(decisionPath, { callSid: providerCallSid });
+  return xml(
+    `<Response><Gather action="${escapeXml(action)}" method="POST" numDigits="1" timeout="7"><Say>CallBackIQ has a recovered customer call. Press 1 to accept. Otherwise, hang up.</Say></Gather><Hangup/></Response>`,
+  );
+};
+
+export const staffScreenDecisionTwiml = ({ accepted = false } = {}) =>
+  accepted
+    ? xml("<Response><Say>Connecting the customer now.</Say></Response>")
+    : xml("<Response><Hangup/></Response>");
+
 export default {
+  PRESET_POLICIES,
   VOICE_FAILURE_ACTIONS,
   VOICE_RECORDING_POLICY,
   VOICE_RECORDING_SUPPORTED,
@@ -256,4 +332,6 @@ export default {
   routingPolicyUsesStaff,
   routingPolicyUsesVoiceAi,
   sayTwiml,
+  staffScreenDecisionTwiml,
+  staffScreenPromptTwiml,
 };

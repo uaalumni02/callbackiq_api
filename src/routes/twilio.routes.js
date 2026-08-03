@@ -44,6 +44,20 @@ router.post(
   twilioVoiceWebhookRateLimit,
   VoiceWebhookController.transferComplete,
 );
+
+router.post(
+  "/voice-staff-screen",
+  validateTwilioSignature,
+  twilioVoiceWebhookRateLimit,
+  VoiceWebhookController.staffScreen,
+);
+
+router.post(
+  "/voice-staff-screen-decision",
+  validateTwilioSignature,
+  twilioVoiceWebhookRateLimit,
+  VoiceWebhookController.staffScreenDecision,
+);
 router.post(
   "/status",
   validateTwilioSignature,

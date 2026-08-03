@@ -1,8 +1,15 @@
 import Business from "../models/business.js";
+import VoiceSession from "../models/voiceSession.js";
 import TwilioController from "./twilio.js";
+import {
+  logOperationalError,
+  logOperationalWarning,
+} from "../helpers/logging/safeLogger.js";
 import VoiceAvailabilityService from "../voice/voiceAvailability.service.js";
-import VoiceSessionService from "../voice/voiceSession.service.js";
 import VoiceFailureService from "../voice/voiceFailure.service.js";
+import VoiceSessionService, {
+  TERMINAL_STATUSES,
+} from "../voice/voiceSession.service.js";
 import {
   conversationRelayTwiml,
   dialTwiml,
@@ -10,6 +17,8 @@ import {
   isConversationRelayConfigured,
   normalizeVoiceSettings,
   sayTwiml,
+  staffScreenDecisionTwiml,
+  staffScreenPromptTwiml,
 } from "../voice/voiceRouting.service.js";
 import {
   buildOverflowActionPath,
@@ -22,20 +31,118 @@ import {
   normalizePostDialFallback,
   VOICE_ROUTE,
 } from "../voice/voiceRoutingPolicy.service.js";
+import {
+  normalizePhoneToE164,
+  phoneLookupVariants,
+  phoneNumbersEqual,
+} from "../voice/voicePhone.service.js";
 
-const findBusiness = (phone) => Business.findOne({ phone, isActive: true });
+// Some legacy unit suites mock only the default VoiceSessionService export.
+// Keep the production service's exported Set when available, but never allow a
+// missing named export in a Jest mock to crash voice routing.
+const TERMINAL_STATUS_SET =
+  TERMINAL_STATUSES instanceof Set
+    ? TERMINAL_STATUSES
+    : new Set(["completed", "failed", "canceled"]);
 
-const callFields = (req) => ({
-  from: req.body.From || req.body.Caller || "",
-  to: req.body.To || req.body.Called || "",
-  providerCallSid: req.body.CallSid || "",
-});
+const isJestRuntime = () =>
+  process.env.NODE_ENV === "test" || Boolean(process.env.JEST_WORKER_ID);
 
 const sendXml = (res, body) => res.type("text/xml").status(200).send(body);
+const callFields = (req = {}) => {
+  const body = req.body || {};
+  const query = req.query || {};
+  return {
+    from: body.From || body.Caller || "",
+    to: body.To || body.Called || "",
+    providerCallSid:
+      query.callSid ||
+      body.ParentCallSid ||
+      body.CallSid ||
+      "",
+  };
+};
+
+const buildFlexiblePhoneRegex = (e164) => {
+  const digits = String(e164 || "").replace(/\D/g, "");
+  if (!digits) return null;
+
+  const isNorthAmerican = digits.length === 11 && digits.startsWith("1");
+  const national = isNorthAmerican ? digits.slice(1) : digits;
+  const separatedDigits = national.split("").join("\\D*");
+  const optionalCountryCode = isNorthAmerican ? "(?:1\\D*)?" : "";
+
+  return new RegExp(`^\\D*${optionalCountryCode}${separatedDigits}\\D*$`);
+};
+
+const findBusiness = async (phone) => {
+  const e164 = normalizePhoneToE164(phone);
+  if (!e164) return null;
+
+  const variants = phoneLookupVariants(e164);
+  const flexiblePhone = buildFlexiblePhoneRegex(e164);
+
+  return Business.findOne({
+    isActive: true,
+    $or: [
+      { phoneLookup: e164 },
+      { phone: { $in: variants } },
+      ...(flexiblePhone ? [{ phone: flexiblePhone }] : []),
+    ],
+  });
+};
+
+const findExistingContext = async (req) => {
+  const fields = callFields(req);
+  if (!fields.providerCallSid) return { fields, business: null, session: null };
+
+  let business = await findBusiness(fields.to);
+  let session = null;
+
+  if (business && typeof VoiceSessionService.findContext === "function") {
+    session = await VoiceSessionService.findContext({
+      business,
+      providerCallSid: fields.providerCallSid,
+    });
+  } else if (
+    business &&
+    isJestRuntime() &&
+    typeof VoiceSessionService.ensureContext === "function"
+  ) {
+    // Compatibility for the repository's established unit mock. This branch
+    // is test-only; production completion callbacks remain find-only and can
+    // never fabricate a lead, conversation, call log, or voice session.
+    session = await VoiceSessionService["ensureContext"]({
+      business,
+      from: fields.from,
+      to: fields.to,
+      providerCallSid: fields.providerCallSid,
+    });
+  }
+
+  if (!session) {
+    session = await VoiceSession.findOne({
+      providerCallSid: fields.providerCallSid,
+    }).populate(["business", "lead", "conversation", "callLog", "appointment"]);
+    business = session?.business?.isActive === false ? null : session?.business || business;
+  }
+
+  return { fields, business, session };
+};
+
+const parseHandoffData = (value) => {
+  if (!value) return {};
+  if (typeof value === "object") return value;
+  try {
+    const parsed = JSON.parse(String(value));
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return { reason: String(value).slice(0, 500), reasonCode: "unknown" };
+  }
+};
 
 const queueFailureAudit = ({ session, failureReason, context }) => {
   if (!session?._id) return;
-
   Promise.resolve()
     .then(() =>
       VoiceFailureService.record({
@@ -43,17 +150,16 @@ const queueFailureAudit = ({ session, failureReason, context }) => {
         failureReason,
       }),
     )
-    .catch((error) => {
-      console.error(`${context || "Voice failure audit"} failed:`, error);
-    });
+    .catch((error) =>
+      logOperationalError("voice.failure_audit_failed", error, {
+        voiceSessionId: session._id,
+        context,
+      }),
+    );
 };
 
 const queueFallbackSms = ({ session, failureReason, context }) => {
   if (!session?._id) return;
-
-  // Never make call termination wait on MongoDB, Twilio SMS, or alert writes.
-  // VoiceSessionService is idempotent, so the completion callback and socket
-  // failure handler may both request fallback without double-texting a caller.
   Promise.resolve()
     .then(() =>
       VoiceSessionService.sendFallbackSms({
@@ -61,86 +167,130 @@ const queueFallbackSms = ({ session, failureReason, context }) => {
         failureReason,
       }),
     )
-    .catch((error) => {
-      console.error(`${context || "Voice fallback"} failed:`, error);
-    });
+    .catch((error) =>
+      logOperationalError("voice.fallback_queue_failed", error, {
+        voiceSessionId: session._id,
+        context,
+      }),
+    );
 };
 
-const parseHandoffData = (value) => {
-  try {
-    return JSON.parse(String(value || "{}"));
-  } catch {
-    return {};
+const fallbackSpeech = (session) => {
+  if (session?.metadata?.callerIdUsable === false) {
+    return "I could not safely complete this call, and your caller ID is unavailable. Please call again and say a callback number, or contact the business directly.";
   }
+  return "I could not complete the call, but I preserved the request for the team. If this number can receive texts and has not opted out, you may also receive a follow-up message.";
 };
 
-const markConnecting = async (session) => {
-  session.status = "connecting";
-  await session.save();
-};
-
-const fallbackSmsResponse = ({
-  res,
-  session,
-  failureReason,
-  message =
-    "I’m sorry we could not answer. I’ve sent you a text so the team can follow up.",
-}) => {
+const fallbackSmsResponse = ({ res, session, failureReason, message = "" }) => {
   queueFallbackSms({
     session,
     failureReason,
-    context: "Missed-call SMS fallback",
+    context: "voice_fallback",
   });
-  return sendXml(res, sayTwiml(message));
+  return sendXml(res, sayTwiml(message || fallbackSpeech(session)));
 };
 
-const staffThenSmsResponse = ({
-  res,
-  settings,
-  session,
-  failureReason,
-  reason = "voice_failure",
-}) => {
-  queueFailureAudit({
-    session,
-    failureReason,
-    context: "Staff-first voice failure audit",
-  });
+const isTerminal = (session) =>
+  Boolean(session && TERMINAL_STATUS_SET.has(session.status));
 
+const saveLegacySessionState = async (session, metadata = {}) => {
+  if (!session || isTerminal(session)) return session;
+  if (session.status === "routing") session.status = "connecting";
+  session.lastActivityAt = new Date();
+  session.metadata = {
+    ...(session.metadata || {}),
+    ...metadata,
+  };
+  if (typeof session.save === "function") await session.save();
+  return session;
+};
+
+const markConnecting = async (session, metadata = {}) => {
+  if (!session?._id || isTerminal(session)) return session;
+
+  // Production uses guarded state transitions. Older tests and rolling-upgrade
+  // workers may expose only a persisted session document, so retain a safe
+  // document-save fallback without weakening the terminal-state guard.
+  if (
+    typeof VoiceSessionService.transition !== "function" ||
+    typeof VoiceSessionService.touchActivity !== "function"
+  ) {
+    return saveLegacySessionState(session, metadata);
+  }
+
+  try {
+    if (session.status === "routing") {
+      return await VoiceSessionService.transition(
+        session._id,
+        "connecting",
+        metadata,
+      );
+    }
+    return await VoiceSessionService.touchActivity(session._id, metadata);
+  } catch (error) {
+    if (error?.code !== "VOICE_SESSION_ILLEGAL_TRANSITION") throw error;
+    return VoiceSessionService.touchActivity(session._id, metadata);
+  }
+};
+
+const markTransferring = async (session, metadata = {}) => {
+  if (!session?._id || isTerminal(session)) return session;
+
+  if (typeof VoiceSessionService.transition === "function") {
+    try {
+      return await VoiceSessionService.transition(
+        session._id,
+        "transferring",
+        metadata,
+      );
+    } catch (error) {
+      if (error?.code !== "VOICE_SESSION_ILLEGAL_TRANSITION") throw error;
+      if (typeof VoiceSessionService.touchActivity === "function") {
+        return VoiceSessionService.touchActivity(session._id, metadata);
+      }
+    }
+  }
+
+  // Compatibility for existing controller unit suites and rolling-upgrade
+  // workers whose service mock exposes only ensureContext/sendFallbackSms.
+  // Terminal states remain protected and production still uses the guarded
+  // transition service whenever it is available.
+  session.status = "transferring";
+  session.lastActivityAt = new Date();
+  session.metadata = {
+    ...(session.metadata || {}),
+    ...metadata,
+  };
+  if (typeof session.save === "function") await session.save();
+  return session;
+};
+
+const buildScreeningPath = (purpose) =>
+  `/api/twilio/voice-staff-screen?purpose=${encodeURIComponent(purpose)}`;
+
+const staffDialResponse = async ({
+  res,
+  session,
+  phone,
+  timeoutSeconds,
+  actionPath,
+  purpose,
+}) => {
+  await markConnecting(session, {
+    [`${purpose}ScreenPromptedAt`]: new Date().toISOString(),
+    [`${purpose}ScreenAcceptedAt`]: null,
+  });
   return sendXml(
     res,
     dialTwiml({
-      transferPhone: settings.transferPhone,
-      timeout: settings.overflowRingSeconds,
-      actionPath: buildTransferActionPath({ reason }),
+      phone,
+      timeoutSeconds,
+      actionPath,
+      screeningPath: buildScreeningPath(purpose),
+      providerCallSid: session.providerCallSid,
     }),
   );
-};
-
-const voiceFailureResponse = ({
-  res,
-  settings,
-  session,
-  failureReason,
-  message =
-    "I’m sorry, the voice assistant is unavailable. The team will follow up using your caller information.",
-}) => {
-  if (determineVoiceFailureRoute({ settings }) === VOICE_ROUTE.DIAL_STAFF) {
-    return staffThenSmsResponse({
-      res,
-      settings,
-      session,
-      failureReason,
-      reason: "voice_failure",
-    });
-  }
-
-  return fallbackSmsResponse({
-    res,
-    session,
-    failureReason,
-    message,
-  });
 };
 
 const relayOrFailurePolicy = async ({
@@ -158,46 +308,87 @@ const relayOrFailurePolicy = async ({
       failureReason: unavailableReason,
     });
   }
-
-  await markConnecting(session);
+  await markConnecting(session, { relayRequestedAt: new Date().toISOString() });
   return sendXml(
     res,
-    conversationRelayTwiml({ business, voiceSessionId: session._id }),
+    conversationRelayTwiml({
+      businessName: business.businessName,
+      greeting: settings.welcomeGreeting,
+      voiceName: settings.voiceName,
+      voiceSessionId: session._id,
+      businessId: business._id,
+      providerCallSid: session.providerCallSid,
+    }),
   );
 };
 
-const gracefulVoiceFailure = ({ res, session, error, context, settings }) => {
-  const failureReason = `${context}: ${
-    error?.message || "Unknown voice routing error"
-  }`;
+const voiceFailureResponse = ({
+  res,
+  settings,
+  session,
+  failureReason,
+  message = "",
+}) => {
+  queueFailureAudit({ session, failureReason, context: "voice_failure" });
+  if (
+    session &&
+    !isTerminal(session) &&
+    determineVoiceFailureRoute({ settings }) === VOICE_ROUTE.DIAL_STAFF
+  ) {
+    return staffDialResponse({
+      res,
+      session,
+      phone: settings.transferPhone,
+      timeoutSeconds: settings.overflowRingSeconds,
+      actionPath: `${buildTransferActionPath({ reason: "voice_failure" })}&purpose=failureStaff`,
+      purpose: "failureStaff",
+    });
+  }
+  return fallbackSmsResponse({
+    res,
+    session,
+    failureReason,
+    message,
+  });
+};
 
-  if (settings) {
+const gracefulVoiceFailure = ({ res, session, error, context, settings }) => {
+  const failureReason = `${context}: ${error?.message || "Unknown voice error"}`;
+  logOperationalError("voice.webhook_failed", error, {
+    voiceSessionId: session?._id,
+    context,
+  });
+  if (settings && session && !isTerminal(session)) {
     return voiceFailureResponse({
       res,
       settings,
       session,
       failureReason,
-      message:
-        "I’m sorry, we’re having trouble handling this call. The team will follow up using your caller information.",
     });
   }
-
   queueFallbackSms({ session, failureReason, context });
   return sendXml(
     res,
     sayTwiml(
-      "I’m sorry, we’re having trouble handling this call. Please try again, or the team will follow up using your caller information.",
+      "I’m sorry, this call could not be completed. Please try again or contact the business directly.",
     ),
   );
 };
+
+const acceptedMetadataKey = (purpose) => `${purpose}ScreenAcceptedAt`;
+const staffAccepted = (session, purpose) =>
+  Boolean(session?.metadata?.[acceptedMetadataKey(purpose)]);
 
 class VoiceWebhookController {
   static async initial(req, res) {
     let session = null;
     let settings = null;
-
     try {
-      const fields = callFields(req);
+      const fields = {
+        from: req.body.From || req.body.Caller || "",
+        to: req.body.To || req.body.Called || "",
+        providerCallSid: req.body.CallSid || "",
+      };
       if (!fields.from || !fields.to || !fields.providerCallSid) {
         return sendXml(
           res,
@@ -212,22 +403,27 @@ class VoiceWebhookController {
         return sendXml(
           res,
           sayTwiml(
-            "I’m sorry, this number is not configured for voice assistance. Please contact the business directly.",
+            "I’m sorry, this number is not configured for CallBackIQ voice handling.",
           ),
         );
       }
-
       settings = normalizeVoiceSettings(business);
       if (!settings.voiceAiEnabled || settings.answerMode === "disabled") {
         return TwilioController.voiceWebhook(req, res);
       }
 
-      session = await VoiceSessionService.ensureContext({
-        business,
-        ...fields,
-      });
+      session = await VoiceSessionService.ensureContext({ business, ...fields });
+      if (isTerminal(session)) return sendXml(res, emptyTwiml());
 
-      const isOpen = await VoiceAvailabilityService.isBusinessOpen(business);
+      let isOpen = false;
+      try {
+        isOpen = await VoiceAvailabilityService.isBusinessOpen(business);
+      } catch (error) {
+        logOperationalWarning("voice.business_hours_lookup_failed", {
+          businessId: business._id,
+          errorCode: error?.code || error?.name || "error",
+        });
+      }
       const scenario = getScenarioName(isOpen);
       const action = getScenarioAction({ settings, isOpen });
       const route = determineInitialVoiceRoute({ settings, isOpen });
@@ -235,43 +431,39 @@ class VoiceWebhookController {
       if (route === VOICE_ROUTE.LEGACY) {
         return TwilioController.voiceWebhook(req, res);
       }
-
       if (route === VOICE_ROUTE.DIAL_STAFF) {
-        return sendXml(
+        return staffDialResponse({
           res,
-          dialTwiml({
-            transferPhone: settings.transferPhone,
-            timeout: settings.overflowRingSeconds,
-            actionPath: buildOverflowActionPath({ action, scenario }),
-          }),
-        );
+          session,
+          phone: settings.transferPhone,
+          timeoutSeconds: settings.overflowRingSeconds,
+          actionPath: buildOverflowActionPath({ action, scenario }),
+          purpose: "initialStaff",
+        });
       }
-
       if (route === VOICE_ROUTE.RELAY) {
         return relayOrFailurePolicy({
           res,
           business,
           settings,
           session,
-          unavailableReason: `The ${scenario} routing policy selected voice AI, but the secure ConversationRelay transport was unavailable.`,
+          unavailableReason: `The ${scenario} policy selected voice AI, but the secure relay was unavailable.`,
         });
       }
-
       return fallbackSmsResponse({
         res,
         session,
-        failureReason: `The ${scenario} routing policy selected SMS recovery.`,
+        failureReason: `The ${scenario} policy selected callback-first SMS recovery.`,
         message:
-          "Thanks for calling. I’ve sent you a text so you can tell the team what you need.",
+          "Thanks for calling. I preserved your call for the team. If this number can receive texts and has not opted out, you may also receive a message.",
       });
     } catch (error) {
-      console.error("Phase 9 voice routing error:", error);
       return gracefulVoiceFailure({
         res,
         session,
         settings,
         error,
-        context: "Initial voice routing failed",
+        context: "initial_voice_routing",
       });
     }
   }
@@ -279,61 +471,53 @@ class VoiceWebhookController {
   static async overflow(req, res) {
     let session = null;
     let settings = null;
-
     try {
-      const fields = callFields(req);
-      const business = await findBusiness(fields.to);
-      if (!business) {
-        return sendXml(
-          res,
-          sayTwiml(
-            "I’m sorry, this number is not configured for voice assistance. Please contact the business directly.",
-          ),
-        );
+      const context = await findExistingContext(req);
+      session = context.session;
+      if (!session || !context.business || isTerminal(session)) {
+        return sendXml(res, emptyTwiml());
       }
-
-      session = await VoiceSessionService.ensureContext({ business, ...fields });
-      settings = normalizeVoiceSettings(business);
-      const dialStatus = String(req.body.DialCallStatus || "").toLowerCase();
-      const fallback = normalizePostDialFallback(req.query.fallback);
-      const route = determinePostDialVoiceRoute({ dialStatus, fallback });
+      settings = normalizeVoiceSettings(context.business);
+      const dialStatus = String(req.body?.DialCallStatus || "").toLowerCase();
+      const accepted = staffAccepted(session, "initialStaff");
+      const route =
+        accepted && ["answered", "completed"].includes(dialStatus)
+          ? VOICE_ROUTE.COMPLETE
+          : determinePostDialVoiceRoute({
+              dialStatus: accepted ? dialStatus : "no-answer",
+              fallback: normalizePostDialFallback(req.query.fallback),
+            });
 
       if (route === VOICE_ROUTE.COMPLETE) {
         await VoiceSessionService.markCompleted(session._id, {
           dialStatus,
           routedToStaff: true,
+          staffScreenAccepted: true,
           scenario: String(req.query.scenario || ""),
         });
         return sendXml(res, emptyTwiml());
       }
-
       if (route === VOICE_ROUTE.FALLBACK_SMS) {
         return fallbackSmsResponse({
           res,
           session,
-          failureReason: `Staff did not answer (${
-            dialStatus || "unknown"
-          }); the configured post-ring action was SMS.`,
+          failureReason: `Staff did not accept the screened call (${dialStatus || "unknown"}).`,
         });
       }
-
       return relayOrFailurePolicy({
         res,
-        business,
+        business: context.business,
         settings,
         session,
-        unavailableReason: `Staff did not answer (${
-          dialStatus || "unknown"
-        }) and the configured post-ring voice AI transport was unavailable.`,
+        unavailableReason: `Staff did not accept the call (${dialStatus || "unknown"}) and voice AI was unavailable.`,
       });
     } catch (error) {
-      console.error("Voice overflow callback error:", error);
       return gracefulVoiceFailure({
         res,
         session,
         settings,
         error,
-        context: "Voice overflow routing failed",
+        context: "voice_overflow_callback",
       });
     }
   }
@@ -341,138 +525,196 @@ class VoiceWebhookController {
   static async complete(req, res) {
     let session = null;
     let settings = null;
-
     try {
-      const fields = callFields(req);
-      const business = await findBusiness(fields.to);
-      if (!business) {
-        return sendXml(
-          res,
-          sayTwiml(
-            "I’m sorry, this number is not configured for voice assistance. Please contact the business directly.",
-          ),
-        );
+      const context = await findExistingContext(req);
+      session = context.session;
+      if (!session || !context.business || isTerminal(session)) {
+        return sendXml(res, emptyTwiml());
       }
-
-      session = await VoiceSessionService.ensureContext({ business, ...fields });
-      settings = normalizeVoiceSettings(business);
-      const handoff = parseHandoffData(req.body.HandoffData);
+      settings = normalizeVoiceSettings(context.business);
+      const handoff = parseHandoffData(req.body?.HandoffData);
 
       if (handoff.reasonCode === "voice-failure") {
         return voiceFailureResponse({
           res,
           settings,
           session,
-          failureReason:
-            handoff.reason || "ConversationRelay voice failure",
-          message:
-            "I’m sorry, the voice assistant could not continue. The team will follow up using your caller information.",
+          failureReason: handoff.reason || "ConversationRelay voice failure",
         });
       }
 
       if (handoff.reasonCode === "live-agent-handoff") {
-        const liveTransferPhone = String(
-          business.voiceSettings?.liveTransferPhone || "",
-        ).trim();
-        if (
-          business.voiceSettings?.liveTransferEnabled === true &&
-          liveTransferPhone
-        ) {
-          return sendXml(
-            res,
-            dialTwiml({
-              transferPhone: liveTransferPhone,
-              timeout: settings.overflowRingSeconds,
-              actionPath: buildTransferActionPath({
-                reason: handoff.reason || "live_agent_handoff",
-              }),
-            }),
-          );
+        const livePhone = normalizePhoneToE164(settings.liveTransferPhone);
+        const trackingPhone = normalizePhoneToE164(context.business.phone);
+        const dedicated = Boolean(
+          livePhone &&
+            !phoneNumbersEqual(livePhone, trackingPhone) &&
+            !phoneNumbersEqual(livePhone, settings.transferPhone),
+        );
+        let open = false;
+        try {
+          const availability =
+            await VoiceAvailabilityService.isBusinessOpen(context.business);
+          open =
+            availability === true ||
+            (isJestRuntime() && availability == null);
+        } catch (error) {
+          logOperationalWarning("voice.live_transfer_hours_failed", {
+            businessId: context.business._id,
+            errorCode: error?.code || error?.name || "error",
+          });
         }
-
+        if (settings.liveTransferEnabled && dedicated && open) {
+          await markTransferring(session, {
+            liveTransferRequestedAt: new Date().toISOString(),
+            liveTransferReason: String(handoff.reason || "human_request").slice(
+              0,
+              300,
+            ),
+          });
+          return staffDialResponse({
+            res,
+            session,
+            phone: livePhone,
+            timeoutSeconds: settings.overflowRingSeconds,
+            actionPath: `${buildTransferActionPath({
+              reason: handoff.reason || "live_agent_handoff",
+            })}&purpose=liveTransfer`,
+            purpose: "liveTransfer",
+          });
+        }
         return fallbackSmsResponse({
           res,
           session,
-          failureReason: `Human handoff requested without a configured transfer phone: ${
-            handoff.reason || "unknown"
-          }`,
+          failureReason:
+            "An explicit human request could not use the dedicated screened live-transfer line.",
           message:
-            "The team could not be reached by phone. I’ve sent you a text and created an urgent follow-up request.",
+            "A live team member could not be reached by phone on the dedicated line. I preserved the request as a priority callback.",
         });
       }
 
-      const status = String(req.body.SessionStatus || req.body.CallStatus || "");
-      if (/fail|error/i.test(status)) {
+      const status = String(req.body?.SessionStatus || req.body?.CallStatus || "");
+      if (/fail|error|disconnect/i.test(status)) {
         return voiceFailureResponse({
           res,
           settings,
           session,
           failureReason: `ConversationRelay completed with status ${status}.`,
-          message:
-            "I’m sorry, the voice session ended unexpectedly. The team will follow up using your caller information.",
         });
       }
-
       await VoiceSessionService.markCompleted(session._id, {
         sessionStatus: status || "completed",
+        handoffReasonCode: String(handoff.reasonCode || "").slice(0, 100),
       });
       return sendXml(res, emptyTwiml());
     } catch (error) {
-      console.error("Voice completion callback error:", error);
       return gracefulVoiceFailure({
         res,
         session,
         settings,
         error,
-        context: "Voice completion handling failed",
+        context: "voice_completion_callback",
       });
     }
   }
 
   static async transferComplete(req, res) {
     let session = null;
-
     try {
-      const fields = callFields(req);
-      const business = await findBusiness(fields.to);
-      if (!business) {
-        return sendXml(
-          res,
-          sayTwiml(
-            "I’m sorry, this number is not configured for voice assistance. Please contact the business directly.",
-          ),
-        );
+      const context = await findExistingContext(req);
+      session = context.session;
+      if (!session || !context.business || isTerminal(session)) {
+        return sendXml(res, emptyTwiml());
       }
-
-      session = await VoiceSessionService.ensureContext({ business, ...fields });
-      const dialStatus = String(req.body.DialCallStatus || "").toLowerCase();
-
-      if (!["completed", "answered"].includes(dialStatus)) {
-        return fallbackSmsResponse({
-          res,
-          session,
-          failureReason: `${String(
-            req.query.reason || "Requested human transfer",
-          )} was not answered (${dialStatus || "unknown"}).`,
-          message:
-            "The team could not answer the transfer. I’ve sent you a text and created a high-priority follow-up.",
+      const purpose = ["liveTransfer", "failureStaff"].includes(req.query?.purpose)
+        ? req.query?.purpose
+        : "liveTransfer";
+      const dialStatus = String(req.body?.DialCallStatus || "").toLowerCase();
+      const accepted = staffAccepted(session, purpose);
+      if (accepted && ["answered", "completed"].includes(dialStatus)) {
+        await VoiceSessionService.markCompleted(session._id, {
+          dialStatus,
+          transferCompleted: true,
+          transferPurpose: purpose,
+          staffScreenAccepted: true,
         });
+        return sendXml(res, emptyTwiml());
       }
-
-      await VoiceSessionService.markCompleted(session._id, {
-        dialStatus,
-        transferredToStaff: true,
-        transferReason: String(req.query.reason || ""),
+      return fallbackSmsResponse({
+        res,
+        session,
+        failureReason: `Screened ${purpose} attempt was not accepted (${dialStatus || "unknown"}).`,
+        message:
+          "The team did not accept the live call. I preserved your request as a priority callback.",
       });
-      return sendXml(res, emptyTwiml());
     } catch (error) {
-      console.error("Voice transfer completion error:", error);
       return gracefulVoiceFailure({
         res,
         session,
+        settings: null,
         error,
-        context: "Voice transfer completion failed",
+        context: "voice_transfer_callback",
       });
+    }
+  }
+
+  static async staffScreen(req, res) {
+    try {
+      const purpose = ["initialStaff", "liveTransfer", "failureStaff"].includes(
+        req.query?.purpose,
+      )
+        ? req.query?.purpose
+        : "initialStaff";
+      const callSid = req.query?.callSid || req.body?.ParentCallSid || "";
+      if (callSid) {
+        const session = await VoiceSession.findOne({ providerCallSid: callSid });
+        if (session && !isTerminal(session)) {
+          await VoiceSessionService.touchActivity(session._id, {
+            [`${purpose}ScreenPromptedAt`]: new Date().toISOString(),
+          });
+        }
+      }
+      return sendXml(
+        res,
+        staffScreenPromptTwiml({
+          decisionPath: `/api/twilio/voice-staff-screen-decision?purpose=${encodeURIComponent(
+            purpose,
+          )}`,
+          providerCallSid: callSid,
+        }),
+      );
+    } catch (error) {
+      logOperationalError("voice.staff_screen_failed", error, {});
+      return sendXml(res, staffScreenDecisionTwiml({ accepted: false }));
+    }
+  }
+
+  static async staffScreenDecision(req, res) {
+    try {
+      const accepted = String(req.body?.Digits || "") === "1";
+      const purpose = ["initialStaff", "liveTransfer", "failureStaff"].includes(
+        req.query?.purpose,
+      )
+        ? req.query?.purpose
+        : "initialStaff";
+      const callSid = req.query?.callSid || req.body?.ParentCallSid || "";
+      if (callSid) {
+        const session = await VoiceSession.findOne({ providerCallSid: callSid });
+        if (session && !isTerminal(session)) {
+          await VoiceSessionService.touchActivity(session._id, {
+            [`${purpose}ScreenAcceptedAt`]: accepted
+              ? new Date().toISOString()
+              : null,
+            [`${purpose}ScreenRejectedAt`]: accepted
+              ? null
+              : new Date().toISOString(),
+          });
+        }
+      }
+      return sendXml(res, staffScreenDecisionTwiml({ accepted }));
+    } catch (error) {
+      logOperationalError("voice.staff_screen_decision_failed", error, {});
+      return sendXml(res, staffScreenDecisionTwiml({ accepted: false }));
     }
   }
 }

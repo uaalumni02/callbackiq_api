@@ -1,3 +1,4 @@
+import { normalizePhoneToE164 as normalizeVoicePhone } from "../voice/voicePhone.service.js";
 import mongoose from "mongoose";
 const { Schema } = mongoose;
 
@@ -259,7 +260,7 @@ const VoiceSettingsSchema = new Schema(
       type: VoiceRoutingPolicySchema,
       default: () => ({}),
     },
-    overflowRingSeconds: { type: Number, min: 5, max: 60, default: 20 },
+    overflowRingSeconds: { type: Number, min: 15, max: 25, default: 20 },
     liveTransferEnabled: { type: Boolean, default: false },
     transferPhone: {
       type: String,
@@ -289,11 +290,11 @@ const VoiceSettingsSchema = new Schema(
       type: String,
       trim: true,
       maxlength: 300,
-      default: "Thanks for calling. How can I help you today?",
+      default: "",
     },
-    voiceName: { type: String, trim: true, maxlength: 200, default: "" },
+    voiceName: { type: String, trim: true, maxlength: 80, default: "" },
     maxConcurrentCalls: { type: Number, min: 1, max: 100, default: 25 },
-    maxCallDurationSeconds: { type: Number, min: 60, max: 7200, default: 3600 },
+    maxCallDurationSeconds: { type: Number, min: 60, max: 600, default: 600 },
     recordingEnabled: { type: Boolean, default: false },
   },
   { _id: false },
@@ -335,6 +336,12 @@ const BusinessSchema = new Schema(
       required: [true, "Business phone is required"],
       trim: true,
       validate: [validate.isValidPhone, "Please enter a valid phone number"],
+    },
+    phoneLookup: {
+      type: String,
+      trim: true,
+      default: undefined,
+      select: false,
     },
 
     // Real business/cell number calls should forward to
@@ -484,6 +491,58 @@ const BusinessSchema = new Schema(
 
 BusinessSchema.index({ owner: 1, createdAt: -1 });
 BusinessSchema.index({ phone: 1 }, { unique: true });
+BusinessSchema.index(
+  { phoneLookup: 1 },
+  { unique: true, sparse: true },
+);
+
+const VOICE_DESTINATION_PHONE_PATHS = [
+  "forwardingPhone",
+  "voiceSettings.transferPhone",
+  "voiceSettings.liveTransferPhone",
+];
+
+BusinessSchema.pre("validate", function prepareVoicePhoneFields() {
+  const trackingPhone = normalizeVoicePhone(this.get("phone"));
+  if (trackingPhone) this.set("phoneLookup", trackingPhone);
+
+  for (const field of VOICE_DESTINATION_PHONE_PATHS) {
+    const raw = this.get(field);
+    if (!raw) continue;
+    const normalized = normalizeVoicePhone(raw);
+    if (normalized) this.set(field, normalized);
+  }
+});
+
+const normalizeBusinessPhoneUpdate = function normalizeBusinessPhoneUpdate() {
+  const update = this.getUpdate() || {};
+  const set = update.$set || update;
+
+  if (Object.prototype.hasOwnProperty.call(set, "phone")) {
+    const trackingPhone = normalizeVoicePhone(set.phone);
+    if (trackingPhone) set.phoneLookup = trackingPhone;
+  }
+
+  for (const field of VOICE_DESTINATION_PHONE_PATHS) {
+    if (Object.prototype.hasOwnProperty.call(set, field)) {
+      const normalized = normalizeVoicePhone(set[field]);
+      if (normalized) set[field] = normalized;
+    }
+  }
+
+  if (set.voiceSettings && typeof set.voiceSettings === "object") {
+    for (const key of ["transferPhone", "liveTransferPhone"]) {
+      if (!Object.prototype.hasOwnProperty.call(set.voiceSettings, key)) continue;
+      const normalized = normalizeVoicePhone(set.voiceSettings[key]);
+      if (normalized) set.voiceSettings[key] = normalized;
+    }
+  }
+
+  this.setUpdate(update);
+};
+
+BusinessSchema.pre("findOneAndUpdate", normalizeBusinessPhoneUpdate);
+BusinessSchema.pre("updateOne", normalizeBusinessPhoneUpdate);
 
 const Business =
   mongoose.models.Business || mongoose.model("Business", BusinessSchema);

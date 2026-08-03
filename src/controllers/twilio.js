@@ -28,6 +28,10 @@ import {
   processInboundSmsCommand,
 } from "../services/messaging/contactPreference.service.js";
 import {
+  normalizePhoneToE164,
+  phoneLookupVariants,
+} from "../voice/voicePhone.service.js";
+import {
   claimTwilioWebhookEvent,
   completeTwilioWebhookEvent,
   failTwilioWebhookEvent,
@@ -36,9 +40,23 @@ import {
 const VALID_URGENCIES = new Set(["low", "medium", "high", "emergency"]);
 
 const getBusinessForWebhook = async (phone) => {
-  return typeof Db.getBusinessByPhoneForWebhook === "function"
-    ? Db.getBusinessByPhoneForWebhook(Business, phone)
-    : Db.getBusinessByPhone(Business, phone);
+  const direct =
+    typeof Db.getBusinessByPhoneForWebhook === "function"
+      ? await Db.getBusinessByPhoneForWebhook(Business, phone)
+      : await Db.getBusinessByPhone(Business, phone);
+
+  if (direct) return direct;
+
+  const normalized = normalizePhoneToE164(phone);
+  if (!normalized) return null;
+
+  return Business.findOne({
+    isActive: true,
+    $or: [
+      { phoneLookup: normalized },
+      { phone: { $in: phoneLookupVariants(normalized) } },
+    ],
+  });
 };
 
 const getBusinessFromWebhookPhones = async (phones = []) => {

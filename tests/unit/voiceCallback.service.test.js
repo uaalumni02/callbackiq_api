@@ -119,7 +119,14 @@ describe("VoiceCallbackService", () => {
       customerMessage: "Tomorrow afternoon",
     });
 
-    expect(result.callbackCaptured).toBe(true);
+        expect(result.reply).toMatch(/is that correct/i);
+    expect(result.callbackCaptured).toBe(false);
+
+    result = await VoiceCallbackService.handle({
+      session,
+      customerMessage: "yes",
+    });
+expect(result.callbackCaptured).toBe(true);
     expect(JSON.parse(result.handoff.handoffData)).toMatchObject({
       reasonCode: "callback-captured",
       callbackCaptured: true,

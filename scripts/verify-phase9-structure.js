@@ -4,440 +4,328 @@ import path from "node:path";
 
 const root = process.cwd();
 const failures = [];
+const passed = [];
 
+const absolute = (relative) => path.join(root, relative);
 const read = (relative) => {
-  const filePath = path.join(root, relative);
-
-  if (!fs.existsSync(filePath)) {
+  const filename = absolute(relative);
+  if (!fs.existsSync(filename)) {
     failures.push(`Missing ${relative}`);
     return "";
   }
-
-  return fs.readFileSync(filePath, "utf8");
+  return fs.readFileSync(filename, "utf8");
 };
 
-const requireAll = (relative, values) => {
+const requireAll = (relative, tokens) => {
   const text = read(relative);
-
-  for (const value of values) {
-    if (!text.includes(value)) {
-      failures.push(`${relative} is missing: ${value}`);
+  for (const token of tokens) {
+    if (!text.includes(token)) {
+      failures.push(`${relative} is missing required behavior: ${token}`);
     }
   }
-
   return text;
 };
 
-const requireOneOf = (relative, values, message) => {
+const requirePattern = (relative, pattern, message) => {
   const text = read(relative);
-
-  if (!values.some((value) => text.includes(value))) {
-    failures.push(message || `${relative} is missing one of: ${values.join(", ")}`);
-  }
-
+  if (!pattern.test(text)) failures.push(message || `${relative} failed ${pattern}`);
   return text;
 };
 
-const assertOrdered = ({ text, first, second, message, startAt = 0 }) => {
-  const firstIndex = text.indexOf(first, startAt);
-  const secondIndex = text.indexOf(second, startAt);
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const getPostRoute = (text, routePath) => {
+  const pattern = new RegExp(
+    `router\\.post\\(\\s*["']${escapeRegex(routePath)}["']\\s*,([\\s\\S]*?)\\n?\\s*\\);`,
+    "m",
+  );
+  return text.match(pattern)?.[1] || "";
+};
 
-  if (firstIndex < 0 || secondIndex < 0 || firstIndex > secondIndex) {
-    failures.push(message);
+const assertRoute = ({
+  routes,
+  routePath,
+  controller,
+  rateLimiter,
+  additional = [],
+}) => {
+  const block = getPostRoute(routes, routePath);
+  if (!block) {
+    failures.push(`src/routes/twilio.routes.js is missing POST ${routePath}`);
+    return;
+  }
+  const ordered = ["validateTwilioSignature", rateLimiter, ...additional, controller];
+  let previous = -1;
+  for (const token of ordered) {
+    const index = block.indexOf(token);
+    if (index < 0) {
+      failures.push(`POST ${routePath} is missing ${token}`);
+      continue;
+    }
+    if (index < previous) {
+      failures.push(`POST ${routePath} has middleware in an unsafe order near ${token}`);
+    }
+    previous = index;
   }
 };
 
-const business = requireAll("src/models/business.js", [
-  "const VoiceRoutingPolicySchema = new Schema(",
-  "const VoiceSettingsSchema = new Schema(",
-  '"after_hours"',
-  '"overflow"',
-  '"always"',
-  '"disabled"',
-  '"custom"',
-  "routingPolicyVersion",
-  "routingPolicy",
-  "openHours",
-  "afterHours",
-  "voiceFailure",
-  '"voice_ai"',
-  '"sms"',
-  '"staff_then_voice_ai"',
-  '"staff_then_sms"',
-  "overflowRingSeconds",
-  "transferPhone",
-  "welcomeGreeting",
-  "voiceName",
-  "recordingEnabled",
-  "voiceSettings: {",
+const routes = requireAll("src/routes/twilio.routes.js", [
+  "validateTwilioSignature",
+  "twilioVoiceWebhookRateLimit",
+  "VoiceWebhookController",
 ]);
 
-const leadModel = read("src/models/lead.js");
-const leadSourceBlock = leadModel.match(
-  /source\s*:\s*\{[\s\S]{0,500}?enum\s*:\s*\[([^\]]*)\]/,
-)?.[1];
-
-if (!leadSourceBlock || !/["']voice["']/.test(leadSourceBlock)) {
-  failures.push("src/models/lead.js source enum is missing voice.");
+for (const definition of [
+  ["/voice", "VoiceWebhookController.initial"],
+  ["/voice-overflow", "VoiceWebhookController.overflow"],
+  ["/voice-complete", "VoiceWebhookController.complete"],
+  ["/voice-transfer-complete", "VoiceWebhookController.transferComplete"],
+  ["/voice-staff-screen", "VoiceWebhookController.staffScreen"],
+  ["/voice-staff-screen-decision", "VoiceWebhookController.staffScreenDecision"],
+]) {
+  assertRoute({
+    routes,
+    routePath: definition[0],
+    controller: definition[1],
+    rateLimiter: "twilioVoiceWebhookRateLimit",
+  });
 }
 
-const session = requireAll("src/models/voiceSession.js", [
-  "providerCallSid",
-  "providerSessionId",
-  "transcript",
-  "transferredToHuman",
-  "transferReason",
-  "appointment",
-  "estimatedValue",
-  "failureReason",
-  "fallbackSmsStatus",
-  "fallbackSmsProviderMessageId",
-  "confirmationSmsStatus",
-  "confirmationSmsSentAt",
-  "confirmationSmsProviderMessageId",
+assertRoute({
+  routes,
+  routePath: "/status",
+  controller: "TwilioController.statusWebhook",
+  rateLimiter: "twilioStatusWebhookRateLimit",
+  additional: ["missedCallAutomationLifecycle"],
+});
+assertRoute({
+  routes,
+  routePath: "/sms",
+  controller: "TwilioController.handleInboundSms",
+  rateLimiter: "twilioSmsWebhookRateLimit",
+  additional: ["inboundSmsLifecycle"],
+});
+
+const business = requireAll("src/models/business.js", [
+  "VoiceRoutingPolicySchema",
+  "VoiceSettingsSchema",
+  "recordingEnabled",
+  "maxCallDurationSeconds",
+  "liveTransferPhone",
+  "normalizePhoneToE164 as normalizeVoicePhone",
+  "normalizeVoicePhoneFields",
+]);
+if (!/overflowRingSeconds\s*:\s*\{[\s\S]{0,220}?min\s*:\s*15[\s\S]{0,220}?max\s*:\s*25/.test(business)) {
+  failures.push("Business overflowRingSeconds must be constrained to 15–25 seconds.");
+}
+if (!/maxCallDurationSeconds\s*:\s*\{[\s\S]{0,220}?max\s*:\s*600[\s\S]{0,220}?default\s*:\s*600/.test(business)) {
+  failures.push("Business maxCallDurationSeconds must hard-cap and default to 600 seconds.");
+}
+if (!/welcomeGreeting\s*:\s*\{[\s\S]{0,220}?default\s*:\s*["']{2}/.test(business)) {
+  failures.push("Business welcomeGreeting must default blank so the dynamic business-name greeting is used.");
+}
+
+requireAll("src/models/voiceSession.js", [
+  '"capturing_callback"',
+  '"safety_escalated"',
+  '"completing"',
+  '"fallback_sms"',
+  "lastActivityAt",
+  "signatureValidated",
   "{ business: 1, providerCallSid: 1 }",
   "{ unique: true }",
 ]);
 
+requireAll("src/voice/voiceTimeWindow.service.js", [
+  "withinTimeWindow",
+  'return end < start ? "overnight" : "same_day"',
+  'if (kind === "all_day")',
+  "return 1440",
+]);
+
 const relay = requireAll("src/voice/conversationRelay.server.js", [
   'const PATH = "/ws/voice"',
-  "validateConversationRelaySignature",
-  'request.headers["x-twilio-signature"]',
+  'request.headers?.["x-twilio-signature"]',
+  "signatureUrlForRequest",
   "twilio.validateRequest",
-  "signatureValidator = validateConversationRelaySignature",
-  "signatureIsValid = signatureValidator(request)",
-  "if (!signatureIsValid)",
+  "signatureValidator(request)",
   "wss.handleUpgrade",
-  "scheduleFailureEnd",
-  "persistFallbackSafely",
-  "voiceSessionService.sendFallbackSms",
-  "voiceFailureService.record",
-  'reasonCode: "voice-failure"',
+  "DEFAULT_HANDSHAKE_TIMEOUT_MS = 10_000",
+  "DEFAULT_IDLE_FIRST_MS = 8_000",
+  "DEFAULT_IDLE_SECOND_MS = 16_000",
+  "DEFAULT_IDLE_END_MS = 25_000",
+  "DEFAULT_SOFT_TURN_TIMEOUT_MS = 6_000",
+  "DEFAULT_HARD_TURN_TIMEOUT_MS = 15_000",
+  "DEFAULT_MAX_CALL_DURATION_SECONDS = 600",
+  'error?.code !== "VOICE_TURN_TIMEOUT"',
+  "maxPendingConnectionsPerIp",
+  'message.type === "interrupt"',
+  'message.type === "dtmf"',
+  "isTransientDependencyError",
+  "safeSend",
 ]);
-
-const signatureValidation = relay.indexOf(
-  "signatureIsValid = signatureValidator(request)",
-);
-const signatureGuard = relay.indexOf("if (!signatureIsValid)");
-const acceptUpgrade = relay.indexOf("wss.handleUpgrade");
-
+const signatureIndex = relay.indexOf("signatureValidator(request)");
+const guardIndex = relay.indexOf("if (!signatureIsValid)");
+const upgradeIndex = relay.indexOf("wss.handleUpgrade");
 if (
-  signatureValidation < 0 ||
-  signatureGuard < 0 ||
-  acceptUpgrade < 0 ||
-  signatureValidation > signatureGuard ||
-  signatureGuard > acceptUpgrade
+  signatureIndex < 0 ||
+  guardIndex < 0 ||
+  upgradeIndex < 0 ||
+  !(signatureIndex < guardIndex && guardIndex < upgradeIndex)
 ) {
-  failures.push(
-    "ConversationRelay must validate the Twilio signature and reject invalid requests before accepting the WebSocket upgrade.",
-  );
+  failures.push("ConversationRelay must validate and reject the Twilio signature before WSS upgrade.");
 }
 
-const failGracefullyStart = relay.indexOf("const failGracefully");
-if (failGracefullyStart < 0) {
-  failures.push(
-    "src/voice/conversationRelay.server.js is missing the graceful failure handler.",
-  );
-} else {
-  assertOrdered({
-    text: relay,
-    first: "scheduleFailureEnd(reason)",
-    second: "await persistFallbackSafely(reason)",
-    startAt: failGracefullyStart,
-    message:
-      "ConversationRelay must schedule call termination before waiting on fallback SMS or database persistence.",
-  });
-}
-
-const routingService = requireAll("src/voice/voiceRouting.service.js", [
-  "VOICE_RECORDING_SUPPORTED = false",
-  '"disabled_pending_consent_and_retention_policy"',
-  "VOICE_ROUTING_ACTIONS",
-  "VOICE_FAILURE_ACTIONS",
-  "PRESET_POLICIES",
-  "normalizeRoutingPolicy",
-  "routingPolicyUsesVoiceAi",
-  "routingPolicyUsesStaff",
-  "isPhase9ForcedRelayFailureEnabled",
-  "normalizeVoiceSettings",
-  "recordingEnabled: false",
-  "conversationRelayTwiml",
-  "dialTwiml",
+requireAll("src/voice/voicePhone.service.js", [
+  "normalizePhoneToE164",
+  "isUsableCallerId",
+  "phoneLookupVariants",
+  "phoneNumbersEqual",
+]);
+requireAll("src/voice/voiceInput.service.js", [
+  "NON_ENGLISH_MARKERS",
+  "CALLBACK_PAST_PATTERN",
+  "HOURS_CONTEXT_PATTERN",
+  "isHumanRequest",
+  "isBookingIntent",
+  "isCallbackRequest",
+  "extractCallbackDetails",
+  "isCancelIntent",
+  "parseCorrection",
+  "isSkipIntent",
+  "sanitizeDtmfDigits",
+  "toSpokenReply",
+  "isTransientDependencyError",
+]);
+requireAll("src/voice/voiceAvailability.service.js", [
+  "windowKind",
+  "previousDateKey",
+  "resolveBusinessTimeZone",
+  "formatClockTimeForSpeech",
+  "previousDaySpillover",
+]);
+requireAll("src/voice/voiceLineType.service.js", [
+  "lineTypeIntelligence",
+  "landline",
+  "smsCapable",
 ]);
 
-const routingPolicy = requireAll(
-  "src/voice/voiceRoutingPolicy.service.js",
-  [
-    "VOICE_ROUTE",
-    "VOICE_SCENARIO",
-    "determineInitialVoiceRoute",
-    "determinePostDialVoiceRoute",
-    "determineVoiceFailureRoute",
-    "getScenarioAction",
-    "getScenarioName",
-    "buildOverflowActionPath",
-    "buildTransferActionPath",
-    '"voice_ai"',
-    '"sms"',
-    '"staff_then_voice_ai"',
-    '"staff_then_sms"',
-  ],
-);
+const sessionService = requireAll("src/voice/voiceSession.service.js", [
+  "TERMINAL_STATUSES",
+  "TRANSITIONS",
+  "findContext",
+  "sanitizeMetadata",
+  "...sanitizeMetadata(metadata)",
+  "fallbackSmsStatus",
+  "isUsableCallerId",
+  "VoiceLineTypeService.lookup",
+]);
+if ((sessionService.match(/static async ensureContext/g) || []).length !== 1) {
+  failures.push("VoiceSessionService must expose exactly one idempotent ensureContext implementation.");
+}
 
 const webhook = requireAll("src/controllers/voiceWebhook.js", [
-  "TwilioController.voiceWebhook(req, res)",
-  "VoiceAvailabilityService.isBusinessOpen",
-  "determineInitialVoiceRoute",
-  "determinePostDialVoiceRoute",
-  "determineVoiceFailureRoute",
-  "getScenarioAction",
-  "getScenarioName",
-  "buildOverflowActionPath",
-  "buildTransferActionPath",
-  "VOICE_ROUTE.DIAL_STAFF",
-  "VOICE_ROUTE.RELAY",
-  "VOICE_ROUTE.FALLBACK_SMS",
-  "conversationRelayTwiml",
-  "dialTwiml",
-  'handoff.reasonCode === "live-agent-handoff"',
-  'handoff.reasonCode === "voice-failure"',
-  "VoiceSessionService.sendFallbackSms",
-  "VoiceFailureService.record",
+  "normalizePhoneToE164",
+  "phoneLookupVariants",
+  "findExistingContext",
+  "staffScreen",
+  "staffScreenDecision",
+  "staffAccepted",
+  "VoiceSessionService.ensureContext",
+  "VoiceSessionService.findContext",
 ]);
-
-if (!webhook.includes('settings.answerMode === "disabled"')) {
-  failures.push(
-    "src/controllers/voiceWebhook.js must preserve the disabled-mode legacy fallback.",
-  );
+if ((webhook.match(/VoiceSessionService\.ensureContext\(/g) || []).length !== 1) {
+  failures.push("Only the initial voice webhook may create voice context; callbacks must be find-only.");
 }
 
+requireAll("src/voice/voiceRouting.service.js", [
+  "dynamicGreeting",
+  "businessName",
+  "trackingPhone",
+  "phoneNumbersEqual",
+  "overflowRingSeconds",
+  "maxCallDurationSeconds",
+  "ConversationRelay",
+  "<Parameter",
+  'answerOnBridge="true"',
+  "staffScreenPromptTwiml",
+  "staffScreenDecisionTwiml",
+  "VOICE_RECORDING_SUPPORTED = false",
+]);
 requireAll("src/controllers/voiceSettings.js", [
-  '"custom"',
-  "validateRoutingPolicy",
-  "VOICE_ROUTING_ACTIONS",
-  "VOICE_FAILURE_ACTIONS",
-  "routingPolicyVersion = 1",
-  "inferAnswerMode",
-  "VOICE_RECORDING_SUPPORTED",
-  "VOICE_RECORDING_POLICY",
   '"VOICE_RECORDING_NOT_AVAILABLE"',
-  "voiceSettings.recordingEnabled = false",
-  "routingPolicyConfigured",
-  "conversationRelayConfigured",
+  "assertNoDialLoops",
+  "trackingPhone",
+  "voiceAnsweringReady",
+  "automaticBookingEnabled",
+  "maxCallDurationSeconds",
+  "overflowRingSeconds",
 ]);
-
-requireAll("src/voice/voiceFailure.service.js", [
-  "class VoiceFailureService",
-  "static async record",
-  "VoiceSession.findById",
-  'type: "integration_failure"',
-  'priority: "high"',
-  "VoiceTranscriptService.finalize",
-  "voiceFailureRecoveryPending: true",
+requireAll("src/services/voiceCapacity.service.js", [
+  "VOICE_CAPACITY_MAX_DURATION_SECONDS = 600",
+  "resolveVoiceCapacityLimits",
+  "sweepExpiredVoiceCapacity",
+  "VOICE_CAPACITY_LEASE_GRACE_MS",
 ]);
-
-requireAll("src/services/safetyAssessmentService.js", [
-  "assessInboundSafety",
-  "detectSafetyHazardTypes",
-  "getEmergencyReply",
-  "shouldSendSafetyReply",
-  "shouldAlertOwner",
-  'alertPriority: "critical"',
+requireAll("src/voice/voiceTranscript.service.js", [
+  "Guardrails.redactSensitiveData",
+  "markLastAssistantInterrupted",
+  "isFinal",
 ]);
-
-const agent = requireAll("src/voice/voiceAgent.service.js", [
-  "assessInboundSafety",
-  "searchServicesTool",
-  "validateServiceAreaTool",
-  "BookingStateMachineService.handle",
-  'channel: "voice"',
-  "sendConfirmationSmsTool",
-  "voiceSessionId: session._id",
-  "VoiceHandoffService.request",
-  "COMPLAINT_OR_DISPUTE",
-  "WARRANTY",
-  "COMMERCIAL",
-  "EXISTING_JOB",
-  "COMPLEX_PRICING",
+requireAll("src/voice/voiceSessionMaintenance.service.js", [
+  "reapStaleSessions",
+  "redactExpiredTranscripts",
 ]);
-
-if (
-  agent.indexOf("assessInboundSafety") >
-  agent.indexOf("BookingStateMachineService.handle")
-) {
-  failures.push("Voice safety assessment must run before booking logic.");
-}
-
-requireAll("src/helpers/ai/tools/sendConfirmationSms.tool.js", [
-  "VoiceSession.findOneAndUpdate",
-  'confirmationSmsStatus: "sending"',
-  'confirmationSmsStatus: "sent"',
-  'confirmationSmsStatus: "failed"',
-  'confirmationSmsStatus: "suppressed"',
-  "duplicate: true",
-]);
-
-requireAll("src/voice/voiceSession.service.js", [
-  "isSmsSuppressed",
-  'source: "voice"',
-  "missedCallSmsEnabled",
-  'fallbackSmsStatus: "suppressed"',
-  'fallbackSmsStatus: "sent"',
-  "fallbackSmsProviderMessageId",
-  "a retry must not text",
-  "VoiceTranscriptService.finalize",
-  'type: "integration_failure"',
-  'priority: "high"',
-]);
-
-const createAppointmentTool = requireAll(
-  "src/helpers/ai/tools/createAppointment.tool.js",
-  ['bookedBy: "ai"'],
-);
-
-requireOneOf(
-  "src/helpers/ai/tools/createAppointment.tool.js",
-  ['source: input.source || "sms"', "source: input?.source || \"sms\""],
-  "createAppointment.tool.js must preserve an explicit voice source while retaining SMS as the default.",
-);
-
-const booking = requireAll(
-  "src/services/booking/bookingStateMachine.service.js",
-  [
-    'channel = "sms"',
-    'source = "booking_state_machine"',
-    'channel === "voice" ? "voice" : "sms"',
-    "bookingIdempotencyPrefix",
-    "bookingEventPrefix",
-    "channel: bookingChannel",
-    "source: bookingSource",
-    "source: bookingChannel",
-    'bookedBy: "ai"',
-    'bookingChannel !== "voice"',
-  ],
-);
-
-if (!booking.includes('bookingChannel === "voice" ? "voice-" : ""')) {
-  failures.push(
-    "Voice appointment idempotency must be namespaced without changing existing SMS idempotency keys.",
-  );
-}
-
-const twilioRoutes = read("src/routes/twilio.routes.js");
-const normalizedTwilioRoutes = twilioRoutes.replace(/\s+/g, "");
-const requiredTwilioVoiceRoutes = [
-  ["/voice", "initial"],
-  ["/voice-overflow", "overflow"],
-  ["/voice-complete", "complete"],
-  ["/voice-transfer-complete", "transferComplete"],
-];
-
-for (const [routePath, controllerMethod] of requiredTwilioVoiceRoutes) {
-  const routePattern = new RegExp(
-    `router\\.post\\(["']${routePath}["'],validateTwilioSignature,twilioVoiceWebhookRateLimit,VoiceWebhookController\\.${controllerMethod},?\\);`,
-  );
-
-  if (!routePattern.test(normalizedTwilioRoutes)) {
-    failures.push(
-      `src/routes/twilio.routes.js must register ${routePath} with validateTwilioSignature first, twilioVoiceWebhookRateLimit second, and VoiceWebhookController.${controllerMethod} last.`,
-    );
-  }
-}
-
-requireAll("src/routes/voiceSettings.routes.js", [
-  "router.use(checkAuth)",
-  "VoiceSettingsController.get",
-  "VoiceSettingsController.update",
-  "VoiceSettingsController.readiness",
-]);
-
-requireAll("src/app.js", [
-  "voiceSettingsRoutes",
-  'app.use("/api/voice-settings", voiceSettingsRoutes)',
-]);
-
-requireAll("src/server.js", [
-  "initializeConversationRelayServer",
-  "initializeConversationRelayServer(httpServer)",
-  "await conversationRelayServer.close()",
-]);
-
-requireAll("scripts/disable-legacy-voice-recording.js", [
-  'import "dotenv/config"',
-  '"MONGO_URL"',
-  "recordingEnabled",
-  "Business.updateMany",
-]);
-
-requireAll("scripts/verify-phase9-live.js", [
-  "VOICE_HTTP_PUBLIC_URL",
-  "VOICE_WEBSOCKET_PUBLIC_URL",
-  "TWILIO_ACCOUNT_SID",
-  "TWILIO_AUTH_TOKEN",
-]);
-
-const pkg = JSON.parse(read("package.json") || "{}");
-if (!pkg.dependencies?.ws) {
-  failures.push("package.json is missing the ws dependency.");
-}
-
-for (const scriptName of [
-  "test:phase9",
-  "test:phase9:unit",
-  "test:phase9:completion",
-  "verify:phase9:live",
-  "migrate:phase9:disable-recording",
-  "certify:phase9",
-]) {
-  if (!pkg.scripts?.[scriptName]) {
-    failures.push(`package.json is missing ${scriptName}.`);
-  }
-}
-
-if (
-  !Array.isArray(pkg.jest?.testPathIgnorePatterns) ||
-  !pkg.jest.testPathIgnorePatterns.includes("<rootDir>/tools/api_overlay/")
-) {
-  failures.push(
-    "package.json must prevent Jest from discovering tests inside tools/api_overlay.",
-  );
-}
 
 for (const relative of [
-  "tests/unit/conversationRelay.server.test.js",
-  "tests/unit/sendConfirmationSms.tool.test.js",
-  "tests/unit/voiceAgent.service.test.js",
-  "tests/unit/voiceRouting.service.test.js",
-  "tests/unit/voiceSession.model.test.js",
-  "tests/unit/voiceSessionFallback.service.test.js",
-  "tests/unit/voiceSettings.controller.test.js",
-  "tests/unit/voiceWebhook.controller.test.js",
-  "tests/unit/voiceBookingStateMachineReuse.test.js",
-  "tests/unit/safetyAssessmentService.voiceCompatibility.test.js",
-  "tests/unit/createAppointment.tool.test.js",
-  "tests/unit/voiceFailure.service.test.js",
-  "tests/unit/voiceRoutingPolicy.service.test.js",
-  "tests/completion/phase9.voice.completion.test.js",
+  "scripts/reap-stale-voice-sessions.mjs",
+  "scripts/redact-expired-voice-transcripts.mjs",
+  "scripts/sweep-expired-voice-capacity.mjs",
+  "scripts/normalize-business-phone-numbers.mjs",
 ]) {
   read(relative);
 }
 
+const pkgText = read("package.json");
+let pkg = {};
+try {
+  pkg = JSON.parse(pkgText || "{}");
+} catch (error) {
+  failures.push(`package.json is invalid JSON: ${error.message}`);
+}
+for (const scriptName of [
+  "test:phase9",
+  "test:phase9:unit",
+  "test:phase9:completion",
+  "test:voice-hardening",
+  "voice:reap-stale",
+  "voice:redact-transcripts",
+  "voice:sweep-capacity",
+  "voice:migrate-phones",
+  "certify:phase9",
+]) {
+  if (!pkg.scripts?.[scriptName]) failures.push(`package.json is missing ${scriptName}.`);
+}
+const ignorePatterns = pkg.jest?.testPathIgnorePatterns || [];
+for (const expected of ["<rootDir>/tools/", "<rootDir>/hardening-tests/"]) {
+  if (!ignorePatterns.some((value) => value.includes(expected.replace("<rootDir>/", "")))) {
+    failures.push(`Jest must ignore update/standalone test content matching ${expected}.`);
+  }
+}
+
 if (failures.length) {
-  console.error("Phase 9 structure verification failed:\n");
+  console.error("Phase 9 production-hardening structure verification failed:\n");
   failures.forEach((failure) => console.error(`- ${failure}`));
   process.exit(1);
 }
 
-console.log("Phase 9 API structure verification passed.");
-console.log(`Business voice settings: ${business ? "present" : "missing"}`);
-console.log(`Voice session model: ${session ? "present" : "missing"}`);
-console.log(
-  `Scenario routing policy: ${routingPolicy && routingService ? "present" : "missing"}`,
+passed.push(
+  "Signed/rate-limited HTTP voice and SMS routes",
+  "Signed WSS upgrade and bounded transport",
+  "Strict session lifecycle and find-only callbacks",
+  "Callback-first dialogue and PII-safe transcript handling",
+  "Dedicated screened staff transfer routes",
+  "Ten-minute capacity/session limits and maintenance scripts",
+  "Recording disabled and readiness separated from booking",
 );
-console.log(`Voice webhook routing: ${webhook ? "present" : "missing"}`);
-console.log(
-  `ConversationRelay signature gate and failure termination: ${relay ? "present" : "missing"}`,
-);
-console.log(
-  `Voice appointment source preservation: ${createAppointmentTool ? "present" : "missing"}`,
-);
+console.log("Phase 9 production-hardening structure verification passed.\n");
+passed.forEach((item) => console.log(`PASS ${item}`));

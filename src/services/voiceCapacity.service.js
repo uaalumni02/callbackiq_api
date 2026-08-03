@@ -1,6 +1,10 @@
 import VoiceCapacity from "../models/voiceCapacity.js";
-import AlertService from "./alert.service.js";
 import { logOperationalError } from "../helpers/logging/safeLogger.js";
+import AlertService from "./alert.service.js";
+
+export const VOICE_CAPACITY_MAX_DURATION_SECONDS = 600;
+export const VOICE_CAPACITY_CONFIGURED_MAX_DURATION_SECONDS = 3600;
+const VOICE_CAPACITY_LEASE_GRACE_MS = 60_000;
 
 const clamp = (value, fallback, minimum, maximum) => {
   const parsed = Number.parseInt(String(value ?? ""), 10);
@@ -19,7 +23,15 @@ const failClosed = () => {
   return String(process.env.NODE_ENV || "development").toLowerCase() === "production";
 };
 
-const updateCapacity = ({ businessId, key, sessionId, now, expiresAt, maximum, upsert }) =>
+const updateCapacity = ({
+  businessId,
+  key,
+  sessionId,
+  now,
+  expiresAt,
+  maximum,
+  upsert,
+}) =>
   VoiceCapacity.findOneAndUpdate(
     { business: businessId },
     [
@@ -72,10 +84,7 @@ const createVoiceCapacityAlert = async (payload) => {
   }
 };
 
-export const acquireVoiceCapacity = async ({ business, session, settings = {} }) => {
-  const businessId = getBusinessId(business);
-  const sessionId = getSessionId(session);
-  const key = getKey(session);
+export const resolveVoiceCapacityLimits = ({ business, settings = {} } = {}) => {
   const defaultMaximum = clamp(
     process.env.DEFAULT_VOICE_MAX_CONCURRENT_CALLS,
     25,
@@ -84,25 +93,48 @@ export const acquireVoiceCapacity = async ({ business, session, settings = {} })
   );
   const defaultDurationSeconds = clamp(
     process.env.DEFAULT_VOICE_MAX_DURATION_SECONDS,
-    3600,
+    VOICE_CAPACITY_MAX_DURATION_SECONDS,
     60,
-    7200,
-  );
-  const maximum = clamp(
-    settings.maxConcurrentCalls ?? business?.voiceSettings?.maxConcurrentCalls,
-    defaultMaximum,
-    1,
-    100,
-  );
-  const durationSeconds = clamp(
-    settings.maxCallDurationSeconds ?? business?.voiceSettings?.maxCallDurationSeconds,
-    defaultDurationSeconds,
-    60,
-    7200,
+    VOICE_CAPACITY_CONFIGURED_MAX_DURATION_SECONDS,
   );
 
+  return {
+    maximum: clamp(
+      settings.maxConcurrentCalls ?? business?.voiceSettings?.maxConcurrentCalls,
+      defaultMaximum,
+      1,
+      100,
+    ),
+    durationSeconds: clamp(
+      settings.maxCallDurationSeconds ??
+        business?.voiceSettings?.maxCallDurationSeconds,
+      defaultDurationSeconds,
+      60,
+      VOICE_CAPACITY_CONFIGURED_MAX_DURATION_SECONDS,
+    ),
+  };
+};
+
+export const acquireVoiceCapacity = async ({
+  business,
+  session,
+  settings = {},
+}) => {
+  const businessId = getBusinessId(business);
+  const sessionId = getSessionId(session);
+  const key = getKey(session);
+  const { maximum, durationSeconds } = resolveVoiceCapacityLimits({
+    business,
+    settings,
+  });
+
   if (!businessId || !key) {
-    return { allowed: false, reason: "voice_capacity_context_required" };
+    return {
+      allowed: false,
+      reason: "voice_capacity_context_required",
+      maximum,
+      durationSeconds,
+    };
   }
 
   if (VoiceCapacity.db && VoiceCapacity.db.readyState !== 1) {
@@ -123,10 +155,22 @@ export const acquireVoiceCapacity = async ({ business, session, settings = {} })
   }
 
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + durationSeconds * 1000 + 60_000);
+  // Preserve the configured duration in readiness/capacity reporting for
+  // backward compatibility, but never let a crash-orphaned lease survive for
+  // more than the hardened ten-minute call ceiling plus the grace period.
+  const leaseDurationSeconds = Math.min(
+    durationSeconds,
+    VOICE_CAPACITY_MAX_DURATION_SECONDS,
+  );
+  const expiresAt = new Date(
+    now.getTime() +
+      leaseDurationSeconds * 1000 +
+      VOICE_CAPACITY_LEASE_GRACE_MS,
+  );
 
   try {
     let capacity;
+
     try {
       capacity = await updateCapacity({
         businessId,
@@ -157,7 +201,9 @@ export const acquireVoiceCapacity = async ({ business, session, settings = {} })
       await createVoiceCapacityAlert({
         businessId,
         title: "Voice AI concurrency allowance reached",
-        message: `CallBackIQ prevented a new voice AI session because ${maximum} concurrent session${maximum === 1 ? " was" : "s were"} already active. The normal configured fallback path was used.`,
+        message: `CallBackIQ prevented a new voice AI session because ${maximum} concurrent session${
+          maximum === 1 ? " was" : "s were"
+        } already active. The normal configured fallback path was used.`,
         priority: "high",
         metadata: {
           source: "voice_capacity_limit",
@@ -177,7 +223,9 @@ export const acquireVoiceCapacity = async ({ business, session, settings = {} })
           maximum,
           activeCount: leases.length,
         },
-        dedupeKey: `voice_capacity_threshold:${new Date().toISOString().slice(0, 13)}`,
+        dedupeKey: `voice_capacity_threshold:${new Date()
+          .toISOString()
+          .slice(0, 13)}`,
       });
     }
 
@@ -192,29 +240,77 @@ export const acquireVoiceCapacity = async ({ business, session, settings = {} })
   } catch (error) {
     logOperationalError("voice_capacity.acquire_failed", error, { businessId });
     return failClosed()
-      ? { allowed: false, reason: "voice_capacity_unavailable", maximum, durationSeconds }
-      : { allowed: true, degraded: true, reason: "voice_capacity_unavailable", maximum, durationSeconds };
+      ? {
+          allowed: false,
+          reason: "voice_capacity_unavailable",
+          maximum,
+          durationSeconds,
+        }
+      : {
+          allowed: true,
+          degraded: true,
+          reason: "voice_capacity_unavailable",
+          maximum,
+          durationSeconds,
+        };
   }
 };
 
 export const releaseVoiceCapacity = async ({ businessId, session }) => {
   const key = getKey(session);
+
   if (
     !businessId ||
     !key ||
     (VoiceCapacity.db && VoiceCapacity.db.readyState !== 1)
   ) {
-    return;
+    return { released: false, reason: "voice_capacity_unavailable" };
   }
 
   try {
-    await VoiceCapacity.updateOne(
+    const result = await VoiceCapacity.updateOne(
       { business: businessId },
       { $pull: { leases: { key } } },
     );
+    return {
+      released: Boolean(result?.modifiedCount),
+      matchedCount: result?.matchedCount || 0,
+    };
   } catch (error) {
     logOperationalError("voice_capacity.release_failed", error, { businessId });
+    return { released: false, reason: "voice_capacity_release_failed" };
   }
 };
 
-export default { acquireVoiceCapacity, releaseVoiceCapacity };
+export const sweepExpiredVoiceCapacity = async ({ now = new Date() } = {}) => {
+  if (VoiceCapacity.db && VoiceCapacity.db.readyState !== 1) {
+    return {
+      matchedCount: 0,
+      modifiedCount: 0,
+      skipped: true,
+      reason: "voice_capacity_unavailable",
+    };
+  }
+
+  try {
+    const result = await VoiceCapacity.updateMany(
+      { "leases.expiresAt": { $lte: now } },
+      { $pull: { leases: { expiresAt: { $lte: now } } } },
+    );
+    return {
+      matchedCount: result?.matchedCount || 0,
+      modifiedCount: result?.modifiedCount || 0,
+      sweptAt: now,
+    };
+  } catch (error) {
+    logOperationalError("voice_capacity.sweep_failed", error, {});
+    throw error;
+  }
+};
+
+export default {
+  acquireVoiceCapacity,
+  releaseVoiceCapacity,
+  resolveVoiceCapacityLimits,
+  sweepExpiredVoiceCapacity,
+};

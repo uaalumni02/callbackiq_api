@@ -11,7 +11,42 @@ import {
   logOperationalWarning,
 } from "../helpers/logging/safeLogger.js";
 import SocketService from "../services/socket.service.js";
+import VoiceLineTypeService from "./voiceLineType.service.js";
+import {
+  isUsableCallerId,
+  normalizePhoneToE164,
+} from "./voicePhone.service.js";
 import VoiceTranscriptService from "./voiceTranscript.service.js";
+
+const TERMINAL_STATUSES = new Set(["completed", "failed", "canceled"]);
+const TRANSITIONS = Object.freeze({
+  routing: new Set(["connecting", "active", "fallback_sms", "failed", "canceled"]),
+  connecting: new Set(["active", "fallback_sms", "failed", "canceled"]),
+  active: new Set([
+    "capturing_callback",
+    "safety_escalated",
+    "transferring",
+    "completing",
+    "fallback_sms",
+    "failed",
+    "canceled",
+  ]),
+  capturing_callback: new Set([
+    "active",
+    "safety_escalated",
+    "completing",
+    "fallback_sms",
+    "failed",
+    "canceled",
+  ]),
+  safety_escalated: new Set(["completing", "fallback_sms", "failed"]),
+  transferring: new Set(["completing", "fallback_sms", "failed"]),
+  completing: new Set(["completed", "fallback_sms", "failed"]),
+  fallback_sms: new Set(["failed"]),
+  completed: new Set(),
+  failed: new Set(),
+  canceled: new Set(),
+});
 
 const emit = (method, ...args) => {
   try {
@@ -26,11 +61,41 @@ const emit = (method, ...args) => {
   }
 };
 
+const normalizeId = (value) => value?._id || value?.id || value || null;
 const populateSession = (query) =>
   query.populate(["business", "lead", "conversation", "callLog", "appointment"]);
+const anonymousContact = () => "+00000000000";
+const sanitizeMetadata = (metadata = {}) => {
+  const set = {};
+  for (const [key, value] of Object.entries(metadata || {})) {
+    if (!key || key.includes("$") || key.includes("\0")) continue;
+    set[`metadata.${key}`] = value;
+  }
+  return set;
+};
 
 class VoiceSessionService {
+  static async findContext({ business, businessId, providerCallSid }) {
+    const scopedBusinessId = normalizeId(business) || businessId;
+    if (!scopedBusinessId || !providerCallSid) return null;
+    return populateSession(
+      VoiceSession.findOne({
+        business: scopedBusinessId,
+        providerCallSid,
+      }),
+    );
+  }
+
   static async ensureContext({ business, from, to, providerCallSid }) {
+    if (!business?._id || !providerCallSid) {
+      throw new Error("Voice session context requires a business and CallSid.");
+    }
+
+    const normalizedFrom = normalizePhoneToE164(from);
+    const normalizedTo = normalizePhoneToE164(to) || String(to || "").trim();
+    const usableCaller = isUsableCallerId(normalizedFrom);
+    const storedCaller = usableCaller ? normalizedFrom : anonymousContact();
+
     let session;
     try {
       session = await VoiceSession.findOneAndUpdate(
@@ -39,14 +104,24 @@ class VoiceSessionService {
           $setOnInsert: {
             business: business._id,
             providerCallSid,
-            from,
-            to,
+            from: storedCaller,
+            to: normalizedTo,
             status: "routing",
             startedAt: new Date(),
             lastActivityAt: new Date(),
+            metadata: {
+              callerIdUsable: usableCaller,
+              originalCallerIdClassification: usableCaller
+                ? "usable"
+                : "anonymous_or_restricted",
+            },
+          },
+          $set: {
+            lastActivityAt: new Date(),
+            "metadata.callerIdUsable": usableCaller,
           },
         },
-        { upsert: true, returnDocument: "after" },
+        { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
       );
     } catch (error) {
       if (error?.code !== 11000) throw error;
@@ -55,42 +130,51 @@ class VoiceSessionService {
         providerCallSid,
       });
     }
-    if (!session) {
-      throw new Error("Voice session context could not be created.");
+    if (!session) throw new Error("Voice session context could not be created.");
+
+    if (session.lead && session.conversation && session.callLog) {
+      return populateSession(VoiceSession.findById(session._id));
     }
 
-    let lead = session.lead
-      ? await Lead.findById(session.lead)
-      : await Lead.findOne({ business: business._id, phone: from }).sort({
-          createdAt: -1,
-        });
+    let lead = session.lead ? await Lead.findById(session.lead) : null;
+    if (!lead && usableCaller) {
+      lead = await Lead.findOne({
+        business: business._id,
+        phone: normalizedFrom,
+      }).sort({ createdAt: -1 });
+    }
     if (!lead) {
       lead = await Lead.create({
         business: business._id,
-        customerName: "Voice Caller",
-        phone: from,
+        customerName: usableCaller ? "Voice Caller" : "Anonymous Voice Caller",
+        phone: storedCaller,
         serviceNeeded: "Unknown",
         urgency: "medium",
         source: "voice",
         status: "new",
         estimatedValue: business.estimatedJobValue || 0,
-        notes: "Lead created automatically from a CallBackIQ voice session.",
+        notes: usableCaller
+          ? "Lead created automatically from a CallBackIQ voice session."
+          : "Lead created from a blocked or unavailable caller ID. Obtain and confirm a callback number before promising follow-up.",
       });
       emit("emitLeadCreated", business._id, lead);
     }
 
     let conversation = session.conversation
       ? await Conversation.findById(session.conversation)
-      : await Conversation.findOne({
-          business: business._id,
-          customerPhone: from,
-          status: "open",
-        }).sort({ lastMessageAt: -1 });
+      : null;
+    if (!conversation && usableCaller) {
+      conversation = await Conversation.findOne({
+        business: business._id,
+        customerPhone: normalizedFrom,
+        status: "open",
+      }).sort({ lastMessageAt: -1 });
+    }
     if (!conversation) {
       conversation = await Conversation.create({
         business: business._id,
         lead: lead._id,
-        customerPhone: from,
+        customerPhone: storedCaller,
         customerName: lead.customerName || "Voice Caller",
         status: "open",
         aiEnabled: true,
@@ -101,39 +185,90 @@ class VoiceSessionService {
       emit("emitConversationCreated", business._id, conversation);
     }
 
-    let callLog = session.callLog
-      ? await CallLog.findById(session.callLog)
-      : await CallLog.findOne({
+    let callLog = session.callLog ? await CallLog.findById(session.callLog) : null;
+    if (!callLog) {
+      callLog = await CallLog.findOne({
+        business: business._id,
+        providerCallId: providerCallSid,
+      });
+    }
+    if (!callLog) {
+      try {
+        callLog = await CallLog.create({
+          business: business._id,
+          lead: lead._id,
+          conversation: conversation._id,
+          from: storedCaller,
+          to: normalizedTo || business.phone,
+          direction: "inbound",
+          status: "answered",
+          durationSeconds: 0,
+          provider: "twilio",
+          providerCallId: providerCallSid,
+          missedCallTextSent: false,
+          recovered: false,
+          notes: usableCaller
+            ? "Call routed through CallBackIQ ConversationRelay."
+            : "Call routed through ConversationRelay with anonymous or restricted caller ID.",
+        });
+        emit("emitCallCreated", business._id, callLog);
+      } catch (error) {
+        if (error?.code !== 11000) throw error;
+        callLog = await CallLog.findOne({
           business: business._id,
           providerCallId: providerCallSid,
         });
-    if (!callLog) {
-      callLog = await CallLog.create({
-        business: business._id,
-        lead: lead._id,
-        conversation: conversation._id,
-        from,
-        to,
-        direction: "inbound",
-        status: "answered",
-        durationSeconds: 0,
-        provider: "twilio",
-        providerCallId: providerCallSid,
-        missedCallTextSent: false,
-        recovered: false,
-        notes: "Call routed through CallBackIQ ConversationRelay.",
-      });
-      emit("emitCallCreated", business._id, callLog);
+      }
     }
 
-    session.lead = lead._id;
-    session.conversation = conversation._id;
-    session.callLog = callLog._id;
-    session.estimatedValue = lead.estimatedValue || 0;
-    session.lastActivityAt = new Date();
-    await session.save();
+    const updated = await VoiceSession.findByIdAndUpdate(
+      session._id,
+      {
+        $set: {
+          lead: lead._id,
+          conversation: conversation._id,
+          callLog: callLog?._id || null,
+          estimatedValue: lead.estimatedValue || 0,
+          lastActivityAt: new Date(),
+          "metadata.callerIdUsable": usableCaller,
+        },
+      },
+      { returnDocument: "after" },
+    );
+    return populateSession(VoiceSession.findById(updated._id));
+  }
 
-    return populateSession(VoiceSession.findById(session._id));
+  static async transition(sessionId, nextStatus, metadata = {}) {
+    if (!sessionId || !TRANSITIONS[nextStatus]) {
+      throw new Error(`Unsupported voice-session status: ${nextStatus}`);
+    }
+    const current = await VoiceSession.findById(sessionId).select("status");
+    if (!current) throw new Error("Voice session was not found.");
+    if (current.status === nextStatus) {
+      return VoiceSession.findByIdAndUpdate(
+        sessionId,
+        { $set: { lastActivityAt: new Date(), ...sanitizeMetadata(metadata) } },
+        { returnDocument: "after" },
+      );
+    }
+    if (!TRANSITIONS[current.status]?.has(nextStatus)) {
+      const error = new Error(
+        `Illegal voice-session transition from ${current.status} to ${nextStatus}.`,
+      );
+      error.code = "VOICE_SESSION_ILLEGAL_TRANSITION";
+      throw error;
+    }
+    return VoiceSession.findOneAndUpdate(
+      { _id: sessionId, status: current.status },
+      {
+        $set: {
+          status: nextStatus,
+          lastActivityAt: new Date(),
+          ...sanitizeMetadata(metadata),
+        },
+      },
+      { returnDocument: "after" },
+    );
   }
 
   static async activateFromSetup({ voiceSessionId, setup }) {
@@ -149,43 +284,94 @@ class VoiceSessionService {
     ) {
       throw new Error("ConversationRelay business scope did not match.");
     }
+    if (TERMINAL_STATUSES.has(session.status)) {
+      const error = new Error(
+        `ConversationRelay cannot activate a terminal ${session.status} session.`,
+      );
+      error.code = "VOICE_SESSION_TERMINAL";
+      throw error;
+    }
+    if (
+      session.providerSessionId &&
+      setup.sessionId &&
+      session.providerSessionId !== setup.sessionId
+    ) {
+      const error = new Error("ConversationRelay SessionId changed unexpectedly.");
+      error.code = "VOICE_SESSION_ID_MISMATCH";
+      throw error;
+    }
 
-    session.providerSessionId = setup.sessionId || session.providerSessionId;
-    session.signatureValidated = true;
-    session.status = "active";
-    session.from = setup.from || session.from;
-    session.to = setup.to || session.to;
-    session.lastActivityAt = new Date();
-    session.metadata = {
-      ...(session.metadata || {}),
-      accountSid: setup.accountSid || "",
-      callType: setup.callType || "",
-      direction: setup.direction || "",
+    const nextStatus = ["routing", "connecting"].includes(session.status)
+      ? "active"
+      : session.status;
+    const from = normalizePhoneToE164(setup.from);
+    const to = normalizePhoneToE164(setup.to);
+    const update = {
+      providerSessionId: setup.sessionId || session.providerSessionId,
+      signatureValidated: true,
+      status: nextStatus,
+      lastActivityAt: new Date(),
+      "metadata.accountSid": String(setup.accountSid || "").slice(0, 80),
+      "metadata.callType": String(setup.callType || "").slice(0, 80),
+      "metadata.direction": String(setup.direction || "").slice(0, 80),
+      "metadata.setupReceivedAt": new Date().toISOString(),
     };
-    await session.save();
-    return session;
+    if (from) update.from = from;
+    if (to) update.to = to;
+
+    return VoiceSession.findByIdAndUpdate(
+      session._id,
+      { $set: update },
+      { returnDocument: "after" },
+    ).populate(["business", "lead", "conversation", "callLog", "appointment"]);
+  }
+
+  static async touchActivity(sessionId, metadata = {}) {
+    if (!sessionId) return null;
+    return VoiceSession.findOneAndUpdate(
+      { _id: sessionId, status: { $nin: [...TERMINAL_STATUSES] } },
+      {
+        $set: {
+          lastActivityAt: new Date(),
+          ...sanitizeMetadata(metadata),
+        },
+      },
+      { returnDocument: "after" },
+    );
   }
 
   static async markCompleted(sessionId, metadata = {}) {
-    const session = await VoiceSession.findOneAndUpdate(
+    const session = await VoiceSession.findById(sessionId);
+    if (!session) return null;
+    if (session.status === "completed") return populateSession(VoiceSession.findById(sessionId));
+    if (TERMINAL_STATUSES.has(session.status)) return null;
+
+    await VoiceSession.findOneAndUpdate(
+      { _id: sessionId, status: { $nin: [...TERMINAL_STATUSES] } },
       {
-        _id: sessionId,
-        status: { $ne: "failed" },
+        $set: {
+          status: "completing",
+          lastActivityAt: new Date(),
+          ...sanitizeMetadata(metadata),
+        },
       },
+    );
+    await VoiceTranscriptService.finalize(sessionId);
+    const completed = await VoiceSession.findOneAndUpdate(
+      { _id: sessionId, status: "completing" },
       {
         $set: {
           status: "completed",
           endedAt: new Date(),
           lastActivityAt: new Date(),
-          metadata,
+          ...sanitizeMetadata(metadata),
         },
       },
       { returnDocument: "after" },
     );
-    if (!session) return null;
-    await VoiceTranscriptService.finalize(sessionId);
-    emit("emitDashboardRefresh", session.business, "voice_session_completed");
-    return session;
+    if (!completed) return null;
+    emit("emitDashboardRefresh", completed.business, "voice_session_completed");
+    return completed;
   }
 
   static async sendFallbackSms({ sessionId, failureReason, alert = true }) {
@@ -193,6 +379,7 @@ class VoiceSessionService {
       {
         _id: sessionId,
         fallbackSmsStatus: { $in: ["pending", "failed"] },
+        status: { $nin: ["completed", "canceled"] },
       },
       {
         $set: {
@@ -201,28 +388,25 @@ class VoiceSessionService {
             0,
             2000,
           ),
-          status: "failed",
+          status: "fallback_sms",
           endedAt: new Date(),
           lastActivityAt: new Date(),
         },
       },
       { returnDocument: "after" },
     );
-    if (!claimed) {
-      return populateSession(VoiceSession.findById(sessionId));
-    }
+    if (!claimed) return populateSession(VoiceSession.findById(sessionId));
 
     const session = await populateSession(VoiceSession.findById(sessionId));
     if (!session?.business) {
       throw new Error("Voice fallback could not resolve the business context.");
     }
-
     const business = session.business;
     const lead = session.lead;
     const conversation = session.conversation;
     const callLog = session.callLog;
-    const from = session.to || business.phone;
-    const to = session.from;
+    const from = normalizePhoneToE164(session.to || business.phone);
+    const to = normalizePhoneToE164(session.from || lead?.phone);
     const body = String(
       business.smsTemplate ||
         `Hi, this is ${business.businessName}. Sorry we missed your call. What service do you need help with today?`,
@@ -231,54 +415,31 @@ class VoiceSessionService {
     let suppressionReason = "";
     if (business.features?.missedCallSmsEnabled === false) {
       suppressionReason = "The business disabled missed-call SMS.";
-    } else if (!to || !from) {
-      suppressionReason =
-        "A valid caller or business phone number was unavailable.";
+    } else if (!isUsableCallerId(to) || !from) {
+      suppressionReason = "A usable caller or business phone number was unavailable.";
     } else {
-      try {
-        if (
-          await isSmsSuppressed({
-            businessId: business._id,
-            phone: to,
-          })
-        ) {
-          suppressionReason = "The caller opted out of SMS messages.";
-        }
-      } catch (error) {
-        suppressionReason =
-          "SMS preference status could not be verified, so delivery was suppressed.";
-        logOperationalError(
-          "voice.fallback_sms_preference_check_failed",
-          error,
-          {
-            businessId: business._id,
-            voiceSessionId: session._id,
-          },
-        );
+      const line = await VoiceLineTypeService.lookup(to);
+      if (line.landline) {
+        suppressionReason = `The callback number was classified as ${line.lineType}, so no SMS was promised or sent.`;
+      } else if (
+        await isSmsSuppressed({ businessId: business._id, phone: to })
+      ) {
+        suppressionReason = "The caller opted out of SMS.";
       }
     }
 
+    let providerMessageId = "";
     if (suppressionReason) {
       await VoiceSession.findByIdAndUpdate(session._id, {
         $set: {
           fallbackSmsStatus: "suppressed",
-          metadata: {
-            ...(session.metadata || {}),
-            fallbackSmsSuppressionReason: suppressionReason,
-          },
+          status: "failed",
+          "metadata.fallbackSmsSuppressionReason": suppressionReason,
         },
       });
-
-      if (callLog) {
-        callLog.status = "failed";
-        callLog.missedCallTextSent = false;
-        await callLog.save();
-        emit("emitCallUpdated", business._id, callLog);
-      }
     } else {
-      let sent = null;
       try {
-        sent = await sendSms({
+        const sent = await sendSms({
           business,
           businessId: business._id,
           from,
@@ -291,94 +452,87 @@ class VoiceSessionService {
           leadId: lead?._id || null,
           metadata: { voiceSessionId: session._id },
         });
+        if (sent?.suppressed) {
+          suppressionReason = sent.reason || "Central SMS policy suppressed the message.";
+          await VoiceSession.findByIdAndUpdate(session._id, {
+            $set: {
+              fallbackSmsStatus: "suppressed",
+              status: "failed",
+              "metadata.fallbackSmsSuppressionReason": suppressionReason,
+            },
+          });
+        } else {
+          providerMessageId = sent?.sid || "";
+          await VoiceSession.findByIdAndUpdate(session._id, {
+            $set: {
+              fallbackSmsStatus: "sent",
+              fallbackSmsSentAt: new Date(),
+              fallbackSmsProviderMessageId: providerMessageId,
+              status: "failed",
+            },
+          });
+          if (conversation) {
+            try {
+              const message = await Message.create({
+                business: business._id,
+                conversation: conversation._id,
+                lead: lead?._id || null,
+                direction: "outbound",
+                from,
+                to,
+                body,
+                provider: "twilio",
+                providerMessageId,
+                status: sent?.status || "sent",
+                isAiGenerated: false,
+                generatedBy: "voice",
+                usageCategory: "voice_fallback",
+                actorType: "voice",
+                metadata: { source: "voice_fallback", voiceSessionId: session._id },
+              });
+              emit("emitMessageCreated", business._id, message);
+              conversation.lastMessage = body;
+              conversation.lastMessageAt = new Date();
+              await conversation.save();
+              emit("emitConversationUpdated", business._id, conversation);
+            } catch (error) {
+              logOperationalError(
+                "voice.fallback_sms_local_persistence_failed",
+                error,
+                { businessId: business._id, voiceSessionId: session._id, providerMessageId },
+              );
+            }
+          }
+        }
       } catch (error) {
         await VoiceSession.findByIdAndUpdate(session._id, {
           $set: {
             fallbackSmsStatus: "failed",
             fallbackSmsProviderMessageId: "",
+            status: "failed",
             failureReason: `${failureReason || "Voice AI unavailable"}; SMS fallback failed: ${error.message}`.slice(
               0,
               2000,
             ),
           },
         });
-      }
-
-      if (sent) {
-        const providerMessageId = sent?.sid || "";
-        // Mark the provider delivery before local logging. If MongoDB logging
-        // fails after Twilio accepted the message, a retry must not text the
-        // caller a second time.
-        await VoiceSession.findByIdAndUpdate(session._id, {
-          $set: {
-            fallbackSmsStatus: "sent",
-            fallbackSmsSentAt: new Date(),
-            fallbackSmsProviderMessageId: providerMessageId,
-          },
+        logOperationalError("voice.fallback_sms_failed", error, {
+          businessId: business._id,
+          voiceSessionId: session._id,
         });
-
-        try {
-          const message = await Message.create({
-            business: business._id,
-            conversation: conversation?._id,
-            lead: lead?._id,
-            direction: "outbound",
-            from,
-            to,
-            body,
-            provider: "twilio",
-            providerMessageId,
-            status: sent?.status || "sent",
-            isAiGenerated: false,
-            generatedBy: "voice",
-            usageCategory: "voice_fallback",
-            actorType: "voice",
-            metadata: {
-              source: "voice_fallback",
-              voiceSessionId: session._id,
-            },
-          });
-          emit("emitMessageCreated", business._id, message);
-
-          if (conversation) {
-            conversation.lastMessage = body;
-            conversation.lastMessageAt = new Date();
-            await conversation.save();
-            emit("emitConversationUpdated", business._id, conversation);
-          }
-          if (callLog) {
-            callLog.status = "failed";
-            callLog.missedCallTextSent = true;
-            await callLog.save();
-            emit("emitCallUpdated", business._id, callLog);
-          }
-        } catch (error) {
-          logOperationalError(
-            "voice.fallback_sms_local_persistence_failed",
-            error,
-            {
-              businessId: business._id,
-              voiceSessionId: session._id,
-              providerMessageId,
-            },
-          );
-          await VoiceSession.findByIdAndUpdate(session._id, {
-            $set: {
-              failureReason: `${failureReason || "Voice AI unavailable"}; fallback SMS was delivered but local persistence failed: ${error.message}`.slice(
-                0,
-                2000,
-              ),
-            },
-          });
-        }
       }
     }
+
+    if (callLog) {
+      callLog.status = "failed";
+      callLog.missedCallTextSent = Boolean(providerMessageId);
+      await callLog.save();
+      emit("emitCallUpdated", business._id, callLog);
+    }
+
     if (alert) {
       const failureAlert = await Alert.findOneAndUpdate(
-        {
-          business: business._id,
-          dedupeKey: `voice_failure:${session._id}`,
-        },
+        { business: business._id, dedupeKey: `voice_failure:${session._id}` },
         {
           $setOnInsert: {
             business: business._id,
@@ -388,36 +542,39 @@ class VoiceSessionService {
             channel: "in_app",
             title: "Voice AI session failed",
             message: suppressionReason
-              ? `The voice session failed. CallBackIQ preserved the transcript, but SMS fallback was suppressed: ${suppressionReason}`
-              : "The voice session failed. CallBackIQ preserved the transcript and attempted the missed-call SMS fallback.",
+              ? `The voice session failed. The transcript was preserved, but SMS fallback was suppressed: ${suppressionReason}`
+              : "The voice session failed. The transcript was preserved and the missed-call SMS fallback was attempted.",
             status: "pending",
             priority: "high",
             actionRequired: true,
-            reason: String(failureReason || "Voice AI unavailable").slice(
-              0,
-              1000,
-            ),
+            reason: String(failureReason || "Voice AI unavailable").slice(0, 1000),
             recommendedAction:
-              "Review the partial transcript and contact the caller directly.",
+              "Review the partial transcript and contact the caller directly. For anonymous callers, review the call path because no callback number may be available.",
             lastCustomerMessage:
               session.transcript
                 ?.filter((entry) => entry.role === "customer")
                 .at(-1)?.text || "",
             dedupeKey: `voice_failure:${session._id}`,
-            metadata: { voiceSessionId: session._id },
+            metadata: {
+              voiceSessionId: session._id,
+              providerCallSid: session.providerCallSid,
+              fallbackSmsStatus: providerMessageId
+                ? "sent"
+                : suppressionReason
+                  ? "suppressed"
+                  : "failed",
+            },
           },
         },
         { upsert: true, returnDocument: "after" },
       );
-      if (failureAlert) {
-        emit("emitAlertCreated", business._id, failureAlert);
-      }
+      if (failureAlert) emit("emitAlertCreated", business._id, failureAlert);
     }
 
-    await VoiceTranscriptService.finalize(session._id);
     emit("emitDashboardRefresh", business._id, "voice_session_failed");
-    return populateSession(VoiceSession.findById(session._id));
+    return populateSession(VoiceSession.findById(sessionId));
   }
 }
 
+export { TERMINAL_STATUSES, TRANSITIONS };
 export default VoiceSessionService;

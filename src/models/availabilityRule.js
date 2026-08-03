@@ -1,21 +1,51 @@
 import mongoose from "mongoose";
 
 const { Schema } = mongoose;
+const START_TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
+const END_TIME_PATTERN = /^(?:([01]\d|2[0-3]):([0-5]\d)|24:00)$/;
 
-const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
+const toMinutes = (value) => {
+  if (value === "24:00") return 1440;
+  const [hours, minutes] = String(value || "").split(":").map(Number);
+  return Number.isFinite(hours) && Number.isFinite(minutes)
+    ? hours * 60 + minutes
+    : null;
+};
+
+const windowSegments = (window) => {
+  if (window?.allDay) return [[0, 1440]];
+  const start = toMinutes(window?.startTime);
+  const end = toMinutes(window?.endTime);
+  if (start == null || end == null || start === end) return [];
+  return end > start ? [[start, end]] : [[start, 1440], [0, end]];
+};
+
+const overlaps = (left, right) =>
+  windowSegments(left).some(([leftStart, leftEnd]) =>
+    windowSegments(right).some(
+      ([rightStart, rightEnd]) => leftStart < rightEnd && rightStart < leftEnd,
+    ),
+  );
 
 const TimeWindowSchema = new Schema(
   {
     startTime: {
       type: String,
-      required: true,
-      match: TIME_PATTERN,
+      required() {
+        return this.allDay !== true;
+      },
+      default: "00:00",
+      match: START_TIME_PATTERN,
     },
     endTime: {
       type: String,
-      required: true,
-      match: TIME_PATTERN,
+      required() {
+        return this.allDay !== true;
+      },
+      default: "24:00",
+      match: END_TIME_PATTERN,
     },
+    allDay: { type: Boolean, default: false },
   },
   { _id: false },
 );
@@ -28,58 +58,40 @@ const AvailabilityRuleSchema = new Schema(
       required: true,
       index: true,
     },
-    dayOfWeek: {
-      type: Number,
-      required: true,
-      min: 0,
-      max: 6,
-    },
-    enabled: {
-      type: Boolean,
-      default: false,
-    },
-    windows: {
-      type: [TimeWindowSchema],
-      default: [],
-    },
-    timezone: {
-      type: String,
-      default: "America/New_York",
-      trim: true,
-    },
-    capacity: {
-      type: Number,
-      min: 1,
-      max: 100,
-      default: 1,
-    },
+    dayOfWeek: { type: Number, required: true, min: 0, max: 6 },
+    enabled: { type: Boolean, default: false },
+    windows: { type: [TimeWindowSchema], default: [] },
+    timezone: { type: String, default: "America/New_York", trim: true },
+    capacity: { type: Number, min: 1, max: 100, default: 1 },
   },
   { timestamps: true },
 );
 
 AvailabilityRuleSchema.pre("validate", function validateWindows() {
-  const sorted = [...(this.windows || [])].sort((a, b) =>
-    a.startTime.localeCompare(b.startTime),
-  );
+  const windows = [...(this.windows || [])];
 
-  for (let index = 0; index < sorted.length; index += 1) {
-    const window = sorted[index];
-
-    if (window.startTime >= window.endTime) {
+  for (let index = 0; index < windows.length; index += 1) {
+    const window = windows[index];
+    if (!window?.allDay && toMinutes(window.startTime) === toMinutes(window.endTime)) {
       this.invalidate(
         "windows",
-        "Availability window startTime must be before endTime",
+        "Use allDay for a 24-hour window; startTime and endTime cannot be equal.",
       );
       return;
     }
-
-    if (index > 0 && sorted[index - 1].endTime > window.startTime) {
-      this.invalidate("windows", "Availability windows cannot overlap");
-      return;
+    for (let otherIndex = index + 1; otherIndex < windows.length; otherIndex += 1) {
+      if (overlaps(window, windows[otherIndex])) {
+        this.invalidate("windows", "Availability windows cannot overlap.");
+        return;
+      }
     }
   }
 
-  this.windows = sorted;
+  this.windows = windows.sort((left, right) => {
+    if (left.allDay) return -1;
+    if (right.allDay) return 1;
+    return String(left.startTime).localeCompare(String(right.startTime));
+  });
 });
 
 AvailabilityRuleSchema.index(

@@ -1,11 +1,37 @@
+import mongoose from "mongoose";
+
 import Alert from "../models/alert.js";
 import Message from "../models/message.js";
+import VoiceSession from "../models/voiceSession.js";
 import {
   logOperationalError,
   logOperationalWarning,
 } from "../helpers/logging/safeLogger.js";
+import validateServiceAreaTool from "../helpers/ai/tools/validateServiceArea.tool.js";
 import SocketService from "../services/socket.service.js";
 import { sendSms } from "../services/twilioSmsService.js";
+import VoiceAvailabilityService from "./voiceAvailability.service.js";
+import {
+  cleanVoiceText,
+  extractCallbackDetails,
+  extractPhoneNumber,
+  isBusinessHoursQuestion,
+  isCancelIntent,
+  isNo,
+  isRepeatIntent,
+  isServiceAreaQuestion,
+  isSkipIntent,
+  isYes,
+  normalizeUrgency,
+  parseCorrection,
+  toSpokenReply,
+} from "./voiceInput.service.js";
+import VoiceLineTypeService from "./voiceLineType.service.js";
+import {
+  isUsableCallerId,
+  normalizePhoneToE164,
+  speakDigits,
+} from "./voicePhone.service.js";
 
 const DEFAULT_REQUIRED_FIELDS = Object.freeze([
   "service",
@@ -14,17 +40,28 @@ const DEFAULT_REQUIRED_FIELDS = Object.freeze([
   "urgency",
   "preference",
 ]);
+const ALL_FIELDS = Object.freeze([...DEFAULT_REQUIRED_FIELDS, "phone"]);
 const ACTIVE_STATUSES = new Set([
+  "started",
   "collecting_service",
   "collecting_name",
   "collecting_location",
   "collecting_urgency",
   "collecting_preference",
+  "collecting_phone",
+  "awaiting_confirmation",
+  "awaiting_correction",
 ]);
-const SKIP_PATTERN = /^(skip|unknown|not sure|i don't know|none|not provided)$/i;
-const PLACEHOLDER_SERVICE = /^(unknown|voice inquiry|service request)$/i;
-const PLACEHOLDER_NAME = /^(voice caller|customer|caller)$/i;
-
+const PLACEHOLDER_SERVICE = /^(?:unknown|voice inquiry|service request)$/i;
+const PLACEHOLDER_NAME = /^(?:voice caller|anonymous voice caller|customer|caller)$/i;
+const FIELD_LABELS = Object.freeze({
+  service: "service or problem",
+  name: "name",
+  location: "service location",
+  urgency: "urgency",
+  preference: "preferred day or time",
+  phone: "callback number",
+});
 const PROMPTS = Object.freeze({
   service:
     "What service or problem should the team help you with? You can describe it in a few words.",
@@ -35,20 +72,33 @@ const PROMPTS = Object.freeze({
     "How urgent is this: today, soon, or flexible? Do not wait for a callback if anyone is in immediate danger.",
   preference:
     "What day or time would you prefer the team to contact you or schedule the visit?",
+  phone:
+    "Your caller ID is blocked or unavailable. Please say the ten-digit phone number the team should call back.",
 });
 
 const normalizeId = (value) => value?._id || value?.id || value || null;
-const clean = (value, max = 1000) =>
-  String(value || "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, max);
-const appendText = (existing, value, max) =>
-  [clean(existing, max), clean(value, max)]
+const clean = (value, maximum = 1000) => cleanVoiceText(value, maximum);
+const appendText = (existing, value, maximum) =>
+  [clean(existing, maximum), clean(value, maximum)]
     .filter(Boolean)
     .join("\n")
-    .slice(0, max);
-
+    .slice(0, maximum);
+const latestCustomerMessage = (session) =>
+  session?.transcript
+    ?.filter((entry) => entry.role === "customer")
+    .at(-1)?.text || "";
+const endPacket = (reasonCode, reason) => ({
+  type: "end",
+  handoffData: JSON.stringify({
+    reasonCode,
+    reason,
+    callbackCaptured: reasonCode === "callback-captured",
+  }),
+});
+const dueAtForPriority = (priority) => {
+  const minutes = priority === "critical" ? 5 : priority === "high" ? 30 : 120;
+  return new Date(Date.now() + minutes * 60 * 1000);
+};
 const emit = (method, ...args) => {
   try {
     if (typeof SocketService?.[method] === "function") {
@@ -62,47 +112,15 @@ const emit = (method, ...args) => {
   }
 };
 
-const latestCustomerMessage = (session) =>
-  session?.transcript
-    ?.filter((entry) => entry.role === "customer")
-    .at(-1)?.text || "";
-
-const endPacket = (reasonCode, reason) => ({
-  type: "end",
-  handoffData: JSON.stringify({
-    reasonCode,
-    reason,
-    callbackCaptured: reasonCode === "callback-captured",
-  }),
-});
-
-const dueAtForPriority = (priority) => {
-  const minutes =
-    priority === "critical" ? 5 : priority === "high" ? 30 : 120;
-  return new Date(Date.now() + minutes * 60 * 1000);
-};
-
-const normalizeUrgency = (value) => {
-  const text = clean(value, 200).toLowerCase();
-  if (/\b(emergency|immediate|right now|danger|unsafe)\b/.test(text)) {
-    return "emergency";
-  }
-  if (/\b(today|urgent|as soon as possible|asap|high)\b/.test(text)) {
-    return "high";
-  }
-  if (/\b(flexible|whenever|not urgent|low)\b/.test(text)) {
-    return "low";
-  }
-  return "medium";
-};
-
 const normalizeName = (value) =>
   clean(value, 120)
-    .replace(/^(my name is|this is|i am|i'm)\s+/i, "")
+    .replace(/^(?:my name is|this is|i am|i'm)\s+/i, "")
     .trim();
-
-const fallbackValue = (value) =>
-  SKIP_PATTERN.test(clean(value, 100)) ? "Not provided" : clean(value, 500);
+const skippedValue = (value) => /^(?:not provided|skipped)$/i.test(clean(value, 100));
+const callerPhone = (session) =>
+  normalizePhoneToE164(
+    session?.metadata?.callbackCapture?.phone || session?.from || session?.lead?.phone,
+  );
 
 const createState = ({
   session,
@@ -117,6 +135,16 @@ const createState = ({
   const lead = session?.lead;
   const existingService = clean(lead?.serviceNeeded, 200);
   const existingName = clean(lead?.customerName, 120);
+  const phone = normalizePhoneToE164(seed?.phone || session?.from || lead?.phone);
+  const callerIdUsable = Boolean(
+    session?.metadata?.callerIdUsable ?? isUsableCallerId(session?.from),
+  );
+  const requestedFields = Array.isArray(requiredFields)
+    ? requiredFields.filter((field) => ALL_FIELDS.includes(field))
+    : [...DEFAULT_REQUIRED_FIELDS];
+  if (!callerIdUsable && !requestedFields.includes("phone")) {
+    requestedFields.push("phone");
+  }
   const state = {
     status: "started",
     currentField: "",
@@ -125,9 +153,7 @@ const createState = ({
     priority: ["low", "medium", "high", "critical"].includes(priority)
       ? priority
       : "high",
-    requiredFields: Array.isArray(requiredFields)
-      ? requiredFields.filter((field) => DEFAULT_REQUIRED_FIELDS.includes(field))
-      : [...DEFAULT_REQUIRED_FIELDS],
+    requiredFields: requestedFields,
     serviceNeeded:
       clean(seed?.serviceNeeded, 200) ||
       (!PLACEHOLDER_SERVICE.test(existingService) ? existingService : ""),
@@ -141,16 +167,20 @@ const createState = ({
       seed?.preferredTime || lead?.preferredAppointmentTime,
       500,
     ),
+    phone: callerIdUsable ? phone : clean(seed?.phone, 30),
+    callerIdUsable,
+    retryCounts: {},
+    skippedFields: [],
+    lastPrompt: "",
     requestedAt: new Date().toISOString(),
     completedAt: null,
+    canceledAt: null,
     confirmationSmsStatus: "pending",
     confirmationSmsProviderMessageId: "",
   };
-
   if (!state.serviceNeeded && seedServiceFromMessage) {
     state.serviceNeeded = clean(customerMessage, 200);
   }
-
   return state;
 };
 
@@ -160,108 +190,188 @@ const stateValue = (state, field) => {
   if (field === "location") return state.location;
   if (field === "urgency") return state.urgency;
   if (field === "preference") return state.preferredTime;
+  if (field === "phone") return state.phone;
   return "";
 };
-
+const setStateValue = (state, field, value) => {
+  const normalized = clean(value, 500);
+  if (field === "service") state.serviceNeeded = normalized.slice(0, 200);
+  if (field === "name") state.customerName = normalizeName(normalized).slice(0, 120);
+  if (field === "location") state.location = normalized.slice(0, 500);
+  if (field === "urgency") {
+    state.urgency = normalizeUrgency(normalized);
+    state.urgencyDetail = normalized.slice(0, 200);
+  }
+  if (field === "preference") state.preferredTime = normalized.slice(0, 500);
+  if (field === "phone") state.phone = extractPhoneNumber(normalized);
+};
 const nextMissingField = (state) =>
   state.requiredFields.find((field) => !stateValue(state, field)) || null;
 
-const captureField = (state, field, customerMessage) => {
-  const value = clean(customerMessage, 500);
-  if (!value) return state;
+const applyExtractedDetails = (state, details, { forceField = "" } = {}) => {
+  const mapping = {
+    service: "serviceNeeded",
+    name: "customerName",
+    location: "location",
+    urgency: "urgency",
+    urgencyDetail: "urgencyDetail",
+    preference: "preferredTime",
+    phone: "phone",
+  };
+  for (const [source, target] of Object.entries(mapping)) {
+    const value = details?.[source];
+    if (!value) continue;
+    if (forceField && source !== forceField) continue;
+    if (!forceField && state[target]) continue;
+    if (source === "name") state[target] = normalizeName(value).slice(0, 120);
+    else if (source === "phone") state[target] = normalizePhoneToE164(value);
+    else state[target] = clean(value, target === "serviceNeeded" ? 200 : 500);
+  }
+};
 
-  if (field === "service") {
-    state.serviceNeeded = fallbackValue(value).slice(0, 200);
-  } else if (field === "name") {
-    state.customerName = fallbackValue(normalizeName(value)).slice(0, 120);
-  } else if (field === "location") {
-    state.location = fallbackValue(value).slice(0, 500);
-  } else if (field === "urgency") {
-    state.urgency = normalizeUrgency(value);
-    state.urgencyDetail = fallbackValue(value).slice(0, 200);
-  } else if (field === "preference") {
-    state.preferredTime = fallbackValue(value).slice(0, 500);
+const validFieldValue = (state, field) => {
+  const value = stateValue(state, field);
+  if (!value) return false;
+  if (skippedValue(value)) return field !== "phone";
+  if (field === "phone") return isUsableCallerId(value);
+  if (field === "name") return value.length >= 2 && value.length <= 120;
+  if (field === "location") return value.length >= 5;
+  if (field === "service") return value.length >= 3;
+  return true;
+};
+
+const markSkipped = (state, field) => {
+  if (!state.skippedFields.includes(field)) state.skippedFields.push(field);
+  setStateValue(state, field, "Not provided");
+};
+
+const setLocalPath = (target, path, value) => {
+  const parts = String(path || "").split(".").filter(Boolean);
+  if (!target || parts.length === 0) return;
+  let cursor = target;
+  for (let index = 0; index < parts.length - 1; index += 1) {
+    const key = parts[index];
+    const existing = cursor[key];
+    if (!existing || typeof existing !== "object" || Array.isArray(existing)) {
+      cursor[key] = {};
+    }
+    cursor = cursor[key];
+  }
+  cursor[parts.at(-1)] = value;
+};
+
+const persistSessionSet = async (session, set = {}) => {
+  if (!session) return null;
+
+  for (const [path, value] of Object.entries(set)) {
+    setLocalPath(session, path, value);
   }
 
-  return state;
+  // Production voice-session documents always use ObjectIds. Several established
+  // unit and completion suites intentionally use lightweight string IDs and mocked
+  // documents. Persist those through the supplied document's save method instead
+  // of sending an invalid ID through Mongoose's ObjectId caster.
+  if (session._id && mongoose.isValidObjectId(session._id)) {
+    return VoiceSession.findByIdAndUpdate(
+      session._id,
+      { $set: set },
+      { returnDocument: "after" },
+    );
+  }
+
+  if (typeof session.save === "function") {
+    await session.save();
+  }
+  return session;
 };
 
-const saveState = async (session, state) => {
-  session.metadata = {
-    ...(session.metadata || {}),
-    callbackCapture: state,
-  };
+const saveState = async (session, state, status = "capturing_callback") => {
+  const persistedStatus = ["completed", "canceled"].includes(state.status)
+    ? status
+    : "capturing_callback";
+  session.metadata = { ...(session.metadata || {}), callbackCapture: state };
   session.lastActivityAt = new Date();
-  await session.save();
+  if (!["completed", "failed", "canceled"].includes(session.status)) {
+    session.status = persistedStatus;
+  }
+  await persistSessionSet(session, {
+    "metadata.callbackCapture": state,
+    lastActivityAt: session.lastActivityAt,
+    status: session.status,
+  });
 };
 
-const updateLead = async ({ session, state }) => {
+const updateLead = async ({ session, state, canceled = false }) => {
   const lead = session?.lead;
   if (!lead || typeof lead.save !== "function") return;
-
-  if (state.customerName && state.customerName !== "Not provided") {
+  if (state.customerName && !skippedValue(state.customerName)) {
     lead.customerName = state.customerName;
   }
-  if (state.serviceNeeded && state.serviceNeeded !== "Not provided") {
+  if (state.serviceNeeded && !skippedValue(state.serviceNeeded)) {
     lead.serviceNeeded = state.serviceNeeded;
   }
-  if (state.location && state.location !== "Not provided") {
-    lead.address = state.location;
-  }
-  if (state.preferredTime && state.preferredTime !== "Not provided") {
+  if (state.location && !skippedValue(state.location)) lead.address = state.location;
+  if (state.preferredTime && !skippedValue(state.preferredTime)) {
     lead.preferredAppointmentTime = state.preferredTime;
   }
-  if (state.urgency) {
-    lead.urgency = state.urgency;
-  }
+  if (state.phone && isUsableCallerId(state.phone)) lead.phone = state.phone;
+  if (state.urgency) lead.urgency = state.urgency;
   lead.status = lead.status || "new";
   lead.firstRespondedAt = lead.firstRespondedAt || new Date();
-  lead.summary = clean(
-    `Voice callback requested. Service: ${state.serviceNeeded || "Not provided"}. Location: ${state.location || "Not provided"}. Urgency: ${state.urgencyDetail || state.urgency || "Not provided"}. Preferred time: ${state.preferredTime || "Not provided"}.`,
-    1000,
-  );
+  if (!canceled) {
+    lead.summary = clean(
+      `Voice callback requested. Service: ${state.serviceNeeded || "Not provided"}. Location: ${state.location || "Not provided"}. Urgency: ${state.urgencyDetail || state.urgency || "Not provided"}. Preferred time: ${state.preferredTime || "Not provided"}.`,
+      1000,
+    );
+  }
   lead.notes = appendText(
     lead.notes,
-    `CallBackIQ voice callback capture (${state.reason}) completed at ${new Date().toISOString()}.`,
+    canceled
+      ? `CallBackIQ voice callback capture (${state.reason}) was canceled by the caller at ${new Date().toISOString()}. Partial details were retained.`
+      : `CallBackIQ voice callback capture (${state.reason}) was confirmed at ${new Date().toISOString()}.`,
     2000,
   );
   await lead.save();
-  emit("emitLeadUpdated", session.business?._id || session.business, lead);
+  emit("emitLeadUpdated", normalizeId(session.business), lead);
 };
 
-const updateConversation = async ({ session, state }) => {
+const updateConversation = async ({ session, state, canceled = false }) => {
   const conversation = session?.conversation;
   if (!conversation || typeof conversation.save !== "function") return;
+  if (state.phone && isUsableCallerId(state.phone)) {
+    conversation.customerPhone = state.phone;
+  }
+  if (state.customerName && !skippedValue(state.customerName)) {
+    conversation.customerName = state.customerName;
+  }
+  conversation.humanTakeover = !canceled;
+  if (!canceled) {
+    conversation.aiEnabled = false;
 
-  conversation.customerName =
-    state.customerName && state.customerName !== "Not provided"
-      ? state.customerName
-      : conversation.customerName;
-  conversation.humanTakeover = true;
-  conversation.aiEnabled = false;
-  conversation.bookingState = {
-    ...(conversation.bookingState?.toObject?.() || conversation.bookingState || {}),
-    status: "human_takeover",
-    lastError: `Callback requested: ${state.reason}`.slice(0, 500),
-  };
-  conversation.lastMessage = `Callback requested for ${state.serviceNeeded || "customer inquiry"}.`;
+    if (typeof conversation.set === "function") {
+      conversation.set("bookingState.status", "human_takeover");
+    } else {
+      conversation.bookingState = {
+        ...(conversation.bookingState || {}),
+        status: "human_takeover",
+      };
+    }
+  }
+  conversation.lastMessage = canceled
+    ? "Caller canceled voice callback capture. Partial details were preserved."
+    : "CallBackIQ captured and confirmed a voice callback request.";
   conversation.lastMessageAt = new Date();
   await conversation.save();
-  emit(
-    "emitConversationUpdated",
-    session.business?._id || session.business,
-    conversation,
-  );
+  emit("emitConversationUpdated", normalizeId(session.business), conversation);
 };
 
-const createCallbackAlert = async ({ session, state }) => {
+const createCallbackAlert = async ({ session, state, canceled = false }) => {
   const businessId = normalizeId(session.business);
   const leadId = normalizeId(session.lead);
   const conversationId = normalizeId(session.conversation);
-  const dedupeKey = `voice_callback:${normalizeId(session)}:${state.reason}`.slice(
-    0,
-    200,
-  );
+  const suffix = canceled ? "canceled" : state.reason;
+  const dedupeKey = `voice_callback:${normalizeId(session)}:${suffix}`.slice(0, 200);
+  const priority = canceled ? "low" : state.priority;
   const alert = await Alert.findOneAndUpdate(
     { business: businessId, dedupeKey },
     {
@@ -271,25 +381,30 @@ const createCallbackAlert = async ({ session, state }) => {
         conversation: conversationId,
         type: state.alertType,
         channel: "in_app",
-        title:
-          state.priority === "critical"
+        title: canceled
+          ? "Voice callback capture canceled"
+          : priority === "critical"
             ? "Urgent voice safety escalation"
             : "Customer callback requested",
-        message:
-          state.priority === "critical"
-            ? "A caller reported a potential emergency or safety risk. Review immediately, but the caller was told not to wait for a callback or to use CallBackIQ instead of emergency services."
+        message: canceled
+          ? "The caller canceled before submitting the callback request. Partial details were retained for review."
+          : priority === "critical"
+            ? "A caller reported a potential emergency or safety risk. Review immediately, but the caller was told not to wait for a callback or use CallBackIQ instead of emergency services."
             : `CallBackIQ captured a callback request for ${state.serviceNeeded || "a customer inquiry"}.`,
         status: "pending",
-        priority: state.priority,
-        actionRequired: true,
-        dueAt: dueAtForPriority(state.priority),
-        reason: state.reason,
-        recommendedAction:
-          state.priority === "critical"
-            ? "Review the transcript immediately. Contact the caller only when safe and appropriate; emergency services remain the caller's first action."
-            : "Review the captured details and contact the caller at the number on the lead.",
+        priority,
+        actionRequired: !canceled,
+        dueAt: canceled ? null : dueAtForPriority(priority),
+        reason: canceled ? "caller_canceled_callback_capture" : state.reason,
+        recommendedAction: canceled
+          ? "Review only if the partial transcript indicates follow-up is appropriate."
+          : priority === "critical"
+            ? "Review the transcript immediately. Emergency services remain the caller's first action."
+            : state.phone && isUsableCallerId(state.phone)
+              ? "Review the captured details and contact the caller at the confirmed number."
+              : "Review the captured details. No usable callback number was confirmed.",
         aiSummary: clean(
-          `Service: ${state.serviceNeeded || "Not provided"}; name: ${state.customerName || "Not provided"}; location: ${state.location || "Not provided"}; urgency: ${state.urgencyDetail || state.urgency || "Not provided"}; preferred time: ${state.preferredTime || "Not provided"}.`,
+          `Service: ${state.serviceNeeded || "Not provided"}; name: ${state.customerName || "Not provided"}; location: ${state.location || "Not provided"}; urgency: ${state.urgencyDetail || state.urgency || "Not provided"}; preferred time: ${state.preferredTime || "Not provided"}; callback number: ${state.phone && isUsableCallerId(state.phone) ? "confirmed" : "not available"}.`,
           2000,
         ),
         lastCustomerMessage: clean(latestCustomerMessage(session), 1600),
@@ -298,6 +413,7 @@ const createCallbackAlert = async ({ session, state }) => {
           source: "voice_callback_capture",
           voiceSessionId: normalizeId(session),
           providerCallSid: session.providerCallSid || "",
+          callbackCanceled: canceled,
           callbackDetails: {
             serviceNeeded: state.serviceNeeded,
             customerName: state.customerName,
@@ -305,41 +421,58 @@ const createCallbackAlert = async ({ session, state }) => {
             urgency: state.urgency,
             urgencyDetail: state.urgencyDetail,
             preferredTime: state.preferredTime,
+            callbackPhoneConfirmed: Boolean(
+              state.phone && isUsableCallerId(state.phone),
+            ),
           },
         },
       },
     },
     { upsert: true, returnDocument: "after" },
   );
-
-  if (alert) {
-    emit("emitAlertCreated", businessId, alert);
-  }
+  if (alert) emit("emitAlertCreated", businessId, alert);
   return alert;
 };
 
 const callbackConfirmationBody = ({ business, state }) => {
   const businessName = clean(business?.businessName, 120) || "the business";
   const service =
-    state.serviceNeeded && state.serviceNeeded !== "Not provided"
+    state.serviceNeeded && !skippedValue(state.serviceNeeded)
       ? ` about ${state.serviceNeeded}`
       : "";
   const preference =
-    state.preferredTime && state.preferredTime !== "Not provided"
+    state.preferredTime && !skippedValue(state.preferredTime)
       ? ` Your preferred timing is ${state.preferredTime}.`
       : "";
   return clean(
-    `Hi${state.customerName && state.customerName !== "Not provided" ? ` ${state.customerName}` : ""}, this is ${businessName}. CallBackIQ received your callback request${service}.${preference} The team will follow up at this number. Reply STOP to opt out.`,
+    `Hi${state.customerName && !skippedValue(state.customerName) ? ` ${state.customerName}` : ""}, this is ${businessName}. CallBackIQ received your callback request${service}.${preference} The team will follow up at the confirmed number. Reply STOP to opt out.`,
     1600,
   );
+};
+
+const persistConfirmationState = async (session, state) => {
+  const confirmationSet = {
+    confirmationSmsStatus: state.confirmationSmsStatus,
+    confirmationSmsProviderMessageId:
+      state.confirmationSmsProviderMessageId || "",
+    ...(state.confirmationSmsStatus === "sent"
+      ? { confirmationSmsSentAt: new Date() }
+      : {}),
+    "metadata.callbackCapture": state,
+    lastActivityAt: new Date(),
+  };
+  await persistSessionSet(session, confirmationSet);
+  session.confirmationSmsStatus = state.confirmationSmsStatus;
+  session.confirmationSmsProviderMessageId =
+    state.confirmationSmsProviderMessageId || "";
 };
 
 const sendCallbackConfirmation = async ({ session, state }) => {
   const business = session.business;
   const lead = session.lead;
   const conversation = session.conversation;
-  const from = session.to || business?.phone;
-  const to = session.from || lead?.phone;
+  const from = normalizePhoneToE164(session.to || business?.phone);
+  const to = normalizePhoneToE164(state.phone || session.from || lead?.phone);
 
   if (["sent", "sending", "suppressed"].includes(session.confirmationSmsStatus)) {
     state.confirmationSmsStatus = session.confirmationSmsStatus;
@@ -347,19 +480,29 @@ const sendCallbackConfirmation = async ({ session, state }) => {
       session.confirmationSmsProviderMessageId || "";
     return;
   }
-
-  if (business?.features?.missedCallSmsEnabled === false || !from || !to) {
-    session.confirmationSmsStatus = "suppressed";
+  if (
+    business?.features?.missedCallSmsEnabled === false ||
+    !from ||
+    !isUsableCallerId(to)
+  ) {
     state.confirmationSmsStatus = "suppressed";
-    await saveState(session, state);
+    await persistConfirmationState(session, state);
+    return;
+  }
+
+  const line = await VoiceLineTypeService.lookup(to);
+  state.lineType = line.lineType;
+  state.lineTypeSource = line.source;
+  if (line.landline) {
+    state.confirmationSmsStatus = "suppressed";
+    state.confirmationSmsSuppressionReason = `line_type:${line.lineType}`;
+    await persistConfirmationState(session, state);
     return;
   }
 
   const body = callbackConfirmationBody({ business, state });
-  session.confirmationSmsStatus = "sending";
   state.confirmationSmsStatus = "sending";
-  await saveState(session, state);
-
+  await persistConfirmationState(session, state);
   try {
     const sent = await sendSms({
       business,
@@ -377,23 +520,17 @@ const sendCallbackConfirmation = async ({ session, state }) => {
         callbackReason: state.reason,
       },
     });
-
     if (sent?.suppressed) {
-      session.confirmationSmsStatus = "suppressed";
       state.confirmationSmsStatus = "suppressed";
-      await saveState(session, state);
+      state.confirmationSmsSuppressionReason = sent.reason || "sms_policy";
+      await persistConfirmationState(session, state);
       return;
     }
 
     const providerMessageId = sent?.sid || "";
-    // Persist provider acceptance before local transcript logging. A database
-    // logging failure must never turn an accepted SMS into a retryable state.
-    session.confirmationSmsStatus = "sent";
-    session.confirmationSmsSentAt = new Date();
-    session.confirmationSmsProviderMessageId = providerMessageId;
     state.confirmationSmsStatus = "sent";
     state.confirmationSmsProviderMessageId = providerMessageId;
-    await saveState(session, state);
+    await persistConfirmationState(session, state);
 
     if (conversation) {
       try {
@@ -436,9 +573,8 @@ const sendCallbackConfirmation = async ({ session, state }) => {
       }
     }
   } catch (error) {
-    session.confirmationSmsStatus = "failed";
     state.confirmationSmsStatus = "failed";
-    await saveState(session, state);
+    await persistConfirmationState(session, state);
     logOperationalError("voice.callback_confirmation_sms_failed", error, {
       businessId: normalizeId(business),
       voiceSessionId: normalizeId(session),
@@ -447,23 +583,45 @@ const sendCallbackConfirmation = async ({ session, state }) => {
   }
 };
 
+const buildReadback = (state) => {
+  const details = [
+    `service: ${state.serviceNeeded || "not provided"}`,
+    `name: ${state.customerName || "not provided"}`,
+    `location: ${state.location || "not provided"}`,
+    `urgency: ${state.urgencyDetail || state.urgency || "not provided"}`,
+    `preferred timing: ${state.preferredTime || "not provided"}`,
+  ];
+  if (state.phone && isUsableCallerId(state.phone)) {
+    details.push(`callback number: ${speakDigits(state.phone)}`);
+  } else {
+    details.push("callback number: not available");
+  }
+  return toSpokenReply(
+    `Here is what I have. ${details.join("; ")}. Is that correct? Say yes, or tell me which detail to change.`,
+  );
+};
+
 const complete = async ({
   session,
   state,
   reply,
   sendConfirmationSms = true,
 }) => {
+  if (state.completedAt) {
+    return {
+      reply: reply || "Your callback request was already saved.",
+      handoff: endPacket("callback-captured", state.reason),
+      callbackCaptured: true,
+    };
+  }
+
   state.status = "completed";
   state.currentField = "";
   state.completedAt = new Date().toISOString();
-
   await updateLead({ session, state });
   await updateConversation({ session, state });
   await createCallbackAlert({ session, state });
-
-  if (sendConfirmationSms) {
-    await sendCallbackConfirmation({ session, state });
-  }
+  if (sendConfirmationSms) await sendCallbackConfirmation({ session, state });
 
   session.transferredToHuman = false;
   session.transferReason = `callback_captured:${state.reason}`.slice(0, 1000);
@@ -471,34 +629,148 @@ const complete = async ({
     `Callback captured. Service: ${state.serviceNeeded || "Not provided"}. Location: ${state.location || "Not provided"}. Urgency: ${state.urgencyDetail || state.urgency || "Not provided"}. Preferred time: ${state.preferredTime || "Not provided"}.`,
     4000,
   );
-  await saveState(session, state);
-  emit(
-    "emitDashboardRefresh",
-    normalizeId(session.business),
-    "voice_callback_captured",
-  );
+  session.status = state.priority === "critical" ? "safety_escalated" : "completing";
+  await saveState(session, state, session.status);
+  await persistSessionSet(session, {
+    transferredToHuman: false,
+    transferReason: session.transferReason,
+    summary: session.summary,
+    status: session.status,
+  });
+  emit("emitDashboardRefresh", normalizeId(session.business), "voice_callback_captured");
 
   const confirmationMessage =
     state.confirmationSmsStatus === "sent"
       ? " I also sent a confirmation text."
       : state.confirmationSmsStatus === "failed"
-        ? " The callback request was saved even though the confirmation text could not be sent."
-        : "";
-
+        ? " The request was saved even though the confirmation text could not be sent."
+        : state.confirmationSmsStatus === "suppressed" && state.lineType === "landline"
+          ? " This number appears to be a landline, so I did not promise a text confirmation."
+          : "";
+  const noPhone = !state.phone || !isUsableCallerId(state.phone);
   return {
     reply:
       reply ||
-      `Thank you. I created a priority callback request.${confirmationMessage} The team will follow up at this number.`,
+      (noPhone
+        ? "I saved the information for review, but I cannot promise a callback because no usable phone number was confirmed."
+        : `Thank you. I created a priority callback request.${confirmationMessage} The team will follow up at the confirmed number.`),
     handoff: endPacket("callback-captured", state.reason),
     callbackCaptured: true,
   };
 };
 
+const cancelCapture = async ({ session, state }) => {
+  state.status = "canceled";
+  state.currentField = "";
+  state.canceledAt = new Date().toISOString();
+  await updateLead({ session, state, canceled: true });
+  await updateConversation({ session, state, canceled: true });
+  await createCallbackAlert({ session, state, canceled: true });
+  session.status = "canceled";
+  await saveState(session, state, "canceled");
+  await persistSessionSet(session, {
+    status: "canceled",
+    endedAt: new Date(),
+  });
+  return {
+    reply:
+      "Understood. I canceled the callback request. I retained the partial call record for quality and safety review, but the team will not treat it as a submitted callback request.",
+    handoff: endPacket("callback-canceled", state.reason),
+    callbackCaptured: false,
+    callbackCanceled: true,
+  };
+};
+
+const applyCurrentField = (state, customerMessage) => {
+  const field = state.currentField;
+  if (!field) return { captured: false };
+  if (isSkipIntent(customerMessage) || /^(?:that(?:'s| is) all|nothing else)$/i.test(clean(customerMessage, 100))) {
+    if (field === "phone") return { captured: false, invalid: true };
+    markSkipped(state, field);
+    return { captured: true };
+  }
+
+  const details = extractCallbackDetails(customerMessage, { currentField: field });
+  applyExtractedDetails(state, details, { forceField: field });
+  if (field === "service" && !state.serviceNeeded) {
+    setStateValue(state, field, customerMessage);
+  } else if (field === "name" && !state.customerName) {
+    setStateValue(state, field, customerMessage);
+  } else if (field === "location" && !state.location) {
+    setStateValue(state, field, customerMessage);
+  } else if (field === "urgency" && !state.urgency) {
+    setStateValue(state, field, customerMessage);
+  } else if (field === "preference" && !state.preferredTime) {
+    setStateValue(state, field, customerMessage);
+  } else if (field === "phone" && !state.phone) {
+    setStateValue(state, field, customerMessage);
+  }
+  return validFieldValue(state, field)
+    ? { captured: true }
+    : { captured: false, invalid: true };
+};
+
+const correctionFromDeclaration = (value) => {
+  const text = clean(value, 600);
+  const match = text.match(
+    /^(?:(?:my|the)\s+)?(name|address|location|zip|phone|number|service|problem|urgency|time|day|preference)\s+(?:is|should be|was)\s+(.+)$/i,
+  );
+  if (!match) return null;
+  const aliases = {
+    address: "location",
+    zip: "location",
+    number: "phone",
+    problem: "service",
+    time: "preference",
+    day: "preference",
+  };
+  const rawField = match[1].toLowerCase();
+  return { field: aliases[rawField] || rawField, value: clean(match[2], 500) };
+};
+
+const applyCorrection = (state, correction) => {
+  if (!correction?.field || !ALL_FIELDS.includes(correction.field)) return false;
+  setStateValue(state, correction.field, correction.value);
+  return validFieldValue(state, correction.field);
+};
+
+const handleQuestionDetour = async ({ session, state, customerMessage }) => {
+  let answer = "";
+  if (isBusinessHoursQuestion(customerMessage)) {
+    answer = await VoiceAvailabilityService.describeBusinessHours(session.business);
+  } else if (isServiceAreaQuestion(customerMessage)) {
+    const postalCode = extractCallbackDetails(customerMessage).location;
+    if (/^\d{5}$/.test(postalCode || "")) {
+      const area = await validateServiceAreaTool({
+        businessId: normalizeId(session.business),
+        postalCode,
+      });
+      answer = area?.supported
+        ? `${postalCode} is inside the approved service area.`
+        : `${postalCode} is outside the approved automated service area, so the team will review it manually.`;
+    } else {
+      answer = "I can check the service area after you provide a five-digit ZIP code.";
+    }
+  }
+  if (!answer) return null;
+
+  const resumePrompt =
+    state.status === "awaiting_confirmation"
+      ? buildReadback(state)
+      : state.currentField
+        ? PROMPTS[state.currentField]
+        : "Let’s continue the callback request.";
+  state.lastPrompt = resumePrompt;
+  await saveState(session, state);
+  return {
+    reply: `${answer} Returning to the callback request: ${resumePrompt}`,
+    callbackCaptured: false,
+  };
+};
+
 class VoiceCallbackService {
   static isActive(session) {
-    return ACTIVE_STATUSES.has(
-      session?.metadata?.callbackCapture?.status || "",
-    );
+    return ACTIVE_STATUSES.has(session?.metadata?.callbackCapture?.status || "");
   }
 
   static async handle({
@@ -521,9 +793,14 @@ class VoiceCallbackService {
       );
     }
 
+    const text = clean(customerMessage, 1200);
     const active = this.isActive(session);
     const state = active
-      ? { ...session.metadata.callbackCapture }
+      ? {
+          ...session.metadata.callbackCapture,
+          retryCounts: { ...(session.metadata.callbackCapture.retryCounts || {}) },
+          skippedFields: [...(session.metadata.callbackCapture.skippedFields || [])],
+        }
       : createState({
           session,
           reason,
@@ -531,13 +808,9 @@ class VoiceCallbackService {
           priority,
           requiredFields,
           seed,
-          customerMessage,
+          customerMessage: text,
           seedServiceFromMessage,
         });
-
-    if (active && state.currentField) {
-      captureField(state, state.currentField, customerMessage);
-    }
 
     if (immediate) {
       return complete({
@@ -547,26 +820,116 @@ class VoiceCallbackService {
         sendConfirmationSms,
       });
     }
+    if (isCancelIntent(text)) return cancelCapture({ session, state });
+    if (isRepeatIntent(text)) {
+      const prompt = state.lastPrompt || PROMPTS[state.currentField] || buildReadback(state);
+      return { reply: `Of course. ${prompt}`, callbackCaptured: false };
+    }
+
+    const detour = await handleQuestionDetour({
+      session,
+      state,
+      customerMessage: text,
+    });
+    if (detour) return detour;
+
+    if (state.status === "awaiting_confirmation") {
+      if (isYes(text)) {
+        return complete({
+          session,
+          state,
+          reply: completionReply,
+          sendConfirmationSms,
+        });
+      }
+      const correction = parseCorrection(text) || correctionFromDeclaration(text);
+      if (correction && applyCorrection(state, correction)) {
+        state.status = "awaiting_confirmation";
+        state.currentField = "";
+        state.lastPrompt = buildReadback(state);
+        await saveState(session, state);
+        return { reply: state.lastPrompt, callbackCaptured: false };
+      }
+      if (isNo(text)) {
+        state.status = "awaiting_correction";
+        state.lastPrompt =
+          "Which detail should I change: the service, name, location, urgency, preferred time, or callback number?";
+        await saveState(session, state);
+        return { reply: state.lastPrompt, callbackCaptured: false };
+      }
+      state.retryCounts.confirmation = (state.retryCounts.confirmation || 0) + 1;
+      if (state.retryCounts.confirmation >= 3) {
+        state.status = "awaiting_correction";
+        state.lastPrompt =
+          "I did not hear a clear confirmation. Tell me one detail to change, or say yes if everything is correct.";
+      } else {
+        state.lastPrompt =
+          "Please say yes if the details are correct, or tell me which detail to change.";
+      }
+      await saveState(session, state);
+      return { reply: state.lastPrompt, callbackCaptured: false };
+    }
+
+    if (state.status === "awaiting_correction") {
+      const correction = parseCorrection(text) || correctionFromDeclaration(text);
+      if (!correction || !applyCorrection(state, correction)) {
+        state.retryCounts.correction = (state.retryCounts.correction || 0) + 1;
+        state.lastPrompt =
+          "Please say the detail and its correction, for example, ‘my ZIP is three zero three zero three.’";
+        await saveState(session, state);
+        return { reply: state.lastPrompt, callbackCaptured: false };
+      }
+      state.status = "awaiting_confirmation";
+      state.currentField = "";
+      state.lastPrompt = buildReadback(state);
+      await saveState(session, state);
+      return { reply: state.lastPrompt, callbackCaptured: false };
+    }
+
+    if (active && state.currentField && text) {
+      const result = applyCurrentField(state, text);
+      if (result.invalid) {
+        const field = state.currentField;
+        state.retryCounts[field] = (state.retryCounts[field] || 0) + 1;
+        if (state.retryCounts[field] >= 2) {
+          if (field === "phone") {
+            state.phone = "Not provided";
+            state.skippedFields.push("phone");
+          } else {
+            markSkipped(state, field);
+          }
+        } else {
+          state.lastPrompt =
+            field === "phone"
+              ? "I could not confirm that phone number. Please say all ten digits, one digit at a time."
+              : `I did not catch the ${FIELD_LABELS[field]}. ${PROMPTS[field]}`;
+          await saveState(session, state);
+          return { reply: state.lastPrompt, callbackCaptured: false };
+        }
+      }
+    } else if (!active && text) {
+      applyExtractedDetails(
+        state,
+        extractCallbackDetails(text, { currentField: "service" }),
+      );
+    }
 
     const missing = nextMissingField(state);
     if (missing) {
       state.currentField = missing;
       state.status = `collecting_${missing}`;
+      state.lastPrompt = [clean(openingPrompt, 800), PROMPTS[missing]]
+        .filter(Boolean)
+        .join(" ");
       await saveState(session, state);
-      return {
-        reply: [clean(openingPrompt, 800), PROMPTS[missing]]
-          .filter(Boolean)
-          .join(" "),
-        callbackCaptured: false,
-      };
+      return { reply: state.lastPrompt, callbackCaptured: false };
     }
 
-    return complete({
-      session,
-      state,
-      reply: completionReply,
-      sendConfirmationSms,
-    });
+    state.currentField = "";
+    state.status = "awaiting_confirmation";
+    state.lastPrompt = buildReadback(state);
+    await saveState(session, state);
+    return { reply: state.lastPrompt, callbackCaptured: false };
   }
 }
 

@@ -41,12 +41,18 @@
     "ensure:phase0:indexes": "node scripts/ensure-phase0-provider-indexes.js",
     "verify:phase9:structure": "node scripts/verify-phase9-structure.js",
     "test:phase9": "jest tests/unit/conversationRelay.server.test.js tests/unit/sendConfirmationSms.tool.test.js tests/unit/voiceAgent.service.test.js tests/unit/voiceRouting.service.test.js tests/unit/voiceSession.model.test.js tests/unit/voiceSessionFallback.service.test.js tests/unit/voiceSettings.controller.test.js tests/unit/voiceWebhook.controller.test.js tests/unit/voiceBookingStateMachineReuse.test.js tests/unit/safetyAssessmentService.voiceCompatibility.test.js --runInBand",
-    "certify:phase9": "npm run verify:phase9:structure && npm run test:phase0-8:completion && npm run test:phase9 && npm run test:phase9:unit && npm run test:phase9:completion && npm run build",
+    "certify:phase9": "npm run verify:phase9:structure && npm run test:voice-hardening && npm run test:phase0-8:completion && npm run test:phase9 && npm run test:phase9:unit && npm run test:phase9:completion && npm run build",
     "test:phase9:unit": "jest tests/unit/conversationRelay.server.test.js tests/unit/createAppointment.tool.test.js tests/unit/voiceFailure.service.test.js tests/unit/voiceRouting.service.test.js tests/unit/voiceRoutingPolicy.service.test.js tests/unit/voiceSettings.controller.test.js tests/unit/voiceWebhook.controller.test.js --runInBand",
     "test:phase9:completion": "jest tests/completion/phase9.voice.completion.test.js --runInBand",
     "verify:phase9:live": "node scripts/verify-phase9-live.js",
     "migrate:phase9:disable-recording": "node --env-file=.env scripts/disable-legacy-voice-recording.js",
-    "test:communication-safety": "node scripts/verify-communication-safety-structure.js && jest --runInBand tests/unit/communicationSafety.aiCounter.test.js tests/unit/communicationSafety.smsPolicy.test.js tests/unit/communicationSafety.usageBudgets.test.js tests/unit/communicationSafety.rateLimit.test.js tests/unit/communicationSafety.voiceCapacity.test.js tests/unit/communicationSafety.voiceRelayLimits.test.js tests/unit/communicationSafety.safeLogger.test.js tests/unit/automation.service.test.js tests/routes/twilio.routes.test.js tests/routes/agent.routes.test.js tests/unit/conversationRelay.server.test.js"
+    "test:communication-safety": "node scripts/verify-communication-safety-structure.js && jest --runInBand tests/unit/communicationSafety.aiCounter.test.js tests/unit/communicationSafety.smsPolicy.test.js tests/unit/communicationSafety.usageBudgets.test.js tests/unit/communicationSafety.rateLimit.test.js tests/unit/communicationSafety.voiceCapacity.test.js tests/unit/communicationSafety.voiceRelayLimits.test.js tests/unit/communicationSafety.safeLogger.test.js tests/unit/automation.service.test.js tests/routes/twilio.routes.test.js tests/routes/agent.routes.test.js tests/unit/conversationRelay.server.test.js",
+    "test:voice-hardening": "node --test hardening-tests/*.test.mjs",
+    "voice:reap-stale": "node --env-file=.env scripts/reap-stale-voice-sessions.mjs",
+    "voice:redact-transcripts": "node --env-file=.env scripts/redact-expired-voice-transcripts.mjs",
+    "voice:sweep-capacity": "node --env-file=.env scripts/sweep-expired-voice-capacity.mjs",
+    "voice:migrate-phones": "node --env-file=.env scripts/normalize-business-phone-numbers.mjs",
+    "voice:migrate-phones:apply": "node --env-file=.env scripts/normalize-business-phone-numbers.mjs --apply"
   },
   "keywords": [],
   "author": "",
@@ -97,7 +103,12 @@
     "testPathIgnorePatterns": [
       "<rootDir>/tools/api_overlay/",
       "<rootDir>/.callbackiq-phase9-backup/",
-      "<rootDir>/.callbackiq-backups/"
+      "<rootDir>/.callbackiq-backups/",
+      "<rootDir>/hardening-tests/",
+      "<rootDir>/tools/",
+      "<rootDir>/.callbackiq-voice-hardening-backups/",
+      "<rootDir>/callbackiq[^/]*_update/",
+      "<rootDir>/CallBackIQ[^/]*(?:Update|Bundle)/"
     ],
     "watchPathIgnorePatterns": [
       "<rootDir>/.callbackiq-phase9-backup/",

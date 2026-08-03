@@ -14,6 +14,10 @@ import {
   VOICE_RECORDING_SUPPORTED,
   VOICE_ROUTING_ACTIONS,
 } from "../voice/voiceRouting.service.js";
+import {
+  normalizePhoneToE164,
+  phoneNumbersEqual,
+} from "../voice/voicePhone.service.js";
 
 const ANSWER_MODES = new Set([
   "after_hours",
@@ -22,18 +26,6 @@ const ANSWER_MODES = new Set([
   "disabled",
   "custom",
 ]);
-const PHONE_PATTERN = /^\+?[0-9()\-.\s]{7,20}$/;
-
-const serialize = (business) => ({
-  ...normalizeVoiceSettings(business),
-  aiBookingEnabled: Boolean(business?.features?.aiBookingEnabled),
-  liveTransferEnabled: Boolean(
-    business?.voiceSettings?.liveTransferEnabled,
-  ),
-  liveTransferPhone: String(
-    business?.voiceSettings?.liveTransferPhone || "",
-  ).trim(),
-});
 
 const validationError = (message, statusCode = 400, code = "") => {
   const error = new Error(message);
@@ -42,12 +34,13 @@ const validationError = (message, statusCode = 400, code = "") => {
   return error;
 };
 
+const serialize = (business) => normalizeVoiceSettings(business);
+
 const validateRoutingPolicy = (value, currentPolicy) => {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw validationError("Voice routing policy must be an object.");
   }
   const policy = { ...currentPolicy };
-
   for (const key of ["openHours", "afterHours"]) {
     if (!Object.hasOwn(value, key)) continue;
     if (!VOICE_ROUTING_ACTIONS.includes(value[key])) {
@@ -55,7 +48,6 @@ const validateRoutingPolicy = (value, currentPolicy) => {
     }
     policy[key] = value[key];
   }
-
   if (Object.hasOwn(value, "voiceFailure")) {
     if (!VOICE_FAILURE_ACTIONS.includes(value.voiceFailure)) {
       throw validationError("Invalid voice failure routing action.");
@@ -65,9 +57,33 @@ const validateRoutingPolicy = (value, currentPolicy) => {
   return policy;
 };
 
-const validateUpdate = (body, currentSettings) => {
-  const update = {};
+const normalizeRequiredPhone = (value, field) => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const normalized = normalizePhoneToE164(raw);
+  if (!normalized) {
+    throw validationError(
+      field === "liveTransferPhone"
+        ? "Enter a valid live-transfer phone number."
+        : "Enter a valid staff-routing phone number.",
+    );
+  }
+  return normalized;
+};
 
+const cleanGreeting = (value) => {
+  const greeting = String(value || "")
+    .replace(/[\u0000-\u001F\u007F]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (greeting.length > 300) {
+    throw validationError("Welcome greeting cannot exceed 300 characters.");
+  }
+  return greeting;
+};
+
+export const validateUpdate = (body = {}, currentSettings = {}) => {
+  const update = {};
   for (const key of [
     "voiceAiEnabled",
     "aiBookingEnabled",
@@ -75,55 +91,51 @@ const validateUpdate = (body, currentSettings) => {
   ]) {
     if (Object.hasOwn(body, key)) update[key] = Boolean(body[key]);
   }
-
   if (Object.hasOwn(body, "answerMode")) {
     if (!ANSWER_MODES.has(body.answerMode)) {
       throw validationError("Invalid voice answer mode.");
     }
     update.answerMode = body.answerMode;
   }
-
   if (Object.hasOwn(body, "routingPolicy")) {
     update.routingPolicy = validateRoutingPolicy(
       body.routingPolicy,
-      currentSettings.routingPolicy,
+      currentSettings.routingPolicy || getPresetRoutingPolicy("disabled"),
     );
   }
-
   if (Object.hasOwn(body, "overflowRingSeconds")) {
     const seconds = Number(body.overflowRingSeconds);
-    if (!Number.isInteger(seconds) || seconds < 5 || seconds > 60) {
-      throw validationError("Overflow ring seconds must be between 5 and 60.");
+    if (!Number.isInteger(seconds) || seconds < 15 || seconds > 25) {
+      throw validationError("Overflow ring seconds must be between 15 and 25.");
     }
     update.overflowRingSeconds = seconds;
   }
-
-  for (const field of ["transferPhone", "liveTransferPhone"]) {
-    if (!Object.hasOwn(body, field)) continue;
-
-    const phone = String(body[field] || "").trim();
-    if (phone && !PHONE_PATTERN.test(phone)) {
-      throw validationError(
-        field === "liveTransferPhone"
-          ? "Enter a valid live-transfer phone number."
-          : "Enter a valid staff-routing phone number.",
-      );
+  if (Object.hasOwn(body, "maxCallDurationSeconds")) {
+    const seconds = Number(body.maxCallDurationSeconds);
+    if (!Number.isInteger(seconds) || seconds < 60 || seconds > 600) {
+      throw validationError("Maximum call duration must be between 60 and 600 seconds.");
     }
-    update[field] = phone;
+    update.maxCallDurationSeconds = seconds;
   }
-
+  if (Object.hasOwn(body, "transferPhone")) {
+    update.transferPhone = normalizeRequiredPhone(
+      body.transferPhone,
+      "transferPhone",
+    );
+  }
+  if (Object.hasOwn(body, "liveTransferPhone")) {
+    update.liveTransferPhone = normalizeRequiredPhone(
+      body.liveTransferPhone,
+      "liveTransferPhone",
+    );
+  }
   if (Object.hasOwn(body, "welcomeGreeting")) {
-    const greeting = String(body.welcomeGreeting || "").trim();
-    if (!greeting || greeting.length > 300) {
-      throw validationError("Welcome greeting must be 1 to 300 characters.");
-    }
-    update.welcomeGreeting = greeting;
+    // Blank is intentional: it activates the dynamic business-name greeting.
+    update.welcomeGreeting = cleanGreeting(body.welcomeGreeting);
   }
-
   if (Object.hasOwn(body, "voiceName")) {
-    update.voiceName = String(body.voiceName || "").trim().slice(0, 200);
+    update.voiceName = String(body.voiceName || "").trim().slice(0, 80);
   }
-
   if (Object.hasOwn(body, "recordingEnabled")) {
     if (Boolean(body.recordingEnabled)) {
       throw validationError(
@@ -134,13 +146,39 @@ const validateUpdate = (body, currentSettings) => {
     }
     update.recordingEnabled = false;
   }
-
   return update;
 };
 
 const voiceSettingsObject = (business) => ({
   ...(business.voiceSettings?.toObject?.() || business.voiceSettings || {}),
 });
+
+const assertNoDialLoops = ({ business, settings }) => {
+  const trackingPhone = normalizePhoneToE164(business?.phone);
+  const staffPhone = normalizePhoneToE164(settings.transferPhone);
+  const livePhone = normalizePhoneToE164(settings.liveTransferPhone);
+  if (staffPhone && trackingPhone && phoneNumbersEqual(staffPhone, trackingPhone)) {
+    throw validationError(
+      "The staff-routing phone cannot be the same CallBackIQ tracking number.",
+      409,
+      "VOICE_ROUTING_LOOP",
+    );
+  }
+  if (livePhone && trackingPhone && phoneNumbersEqual(livePhone, trackingPhone)) {
+    throw validationError(
+      "The live-transfer phone cannot be the same CallBackIQ tracking number.",
+      409,
+      "VOICE_ROUTING_LOOP",
+    );
+  }
+  if (livePhone && staffPhone && phoneNumbersEqual(livePhone, staffPhone)) {
+    throw validationError(
+      "Use a dedicated answered line for post-AI live transfer, separate from the initial staff-routing line.",
+      409,
+      "VOICE_TRANSFER_NUMBER_NOT_DEDICATED",
+    );
+  }
+};
 
 class VoiceSettingsController {
   static async get(req, res, next) {
@@ -164,11 +202,11 @@ class VoiceSettingsController {
       const current = serialize(business);
       const update = validateUpdate(req.body || {}, current);
       const voiceSettings = voiceSettingsObject(business);
+
       let voiceAiEnabled = Object.hasOwn(update, "voiceAiEnabled")
         ? update.voiceAiEnabled
         : current.voiceAiEnabled;
       let routingPolicy = { ...current.routingPolicy };
-
       if (
         Object.hasOwn(update, "answerMode") &&
         update.answerMode !== "custom" &&
@@ -182,31 +220,38 @@ class VoiceSettingsController {
       }
 
       const answerMode = inferAnswerMode({ voiceAiEnabled, routingPolicy });
-      business.set("features.voiceAiEnabled", voiceAiEnabled);
-      if (Object.hasOwn(update, "aiBookingEnabled")) {
-        business.set("features.aiBookingEnabled", update.aiBookingEnabled);
-      }
-
-      voiceSettings.answerMode = answerMode;
-      voiceSettings.routingPolicyVersion = 1;
-      voiceSettings.routingPolicy = routingPolicy;
-      if (Object.hasOwn(update, "liveTransferEnabled")) {
-        voiceSettings.liveTransferEnabled = update.liveTransferEnabled;
-      }
+      const merged = {
+        ...voiceSettings,
+        answerMode,
+        routingPolicyVersion: 1,
+        routingPolicy,
+        recordingEnabled: false,
+      };
       for (const key of [
         "overflowRingSeconds",
+        "maxCallDurationSeconds",
         "transferPhone",
         "liveTransferPhone",
         "welcomeGreeting",
         "voiceName",
+        "liveTransferEnabled",
       ]) {
-        if (Object.hasOwn(update, key)) voiceSettings[key] = update[key];
+        if (Object.hasOwn(update, key)) merged[key] = update[key];
       }
 
-      voiceSettings.recordingEnabled = false;
-      business.set("voiceSettings", voiceSettings);
-      await business.save();
+      assertNoDialLoops({ business, settings: merged });
+      if (merged.liveTransferEnabled && !normalizePhoneToE164(merged.liveTransferPhone)) {
+        throw validationError(
+          "Configure a dedicated live-transfer phone before enabling live transfer.",
+        );
+      }
 
+      business.set("features.voiceAiEnabled", voiceAiEnabled);
+      if (Object.hasOwn(update, "aiBookingEnabled")) {
+        business.set("features.aiBookingEnabled", update.aiBookingEnabled);
+      }
+      business.set("voiceSettings", merged);
+      await business.save();
       return res.status(200).json({ success: true, data: serialize(business) });
     } catch (error) {
       return next(error);
@@ -223,44 +268,55 @@ class VoiceSettingsController {
       const usesVoiceAi = routingPolicyUsesVoiceAi(settings.routingPolicy);
       const usesStaff = routingPolicyUsesStaff(settings.routingPolicy);
       const relayConfigured = isConversationRelayConfigured();
-      const transferPhoneConfigured = Boolean(settings.transferPhone);
-      const liveTransferPhoneConfigured = Boolean(
-        settings.liveTransferPhone,
-      );
+      const trackingPhone = normalizePhoneToE164(business?.phone);
+      const staffPhone = normalizePhoneToE164(settings.transferPhone);
+      const livePhone = normalizePhoneToE164(settings.liveTransferPhone);
+      const staffDistinct = !staffPhone || !phoneNumbersEqual(staffPhone, trackingPhone);
+      const liveDistinct =
+        !livePhone ||
+        (!phoneNumbersEqual(livePhone, trackingPhone) &&
+          !phoneNumbersEqual(livePhone, staffPhone));
+
       const checks = {
         voiceFeatureEnabled: settings.voiceAiEnabled,
-        routingPolicyConfigured:
-          settings.routingPolicyVersion >= 1 ||
-          settings.answerMode !== "custom",
+        routingPolicyConfigured: settings.routingPolicyVersion >= 1,
         secureWebSocketConfigured:
           !usesVoiceAi || /^wss:\/\//i.test(getVoiceWebSocketUrl()),
         httpCallbackConfigured:
           !settings.voiceAiEnabled || /^https:\/\//i.test(getVoiceHttpBaseUrl()),
         twilioSignatureValidationConfigured:
-          !usesVoiceAi || Boolean(process.env.TWILIO_AUTH_TOKEN),
-        transferPhoneConfigured: !usesStaff || transferPhoneConfigured,
+          !usesVoiceAi || Boolean(String(process.env.TWILIO_AUTH_TOKEN || "").trim()),
+        transferPhoneConfigured: !usesStaff || Boolean(staffPhone),
+        transferPhoneIsDedicated: staffDistinct,
         liveTransferPhoneConfigured:
-          !usesVoiceAi ||
-          !settings.liveTransferEnabled ||
-          liveTransferPhoneConfigured,
+          !settings.liveTransferEnabled || Boolean(livePhone),
+        liveTransferPhoneIsDedicated: liveDistinct,
         aiBookingEnabled: settings.aiBookingEnabled,
         callbackCaptureAvailable: true,
         recordingSupported: VOICE_RECORDING_SUPPORTED,
         recordingDisabled: settings.recordingEnabled === false,
         recordingPolicy: VOICE_RECORDING_POLICY,
-        recordingAcknowledged: settings.recordingEnabled === false,
         conversationRelayConfigured: !usesVoiceAi || relayConfigured,
-        forcedFailureTestModeDisabled:
-          !isPhase9ForcedRelayFailureEnabled(),
+        forcedFailureTestModeDisabled: !isPhase9ForcedRelayFailureEnabled(),
+        maxCallDurationSafe:
+          settings.maxCallDurationSeconds >= 60 &&
+          settings.maxCallDurationSeconds <= 600,
+        overflowWindowSafe:
+          settings.overflowRingSeconds >= 15 &&
+          settings.overflowRingSeconds <= 25,
       };
       const required = [
         "voiceFeatureEnabled",
         "routingPolicyConfigured",
         "httpCallbackConfigured",
         "transferPhoneConfigured",
+        "transferPhoneIsDedicated",
         "liveTransferPhoneConfigured",
+        "liveTransferPhoneIsDedicated",
         "recordingDisabled",
         "forcedFailureTestModeDisabled",
+        "maxCallDurationSafe",
+        "overflowWindowSafe",
         ...(usesVoiceAi
           ? [
               "secureWebSocketConfigured",
@@ -269,30 +325,54 @@ class VoiceSettingsController {
             ]
           : []),
       ];
-      const voiceAnsweringReady = required.every((key) => checks[key]);
+      const voiceAnsweringReady = required.every((key) => Boolean(checks[key]));
+      const blockers = required.filter((key) => !checks[key]);
+      const warnings = [];
+      if (!settings.aiBookingEnabled) {
+        warnings.push(
+          "Automatic booking is disabled. Voice AI will capture a verified callback instead of promising an appointment.",
+        );
+      }
+      if (!settings.liveTransferEnabled) {
+        warnings.push(
+          "Post-AI live transfer is off. Explicit human requests will become priority callbacks.",
+        );
+      }
+      if (!settings.configuredWelcomeGreeting) {
+        warnings.push(
+          `The dynamic greeting will identify ${business?.businessName || "the business"}.`,
+        );
+      }
 
       return res.status(200).json({
         success: true,
         data: {
           ready: voiceAnsweringReady,
+          blockers,
+          warnings,
           checks,
           capabilities: {
             voiceAnsweringReady,
+            callbackCaptureReady: true,
             callbackCaptureEnabled: true,
             automaticBookingEnabled: settings.aiBookingEnabled,
+            staffRoutingReady: !usesStaff || Boolean(staffPhone && staffDistinct),
+            liveTransferReady:
+              settings.liveTransferEnabled && Boolean(livePhone && liveDistinct),
             liveTransferEnabled:
-              settings.liveTransferEnabled && liveTransferPhoneConfigured,
+              settings.liveTransferEnabled && Boolean(livePhone && liveDistinct),
           },
           recoveryPolicy: {
             bookingUnavailable: "capture_callback",
             lowConfidence: "capture_callback",
             unsupportedRequest: "capture_callback",
             explicitHumanRequest:
-              settings.liveTransferEnabled && liveTransferPhoneConfigured
+              settings.liveTransferEnabled && livePhone && liveDistinct
                 ? "live_transfer_during_open_hours"
                 : "capture_callback",
             liveTransferWindow: "configured_business_hours_only",
-            failedLiveTransfer: "sms_and_alert",
+            transferAcceptanceMode: "press_1_screened",
+            failedLiveTransfer: "callback_sms_and_alert",
           },
           requirements: { usesVoiceAi, usesStaff },
           settings,

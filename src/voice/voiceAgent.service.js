@@ -6,35 +6,48 @@ import validateServiceAreaTool from "../helpers/ai/tools/validateServiceArea.too
 import sendConfirmationSmsTool from "../helpers/ai/tools/sendConfirmationSms.tool.js";
 import BookingStateMachineService from "../services/booking/bookingStateMachine.service.js";
 import { assessInboundSafety } from "../services/safetyAssessmentService.js";
+import {
+  logOperationalError,
+  logOperationalWarning,
+} from "../helpers/logging/safeLogger.js";
 import VoiceAvailabilityService from "./voiceAvailability.service.js";
 import VoiceCallbackService from "./voiceCallback.service.js";
 import VoiceHandoffService from "./voiceHandoff.service.js";
+import VoiceTranscriptService from "./voiceTranscript.service.js";
+import {
+  cleanVoiceText,
+  containsAbuse,
+  extractPostalCode,
+  isBookingIntent,
+  isBusinessHoursQuestion,
+  isCallbackRequest,
+  isHumanRequest,
+  isLikelyNonEnglish,
+  isRepeatIntent,
+  isServiceAreaQuestion,
+  isTransientDependencyError,
+  toSpokenReply,
+} from "./voiceInput.service.js";
+import {
+  normalizePhoneToE164,
+  phoneNumbersEqual,
+} from "./voicePhone.service.js";
 
-const HUMAN_REQUEST =
-  /\b(?:transfer me|connect me|put me through|live (?:person|agent)|human being|representative|operator|staff member|someone from (?:the )?team|(?:talk|speak)(?:\s+to|\s+with)\s+(?:(?:a|an|the)\s+)?(?:person|human|representative|agent|operator|someone|staff(?:\s+member)?))\b/i;
-const CALLBACK_REQUEST =
-  /\b(call me back|callback|call back|have (?:the )?team call|ask (?:the )?team to call|leave (?:a )?message)\b/i;
-const BUSINESS_HOURS =
-  /\b(hours|open|close|closing|opening|when are you open)\b/i;
-const SERVICE_AREA =
-  /\b(serve|service area|come to|travel to|cover)\b.*\b\d{5}\b|\b\d{5}\b.*\b(serve|service area|cover)\b/i;
 const DIAGNOSTIC_FEE =
-  /\b(diagnostic|service call|trip)\b.{0,20}\b(fee|cost|charge)\b/i;
+  /\b(?:diagnostic|service call|trip)\b.{0,25}\b(?:fee|cost|charge)\b/i;
 const COMPLAINT_OR_DISPUTE =
-  /\b(complaint|dispute|refund|chargeback|lawsuit|lawyer|attorney|terrible service|angry)\b/i;
-const WARRANTY = /\b(warranty|guarantee claim)\b/i;
+  /\b(?:complaint|dispute|refund|chargeback|lawsuit|lawyer|attorney|terrible service|angry|furious|upset|scam|ripped off|manager)\b/i;
+const WARRANTY = /\b(?:warranty|guarantee claim|covered under warranty)\b/i;
 const COMMERCIAL =
-  /\b(commercial|industrial|property manager|apartment complex|multi[- ]family)\b/i;
+  /\b(?:commercial|industrial|property manager|apartment complex|multi[- ]family|restaurant|warehouse|office building)\b/i;
 const EXISTING_JOB =
-  /\b(existing job|current job|technician already|appointment today|where is the tech|previous repair|came out already)\b/i;
+  /\b(?:existing job|current job|technician already|appointment today|where is the tech|previous repair|came out already|return visit|unfinished work|technician did not|tech did not|status of my appointment)\b/i;
 const COMPLEX_PRICING =
-  /\b(exact|final|binding|firm)\b.{0,25}\b(price|quote|cost)|\bfull replacement quote\b/i;
-const BOOKING_INTENT =
-  /\b(book|booking|schedule|appointment|available|availability|come out|service visit|send someone|cancel|reschedule)\b|\bchange\b.{0,20}\b(time|day|appointment)\b/i;
+  /\b(?:exact|final|binding|firm|guaranteed)\b.{0,30}\b(?:price|quote|cost)|\b(?:full replacement quote|insurance estimate|itemized quote)\b/i;
 const SERVICE_REQUEST_HINT =
-  /\b(need|want|looking for|repair|fix|service|install|replace|maintenance|inspection|leak|clog|clogged|broken|not working|stopped working|problem|issue)\b/i;
+  /\b(?:need|want|looking for|repair|fix|service|install|replace|maintenance|inspection|leak|clog|clogged|broken|not working|stopped working|problem|issue|no heat|no cooling|no hot water)\b/i;
 const CONCRETE_SERVICE_REQUEST =
-  /\b(plumber|plumbing|hvac|air conditioner|a\/?c|furnace|roofer|roofing|electrician|electrical|restoration|water damage|repair|fix|install|replace|maintenance|inspection|leak|clog|clogged|broken|not working|stopped working|no heat|no cooling|no hot water|problem with|issue with)\b/i;
+  /\b(?:plumber|plumbing|hvac|air conditioner|a\/?c|furnace|roofer|roofing|electrician|electrical|restoration|water damage|garage door|locksmith|landscaping|repair|fix|install|replace|maintenance|inspection|leak|clog|clogged|broken|not working|stopped working|no heat|no cooling|no hot water|problem with|issue with)\b/i;
 const ACTIVE_BOOKING_STATUSES = new Set([
   "collecting_service",
   "collecting_location",
@@ -42,64 +55,20 @@ const ACTIVE_BOOKING_STATUSES = new Set([
   "offering_slots",
   "awaiting_confirmation",
   "booking",
+]);
+const TERMINAL_BOOKING_STATUSES = new Set([
+  "booked",
+  "human_takeover",
   "failed",
+  "canceled",
 ]);
 const GENERAL_HELP_REPLY =
-  "I can help with business hours, service-area questions, published diagnostic fees, scheduling, or creating a callback request. What would you like help with?";
-const ZIP_PATTERN = /\b(\d{5})(?:-\d{4})?\b/;
+  "I can help with a residential service request, service-area questions, published business hours, a verified diagnostic fee, scheduling, or a callback request. What do you need help with?";
+const MAX_REPEATED_INPUTS = 3;
+const MAX_ABUSIVE_TURNS = 2;
 
-const toSpokenReply = (value) =>
-  String(value || "")
-    .replace(/\bReply YES\b/gi, "Say yes")
-    .replace(/\bPlease reply\b/gi, "Please say")
-    .replace(/\bPlease send\b/gi, "Please say")
-    .replace(/\bYou can reply with\b/gi, "You can say")
-    .replace(/\bReply with\b/gi, "Say")
-    .replace(/\bReply here\b/gi, "Tell me")
-    .replace(/\bsend another day\b/gi, "say another day")
-    .replace(/\bby SMS\b/gi, "by text")
-    .trim();
-
-const liveTransferResult = async ({ session, reason, prompt }) => ({
-  reply: prompt,
-  handoff: await VoiceHandoffService.request({
-    session,
-    reason,
-    alertType: "human_requested",
-    customerMessage: session.transcript
-      ?.filter((entry) => entry.role === "customer")
-      .at(-1)?.text,
-  }),
-});
-
-const hasCatalogServiceMatch = async ({ businessId, text }) => {
-  if (!businessId || !SERVICE_REQUEST_HINT.test(text)) return false;
-
-  try {
-    const matches = await searchServicesTool({ businessId, query: text });
-    const normalizedText = String(text || "").trim().toLowerCase();
-
-    return matches.some((match) => {
-      const score = Number(match?.score);
-
-      if (Number.isFinite(score)) {
-        return score > 0;
-      }
-
-      // Keep compatibility with older mocks or alternate tool adapters that
-      // return a matched service without a score. Only accept it when the
-      // returned service name is actually present in the caller's request.
-      const serviceName = String(match?.name || "").trim().toLowerCase();
-
-      return Boolean(
-        serviceName && normalizedText.includes(serviceName),
-      );
-    });
-  } catch (error) {
-    console.error("Voice service-intent lookup failed:", error);
-    return false;
-  }
-};
+const normalizeId = (value) => value?._id || value?.id || value || null;
+const clean = (value, maximum = 2000) => cleanVoiceText(value, maximum);
 
 const captureCallback = ({
   session,
@@ -113,6 +82,7 @@ const captureCallback = ({
   immediate = false,
   completionReply = "",
   sendConfirmationSms = true,
+  requiredFields,
 }) =>
   VoiceCallbackService.handle({
     session,
@@ -126,24 +96,197 @@ const captureCallback = ({
     immediate,
     completionReply,
     sendConfirmationSms,
+    requiredFields,
   });
+
+const liveTransferResult = async ({ session, reason, prompt }) => ({
+  reply: prompt,
+  handoff: await VoiceHandoffService.request({
+    session,
+    reason,
+    alertType: "human_requested",
+    customerMessage:
+      session.transcript
+        ?.filter((entry) => entry.role === "customer")
+        .at(-1)?.text || "",
+  }),
+});
+
+const hasCatalogServiceMatch = async ({ businessId, text }) => {
+  if (!businessId || !SERVICE_REQUEST_HINT.test(text)) return false;
+  try {
+    const matches = (await searchServicesTool({ businessId, query: text })) || [];
+    const normalizedText = clean(text, 1000).toLowerCase();
+    return matches.some((match) => {
+      const score = Number(match?.score);
+      if (Number.isFinite(score)) return score > 0;
+      const serviceName = clean(match?.name, 200).toLowerCase();
+      return Boolean(serviceName && normalizedText.includes(serviceName));
+    });
+  } catch (error) {
+    logOperationalWarning("voice.service_intent_lookup_failed", {
+      businessId,
+      errorCode: error?.code || error?.name || "error",
+    });
+    return false;
+  }
+};
+
+const safeBusinessOpen = async (business) => {
+  try {
+    return await VoiceAvailabilityService.isBusinessOpen(business);
+  } catch (error) {
+    logOperationalError("voice.live_transfer_availability_failed", error, {
+      businessId: normalizeId(business),
+    });
+    return false;
+  }
+};
+
+const updateTurnGuards = (session, text) => {
+  const metadata = (session.metadata = { ...(session.metadata || {}) });
+  const guard = (metadata.voiceAgentGuard = {
+    ...(metadata.voiceAgentGuard || {}),
+  });
+  const normalized = clean(text, 500).toLowerCase();
+  if (normalized && normalized === guard.lastCustomerInput) {
+    guard.repeatedInputCount = Number(guard.repeatedInputCount || 1) + 1;
+  } else {
+    guard.lastCustomerInput = normalized;
+    guard.repeatedInputCount = normalized ? 1 : 0;
+  }
+  const abusive = containsAbuse(text);
+  const likelyNonEnglish = isLikelyNonEnglish(text);
+  guard.abusiveTurnCount = abusive
+    ? Number(guard.abusiveTurnCount || 0) + 1
+    : 0;
+  guard.nonEnglishTurnCount = likelyNonEnglish
+    ? Number(guard.nonEnglishTurnCount || 0) + 1
+    : 0;
+  guard.fallbackTurnCount = Number(guard.fallbackTurnCount || 0);
+  guard.lastTurnAt = new Date().toISOString();
+  return guard;
+};
+
+const resetFallbackGuard = (guard) => {
+  guard.fallbackTurnCount = 0;
+};
+
+const getDiagnosticFeeReply = async ({ business, text }) => {
+  try {
+    const matches =
+      (await searchServicesTool({ businessId: business._id, query: text })) || [];
+    const service =
+      matches.length === 1
+        ? await ServiceOffering.findOne({
+            _id: matches[0].id,
+            business: business._id,
+            active: true,
+          })
+        : null;
+    if (
+      service?.discloseDiagnosticFee &&
+      Number.isFinite(service.diagnosticFee)
+    ) {
+      return `The published diagnostic fee for ${service.name} is $${service.diagnosticFee}. Final scope and pricing still require technician evaluation.`;
+    }
+  } catch (error) {
+    logOperationalError("voice.diagnostic_fee_lookup_failed", error, {
+      businessId: business._id,
+    });
+  }
+  return "I don’t have a verified diagnostic fee for that service. I can help schedule a visit or create a pricing callback request.";
+};
+
+const recordConfirmedAppointment = async ({
+  session,
+  business,
+  lead,
+  conversation,
+  appointment,
+}) => {
+  session.appointment = appointment._id;
+  session.estimatedValue = appointment.estimatedValue || lead?.estimatedValue || 0;
+  await session.save();
+
+  if (lead) {
+    lead.status = "booked";
+    lead.bookedAt = lead.bookedAt || new Date();
+    lead.appointment = appointment._id;
+    lead.recovered = true;
+    lead.recoveredBy = "voice_ai";
+    await lead.save();
+  }
+
+  const callLog =
+    session.callLog && typeof session.callLog.save === "function"
+      ? session.callLog
+      : session.callLog
+        ? await CallLog.findById(session.callLog)
+        : null;
+  if (callLog) {
+    callLog.recovered = true;
+    await callLog.save();
+  }
+
+  try {
+    return await sendConfirmationSmsTool({
+      business,
+      lead,
+      conversation,
+      appointmentId: appointment._id,
+      voiceSessionId: session._id,
+    });
+  } catch (error) {
+    logOperationalError("voice.booking_confirmation_sms_failed", error, {
+      businessId: business._id,
+      voiceSessionId: session._id,
+      appointmentId: appointment._id,
+    });
+    return { failed: true };
+  }
+};
 
 class VoiceAgentService {
   static async handlePrompt({ session, customerMessage }) {
-    const text = String(customerMessage || "").trim();
-    const business = session.business;
-    const lead = session.lead;
-    const conversation = session.conversation;
-    const recentMessages = (session.transcript || []).slice(-8).map((entry) => ({
+    const text = clean(customerMessage, 4000);
+    const business = session?.business;
+    const lead = session?.lead;
+    const conversation = session?.conversation;
+    if (!business || !conversation) {
+      throw new Error("Voice agent requires business and conversation context.");
+    }
+    if (!text) return { reply: GENERAL_HELP_REPLY };
+
+    const guard = updateTurnGuards(session, text);
+    const recentMessages = (session.transcript || []).slice(-10).map((entry) => ({
       direction: entry.role === "customer" ? "inbound" : "outbound",
       body: entry.text,
       createdAt: entry.at,
     }));
 
-    const safety = await assessInboundSafety({
-      customerMessage: text,
-      recentMessages,
-    });
+    let safety;
+    try {
+      safety = await assessInboundSafety({
+        customerMessage: text,
+        recentMessages,
+      });
+    } catch (error) {
+      logOperationalError("voice.safety_assessment_failed", error, {
+        businessId: business._id,
+        voiceSessionId: session._id,
+      });
+      return captureCallback({
+        session,
+        customerMessage: text,
+        reason: "safety_assessment_unavailable",
+        alertType: "low_ai_confidence",
+        priority: "high",
+        seedServiceFromMessage: true,
+        openingPrompt:
+          "I can’t safely continue automation until the team reviews this request. I’ll preserve the details for a priority callback.",
+      });
+    }
 
     if (safety?.isEmergency || safety?.shouldSendSafetyReply) {
       if (lead) {
@@ -153,7 +296,6 @@ class VoiceAgentService {
           .slice(0, 2000);
         await lead.save();
       }
-
       return captureCallback({
         session,
         customerMessage: text,
@@ -169,66 +311,124 @@ class VoiceAgentService {
         sendConfirmationSms: false,
         completionReply:
           safety?.reply ||
-          "If anyone is in immediate danger, hang up and call 911 now. CallBackIQ has flagged this for urgent business review, but do not wait for a callback.",
+          "If anyone is in immediate danger, hang up and call 911 now. CallBackIQ flagged this for urgent review, but do not wait for a callback or use this service instead of emergency services.",
       });
     }
 
     if (VoiceCallbackService.isActive(session)) {
+      resetFallbackGuard(guard);
       return captureCallback({ session, customerMessage: text });
     }
 
-    if (HUMAN_REQUEST.test(text)) {
-      const liveTransferEnabled = Boolean(
-        business?.voiceSettings?.liveTransferEnabled,
+    if (isRepeatIntent(text)) {
+      resetFallbackGuard(guard);
+      const previous = VoiceTranscriptService.getLastAssistantText(session);
+      return {
+        reply: previous
+          ? `Of course. ${previous}`
+          : "Of course. Tell me what service you need, or say callback for team follow-up.",
+      };
+    }
+
+    if (guard.repeatedInputCount >= MAX_REPEATED_INPUTS) {
+      return captureCallback({
+        session,
+        customerMessage: text,
+        reason: "voice_conversation_loop",
+        alertType: "low_ai_confidence",
+        priority: "medium",
+        seedServiceFromMessage: true,
+        openingPrompt:
+          "I may not be understanding you correctly. I’ll preserve the request for a team member instead of keeping you in a loop.",
+      });
+    }
+
+    if (guard.abusiveTurnCount >= MAX_ABUSIVE_TURNS) {
+      resetFallbackGuard(guard);
+      return captureCallback({
+        session,
+        customerMessage: text,
+        reason: "abusive_or_distressed_caller",
+        alertType: "angry_customer",
+        priority: "high",
+        seed: { serviceNeeded: "Distressed or abusive caller follow-up" },
+        openingPrompt:
+          "I want to get this to the right person. I’ll create a priority callback request and end the automated conversation after the details are confirmed.",
+      });
+    }
+
+    if (containsAbuse(text)) {
+      resetFallbackGuard(guard);
+      return {
+        reply:
+          "I want to help, but I need us to keep the conversation respectful. Please describe the service issue, or say callback for a team member.",
+      };
+    }
+
+    if (guard.nonEnglishTurnCount >= 1) {
+      resetFallbackGuard(guard);
+      return captureCallback({
+        session,
+        customerMessage: text,
+        reason: "language_barrier",
+        alertType: "human_requested",
+        priority: "high",
+        seed: { serviceNeeded: "Language support requested" },
+        immediate: true,
+        completionReply:
+          "I’m sorry, this automated voice flow cannot reliably complete that language request. I saved the call for direct team review.",
+      });
+    }
+
+    const bookingStatus = conversation?.bookingState?.status || "not_started";
+    const bookingInProgress = ACTIVE_BOOKING_STATUSES.has(bookingStatus);
+    const bookingIntent = isBookingIntent(text);
+    const humanIntent = isHumanRequest(text);
+
+    // An explicit human request always wins. The caller should never have to
+    // argue with automation, even when the same utterance also mentions booking.
+    // The callback/transfer path preserves the existing booking context for staff
+    // rather than silently discarding or auto-confirming it.
+    if (humanIntent) {
+      resetFallbackGuard(guard);
+      const settings = business.voiceSettings || {};
+      const liveTransferPhone = normalizePhoneToE164(settings.liveTransferPhone);
+      const transferConfigured = Boolean(
+        settings.liveTransferEnabled &&
+          liveTransferPhone &&
+          !phoneNumbersEqual(liveTransferPhone, session.to || business.phone),
       );
-      const liveTransferPhone = String(
-        business?.voiceSettings?.liveTransferPhone || "",
-      ).trim();
-      let liveTransferWindowOpen = false;
-
-      if (liveTransferEnabled && liveTransferPhone) {
-        try {
-          liveTransferWindowOpen =
-            await VoiceAvailabilityService.isBusinessOpen(business);
-        } catch (error) {
-          console.error("Voice live-transfer availability check failed:", error);
-        }
-      }
-
-      if (
-        liveTransferEnabled &&
-        liveTransferPhone &&
-        liveTransferWindowOpen
-      ) {
+      if (transferConfigured && (await safeBusinessOpen(business))) {
         return liveTransferResult({
           session,
           reason: "customer_requested_human",
           prompt:
-            "I’ll try the business’s dedicated live-transfer line now. If nobody answers, CallBackIQ will preserve your caller information and send the configured fallback text.",
+            "I’ll try the dedicated live-transfer line now. If the team does not accept the call, CallBackIQ will preserve your information for follow-up.",
         });
       }
-
       return captureCallback({
         session,
         customerMessage: text,
         reason: "customer_requested_human",
         alertType: "human_requested",
         openingPrompt:
-          "Live transfer is unavailable right now. I can create a priority callback request instead.",
+          "A verified live transfer is unavailable right now. I’ll create a priority callback request instead of sending you to voicemail.",
       });
     }
 
-    if (CALLBACK_REQUEST.test(text)) {
+    if (!bookingInProgress && isCallbackRequest(text)) {
+      resetFallbackGuard(guard);
       return captureCallback({
         session,
         customerMessage: text,
         reason: "customer_requested_callback",
         alertType: "human_requested",
-        openingPrompt: "Absolutely. I’ll collect the details for the team.",
+        openingPrompt: "Absolutely. I’ll collect and confirm the details for the team.",
       });
     }
 
-    if (COMPLAINT_OR_DISPUTE.test(text)) {
+    if (!bookingInProgress && COMPLAINT_OR_DISPUTE.test(text)) {
+      resetFallbackGuard(guard);
       return captureCallback({
         session,
         customerMessage: text,
@@ -237,11 +437,12 @@ class VoiceAgentService {
         priority: "high",
         seed: { serviceNeeded: "Complaint, refund, or account dispute" },
         openingPrompt:
-          "I’m sorry you’re dealing with that. I won’t send you back to the unanswered line; I’ll create a priority callback for a team member.",
+          "I’m sorry you’re dealing with that. I won’t route you back to an unanswered line; I’ll create a priority callback for a team member.",
       });
     }
 
-    if (WARRANTY.test(text) || COMMERCIAL.test(text) || EXISTING_JOB.test(text)) {
+    if (!bookingInProgress && (WARRANTY.test(text) || COMMERCIAL.test(text) || EXISTING_JOB.test(text))) {
+      resetFallbackGuard(guard);
       const reason = WARRANTY.test(text)
         ? "warranty_claim"
         : COMMERCIAL.test(text)
@@ -252,7 +453,6 @@ class VoiceAgentService {
         : COMMERCIAL.test(text)
           ? "Commercial service request"
           : "Existing job or technician follow-up";
-
       return captureCallback({
         session,
         customerMessage: text,
@@ -260,11 +460,12 @@ class VoiceAgentService {
         alertType: "human_requested",
         seed: { serviceNeeded },
         openingPrompt:
-          "That needs direct team review. I’ll collect a callback request instead of transferring you back to the unanswered business line.",
+          "That needs direct team review. I’ll collect and confirm a callback request instead of making an automated commitment.",
       });
     }
 
-    if (COMPLEX_PRICING.test(text)) {
+    if (!bookingInProgress && COMPLEX_PRICING.test(text)) {
+      resetFallbackGuard(guard);
       return captureCallback({
         session,
         customerMessage: text,
@@ -276,83 +477,57 @@ class VoiceAgentService {
       });
     }
 
-    if (BUSINESS_HOURS.test(text)) {
-      return {
-        reply: await VoiceAvailabilityService.describeBusinessHours(business),
-      };
+    if (!bookingInProgress && isBusinessHoursQuestion(text)) {
+      resetFallbackGuard(guard);
+      return { reply: await VoiceAvailabilityService.describeBusinessHours(business) };
     }
 
-    if (SERVICE_AREA.test(text)) {
-      const postalCode = text.match(ZIP_PATTERN)?.[1];
-      if (!postalCode) {
-        return { reply: "What five-digit ZIP code should I check?" };
+    if (!bookingInProgress && isServiceAreaQuestion(text)) {
+      resetFallbackGuard(guard);
+      const postalCode = extractPostalCode(text);
+      if (!postalCode) return { reply: "What five-digit ZIP code should I check?" };
+      try {
+        const area = await validateServiceAreaTool({
+          businessId: business._id,
+          postalCode,
+        });
+        if (area?.supported) {
+          return {
+            reply: `Yes, ${postalCode} is inside the approved service area. Would you like to schedule a residential service visit or create a callback request?`,
+          };
+        }
+      } catch (error) {
+        logOperationalError("voice.service_area_lookup_failed", error, {
+          businessId: business._id,
+          postalCode,
+        });
       }
-
-      const area = await validateServiceAreaTool({
-        businessId: business._id,
-        postalCode,
-      });
-      if (area.supported) {
-        return {
-          reply: `Yes, ${postalCode} is inside the approved service area. Would you like to schedule a residential service visit or create a callback request?`,
-        };
-      }
-
       return captureCallback({
         session,
         customerMessage: text,
-        reason: "unsupported_service_area",
+        reason: "unsupported_or_unverified_service_area",
         alertType: "low_ai_confidence",
         priority: "medium",
         seed: { location: postalCode },
         openingPrompt:
-          `That ZIP code is outside the approved automated service area. I can still collect the request for manual review.`,
+          "I could not verify that location for automatic booking. I can still preserve the request for manual review.",
       });
     }
 
-    if (DIAGNOSTIC_FEE.test(text)) {
-      const matches = await searchServicesTool({
-        businessId: business._id,
-        query: text,
-      });
-      const service =
-        matches.length === 1
-          ? await ServiceOffering.findOne({
-              _id: matches[0].id,
-              business: business._id,
-              active: true,
-            })
-          : null;
-
-      if (
-        service?.discloseDiagnosticFee &&
-        Number.isFinite(service.diagnosticFee)
-      ) {
-        return {
-          reply: `The published diagnostic fee for ${service.name} is $${service.diagnosticFee}. Final scope and pricing still require technician evaluation.`,
-        };
-      }
-
-      return {
-        reply:
-          "I don’t have a verified diagnostic fee for that service. I can help schedule a visit or create a pricing callback request.",
-      };
+    if (!bookingInProgress && DIAGNOSTIC_FEE.test(text)) {
+      resetFallbackGuard(guard);
+      return { reply: await getDiagnosticFeeReply({ business, text }) };
     }
 
-    const bookingStatus = conversation?.bookingState?.status || "not_started";
-    const bookingInProgress = ACTIVE_BOOKING_STATUSES.has(bookingStatus);
     const catalogServiceMatched =
-      !bookingInProgress && !BOOKING_INTENT.test(text)
-        ? await hasCatalogServiceMatch({
-            businessId: business?._id,
-            text,
-          })
+      !bookingInProgress && !bookingIntent
+        ? await hasCatalogServiceMatch({ businessId: business._id, text })
         : false;
-    const bookingRequested =
-      bookingInProgress || BOOKING_INTENT.test(text) || catalogServiceMatched;
+    const bookingRequested = bookingInProgress || bookingIntent || catalogServiceMatched;
 
     if (!bookingRequested) {
       if (CONCRETE_SERVICE_REQUEST.test(text)) {
+        resetFallbackGuard(guard);
         return captureCallback({
           session,
           customerMessage: text,
@@ -365,9 +540,22 @@ class VoiceAgentService {
         });
       }
 
+      guard.fallbackTurnCount += 1;
+      if (guard.fallbackTurnCount >= 2) {
+        return captureCallback({
+          session,
+          customerMessage: text,
+          reason: "low_ai_confidence",
+          alertType: "low_ai_confidence",
+          priority: "medium",
+          openingPrompt:
+            "I may not be understanding you correctly. I’ll preserve the request for a team member instead of repeating the same help message.",
+        });
+      }
       return { reply: GENERAL_HELP_REPLY };
     }
 
+    resetFallbackGuard(guard);
     if (!business?.features?.aiBookingEnabled) {
       return captureCallback({
         session,
@@ -376,21 +564,63 @@ class VoiceAgentService {
         alertType: "human_requested",
         seedServiceFromMessage: !bookingInProgress,
         openingPrompt:
-          "Automatic booking is not enabled, but I can collect the service details and preferred time for a business callback.",
+          "I can collect the service details and preferred timing so the team can follow up without losing your request.",
+      });
+    }
+
+    if (TERMINAL_BOOKING_STATUSES.has(bookingStatus) && bookingStatus !== "booked") {
+      return captureCallback({
+        session,
+        customerMessage: text,
+        reason: `voice_booking_${bookingStatus}`,
+        alertType: "booking_conflict",
+        seed: {
+          serviceNeeded: lead?.serviceNeeded,
+          customerName: lead?.customerName,
+          location: lead?.address,
+          preferredTime: lead?.preferredAppointmentTime,
+        },
+        openingPrompt:
+          "I can’t safely continue that automated booking state. I’ll preserve the details for a priority callback.",
       });
     }
 
     const previousAppointmentId = conversation?.bookingState?.appointment;
-    const booking = await BookingStateMachineService.handle({
-      business,
-      lead,
-      conversation,
-      customerMessage: text,
-      channel: "voice",
-      source: "voice_booking_state_machine",
-    });
+    let booking;
+    try {
+      booking = await BookingStateMachineService.handle({
+        business,
+        lead,
+        conversation,
+        customerMessage: text,
+        channel: "voice",
+        source: "voice_booking_state_machine",
+        providerCallSid: session.providerCallSid,
+        voiceSessionId: session._id,
+      });
+    } catch (error) {
+      logOperationalError("voice.booking_state_machine_failed", error, {
+        businessId: business._id,
+        voiceSessionId: session._id,
+        transient: isTransientDependencyError(error),
+      });
+      return captureCallback({
+        session,
+        customerMessage: text,
+        reason: "voice_booking_dependency_failed",
+        alertType: "booking_conflict",
+        seed: {
+          serviceNeeded: lead?.serviceNeeded || text,
+          customerName: lead?.customerName,
+          location: lead?.address,
+          preferredTime: lead?.preferredAppointmentTime,
+        },
+        openingPrompt:
+          "I couldn’t safely complete the scheduling check. I’ll preserve the request for a priority callback instead of guessing or double-booking.",
+      });
+    }
 
-    if (!booking.handled) {
+    if (!booking?.handled) {
       return captureCallback({
         session,
         customerMessage: text,
@@ -398,23 +628,25 @@ class VoiceAgentService {
         alertType: "low_ai_confidence",
         seedServiceFromMessage: !bookingInProgress,
         openingPrompt:
-          "I want to make sure the team receives accurate information. I’ll create a callback request instead of transferring the call.",
+          "I want to make sure the team receives accurate information. I’ll create a callback request instead of making an uncertain booking.",
       });
     }
 
-    const spokenBookingReply = toSpokenReply(booking.result?.reply);
+    const bookingReply = clean(booking.result?.reply, 4000);
+    const spokenBookingReply = toSpokenReply(bookingReply);
+    const currentBookingStatus = conversation.bookingState?.status;
     const bookingUnavailable =
-      conversation.bookingState?.status === "human_takeover" ||
+      currentBookingStatus === "human_takeover" ||
       /automatic booking (?:is )?(?:not enabled|unavailable)|unable to (?:book|confirm)/i.test(
-        booking.result?.reply || "",
+        bookingReply,
       );
 
-    if (conversation.bookingState?.status === "failed" || bookingUnavailable) {
+    if (currentBookingStatus === "failed" || bookingUnavailable) {
       return captureCallback({
         session,
         customerMessage: text,
         reason:
-          conversation.bookingState?.status === "failed"
+          currentBookingStatus === "failed"
             ? "voice_booking_failed"
             : "voice_booking_unavailable",
         alertType: "booking_conflict",
@@ -431,7 +663,7 @@ class VoiceAgentService {
 
     if (
       booking.result?.messageCategory === "service_area_question" &&
-      /outside/i.test(booking.result?.reply || "")
+      /outside|unsupported|not (?:in|inside)/i.test(bookingReply)
     ) {
       return captureCallback({
         session,
@@ -444,12 +676,13 @@ class VoiceAgentService {
           location: conversation.bookingState?.postalCode || lead?.address,
         },
         openingPrompt:
-          "That location needs manual review. I’ll create a callback request instead of transferring the call.",
+          "That location needs manual review. I’ll create a callback request instead of making an unsupported booking.",
       });
     }
 
     await conversation.populate("bookingState.appointment");
     const appointmentId = conversation.bookingState?.appointment;
+    let confirmationOutcome = null;
     if (
       appointmentId &&
       String(appointmentId?._id || appointmentId) !==
@@ -458,46 +691,30 @@ class VoiceAgentService {
     ) {
       const appointment = await Appointment.findById(appointmentId);
       if (appointment?.status === "confirmed") {
-        session.appointment = appointment._id;
-        session.estimatedValue =
-          appointment.estimatedValue || lead?.estimatedValue || 0;
-        await session.save();
-
-        if (lead) {
-          lead.status = "booked";
-          lead.bookedAt = lead.bookedAt || new Date();
-          lead.appointment = appointment._id;
-          lead.recovered = true;
-          lead.recoveredBy = "voice_ai";
-          await lead.save();
-        }
-
-        const callLog =
-          session.callLog && typeof session.callLog.save === "function"
-            ? session.callLog
-            : session.callLog
-              ? await CallLog.findById(session.callLog)
-              : null;
-        if (callLog) {
-          callLog.recovered = true;
-          await callLog.save();
-        }
-
-        try {
-          await sendConfirmationSmsTool({
-            business,
-            lead,
-            conversation,
-            appointmentId: appointment._id,
-            voiceSessionId: session._id,
-          });
-        } catch (error) {
-          console.error("Voice booking confirmation SMS failed:", error);
-        }
+        confirmationOutcome = await recordConfirmedAppointment({
+          session,
+          business,
+          lead,
+          conversation,
+          appointment,
+        });
       }
     }
 
-    return { reply: spokenBookingReply };
+    const confirmationFailed =
+      confirmationOutcome?.failed || confirmationOutcome?.status === "failed";
+    const confirmationSuppressed =
+      confirmationOutcome?.suppressed ||
+      confirmationOutcome?.status === "suppressed";
+    const truthfulSuffix = confirmationFailed
+      ? " The appointment remains confirmed, but the confirmation text could not be sent."
+      : confirmationSuppressed
+        ? " The appointment remains confirmed, and no text was promised because messaging was suppressed."
+        : "";
+
+    return {
+      reply: `${spokenBookingReply || "The booking step is complete."}${truthfulSuffix}`,
+    };
   }
 }
 
