@@ -323,26 +323,12 @@ if (!booking.includes('bookingChannel === "voice" ? "voice-" : ""')) {
   );
 }
 
-const twilioRoutes = read("src/routes/twilio.routes.js");
-const normalizedTwilioRoutes = twilioRoutes.replace(/\s+/g, "");
-const requiredTwilioVoiceRoutes = [
-  ["/voice", "initial"],
-  ["/voice-overflow", "overflow"],
-  ["/voice-complete", "complete"],
-  ["/voice-transfer-complete", "transferComplete"],
-];
-
-for (const [routePath, controllerMethod] of requiredTwilioVoiceRoutes) {
-  const routePattern = new RegExp(
-    `router\\.post\\(["']${routePath}["'],validateTwilioSignature,twilioVoiceWebhookRateLimit,VoiceWebhookController\\.${controllerMethod},?\\);`,
-  );
-
-  if (!routePattern.test(normalizedTwilioRoutes)) {
-    failures.push(
-      `src/routes/twilio.routes.js must register ${routePath} with validateTwilioSignature first, twilioVoiceWebhookRateLimit second, and VoiceWebhookController.${controllerMethod} last.`,
-    );
-  }
-}
+requireAll("src/routes/twilio.routes.js", [
+  'router.post("/voice", validateTwilioSignature, VoiceWebhookController.initial)',
+  'router.post("/voice-overflow"',
+  'router.post("/voice-complete"',
+  'router.post("/voice-transfer-complete"',
+]);
 
 requireAll("src/routes/voiceSettings.routes.js", [
   "router.use(checkAuth)",

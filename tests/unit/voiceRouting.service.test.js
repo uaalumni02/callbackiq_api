@@ -11,7 +11,6 @@ import {
 
 describe("Phase 9 voice routing settings", () => {
   const originalEnv = process.env;
-
   beforeEach(() => {
     process.env = {
       ...originalEnv,
@@ -26,13 +25,11 @@ describe("Phase 9 voice routing settings", () => {
   afterAll(() => {
     process.env = originalEnv;
   });
-
   test("requires secure HTTPS, WSS, and Twilio signature configuration", () => {
     expect(isConversationRelayConfigured()).toBe(true);
     process.env.VOICE_WEBSOCKET_PUBLIC_URL = "ws://localhost/ws/voice";
     expect(isConversationRelayConfigured()).toBe(false);
   });
-
   test("allows the forced relay failure hook only outside production", () => {
     process.env.APP_ENV = "staging";
     process.env.PHASE9_ENABLE_LIVE_TEST_HOOKS = "true";
@@ -42,7 +39,6 @@ describe("Phase 9 voice routing settings", () => {
     process.env.APP_ENV = "production";
     expect(isPhase9ForcedRelayFailureEnabled()).toBe(false);
   });
-
   test("keeps legacy answer modes until the business saves policy version 1", () => {
     const normalized = normalizeVoiceSettings({
       features: { voiceAiEnabled: true },
@@ -54,7 +50,6 @@ describe("Phase 9 voice routing settings", () => {
     );
     expect(normalized.answerMode).toBe("after_hours");
   });
-
   test("normalizes explicit scenario routing and identifies custom policies", () => {
     const normalized = normalizeVoiceSettings({
       features: { voiceAiEnabled: true },
@@ -69,7 +64,6 @@ describe("Phase 9 voice routing settings", () => {
         recordingEnabled: true,
       },
     });
-
     expect(normalized.answerMode).toBe("custom");
     expect(normalized.recordingEnabled).toBe(false);
     expect(routingPolicyUsesStaff(normalized.routingPolicy)).toBe(true);
@@ -84,7 +78,6 @@ describe("Phase 9 voice routing settings", () => {
       }),
     ).toBe("overflow");
   });
-
   test("builds scoped ConversationRelay TwiML without recording verbs", () => {
     const business = {
       _id: "business-1",
@@ -99,10 +92,34 @@ describe("Phase 9 voice routing settings", () => {
       business,
       voiceSessionId: "voice-session-1",
     });
-
     expect(twiml).toContain("<ConversationRelay");
     expect(twiml).toContain("wss://api.callbackiq.com/ws/voice");
     expect(twiml).toContain("Thanks &amp; welcome");
     expect(twiml).not.toMatch(/record/i);
+  });
+
+  test("replaces the legacy generic greeting with the matched business name", () => {
+    const business = {
+      _id: "6a33ff7944ce80eaef2cb543",
+      businessName: "Atlanta Pro Plumbing & Drain",
+      features: { voiceAiEnabled: true },
+      voiceSettings: {
+        answerMode: "always",
+        welcomeGreeting: "Thanks for calling. How can I help you today?",
+      },
+    };
+
+    const normalized = normalizeVoiceSettings(business);
+    expect(normalized.welcomeGreeting).toBe(
+      "Thanks for calling Atlanta Pro Plumbing & Drain. How can I help you today?",
+    );
+
+    const twiml = conversationRelayTwiml({
+      business,
+      voiceSessionId: "voice-session-atlanta",
+    });
+    expect(twiml).toContain(
+      'welcomeGreeting="Thanks for calling Atlanta Pro Plumbing &amp; Drain. How can I help you today?"',
+    );
   });
 });

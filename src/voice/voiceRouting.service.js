@@ -12,7 +12,6 @@ const trimTrailingSlash = (value) => String(value || "").replace(/\/+$/, "");
 export const VOICE_RECORDING_SUPPORTED = false;
 export const VOICE_RECORDING_POLICY =
   "disabled_pending_consent_and_retention_policy";
-
 export const VOICE_ROUTING_ACTIONS = Object.freeze([
   "voice_ai",
   "sms",
@@ -24,7 +23,6 @@ export const VOICE_FAILURE_ACTIONS = Object.freeze([
   "sms",
   "staff_then_sms",
 ]);
-
 const PRESET_POLICIES = Object.freeze({
   disabled: Object.freeze({
     openHours: "sms",
@@ -47,7 +45,6 @@ const PRESET_POLICIES = Object.freeze({
     voiceFailure: "sms",
   }),
 });
-
 const isRoutingAction = (value) => VOICE_ROUTING_ACTIONS.includes(value);
 const isFailureAction = (value) => VOICE_FAILURE_ACTIONS.includes(value);
 
@@ -57,7 +54,6 @@ export const getPresetRoutingPolicy = (answerMode = "disabled") => ({
 
 export const inferAnswerMode = ({ voiceAiEnabled, routingPolicy }) => {
   if (!voiceAiEnabled) return "disabled";
-
   for (const mode of ["always", "after_hours", "overflow"]) {
     const preset = PRESET_POLICIES[mode];
     if (
@@ -71,7 +67,6 @@ export const inferAnswerMode = ({ voiceAiEnabled, routingPolicy }) => {
 
   return "custom";
 };
-
 export const normalizeRoutingPolicy = (business) => {
   const settings = business?.voiceSettings || {};
   const version = Number(settings.routingPolicyVersion || 0);
@@ -84,13 +79,11 @@ export const normalizeRoutingPolicy = (business) => {
   ].includes(settings.answerMode)
     ? settings.answerMode
     : "disabled";
-
   // Existing businesses keep the exact legacy answer-mode semantics until
   // they save the new scenario policy. The version marker prevents Mongoose
   // defaults on old documents from silently changing live call behavior.
   const fallback = getPresetRoutingPolicy(answerMode);
   if (version < 1) return fallback;
-
   return {
     openHours: isRoutingAction(settings.routingPolicy?.openHours)
       ? settings.routingPolicy.openHours
@@ -103,7 +96,6 @@ export const normalizeRoutingPolicy = (business) => {
       : fallback.voiceFailure,
   };
 };
-
 export const routingPolicyUsesVoiceAi = (routingPolicy) =>
   [routingPolicy?.openHours, routingPolicy?.afterHours].some((value) =>
     ["voice_ai", "staff_then_voice_ai"].includes(value),
@@ -115,7 +107,6 @@ export const routingPolicyUsesStaff = (routingPolicy) =>
     routingPolicy?.afterHours,
     routingPolicy?.voiceFailure,
   ].some((value) => String(value || "").startsWith("staff_then_"));
-
 export const getVoiceHttpBaseUrl = () =>
   trimTrailingSlash(
     process.env.VOICE_HTTP_PUBLIC_URL ||
@@ -127,12 +118,33 @@ export const getVoiceHttpBaseUrl = () =>
 export const getVoiceWebSocketUrl = () =>
   String(process.env.VOICE_WEBSOCKET_PUBLIC_URL || "").trim();
 
+const LEGACY_GENERIC_WELCOME_GREETING =
+  /^thanks for calling(?:[,.!?])?\s*how can i help you today(?:[?.!])?$/i;
+const resolveWelcomeGreeting = (business) => {
+  const businessName =
+    String(business?.businessName || "").trim() || "the business";
+  const configuredGreeting = String(
+    business?.voiceSettings?.welcomeGreeting || "",
+  ).trim();
+  const businessGreeting = `Thanks for calling ${businessName}. How can I help you today?`;
+
+  // Existing records may contain the original generic schema default. Resolve
+  // that value at call time so the greeting identifies the business matched
+  // from Twilio's called number without requiring a database migration.
+  if (
+    !configuredGreeting ||
+    LEGACY_GENERIC_WELCOME_GREETING.test(configuredGreeting)
+  ) {
+    return businessGreeting;
+  }
+
+  return configuredGreeting;
+};
 
 export const isPhase9ForcedRelayFailureEnabled = () => {
   const environment = String(
     process.env.APP_ENV || process.env.NODE_ENV || "development",
   ).toLowerCase();
-
   return (
     environment !== "production" &&
     process.env.PHASE9_ENABLE_LIVE_TEST_HOOKS === "true" &&
@@ -144,7 +156,6 @@ export const isConversationRelayConfigured = () =>
   /^https:\/\//i.test(getVoiceHttpBaseUrl()) &&
   /^wss:\/\//i.test(getVoiceWebSocketUrl()) &&
   Boolean(process.env.TWILIO_AUTH_TOKEN);
-
 export const normalizeVoiceSettings = (business) => {
   const routingPolicy = normalizeRoutingPolicy(business);
   const voiceAiEnabled = Boolean(business?.features?.voiceAiEnabled);
@@ -153,7 +164,6 @@ export const normalizeVoiceSettings = (business) => {
     Number(business?.voiceSettings?.routingPolicyVersion || 0) >= 1
       ? inferAnswerMode({ voiceAiEnabled, routingPolicy })
       : persistedMode;
-
   return {
     voiceAiEnabled,
     answerMode,
@@ -167,11 +177,7 @@ export const normalizeVoiceSettings = (business) => {
     ),
     transferPhone:
       business?.voiceSettings?.transferPhone || business?.forwardingPhone || "",
-    welcomeGreeting:
-      business?.voiceSettings?.welcomeGreeting ||
-      `Thanks for calling ${
-        business?.businessName || "the business"
-      }. How can I help you today?`,
+    welcomeGreeting: resolveWelcomeGreeting(business),
     voiceName: business?.voiceSettings?.voiceName || "",
     // Recording is fail-closed. A legacy true value never changes TwiML.
     recordingEnabled: false,
@@ -179,7 +185,6 @@ export const normalizeVoiceSettings = (business) => {
     recordingPolicy: VOICE_RECORDING_POLICY,
   };
 };
-
 const absoluteActionUrl = (actionPath) => {
   const baseUrl = getVoiceHttpBaseUrl();
   const path = String(actionPath || "");
@@ -195,7 +200,6 @@ export const conversationRelayTwiml = ({
   const voiceAttribute = settings.voiceName
     ? ` voice="${escapeXml(settings.voiceName)}"`
     : "";
-
   return xml(
     `<Response><Connect action="${escapeXml(
       absoluteActionUrl(actionPath),
@@ -210,7 +214,6 @@ export const conversationRelayTwiml = ({
     )}" /></ConversationRelay></Connect></Response>`,
   );
 };
-
 export const dialTwiml = ({
   transferPhone,
   timeout,
@@ -226,7 +229,6 @@ export const dialTwiml = ({
       transferPhone,
     )}</Number></Dial></Response>`,
   );
-
 export const sayTwiml = (message, { hangup = true } = {}) =>
   xml(
     `<Response><Say>${escapeXml(message)}</Say>${
@@ -235,7 +237,6 @@ export const sayTwiml = (message, { hangup = true } = {}) =>
   );
 
 export const emptyTwiml = () => xml("<Response></Response>");
-
 export default {
   VOICE_FAILURE_ACTIONS,
   VOICE_RECORDING_POLICY,
