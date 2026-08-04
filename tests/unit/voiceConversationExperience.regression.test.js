@@ -21,16 +21,25 @@ describe("voice conversation experience regression", () => {
     );
   });
 
-  test("spoken business hours omit the internal timezone identifier", () => {
+  test("spoken business hours are contextual and omit internal timezone identifiers", () => {
     const source = read("src/voice/voiceAvailability.service.js");
-    expect(source).toContain(
-      "The published business hours are " + "$" + "{text}.",
-    );
-    expect(source).not.toContain(
-      "The published business hours are " + "$" + "{text}, in " + "$" + "{",
-    );
-  });
 
+    expect(source).toContain("We’re open now until ");
+    expect(source).toContain(
+      "We’re closed right now and reopen today at ",
+    );
+    expect(source).toContain(
+      "Published hours show the business reopening ",
+    );
+
+    const spokenReturns = Array.from(
+      source.matchAll(/return [`"]([^`"]+)[`"];/g),
+      (match) => match[1],
+    ).join("\n");
+
+    expect(spokenReturns).not.toContain("America/New_York");
+    expect(spokenReturns).not.toContain("${timeZone}");
+  });
   test("unmatched questions receive several guided turns before callback recovery", () => {
     const source = read("src/voice/voiceAgent.service.js");
     expect(source).toContain("MAX_UNMATCHED_TURNS_BEFORE_CALLBACK = 4");

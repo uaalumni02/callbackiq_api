@@ -7,6 +7,8 @@ import {
 } from "../helpers/logging/safeLogger.js";
 import VoiceAvailabilityService from "../voice/voiceAvailability.service.js";
 import VoiceFailureService from "../voice/voiceFailure.service.js";
+import VoiceOutcomeService from "../voice/voiceOutcome.service.js";
+import VoicePreflightService from "../voice/voicePreflight.service.js";
 import VoiceSessionService, {
   TERMINAL_STATUSES,
 } from "../voice/voiceSession.service.js";
@@ -63,33 +65,12 @@ const callFields = (req = {}) => {
   };
 };
 
-const buildFlexiblePhoneRegex = (e164) => {
-  const digits = String(e164 || "").replace(/\D/g, "");
-  if (!digits) return null;
-
-  const isNorthAmerican = digits.length === 11 && digits.startsWith("1");
-  const national = isNorthAmerican ? digits.slice(1) : digits;
-  const separatedDigits = national.split("").join("\\D*");
-  const optionalCountryCode = isNorthAmerican ? "(?:1\\D*)?" : "";
-
-  return new RegExp(`^\\D*${optionalCountryCode}${separatedDigits}\\D*$`);
-};
-
 const findBusiness = async (phone) => {
   const e164 = normalizePhoneToE164(phone);
   if (!e164) return null;
-
-  const variants = phoneLookupVariants(e164);
-  const flexiblePhone = buildFlexiblePhoneRegex(e164);
-
-  return Business.findOne({
-    isActive: true,
-    $or: [
-      { phoneLookup: e164 },
-      { phone: { $in: variants } },
-      ...(flexiblePhone ? [{ phone: flexiblePhone }] : []),
-    ],
-  });
+  // Production routing uses the indexed canonical E.164 field only. Run the
+  // included migration before deploying this update.
+  return Business.findOne({ isActive: true, phoneLookup: e164 });
 };
 
 const findExistingContext = async (req) => {
@@ -414,6 +395,17 @@ class VoiceWebhookController {
 
       session = await VoiceSessionService.ensureContext({ business, ...fields });
       if (isTerminal(session)) return sendXml(res, emptyTwiml());
+      const preflight = await VoicePreflightService.checkVoicePreflight({
+        business,
+        callerPhone: fields.from,
+        sessionId: session._id,
+      });
+      if (!preflight.allowed) {
+        return fallbackSmsResponse({
+          res, session, failureReason: preflight.reason,
+          message: "I preserved your call for the team instead of starting the automated assistant.",
+        });
+      }
 
       let isOpen = false;
       try {
@@ -489,11 +481,9 @@ class VoiceWebhookController {
             });
 
       if (route === VOICE_ROUTE.COMPLETE) {
-        await VoiceSessionService.markCompleted(session._id, {
-          dialStatus,
-          routedToStaff: true,
-          staffScreenAccepted: true,
-          scenario: String(req.query.scenario || ""),
+        await VoiceOutcomeService.commitVoiceOutcome({
+          sessionId: session._id, outcome: "transfer_accepted", status: "completed",
+          metadata: { dialStatus, routedToStaff: true, staffScreenAccepted: true, scenario: String(req.query.scenario || "") },
         });
         return sendXml(res, emptyTwiml());
       }
@@ -602,10 +592,17 @@ class VoiceWebhookController {
           failureReason: `ConversationRelay completed with status ${status}.`,
         });
       }
-      await VoiceSessionService.markCompleted(session._id, {
-        sessionStatus: status || "completed",
-        handoffReasonCode: String(handoff.reasonCode || "").slice(0, 100),
-      });
+      const inferred = VoiceOutcomeService.inferVoiceOutcome(session);
+      if (inferred) {
+        await VoiceOutcomeService.commitVoiceOutcome({
+          sessionId: session._id, outcome: inferred, status: "completed",
+          metadata: { sessionStatus: status || "completed", handoffReasonCode: String(handoff.reasonCode || "").slice(0, 100) },
+        });
+      } else {
+        await VoiceOutcomeService.recoverAbandonedVoiceCall({
+          sessionId: session._id, closeCode: 1000, closeReason: status || "conversation_relay_complete_without_outcome",
+        });
+      }
       return sendXml(res, emptyTwiml());
     } catch (error) {
       return gracefulVoiceFailure({
@@ -632,11 +629,9 @@ class VoiceWebhookController {
       const dialStatus = String(req.body?.DialCallStatus || "").toLowerCase();
       const accepted = staffAccepted(session, purpose);
       if (accepted && ["answered", "completed"].includes(dialStatus)) {
-        await VoiceSessionService.markCompleted(session._id, {
-          dialStatus,
-          transferCompleted: true,
-          transferPurpose: purpose,
-          staffScreenAccepted: true,
+        await VoiceOutcomeService.commitVoiceOutcome({
+          sessionId: session._id, outcome: "transfer_accepted", status: "completed",
+          metadata: { dialStatus, transferCompleted: true, transferPurpose: purpose, staffScreenAccepted: true },
         });
         return sendXml(res, emptyTwiml());
       }

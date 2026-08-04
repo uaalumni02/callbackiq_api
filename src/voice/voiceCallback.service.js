@@ -27,6 +27,7 @@ import {
   toSpokenReply,
 } from "./voiceInput.service.js";
 import VoiceLineTypeService from "./voiceLineType.service.js";
+import VoiceMetricsService from "./voiceMetrics.service.js";
 import {
   isUsableCallerId,
   normalizePhoneToE164,
@@ -37,7 +38,6 @@ const DEFAULT_REQUIRED_FIELDS = Object.freeze([
   "service",
   "name",
   "location",
-  "urgency",
   "preference",
 ]);
 const ALL_FIELDS = Object.freeze([...DEFAULT_REQUIRED_FIELDS, "phone"]);
@@ -75,9 +75,23 @@ const PROMPTS = Object.freeze({
   phone:
     "Your caller ID is blocked or unavailable. Please say the ten-digit phone number the team should call back.",
 });
+const SPANISH_PROMPTS = Object.freeze({
+  service: "¿En qué servicio o problema necesita ayuda? Puede decirlo en pocas palabras.",
+  name: "¿Qué nombre debo poner en la solicitud?",
+  location: "¿Cuál es la dirección o el código postal? Puede decir omitir.",
+  urgency: "¿Qué tan urgente es: hoy, pronto o flexible?",
+  preference: "¿Qué día u hora prefiere para la llamada o visita?",
+  phone: "No aparece su número. Diga los diez dígitos, uno por uno.",
+});
+const promptFor = (state, field) =>
+  (state?.language === "es" ? SPANISH_PROMPTS : PROMPTS)[field] || promptFor(state, field);
 
 const normalizeId = (value) => value?._id || value?.id || value || null;
 const clean = (value, maximum = 1000) => cleanVoiceText(value, maximum);
+const recordCallbackMetric = (session, event, metadata = {}) => {
+  if (!session?._id) return;
+  void VoiceMetricsService.recordVoiceMetric({ sessionId: session._id, event, metadata });
+};
 const appendText = (existing, value, maximum) =>
   [clean(existing, maximum), clean(value, maximum)]
     .filter(Boolean)
@@ -153,6 +167,7 @@ const createState = ({
     priority: ["low", "medium", "high", "critical"].includes(priority)
       ? priority
       : "high",
+    language: seed?.language === "es" ? "es" : "en",
     requiredFields: requestedFields,
     serviceNeeded:
       clean(seed?.serviceNeeded, 200) ||
@@ -444,10 +459,9 @@ const callbackConfirmationBody = ({ business, state }) => {
     state.preferredTime && !skippedValue(state.preferredTime)
       ? ` Your preferred timing is ${state.preferredTime}.`
       : "";
-  return clean(
-    `Hi${state.customerName && !skippedValue(state.customerName) ? ` ${state.customerName}` : ""}, this is ${businessName}. CallBackIQ received your callback request${service}.${preference} The team will follow up at the confirmed number. Reply STOP to opt out.`,
-    1600,
-  );
+  const english = `Hi${state.customerName && !skippedValue(state.customerName) ? ` ${state.customerName}` : ""}, this is ${businessName}. CallBackIQ received your callback request${service}.${preference} The team will follow up at the confirmed number. Reply STOP to opt out.`;
+  const spanish = `Hola. ${businessName} recibió su solicitud de devolución de llamada. El equipo se comunicará al número confirmado. Responda STOP para no recibir mensajes.`;
+  return clean(state.language === "es" ? `${spanish} / ${english}` : english, 1600);
 };
 
 const persistConfirmationState = async (session, state) => {
@@ -612,6 +626,7 @@ const complete = async ({
       reply: reply || "Your callback request was already saved.",
       handoff: endPacket("callback-captured", state.reason),
       callbackCaptured: true,
+      outcome: state.priority === "critical" ? "safety_escalated" : "callback_saved",
     };
   }
 
@@ -656,6 +671,7 @@ const complete = async ({
         : `Thank you. I created a priority callback request.${confirmationMessage} The team will follow up at the confirmed number.`),
     handoff: endPacket("callback-captured", state.reason),
     callbackCaptured: true,
+    outcome: state.priority === "critical" ? "safety_escalated" : "callback_saved",
   };
 };
 
@@ -758,7 +774,7 @@ const handleQuestionDetour = async ({ session, state, customerMessage }) => {
     state.status === "awaiting_confirmation"
       ? buildReadback(state)
       : state.currentField
-        ? PROMPTS[state.currentField]
+        ? promptFor(state, state.currentField)
         : "Let’s continue the callback request.";
   state.lastPrompt = resumePrompt;
   await saveState(session, state);
@@ -822,7 +838,7 @@ class VoiceCallbackService {
     }
     if (isCancelIntent(text)) return cancelCapture({ session, state });
     if (isRepeatIntent(text)) {
-      const prompt = state.lastPrompt || PROMPTS[state.currentField] || buildReadback(state);
+      const prompt = state.lastPrompt || promptFor(state, state.currentField) || buildReadback(state);
       return { reply: `Of course. ${prompt}`, callbackCaptured: false };
     }
 
@@ -887,7 +903,15 @@ class VoiceCallbackService {
     }
 
     if (active && state.currentField && text) {
-      const result = applyCurrentField(state, text);
+      // Capture every usable field in a compound utterance before applying the
+      // current-field fallback. This shortens callback capture without re-asks.
+      applyExtractedDetails(
+        state,
+        extractCallbackDetails(text, { currentField: state.currentField }),
+      );
+      const result = validFieldValue(state, state.currentField)
+        ? { captured: true }
+        : applyCurrentField(state, text);
       if (result.invalid) {
         const field = state.currentField;
         state.retryCounts[field] = (state.retryCounts[field] || 0) + 1;
@@ -902,7 +926,8 @@ class VoiceCallbackService {
           state.lastPrompt =
             field === "phone"
               ? "I could not confirm that phone number. Please say all ten digits, one digit at a time."
-              : `I did not catch the ${FIELD_LABELS[field]}. ${PROMPTS[field]}`;
+              : `I did not catch the ${FIELD_LABELS[field]}. ${promptFor(state, field)}`;
+          recordCallbackMetric(session, "field_reasked", { field });
           await saveState(session, state);
           return { reply: state.lastPrompt, callbackCaptured: false };
         }
@@ -918,9 +943,10 @@ class VoiceCallbackService {
     if (missing) {
       state.currentField = missing;
       state.status = `collecting_${missing}`;
-      state.lastPrompt = [clean(openingPrompt, 800), PROMPTS[missing]]
+      state.lastPrompt = [clean(openingPrompt, 800), promptFor(state, missing)]
         .filter(Boolean)
         .join(" ");
+      recordCallbackMetric(session, "field_prompted", { field: missing });
       await saveState(session, state);
       return { reply: state.lastPrompt, callbackCaptured: false };
     }

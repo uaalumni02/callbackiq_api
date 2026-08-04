@@ -1,5 +1,6 @@
 import VoiceUsageService from "../services/voiceUsage.service.js";
 import TwilioSignatureRotationService from "../services/twilioSignatureRotation.service.js";
+import VoiceMetricsService from "../voice/voiceMetrics.service.js";
 
 const businessIdFrom = (req) =>
   req.business?._id || req.user?.business || req.user?.businessId;
@@ -9,6 +10,31 @@ export const getUsage = async (req, res, next) => {
     const businessId = businessIdFrom(req);
     const usage = await VoiceUsageService.getVoiceUsageSummary({ businessId });
     res.json({ success: true, data: usage });
+  } catch (error) {
+    next(error);
+  }
+};
+export const getMetrics = async (req, res, next) => {
+  try {
+    const businessId = businessIdFrom(req);
+    const from = req.query.from ? new Date(req.query.from) : undefined;
+    const to = req.query.to ? new Date(req.query.to) : undefined;
+    const metrics = await VoiceMetricsService.getVoicePilotMetrics({ businessId, from, to });
+    res.json({ success: true, data: metrics });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const reviewEmergency = async (req, res, next) => {
+  try {
+    const data = await VoiceMetricsService.reviewEmergencyClassification({
+      businessId: businessIdFrom(req),
+      sessionId: req.body?.sessionId,
+      classification: req.body?.classification,
+      notes: req.body?.notes,
+    });
+    res.json({ success: true, data });
   } catch (error) {
     next(error);
   }
@@ -31,4 +57,4 @@ export const receiveUsageTrigger = async (req, res) => {
   res.status(204).send();
 };
 
-export default { getUsage, getSecurityStatus, receiveUsageTrigger };
+export default { getUsage, getMetrics, reviewEmergency, getSecurityStatus, receiveUsageTrigger };

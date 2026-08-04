@@ -7,6 +7,8 @@ import VoiceAgentService from "./voiceAgent.service.js";
 import VoiceFailureService from "./voiceFailure.service.js";
 import VoiceSessionService from "./voiceSession.service.js";
 import VoiceTranscriptService from "./voiceTranscript.service.js";
+import VoiceOutcomeService from "./voiceOutcome.service.js";
+import VoiceMetricsService from "./voiceMetrics.service.js";
 import {
   getVoiceWebSocketUrl,
   isPhase9ForcedRelayFailureEnabled,
@@ -39,7 +41,7 @@ const DEFAULT_HANDSHAKE_TIMEOUT_MS = 10_000;
 const DEFAULT_IDLE_FIRST_MS = 15_000;
 const DEFAULT_IDLE_SECOND_MS = 30_000;
 const DEFAULT_IDLE_END_MS = 45_000;
-const DEFAULT_SOFT_TURN_TIMEOUT_MS = 6_000;
+const DEFAULT_SOFT_TURN_TIMEOUT_MS = 2_500;
 const DEFAULT_HARD_TURN_TIMEOUT_MS = 15_000;
 const DEFAULT_MAX_PENDING_PER_IP = 5;
 const DEFAULT_MAX_CALL_DURATION_SECONDS = 600;
@@ -166,6 +168,8 @@ export const initializeConversationRelayServer = (
     voiceCapacityService = VoiceCapacityService,
     voiceUsageService = VoiceUsageService,
     voiceFraudDetectionService = VoiceFraudDetectionService,
+    voiceOutcomeService = VoiceOutcomeService,
+    voiceMetricsService = VoiceMetricsService,
     signatureValidator = validateConversationRelaySignature,
     failureEndDelayMs = DEFAULT_END_DELAY_MS,
     failureCloseDelayMs = DEFAULT_CLOSE_DELAY_MS,
@@ -254,6 +258,7 @@ export const initializeConversationRelayServer = (
     let capacityReserved = false;
     let voiceUsageReservedSeconds = 0;
     let voiceUsageReconciled = false;
+    let usageTopUpTimer = null;
     let messageChain = Promise.resolve();
     let endTimer = null;
     let closeTimer = null;
@@ -290,6 +295,7 @@ export const initializeConversationRelayServer = (
       clearTimer(handshakeTimer);
       clearTimer(durationTimer);
       clearTimer(durationWarningTimer);
+      clearTimer(usageTopUpTimer);
       clearTimer(dtmfTimer);
       clearIdleTimers();
       endTimer = null;
@@ -472,6 +478,7 @@ export const initializeConversationRelayServer = (
       clearIdleTimers();
       clearTimer(durationTimer);
       clearTimer(durationWarningTimer);
+      clearTimer(usageTopUpTimer);
       const reason = String(error?.message || "ConversationRelay failure").slice(
         0,
         2000,
@@ -612,14 +619,12 @@ export const initializeConversationRelayServer = (
     };
 
     const runAgentTurn = async (customerMessage) => {
+      const turnStartedAt = Date.now();
       let settled = false;
       const turnId = ++currentTurn;
       const softTimer = schedule(() => {
         if (!settled && turnId === currentTurn) {
-          void sendAssistantText(
-            "I’m checking that now. Thank you for your patience.",
-            { preemptible: true },
-          );
+          void sendAssistantText("One moment.", { preemptible: true });
         }
       }, softTurnTimeoutMs);
       let hardTimer;
@@ -632,6 +637,9 @@ export const initializeConversationRelayServer = (
           timeoutPromise,
         ]);
         settled = true;
+        if (session?._id) {
+          void voiceMetricsService.recordVoiceMetric({ sessionId: session._id, event: "full_turn_latency_ms", value: Date.now() - turnStartedAt });
+        }
         return result || {};
       } finally {
         settled = true;
@@ -646,7 +654,20 @@ export const initializeConversationRelayServer = (
       // A finalized caller turn proves the caller is present. Do not let
       // no-input timers run while dependencies process the request.
       clearIdleTimers();
+      const inputFinalizedAt = Date.now();
+      session.metadata = { ...(session.metadata || {}), lastInputAtMs: inputFinalizedAt };
       await appendTranscriptSafely({ role: "customer", text });
+      if (source !== "dtmf" && source !== "dtmf_zero") {
+        const acknowledgment = /\b(?:hola|necesito|ayuda|por favor|español|espanol)\b/i.test(text)
+          ? "Entiendo."
+          : "Got it.";
+        await sendAssistantText(acknowledgment, { preemptible: true, record: false });
+        void voiceMetricsService.recordVoiceMetric({
+          sessionId: session._id,
+          event: "time_to_first_audio_ms",
+          value: Date.now() - inputFinalizedAt,
+        });
+      }
       try {
         await voiceSessionService.touchActivity?.(session._id, {
           lastInputSource: source,
@@ -702,12 +723,16 @@ export const initializeConversationRelayServer = (
       consecutiveTurnFailures = 0;
       const reply = String(result?.reply || "").trim();
       if (reply) await sendAssistantText(reply);
+      if (result?.outcome) {
+        await voiceOutcomeService.commitVoiceOutcome({ sessionId: session._id, outcome: result.outcome, metadata: { source: "voice_agent_result" } });
+      }
       if (!result?.handoff) armIdleTimersAfterReply(reply);
       if (result?.handoff) {
         intentionalEnd = true;
         clearIdleTimers();
         clearTimer(durationTimer);
         clearTimer(durationWarningTimer);
+      clearTimer(usageTopUpTimer);
         await reconcileVoiceUsageSafely();
         await releaseCapacity();
         endTimer = schedule(() => {
@@ -785,23 +810,25 @@ export const initializeConversationRelayServer = (
       handshakeTimer = null;
 
 
-      const velocity =
-        await voiceFraudDetectionService.evaluateCallerVelocity({
-          businessId:
-            session.business?._id || session.business,
-          callerPhone: session.from,
-          maxCalls:
-            session.business?.voiceSettings
-              ?.callerVelocityLimitPerHour || 10,
-        });
+      if (!session.metadata?.preflightPassedAt) {
+        const velocity =
+          await voiceFraudDetectionService.evaluateCallerVelocity({
+            businessId:
+              session.business?._id || session.business,
+            callerPhone: session.from,
+            maxCalls:
+              session.business?.voiceSettings
+                ?.callerVelocityLimitPerHour || 10,
+          });
 
-      if (!velocity.allowed) {
-        const error = new Error(
-          "Caller activity exceeded the voice safety limit. Callback recovery was used.",
-        );
-        error.code =
-          velocity.reason || "VOICE_CALLER_VELOCITY_LIMIT";
-        throw error;
+        if (!velocity.allowed) {
+          const error = new Error(
+            "Caller activity exceeded the voice safety limit. Callback recovery was used.",
+          );
+          error.code =
+            velocity.reason || "VOICE_CALLER_VELOCITY_LIMIT";
+          throw error;
+        }
       }
 
       const capacity = await voiceCapacityService.acquireVoiceCapacity({
@@ -833,8 +860,21 @@ export const initializeConversationRelayServer = (
         throw error;
       }
 
-      voiceUsageReservedSeconds =
-        Number(usage.reservedSeconds) || 0;
+      voiceUsageReservedSeconds = Number(usage.reservedSeconds) || 0;
+      const topUpEveryMs = Math.max(30_000, Number(process.env.VOICE_USAGE_TOP_UP_INTERVAL_MS) || 45_000);
+      const topUp = async () => {
+        if (!session?._id || intentionalEnd || failureStarted || voiceUsageReconciled) return;
+        const extra = await voiceUsageService.reserveVoiceUsage({ business: session.business, sessionId: session._id, reserveSeconds: 60 });
+        if (!extra.allowed) {
+          const error = new Error("The voice allowance was reached during the call. The request will be preserved as a callback.");
+          error.code = extra.reason || "VOICE_ALLOWANCE_EXHAUSTED_MID_CALL";
+          await failGracefully(error);
+          return;
+        }
+        voiceUsageReservedSeconds += Number(extra.reservedSeconds) || 0;
+        usageTopUpTimer = schedule(() => void topUp(), topUpEveryMs);
+      };
+      usageTopUpTimer = schedule(() => void topUp(), topUpEveryMs);
 
       scheduleDurationLimit();
       const configuredGreeting = String(
@@ -970,45 +1010,75 @@ export const initializeConversationRelayServer = (
     });
 
     socket.on("close", (code, reasonBuffer) => {
+
       releasePending();
+
       clearAllTimers();
-      const reason = reasonBuffer?.toString?.() || "";
+
+      clearTimer(usageTopUpTimer);
+
+      const closeReason = reasonBuffer?.toString?.().slice(0, 500) || "";
+
+      // Serialize close recovery behind any in-flight final caller turn.
+
+      // This prevents a booking or callback commit from racing abandonment.
+
       messageChain = messageChain
+
         .then(async () => {
+
           await reconcileVoiceUsageSafely();
+
           await releaseCapacity();
-          if (!session?._id) return;
-          if (
-            intentionalEnd ||
-            [
-              "transferring",
-              "completing",
-              "fallback_sms",
-              "safety_escalated",
-              "completed",
-              "canceled",
-            ].includes(session.status)
-          ) {
-            return;
-          }
-          if (code === 1000) {
-            await voiceSessionService.markCompleted(session._id, {
-              closeCode: code,
-              closeReason: reason,
+
+          if (!session?._id || intentionalEnd || failureStarted) return;
+
+          const inferred = voiceOutcomeService.inferVoiceOutcome(session);
+
+          if (inferred) {
+
+            await voiceOutcomeService.commitVoiceOutcome({
+
+              sessionId: session._id,
+
+              outcome: inferred,
+
+              status: "completed",
+
+              metadata: { closeCode: code, closeReason },
+
             });
+
             return;
+
           }
-          await persistFallbackSafely(
-            `ConversationRelay WebSocket closed with code ${code}: ${reason}`,
-          );
-        })
-        .catch((error) => {
-          logOperationalError("conversation_relay.close_handler_failed", error, {
-            businessId: session?.business?._id || session?.business,
-            voiceSessionId: session?._id,
+
+          await voiceOutcomeService.recoverAbandonedVoiceCall({
+
+            sessionId: session._id,
+
             closeCode: code,
+
+            closeReason,
+
           });
-        });
+
+        })
+
+        .catch((error) =>
+
+          logOperationalError(
+
+            "conversation_relay.close_outcome_failed",
+
+            error,
+
+            { voiceSessionId: session?._id, closeCode: code },
+
+          ),
+
+        );
+
     });
 
     socket.on("error", (error) => {

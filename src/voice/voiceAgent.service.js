@@ -14,6 +14,10 @@ import VoiceAvailabilityService from "./voiceAvailability.service.js";
 import VoiceCallbackService from "./voiceCallback.service.js";
 import VoiceHandoffService from "./voiceHandoff.service.js";
 import VoiceTranscriptService from "./voiceTranscript.service.js";
+import VoiceUnderstandingService from "./voiceUnderstanding.service.js";
+import VoiceServiceAreaService from "./voiceServiceArea.service.js";
+import VoiceExistingJobStatusService from "./voiceExistingJobStatus.service.js";
+import VoiceMetricsService from "./voiceMetrics.service.js";
 import {
   cleanVoiceText,
   containsAbuse,
@@ -72,6 +76,27 @@ const MAX_UNMATCHED_TURNS_BEFORE_CALLBACK = 4;
 
 const normalizeId = (value) => value?._id || value?.id || value || null;
 const clean = (value, maximum = 2000) => cleanVoiceText(value, maximum);
+const recordPilotMetric = (
+  session,
+  event,
+  value = 1,
+  metadata = {},
+) => {
+  if (!session?._id) return;
+
+  void VoiceMetricsService.recordVoiceMetric({
+    sessionId: session._id,
+    event,
+    value,
+    metadata,
+  }).catch((error) => {
+    // Operational metrics must never interrupt the caller-facing flow.
+    logOperationalError("voice.metric_record_failed", error, {
+      voiceSessionId: session._id,
+      metricEvent: String(event || "").slice(0, 100),
+    });
+  });
+};
 
 const captureCallback = ({
   session,
@@ -94,7 +119,14 @@ const captureCallback = ({
     alertType,
     priority,
     openingPrompt,
-    seed,
+    seed: {
+      serviceNeeded: session?.metadata?.currentUnderstanding?.entities?.service || undefined,
+      customerName: session?.metadata?.currentUnderstanding?.entities?.name || undefined,
+      location: session?.metadata?.currentUnderstanding?.entities?.location || session?.metadata?.currentUnderstanding?.entities?.city || session?.metadata?.currentUnderstanding?.entities?.postalCode || undefined,
+      urgency: session?.metadata?.currentUnderstanding?.entities?.urgency || undefined,
+      preferredTime: session?.metadata?.currentUnderstanding?.entities?.preference || undefined,
+      ...seed,
+    },
     seedServiceFromMessage,
     immediate,
     completionReply,
@@ -269,11 +301,17 @@ class VoiceAgentService {
     }));
 
     let safety;
+    let understanding;
     try {
-      safety = await assessInboundSafety({
-        customerMessage: text,
-        recentMessages,
-      });
+      understanding = await VoiceUnderstandingService.classifyVoiceTurn({ customerMessage: text, recentMessages });
+      session.metadata = { ...(session.metadata || {}), currentUnderstanding: understanding };
+      safety = understanding.safety;
+      if (understanding.usage) {
+        session.openAiUsage = {
+          inputTokens: Number(session.openAiUsage?.inputTokens || 0) + Number(understanding.usage.input_tokens || 0),
+          outputTokens: Number(session.openAiUsage?.outputTokens || 0) + Number(understanding.usage.output_tokens || 0),
+        };
+      }
     } catch (error) {
       logOperationalError("voice.safety_assessment_failed", error, {
         businessId: business._id,
@@ -360,26 +398,25 @@ class VoiceAgentService {
       });
     }
 
-    if (containsAbuse(text)) {
+    if (understanding?.directedAbuse || containsAbuse(text)) {
       resetFallbackGuard(guard);
-      return {
-        reply:
-          "I want to help, but I need us to keep the conversation respectful. Please describe the service issue, or say callback for a team member.",
-      };
+      const strikes = Number(session.metadata?.directedAbuseStrikes || 0) + 1;
+      session.metadata.directedAbuseStrikes = strikes;
+      if (strikes >= 2) {
+        return captureCallback({ session, customerMessage: text, reason: "repeated_directed_abuse", alertType: "angry_customer", priority: "high", seedServiceFromMessage: true, openingPrompt: "I hear that you’re upset. I’ll save this for a team member to handle directly." });
+      }
+      return { reply: "I hear that you’re upset. Tell me the service issue, or say callback and a person will handle it." };
     }
 
-    if (guard.nonEnglishTurnCount >= 1) {
+    if (understanding?.language === "es" || guard.nonEnglishTurnCount >= 1) {
       resetFallbackGuard(guard);
+      const entities = understanding?.entities || {};
       return captureCallback({
-        session,
-        customerMessage: text,
-        reason: "language_barrier",
-        alertType: "human_requested",
-        priority: "high",
-        seed: { serviceNeeded: "Language support requested" },
-        immediate: true,
-        completionReply:
-          "I’m sorry, this automated voice flow cannot reliably complete that language request. I saved the call for direct team review.",
+        session, customerMessage: text, reason: "language_barrier_spanish",
+        alertType: "human_requested", priority: "high",
+        seed: { language: "es", serviceNeeded: entities.service || "Solicitud en español", customerName: entities.name, location: entities.location || entities.city || entities.postalCode, urgency: entities.urgency, preferredTime: entities.preference },
+        seedServiceFromMessage: !entities.service,
+        openingPrompt: "Entiendo. Guardaré su solicitud para que el equipo le devuelva la llamada. ¿Qué nombre debo poner en la solicitud?",
       });
     }
 
@@ -394,6 +431,8 @@ class VoiceAgentService {
     // rather than silently discarding or auto-confirming it.
     if (humanIntent) {
       resetFallbackGuard(guard);
+      recordPilotMetric(session, "exit_requested", 1, { exit: "human" });
+      recordPilotMetric(session, "exit_honored_one_turn", 1, { exit: "human" });
       const settings = business.voiceSettings || {};
       const liveTransferPhone = normalizePhoneToE164(settings.liveTransferPhone);
       const transferConfigured = Boolean(
@@ -402,6 +441,7 @@ class VoiceAgentService {
           !phoneNumbersEqual(liveTransferPhone, session.to || business.phone),
       );
       if (transferConfigured && (await safeBusinessOpen(business))) {
+        recordPilotMetric(session, "transfer_attempted");
         return liveTransferResult({
           session,
           reason: "customer_requested_human",
@@ -421,6 +461,8 @@ class VoiceAgentService {
 
     if (!bookingInProgress && isCallbackRequest(text)) {
       resetFallbackGuard(guard);
+      recordPilotMetric(session, "exit_requested", 1, { exit: "callback" });
+      recordPilotMetric(session, "exit_honored_one_turn", 1, { exit: "callback" });
       return captureCallback({
         session,
         customerMessage: text,
@@ -444,7 +486,12 @@ class VoiceAgentService {
       });
     }
 
-    if (!bookingInProgress && (WARRANTY.test(text) || COMMERCIAL.test(text) || EXISTING_JOB.test(text))) {
+    if (!bookingInProgress && EXISTING_JOB.test(text)) {
+      resetFallbackGuard(guard);
+      const status = await VoiceExistingJobStatusService.lookupExistingVoiceAppointment({ businessId: business._id, callerPhone: session.from || lead?.phone });
+      return captureCallback({ session, customerMessage: text, reason: "existing_job_status", alertType: "human_requested", priority: "high", seed: { serviceNeeded: "Existing job or technician status", customerName: understanding?.entities?.name, location: understanding?.entities?.location || understanding?.entities?.city || understanding?.entities?.postalCode, urgency: understanding?.entities?.urgency, preferredTime: understanding?.entities?.preference }, openingPrompt: status.reply || "I can’t verify the technician’s live status, so I’ll flag this for an immediate team callback rather than guess." });
+    }
+    if (!bookingInProgress && (WARRANTY.test(text) || COMMERCIAL.test(text))) {
       resetFallbackGuard(guard);
       const reason = WARRANTY.test(text)
         ? "warranty_claim"
@@ -480,46 +527,22 @@ class VoiceAgentService {
       });
     }
 
-    if (!bookingInProgress && isBusinessHoursQuestion(text)) {
+    if (!bookingInProgress && (understanding?.intent === "hours" || isBusinessHoursQuestion(text))) {
       resetFallbackGuard(guard);
-      return { reply: await VoiceAvailabilityService.describeBusinessHours(business) };
+      return { reply: await VoiceAvailabilityService.describeBusinessHours(business), outcome: "direct_answer_resolved" };
     }
 
-    if (!bookingInProgress && isServiceAreaQuestion(text)) {
+    if (!bookingInProgress && (understanding?.intent === "service_area" || isServiceAreaQuestion(text))) {
       resetFallbackGuard(guard);
-      const postalCode = extractPostalCode(text);
-      if (!postalCode) return { reply: "What five-digit ZIP code should I check?" };
-      try {
-        const area = await validateServiceAreaTool({
-          businessId: business._id,
-          postalCode,
-        });
-        if (area?.supported) {
-          return {
-            reply: `Yes, ${postalCode} is inside the approved service area. Would you like to schedule a residential service visit or create a callback request?`,
-          };
-        }
-      } catch (error) {
-        logOperationalError("voice.service_area_lookup_failed", error, {
-          businessId: business._id,
-          postalCode,
-        });
-      }
-      return captureCallback({
-        session,
-        customerMessage: text,
-        reason: "unsupported_or_unverified_service_area",
-        alertType: "low_ai_confidence",
-        priority: "medium",
-        seed: { location: postalCode },
-        openingPrompt:
-          "I could not verify that location for automatic booking. I can still preserve the request for manual review.",
-      });
+      const entities = understanding?.entities || {};
+      const area = await VoiceServiceAreaService.checkVoiceServiceArea({ business, location: entities.location || text, city: entities.city, postalCode: entities.postalCode || extractPostalCode(text) });
+      if (area.supported === true) return { reply: `Yes, ${area.postalCode || area.city || "that location"} is in the verified service area. Would you like to schedule a visit or create a callback request?`, outcome: "direct_answer_resolved" };
+      return captureCallback({ session, customerMessage: text, reason: "unverified_service_area", alertType: "low_ai_confidence", priority: "medium", seed: { location: entities.location || entities.city || entities.postalCode || text }, openingPrompt: "I can’t verify that location automatically, but I’ll have the team review it and call you." });
     }
 
     if (!bookingInProgress && DIAGNOSTIC_FEE.test(text)) {
       resetFallbackGuard(guard);
-      return { reply: await getDiagnosticFeeReply({ business, text }) };
+      return { reply: await getDiagnosticFeeReply({ business, text }), outcome: "direct_answer_resolved" };
     }
 
     const catalogServiceMatched =
@@ -717,6 +740,9 @@ class VoiceAgentService {
 
     return {
       reply: `${spokenBookingReply || "The booking step is complete."}${truthfulSuffix}`,
+      ...(conversation.bookingState?.status === "booked"
+        ? { outcome: "booked" }
+        : {}),
     };
   }
 }

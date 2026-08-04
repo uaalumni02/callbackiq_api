@@ -125,6 +125,16 @@ export const isConversationRelayConfigured = () =>
   /^https:\/\//i.test(getVoiceHttpBaseUrl()) &&
   Boolean(String(process.env.TWILIO_AUTH_TOKEN || "").trim());
 
+export const getConversationRelayLanguage = () => {
+  const configured = String(
+    process.env.TWILIO_CONVERSATION_RELAY_LANGUAGE || "en-US",
+  ).trim();
+
+  return /^(?:en-US|es-US|multi)$/i.test(configured)
+    ? configured
+    : "en-US";
+};
+
 export const isPhase9ForcedRelayFailureEnabled = () => {
   const environment = String(
     process.env.APP_ENV || process.env.NODE_ENV || "",
@@ -145,12 +155,21 @@ const cleanGreeting = (value) => {
   return text.slice(0, 300);
 };
 
-const dynamicGreeting = (businessName) => {
+const AI_DISCLOSURE_PATTERN = /\b(?:automated|virtual|ai)\s+(?:assistant|system|agent)\b/i;
+export const ensureAutomatedAssistantDisclosure = (greeting, businessName = "") => {
   const name = String(businessName || "").replace(/\s+/g, " ").trim().slice(0, 120);
+  const fallback = name
+    ? `Thanks for calling ${name}. This is their automated assistant. How can I help you today?`
+    : "Thanks for calling. This is the automated assistant. How can I help you today?";
+  const cleaned = cleanGreeting(greeting);
+  if (!cleaned) return fallback;
+  if (AI_DISCLOSURE_PATTERN.test(cleaned)) return cleaned;
   return name
-    ? `Thanks for calling ${name}. How can I help you today?`
-    : "Thanks for calling. How can I help you today?";
+    ? `Thanks for calling ${name}. This is their automated assistant. ${cleaned}`
+    : `This is the automated assistant. ${cleaned}`;
 };
+const dynamicGreeting = (businessName) =>
+  ensureAutomatedAssistantDisclosure("", businessName);
 
 export const normalizeVoiceSettings = (business) => {
   const raw = business?.voiceSettings || {};
@@ -275,8 +294,10 @@ export const conversationRelayTwiml = ({
     greeting !== undefined
       ? greeting
       : normalizedBusiness?.welcomeGreeting || "";
-  const resolvedGreeting =
-    cleanGreeting(effectiveGreeting) || dynamicGreeting(effectiveBusinessName);
+  const resolvedGreeting = ensureAutomatedAssistantDisclosure(
+    effectiveGreeting,
+    effectiveBusinessName,
+  );
   const effectiveVoiceName =
     voiceName !== undefined ? voiceName : normalizedBusiness?.voiceName || "";
   const effectiveBusinessId =
@@ -299,7 +320,7 @@ export const conversationRelayTwiml = ({
   return xml(
     `<Response><Connect action="${escapeXml(action)}"><ConversationRelay url="${escapeXml(
       websocketUrl,
-    )}" welcomeGreeting="${escapeXml(resolvedGreeting)}" language="en-US" interruptible="any" interruptSensitivity="medium" dtmfDetection="true" reportInputDuringAgentSpeech="any" ignoreBackchannel="true" speechTimeout="1200"${voiceAttribute}>${parameters}</ConversationRelay></Connect></Response>`,
+    )}" welcomeGreeting="${escapeXml(resolvedGreeting)}" language="${escapeXml(getConversationRelayLanguage())}" interruptible="any" interruptSensitivity="medium" dtmfDetection="true" reportInputDuringAgentSpeech="any" ignoreBackchannel="true" speechTimeout="1200"${voiceAttribute}>${parameters}</ConversationRelay></Connect></Response>`,
   );
 };
 
@@ -331,7 +352,7 @@ export const staffScreenPromptTwiml = ({
 } = {}) => {
   const action = appendQuery(decisionPath, { callSid: providerCallSid });
   return xml(
-    `<Response><Gather action="${escapeXml(action)}" method="POST" numDigits="1" timeout="7"><Say>CallBackIQ has a recovered customer call. Press 1 to accept. Otherwise, hang up.</Say></Gather><Hangup/></Response>`,
+    `<Response><Gather action="${escapeXml(action)}" method="POST" numDigits="1" timeout="7"><Say>CallBackIQ has a recovered customer call. Press 1 to accept.</Say></Gather><Gather action="${escapeXml(action)}" method="POST" numDigits="1" timeout="7"><Say>Still there? Press 1 now to accept the customer call.</Say></Gather><Hangup/></Response>`,
   );
 };
 

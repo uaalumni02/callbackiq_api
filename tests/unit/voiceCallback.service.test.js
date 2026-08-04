@@ -106,13 +106,10 @@ describe("VoiceCallbackService", () => {
       session,
       customerMessage: "30303",
     });
-    expect(result.reply).toMatch(/how urgent/i);
+    expect(result.reply).toMatch(
+      /day or time|prefer.*(?:contact|schedule)|when.*(?:contact|schedule)/i,
+    );
 
-    result = await VoiceCallbackService.handle({
-      session,
-      customerMessage: "Today",
-    });
-    expect(result.reply).toMatch(/what day or time/i);
 
     result = await VoiceCallbackService.handle({
       session,
@@ -135,7 +132,7 @@ expect(result.callbackCaptured).toBe(true);
       customerName: "DeMeco Bell",
       serviceNeeded: "I need drain cleaning",
       address: "30303",
-      urgency: "high",
+      urgency: "medium",
       preferredAppointmentTime: "Tomorrow afternoon",
       status: "new",
     });

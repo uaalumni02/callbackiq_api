@@ -52,7 +52,10 @@
     "voice:redact-transcripts": "node --env-file=.env scripts/redact-expired-voice-transcripts.mjs",
     "voice:sweep-capacity": "node --env-file=.env scripts/sweep-expired-voice-capacity.mjs",
     "voice:migrate-phones": "node --env-file=.env scripts/normalize-business-phone-numbers.mjs",
-    "voice:migrate-phones:apply": "node --env-file=.env scripts/normalize-business-phone-numbers.mjs --apply"
+    "voice:migrate-phones:apply": "node --env-file=.env scripts/normalize-business-phone-numbers.mjs --apply",
+    "test:voice-pilot": "jest --runInBand tests/unit/voiceOutcome.service.test.js tests/unit/voiceUnderstanding.service.test.js tests/unit/voicePilotMetrics.service.test.js tests/integration/voiceAbandonmentRecovery.integration.test.js",
+    "migrate:voice-phone-lookups": "node --env-file=.env scripts/migrate-voice-phone-lookups.js",
+    "verify:voice-pilot": "node scripts/verify-voice-pilot-update.js"
   },
   "keywords": [],
   "author": "",

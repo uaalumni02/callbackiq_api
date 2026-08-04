@@ -36,7 +36,7 @@ const HOURS_CONTEXT_PATTERN = /\b(?:when|today|tomorrow|tonight|weekend|weekday|
 const OPEN_CLOSE_PATTERN = /\b(?:open|close|closed|closing|opening)\b/i;
 const HOURS_DIRECT_PATTERN = /\b(?:business hours|operating hours|hours of operation|what time do you (?:open|close)|when are you open|are you open|are you closed)\b/i;
 const AREA_PATTERN = /\b(?:service area|serve|servicing|cover|coverage|come to|travel to|work in|go to|service my area|service this area)\b/i;
-const ABUSE_PATTERN = /\b(?:fuck|shit|bitch|asshole|idiot|stupid|moron)\b/i;
+const DIRECTED_ABUSE_PATTERN = /\b(?:you|your|y’all|yall|the company|this business|your business|your people)\b.{0,40}\b(?:fuck|shit|bitch|asshole|idiot|stupid|moron|scam|crook)\b|\b(?:fuck you|you suck|your company sucks)\b/i;
 const EXPLICIT_LANGUAGE_PATTERN = /\b(?:spanish|espa[nñ]ol|french|fran[cç]ais|portuguese|portugu[eê]s|interpreter|translator|translation)\b/i;
 const NON_ENGLISH_MARKERS = new Set([
   // Spanish
@@ -78,7 +78,7 @@ export const isBusinessHoursQuestion = (value) => {
   return OPEN_CLOSE_PATTERN.test(text) && HOURS_CONTEXT_PATTERN.test(text);
 };
 export const isServiceAreaQuestion = (value) => AREA_PATTERN.test(cleanVoiceText(value, 500));
-export const containsAbuse = (value) => ABUSE_PATTERN.test(cleanVoiceText(value, 1000));
+export const containsAbuse = (value) => DIRECTED_ABUSE_PATTERN.test(cleanVoiceText(value, 1000));
 
 const spokenDigits = (value) => {
   const tokens = cleanVoiceText(value, 500)

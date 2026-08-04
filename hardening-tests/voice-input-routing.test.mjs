@@ -70,7 +70,7 @@ test("normalization applies dynamic greeting and hard duration limits", () => {
   assert.equal(settings.maxCallDurationSeconds, 600);
   assert.equal(
     settings.resolvedWelcomeGreeting,
-    "Thanks for calling Atlanta Pro Plumbing & Drain. How can I help you today?",
+    "Thanks for calling Atlanta Pro Plumbing & Drain. This is their automated assistant. How can I help you today?",
   );
 });
 

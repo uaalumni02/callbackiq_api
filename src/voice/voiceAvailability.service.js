@@ -180,28 +180,42 @@ class VoiceAvailabilityService {
     );
   }
 
-  static async describeBusinessHours(business) {
-    const rules = await AvailabilityRule.find({ business: business._id }).sort({
-      dayOfWeek: 1,
-    });
-    const enabled = rules.filter(
-      (rule) => rule.enabled && Array.isArray(rule.windows) && rule.windows.length,
-    );
-    if (!enabled.length) {
+  static async describeBusinessHours(business, at = new Date()) {
+    if (!business?._id) {
       return "The business has not published verified operating hours yet, so I’ll have the team confirm them directly.";
     }
-
-    const text = enabled
-      .map(
-        (rule) =>
-          `${DAY_NAMES[rule.dayOfWeek]} ${rule.windows
-            .map(describeWindow)
-            .join(" and ")}`,
-      )
-      .join("; ");
-    // Hours are interpreted in the business's configured local timezone.
-    // Do not read the internal IANA timezone identifier to the caller.
-    return `The published business hours are ${text}.`;
+    const timeZone = resolveBusinessTimeZone(business);
+    const local = getLocalParts(at, timeZone);
+    const [rules, currentException] = await Promise.all([
+      AvailabilityRule.find({ business: business._id }).sort({ dayOfWeek: 1 }),
+      AvailabilityException.findOne({ business: business._id, date: local.dateKey, active: true }).sort({ createdAt: -1 }),
+    ]);
+    const todayRule = rules.find((rule) => rule.dayOfWeek === local.dayOfWeek);
+    const active = exceptionClosesDate(currentException)
+      ? []
+      : currentException?.type === "special_hours"
+        ? currentException.windows || []
+        : todayRule?.enabled && Array.isArray(todayRule.windows)
+          ? todayRule.windows
+          : [];
+    const current = active.find((window) => withinTimeWindow(local.minutes, window));
+    if (current) {
+      return `We’re open now until ${formatClockTimeForSpeech(...String(current.endTime).split(":"))}.`;
+    }
+    const later = active.find((window) => timeToMinutes(window.startTime) > local.minutes);
+    if (later) {
+      return `We’re closed right now and reopen today at ${formatClockTimeForSpeech(...String(later.startTime).split(":"))}.`;
+    }
+    for (let offset = 1; offset <= 7; offset += 1) {
+      const day = (local.dayOfWeek + offset) % 7;
+      const rule = rules.find((item) => item.dayOfWeek === day && item.enabled && item.windows?.length);
+      if (rule) {
+        const first = rule.windows[0];
+        const label = offset === 1 ? "tomorrow" : DAY_NAMES[day];
+        return `Published hours show the business reopening ${label} at ${formatClockTimeForSpeech(...String(first.startTime).split(":"))}.`;
+      }
+    }
+    return "The business has not published verified operating hours yet, so I’ll have the team confirm them directly.";
   }
 }
 

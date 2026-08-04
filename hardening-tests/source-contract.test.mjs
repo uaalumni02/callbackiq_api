@@ -50,7 +50,7 @@ test("capacity leases cannot inherit legacy one-hour durations", async () => {
 test("timeouts do not launch a concurrent duplicate agent turn", async () => {
   const source = await read("src/voice/conversationRelay.server.js");
   assert.match(source, /error\?\.code !== "VOICE_TURN_TIMEOUT"/);
-  assert.match(source, /DEFAULT_SOFT_TURN_TIMEOUT_MS = 6_000/);
+  assert.match(source, /DEFAULT_SOFT_TURN_TIMEOUT_MS = 2_500/);
   assert.match(source, /DEFAULT_HARD_TURN_TIMEOUT_MS = 15_000/);
 });
 
@@ -62,7 +62,7 @@ test("dialogue guards bound fallback loops, language barriers and abuse", async 
     /fallbackTurnCount\s*>=\s*MAX_UNMATCHED_TURNS_BEFORE_CALLBACK/,
   );
   assert.match(source, /MAX_ABUSIVE_TURNS = 2/);
-  assert.match(source, /reason: "language_barrier"/);
+  assert.match(source, /reason:\s*"language_barrier_spanish"/);
 });
 
 test("callback capture uses readback, corrections and two-attempt field limits", async () => {

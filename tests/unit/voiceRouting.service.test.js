@@ -111,7 +111,7 @@ describe("Phase 9 voice routing settings", () => {
 
     const normalized = normalizeVoiceSettings(business);
     expect(normalized.welcomeGreeting).toBe(
-      "Thanks for calling Atlanta Pro Plumbing & Drain. How can I help you today?",
+      "Thanks for calling Atlanta Pro Plumbing & Drain. This is their automated assistant. How can I help you today?",
     );
 
     const twiml = conversationRelayTwiml({
@@ -119,7 +119,7 @@ describe("Phase 9 voice routing settings", () => {
       voiceSessionId: "voice-session-atlanta",
     });
     expect(twiml).toContain(
-      'welcomeGreeting="Thanks for calling Atlanta Pro Plumbing &amp; Drain. How can I help you today?"',
+      'welcomeGreeting="Thanks for calling Atlanta Pro Plumbing &amp; Drain. This is their automated assistant. How can I help you today?"',
     );
   });
 });
