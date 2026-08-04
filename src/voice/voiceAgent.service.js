@@ -66,6 +66,9 @@ const GENERAL_HELP_REPLY =
   "I can help with a residential service request, service-area questions, published business hours, a verified diagnostic fee, scheduling, or a callback request. What do you need help with?";
 const MAX_REPEATED_INPUTS = 3;
 const MAX_ABUSIVE_TURNS = 2;
+// Preserve a natural multi-question conversation. Unsupported questions may
+// receive bounded guidance before callback recovery starts.
+const MAX_UNMATCHED_TURNS_BEFORE_CALLBACK = 4;
 
 const normalizeId = (value) => value?._id || value?.id || value || null;
 const clean = (value, maximum = 2000) => cleanVoiceText(value, maximum);
@@ -541,7 +544,7 @@ class VoiceAgentService {
       }
 
       guard.fallbackTurnCount += 1;
-      if (guard.fallbackTurnCount >= 2) {
+      if (guard.fallbackTurnCount >= MAX_UNMATCHED_TURNS_BEFORE_CALLBACK) {
         return captureCallback({
           session,
           customerMessage: text,

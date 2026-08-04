@@ -4,3 +4,4 @@ build
 .env
 .eslintrc.json
 .callbackiq-backups/
+.callbackiq-fix-backups/

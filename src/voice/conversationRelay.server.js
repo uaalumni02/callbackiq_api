@@ -33,9 +33,12 @@ const PATH = "/ws/voice";
 const DEFAULT_END_DELAY_MS = 700;
 const DEFAULT_CLOSE_DELAY_MS = 3500;
 const DEFAULT_HANDSHAKE_TIMEOUT_MS = 10_000;
-const DEFAULT_IDLE_FIRST_MS = 8_000;
-const DEFAULT_IDLE_SECOND_MS = 16_000;
-const DEFAULT_IDLE_END_MS = 25_000;
+// These windows begin after the assistant returns control to the caller.
+// Voice turns need more time than chat turns because TTS playback and speech
+// finalization both consume part of the apparent silence window.
+const DEFAULT_IDLE_FIRST_MS = 15_000;
+const DEFAULT_IDLE_SECOND_MS = 30_000;
+const DEFAULT_IDLE_END_MS = 45_000;
 const DEFAULT_SOFT_TURN_TIMEOUT_MS = 6_000;
 const DEFAULT_HARD_TURN_TIMEOUT_MS = 15_000;
 const DEFAULT_MAX_PENDING_PER_IP = 5;
@@ -258,6 +261,7 @@ export const initializeConversationRelayServer = (
     let durationTimer = null;
     let durationWarningTimer = null;
     let idleTimers = [];
+    let idleArmTimer = null;
     let dtmfTimer = null;
     let dtmfBuffer = "";
     let consecutiveTurnFailures = 0;
@@ -274,6 +278,8 @@ export const initializeConversationRelayServer = (
     };
 
     const clearIdleTimers = () => {
+      clearTimer(idleArmTimer);
+      idleArmTimer = null;
       for (const timer of idleTimers) clearTimer(timer);
       idleTimers = [];
     };
@@ -514,13 +520,13 @@ export const initializeConversationRelayServer = (
       idleTimers = [
         schedule(() => {
           void sendAssistantText(
-            "Are you still there? Tell me what service you need, or say callback if you want the team to contact you.",
+            "Are you still there? Take your time. I’m listening for your next question or service request.",
             { preemptible: true },
           );
         }, idleFirstMs),
         schedule(() => {
           void sendAssistantText(
-            "I still haven’t heard you. You can say your request, press zero for a person, or say callback.",
+            "I still haven’t heard anything. You can ask another question, describe the service you need, or say callback.",
             { preemptible: true },
           );
         }, idleSecondMs),
@@ -528,6 +534,46 @@ export const initializeConversationRelayServer = (
           void endForNoInput();
         }, idleEndMs),
       ];
+    };
+
+    const armIdleTimersAfterReply = (text) => {
+
+      clearIdleTimers();
+
+      if (!setupReceived || intentionalEnd || failureStarted) return;
+
+      const wordCount = String(text || "")
+
+        .trim()
+
+        .split(/\s+/)
+
+        .filter(Boolean).length;
+
+      // ConversationRelay does not expose a playback-complete frame here.
+
+      // Delay the caller's silence window by a conservative TTS estimate.
+
+      const estimatedPlaybackMs = boundedInteger(
+
+        Math.ceil((wordCount / 2.4) * 1000) + 1000,
+
+        1500,
+
+        1500,
+
+        30_000,
+
+      );
+
+      idleArmTimer = schedule(() => {
+
+        idleArmTimer = null;
+
+        resetIdleTimers();
+
+      }, estimatedPlaybackMs);
+
     };
 
     const scheduleDurationLimit = () => {
@@ -597,7 +643,9 @@ export const initializeConversationRelayServer = (
     const processAgentInput = async (customerMessage, { source = "speech" } = {}) => {
       const text = String(customerMessage || "").trim().slice(0, 4000);
       if (!text || !session || intentionalEnd || failureStarted) return;
-      resetIdleTimers();
+      // A finalized caller turn proves the caller is present. Do not let
+      // no-input timers run while dependencies process the request.
+      clearIdleTimers();
       await appendTranscriptSafely({ role: "customer", text });
       try {
         await voiceSessionService.touchActivity?.(session._id, {
@@ -641,12 +689,12 @@ export const initializeConversationRelayServer = (
             return;
           }
           const timeout = error?.code === "VOICE_TURN_TIMEOUT";
-          await sendAssistantText(
+          const recoveryReply =
             timeout
               ? "I’m sorry, that check took too long. Please say the request again, or say callback and I’ll preserve it for the team."
-              : "I’m sorry, I could not complete that step. Please try once more, or say callback for team follow-up.",
-            { preemptible: true },
-          );
+              : "I’m sorry, I could not complete that step. Please try once more, or say callback for team follow-up.";
+          await sendAssistantText(recoveryReply, { preemptible: true });
+          armIdleTimersAfterReply(recoveryReply);
           return;
         }
       }
@@ -654,7 +702,7 @@ export const initializeConversationRelayServer = (
       consecutiveTurnFailures = 0;
       const reply = String(result?.reply || "").trim();
       if (reply) await sendAssistantText(reply);
-
+      if (!result?.handoff) armIdleTimersAfterReply(reply);
       if (result?.handoff) {
         intentionalEnd = true;
         clearIdleTimers();
@@ -681,7 +729,7 @@ export const initializeConversationRelayServer = (
     const handleDtmf = async (digitValue) => {
       const digit = String(digitValue || "").slice(0, 1);
       if (!/^[0-9#*]$/.test(digit)) return;
-      resetIdleTimers();
+      clearIdleTimers();
       if (digit === "0" && !dtmfBuffer) {
         await processAgentInput("I want to speak to a person.", {
           source: "dtmf_zero",
@@ -692,7 +740,10 @@ export const initializeConversationRelayServer = (
         dtmfBuffer = "";
         clearTimer(dtmfTimer);
         dtmfTimer = null;
-        await sendAssistantText("I cleared the entered digits. Please enter them again.");
+        const digitResetReply =
+          "I cleared the entered digits. Please enter them again.";
+        await sendAssistantText(digitResetReply);
+        armIdleTimersAfterReply(digitResetReply);
         return;
       }
       if (digit === "#") {
@@ -786,7 +837,13 @@ export const initializeConversationRelayServer = (
         Number(usage.reservedSeconds) || 0;
 
       scheduleDurationLimit();
-      resetIdleTimers();
+      const configuredGreeting = String(
+        session.business?.voiceSettings?.welcomeGreeting || "",
+      ).trim();
+      const defaultGreeting = session.business?.businessName
+        ? `Thanks for calling ${session.business.businessName}. How can I help you today?`
+        : "Thanks for calling. How can I help you today?";
+      armIdleTimersAfterReply(configuredGreeting || defaultGreeting);
       await appendTranscriptSafely({
         role: "system",
         text: "ConversationRelay session connected.",
@@ -826,6 +883,9 @@ export const initializeConversationRelayServer = (
       }
 
       if (message.type === "prompt") {
+        // A partial prompt is proof that the caller is speaking. Clear the
+        // no-input timers immediately; process only the finalized transcript.
+        clearIdleTimers();
         if (message.last !== true) return;
         const text = String(message.voicePrompt || "").trim();
         if (text) await processAgentInput(text, { source: "speech" });
@@ -836,7 +896,9 @@ export const initializeConversationRelayServer = (
         return;
       }
       if (message.type === "interrupt") {
-        resetIdleTimers();
+        // The caller is actively speaking. Re-arm only after the finalized
+        // prompt has been processed and answered.
+        clearIdleTimers();
         try {
           await voiceTranscriptService.markLastAssistantInterrupted?.(session._id);
           await voiceTranscriptService.touch?.(session._id, {

@@ -8,7 +8,26 @@ const startServer = async (options) => {
     res.statusCode = 404;
     res.end();
   });
-  const relay = initializeConversationRelayServer(httpServer, options);
+  // Test-only defaults keep infrastructure guards from reaching real MongoDB models.
+  const voiceFraudDetectionService =
+    options?.voiceFraudDetectionService || {
+      evaluateCallerVelocity: jest.fn().mockResolvedValue({
+        allowed: true,
+        reason: "within_test_limit",
+      }),
+    };
+  const voiceUsageService = options?.voiceUsageService || {
+    reserveVoiceUsage: jest.fn().mockResolvedValue({
+      allowed: true,
+      reservedSeconds: 60,
+    }),
+    reconcileVoiceUsage: jest.fn().mockResolvedValue(undefined),
+  };
+  const relay = initializeConversationRelayServer(httpServer, {
+    ...options,
+    voiceFraudDetectionService,
+    voiceUsageService,
+  });
   await new Promise((resolve) => httpServer.listen(0, "127.0.0.1", resolve));
   const address = httpServer.address();
 

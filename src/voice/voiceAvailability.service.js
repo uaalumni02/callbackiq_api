@@ -199,9 +199,9 @@ class VoiceAvailabilityService {
             .join(" and ")}`,
       )
       .join("; ");
-    return `The published business hours are ${text}, in ${resolveBusinessTimeZone(
-      business,
-    )}.`;
+    // Hours are interpreted in the business's configured local timezone.
+    // Do not read the internal IANA timezone identifier to the caller.
+    return `The published business hours are ${text}.`;
   }
 }
 

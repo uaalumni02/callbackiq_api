@@ -146,13 +146,13 @@ const relay = requireAll("src/voice/conversationRelay.server.js", [
   'const PATH = "/ws/voice"',
   'request.headers?.["x-twilio-signature"]',
   "signatureUrlForRequest",
-  "twilio.validateRequest",
+  "validateTwilioRequestWithRotation",
   "signatureValidator(request)",
   "wss.handleUpgrade",
   "DEFAULT_HANDSHAKE_TIMEOUT_MS = 10_000",
-  "DEFAULT_IDLE_FIRST_MS = 8_000",
-  "DEFAULT_IDLE_SECOND_MS = 16_000",
-  "DEFAULT_IDLE_END_MS = 25_000",
+  "DEFAULT_IDLE_FIRST_MS = 15_000",
+  "DEFAULT_IDLE_SECOND_MS = 30_000",
+  "DEFAULT_IDLE_END_MS = 45_000",
   "DEFAULT_SOFT_TURN_TIMEOUT_MS = 6_000",
   "DEFAULT_HARD_TURN_TIMEOUT_MS = 15_000",
   "DEFAULT_MAX_CALL_DURATION_SECONDS = 600",
@@ -162,6 +162,12 @@ const relay = requireAll("src/voice/conversationRelay.server.js", [
   'message.type === "dtmf"',
   "isTransientDependencyError",
   "safeSend",
+]);
+requireAll("src/services/twilioSignatureRotation.service.js", [
+  "validateTwilioRequestWithRotation",
+  "twilio.validateRequest",
+  "TWILIO_AUTH_TOKEN_NEXT",
+  "TWILIO_AUTH_TOKEN_PREVIOUS",
 ]);
 const signatureIndex = relay.indexOf("signatureValidator(request)");
 const guardIndex = relay.indexOf("if (!signatureIsValid)");

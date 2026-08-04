@@ -528,7 +528,7 @@ const VOICE_DESTINATION_PHONE_PATHS = [
   "voiceSettings.liveTransferPhone",
 ];
 
-BusinessSchema.pre("validate", function prepareVoicePhoneFields() {
+BusinessSchema.pre("validate", function normalizeVoicePhoneFields() {
   const trackingPhone = normalizeVoicePhone(this.get("phone"));
   if (trackingPhone) this.set("phoneLookup", trackingPhone);
 

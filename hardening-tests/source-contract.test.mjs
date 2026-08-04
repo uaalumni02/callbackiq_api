@@ -30,9 +30,9 @@ test("transport has bounded setup, silence, turn and call timers", async () => {
   const source = await read("src/voice/conversationRelay.server.js");
   for (const token of [
     "DEFAULT_HANDSHAKE_TIMEOUT_MS = 10_000",
-    "DEFAULT_IDLE_FIRST_MS = 8_000",
-    "DEFAULT_IDLE_SECOND_MS = 16_000",
-    "DEFAULT_IDLE_END_MS = 25_000",
+    "DEFAULT_IDLE_FIRST_MS = 15_000",
+    "DEFAULT_IDLE_SECOND_MS = 30_000",
+    "DEFAULT_IDLE_END_MS = 45_000",
     "DEFAULT_HARD_TURN_TIMEOUT_MS = 15_000",
     "DEFAULT_MAX_CALL_DURATION_SECONDS = 600",
   ]) {
@@ -56,7 +56,11 @@ test("timeouts do not launch a concurrent duplicate agent turn", async () => {
 
 test("dialogue guards bound fallback loops, language barriers and abuse", async () => {
   const source = await read("src/voice/voiceAgent.service.js");
-  assert.match(source, /fallbackTurnCount >= 2/);
+  assert.match(source, /MAX_UNMATCHED_TURNS_BEFORE_CALLBACK\s*=\s*4/);
+  assert.match(
+    source,
+    /fallbackTurnCount\s*>=\s*MAX_UNMATCHED_TURNS_BEFORE_CALLBACK/,
+  );
   assert.match(source, /MAX_ABUSIVE_TURNS = 2/);
   assert.match(source, /reason: "language_barrier"/);
 });
