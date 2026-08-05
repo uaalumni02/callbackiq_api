@@ -23,6 +23,10 @@ test("normal caller hangup with no outcome invokes abandonment recovery once", a
     voiceAgentService: { handlePrompt: jest.fn() },
     voiceFailureService: { record: jest.fn() },
     voiceCapacityService: { acquireVoiceCapacity: jest.fn().mockResolvedValue({ allowed: true }), releaseVoiceCapacity: jest.fn() },
+    voiceConnectionLeaseService: {
+      acquireVoiceConnectionLease: jest.fn().mockResolvedValue({ allowed: true, lease: { ipHash: "test-ip", leaseId: "test-lease" } }),
+      releaseVoiceConnectionLease: jest.fn().mockResolvedValue(undefined),
+    },
     voiceUsageService: { reserveVoiceUsage: jest.fn().mockResolvedValue({ allowed: true, reservedSeconds: 60 }), reconcileVoiceUsage: jest.fn() },
     voiceFraudDetectionService: { evaluateCallerVelocity: jest.fn().mockResolvedValue({ allowed: true }) },
     voiceOutcomeService: { inferVoiceOutcome: jest.fn().mockReturnValue(""), commitVoiceOutcome: jest.fn(), recoverAbandonedVoiceCall },

@@ -79,6 +79,8 @@ const MessageSchema = new Schema(
       default: "",
       trim: true,
     },
+    // CALLBACKIQ_PRODUCTION_READINESS: browser/provider retry identity.
+    clientOperationId: { type: String, trim: true, maxlength: 160, default: "" },
 
     status: {
       type: String,
@@ -108,6 +110,20 @@ const MessageSchema = new Schema(
     inReplyToMessage: { type: Schema.Types.ObjectId, ref: "Message", default: null },
     deliveryAttemptedAt: { type: Date, default: null },
     deliveryUncertain: { type: Boolean, default: false },
+    deliveryEvents: {
+      type: [
+        {
+          providerStatus: { type: String, trim: true, default: "" },
+          canonicalStatus: { type: String, trim: true, default: "" },
+          errorCode: { type: String, trim: true, default: "" },
+          errorMessage: { type: String, trim: true, maxlength: 1000, default: "" },
+          applied: { type: Boolean, default: false },
+          conflict: { type: Boolean, default: false },
+          receivedAt: { type: Date, default: Date.now },
+        },
+      ],
+      default: [],
+    },
     metadata: { type: Schema.Types.Mixed, default: {} },
   },
   {
@@ -164,6 +180,14 @@ MessageSchema.index(
   },
 );
 
+MessageSchema.index(
+  { business: 1, clientOperationId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { clientOperationId: { $gt: "" } },
+    name: "message_business_client_operation_unique",
+  },
+);
 MessageSchema.index(
   { business: 1, inReplyToMessage: 1 },
   { unique: true, partialFilterExpression: { inReplyToMessage: { $type: "objectId" } } },

@@ -1,6 +1,7 @@
 import Alert from "../models/alert.js";
 import SocketService from "../services/socket.service.js";
 
+import { assertVoiceTurnActive } from "../services/voiceTurnContext.service.js";
 class VoiceHandoffService {
   static async request({
     session,
@@ -9,16 +10,19 @@ class VoiceHandoffService {
     alertType = "human_requested",
     customerMessage = "",
   }) {
+    assertVoiceTurnActive();
     session.status = "transferring";
     session.transferredToHuman = true;
     session.transferReason = reason;
     session.lastActivityAt = new Date();
+    assertVoiceTurnActive();
     await session.save();
 
     if (session.conversation) {
       session.conversation.humanTakeover = true;
       session.conversation.lastMessage = customerMessage || reason;
       session.conversation.lastMessageAt = new Date();
+      assertVoiceTurnActive();
       await session.conversation.save();
       if (typeof SocketService.emitConversationUpdated === "function") {
         SocketService.emitConversationUpdated(
@@ -28,6 +32,7 @@ class VoiceHandoffService {
       }
     }
 
+    assertVoiceTurnActive();
     const alert = await Alert.findOneAndUpdate(
       {
         business: session.business._id,

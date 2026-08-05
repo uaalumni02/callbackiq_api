@@ -1,126 +1,89 @@
+import mongoose from "mongoose";
+
 import Conversation from "../../models/conversation.js";
 import Lead from "../../models/lead.js";
 import Message from "../../models/message.js";
-import { phoneLookupVariants } from "../../voice/voicePhone.service.js";
-import {
-  normalizeSmsPhone,
-  validateManualSmsBody,
-} from "./smsCompliance.service.js";
+import { normalizeSmsPhone, validateManualSmsBody } from "./smsCompliance.service.js";
 
-const DIRECT_RESPONSE_WINDOW_MS = 24 * 60 * 60 * 1000;
+const RECENT_RESPONSE_MS = Math.max(
+  5 * 60_000,
+  Number(process.env.MANUAL_SMS_DIRECT_RESPONSE_WINDOW_MS) || 24 * 60 * 60 * 1000,
+);
 
 export const evaluateManualSmsPolicy = async ({
   business,
-  to,
+  to = "",
   body,
-  conversationId = null,
+  conversationId,
   now = new Date(),
 }) => {
-  if (!business?._id) {
-    return { allowed: false, statusCode: 403, reason: "business_required" };
-  }
-
-  const normalizedTo = normalizeSmsPhone(to);
-  if (!normalizedTo) {
+  const bodyPolicy = validateManualSmsBody(body);
+  if (!bodyPolicy.allowed) return { ...bodyPolicy, statusCode: 400 };
+  if (!mongoose.isValidObjectId(conversationId)) {
     return {
       allowed: false,
+      reason: "conversation_required",
+      message: "Open a valid customer conversation before sending a manual SMS.",
       statusCode: 400,
-      reason: "invalid_destination",
-      message: "The destination must be a valid U.S. E.164 mobile number.",
     };
   }
-
-  const content = validateManualSmsBody(body);
-  if (!content.allowed) {
-    return { ...content, statusCode: 400 };
-  }
-
-  const phoneVariants = phoneLookupVariants(normalizedTo);
-  let conversation = null;
-  if (conversationId) {
-    conversation = await Conversation.findOne({
-      _id: conversationId,
-      business: business._id,
-      status: { $ne: "archived" },
-    });
-
-    if (conversation) {
-      const conversationPhone = normalizeSmsPhone(
-        conversation.customerPhoneLookup || conversation.customerPhone,
-      );
-      if (!conversationPhone || conversationPhone !== normalizedTo) {
-        return {
-          allowed: false,
-          statusCode: 403,
-          reason: "conversation_destination_mismatch",
-          message:
-            "The destination does not match the customer phone on this conversation.",
-        };
-      }
-    }
-  } else {
-    conversation = await Conversation.findOne({
-      business: business._id,
-      status: { $ne: "archived" },
-      $or: [
-        { customerPhoneLookup: normalizedTo },
-        { customerPhone: { $in: phoneVariants } },
-      ],
-    }).sort({ lastMessageAt: -1 });
-  }
-
-  let lead = conversation?.lead
-    ? await Lead.findOne({ _id: conversation.lead, business: business._id })
-    : await Lead.findOne({
-        business: business._id,
-        $or: [
-          { phoneLookup: normalizedTo },
-          { phone: { $in: phoneVariants } },
-        ],
-      }).sort({ updatedAt: -1 });
-
-  if (!conversation && !lead) {
+  const conversation = await Conversation.findOne({
+    _id: conversationId,
+    business: business._id,
+  });
+  if (!conversation) {
     return {
       allowed: false,
-      statusCode: 403,
-      reason: "destination_not_customer",
-      message:
-        "Manual SMS is limited to phone numbers already tied to this business's lead or conversation records.",
+      reason: "conversation_not_found",
+      message: "The selected conversation does not belong to this business.",
+      statusCode: 404,
     };
   }
-
-  if (!conversation && lead) {
-    conversation = await Conversation.findOne({
-      business: business._id,
-      lead: lead._id,
-      status: { $ne: "archived" },
-    }).sort({ lastMessageAt: -1 });
+  if (conversation.status === "archived") {
+    return {
+      allowed: false,
+      reason: "conversation_archived",
+      message: "Restore the archived conversation before sending a manual SMS.",
+      statusCode: 409,
+    };
   }
-
-  const latestInbound = conversation
-    ? await Message.findOne({
-        business: business._id,
-        conversation: conversation._id,
-        direction: "inbound",
-      })
-        .sort({ createdAt: -1 })
-        .select("createdAt")
-        .lean()
+  const lead = conversation.lead
+    ? await Lead.findOne({ _id: conversation.lead, business: business._id })
     : null;
-  const directResponse = Boolean(
-    latestInbound?.createdAt &&
-      now.getTime() - new Date(latestInbound.createdAt).getTime() <=
-        DIRECT_RESPONSE_WINDOW_MS,
+  const conversationPhone = normalizeSmsPhone(
+    conversation.customerPhone || lead?.phone,
   );
-
+  const requestedPhone = normalizeSmsPhone(to || conversationPhone);
+  if (!conversationPhone || !requestedPhone) {
+    return {
+      allowed: false,
+      reason: "invalid_destination",
+      message: "The customer conversation does not contain a valid SMS destination.",
+      statusCode: 400,
+    };
+  }
+  if (requestedPhone !== conversationPhone) {
+    return {
+      allowed: false,
+      reason: "conversation_destination_mismatch",
+      message: "The manual SMS destination does not match the selected conversation.",
+      statusCode: 409,
+    };
+  }
+  const recentInbound = await Message.exists({
+    business: business._id,
+    conversation: conversation._id,
+    direction: "inbound",
+    createdAt: { $gte: new Date(now.getTime() - RECENT_RESPONSE_MS) },
+  });
   return {
     allowed: true,
-    normalizedTo,
-    body: content.body,
-    segment: content.segment,
+    body: bodyPolicy.body,
+    segment: bodyPolicy.segment,
+    normalizedTo: requestedPhone,
     conversation,
     lead,
-    directResponse,
+    directResponse: Boolean(recentInbound),
   };
 };
 

@@ -149,7 +149,6 @@ const createConversation = async ({
 };
 
 const createConversationMessage = async ({
-  token,
   businessId,
   conversationId,
   body = "Hello",
@@ -157,22 +156,26 @@ const createConversationMessage = async ({
   from = "4045551234",
   to = "4045559999",
 } = {}) => {
-  const res = await request(app)
-    .post("/api/messages")
-    .set(getAuthorizationHeader(token))
-    .send({
-      business: businessId,
-      conversation: conversationId,
-      direction,
-      from,
-      to,
-      body,
-    });
+  // This helper seeds transcript data for conversation-route tests. The
+  // authenticated POST /api/messages endpoint now performs a real, policy-
+  // checked Twilio dispatch, so using it as a fixture factory would make
+  // archive/delete tests depend on SMS consent, destination, and provider
+  // behavior that they are not intended to exercise.
+  const message = await Message.create({
+    business: businessId,
+    conversation: conversationId,
+    direction,
+    from,
+    to,
+    body,
+    provider: direction === "inbound" ? "twilio" : "manual",
+    status: direction === "inbound" ? "received" : "sent",
+    deliveryStatus: direction === "inbound" ? "received" : "sent",
+    generatedBy: direction === "outbound" ? "user" : "",
+    actorType: direction === "outbound" ? "user" : "webhook",
+  });
 
-  expect(res.status).toBe(201);
-  expect(res.body.success).toBe(true);
-
-  return res.body.data;
+  return message.toObject();
 };
 
 describe("Conversation Routes", () => {
@@ -542,8 +545,8 @@ describe("Conversation Routes", () => {
       expect(savedConversation.archiveSnapshot).toEqual(
         expect.objectContaining({
           status: "open",
-          aiEnabled: false,
-          humanTakeover: true,
+          aiEnabled: true,
+          humanTakeover: false,
         }),
       );
 
@@ -693,8 +696,8 @@ describe("Conversation Routes", () => {
       expect(restoreRes.body.message).toMatch(/restored successfully/i);
 
       expect(restoreRes.body.data.status).toBe("open");
-      expect(restoreRes.body.data.aiEnabled).toBe(false);
-      expect(restoreRes.body.data.humanTakeover).toBe(true);
+      expect(restoreRes.body.data.aiEnabled).toBe(true);
+      expect(restoreRes.body.data.humanTakeover).toBe(false);
       expect(restoreRes.body.data.archivedAt).toBeNull();
       expect(restoreRes.body.data.archivedBy).toBeNull();
       expect(restoreRes.body.data.archiveSnapshot).toBeNull();
@@ -712,8 +715,8 @@ describe("Conversation Routes", () => {
       ).lean();
 
       expect(savedConversation.status).toBe("open");
-      expect(savedConversation.aiEnabled).toBe(false);
-      expect(savedConversation.humanTakeover).toBe(true);
+      expect(savedConversation.aiEnabled).toBe(true);
+      expect(savedConversation.humanTakeover).toBe(false);
       expect(savedConversation.archivedAt).toBeNull();
       expect(savedConversation.archivedBy).toBeNull();
       expect(savedConversation.archiveSnapshot).toBeNull();

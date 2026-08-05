@@ -16,9 +16,21 @@ jest.mock("../../src/services/messaging/contactPreference.service.js", () => ({
   isSmsSuppressed: jest.fn(),
 }));
 
-jest.mock("../../src/services/communicationUsage.service.js", () => ({
+jest.mock("../../src/services/communicationUsageReservation.service.js", () => ({
   __esModule: true,
-  reserveSmsUsage: jest.fn(),
+  reserveCommunicationUsageOperation: jest.fn(),
+  commitCommunicationUsageReservation: jest.fn(),
+  findCommunicationOperation: jest.fn(),
+  isUncertainProviderFailure: jest.fn(),
+  markCommunicationUsageUncertain: jest.fn(),
+  releaseCommunicationUsageReservation: jest.fn(),
+}));
+
+jest.mock("../../src/services/smsContactDisclosure.service.js", () => ({
+  __esModule: true,
+  claimSmsContactDisclosure: jest.fn(),
+  commitSmsContactDisclosure: jest.fn(),
+  releaseSmsContactDisclosure: jest.fn(),
 }));
 
 jest.mock("../../src/services/outboundSmsAudit.service.js", () => ({
@@ -29,7 +41,18 @@ jest.mock("../../src/services/outboundSmsAudit.service.js", () => ({
 import twilio from "twilio";
 import Business from "../../src/models/business.js";
 import { isSmsSuppressed } from "../../src/services/messaging/contactPreference.service.js";
-import { reserveSmsUsage } from "../../src/services/communicationUsage.service.js";
+import {
+  reserveCommunicationUsageOperation,
+  commitCommunicationUsageReservation,
+  findCommunicationOperation,
+  isUncertainProviderFailure,
+  releaseCommunicationUsageReservation,
+} from "../../src/services/communicationUsageReservation.service.js";
+import {
+  claimSmsContactDisclosure,
+  commitSmsContactDisclosure,
+  releaseSmsContactDisclosure,
+} from "../../src/services/smsContactDisclosure.service.js";
 import { recordOutboundSmsAudit } from "../../src/services/outboundSmsAudit.service.js";
 import {
   resetTwilioClient,
@@ -37,6 +60,13 @@ import {
 } from "../../src/services/twilioSmsService.js";
 
 const mockMessagesCreate = jest.fn();
+
+const usageReservation = {
+  _id: "usage-reservation-1",
+  amount: 1,
+  state: "pending",
+};
+const disclosureClaim = { _id: "disclosure-claim-1" };
 
 describe("central outbound SMS policy", () => {
   const business = {
@@ -57,7 +87,26 @@ describe("central outbound SMS policy", () => {
     Business.findById.mockResolvedValue(business);
     Business.findOne.mockResolvedValue(business);
     isSmsSuppressed.mockResolvedValue(false);
-    reserveSmsUsage.mockResolvedValue({ allowed: true });
+    findCommunicationOperation.mockResolvedValue(null);
+    isUncertainProviderFailure.mockReturnValue(false);
+    claimSmsContactDisclosure.mockResolvedValue({
+      append: false,
+      claim: disclosureClaim,
+    });
+    reserveCommunicationUsageOperation.mockResolvedValue({
+      allowed: true,
+      replayed: false,
+      reservation: usageReservation,
+      usage: {
+        allowed: true,
+        amount: 1,
+        reservations: [],
+      },
+    });
+    commitCommunicationUsageReservation.mockResolvedValue(usageReservation);
+    commitSmsContactDisclosure.mockResolvedValue(disclosureClaim);
+    releaseCommunicationUsageReservation.mockResolvedValue(usageReservation);
+    releaseSmsContactDisclosure.mockResolvedValue(disclosureClaim);
     recordOutboundSmsAudit.mockResolvedValue({ _id: "audit-1" });
     mockMessagesCreate.mockResolvedValue({
       sid: "SM123",
@@ -83,7 +132,8 @@ describe("central outbound SMS policy", () => {
     ).rejects.toMatchObject({ code: "SMS_SENDER_NOT_OWNED" });
 
     expect(mockMessagesCreate).not.toHaveBeenCalled();
-    expect(reserveSmsUsage).not.toHaveBeenCalled();
+    expect(claimSmsContactDisclosure).not.toHaveBeenCalled();
+    expect(reserveCommunicationUsageOperation).not.toHaveBeenCalled();
   });
 
   test("suppresses opted-out recipients before Twilio or usage reservation", async () => {
@@ -104,7 +154,10 @@ describe("central outbound SMS policy", () => {
       reason: "customer_opted_out",
     });
     expect(mockMessagesCreate).not.toHaveBeenCalled();
-    expect(reserveSmsUsage).not.toHaveBeenCalled();
+    expect(reserveCommunicationUsageOperation).not.toHaveBeenCalled();
+    expect(releaseSmsContactDisclosure).toHaveBeenCalledWith({
+      claim: disclosureClaim,
+    });
     expect(recordOutboundSmsAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         businessId: business._id,
@@ -134,16 +187,34 @@ describe("central outbound SMS policy", () => {
       businessId: business._id,
       phone: "+14045550101",
     });
-    expect(reserveSmsUsage).toHaveBeenCalledWith({
-      business,
-      customerPhone: "+14045550101",
-      bypass: false,
-    });
+    expect(reserveCommunicationUsageOperation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        business,
+        customerPhone: "+14045550101",
+        metric: "sms_outbound",
+        bypass: false,
+        amount: 1,
+        source: "manual_sms",
+      }),
+    );
     expect(mockMessagesCreate).toHaveBeenCalledWith({
       to: "+14045550101",
       from: business.phone,
       body: "Hello",
     });
+    expect(commitCommunicationUsageReservation).toHaveBeenCalledWith({
+      reservation: usageReservation,
+      providerOperationId: "SM123",
+      providerStatus: "queued",
+    });
+    expect(commitSmsContactDisclosure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        claim: disclosureClaim,
+        businessId: business._id,
+        phone: "+14045550101",
+        providerMessageId: "SM123",
+      }),
+    );
     expect(recordOutboundSmsAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         businessId: business._id,

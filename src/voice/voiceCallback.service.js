@@ -34,6 +34,7 @@ import {
   speakDigits,
 } from "./voicePhone.service.js";
 
+import { assertVoiceTurnActive } from "../services/voiceTurnContext.service.js";
 const DEFAULT_REQUIRED_FIELDS = Object.freeze([
   "service",
   "name",
@@ -301,6 +302,7 @@ const persistSessionSet = async (session, set = {}) => {
 };
 
 const saveState = async (session, state, status = "capturing_callback") => {
+  assertVoiceTurnActive();
   const persistedStatus = ["completed", "canceled"].includes(state.status)
     ? status
     : "capturing_callback";
@@ -317,6 +319,7 @@ const saveState = async (session, state, status = "capturing_callback") => {
 };
 
 const updateLead = async ({ session, state, canceled = false }) => {
+  assertVoiceTurnActive();
   const lead = session?.lead;
   if (!lead || typeof lead.save !== "function") return;
   if (state.customerName && !skippedValue(state.customerName)) {
@@ -351,6 +354,7 @@ const updateLead = async ({ session, state, canceled = false }) => {
 };
 
 const updateConversation = async ({ session, state, canceled = false }) => {
+  assertVoiceTurnActive();
   const conversation = session?.conversation;
   if (!conversation || typeof conversation.save !== "function") return;
   if (state.phone && isUsableCallerId(state.phone)) {
@@ -381,6 +385,7 @@ const updateConversation = async ({ session, state, canceled = false }) => {
 };
 
 const createCallbackAlert = async ({ session, state, canceled = false }) => {
+  assertVoiceTurnActive();
   const businessId = normalizeId(session.business);
   const leadId = normalizeId(session.lead);
   const conversationId = normalizeId(session.conversation);
@@ -518,6 +523,7 @@ const sendCallbackConfirmation = async ({ session, state }) => {
   state.confirmationSmsStatus = "sending";
   await persistConfirmationState(session, state);
   try {
+    assertVoiceTurnActive();
     const sent = await sendSms({
       business,
       businessId: normalizeId(business),
@@ -621,6 +627,7 @@ const complete = async ({
   reply,
   sendConfirmationSms = true,
 }) => {
+  assertVoiceTurnActive();
   if (state.completedAt) {
     return {
       reply: reply || "Your callback request was already saved.",
@@ -803,6 +810,7 @@ class VoiceCallbackService {
     completionReply = "",
     sendConfirmationSms = true,
   }) {
+    assertVoiceTurnActive();
     if (!session?.business || !session?.lead || !session?.conversation) {
       throw new Error(
         "Voice callback capture requires business, lead, and conversation context.",

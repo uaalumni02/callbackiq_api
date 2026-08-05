@@ -11,6 +11,7 @@ import rescheduleAppointmentTool from "../../helpers/ai/tools/rescheduleAppointm
 import searchServicesTool from "../../helpers/ai/tools/searchServices.tool.js";
 import validateServiceAreaTool from "../../helpers/ai/tools/validateServiceArea.tool.js";
 
+import { assertVoiceTurnActive } from "../voiceTurnContext.service.js";
 const BOOKING_INTENT = /\b(book|booking|schedule|appointment|available|availability|come out|visit)\b/i;
 const HUMAN_INTENT = /\b(human|person|representative|staff|someone|call me|talk to)\b/i;
 const AFFIRMATIVE = /^(yes|yep|yeah|correct|confirm|confirmed|book it|please do|that works|sounds good|ok|okay|sure)[.!\s]*$/i;
@@ -163,6 +164,7 @@ const selectOfferedSlot = (message, offeredSlots, timeZone) => {
 };
 
 const updateState = async (conversation, changes) => {
+  assertVoiceTurnActive();
   Object.entries(changes).forEach(([key, value]) => {
     conversation.set(`bookingState.${key}`, value);
   });
@@ -189,6 +191,7 @@ class BookingStateMachineService {
     channel = "sms",
     source = "booking_state_machine",
   }) {
+    assertVoiceTurnActive();
     const bookingChannel = channel === "voice" ? "voice" : "sms";
     const bookingSource = String(source || "booking_state_machine");
     const bookingIdempotencyPrefix =
@@ -221,6 +224,7 @@ class BookingStateMachineService {
     }
 
     if (HUMAN_INTENT.test(text)) {
+      assertVoiceTurnActive();
       await escalateToHumanTool({
         businessId: business._id,
         leadId: lead?._id,
@@ -570,6 +574,7 @@ class BookingStateMachineService {
           activeConversation.bookingState.lastError ===
             "reschedule_requested" &&
           activeConversation.bookingState.appointment;
+        assertVoiceTurnActive();
         const appointment = isReschedule
           ? await rescheduleAppointmentTool({
               business,
@@ -587,6 +592,7 @@ class BookingStateMachineService {
               ).toISOString()}`,
               input: bookingInput,
             });
+        assertVoiceTurnActive();
 
         if (appointment.status !== "confirmed") {
           throw new Error(

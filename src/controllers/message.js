@@ -25,8 +25,8 @@ const deleteMessageForBusiness = async (id, businessId) => {
 
 
 class MessageController {
-  static async createMessage(req, res) {
-    return handleConversationManualMessage(req, res);
+  static async createMessage(req, res, next) {
+    return handleConversationManualMessage(req, res, next);
   }
 
   static async getMessagesByConversation(req, res) {

@@ -23,10 +23,28 @@ const startServer = async (options) => {
     }),
     reconcileVoiceUsage: jest.fn().mockResolvedValue(undefined),
   };
+  const voiceConnectionLeaseService = options?.voiceConnectionLeaseService || {
+    acquireVoiceConnectionLease: jest.fn().mockResolvedValue({
+      allowed: true,
+      lease: { ipHash: "test-ip", leaseId: "test-lease" },
+    }),
+    releaseVoiceConnectionLease: jest.fn().mockResolvedValue(undefined),
+  };
+  const voiceOutcomeService = options?.voiceOutcomeService || {
+    inferVoiceOutcome: jest.fn().mockReturnValue(null),
+    commitVoiceOutcome: jest.fn().mockResolvedValue(undefined),
+    recoverAbandonedVoiceCall: jest.fn().mockResolvedValue(undefined),
+  };
+  const voiceMetricsService = options?.voiceMetricsService || {
+    recordVoiceMetric: jest.fn().mockResolvedValue(undefined),
+  };
   const relay = initializeConversationRelayServer(httpServer, {
     ...options,
     voiceFraudDetectionService,
     voiceUsageService,
+    voiceConnectionLeaseService,
+    voiceOutcomeService,
+    voiceMetricsService,
   });
   await new Promise((resolve) => httpServer.listen(0, "127.0.0.1", resolve));
   const address = httpServer.address();
@@ -152,11 +170,17 @@ describe("ConversationRelay voice limits", () => {
       sendFallbackSms: jest.fn().mockResolvedValue(undefined),
       markCompleted: jest.fn(),
     };
+    const voiceOutcomeService = {
+      inferVoiceOutcome: jest.fn().mockReturnValue(null),
+      commitVoiceOutcome: jest.fn().mockResolvedValue(undefined),
+      recoverAbandonedVoiceCall: jest.fn().mockResolvedValue(undefined),
+    };
     const server = await startServer({
       voiceAgentService: { handlePrompt: jest.fn() },
       voiceSessionService,
       voiceTranscriptService: { append: jest.fn().mockResolvedValue(undefined) },
       voiceCapacityService,
+      voiceOutcomeService,
       signatureValidator: () => true,
       durationLimitMs: 20,
       failureEndDelayMs: 5,
@@ -179,12 +203,15 @@ describe("ConversationRelay voice limits", () => {
         businessId: session.business._id,
         session,
       });
-      expect(voiceSessionService.sendFallbackSms).toHaveBeenCalledWith(
+      expect(voiceOutcomeService.commitVoiceOutcome).toHaveBeenCalledWith(
         expect.objectContaining({
           sessionId: session._id,
-          failureReason: expect.stringContaining("duration limit"),
+          outcome: "duration_limit_callback_captured",
+          status: "completed",
+          metadata: expect.objectContaining({ source: "duration_limit" }),
         }),
       );
+      expect(voiceSessionService.sendFallbackSms).not.toHaveBeenCalled();
     } finally {
       socket.terminate();
       await server.close();

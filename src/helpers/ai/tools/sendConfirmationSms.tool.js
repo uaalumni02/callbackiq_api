@@ -5,6 +5,7 @@ import { sendSms } from "../../../services/twilioSmsService.js";
 import { isSmsSuppressed } from "../../../services/messaging/contactPreference.service.js";
 import SocketService from "../../../services/socket.service.js";
 
+import { assertVoiceTurnActive } from "../../../services/voiceTurnContext.service.js";
 const formatAppointment = (appointment) =>
   new Intl.DateTimeFormat("en-US", {
     timeZone: appointment.timezone || "America/New_York",
@@ -62,6 +63,7 @@ const sendConfirmationSmsTool = async ({
   appointmentId,
   voiceSessionId,
 }) => {
+  assertVoiceTurnActive();
   const claimedSession = await claimDelivery(voiceSessionId);
   if (!claimedSession) {
     return {
@@ -122,6 +124,7 @@ const sendConfirmationSmsTool = async ({
 
   let sent;
   try {
+    assertVoiceTurnActive();
     sent = await sendSms({ to, from, body });
   } catch (error) {
     await updateDelivery(voiceSessionId, {

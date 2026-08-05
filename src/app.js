@@ -17,7 +17,7 @@ import aiRoutes from "./routes/ai.routes.js";
 import alertRoutes from "./routes/alert.routes.js";
 import agentRoutes from "./routes/agent.routes.js";
 import billingRoutes from "./routes/billing.routes.js";
-import stripeWebhookRoutes from "./routes/stripeWebhook.routes.js";
+import stripeWebhookRoutes from "./routes/stripeWebHook.routes.js";
 import integrationWebhookRoutes from "./routes/integrationWebhook.routes.js";
 import supportRoutes from "./routes/support.routes.js";
 import demoRequestRoutes from "./routes/demoRequest.routes.js";

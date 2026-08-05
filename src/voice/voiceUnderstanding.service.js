@@ -176,7 +176,9 @@ const schema = {
 export const classifyVoiceTurn = async ({
   customerMessage,
   recentMessages = [],
+  signal = null,
 }) => {
+  if (signal?.aborted) throw signal.reason || new Error("Voice turn aborted.");
   const text = clean(customerMessage, 4000);
   const fallback = deterministic(text);
 
@@ -219,6 +221,7 @@ export const classifyVoiceTurn = async ({
       },
       temperature: 0,
     });
+    if (signal?.aborted) throw signal.reason || new Error("Voice turn aborted.");
     const parsed = JSON.parse(response.output_text || "{}");
     return {
       ...fallback,
@@ -228,7 +231,8 @@ export const classifyVoiceTurn = async ({
       source: "openai",
       usage: response.usage || null,
     };
-  } catch {
+  } catch (error) {
+    if (signal?.aborted) throw signal.reason || error;
     return fallback;
   }
 };

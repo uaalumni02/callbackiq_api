@@ -14,6 +14,12 @@ import {
   VOICE_RECORDING_SUPPORTED,
   VOICE_ROUTING_ACTIONS,
 } from "../voice/voiceRouting.service.js";
+import { getVoiceSettingsContract, validateVoiceSettingsDraft } from "../services/voiceSettingsContract.service.js";
+import {
+  listVoiceSettingsVersions,
+  publishVoiceSettingsVersion,
+  rollbackVoiceSettingsVersion,
+} from "../services/voiceSettingsVersion.service.js";
 import {
   normalizePhoneToE164,
   phoneNumbersEqual,
@@ -221,6 +227,64 @@ const assertNoDialLoops = ({ business, settings }) => {
 };
 
 class VoiceSettingsController {
+  // CALLBACKIQ_PRODUCTION_READINESS: one API/UI constraint contract.
+  static async schema(req, res, next) {
+    try {
+      const business = await getOwnedBusiness({
+        user: req.user,
+        requestedBusinessId: req.query.businessId,
+      });
+      const current = serialize(business);
+      return res.status(200).json({
+        success: true,
+        data: getVoiceSettingsContract({ currentVoiceName: current.voiceName }),
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  static async validateDraft(req, res, next) {
+    try {
+      const business = await getOwnedBusiness({
+        user: req.user,
+        requestedBusinessId: req.body?.businessId,
+      });
+      const current = serialize(business);
+      const draft = req.body?.settings || req.body || {};
+      const result = validateVoiceSettingsDraft(draft, {
+        currentVoiceName: current.voiceName,
+      });
+      return res.status(result.valid ? 200 : 400).json({
+        success: result.valid,
+        data: result,
+        message: result.valid
+          ? "Voice settings are valid."
+          : result.errors.map((item) => item.message).join(" "),
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
+  static async versions(req, res, next) {
+    try {
+      const business = await getOwnedBusiness({ user: req.user, requestedBusinessId: req.query.businessId });
+      const versions = await listVoiceSettingsVersions({ businessId: business._id });
+      return res.status(200).json({ success: true, data: versions });
+    } catch (error) { return next(error); }
+  }
+  static async rollback(req, res, next) {
+    try {
+      const business = await getOwnedBusiness({ user: req.user, requestedBusinessId: req.body?.businessId });
+      const result = await rollbackVoiceSettingsVersion({
+        business,
+        version: req.params.version,
+        publishedBy: req.user?.userId || req.user?._id || null,
+        reason: req.body?.reason || "Voice settings rollback.",
+      });
+      return res.status(200).json({ success: true, data: serialize(result.business), publication: { version: result.published.version, rolledBackFromVersion: result.target.version } });
+    } catch (error) { return next(error); }
+  }
   static async get(req, res, next) {
     try {
       const business = await getOwnedBusiness({
@@ -242,6 +306,13 @@ class VoiceSettingsController {
       const current = serialize(business);
       const update = validateUpdate(req.body || {}, current);
       const voiceSettings = voiceSettingsObject(business);
+      const previousVoiceSettingsSnapshot = {
+        features: {
+          voiceAiEnabled: Boolean(business?.features?.voiceAiEnabled),
+          aiBookingEnabled: Boolean(business?.features?.aiBookingEnabled),
+        },
+        voiceSettings: business?.voiceSettings?.toObject?.() || { ...(business?.voiceSettings || {}) },
+      };
 
       let voiceAiEnabled = Object.hasOwn(update, "voiceAiEnabled")
         ? update.voiceAiEnabled
@@ -298,9 +369,29 @@ class VoiceSettingsController {
       if (Object.hasOwn(update, "aiBookingEnabled")) {
         business.set("features.aiBookingEnabled", update.aiBookingEnabled);
       }
+      const contractValidation = validateVoiceSettingsDraft(
+        { ...merged, voiceAiEnabled },
+        { currentVoiceName: current.voiceName },
+      );
+      if (!contractValidation.valid) {
+        throw validationError(
+          contractValidation.errors.map((item) => item.message).join(" "),
+          400,
+          "VOICE_SETTINGS_CONTRACT_INVALID",
+        );
+      }
       business.set("voiceSettings", merged);
-      await business.save();
-      return res.status(200).json({ success: true, data: serialize(business) });
+      const published = await publishVoiceSettingsVersion({
+        business,
+        previousSnapshot: previousVoiceSettingsSnapshot,
+        publishedBy: req.user?.userId || req.user?._id || null,
+        reason: req.body?.publishReason || "Voice settings published from dashboard.",
+      });
+      return res.status(200).json({
+        success: true,
+        data: serialize(business),
+        publication: { version: published.version, warnings: contractValidation.warnings },
+      });
     } catch (error) {
       return next(error);
     }
@@ -340,7 +431,7 @@ class VoiceSettingsController {
           !settings.liveTransferEnabled || Boolean(livePhone),
         liveTransferPhoneIsDedicated: liveDistinct,
         aiBookingEnabled: settings.aiBookingEnabled,
-        callbackCaptureAvailable: true,
+        callbackCaptureAvailable: Boolean(business?._id && business?.phone),
         recordingSupported: VOICE_RECORDING_SUPPORTED,
         recordingDisabled: settings.recordingEnabled === false,
         recordingPolicy: VOICE_RECORDING_POLICY,
@@ -401,8 +492,8 @@ class VoiceSettingsController {
           checks,
           capabilities: {
             voiceAnsweringReady,
-            callbackCaptureReady: true,
-            callbackCaptureEnabled: true,
+            callbackCaptureReady: Boolean(checks.callbackCaptureAvailable),
+            callbackCaptureEnabled: Boolean(checks.callbackCaptureAvailable),
             automaticBookingEnabled: settings.aiBookingEnabled,
             staffRoutingReady: !usesStaff || Boolean(staffPhone && staffDistinct),
             liveTransferReady:

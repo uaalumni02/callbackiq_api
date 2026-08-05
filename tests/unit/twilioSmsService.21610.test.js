@@ -17,9 +17,21 @@ jest.mock("../../src/services/messaging/contactPreference.service.js", () => ({
   optOutSms: jest.fn(),
 }));
 
-jest.mock("../../src/services/communicationUsage.service.js", () => ({
+jest.mock("../../src/services/communicationUsageReservation.service.js", () => ({
   __esModule: true,
-  reserveSmsUsage: jest.fn(),
+  reserveCommunicationUsageOperation: jest.fn(),
+  commitCommunicationUsageReservation: jest.fn(),
+  findCommunicationOperation: jest.fn(),
+  isUncertainProviderFailure: jest.fn(),
+  markCommunicationUsageUncertain: jest.fn(),
+  releaseCommunicationUsageReservation: jest.fn(),
+}));
+
+jest.mock("../../src/services/smsContactDisclosure.service.js", () => ({
+  __esModule: true,
+  claimSmsContactDisclosure: jest.fn(),
+  commitSmsContactDisclosure: jest.fn(),
+  releaseSmsContactDisclosure: jest.fn(),
 }));
 
 jest.mock("../../src/services/outboundSmsAudit.service.js", () => ({
@@ -33,7 +45,16 @@ import {
   isSmsSuppressed,
   optOutSms,
 } from "../../src/services/messaging/contactPreference.service.js";
-import { reserveSmsUsage } from "../../src/services/communicationUsage.service.js";
+import {
+  reserveCommunicationUsageOperation,
+  findCommunicationOperation,
+  isUncertainProviderFailure,
+  releaseCommunicationUsageReservation,
+} from "../../src/services/communicationUsageReservation.service.js";
+import {
+  claimSmsContactDisclosure,
+  releaseSmsContactDisclosure,
+} from "../../src/services/smsContactDisclosure.service.js";
 import { recordOutboundSmsAudit } from "../../src/services/outboundSmsAudit.service.js";
 import {
   resetTwilioClient,
@@ -41,6 +62,12 @@ import {
 } from "../../src/services/twilioSmsService.js";
 
 const mockMessagesCreate = jest.fn();
+const usageReservation = {
+  _id: "usage-reservation-21610",
+  amount: 1,
+  state: "pending",
+};
+const disclosureClaim = { _id: "disclosure-claim-21610" };
 
 describe("Twilio 21610 SMS suppression", () => {
   const business = {
@@ -61,7 +88,24 @@ describe("Twilio 21610 SMS suppression", () => {
     Business.findOne.mockResolvedValue(business);
     isSmsSuppressed.mockResolvedValue(false);
     optOutSms.mockResolvedValue({ smsStatus: "opted_out" });
-    reserveSmsUsage.mockResolvedValue({ allowed: true });
+    findCommunicationOperation.mockResolvedValue(null);
+    isUncertainProviderFailure.mockReturnValue(false);
+    claimSmsContactDisclosure.mockResolvedValue({
+      append: false,
+      claim: disclosureClaim,
+    });
+    reserveCommunicationUsageOperation.mockResolvedValue({
+      allowed: true,
+      replayed: false,
+      reservation: usageReservation,
+      usage: {
+        allowed: true,
+        amount: 1,
+        reservations: [],
+      },
+    });
+    releaseCommunicationUsageReservation.mockResolvedValue(usageReservation);
+    releaseSmsContactDisclosure.mockResolvedValue(disclosureClaim);
     recordOutboundSmsAudit.mockResolvedValue({ _id: "audit-1" });
   });
 
@@ -99,6 +143,14 @@ describe("Twilio 21610 SMS suppression", () => {
       phone: "+14045550101",
       source: "twilio_provider_21610",
       keyword: "STOP",
+    });
+    expect(releaseCommunicationUsageReservation).toHaveBeenCalledWith({
+      reservation: usageReservation,
+      usage: expect.objectContaining({ allowed: true, amount: 1 }),
+      reason: "provider_21610_opt_out",
+    });
+    expect(releaseSmsContactDisclosure).toHaveBeenCalledWith({
+      claim: disclosureClaim,
     });
     expect(recordOutboundSmsAudit).toHaveBeenCalledWith(
       expect.objectContaining({

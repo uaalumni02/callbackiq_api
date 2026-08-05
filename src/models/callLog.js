@@ -100,6 +100,32 @@ const CallLogSchema = new Schema(
     smsSegmentCount: { type: Number, min: 0, default: 0 },
     smsDeliveredAt: { type: Date, default: null },
     smsFailedAt: { type: Date, default: null },
+    smsDeliveryEvents: {
+      type: [
+        {
+          providerStatus: { type: String, trim: true, default: "" },
+          canonicalStatus: { type: String, trim: true, default: "" },
+          errorCode: { type: String, trim: true, default: "" },
+          applied: { type: Boolean, default: false },
+          conflict: { type: Boolean, default: false },
+          receivedAt: { type: Date, default: Date.now },
+        },
+      ],
+      default: [],
+    },
+    providerStatusEvents: {
+      type: [
+        {
+          providerStatus: { type: String, trim: true, default: "" },
+          canonicalStatus: { type: String, trim: true, default: "" },
+          durationSeconds: { type: Number, min: 0, default: 0 },
+          applied: { type: Boolean, default: false },
+          conflict: { type: Boolean, default: false },
+          receivedAt: { type: Date, default: Date.now },
+        },
+      ],
+      default: [],
+    },
 
     /*
      * "Recovered" now means an unhandled inquiry became a confirmed booking.

@@ -26,6 +26,9 @@ import {
 import VoiceCapacityService from "../services/voiceCapacity.service.js";
 import VoiceUsageService from "../services/voiceUsage.service.js";
 import VoiceFraudDetectionService from "../services/voiceFraudDetection.service.js";
+import VoiceConnectionLeaseService from "../services/voiceConnectionLease.service.js";
+import { resolveTrustedRemoteAddress } from "../services/trustedProxyAddress.service.js";
+import { runWithVoiceTurnContext } from "../services/voiceTurnContext.service.js";
 import {
   logOperationalError,
   logOperationalWarning,
@@ -168,6 +171,7 @@ export const initializeConversationRelayServer = (
     voiceCapacityService = VoiceCapacityService,
     voiceUsageService = VoiceUsageService,
     voiceFraudDetectionService = VoiceFraudDetectionService,
+    voiceConnectionLeaseService = VoiceConnectionLeaseService,
     voiceOutcomeService = VoiceOutcomeService,
     voiceMetricsService = VoiceMetricsService,
     signatureValidator = validateConversationRelaySignature,
@@ -190,15 +194,8 @@ export const initializeConversationRelayServer = (
   } = {},
 ) => {
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_FRAME_BYTES });
-  const pendingByIp = new Map();
-
-  const releasePendingIp = (ip) => {
-    const count = pendingByIp.get(ip) || 0;
-    if (count <= 1) pendingByIp.delete(ip);
-    else pendingByIp.set(ip, count - 1);
-  };
-
-  const upgradeHandler = (request, socket, head) => {
+  // CALLBACKIQ_PRODUCTION_READINESS: distributed expiring admission leases.
+  const upgradeHandler = async (request, socket, head) => {
     let pathname;
     try {
       pathname = new URL(request.url || "", "http://localhost").pathname;
@@ -222,24 +219,32 @@ export const initializeConversationRelayServer = (
       return;
     }
 
-    const ip = remoteAddress(request);
-    const pending = pendingByIp.get(ip) || 0;
-    if (pending >= maxPendingConnectionsPerIp) {
-      logOperationalWarning("conversation_relay.pending_ip_limit", {
+    const ip = resolveTrustedRemoteAddress(request);
+    let admission;
+    try {
+      admission = await voiceConnectionLeaseService.acquireVoiceConnectionLease({
         remoteAddress: ip,
-        pending,
+        limit: maxPendingConnectionsPerIp,
       });
+    } catch (error) {
+      logOperationalError("conversation_relay.connection_lease_acquire_failed", error, {
+        remoteAddress: ip,
+      });
+      rejectUpgrade(socket, 503, "Service Unavailable");
+      return;
+    }
+    if (!admission?.allowed) {
+      logOperationalWarning("conversation_relay.pending_ip_limit", { remoteAddress: ip });
       rejectUpgrade(socket, 429, "Too Many Requests");
       return;
     }
-    pendingByIp.set(ip, pending + 1);
 
     try {
       wss.handleUpgrade(request, socket, head, (webSocket) => {
-        wss.emit("connection", webSocket, request, ip);
+        wss.emit("connection", webSocket, request, { ip, lease: admission.lease });
       });
     } catch (error) {
-      releasePendingIp(ip);
+      await voiceConnectionLeaseService.releaseVoiceConnectionLease(admission.lease).catch(() => {});
       logOperationalError("conversation_relay.upgrade_failed", error, {
         remoteAddress: ip,
       });
@@ -249,7 +254,9 @@ export const initializeConversationRelayServer = (
 
   httpServer.on("upgrade", upgradeHandler);
 
-  wss.on("connection", (socket, request, connectionIp) => {
+  wss.on("connection", (socket, request, connectionMeta = {}) => {
+    const connectionIp = connectionMeta.ip || resolveTrustedRemoteAddress(request);
+    const connectionLease = connectionMeta.lease || null;
     let session = null;
     let setupReceived = false;
     let pendingIpReleased = false;
@@ -275,7 +282,9 @@ export const initializeConversationRelayServer = (
     const releasePending = () => {
       if (pendingIpReleased) return;
       pendingIpReleased = true;
-      releasePendingIp(connectionIp || remoteAddress(request));
+      void voiceConnectionLeaseService
+        .releaseVoiceConnectionLease(connectionLease)
+        .catch((error) => logOperationalError("conversation_relay.connection_lease_release_failed", error));
     };
 
     const clearTimer = (timer) => {
@@ -610,11 +619,25 @@ export const initializeConversationRelayServer = (
         }, maximumMs - warningSeconds * 1000);
       }
       durationTimer = schedule(() => {
-        const error = new Error(
-          `Voice AI session reached the ${Math.round(maximumMs / 1000)}-second duration limit.`,
-        );
-        error.code = "VOICE_DURATION_LIMIT";
-        void failGracefully(error);
+        void (async () => {
+          if (intentionalEnd || failureStarted) return;
+          intentionalEnd = true;
+          clearIdleTimers();
+          await sendAssistantText(
+            "We reached the call time limit. I’m saving the confirmed details for follow-up now.",
+            { interruptible: false, preemptible: true },
+          );
+          const inferred = voiceOutcomeService.inferVoiceOutcome(session);
+          await voiceOutcomeService.commitVoiceOutcome({
+            sessionId: session._id,
+            outcome: inferred || "duration_limit_callback_captured",
+            status: "completed",
+            metadata: { source: "duration_limit", maximumSeconds: Math.round(maximumMs / 1000) },
+          });
+          await reconcileVoiceUsageSafely();
+          await releaseCapacity();
+          endTimer = schedule(() => sendEndPacket("duration-limit", "Configured duration limit reached."), failureEndDelayMs);
+        })().catch((error) => failGracefully(error));
       }, maximumMs);
     };
 
@@ -622,24 +645,36 @@ export const initializeConversationRelayServer = (
       const turnStartedAt = Date.now();
       let settled = false;
       const turnId = ++currentTurn;
+      const abortController = new AbortController();
       const softTimer = schedule(() => {
-        if (!settled && turnId === currentTurn) {
-          void sendAssistantText("One moment.", { preemptible: true });
-        }
+        if (!settled && turnId === currentTurn) void sendAssistantText("One moment.", { preemptible: true });
       }, softTurnTimeoutMs);
       let hardTimer;
       try {
         const timeoutPromise = new Promise((_, reject) => {
-          hardTimer = schedule(() => reject(createTurnTimeoutError()), hardTurnTimeoutMs);
+          hardTimer = schedule(() => {
+            const timeoutError = createTurnTimeoutError();
+            abortController.abort(timeoutError);
+            reject(timeoutError);
+          }, hardTurnTimeoutMs);
         });
-        const result = await Promise.race([
-          voiceAgentService.handlePrompt({ session, customerMessage }),
-          timeoutPromise,
-        ]);
+        const agentPromise = runWithVoiceTurnContext(
+          {
+            sessionId: String(session?._id || ""),
+            turnId,
+            signal: abortController.signal,
+            isActive: () => !intentionalEnd && !failureStarted && turnId === currentTurn,
+          },
+          () => voiceAgentService.handlePrompt({ session, customerMessage, signal: abortController.signal, turnId }),
+        );
+        const result = await Promise.race([agentPromise, timeoutPromise]);
         settled = true;
-        if (session?._id) {
-          void voiceMetricsService.recordVoiceMetric({ sessionId: session._id, event: "full_turn_latency_ms", value: Date.now() - turnStartedAt });
+        if (turnId !== currentTurn || abortController.signal.aborted) {
+          const error = new Error("A newer voice turn superseded this result.");
+          error.code = "VOICE_STALE_TURN";
+          throw error;
         }
+        if (session?._id) void voiceMetricsService.recordVoiceMetric({ sessionId: session._id, event: "full_turn_latency_ms", value: Date.now() - turnStartedAt });
         return result || {};
       } finally {
         settled = true;
@@ -849,6 +884,7 @@ export const initializeConversationRelayServer = (
         business: session.business,
         sessionId: session._id,
         reserveSeconds: 60,
+        reservationKey: `voice:${session._id}:initial`,
       });
 
       if (!usage.allowed) {
@@ -861,10 +897,11 @@ export const initializeConversationRelayServer = (
       }
 
       voiceUsageReservedSeconds = Number(usage.reservedSeconds) || 0;
+      let voiceUsageTopUpSequence = 0;
       const topUpEveryMs = Math.max(30_000, Number(process.env.VOICE_USAGE_TOP_UP_INTERVAL_MS) || 45_000);
       const topUp = async () => {
         if (!session?._id || intentionalEnd || failureStarted || voiceUsageReconciled) return;
-        const extra = await voiceUsageService.reserveVoiceUsage({ business: session.business, sessionId: session._id, reserveSeconds: 60 });
+        const extra = await voiceUsageService.reserveVoiceUsage({business: session.business, sessionId: session._id, reserveSeconds: 60, reservationKey: `voice:${session._id}:topup:${++voiceUsageTopUpSequence}`});
         if (!extra.allowed) {
           const error = new Error("The voice allowance was reached during the call. The request will be preserved as a callback.");
           error.code = extra.reason || "VOICE_ALLOWANCE_EXHAUSTED_MID_CALL";
@@ -1098,7 +1135,6 @@ export const initializeConversationRelayServer = (
       httpServer.off("upgrade", upgradeHandler);
       for (const client of wss.clients) client.terminate();
       await new Promise((resolve) => wss.close(() => resolve()));
-      pendingByIp.clear();
     },
   };
 };

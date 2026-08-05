@@ -36,6 +36,7 @@ import {
   normalizePhoneToE164,
   phoneNumbersEqual,
 } from "./voicePhone.service.js";
+import { assertVoiceTurnActive } from "../services/voiceTurnContext.service.js";
 
 const DIAGNOSTIC_FEE =
   /\b(?:diagnostic|service call|trip)\b.{0,25}\b(?:fee|cost|charge)\b/i;
@@ -240,8 +241,10 @@ const recordConfirmedAppointment = async ({
   conversation,
   appointment,
 }) => {
+  assertVoiceTurnActive();
   session.appointment = appointment._id;
   session.estimatedValue = appointment.estimatedValue || lead?.estimatedValue || 0;
+  assertVoiceTurnActive();
   await session.save();
 
   if (lead) {
@@ -250,6 +253,7 @@ const recordConfirmedAppointment = async ({
     lead.appointment = appointment._id;
     lead.recovered = true;
     lead.recoveredBy = "voice_ai";
+    assertVoiceTurnActive();
     await lead.save();
   }
 
@@ -261,10 +265,12 @@ const recordConfirmedAppointment = async ({
         : null;
   if (callLog) {
     callLog.recovered = true;
+    assertVoiceTurnActive();
     await callLog.save();
   }
 
   try {
+    assertVoiceTurnActive();
     return await sendConfirmationSmsTool({
       business,
       lead,
@@ -283,7 +289,9 @@ const recordConfirmedAppointment = async ({
 };
 
 class VoiceAgentService {
-  static async handlePrompt({ session, customerMessage }) {
+  static async handlePrompt({ session, customerMessage, signal = null }) {
+    assertVoiceTurnActive();
+    if (signal?.aborted) throw signal.reason || new Error("Voice turn aborted.");
     const text = clean(customerMessage, 4000);
     const business = session?.business;
     const lead = session?.lead;
@@ -303,7 +311,12 @@ class VoiceAgentService {
     let safety;
     let understanding;
     try {
-      understanding = await VoiceUnderstandingService.classifyVoiceTurn({ customerMessage: text, recentMessages });
+      understanding = await VoiceUnderstandingService.classifyVoiceTurn({
+        customerMessage: text,
+        recentMessages,
+        signal,
+      });
+      assertVoiceTurnActive();
       session.metadata = { ...(session.metadata || {}), currentUnderstanding: understanding };
       safety = understanding.safety;
       if (understanding.usage) {
@@ -313,6 +326,7 @@ class VoiceAgentService {
         };
       }
     } catch (error) {
+      if (error?.code === "VOICE_STALE_TURN" || signal?.aborted) throw error;
       logOperationalError("voice.safety_assessment_failed", error, {
         businessId: business._id,
         voiceSessionId: session._id,
@@ -335,6 +349,7 @@ class VoiceAgentService {
         lead.notes = `${lead.notes || ""}\nVoice safety escalation: ${text}`
           .trim()
           .slice(0, 2000);
+        assertVoiceTurnActive();
         await lead.save();
       }
       return captureCallback({
@@ -614,6 +629,7 @@ class VoiceAgentService {
     const previousAppointmentId = conversation?.bookingState?.appointment;
     let booking;
     try {
+      assertVoiceTurnActive();
       booking = await BookingStateMachineService.handle({
         business,
         lead,
@@ -624,7 +640,9 @@ class VoiceAgentService {
         providerCallSid: session.providerCallSid,
         voiceSessionId: session._id,
       });
+      assertVoiceTurnActive();
     } catch (error) {
+      if (error?.code === "VOICE_STALE_TURN" || signal?.aborted) throw error;
       logOperationalError("voice.booking_state_machine_failed", error, {
         businessId: business._id,
         voiceSessionId: session._id,
@@ -706,7 +724,9 @@ class VoiceAgentService {
       });
     }
 
+    assertVoiceTurnActive();
     await conversation.populate("bookingState.appointment");
+    assertVoiceTurnActive();
     const appointmentId = conversation.bookingState?.appointment;
     let confirmationOutcome = null;
     if (
@@ -716,6 +736,7 @@ class VoiceAgentService {
       conversation.bookingState?.status === "booked"
     ) {
       const appointment = await Appointment.findById(appointmentId);
+      assertVoiceTurnActive();
       if (appointment?.status === "confirmed") {
         confirmationOutcome = await recordConfirmedAppointment({
           session,

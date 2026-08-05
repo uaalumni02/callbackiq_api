@@ -13,40 +13,38 @@ jest.mock("../../src/models/lead.js", () => ({
 }));
 jest.mock("../../src/models/message.js", () => ({
   __esModule: true,
-  default: { findOne: jest.fn() },
+  default: { exists: jest.fn() },
 }));
 
-const query = (value) => ({
-  sort: jest.fn(() => query(value)),
-  select: jest.fn(() => query(value)),
-  lean: jest.fn().mockResolvedValue(value),
-  then: (resolve, reject) => Promise.resolve(value).then(resolve, reject),
-});
+const BUSINESS_ID = "64f000000000000000000001";
+const CONVERSATION_ID = "64f000000000000000000002";
+const LEAD_ID = "64f000000000000000000003";
 
 beforeEach(() => {
   jest.clearAllMocks();
-  Conversation.findOne.mockReturnValue(query(null));
-  Lead.findOne.mockReturnValue(query(null));
-  Message.findOne.mockReturnValue(query(null));
+  Conversation.findOne.mockResolvedValue(null);
+  Lead.findOne.mockResolvedValue(null);
+  Message.exists.mockResolvedValue(false);
 });
 
-test("blocks arbitrary destinations that are not tied to the tenant", async () => {
+test("requires a selected tenant conversation before manual SMS dispatch", async () => {
   const result = await evaluateManualSmsPolicy({
-    business: { _id: "business-1" },
+    business: { _id: BUSINESS_ID },
     to: "+14045550199",
     body: "Hello",
   });
 
   expect(result).toMatchObject({
     allowed: false,
-    statusCode: 403,
-    reason: "destination_not_customer",
+    statusCode: 400,
+    reason: "conversation_required",
   });
+  expect(Conversation.findOne).not.toHaveBeenCalled();
 });
 
 test("blocks sensitive credentials and payment-card content", async () => {
   const result = await evaluateManualSmsPolicy({
-    business: { _id: "business-1" },
+    business: { _id: BUSINESS_ID },
     to: "+14045550199",
     body: "My password: Secret123 and card 4111 1111 1111 1111",
   });
@@ -61,19 +59,18 @@ test("blocks sensitive credentials and payment-card content", async () => {
 test("allows a recent customer response and marks it as direct-response traffic", async () => {
   const now = new Date("2026-08-05T00:00:00.000Z");
   const conversation = {
-    _id: "conversation-1",
-    business: "business-1",
-    lead: "lead-1",
+    _id: CONVERSATION_ID,
+    business: BUSINESS_ID,
+    lead: LEAD_ID,
     customerPhone: "+14045550199",
   };
-  Conversation.findOne.mockReturnValue(query(conversation));
-  Lead.findOne.mockReturnValue(query({ _id: "lead-1" }));
-  Message.findOne.mockReturnValue(
-    query({ createdAt: new Date(now.getTime() - 60 * 60 * 1000) }),
-  );
+  Conversation.findOne.mockResolvedValue(conversation);
+  Lead.findOne.mockResolvedValue({ _id: LEAD_ID, business: BUSINESS_ID });
+  Message.exists.mockResolvedValue(true);
 
   const result = await evaluateManualSmsPolicy({
-    business: { _id: "business-1" },
+    business: { _id: BUSINESS_ID },
+    conversationId: CONVERSATION_ID,
     to: "+14045550199",
     body: "We received your message and will call shortly.",
     now,
@@ -85,31 +82,35 @@ test("allows a recent customer response and marks it as direct-response traffic"
     directResponse: true,
     conversation,
   });
-});
-
-
-test("blocks a conversation id paired with a different destination", async () => {
-  Conversation.findOne.mockReturnValue(
-    query({
-      _id: "conversation-1",
-      business: "business-1",
-      customerPhone: "+14045550100",
-      lead: "lead-1",
+  expect(Message.exists).toHaveBeenCalledWith(
+    expect.objectContaining({
+      business: BUSINESS_ID,
+      conversation: CONVERSATION_ID,
+      direction: "inbound",
     }),
   );
+});
+
+test("blocks a conversation id paired with a different destination", async () => {
+  Conversation.findOne.mockResolvedValue({
+    _id: CONVERSATION_ID,
+    business: BUSINESS_ID,
+    customerPhone: "+14045550100",
+    lead: LEAD_ID,
+  });
 
   const result = await evaluateManualSmsPolicy({
-    business: { _id: "business-1" },
-    conversationId: "conversation-1",
+    business: { _id: BUSINESS_ID },
+    conversationId: CONVERSATION_ID,
     to: "+14045550199",
     body: "Hello from the team.",
   });
 
   expect(result).toMatchObject({
     allowed: false,
-    statusCode: 403,
+    statusCode: 409,
     reason: "conversation_destination_mismatch",
   });
-  expect(Lead.findOne).not.toHaveBeenCalled();
-  expect(Message.findOne).not.toHaveBeenCalled();
+  expect(Lead.findOne).toHaveBeenCalledTimes(1);
+  expect(Message.exists).not.toHaveBeenCalled();
 });

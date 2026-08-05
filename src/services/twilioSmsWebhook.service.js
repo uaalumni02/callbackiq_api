@@ -21,7 +21,9 @@ import { getOrCreateSmsLeadAndConversation } from "./messaging/smsConversation.s
 import { enqueueInboundSmsJob } from "./messaging/smsProcessingQueue.service.js";
 import { processTwilioMessageStatus } from "./messaging/smsDeliveryStatus.service.js";
 import { resolveBusinessByTwilioNumber, resolveBusinessFromWebhookPhones } from "./twilioBusinessResolver.service.js";
-import { evaluateManualSmsPolicy } from "./messaging/manualSmsPolicy.service.js";
+import { executeManualSmsOperation } from "./messaging/manualSmsOperation.service.js";
+import { resolveBusinessForTwilioStatus } from "./twilioStatusBusinessResolver.service.js";
+import { processTwilioCallStatus } from "./twilioCallStatus.service.js";
 
 import { evaluateDeterministicInboundGuardrails } from "../helpers/ai/aiGuardrails.js";
 const xml = (body) => `<?xml version="1.0" encoding="UTF-8"?>${body}`;
@@ -264,12 +266,15 @@ export const handleSmsRecoveryVoiceWebhook = async (req, res) => {
 export const handleTwilioStatusWebhook = async (req, res) => {
   let webhookEvent = null;
   try {
-    const business = await resolveBusinessFromWebhookPhones([
-      req.body.To,
-      req.body.From,
-      req.body.Called,
-      req.body.Caller,
-    ]);
+    // CALLBACKIQ_PRODUCTION_READINESS: provider record is authoritative.
+    const business =
+      (await resolveBusinessForTwilioStatus(req.body)) ||
+      (await resolveBusinessFromWebhookPhones([
+        req.body.To,
+        req.body.From,
+        req.body.Called,
+        req.body.Caller,
+      ]));
     if (!business) return sendXml(res);
 
     const eventType = getTwilioStatusEventType(req.body);
@@ -287,27 +292,7 @@ export const handleTwilioStatusWebhook = async (req, res) => {
     if (eventType === "message_status") {
       await processTwilioMessageStatus({ businessId: business._id, payload: req.body });
     } else if (req.body.CallSid) {
-      const callStatus = String(req.body.CallStatus || "").toLowerCase();
-      const statusMap = {
-        completed: "answered",
-        answered: "answered",
-        busy: "busy",
-        "no-answer": "no_answer",
-        no_answer: "no_answer",
-        failed: "failed",
-        canceled: "failed",
-      };
-      const updated = await CallLog.findOneAndUpdate(
-        { business: business._id, providerCallId: req.body.CallSid },
-        {
-          $set: {
-            status: statusMap[callStatus] || "missed",
-            durationSeconds: Math.max(0, Number(req.body.CallDuration || 0)),
-          },
-        },
-        { returnDocument: "after" },
-      );
-      if (updated) SocketService.emitCallUpdated(business._id, updated);
+      await processTwilioCallStatus({ businessId: business._id, payload: req.body });
     }
 
     const responseBody = emptyTwiml();
@@ -571,108 +556,47 @@ export const handleInboundSmsWebhook = async (req, res) => {
 export const handleManualSmsRequest = async (req, res) => {
   try {
     const business = req.business;
-    const actorId = req.user?.userId || null;
-    if (!business?._id) {
-      return res.status(403).json({ success: false, message: "An active business subscription is required." });
-    }
-
-    const policy = await evaluateManualSmsPolicy({
+    const result = await executeManualSmsOperation({
       business,
+      actorId: req.user?.userId || req.user?._id || null,
       to: req.body?.to,
       body: req.body?.body,
-      conversationId: req.body?.conversationId || null,
+      conversationId: req.body?.conversationId,
+      operationId:
+        req.body?.operationId ||
+        req.body?.clientOperationId ||
+        req.get?.("Idempotency-Key") ||
+        req.get?.("X-Idempotency-Key") ||
+        "",
+      source: "manual_sms_api",
     });
-    if (!policy.allowed) {
-      return res.status(policy.statusCode || 400).json({
+    if (result.blocked) {
+      return res.status(result.statusCode || 409).json({
         success: false,
-        message: policy.message || "Manual SMS is not permitted.",
-        data: { reason: policy.reason },
+        message: result.message || "Manual SMS was blocked.",
+        data: { reason: result.reason, operationId: result.operation?.operationId },
       });
     }
-
-    const conversation = policy.conversation;
-    const lead = policy.lead;
-    if (!conversation) {
-      return res.status(409).json({
-        success: false,
-        message: "Open the customer's conversation before sending a manual SMS.",
-      });
-    }
-
-    const mutedConversation = await Conversation.findByIdAndUpdate(
-      conversation._id,
-      {
-        aiEnabled: false,
-        humanTakeover: true,
-        humanTakeoverAt: new Date(),
-        humanTakeoverBy: actorId,
-      },
-      { returnDocument: "after" },
-    );
-    SocketService.emitConversationUpdated(business._id, mutedConversation);
-
-    const sent = await sendSms({
-      business,
-      businessId: business._id,
-      from: business.phone,
-      to: policy.normalizedTo,
-      body: policy.body,
-      actorId,
-      actorType: "user",
-      source: "manual_sms",
-      usageCategory: "manual_sms",
-      conversationId: conversation._id,
-      leadId: lead?._id || conversation.lead || null,
-      directResponse: policy.directResponse,
-      metadata: { route: "/api/twilio/send-sms" },
-    });
-    if (sent?.suppressed) {
-      return res.status(sent.policyBlocked ? 429 : 409).json({
-        success: false,
-        message: sent.policyBlocked
-          ? sent.reason === "outside_send_window"
-            ? "This message is outside the configured customer send window."
-            : "The communication allowance has been reached."
-          : "SMS was not sent because the customer opted out.",
-        data: { status: sent.status, reason: sent.reason },
-      });
-    }
-
-    const message = await saveOutbound({
-      business,
-      conversation: mutedConversation,
-      lead,
-      to: policy.normalizedTo,
-      body: sent?.body || policy.body,
-      sent,
-      generatedBy: "user",
-      usageCategory: "manual_sms",
-      actorType: "user",
-      metadata: { source: "manual_sms", actorId },
-    });
-    await updateConversationLastMessage({
-      businessId: business._id,
-      conversation: mutedConversation,
-      body: sent?.body || policy.body,
-    });
-    SocketService.emitDashboardRefresh(business._id, "manual_sms_sent");
-    return res.status(201).json({
+    return res.status(result.completed ? 201 : 202).json({
       success: true,
-      message: "SMS sent successfully. AI is paused for this conversation.",
-      data: message,
+      message: result.completed
+        ? "Manual SMS accepted by Twilio and saved."
+        : "Manual SMS is being reconciled.",
+      data: result.message || null,
+      operation: {
+        id: result.operation?._id,
+        operationId: result.operation?.operationId,
+        state: result.operation?.state,
+        replayed: Boolean(result.replayed),
+      },
     });
   } catch (error) {
-    logOperationalError("twilio.manual_sms.failed", error, {
-      businessId: req.business?._id,
-      actorId: req.user?.userId,
+    const statusCode = Number(error?.statusCode || 500);
+    return res.status(statusCode).json({
+      success: false,
+      message: error?.message || "Unable to send manual SMS.",
+      code: error?.code || "MANUAL_SMS_FAILED",
+      data: { operationId: error?.manualSmsOperationId || null, providerAccepted: Boolean(error?.providerAccepted) },
     });
-    return res.status(500).json({ success: false, message: "Unable to send SMS." });
   }
-};
-
-export default {
-  handleSmsRecoveryVoiceWebhook,
-  handleTwilioStatusWebhook,
-  handleInboundSmsWebhook,
-  handleManualSmsRequest,
 };

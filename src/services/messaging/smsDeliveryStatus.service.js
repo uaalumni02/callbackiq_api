@@ -11,14 +11,25 @@ const MESSAGE_STATUS_MAP = {
   sending: "queued",
   sent: "sent",
   delivered: "delivered",
+  read: "delivered",
   undelivered: "undelivered",
   failed: "failed",
   canceled: "failed",
-  read: "delivered",
 };
 const FINAL_FAILURES = new Set(["failed", "undelivered", "canceled"]);
+const ALLOWED_CURRENT_STATUSES = {
+  queued: ["queued"],
+  sent: ["queued", "sent"],
+  delivered: ["queued", "sent", "delivered"],
+  undelivered: ["queued", "sent", "undelivered"],
+  failed: ["queued", "sent", "failed"],
+};
 
 const normalizeStatus = (value) => String(value || "").trim().toLowerCase();
+const appendEvent = (event) => ({
+  $each: [event],
+  $slice: -50,
+});
 
 const detectFailureSpike = async ({ businessId, now = new Date() }) => {
   const since = new Date(now.getTime() - 60 * 60 * 1000);
@@ -54,65 +65,177 @@ const detectFailureSpike = async ({ businessId, now = new Date() }) => {
   });
 };
 
-export const processTwilioMessageStatus = async ({ businessId, payload = {} }) => {
-  const providerMessageId = String(payload.MessageSid || payload.SmsSid || "").trim();
-  const deliveryStatus = normalizeStatus(payload.MessageStatus || payload.SmsStatus);
-  if (!businessId || !providerMessageId || !deliveryStatus) return null;
-
-  const status = MESSAGE_STATUS_MAP[deliveryStatus] || "sent";
-  const errorCode = String(payload.ErrorCode || "").trim();
-  const errorMessage = String(payload.ErrorMessage || "").trim().slice(0, 1000);
-  const now = new Date();
-  const update = {
-    status,
-    deliveryStatus,
-    deliveryErrorCode: errorCode,
-    deliveryErrorMessage: errorMessage,
-    ...(deliveryStatus === "delivered" || deliveryStatus === "read"
-      ? { deliveredAt: now }
-      : {}),
-    ...(FINAL_FAILURES.has(deliveryStatus) ? { failedAt: now } : {}),
+const updateMessageMonotonically = async ({
+  businessId,
+  providerMessageId,
+  providerStatus,
+  canonicalStatus,
+  errorCode,
+  errorMessage,
+  now,
+}) => {
+  const eventBase = {
+    providerStatus,
+    canonicalStatus: canonicalStatus || "",
+    errorCode,
+    errorMessage,
+    receivedAt: now,
   };
+  if (!canonicalStatus) {
+    return Message.findOneAndUpdate(
+      { business: businessId, providerMessageId },
+      { $push: { deliveryEvents: appendEvent({ ...eventBase, applied: false, conflict: false }) } },
+      { returnDocument: "after" },
+    );
+  }
 
-  const message = await Message.findOneAndUpdate(
-    { business: businessId, providerMessageId },
-    { $set: update },
+  const update = {
+    $set: {
+      status: canonicalStatus,
+      deliveryStatus: providerStatus,
+      deliveryErrorCode: errorCode,
+      deliveryErrorMessage: errorMessage,
+      ...(canonicalStatus === "delivered" ? { deliveredAt: now } : {}),
+      ...(canonicalStatus === "failed" || canonicalStatus === "undelivered"
+        ? { failedAt: now }
+        : {}),
+    },
+    $push: {
+      deliveryEvents: appendEvent({ ...eventBase, applied: true, conflict: false }),
+    },
+  };
+  const applied = await Message.findOneAndUpdate(
+    {
+      business: businessId,
+      providerMessageId,
+      status: { $in: ALLOWED_CURRENT_STATUSES[canonicalStatus] || [] },
+    },
+    update,
     { returnDocument: "after" },
   );
+  if (applied) return applied;
 
-  const callLog = await CallLog.findOneAndUpdate(
-    { business: businessId, smsProviderMessageId: providerMessageId },
+  return Message.findOneAndUpdate(
+    { business: businessId, providerMessageId },
     {
-      $set: {
-        smsDeliveryStatus: deliveryStatus,
-        missedCallTextDelivered:
-          deliveryStatus === "delivered" || deliveryStatus === "read",
-        smsDeliveryErrorCode: errorCode,
-        smsDeliveryErrorMessage: errorMessage,
-        ...(deliveryStatus === "delivered" || deliveryStatus === "read"
-          ? { smsDeliveredAt: now }
-          : {}),
-        ...(FINAL_FAILURES.has(deliveryStatus) ? { smsFailedAt: now } : {}),
+      $push: {
+        deliveryEvents: appendEvent({ ...eventBase, applied: false, conflict: true }),
       },
     },
     { returnDocument: "after" },
   );
+};
+
+const updateCallLogSmsMonotonically = async ({
+  businessId,
+  providerMessageId,
+  providerStatus,
+  canonicalStatus,
+  errorCode,
+  errorMessage,
+  now,
+}) => {
+  const eventBase = {
+    providerStatus,
+    canonicalStatus: canonicalStatus || "",
+    errorCode,
+    receivedAt: now,
+  };
+  if (!canonicalStatus) {
+    return CallLog.findOneAndUpdate(
+      { business: businessId, smsProviderMessageId: providerMessageId },
+      { $push: { smsDeliveryEvents: appendEvent({ ...eventBase, applied: false, conflict: false }) } },
+      { returnDocument: "after" },
+    );
+  }
+
+  const allowedRawStatuses = {
+    queued: ["", "accepted", "scheduled", "queued", "sending"],
+    sent: ["", "accepted", "scheduled", "queued", "sending", "sent"],
+    delivered: ["", "accepted", "scheduled", "queued", "sending", "sent", "delivered", "read"],
+    undelivered: ["", "accepted", "scheduled", "queued", "sending", "sent", "undelivered"],
+    failed: ["", "accepted", "scheduled", "queued", "sending", "sent", "failed", "canceled"],
+  };
+  const applied = await CallLog.findOneAndUpdate(
+    {
+      business: businessId,
+      smsProviderMessageId: providerMessageId,
+      smsDeliveryStatus: { $in: allowedRawStatuses[canonicalStatus] || [] },
+    },
+    {
+      $set: {
+        smsDeliveryStatus: providerStatus,
+        missedCallTextDelivered: canonicalStatus === "delivered",
+        smsDeliveryErrorCode: errorCode,
+        smsDeliveryErrorMessage: errorMessage,
+        ...(canonicalStatus === "delivered" ? { smsDeliveredAt: now } : {}),
+        ...(canonicalStatus === "failed" || canonicalStatus === "undelivered"
+          ? { smsFailedAt: now }
+          : {}),
+      },
+      $push: {
+        smsDeliveryEvents: appendEvent({ ...eventBase, applied: true, conflict: false }),
+      },
+    },
+    { returnDocument: "after" },
+  );
+  if (applied) return applied;
+  return CallLog.findOneAndUpdate(
+    { business: businessId, smsProviderMessageId: providerMessageId },
+    {
+      $push: {
+        smsDeliveryEvents: appendEvent({ ...eventBase, applied: false, conflict: true }),
+      },
+    },
+    { returnDocument: "after" },
+  );
+};
+
+export const processTwilioMessageStatus = async ({ businessId, payload = {} }) => {
+  const providerMessageId = String(payload.MessageSid || payload.SmsSid || "").trim();
+  const providerStatus = normalizeStatus(payload.MessageStatus || payload.SmsStatus);
+  if (!businessId || !providerMessageId || !providerStatus) return null;
+
+  const canonicalStatus = MESSAGE_STATUS_MAP[providerStatus] || "";
+  const errorCode = String(payload.ErrorCode || "").trim();
+  const errorMessage = String(payload.ErrorMessage || "").trim().slice(0, 1000);
+  const now = new Date();
+  const [message, callLog] = await Promise.all([
+    updateMessageMonotonically({
+      businessId,
+      providerMessageId,
+      providerStatus,
+      canonicalStatus,
+      errorCode,
+      errorMessage,
+      now,
+    }),
+    updateCallLogSmsMonotonically({
+      businessId,
+      providerMessageId,
+      providerStatus,
+      canonicalStatus,
+      errorCode,
+      errorMessage,
+      now,
+    }),
+  ]);
 
   if (message) SocketService.emitMessageUpdated(businessId, message);
   if (callLog) SocketService.emitCallUpdated(businessId, callLog);
   if (message || callLog) {
-    SocketService.emitDashboardRefresh(businessId, `sms_status_${deliveryStatus}`);
+    SocketService.emitDashboardRefresh(businessId, `sms_status_${providerStatus}`);
   }
-  if (FINAL_FAILURES.has(deliveryStatus)) {
+  if (FINAL_FAILURES.has(providerStatus)) {
     logOperationalEvent("twilio.sms.delivery_failed", {
       businessId,
       providerMessageId,
-      deliveryStatus,
+      deliveryStatus: providerStatus,
       errorCode,
     });
     await detectFailureSpike({ businessId, now });
   }
-  return { message, callLog, deliveryStatus };
+  return { message, callLog, deliveryStatus: providerStatus, canonicalStatus };
 };
 
 export default { processTwilioMessageStatus };

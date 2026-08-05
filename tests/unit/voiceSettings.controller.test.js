@@ -1,9 +1,19 @@
 import VoiceSettingsController from "../../src/controllers/voiceSettings.js";
 import { getOwnedBusiness } from "../../src/services/businessScope.service.js";
+import {
+  publishVoiceSettingsVersion,
+} from "../../src/services/voiceSettingsVersion.service.js";
 
 jest.mock("../../src/services/businessScope.service.js", () => ({
   __esModule: true,
   getOwnedBusiness: jest.fn(),
+}));
+
+jest.mock("../../src/services/voiceSettingsVersion.service.js", () => ({
+  __esModule: true,
+  listVoiceSettingsVersions: jest.fn(),
+  publishVoiceSettingsVersion: jest.fn(),
+  rollbackVoiceSettingsVersion: jest.fn(),
 }));
 
 const response = () => {
@@ -14,6 +24,9 @@ const response = () => {
 
 const makeBusiness = (overrides = {}) => {
   const business = {
+    _id: "64f000000000000000000001",
+    phone: "+14045550101",
+    businessName: "Atlanta Pro Plumbing & Drain",
     features: { voiceAiEnabled: true, aiBookingEnabled: false },
     voiceSettings: {
       answerMode: "overflow",
@@ -51,6 +64,7 @@ describe("VoiceSettingsController callback-first settings", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    publishVoiceSettingsVersion.mockResolvedValue({ version: 2 });
     process.env = {
       ...originalEnv,
       VOICE_WEBSOCKET_PUBLIC_URL: "wss://api.callbackiq.com/ws/voice",
@@ -118,6 +132,10 @@ describe("VoiceSettingsController callback-first settings", () => {
       transferPhone: "+14045550109",
       liveTransferPhone: "+14045550188",
     });
+    expect(publishVoiceSettingsVersion).toHaveBeenCalledWith(
+      expect.objectContaining({ business, publishedBy: "owner" }),
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
   });
 
   test("voice answering is ready when booking is off because callback capture is available", async () => {

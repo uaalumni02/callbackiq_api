@@ -148,7 +148,7 @@ const buildSpecs = ({ business, customerPhone, metric, now }) => {
   return { specs, limits };
 };
 
-const reserveCounter = async (spec, amount = 1) => {
+const reserveCounter = async (spec, amount = 1, mongoSession = null) => {
   const identity = {
     business: spec.businessId,
     scope: spec.scope,
@@ -171,7 +171,11 @@ const reserveCounter = async (spec, amount = 1) => {
         },
         $inc: { count: amount },
       },
-      { upsert: true, returnDocument: "after" },
+      {
+        upsert: true,
+        returnDocument: "after",
+        ...(mongoSession ? { session: mongoSession } : {}),
+      },
     );
   } catch (error) {
     // When the row exists at its limit, the attempted upsert collides with the
@@ -181,17 +185,51 @@ const reserveCounter = async (spec, amount = 1) => {
   }
 };
 
-const rollback = async (documents, amount = 1) => {
-  await Promise.allSettled(
+const rollback = async (documents, amount = 1, mongoSession = null) => {
+  const releaseAmount = Math.max(1, Math.floor(Number(amount) || 1));
+  const results = await Promise.allSettled(
     documents
       .filter(Boolean)
       .map((document) =>
         CommunicationUsage.updateOne(
-          { _id: document._id, count: { $gt: 0 } },
-          { $inc: { count: -amount } },
+          { _id: document._id },
+          [
+            {
+              $set: {
+                count: {
+                  $max: [
+                    0,
+                    {
+                      $subtract: [
+                        { $ifNull: ["$count", 0] },
+                        releaseAmount,
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+          ],
+          mongoSession ? { session: mongoSession } : undefined,
         ),
       ),
   );
+  const rejected = results.find((result) => result.status === "rejected");
+  if (rejected) throw rejected.reason;
+};
+
+// CALLBACKIQ_PRODUCTION_READINESS: reversible provider reservations.
+export const releaseCommunicationUsage = async ({
+  reservations = [],
+  amount = 1,
+  mongoSession = null,
+} = {}) => {
+  const documents = reservations
+    .map((item) => (item?._id ? item : item ? { _id: item } : null))
+    .filter(Boolean);
+  const releaseAmount = Math.max(1, Math.floor(Number(amount) || 1));
+  await rollback(documents, releaseAmount, mongoSession);
+  return { released: documents.length, amount: releaseAmount };
 };
 
 const createThresholdAlert = async ({ businessId, spec, document, thresholdPercent }) => {
@@ -231,6 +269,22 @@ const createThresholdAlert = async ({ businessId, spec, document, thresholdPerce
   }
 };
 
+export const emitCommunicationUsageThresholdAlerts = async ({
+  businessId,
+  thresholdAlerts = [],
+  thresholdPercent = DEFAULT_COMMUNICATION_LIMITS.alertThresholdPercent,
+} = {}) => {
+  for (const item of thresholdAlerts) {
+    if (!item?.spec || !item?.document) continue;
+    await createThresholdAlert({
+      businessId,
+      spec: item.spec,
+      document: item.document,
+      thresholdPercent,
+    });
+  }
+};
+
 const shouldFailClosed = () => {
   if (process.env.COMMUNICATION_USAGE_FAIL_CLOSED === "true") return true;
   if (process.env.COMMUNICATION_USAGE_FAIL_CLOSED === "false") return false;
@@ -244,6 +298,9 @@ export const reserveCommunicationUsage = async ({
   bypass = false,
   amount = 1,
   now = new Date(),
+  mongoSession = null,
+  suppressAlerts = false,
+  throwOnInfrastructureError = false,
 }) => {
   const reservationAmount = Math.max(1, Math.floor(Number(amount) || 1));
   if (bypass) return { allowed: true, bypassed: true, amount: reservationAmount, reservations: [] };
@@ -255,6 +312,11 @@ export const reserveCommunicationUsage = async ({
   }
 
   if (CommunicationUsage.db && CommunicationUsage.db.readyState !== 1) {
+    if (throwOnInfrastructureError) {
+      const error = new Error("Communication usage tracking is unavailable.");
+      error.code = "COMMUNICATION_USAGE_UNAVAILABLE";
+      throw error;
+    }
     return shouldFailClosed()
       ? {
           allowed: false,
@@ -271,18 +333,21 @@ export const reserveCommunicationUsage = async ({
 
   const { specs, limits } = buildSpecs({ business, customerPhone, metric, now });
   const reserved = [];
+  const thresholdAlerts = [];
 
   try {
     for (const spec of specs) {
-      const document = await reserveCounter(spec, reservationAmount);
+      const document = await reserveCounter(spec, reservationAmount, mongoSession);
       if (!document) {
-        await rollback(reserved, reservationAmount);
-        await createThresholdAlert({
-          businessId: business._id || business.id,
-          spec,
-          document: { count: spec.limit },
-          thresholdPercent: limits.alertThresholdPercent,
-        });
+        await rollback(reserved, reservationAmount, mongoSession);
+        thresholdAlerts.push({ spec, document: { count: spec.limit } });
+        if (!suppressAlerts) {
+          await emitCommunicationUsageThresholdAlerts({
+            businessId: business._id || business.id,
+            thresholdAlerts,
+            thresholdPercent: limits.alertThresholdPercent,
+          });
+        }
         return {
           allowed: false,
           reason: `${spec.scope}_${spec.window}_${metric}_limit`,
@@ -290,26 +355,37 @@ export const reserveCommunicationUsage = async ({
           scope: spec.scope,
           window: spec.window,
           reservations: [],
+          thresholdAlerts,
+          thresholdPercent: limits.alertThresholdPercent,
         };
       }
 
       reserved.push(document);
-      await createThresholdAlert({
+      thresholdAlerts.push({ spec, document });
+    }
+
+    if (!suppressAlerts) {
+      await emitCommunicationUsageThresholdAlerts({
         businessId: business._id || business.id,
-        spec,
-        document,
+        thresholdAlerts,
         thresholdPercent: limits.alertThresholdPercent,
       });
     }
-
-    return { allowed: true, amount: reservationAmount, reservations: reserved };
+    return {
+      allowed: true,
+      amount: reservationAmount,
+      reservations: reserved,
+      thresholdAlerts,
+      thresholdPercent: limits.alertThresholdPercent,
+    };
   } catch (error) {
-    await rollback(reserved, reservationAmount);
+    await rollback(reserved, reservationAmount, mongoSession);
     logOperationalError("communication_usage.reservation_failed", error, {
       businessId: business._id || business.id,
       metric,
     });
 
+    if (throwOnInfrastructureError) throw error;
     if (shouldFailClosed()) {
       return {
         allowed: false,
@@ -336,7 +412,9 @@ export const reserveAiUsage = (parameters) =>
 export default {
   DEFAULT_COMMUNICATION_LIMITS,
   getCommunicationLimits,
+  emitCommunicationUsageThresholdAlerts,
   reserveCommunicationUsage,
   reserveSmsUsage,
   reserveAiUsage,
+  releaseCommunicationUsage,
 };

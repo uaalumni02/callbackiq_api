@@ -19,6 +19,13 @@ const createRelayInfrastructureStubs = () => ({
     acquireVoiceCapacity: jest.fn().mockResolvedValue({ allowed: true }),
     releaseVoiceCapacity: jest.fn().mockResolvedValue(undefined),
   },
+  voiceConnectionLeaseService: {
+    acquireVoiceConnectionLease: jest.fn().mockResolvedValue({
+      allowed: true,
+      lease: { ipHash: "test-ip", leaseId: "test-lease" },
+    }),
+    releaseVoiceConnectionLease: jest.fn().mockResolvedValue(undefined),
+  },
   voiceUsageService: {
     reserveVoiceUsage: jest.fn().mockResolvedValue({
       allowed: true,
