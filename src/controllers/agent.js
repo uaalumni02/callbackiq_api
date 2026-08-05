@@ -180,6 +180,7 @@ class AgentController {
           actorId: ownerId,
           actorType: "user",
           source: "agent_reply",
+          directResponse: true,
           usageCategory: "ai_reply",
           conversationId: conversation._id,
           leadId: updatedLead?._id || null,

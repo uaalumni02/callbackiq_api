@@ -188,6 +188,8 @@ describe("Dashboard Routes", () => {
       conversation: conversation1._id,
       lead: lead1._id,
       direction: "outbound",
+      providerMessageId: "SM_CALLLOG_DASHBOARD_ACCEPTED_001",
+      segmentCount: 1,
       from: "4045551234",
       to: "4045551111",
       body: "Hi John",
@@ -225,6 +227,9 @@ describe("Dashboard Routes", () => {
     expect(res.body.data.conversations.activeConversations).toBe(1);
     expect(res.body.data.conversations.closedConversations).toBe(1);
     expect(res.body.data.messages.smsSent).toBe(1);
+    expect(res.body.data.messages.smsDelivered).toBe(0);
+    expect(res.body.data.messages.smsFailed).toBe(0);
+    expect(res.body.data.messages.smsSegments).toBe(1);
     expect(res.body.data.messages.smsReceived).toBe(1);
     expect(res.body.data.revenue.bookedRevenue).toBe(1200);
     expect(res.body.data.revenue.recoveredRevenue).toBe(1200);

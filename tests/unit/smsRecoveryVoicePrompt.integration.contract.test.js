@@ -2,18 +2,21 @@ import fs from "fs";
 import path from "path";
 
 const controllerPath = path.resolve("src/controllers/twilio.js");
+const webhookServicePath = path.resolve(
+  "src/services/twilioSmsWebhook.service.js",
+);
 
 describe("Twilio SMS-recovery prompt wiring", () => {
-  test("uses the business-aware prompt and tracks actual SMS delivery", () => {
-    const source = fs.readFileSync(controllerPath, "utf8");
+  test("delegates voice recovery and tracks actual SMS delivery status", () => {
+    const controller = fs.readFileSync(controllerPath, "utf8");
+    const service = fs.readFileSync(webhookServicePath, "utf8");
 
-    expect(source).toMatch(/buildSmsRecoveryVoicePrompt/);
-    expect(source).toMatch(/smsRecoveryStatus\s*=\s*missedCallSmsEnabled/);
-    expect(source).toMatch(/smsRecoveryStatus\s*=\s*["']suppressed["']/);
-    expect(source).toMatch(/smsRecoveryStatus\s*=\s*["']sent["']/);
-    expect(source).toMatch(/businessName:\s*business\.businessName/);
-    expect(source).toMatch(/smsEnabled:\s*missedCallSmsEnabled/);
-    expect(source).toMatch(/smsStatus:\s*smsRecoveryStatus/);
-    expect(source).not.toContain("Thank you. The business has been notified.");
+    expect(controller).toMatch(/handleSmsRecoveryVoiceWebhook/);
+    expect(service).toMatch(/buildSmsRecoveryVoicePrompt/);
+    expect(service).toMatch(/let\s+smsStatus\s*=\s*smsEnabled/);
+    expect(service).toMatch(/smsStatus\s*=\s*sentResult\?\.suppressed/);
+    expect(service).toMatch(/businessName:\s*business\.businessName/);
+    expect(service).toMatch(/smsEnabled,\s*\n\s*smsStatus,/);
+    expect(service).not.toContain("Thank you. The business has been notified.");
   });
 });

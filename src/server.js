@@ -1,3 +1,4 @@
+import { startSmsProcessingWorker, stopSmsProcessingWorker } from "./workers/smsProcessing.worker.js";
 import "dotenv/config";
 
 import mongoose from "mongoose";
@@ -95,6 +96,7 @@ const shutdown = async (signal, exitCode = 0) => {
 
   try {
     stopAutomationWorker();
+    stopSmsProcessingWorker();
     await conversationRelayServer.close();
     await closeSocketServer();
     await closeHttpServer();
@@ -125,6 +127,7 @@ process.on("uncaughtException", (error) => {
 const startServer = async () => {
   await connectDB();
   await startAutomationWorker();
+  await startSmsProcessingWorker();
   httpServer.listen(port, () => {
     console.log(`Server running on http://localhost:${port}`);
     console.log("Socket.IO server initialized");

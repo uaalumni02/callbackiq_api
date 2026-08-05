@@ -8,6 +8,7 @@ import conversationValidator from "../validator/conversation.js";
 import * as Response from "../helpers/response/response.js";
 import SocketService from "../services/socket.service.js";
 
+import { normalizePhoneToE164, phoneLookupVariants } from "../voice/voicePhone.service.js";
 const getBusinessForOwner = async (ownerId) => {
   return typeof Db.getBusinessScopeByOwner === "function"
     ? Db.getBusinessScopeByOwner(Business, ownerId)
@@ -82,6 +83,62 @@ const deleteOptionalConversationRecords = async (modelName, conversationId) => {
   if (!model || !model.schema?.path("conversation")) return;
 
   await model.deleteMany({ conversation: conversationId });
+};
+
+const createOrReuseConversation = async ({ businessId, payload }) => {
+  const normalizedCustomerPhone = normalizePhoneToE164(payload.customerPhone);
+  const phoneVariants = normalizedCustomerPhone
+    ? phoneLookupVariants(normalizedCustomerPhone)
+    : [String(payload.customerPhone || "").trim()].filter(Boolean);
+
+  const findExisting = async () => {
+    if (!normalizedCustomerPhone) return null;
+    return Conversation.findOne({
+      business: businessId,
+      status: { $ne: "archived" },
+      $or: [
+        { customerPhoneLookup: normalizedCustomerPhone },
+        { customerPhone: { $in: phoneVariants } },
+      ],
+    }).sort({ lastMessageAt: -1, createdAt: -1 });
+  };
+
+  let existingConversation = await findExisting();
+  if (!existingConversation) {
+    try {
+      return await Db.saveConversation(Conversation, {
+        ...payload,
+        customerPhone: normalizedCustomerPhone || payload.customerPhone,
+        business: businessId,
+      });
+    } catch (error) {
+      if (Number(error?.code) !== 11000) throw error;
+      existingConversation = await findExisting();
+      if (!existingConversation) throw error;
+    }
+  }
+
+  const updates = {};
+  if (
+    existingConversation.status === "closed" &&
+    existingConversation.humanTakeover !== true
+  ) {
+    updates.status = "open";
+    updates.aiEnabled = true;
+    updates.reopenedAt = new Date();
+    updates.reopenReason = "conversation_create_reused";
+  }
+  if (!existingConversation.lead && payload.lead) updates.lead = payload.lead;
+  if (
+    payload.customerName &&
+    ["", "Customer"].includes(String(existingConversation.customerName || "").trim())
+  ) {
+    updates.customerName = payload.customerName;
+  }
+
+  return Object.keys(updates).length
+    ? Db.updateConversation(Conversation, existingConversation._id, updates)
+    : existingConversation;
 };
 
 class ConversationController {
@@ -159,9 +216,9 @@ class ConversationController {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      const conversation = await Db.saveConversation(Conversation, {
-        ...req.body,
-        business: business._id,
+      const conversation = await createOrReuseConversation({
+        businessId: business._id,
+        payload: req.body,
       });
 
       const payload = withConversationPermissions(conversation, true);

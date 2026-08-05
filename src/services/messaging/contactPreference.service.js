@@ -1,44 +1,26 @@
 import ContactPreference from "../../models/contactPreference.js";
 import normalizePhone from "../../helpers/normalizePhone.js";
-import {
-  SAFE_REPLIES,
-  isHelpKeyword,
-  isStopKeyword,
-} from "../../helpers/ai/aiGuardrails.js";
+import { SAFE_REPLIES, isHelpKeyword, isStopKeyword } from "../../helpers/ai/aiGuardrails.js";
+import { isSoftOptOutPhrase } from "./smsCompliance.service.js";
 
 const START_KEYWORDS = new Set(["START", "UNSTOP"]);
-
-const normalizeKeyword = (value) => {
-  return String(value || "")
+const normalizeKeyword = (value) =>
+  String(value || "")
     .trim()
     .replace(/[.!?,;:]+$/g, "")
     .trim()
     .toUpperCase();
-};
 
-export const isStartKeyword = (value) => {
-  return START_KEYWORDS.has(normalizeKeyword(value));
-};
+export const isStartKeyword = (value) => START_KEYWORDS.has(normalizeKeyword(value));
 
 export const getSmsPreference = async ({ businessId, phone }) => {
   const normalizedPhone = normalizePhone(phone);
-
-  if (!businessId || !normalizedPhone) {
-    return null;
-  }
-
-  return ContactPreference.findOne({
-    business: businessId,
-    phone: normalizedPhone,
-  });
+  if (!businessId || !normalizedPhone) return null;
+  return ContactPreference.findOne({ business: businessId, phone: normalizedPhone });
 };
 
 export const isSmsSuppressed = async ({ businessId, phone }) => {
-  const preference = await getSmsPreference({
-    businessId,
-    phone,
-  });
-
+  const preference = await getSmsPreference({ businessId, phone });
   return preference?.smsStatus === "opted_out";
 };
 
@@ -49,16 +31,11 @@ export const optOutSms = async ({
   keyword = "STOP",
 }) => {
   const normalizedPhone = normalizePhone(phone);
-
   if (!businessId || !normalizedPhone) {
     throw new Error("businessId and phone are required to opt out SMS");
   }
-
   return ContactPreference.findOneAndUpdate(
-    {
-      business: businessId,
-      phone: normalizedPhone,
-    },
+    { business: businessId, phone: normalizedPhone },
     {
       $set: {
         smsStatus: "opted_out",
@@ -68,11 +45,7 @@ export const optOutSms = async ({
         lastKeyword: normalizeKeyword(keyword),
       },
     },
-    {
-      returnDocument: "after",
-      upsert: true,
-      setDefaultsOnInsert: true,
-    },
+    { returnDocument: "after", upsert: true, setDefaultsOnInsert: true },
   );
 };
 
@@ -83,16 +56,11 @@ export const optInSms = async ({
   keyword = "START",
 }) => {
   const normalizedPhone = normalizePhone(phone);
-
   if (!businessId || !normalizedPhone) {
     throw new Error("businessId and phone are required to opt in SMS");
   }
-
   return ContactPreference.findOneAndUpdate(
-    {
-      business: businessId,
-      phone: normalizedPhone,
-    },
+    { business: businessId, phone: normalizedPhone },
     {
       $set: {
         smsStatus: "active",
@@ -102,41 +70,30 @@ export const optInSms = async ({
         lastKeyword: normalizeKeyword(keyword),
       },
     },
-    {
-      returnDocument: "after",
-      upsert: true,
-      setDefaultsOnInsert: true,
-    },
+    { returnDocument: "after", upsert: true, setDefaultsOnInsert: true },
   );
 };
 
-export const processInboundSmsCommand = async ({
-  businessId,
-  phone,
-  messageBody,
-}) => {
-  if (isStopKeyword(messageBody)) {
+export const processInboundSmsCommand = async ({ businessId, phone, messageBody }) => {
+  const softOptOut = isSoftOptOutPhrase(messageBody);
+  if (isStopKeyword(messageBody) || softOptOut) {
     await optOutSms({
       businessId,
       phone,
+      source: softOptOut ? "customer_request" : "twilio_keyword",
       keyword: messageBody,
     });
-
     return {
       handled: true,
       action: "opt_out",
       reply: SAFE_REPLIES.optOut,
       allowOptedOutReply: true,
+      softOptOut,
     };
   }
 
   if (isStartKeyword(messageBody)) {
-    await optInSms({
-      businessId,
-      phone,
-      keyword: messageBody,
-    });
-
+    await optInSms({ businessId, phone, keyword: messageBody });
     return {
       handled: true,
       action: "opt_in",
@@ -155,10 +112,5 @@ export const processInboundSmsCommand = async ({
     };
   }
 
-  return {
-    handled: false,
-    action: "",
-    reply: "",
-    allowOptedOutReply: false,
-  };
+  return { handled: false, action: "", reply: "", allowOptedOutReply: false };
 };

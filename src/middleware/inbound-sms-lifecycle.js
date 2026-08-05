@@ -1,3 +1,4 @@
+import { resolveBusinessByTwilioNumber } from "../services/twilioBusinessResolver.service.js";
 import Business from "../models/business.js";
 import Conversation from "../models/conversation.js";
 import Lead from "../models/lead.js";
@@ -20,7 +21,7 @@ const inboundSmsLifecycle = async (req, res, next) => {
 
     if (!businessPhone || !customerPhone) return next();
 
-    const business = await Business.findOne({ phone: businessPhone }).select("_id").lean();
+    const business = await resolveBusinessByTwilioNumber(businessPhone);
     if (!business) return next();
 
     const conversation = await Conversation.findOne({

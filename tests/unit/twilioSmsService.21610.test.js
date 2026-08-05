@@ -79,6 +79,7 @@ describe("Twilio 21610 SMS suppression", () => {
     );
 
     const result = await sendSms({
+      bypassQuietHours: true,
       businessId: business._id,
       to: "+14045550101",
       body: "Missed call recovery",

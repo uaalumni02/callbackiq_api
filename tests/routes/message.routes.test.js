@@ -7,6 +7,19 @@ import Message from "../../src/models/message.js";
 import Subscription from "../../src/models/subscription.js";
 import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testDb.js";
 
+jest.mock("../../src/services/twilioSmsService.js", () => ({
+  sendSms: jest.fn(async ({ to, from, body }) => ({
+    sid: "SM_MESSAGE_ROUTE_TEST",
+    status: "sent",
+    suppressed: false,
+    to,
+    from,
+    body,
+    encoding: "GSM-7",
+    segmentCount: 1,
+  })),
+}));
+
 beforeAll(async () => {
   await connectTestDB();
 });

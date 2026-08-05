@@ -1,3 +1,4 @@
+import { normalizePhoneToE164 } from "../voice/voicePhone.service.js";
 import mongoose from "mongoose";
 
 const { Schema } = mongoose;
@@ -18,6 +19,7 @@ const LeadSchema = new Schema(
       trim: true,
       validate: [validate.isValidPhone, "Please enter a valid phone number"],
     },
+    phoneLookup: { type: String, trim: true, default: "" },
     email: {
       type: String,
       trim: true,
@@ -76,6 +78,45 @@ const LeadSchema = new Schema(
   { timestamps: true },
 );
 
+LeadSchema.pre("validate", function normalizeLeadPhone() {
+  const normalized = normalizePhoneToE164(this.phone);
+  if (normalized) {
+    this.phone = normalized;
+    this.phoneLookup = normalized;
+  }
+});
+
+const normalizeLeadPhoneUpdate = function normalizeLeadPhoneUpdate() {
+  const update = this.getUpdate() || {};
+  for (const target of [update, update.$set, update.$setOnInsert].filter(Boolean)) {
+    if (!target.phone) continue;
+    const normalized = normalizePhoneToE164(target.phone);
+    if (normalized) {
+      target.phone = normalized;
+      target.phoneLookup = normalized;
+    }
+  }
+};
+LeadSchema.pre("findOneAndUpdate", normalizeLeadPhoneUpdate);
+LeadSchema.pre("updateOne", normalizeLeadPhoneUpdate);
+LeadSchema.pre("updateMany", normalizeLeadPhoneUpdate);
+
+const normalizeLeadPhoneFilter = function normalizeLeadPhoneFilter() {
+  const filter = this.getFilter() || {};
+  const normalizeTarget = (target) => {
+    if (!target || typeof target !== "object") return;
+    if (typeof target.phone === "string") {
+      const normalized = normalizePhoneToE164(target.phone);
+      if (normalized) target.phone = normalized;
+    }
+  };
+  normalizeTarget(filter);
+  if (Array.isArray(filter.$or)) filter.$or.forEach(normalizeTarget);
+};
+for (const operation of ["find", "findOne", "countDocuments", "findOneAndDelete", "deleteOne"]) {
+  LeadSchema.pre(operation, normalizeLeadPhoneFilter);
+}
+
 LeadSchema.index({ business: 1, createdAt: -1 });
 LeadSchema.index({ business: 1, status: 1, createdAt: -1 });
 LeadSchema.index({ business: 1, phone: 1, createdAt: -1 });
@@ -84,5 +125,9 @@ LeadSchema.index({ business: 1, leadQualityScore: -1, createdAt: -1 });
 LeadSchema.index({ business: 1, recovered: 1, bookedAt: -1 });
 LeadSchema.index({ business: 1, appointment: 1 });
 
+LeadSchema.index(
+  { business: 1, phoneLookup: 1 },
+  { unique: true, partialFilterExpression: { phoneLookup: { $gt: "" } } },
+);
 const Lead = mongoose.models.Lead || mongoose.model("Lead", LeadSchema);
 export default Lead;

@@ -1,3 +1,4 @@
+import MessageMediaController from "../controllers/messageMedia.js";
 import express from "express";
 
 import checkAuth from "../middleware/check-auth.js";
@@ -13,6 +14,13 @@ router.get(
   checkAuth,
   checkSubscription,
   MessageController.getMessagesByConversation,
+);
+
+router.get(
+  "/:messageId/media/:mediaIndex",
+  checkAuth,
+  checkSubscription,
+  MessageMediaController.getMedia,
 );
 
 router.get(

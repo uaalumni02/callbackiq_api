@@ -119,6 +119,7 @@ describe("central outbound SMS policy", () => {
     const actorId = "64f000000000000000000002";
 
     const result = await sendSms({
+      bypassQuietHours: true,
       businessId: business._id,
       to: "+14045550101",
       body: "Hello",
@@ -157,6 +158,7 @@ describe("central outbound SMS policy", () => {
 
   test("retains server-controlled Messaging Service delivery for automation", async () => {
     await sendSms({
+      bypassQuietHours: true,
       business,
       to: "+14045550101",
       body: "Automated follow-up",

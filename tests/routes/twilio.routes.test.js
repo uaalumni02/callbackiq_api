@@ -145,7 +145,7 @@ describe("Twilio Routes", () => {
 
       expect(sendSms).toHaveBeenCalledWith(
         expect.objectContaining({
-          to: "4045559999",
+          to: "+14045559999",
           from: "4045551234",
           businessId: business._id,
         }),

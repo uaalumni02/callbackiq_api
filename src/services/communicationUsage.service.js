@@ -148,7 +148,7 @@ const buildSpecs = ({ business, customerPhone, metric, now }) => {
   return { specs, limits };
 };
 
-const reserveCounter = async (spec) => {
+const reserveCounter = async (spec, amount = 1) => {
   const identity = {
     business: spec.businessId,
     scope: spec.scope,
@@ -162,14 +162,14 @@ const reserveCounter = async (spec) => {
     return await CommunicationUsage.findOneAndUpdate(
       {
         ...identity,
-        $or: [{ count: { $lt: spec.limit } }, { count: { $exists: false } }],
+        $or: [{ count: { $lte: spec.limit - amount } }, { count: { $exists: false } }],
       },
       {
         $setOnInsert: {
           ...identity,
           expiresAt: getExpiry(spec.windowStart, spec.window),
         },
-        $inc: { count: 1 },
+        $inc: { count: amount },
       },
       { upsert: true, returnDocument: "after" },
     );
@@ -181,14 +181,14 @@ const reserveCounter = async (spec) => {
   }
 };
 
-const rollback = async (documents) => {
+const rollback = async (documents, amount = 1) => {
   await Promise.allSettled(
     documents
       .filter(Boolean)
       .map((document) =>
         CommunicationUsage.updateOne(
           { _id: document._id, count: { $gt: 0 } },
-          { $inc: { count: -1 } },
+          { $inc: { count: -amount } },
         ),
       ),
   );
@@ -242,9 +242,11 @@ export const reserveCommunicationUsage = async ({
   customerPhone = "",
   metric,
   bypass = false,
+  amount = 1,
   now = new Date(),
 }) => {
-  if (bypass) return { allowed: true, bypassed: true, reservations: [] };
+  const reservationAmount = Math.max(1, Math.floor(Number(amount) || 1));
+  if (bypass) return { allowed: true, bypassed: true, amount: reservationAmount, reservations: [] };
   if (!business?._id && !business?.id) {
     return { allowed: false, reason: "business_context_required", reservations: [] };
   }
@@ -272,9 +274,9 @@ export const reserveCommunicationUsage = async ({
 
   try {
     for (const spec of specs) {
-      const document = await reserveCounter(spec);
+      const document = await reserveCounter(spec, reservationAmount);
       if (!document) {
-        await rollback(reserved);
+        await rollback(reserved, reservationAmount);
         await createThresholdAlert({
           businessId: business._id || business.id,
           spec,
@@ -300,9 +302,9 @@ export const reserveCommunicationUsage = async ({
       });
     }
 
-    return { allowed: true, reservations: reserved };
+    return { allowed: true, amount: reservationAmount, reservations: reserved };
   } catch (error) {
-    await rollback(reserved);
+    await rollback(reserved, reservationAmount);
     logOperationalError("communication_usage.reservation_failed", error, {
       businessId: business._id || business.id,
       metric,

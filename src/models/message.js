@@ -3,6 +3,17 @@ const { Schema } = mongoose;
 
 import * as validate from "../helpers/model/message.js";
 
+const SmsMediaSchema = new Schema(
+  {
+    providerUrl: { type: String, required: true, trim: true },
+    contentType: { type: String, trim: true, default: "application/octet-stream" },
+    providerIndex: { type: Number, min: 0, max: 9, required: true },
+    storageStatus: { type: String, enum: ["provider", "mirrored", "expired", "failed"], default: "provider" },
+    storageUrl: { type: String, trim: true, default: "" },
+  },
+  { _id: false },
+);
+
 const MessageSchema = new Schema(
   {
     business: {
@@ -44,10 +55,11 @@ const MessageSchema = new Schema(
 
     body: {
       type: String,
-      required: true,
+      default: "",
       trim: true,
       maxlength: 1600,
     },
+    media: { type: [SmsMediaSchema], default: [] },
 
     provider: {
       type: String,
@@ -70,7 +82,7 @@ const MessageSchema = new Schema(
 
     status: {
       type: String,
-      enum: ["queued", "sent", "delivered", "failed", "received"],
+      enum: ["queued", "sent", "delivered", "undelivered", "failed", "received", "suppressed"],
       default: "sent",
     },
     isAiGenerated: { type: Boolean, default: false },
@@ -86,12 +98,28 @@ const MessageSchema = new Schema(
       default: "",
     },
     actorId: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    deliveryStatus: { type: String, trim: true, default: "" },
+    deliveryErrorCode: { type: String, trim: true, default: "" },
+    deliveryErrorMessage: { type: String, trim: true, maxlength: 1000, default: "" },
+    encoding: { type: String, enum: ["", "GSM-7", "UCS-2"], default: "" },
+    segmentCount: { type: Number, min: 0, default: 1 },
+    deliveredAt: { type: Date, default: null },
+    failedAt: { type: Date, default: null },
+    inReplyToMessage: { type: Schema.Types.ObjectId, ref: "Message", default: null },
+    deliveryAttemptedAt: { type: Date, default: null },
+    deliveryUncertain: { type: Boolean, default: false },
     metadata: { type: Schema.Types.Mixed, default: {} },
   },
   {
     timestamps: true,
   },
 );
+
+MessageSchema.pre("validate", function validateMessageContent() {
+  if (!String(this.body || "").trim() && (!Array.isArray(this.media) || this.media.length === 0)) {
+    this.invalidate("body", "A message must include text or media.");
+  }
+});
 
 /*
  * Supports loading a complete transcript in chronological order.
@@ -135,6 +163,12 @@ MessageSchema.index(
     },
   },
 );
+
+MessageSchema.index(
+  { business: 1, inReplyToMessage: 1 },
+  { unique: true, partialFilterExpression: { inReplyToMessage: { $type: "objectId" } } },
+);
+MessageSchema.index({ business: 1, deliveryStatus: 1, createdAt: -1 });
 
 const Message =
   mongoose.models.Message || mongoose.model("Message", MessageSchema);

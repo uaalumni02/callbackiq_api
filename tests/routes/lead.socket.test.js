@@ -16,6 +16,7 @@ jest.mock("../../src/services/socket.service.js", () => ({
   __esModule: true,
   default: {
     emitLeadCreated: jest.fn(),
+    emitAlertCreated: jest.fn(),
     emitLeadUpdated: jest.fn(),
     emitDashboardRefresh: jest.fn(),
     emitToBusiness: jest.fn(),
@@ -139,7 +140,7 @@ describe("Lead Socket.IO route integration", () => {
       expect(response.body.data).toEqual(
         expect.objectContaining({
           customerName: "Michael Johnson",
-          phone: "4045551001",
+          phone: "+14045551001",
           serviceNeeded: "Burst water pipe",
           urgency: "emergency",
           estimatedValue: 2800,
@@ -164,7 +165,7 @@ describe("Lead Socket.IO route integration", () => {
       expect(emittedLead).toEqual(
         expect.objectContaining({
           customerName: "Michael Johnson",
-          phone: "4045551001",
+          phone: "+14045551001",
           status: "new",
         }),
       );

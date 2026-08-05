@@ -1,3 +1,4 @@
+import { handleConversationManualMessage } from "../services/messaging/manualConversationMessage.service.js";
 import mongoose from "mongoose";
 
 import Db from "../db/db.js";
@@ -25,68 +26,7 @@ const deleteMessageForBusiness = async (id, businessId) => {
 
 class MessageController {
   static async createMessage(req, res) {
-    try {
-      const ownerId = req.user?.userId;
-
-      if (!ownerId) {
-        return Response.responseBadAuth(res, "Not authenticated");
-      }
-
-      await messageValidator.validateAsync(req.body);
-
-      const business = await getBusinessForOwner(ownerId);
-
-      if (!business) {
-        return Response.responseInvalidInput(res, "Business not found");
-      }
-
-      const conversation = await Db.getConversationById(
-        Conversation,
-        req.body.conversation,
-      );
-
-      if (!conversation) {
-        return Response.responseInvalidInput(res, "Conversation not found");
-      }
-
-      if (String(conversation.business._id) !== String(business._id)) {
-        return Response.responseBadAuth(
-          res,
-          "You cannot message this conversation",
-        );
-      }
-
-      const message = await Db.saveMessage(Message, {
-        ...req.body,
-        business: business._id,
-      });
-
-      const updatedConversation = await Db.updateConversation(
-        Conversation,
-        conversation._id,
-        {
-          lastMessage: req.body.body,
-          lastMessageAt: new Date(),
-        },
-      );
-
-      SocketService.emitMessageCreated(business._id, message);
-      SocketService.emitConversationUpdated(business._id, updatedConversation);
-      SocketService.emitDashboardRefresh(business._id, "message_created");
-
-      return res.status(201).json({
-        success: true,
-        message: "Message created successfully",
-        data: message,
-      });
-    } catch (error) {
-      if (error.isJoi) {
-        return Response.responseInvalidInput(res, error.message);
-      }
-
-      console.error("Error in createMessage:", error);
-      return Response.responseServerError(res);
-    }
+    return handleConversationManualMessage(req, res);
   }
 
   static async getMessagesByConversation(req, res) {

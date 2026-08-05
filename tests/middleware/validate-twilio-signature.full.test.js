@@ -57,7 +57,8 @@ describe("Twilio signature middleware", () => {
     expect(twilio.validateRequest).not.toHaveBeenCalled();
   });
 
-  test("supports TWILIO_VALIDATE_WEBHOOKS=false as the explicit bypass", () => {
+  test("supports TWILIO_VALIDATE_WEBHOOKS=false outside production", () => {
+    process.env.NODE_ENV = "development";
     process.env.TWILIO_VALIDATE_WEBHOOKS = " FALSE ";
     const next = jest.fn();
     validateTwilioSignature(makeReq(), makeRes(), next);

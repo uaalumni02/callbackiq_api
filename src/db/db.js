@@ -1228,9 +1228,46 @@ class Db {
             {
               $group: {
                 _id: null,
+                totalMessages: { $sum: 1 },
                 smsSent: {
                   $sum: {
-                    $cond: [{ $eq: ["$direction", "outbound"] }, 1, 0],
+                    $cond: [
+                      {
+                        $and: [
+                          { $eq: ["$direction", "outbound"] },
+                          { $ne: [{ $ifNull: ["$providerMessageId", ""] }, ""] },
+                        ],
+                      },
+                      1,
+                      0,
+                    ],
+                  },
+                },
+                smsDelivered: {
+                  $sum: {
+                    $cond: [
+                      { $and: [{ $eq: ["$direction", "outbound"] }, { $eq: ["$status", "delivered"] }] },
+                      1,
+                      0,
+                    ],
+                  },
+                },
+                smsFailed: {
+                  $sum: {
+                    $cond: [
+                      { $and: [{ $eq: ["$direction", "outbound"] }, { $in: ["$status", ["failed", "undelivered"]] }] },
+                      1,
+                      0,
+                    ],
+                  },
+                },
+                smsSegments: {
+                  $sum: {
+                    $cond: [
+                      { $eq: ["$direction", "outbound"] },
+                      { $ifNull: ["$segmentCount", 1] },
+                      0,
+                    ],
                   },
                 },
                 smsReceived: {
@@ -1268,7 +1305,11 @@ class Db {
       };
 
       const messageMetrics = messageResults[0] || {
+        totalMessages: 0,
         smsSent: 0,
+        smsDelivered: 0,
+        smsFailed: 0,
+        smsSegments: 0,
         smsReceived: 0,
       };
 
@@ -1324,8 +1365,15 @@ class Db {
 
         messages: {
           smsSent: messageMetrics.smsSent,
+          smsDelivered: messageMetrics.smsDelivered,
+          smsFailed: messageMetrics.smsFailed,
+          smsSegments: messageMetrics.smsSegments,
           smsReceived: messageMetrics.smsReceived,
-          totalMessages: messageMetrics.smsSent + messageMetrics.smsReceived,
+          totalMessages: messageMetrics.totalMessages,
+          deliveryRate:
+            messageMetrics.smsSent > 0
+              ? Math.round((messageMetrics.smsDelivered / messageMetrics.smsSent) * 100)
+              : 0,
         },
 
         revenue: {

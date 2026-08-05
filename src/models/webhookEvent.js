@@ -60,6 +60,10 @@ const WebhookEventSchema = new Schema(
       min: 0,
     },
 
+    leaseToken: { type: String, trim: true, default: "" },
+    leaseExpiresAt: { type: Date, default: null },
+    processingStartedAt: { type: Date, default: null },
+
     firstReceivedAt: {
       type: Date,
       default: Date.now,
@@ -129,6 +133,8 @@ WebhookEventSchema.index({
   status: 1,
   createdAt: -1,
 });
+
+WebhookEventSchema.index({ status: 1, leaseExpiresAt: 1 });
 
 const WebhookEvent =
   mongoose.models.WebhookEvent ||

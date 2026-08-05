@@ -7,6 +7,24 @@ import Message from "../../src/models/message.js";
 import Subscription from "../../src/models/subscription.js";
 import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testDb.js";
 
+/* CALLBACKIQ_CONVERSATION_ROUTE_SMS_MOCK: conversation lifecycle route tests must not depend on
+ * recipient-local quiet hours, Twilio credentials, or carrier availability. */
+jest.mock("../../src/services/twilioSmsService.js", () => {
+  let sequence = 0;
+
+  return {
+    __esModule: true,
+    sendSms: jest.fn(async ({ body = "" } = {}) => ({
+      sid: `SM_CONVERSATION_ROUTE_TEST_${++sequence}`,
+      status: "sent",
+      suppressed: false,
+      body,
+      encoding: "GSM-7",
+      segmentCount: 1,
+    })),
+  };
+});
+
 beforeAll(async () => {
   await connectTestDB();
 });
@@ -210,7 +228,7 @@ describe("Conversation Routes", () => {
       expect(res.status).toBe(201);
       expect(res.body.success).toBe(true);
       expect(res.body.data.business.toString()).toBe(businessId);
-      expect(res.body.data.customerPhone).toBe("4045551234");
+      expect(res.body.data.customerPhone).toBe("+14045551234");
       expect(res.body.data.customerName).toBe("John Smith");
       expect(res.body.data.status).toBe("open");
 
@@ -223,7 +241,7 @@ describe("Conversation Routes", () => {
       );
 
       const savedConversation = await Conversation.findOne({
-        customerPhone: "4045551234",
+        customerPhone: "+14045551234",
       });
 
       expect(savedConversation).toBeTruthy();
@@ -291,7 +309,7 @@ describe("Conversation Routes", () => {
       expect(res.body.data[0]).toEqual(
         expect.objectContaining({
           customerName: "John Smith",
-          customerPhone: "4045551234",
+          customerPhone: "+14045551234",
           status: "open",
         }),
       );
@@ -524,8 +542,8 @@ describe("Conversation Routes", () => {
       expect(savedConversation.archiveSnapshot).toEqual(
         expect.objectContaining({
           status: "open",
-          aiEnabled: true,
-          humanTakeover: false,
+          aiEnabled: false,
+          humanTakeover: true,
         }),
       );
 
@@ -675,8 +693,8 @@ describe("Conversation Routes", () => {
       expect(restoreRes.body.message).toMatch(/restored successfully/i);
 
       expect(restoreRes.body.data.status).toBe("open");
-      expect(restoreRes.body.data.aiEnabled).toBe(true);
-      expect(restoreRes.body.data.humanTakeover).toBe(false);
+      expect(restoreRes.body.data.aiEnabled).toBe(false);
+      expect(restoreRes.body.data.humanTakeover).toBe(true);
       expect(restoreRes.body.data.archivedAt).toBeNull();
       expect(restoreRes.body.data.archivedBy).toBeNull();
       expect(restoreRes.body.data.archiveSnapshot).toBeNull();
@@ -694,8 +712,8 @@ describe("Conversation Routes", () => {
       ).lean();
 
       expect(savedConversation.status).toBe("open");
-      expect(savedConversation.aiEnabled).toBe(true);
-      expect(savedConversation.humanTakeover).toBe(false);
+      expect(savedConversation.aiEnabled).toBe(false);
+      expect(savedConversation.humanTakeover).toBe(true);
       expect(savedConversation.archivedAt).toBeNull();
       expect(savedConversation.archivedBy).toBeNull();
       expect(savedConversation.archiveSnapshot).toBeNull();

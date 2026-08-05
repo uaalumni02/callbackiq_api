@@ -92,6 +92,15 @@ const CallLogSchema = new Schema(
       default: false,
     },
 
+    missedCallTextDelivered: { type: Boolean, default: false },
+    smsProviderMessageId: { type: String, trim: true, default: "" },
+    smsDeliveryStatus: { type: String, trim: true, default: "" },
+    smsDeliveryErrorCode: { type: String, trim: true, default: "" },
+    smsDeliveryErrorMessage: { type: String, trim: true, maxlength: 1000, default: "" },
+    smsSegmentCount: { type: Number, min: 0, default: 0 },
+    smsDeliveredAt: { type: Date, default: null },
+    smsFailedAt: { type: Date, default: null },
+
     /*
      * "Recovered" now means an unhandled inquiry became a confirmed booking.
      * Sending an SMS alone must not set this field to true.
@@ -161,6 +170,10 @@ CallLogSchema.index(
   },
 );
 
+CallLogSchema.index(
+  { business: 1, smsProviderMessageId: 1 },
+  { partialFilterExpression: { smsProviderMessageId: { $gt: "" } } },
+);
 const CallLog =
   mongoose.models.CallLog || mongoose.model("CallLog", CallLogSchema);
 
