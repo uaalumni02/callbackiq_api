@@ -69,7 +69,7 @@ export const optOutSms = async ({
       },
     },
     {
-      new: true,
+      returnDocument: "after",
       upsert: true,
       setDefaultsOnInsert: true,
     },
@@ -103,7 +103,7 @@ export const optInSms = async ({
       },
     },
     {
-      new: true,
+      returnDocument: "after",
       upsert: true,
       setDefaultsOnInsert: true,
     },

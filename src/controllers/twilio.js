@@ -7,6 +7,7 @@ import CallLog from "../models/callLog.js";
 
 import { generateAIReplyResult } from "../services/aiReplyService.js";
 import { sendSms } from "../services/twilioSmsService.js";
+import { buildSmsRecoveryVoicePrompt } from "../voice/smsRecoveryVoicePrompt.service.js";
 import AlertService from "../services/alert.service.js";
 import SocketService from "../services/socket.service.js";
 import {
@@ -438,54 +439,147 @@ class TwilioController {
       );
 
       let missedCallTextSent = false;
+      let smsRecoveryStatus = missedCallSmsEnabled ? "failed" : "disabled";
+
       if (missedCallSmsEnabled) {
-        const sent = await sendSms({
-          business,
-          businessId,
-          from: business.phone,
-          to: customerPhone,
-          body: starterText,
-          actorType: "webhook",
-          source: "missed_call_recovery",
-          usageCategory: "missed_call_recovery",
-          conversationId: conversation._id,
-          leadId: lead._id,
-          metadata: { providerCallSid: callSid },
-        });
 
-        if (sent?.suppressed === true) {
-          logOperationalEvent("twilio.voice.sms_suppressed", {
+        try {
+
+          const sent = await sendSms({
+
+            business,
+
             businessId,
-            reason: sent.reason || "customer_opted_out",
-          });
-        } else {
-          logOperationalEvent("twilio.voice.sms_sent", {
-            businessId,
-            providerMessageId: sent?.sid || "",
-          });
-          await saveOutboundMessage({
-            businessId,
-            conversation,
-            lead,
+
             from: business.phone,
+
             to: customerPhone,
+
             body: starterText,
-            sent,
-            generatedBy: "automation",
+
+            actorType: "webhook",
+
+            source: "missed_call_recovery",
+
             usageCategory: "missed_call_recovery",
-            actorType: "automation",
-            metadata: { source: "missed_call_recovery" },
+
+            conversationId: conversation._id,
+
+            leadId: lead._id,
+
+            metadata: { providerCallSid: callSid },
+
           });
 
-          conversation = await updateConversationLastMessage({
+
+          if (sent?.suppressed === true) {
+            smsRecoveryStatus = "suppressed";
+
+            logOperationalEvent("twilio.voice.sms_suppressed", {
+
+              businessId,
+
+              reason: sent.reason || "customer_opted_out",
+
+              providerCode: sent.providerCode || null,
+
+            });
+
+          } else {
+
+            smsRecoveryStatus = "sent";
+            missedCallTextSent = true;
+
+
+            logOperationalEvent("twilio.voice.sms_sent", {
+
+              businessId,
+
+              providerMessageId: sent?.sid || "",
+
+            });
+
+
+            try {
+
+              await saveOutboundMessage({
+
+                businessId,
+
+                conversation,
+
+                lead,
+
+                from: business.phone,
+
+                to: customerPhone,
+
+                body: starterText,
+
+                sent,
+
+                generatedBy: "automation",
+
+                usageCategory: "missed_call_recovery",
+
+                actorType: "automation",
+
+                metadata: { source: "missed_call_recovery" },
+
+              });
+
+              conversation = await updateConversationLastMessage({
+
+                businessId,
+
+                conversation,
+
+                lastMessage: starterText,
+
+              });
+
+            } catch (persistenceError) {
+
+              logOperationalError(
+
+                "twilio.voice.sms_persistence_failed",
+
+                persistenceError,
+
+                {
+
+                  businessId,
+
+                  providerCallSid: callSid,
+
+                  providerMessageId: sent?.sid || "",
+
+                },
+
+              );
+
+            }
+
+          }
+
+        } catch (smsError) {
+
+          logOperationalError("twilio.voice.sms_failed", smsError, {
+
             businessId,
-            conversation,
-            lastMessage: starterText,
+
+            providerCallSid: callSid,
+
+            errorCode: smsError?.code || smsError?.name || "error",
+
           });
-          missedCallTextSent = true;
+
         }
+
       } else {
+
         logOperationalEvent("twilio.voice.sms_disabled", { businessId });
+
       }
 
       const updatedCallLog = await Db.updateCallLog(CallLog, callLog._id, {
@@ -504,9 +598,14 @@ class TwilioController {
           : "missed_call_recorded",
       );
 
+      const voicePrompt = buildSmsRecoveryVoicePrompt({
+        businessName: business.businessName,
+        smsEnabled: missedCallSmsEnabled,
+        smsStatus: smsRecoveryStatus,
+      });
       const responseBody = xml(`
 <Response>
-  <Say>Thank you. The business has been notified.</Say>
+  <Say>${voicePrompt}</Say>
 </Response>`);
 
       await completeTwilioWebhookEvent(webhookEvent._id, {

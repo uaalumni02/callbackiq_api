@@ -2,7 +2,10 @@ import twilio from "twilio";
 
 import Business from "../models/business.js";
 import normalizePhone from "../helpers/normalizePhone.js";
-import { isSmsSuppressed } from "./messaging/contactPreference.service.js";
+import {
+  isSmsSuppressed,
+  optOutSms,
+} from "./messaging/contactPreference.service.js";
 import { reserveSmsUsage } from "./communicationUsage.service.js";
 import { recordOutboundSmsAudit } from "./outboundSmsAudit.service.js";
 
@@ -225,6 +228,56 @@ export const sendSms = async ({
       usage,
     };
   } catch (error) {
+    const providerCode = Number(error?.code || 0);
+
+    if (providerCode === 21610) {
+      let preferenceSyncFailed = false;
+
+      try {
+        await optOutSms({
+          businessId: resolvedBusinessId,
+          phone: normalizedTo,
+          source: "twilio_provider_21610",
+          keyword: "STOP",
+        });
+      } catch {
+        preferenceSyncFailed = true;
+      }
+
+      const result = {
+        sid: "",
+        status: "suppressed",
+        suppressed: true,
+        reason: "customer_opted_out",
+        providerCode,
+        to: normalizedTo,
+        from: configuredFrom,
+        usage,
+      };
+
+      await audit({
+        businessId: resolvedBusinessId,
+        actorId,
+        actorType,
+        source,
+        usageCategory,
+        conversationId,
+        leadId,
+        from: configuredFrom,
+        to: normalizedTo,
+        body: normalizedBody,
+        status: "suppressed",
+        reason: result.reason,
+        metadata: {
+          ...metadata,
+          providerCode,
+          preferenceSyncFailed,
+        },
+      });
+
+      return result;
+    }
+
     await audit({
       businessId: resolvedBusinessId,
       actorId,
