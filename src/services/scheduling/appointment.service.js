@@ -14,6 +14,12 @@ import {
   getSlotCapacity,
 } from "./appointmentPolicy.service.js";
 import SchedulingProviderFactory from "./schedulingProviderFactory.js";
+import { businessCalendarProviderName } from "./calendarProviderName.service.js";
+import {
+  cancelAppointmentNotifications,
+  scheduleAppointmentReminders,
+  schedulePostAppointmentFollowUp,
+} from "./appointmentNotification.service.js";
 import { addMinutes, formatDateKey } from "./timezone.service.js";
 
 const ACTIVE_STATUSES = new Set(["held", "confirmed"]);
@@ -88,6 +94,45 @@ const getAppointmentForBusiness = async (businessId, appointmentId) => {
   return appointment;
 };
 
+const runNonBlockingAppointmentSideEffect = async ({
+  appointment,
+  businessId,
+  label,
+  task,
+}) => {
+  try {
+    return await task();
+  } catch (error) {
+    console.error(`Appointment ${label} side effect failed:`, {
+      appointmentId: String(appointment?._id || ""),
+      businessId: String(businessId || appointment?.business || ""),
+      error: error.message,
+    });
+
+    try {
+      await InterventionService.create({
+        businessId: businessId || appointment?.business,
+        leadId: appointment?.lead || null,
+        conversationId: appointment?.conversation || null,
+        appointmentId: appointment?._id || null,
+        type: "integration_failure",
+        title: "Appointment notification follow-up needed",
+        message: `The appointment was saved, but CallBackIQ could not complete the ${label} notification task.`,
+        priority: "medium",
+        reason: error.message,
+        recommendedAction:
+          "Review the appointment and contact the customer manually if needed.",
+        metadata: { operation: label },
+        dedupeKey: `appointment_side_effect:${label}:${appointment?._id || "unknown"}`,
+      });
+    } catch {
+      // Never let an alerting failure reverse a durable appointment change.
+    }
+
+    return null;
+  }
+};
+
 const exactSlotAvailable = async ({
   business,
   serviceOfferingId,
@@ -95,6 +140,7 @@ const exactSlotAvailable = async ({
   endAt,
   postalCode,
   excludeAppointmentId,
+  providerNameOverride = null,
 }) => {
   const timeZone = business.timezone || "America/New_York";
   const dateKey = formatDateKey(startAt, timeZone);
@@ -105,6 +151,7 @@ const exactSlotAvailable = async ({
     endDate: dateKey,
     postalCode,
     excludeAppointmentId,
+    providerNameOverride,
   });
 
   return result.slots.some(
@@ -120,6 +167,7 @@ const createHold = async ({
   input,
   idempotencyKey,
   excludeAppointmentId = null,
+  checkExternalAvailability = true,
 }) => {
   const businessId = business._id;
   const startAt = new Date(input.startAt);
@@ -134,6 +182,7 @@ const createHold = async ({
     endAt,
     postalCode: address.postalCode,
     excludeAppointmentId,
+    providerNameOverride: checkExternalAvailability ? null : "internal",
   });
 
   if (!available) {
@@ -166,10 +215,7 @@ const createHold = async ({
     status: "held",
     source: input.source || "manual",
     bookedBy: input.bookedBy || "staff",
-    provider:
-      business.features?.calendarProvider === "google"
-        ? "google_calendar"
-        : business.features?.calendarProvider || "internal",
+    provider: businessCalendarProviderName(business),
     estimatedValue:
       input.estimatedValue ?? service.estimatedValue ?? business.estimatedJobValue ?? 0,
     actualRevenue: input.actualRevenue || 0,
@@ -263,6 +309,10 @@ class AppointmentService {
       service,
       input,
       idempotencyKey: key,
+      // Immediate Google confirmations perform one external availability check
+      // at confirm time. The internal claim index still protects the hold.
+      checkExternalAvailability:
+        !confirm || businessCalendarProviderName(business) !== "google_calendar",
     });
 
     if (!confirm || hold.status !== "held") {
@@ -322,9 +372,10 @@ class AppointmentService {
       appointment.lead ? Lead.findById(appointment.lead) : null,
     ]);
     const provider = SchedulingProviderFactory.getProvider(business);
+    let providerResult = null;
 
     try {
-      const providerResult = await provider.createAppointment({
+      providerResult = await provider.createAppointment({
         appointment,
         service,
       });
@@ -338,7 +389,91 @@ class AppointmentService {
       appointment.heldExpiresAt = null;
       appointment.failureReason = "";
       await appointment.save();
+    } catch (error) {
+      // If Google accepted the insert but MongoDB did not persist confirmation,
+      // remove the event immediately so the business does not inherit an orphan.
+      if (providerResult?.externalAppointmentId) {
+        try {
+          await provider.cancelAppointment({
+            appointment: {
+              ...appointment.toObject(),
+              externalAppointmentId: providerResult.externalAppointmentId,
+              externalCalendarId: providerResult.externalCalendarId,
+            },
+            reason: "CallBackIQ rolled back an incomplete confirmation.",
+          });
+        } catch (cleanupError) {
+          await InterventionService.create({
+            businessId: business._id,
+            leadId: appointment.lead,
+            conversationId: appointment.conversation,
+            appointmentId: appointment._id,
+            type: "integration_failure",
+            title: "Google Calendar event needs cleanup",
+            message:
+              "Google created an event, but CallBackIQ could not persist the matching appointment or remove the event automatically.",
+            priority: "high",
+            reason: cleanupError.message,
+            recommendedAction:
+              "Remove the orphaned Google event and retry the customer booking.",
+            metadata: {
+              provider: "google_calendar",
+              googleEventId: providerResult.externalAppointmentId,
+              googleCalendarId: providerResult.externalCalendarId,
+            },
+            dedupeKey: `google_orphan_cleanup:${appointment._id}:${providerResult.externalAppointmentId}`,
+          });
+        }
+      }
 
+      appointment.status = "failed";
+      appointment.activeSlotKey = null;
+      appointment.slotClaimKeys = [];
+      appointment.capacityLane = null;
+      appointment.heldExpiresAt = null;
+      appointment.failureReason = error.message;
+      try {
+        await appointment.save();
+      } catch {
+        // Preserve the original provider/persistence error for the caller.
+      }
+      await InterventionService.integrationFailure({
+        businessId: business._id,
+        leadId: appointment.lead,
+        conversationId: appointment.conversation,
+        appointmentId: appointment._id,
+        provider: appointment.provider || "internal",
+        error,
+      });
+      error.safeCustomerMessage =
+        "I’m having trouble confirming that appointment right now. I’ve sent your request to the team so they can confirm it directly.";
+      throw error;
+    }
+
+    // Confirmation is durable at this point. Secondary notifications and
+    // analytics must never roll the appointment back if they fail.
+    try {
+      await scheduleAppointmentReminders({ appointment });
+    } catch (error) {
+      await InterventionService.create({
+        businessId: business._id,
+        leadId: appointment.lead,
+        conversationId: appointment.conversation,
+        appointmentId: appointment._id,
+        type: "integration_failure",
+        title: "Appointment reminders were not scheduled",
+        message:
+          "The appointment is confirmed, but CallBackIQ could not schedule its customer reminders.",
+        priority: "medium",
+        reason: error.message,
+        recommendedAction:
+          "Confirm reminder settings and contact the customer manually if needed.",
+        metadata: { provider: appointment.provider || "internal" },
+        dedupeKey: `appointment_reminder_schedule:${appointment._id}`,
+      });
+    }
+
+    try {
       await ConversionEventService.markAppointmentBooked({
         appointment,
         lead,
@@ -356,36 +491,23 @@ class AppointmentService {
           estimatedValue: appointment.estimatedValue,
         });
       }
-      SocketService.emitToBusiness(
-        business._id,
-        "appointment:confirmed",
-        appointment,
-      );
-      SocketService.emitDashboardRefresh(
-        business._id,
-        "appointment_confirmed",
-      );
-      return appointment;
     } catch (error) {
-      appointment.status = "failed";
-      appointment.activeSlotKey = null;
-      appointment.slotClaimKeys = [];
-      appointment.capacityLane = null;
-      appointment.heldExpiresAt = null;
-      appointment.failureReason = error.message;
-      await appointment.save();
-      await InterventionService.integrationFailure({
-        businessId: business._id,
-        leadId: appointment.lead,
-        conversationId: appointment.conversation,
-        appointmentId: appointment._id,
-        provider: appointment.provider || "internal",
-        error,
+      console.error("Appointment confirmation side effect failed:", {
+        appointmentId: String(appointment._id),
+        error: error.message,
       });
-      error.safeCustomerMessage =
-        "I’m having trouble confirming that appointment right now. I’ve sent your request to the team so they can confirm it directly.";
-      throw error;
     }
+
+    SocketService.emitToBusiness(
+      business._id,
+      "appointment:confirmed",
+      appointment,
+    );
+    SocketService.emitDashboardRefresh(
+      business._id,
+      "appointment_confirmed",
+    );
+    return appointment;
   }
 
   static async cancel({ business, appointmentId, reason = "" }) {
@@ -426,6 +548,17 @@ class AppointmentService {
       .filter(Boolean)
       .join("\n");
     await appointment.save();
+    await runNonBlockingAppointmentSideEffect({
+      appointment,
+      businessId: business._id,
+      label: "cancellation reminder cleanup",
+      task: () =>
+        cancelAppointmentNotifications({
+          businessId: business._id,
+          appointmentId: appointment._id,
+          reason: "Appointment canceled.",
+        }),
+    });
     await ConversionEventService.record({
       businessId: business._id,
       leadId: appointment.lead,
@@ -534,6 +667,7 @@ class AppointmentService {
     try {
       const providerResult = await provider.updateAppointment({
         appointment: original,
+        eventAppointment: replacement,
         changes: {
           startAt: replacement.startAt,
           endAt: replacement.endAt,
@@ -559,6 +693,23 @@ class AppointmentService {
       replacement.externalCalendarId =
         providerResult.externalCalendarId || null;
       await replacement.save();
+      await runNonBlockingAppointmentSideEffect({
+        appointment: original,
+        businessId: business._id,
+        label: "reschedule reminder cleanup",
+        task: () =>
+          cancelAppointmentNotifications({
+            businessId: business._id,
+            appointmentId: original._id,
+            reason: "Appointment rescheduled.",
+          }),
+      });
+      await runNonBlockingAppointmentSideEffect({
+        appointment: replacement,
+        businessId: business._id,
+        label: "rescheduled appointment reminder scheduling",
+        task: () => scheduleAppointmentReminders({ appointment: replacement }),
+      });
 
       if (replacement.lead) {
         await Lead.updateOne(
@@ -662,6 +813,12 @@ class AppointmentService {
           },
         );
       }
+      await runNonBlockingAppointmentSideEffect({
+        appointment,
+        businessId,
+        label: "post-appointment follow-up scheduling",
+        task: () => schedulePostAppointmentFollowUp({ appointment }),
+      });
     }
 
     return appointment;

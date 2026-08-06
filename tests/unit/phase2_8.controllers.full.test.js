@@ -105,6 +105,20 @@ jest.mock("../../src/services/scheduling/appointment.service.js", () => ({
   },
 }));
 
+jest.mock(
+  "../../src/services/scheduling/appointmentNotification.service.js",
+  () => ({
+    __esModule: true,
+    refreshUpcomingAppointmentNotifications: jest.fn(),
+  }),
+);
+
+jest.mock("../../src/services/integrations/googleCalendarChangeReview.service.js", () => ({
+  __esModule: true,
+  approveGoogleProviderChange: jest.fn(),
+  rejectGoogleProviderChange: jest.fn(),
+}));
+
 jest.mock("../../src/services/scheduling/availability.service.js", () => ({
   __esModule: true,
   default: { getAvailability: jest.fn() },

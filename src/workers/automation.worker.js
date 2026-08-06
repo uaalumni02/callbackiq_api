@@ -1,7 +1,14 @@
 import AutomationJob from "../models/automationJob.js";
 import AppointmentService from "../services/scheduling/appointment.service.js";
 import AutomationService from "../services/automation/automation.service.js";
-import { renewExpiringGoogleWatches } from "../services/integrations/googleCalendarSync.service.js";
+import {
+  processDueAppointmentNotifications,
+  recoverStaleAppointmentNotificationLocks,
+} from "../services/scheduling/appointmentNotification.service.js";
+import {
+  renewExpiringGoogleWatches,
+  sweepOrphanedGoogleEvents,
+} from "../services/integrations/googleCalendarSync.service.js";
 import { processQueuedIntegrationWebhooks } from "./integrationWebhook.worker.js";
 
 const POLL_INTERVAL_MS = Math.max(
@@ -74,21 +81,29 @@ export const processNextAutomationJob = async () => {
 };
 
 const maintainGoogleWatches = async () => {
-  if (
-    !process.env.GOOGLE_CALENDAR_WEBHOOK_URL ||
-    Date.now() - lastWatchMaintenanceAt < WATCH_MAINTENANCE_INTERVAL_MS
-  ) {
+  if (Date.now() - lastWatchMaintenanceAt < WATCH_MAINTENANCE_INTERVAL_MS) {
     return;
   }
   lastWatchMaintenanceAt = Date.now();
+  if (process.env.GOOGLE_CALENDAR_WEBHOOK_URL) {
+    try {
+      const results = await renewExpiringGoogleWatches();
+      const failures = results.filter((result) => !result.renewed);
+      if (failures.length) {
+        console.error("Google Calendar watch renewal failures:", failures);
+      }
+    } catch (error) {
+      console.error("Google Calendar watch maintenance failed:", error);
+    }
+  }
   try {
-    const results = await renewExpiringGoogleWatches();
-    const failures = results.filter((result) => !result.renewed);
+    const results = await sweepOrphanedGoogleEvents();
+    const failures = results.filter((result) => result.error);
     if (failures.length) {
-      console.error("Google Calendar watch renewal failures:", failures);
+      console.error("Google Calendar orphan sweep failures:", failures);
     }
   } catch (error) {
-    console.error("Google Calendar watch maintenance failed:", error);
+    console.error("Google Calendar orphan sweep failed:", error);
   }
 };
 
@@ -97,6 +112,7 @@ const tick = async ({ includeIntegrationMaintenance = true } = {}) => {
   running = true;
   try {
     await AppointmentService.releaseExpiredHolds();
+    await processDueAppointmentNotifications(25);
     if (includeIntegrationMaintenance) {
       await processQueuedIntegrationWebhooks(25);
       await maintainGoogleWatches();
@@ -118,6 +134,7 @@ const tick = async ({ includeIntegrationMaintenance = true } = {}) => {
 export const startAutomationWorker = async () => {
   if (timer || process.env.AUTOMATION_WORKER_ENABLED !== "true") return;
   await recoverStaleLocks();
+  await recoverStaleAppointmentNotificationLocks();
   // Run core scheduling work immediately. Optional integration maintenance starts
   // on the normal polling interval so worker startup is deterministic and does
   // not block on webhook/watch infrastructure.

@@ -179,14 +179,31 @@ export const generateInternalSlots = async ({
           continue;
         }
 
-        slots.push({
+        const slot = {
           startAt,
           endAt,
           timezone: timeZone,
           bufferBeforeMinutes,
           bufferAfterMinutes,
           serviceOfferingId: String(service._id),
+        };
+
+        // Capacity is provider-internal metadata. Keep it directly readable by
+        // GoogleCalendarProvider without changing the long-standing public slot
+        // response shape used by API clients and legacy tests.
+        Object.defineProperties(slot, {
+          capacity: { value: capacity, enumerable: false },
+          internalOverlappingCount: {
+            value: overlappingCount,
+            enumerable: false,
+          },
+          remainingCapacity: {
+            value: Math.max(0, capacity - overlappingCount),
+            enumerable: false,
+          },
         });
+
+        slots.push(slot);
       }
     }
   }

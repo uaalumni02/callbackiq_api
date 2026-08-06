@@ -16,6 +16,7 @@ export const ALERT_TYPES = new Set([
   "message_delivery_failure",
   "unanswered_hot_lead",
   "appointment_canceled",
+  "appointment_change_review",
 ]);
 
 const ALERT_CHANNELS = new Set(["in_app", "email", "sms"]);

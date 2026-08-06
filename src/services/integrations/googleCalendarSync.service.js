@@ -1,43 +1,26 @@
 import crypto from "crypto";
 
 import Appointment from "../../models/appointment.js";
+import Business from "../../models/business.js";
 import IntegrationConnection from "../../models/integrationConnection.js";
 import InterventionService from "../intervention.service.js";
+import { invalidateGoogleAvailabilityCache } from "../../integrations/scheduling/googleCalendar.provider.js";
 import {
   getGoogleConnection,
   googleApiRequest,
 } from "./googleCalendarConnection.service.js";
 import { getGoogleSettings } from "./integrationSettings.service.js";
+import {
+  approveGoogleProviderChange,
+  queueGoogleProviderChange,
+} from "./googleCalendarChangeReview.service.js";
 
 const encode = encodeURIComponent;
+const isAppointmentObjectId = (value) =>
+  /^[a-f0-9]{24}$/i.test(String(value || ""));
 const channelToken = () => crypto.randomBytes(32).toString("base64url");
 const hashToken = (value) =>
   crypto.createHash("sha256").update(String(value)).digest("hex");
-
-const getSlotClaimKeys = ({
-  startAt,
-  endAt,
-  bufferBeforeMinutes = 0,
-  bufferAfterMinutes = 0,
-  capacityLane,
-}) => {
-  const minuteMs = 60_000;
-  const claimStart =
-    Math.floor(
-      (new Date(startAt).getTime() - Number(bufferBeforeMinutes || 0) * minuteMs) /
-        minuteMs,
-    ) * minuteMs;
-  const claimEnd =
-    Math.ceil(
-      (new Date(endAt).getTime() + Number(bufferAfterMinutes || 0) * minuteMs) /
-        minuteMs,
-    ) * minuteMs;
-  const keys = [];
-  for (let cursor = claimStart; cursor < claimEnd; cursor += minuteMs) {
-    keys.push(`${new Date(cursor).toISOString()}|lane:${capacityLane}`);
-  }
-  return keys;
-};
 
 const saveGoogleMetadata = async (connection, googleCalendar) => {
   connection.metadata = {
@@ -162,10 +145,25 @@ const createCalendarConflict = async ({ appointment, event, reason }) => {
   });
 };
 
-const reconcileEvent = async ({ businessId, calendarId, event }) => {
+const reconcileEvent = async ({
+  business,
+  businessId,
+  calendarId,
+  event,
+  settings,
+}) => {
   const appointmentId =
     event.extendedProperties?.private?.callbackiqAppointmentId;
-  if (!appointmentId) return false;
+  const eventBusinessId =
+    event.extendedProperties?.private?.callbackiqBusinessId;
+  if (!appointmentId || !isAppointmentObjectId(appointmentId)) return false;
+
+  // Reject events copied from another tenant even when an appointment ID is
+  // present. Legacy events without the tenant marker remain business-scoped by
+  // the appointment query below.
+  if (eventBusinessId && String(eventBusinessId) !== String(businessId)) {
+    return false;
+  }
 
   const appointment = await Appointment.findOne({
     _id: appointmentId,
@@ -174,32 +172,20 @@ const reconcileEvent = async ({ businessId, calendarId, event }) => {
   if (!appointment) return false;
 
   if (event.status === "cancelled") {
-    if (!["canceled", "completed", "no_show"].includes(appointment.status)) {
-      appointment.status = "canceled";
-      appointment.canceledAt = new Date();
-      appointment.activeSlotKey = null;
-      appointment.slotClaimKeys = [];
-      appointment.capacityLane = null;
-      await appointment.save();
-      await InterventionService.create({
-        businessId,
-        leadId: appointment.lead,
-        conversationId: appointment.conversation,
-        appointmentId: appointment._id,
-        type: "appointment_canceled",
-        title: "Appointment canceled in Google Calendar",
-        message:
-          "A confirmed CallBackIQ appointment was canceled directly in Google Calendar.",
-        priority: "medium",
-        recommendedAction:
-          "Review the conversation and offer the customer a replacement time when appropriate.",
-        metadata: {
-          provider: "google_calendar",
-          googleEventId: event.id || "",
-        },
-        dedupeKey: `google_manual_cancel:${appointment._id}:${event.sequence || event.updated || "canceled"}`,
-      });
+    if (["canceled", "completed", "no_show"].includes(appointment.status)) {
+      return true;
     }
+    await queueGoogleProviderChange({
+      appointment,
+      calendarId,
+      event,
+      type: "cancel",
+    });
+    if (settings.googleChangeApprovalRequired !== false) return true;
+    await approveGoogleProviderChange({
+      business,
+      appointmentId: appointment._id,
+    });
     return true;
   }
 
@@ -227,39 +213,27 @@ const reconcileEvent = async ({ businessId, calendarId, event }) => {
     new Date(appointment.endAt).getTime() !== nextEnd.getTime();
 
   if (changed && ["held", "confirmed"].includes(appointment.status)) {
-    const capacityLane = appointment.capacityLane || 1;
-    appointment.startAt = nextStart;
-    appointment.endAt = nextEnd;
-    appointment.capacityLane = capacityLane;
-    appointment.activeSlotKey = `${nextStart.toISOString()}|${nextEnd.toISOString()}|lane:${capacityLane}`;
-    appointment.slotClaimKeys = getSlotClaimKeys({
+    await queueGoogleProviderChange({
+      appointment,
+      calendarId,
+      event,
+      type: "move",
       startAt: nextStart,
       endAt: nextEnd,
-      bufferBeforeMinutes: appointment.bufferBeforeMinutes,
-      bufferAfterMinutes: appointment.bufferAfterMinutes,
-      capacityLane,
     });
+    if (settings.googleChangeApprovalRequired !== false) return true;
+    await approveGoogleProviderChange({
+      business,
+      appointmentId: appointment._id,
+    });
+    return true;
   }
 
   appointment.externalAppointmentId = event.id;
   appointment.externalCalendarId = calendarId;
   appointment.provider = "google_calendar";
-
-  try {
-    await appointment.save();
-    return true;
-  } catch (error) {
-    if (error?.code === 11000) {
-      await createCalendarConflict({
-        appointment,
-        event,
-        reason:
-          "The time selected in Google Calendar conflicts with another active CallBackIQ appointment.",
-      });
-      return false;
-    }
-    throw error;
-  }
+  await appointment.save();
+  return true;
 };
 
 export const syncGoogleCalendar = async ({
@@ -274,6 +248,12 @@ export const syncGoogleCalendar = async ({
     throw error;
   }
   const settings = getGoogleSettings(connection);
+  const business = await Business.findById(businessId);
+  if (!business) {
+    const error = new Error("Business not found.");
+    error.statusCode = 404;
+    throw error;
+  }
   const calendarId = settings.bookingCalendarId;
   if (!calendarId) {
     const error = new Error("Select a booking calendar before syncing.");
@@ -313,7 +293,15 @@ export const syncGoogleCalendar = async ({
       });
       for (const event of page.items || []) {
         seen += 1;
-        if (await reconcileEvent({ businessId, calendarId, event })) {
+        if (
+          await reconcileEvent({
+            business,
+            businessId,
+            calendarId,
+            event,
+            settings,
+          })
+        ) {
           reconciled += 1;
         }
       }
@@ -337,6 +325,7 @@ export const syncGoogleCalendar = async ({
     await run();
   }
 
+  invalidateGoogleAvailabilityCache(businessId);
   await saveGoogleMetadata(connection, {
     ...(connection.metadata?.googleCalendar || {}),
     sync: {
@@ -375,6 +364,83 @@ export const renewExpiringGoogleWatches = async () => {
       results.push({
         businessId: String(connection.business),
         renewed: false,
+        error: error.message,
+      });
+    }
+  }
+  return results;
+};
+
+export const sweepOrphanedGoogleEvents = async ({ limitPerBusiness = 50 } = {}) => {
+  const connections = await IntegrationConnection.find({
+    provider: "google_calendar",
+    status: "connected",
+  });
+  const results = [];
+  const timeMin = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const timeMax = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+
+  for (const connection of connections) {
+    const businessId = connection.business;
+    const settings = getGoogleSettings(connection);
+    const calendarId = settings.bookingCalendarId;
+    if (!calendarId) continue;
+    let removed = 0;
+    try {
+      const params = new URLSearchParams({
+        singleEvents: "true",
+        showDeleted: "false",
+        timeMin,
+        timeMax,
+        maxResults: String(Math.min(Math.max(limitPerBusiness, 1), 250)),
+      });
+      params.append(
+        "privateExtendedProperty",
+        `callbackiqBusinessId=${String(businessId)}`,
+      );
+      const page = await googleApiRequest({
+        businessId,
+        path: `/calendars/${encode(calendarId)}/events?${params.toString()}`,
+      });
+      for (const event of page.items || []) {
+        const appointmentId =
+          event.extendedProperties?.private?.callbackiqAppointmentId;
+        if (
+          !appointmentId ||
+          !isAppointmentObjectId(appointmentId) ||
+          event.status === "cancelled"
+        ) {
+          continue;
+        }
+        const appointment = await Appointment.findOne({
+          _id: appointmentId,
+          business: businessId,
+        })
+          .select("status createdAt")
+          .lean();
+        const oldEnough =
+          new Date(event.created || event.updated || 0).getTime() <
+          Date.now() - 15 * 60_000;
+        if (appointment && appointment.status !== "failed") continue;
+        if (!oldEnough) continue;
+        const query = new URLSearchParams({
+          sendUpdates: settings.sendUpdates || "all",
+        });
+        await googleApiRequest({
+          businessId,
+          path: `/calendars/${encode(calendarId)}/events/${encode(
+            event.id,
+          )}?${query}`,
+          method: "DELETE",
+          allowStatuses: [404, 410],
+        });
+        removed += 1;
+      }
+      results.push({ businessId: String(businessId), removed });
+    } catch (error) {
+      results.push({
+        businessId: String(businessId),
+        removed,
         error: error.message,
       });
     }

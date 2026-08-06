@@ -26,6 +26,7 @@ const MINIMUM_PRIORITY_BY_TYPE = {
   message_delivery_failure: "high",
   unanswered_hot_lead: "high",
   appointment_canceled: "medium",
+  appointment_change_review: "high",
 };
 
 const normalizePriorityName = (value) => {

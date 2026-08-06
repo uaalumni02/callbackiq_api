@@ -14,6 +14,20 @@ jest.mock("../../src/services/automation/automation.service.js", () => ({
   __esModule: true,
   default: { execute: jest.fn() },
 }));
+jest.mock("../../src/services/scheduling/appointmentNotification.service.js", () => ({
+  __esModule: true,
+  processDueAppointmentNotifications: jest.fn().mockResolvedValue([]),
+  recoverStaleAppointmentNotificationLocks: jest.fn().mockResolvedValue({ modifiedCount: 0 }),
+}));
+jest.mock("../../src/services/integrations/googleCalendarSync.service.js", () => ({
+  __esModule: true,
+  renewExpiringGoogleWatches: jest.fn().mockResolvedValue([]),
+  sweepOrphanedGoogleEvents: jest.fn().mockResolvedValue([]),
+}));
+jest.mock("../../src/workers/integrationWebhook.worker.js", () => ({
+  __esModule: true,
+  processQueuedIntegrationWebhooks: jest.fn().mockResolvedValue([]),
+}));
 
 import {
   processNextAutomationJob,

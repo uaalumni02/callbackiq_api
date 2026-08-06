@@ -13,6 +13,7 @@ const INTERVENTION_TYPES = [
   "message_delivery_failure",
   "unanswered_hot_lead",
   "appointment_canceled",
+  "appointment_change_review",
 ];
 
 const SEVERITY_RANK = {

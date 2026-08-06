@@ -40,6 +40,19 @@ router.post(
   checkSubscription,
   IntegrationController.googleSelectCalendar,
 );
+/* Compatibility endpoint used by the settings UI and older clients. */
+router.put(
+  "/google/settings",
+  checkAuth,
+  checkSubscription,
+  IntegrationController.googleSaveSettings,
+);
+router.patch(
+  "/google/settings",
+  checkAuth,
+  checkSubscription,
+  IntegrationController.googleSaveSettings,
+);
 router.post(
   "/google/test",
   checkAuth,

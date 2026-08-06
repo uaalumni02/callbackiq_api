@@ -15,6 +15,9 @@ import {
   getGoogleSettings,
 } from "../services/integrations/integrationSettings.service.js";
 import {
+  refreshUpcomingAppointmentNotifications,
+} from "../services/scheduling/appointmentNotification.service.js";
+import {
   buildJobberAuthorizationUrl,
   disconnectJobber,
   exchangeJobberAuthorizationCode,
@@ -23,6 +26,7 @@ import {
 const sanitizeMetadata = (metadata = {}) => {
   const googleCalendar = metadata.googleCalendar || {};
   const channel = googleCalendar.channel || {};
+  const sync = googleCalendar.sync || {};
 
   return {
     ...metadata,
@@ -39,6 +43,13 @@ const sanitizeMetadata = (metadata = {}) => {
                   calendarId: channel.calendarId || "",
                 }
               : {},
+            sync: {
+              calendarId: sync.calendarId || "",
+              lastSyncedAt: sync.lastSyncedAt || null,
+              lastSeenCount: Number(sync.lastSeenCount || 0),
+              lastReconciledCount: Number(sync.lastReconciledCount || 0),
+              hasIncrementalCursor: Boolean(sync.nextSyncToken),
+            },
           },
         }
       : {}),
@@ -90,6 +101,30 @@ const publicStatus = (connection) => {
     result.syncEnabled = googleSettings?.syncEnabled;
     result.watchEnabled = googleSettings?.watchEnabled;
     result.sendUpdates = googleSettings?.sendUpdates;
+    result.settings = {
+      bookingCalendarId: googleSettings?.bookingCalendarId || "",
+      availabilityCalendarIds:
+        googleSettings?.availabilityCalendarIds || [],
+      syncEnabled: googleSettings?.syncEnabled !== false,
+      watchEnabled: googleSettings?.watchEnabled !== false,
+      sendUpdates: googleSettings?.sendUpdates || "all",
+      defaultAttendeeEmail: googleSettings?.defaultAttendeeEmail || "",
+      includeEstimatedValue:
+        googleSettings?.includeEstimatedValue === true,
+      customerRemindersEnabled:
+        googleSettings?.customerRemindersEnabled !== false,
+      reminderHours: googleSettings?.reminderHours || [24, 2],
+      postAppointmentFollowUpEnabled:
+        googleSettings?.postAppointmentFollowUpEnabled !== false,
+      postAppointmentFollowUpDelayHours:
+        googleSettings?.postAppointmentFollowUpDelayHours || 2,
+      googleChangeApprovalRequired:
+        googleSettings?.googleChangeApprovalRequired !== false,
+      channel: sanitizeMetadata({ googleCalendar: { channel: googleSettings?.channel || {} } })
+        .googleCalendar.channel,
+      sync: sanitizeMetadata({ googleCalendar: { sync: googleSettings?.sync || {} } })
+        .googleCalendar.sync,
+    };
   }
 
   copyWhenDefined("apiVersion");
@@ -118,6 +153,7 @@ const loadGoogleCalendarSyncService = () =>
 const shouldStartWatch = (connection) => {
   const settings = getGoogleSettings(connection);
   return (
+    settings.syncEnabled &&
     settings.watchEnabled &&
     String(process.env.GOOGLE_CALENDAR_WEBHOOK_URL || "").startsWith("https://")
   );
@@ -208,37 +244,60 @@ class IntegrationController {
 
   static async googleSelectCalendar(req, res, next) {
     try {
+      const payload = req.body?.settings || req.body || {};
       const business = await getOwnedBusiness({
         user: req.user,
-        requestedBusinessId: req.body.businessId,
+        requestedBusinessId: req.body?.businessId || payload.businessId,
       });
       const hasAdvancedSelection =
-        req.body.bookingCalendarId !== undefined ||
-        req.body.providerCalendarId !== undefined ||
-        req.body.availabilityCalendarIds !== undefined ||
-        req.body.syncEnabled !== undefined ||
-        req.body.watchEnabled !== undefined ||
-        req.body.sendUpdates !== undefined;
+        payload.bookingCalendarId !== undefined ||
+        payload.providerCalendarId !== undefined ||
+        payload.availabilityCalendarIds !== undefined ||
+        payload.syncEnabled !== undefined ||
+        payload.watchEnabled !== undefined ||
+        payload.sendUpdates !== undefined ||
+        payload.defaultAttendeeEmail !== undefined ||
+        payload.includeEstimatedValue !== undefined ||
+        payload.customerRemindersEnabled !== undefined ||
+        payload.reminderHours !== undefined ||
+        payload.postAppointmentFollowUpEnabled !== undefined ||
+        payload.postAppointmentFollowUpDelayHours !== undefined ||
+        payload.googleChangeApprovalRequired !== undefined;
       let connection = await selectGoogleCalendar(
         hasAdvancedSelection
           ? {
               businessId: business._id,
-              calendarId: req.body.calendarId,
+              calendarId: payload.calendarId,
               bookingCalendarId:
-                req.body.bookingCalendarId || req.body.providerCalendarId,
-              availabilityCalendarIds: req.body.availabilityCalendarIds,
-              syncEnabled: req.body.syncEnabled,
-              watchEnabled: req.body.watchEnabled,
-              sendUpdates: req.body.sendUpdates,
+                payload.bookingCalendarId || payload.providerCalendarId,
+              availabilityCalendarIds: payload.availabilityCalendarIds,
+              syncEnabled: payload.syncEnabled,
+              watchEnabled: payload.watchEnabled,
+              sendUpdates: payload.sendUpdates,
+              defaultAttendeeEmail: payload.defaultAttendeeEmail,
+              includeEstimatedValue: payload.includeEstimatedValue,
+              customerRemindersEnabled: payload.customerRemindersEnabled,
+              reminderHours: payload.reminderHours,
+              postAppointmentFollowUpEnabled:
+                payload.postAppointmentFollowUpEnabled,
+              postAppointmentFollowUpDelayHours:
+                payload.postAppointmentFollowUpDelayHours,
+              googleChangeApprovalRequired:
+                payload.googleChangeApprovalRequired,
             }
           : {
               businessId: business._id,
-              calendarId: req.body.calendarId,
+              calendarId: payload.calendarId,
             },
       );
 
       let watch = null;
-      if (shouldStartWatch(connection)) {
+      const settings = getGoogleSettings(connection);
+      if (
+        settings.syncEnabled &&
+        settings.watchEnabled &&
+        shouldStartWatch(connection)
+      ) {
         try {
           const { startGoogleCalendarWatch } =
             await loadGoogleCalendarSyncService();
@@ -254,6 +313,38 @@ class IntegrationController {
             warning: watchError.message,
           };
         }
+      } else if (
+        (!settings.syncEnabled || !settings.watchEnabled) &&
+        settings.channel?.id
+      ) {
+        const { stopGoogleCalendarWatch } =
+          await loadGoogleCalendarSyncService();
+        connection = await stopGoogleCalendarWatch(business._id);
+        watch = { enabled: false };
+      } else if (
+        settings.watchEnabled &&
+        !String(process.env.GOOGLE_CALENDAR_WEBHOOK_URL || "").startsWith(
+          "https://",
+        )
+      ) {
+        watch = {
+          enabled: false,
+          warning:
+            "Live Google change notifications will start after GOOGLE_CALENDAR_WEBHOOK_URL is configured with a public HTTPS URL.",
+        };
+      }
+
+      let reminderRefresh = null;
+      try {
+        reminderRefresh = await refreshUpcomingAppointmentNotifications({
+          businessId: business._id,
+          limit: 250,
+        });
+      } catch (reminderError) {
+        reminderRefresh = {
+          refreshed: 0,
+          warning: reminderError.message,
+        };
       }
 
       await Business.updateOne(
@@ -273,11 +364,16 @@ class IntegrationController {
         data: {
           ...publicStatus(connection),
           watch,
+          reminderRefresh,
         },
       });
     } catch (error) {
       return next(error);
     }
+  }
+
+  static async googleSaveSettings(req, res, next) {
+    return IntegrationController.googleSelectCalendar(req, res, next);
   }
 
   static async googleDisconnect(req, res, next) {

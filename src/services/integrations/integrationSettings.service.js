@@ -16,6 +16,31 @@ const uniqueStrings = (values) => [
   ),
 ];
 
+const normalizedReminderHours = (values) => {
+  const source = Array.isArray(values) ? values : [24, 2];
+  const hours = [
+    ...new Set(
+      source
+        .map(Number)
+        .filter((value) => Number.isFinite(value) && value >= 1 && value <= 168),
+    ),
+  ].sort((first, second) => second - first);
+
+  return hours.length ? hours : [24, 2];
+};
+
+const optionalEmail = (value) => {
+  const email = String(value || "").trim().toLowerCase();
+  if (!email) return "";
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    const error = new Error("defaultAttendeeEmail must be a valid email address.");
+    error.statusCode = 400;
+    error.code = "GOOGLE_ATTENDEE_EMAIL_INVALID";
+    throw error;
+  }
+  return email;
+};
+
 export const getGoogleSettings = (connection) => {
   const stored = connection?.metadata?.googleCalendar || {};
   const bookingCalendarId = String(
@@ -36,8 +61,21 @@ export const getGoogleSettings = (connection) => {
     watchEnabled: stored.watchEnabled !== false,
     sendUpdates: ["all", "externalOnly", "none"].includes(stored.sendUpdates)
       ? stored.sendUpdates
-      : "none",
+      : "all",
     defaultAttendeeEmail: String(stored.defaultAttendeeEmail || "").trim(),
+    includeEstimatedValue: stored.includeEstimatedValue === true,
+    customerRemindersEnabled: stored.customerRemindersEnabled !== false,
+    reminderHours: normalizedReminderHours(stored.reminderHours),
+    postAppointmentFollowUpEnabled:
+      stored.postAppointmentFollowUpEnabled !== false,
+    postAppointmentFollowUpDelayHours: boundedNumber(
+      stored.postAppointmentFollowUpDelayHours,
+      2,
+      1,
+      168,
+    ),
+    googleChangeApprovalRequired:
+      stored.googleChangeApprovalRequired !== false,
     channel: stored.channel || {},
     sync: stored.sync || {},
   };
@@ -103,8 +141,21 @@ export const saveGoogleSettings = async ({ businessId, settings }) => {
       watchEnabled: settings.watchEnabled !== false,
       sendUpdates: ["all", "externalOnly", "none"].includes(settings.sendUpdates)
         ? settings.sendUpdates
-        : "none",
-      defaultAttendeeEmail: String(settings.defaultAttendeeEmail || "").trim(),
+        : "all",
+      defaultAttendeeEmail: optionalEmail(settings.defaultAttendeeEmail),
+      includeEstimatedValue: settings.includeEstimatedValue === true,
+      customerRemindersEnabled: settings.customerRemindersEnabled !== false,
+      reminderHours: normalizedReminderHours(settings.reminderHours),
+      postAppointmentFollowUpEnabled:
+        settings.postAppointmentFollowUpEnabled !== false,
+      postAppointmentFollowUpDelayHours: boundedNumber(
+        settings.postAppointmentFollowUpDelayHours,
+        2,
+        1,
+        168,
+      ),
+      googleChangeApprovalRequired:
+        settings.googleChangeApprovalRequired !== false,
     },
   };
   connection.markModified("metadata");

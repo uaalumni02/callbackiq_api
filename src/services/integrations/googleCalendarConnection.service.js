@@ -631,6 +631,31 @@ const uniqueIds = (values) => [
   ),
 ];
 
+const normalizedOptionalEmail = (value) => {
+  const email = String(value || "").trim().toLowerCase();
+  if (!email) return "";
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw createError(
+      "defaultAttendeeEmail must be a valid email address.",
+      400,
+      "GOOGLE_ATTENDEE_EMAIL_INVALID",
+    );
+  }
+  return email;
+};
+
+const normalizedReminderHours = (values) => {
+  const source = Array.isArray(values) ? values : [24, 2];
+  const hours = [
+    ...new Set(
+      source
+        .map(Number)
+        .filter((value) => Number.isFinite(value) && value >= 1 && value <= 168),
+    ),
+  ].sort((first, second) => second - first);
+  return hours.length ? hours : [24, 2];
+};
+
 export const selectGoogleCalendar = async ({
   businessId,
   calendarId,
@@ -638,7 +663,14 @@ export const selectGoogleCalendar = async ({
   availabilityCalendarIds,
   syncEnabled = true,
   watchEnabled = true,
-  sendUpdates = "none",
+  sendUpdates = "all",
+  defaultAttendeeEmail = "",
+  includeEstimatedValue = false,
+  customerRemindersEnabled = true,
+  reminderHours = [24, 2],
+  postAppointmentFollowUpEnabled = true,
+  postAppointmentFollowUpDelayHours = 2,
+  googleChangeApprovalRequired = true,
 }) => {
   const selectedBookingId = String(
     bookingCalendarId || calendarId || "",
@@ -744,7 +776,18 @@ export const selectGoogleCalendar = async ({
       watchEnabled: watchEnabled !== false,
       sendUpdates: ["all", "externalOnly", "none"].includes(sendUpdates)
         ? sendUpdates
-        : "none",
+        : "all",
+      defaultAttendeeEmail: normalizedOptionalEmail(defaultAttendeeEmail),
+      includeEstimatedValue: includeEstimatedValue === true,
+      customerRemindersEnabled: customerRemindersEnabled !== false,
+      reminderHours: normalizedReminderHours(reminderHours),
+      postAppointmentFollowUpEnabled:
+        postAppointmentFollowUpEnabled !== false,
+      postAppointmentFollowUpDelayHours: Math.max(
+        1,
+        Math.min(Number(postAppointmentFollowUpDelayHours) || 2, 168),
+      ),
+      googleChangeApprovalRequired: googleChangeApprovalRequired !== false,
       ...(previousCalendarId && previousCalendarId !== selectedBookingId
         ? { channel: {}, sync: {} }
         : {}),

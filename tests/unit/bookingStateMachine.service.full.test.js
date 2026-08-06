@@ -1,3 +1,4 @@
+import Appointment from "../../src/models/appointment.js";
 import Conversation from "../../src/models/conversation.js";
 import AutomationTriggerService from "../../src/services/automation/automationTrigger.service.js";
 import BookingStateMachineService from "../../src/services/booking/bookingStateMachine.service.js";
@@ -10,6 +11,10 @@ import rescheduleAppointmentTool from "../../src/helpers/ai/tools/rescheduleAppo
 import searchServicesTool from "../../src/helpers/ai/tools/searchServices.tool.js";
 import validateServiceAreaTool from "../../src/helpers/ai/tools/validateServiceArea.tool.js";
 
+jest.mock("../../src/models/appointment.js", () => ({
+  __esModule: true,
+  default: { findOneAndUpdate: jest.fn(), updateOne: jest.fn() },
+}));
 jest.mock("../../src/models/conversation.js", () => ({
   __esModule: true,
   default: { findOne: jest.fn() },
@@ -129,6 +134,14 @@ describe("BookingStateMachineService complete behavior", () => {
       timezone: "America/New_York",
     });
     cancelAppointmentTool.mockResolvedValue({ status: "canceled" });
+    Appointment.findOneAndUpdate.mockResolvedValue({
+      _id: "a1",
+      status: "confirmed",
+      startAt: SLOT_1.startAt,
+      endAt: SLOT_1.endAt,
+      timezone: "America/New_York",
+    });
+    Appointment.updateOne.mockResolvedValue({ modifiedCount: 1 });
   });
 
   afterEach(() => {
@@ -254,12 +267,34 @@ describe("BookingStateMachineService complete behavior", () => {
     expect(validateServiceAreaTool).not.toHaveBeenCalled();
   });
 
-  test("collecting location can reuse a previously stored ZIP", async () => {
-    const conversation = makeConversation({ bookingState: { status: "collecting_location", postalCode: "30318" } });
+  test("rejects text that does not look like a navigable street address", async () => {
+    const conversation = makeConversation({
+      bookingState: { status: "collecting_location", postalCode: "30318" },
+    });
     const lead = makeLead();
-    await handle({ conversation, lead, message: "Main" });
-    expect(validateServiceAreaTool).toHaveBeenCalledWith({ businessId: "b1", postalCode: "30318" });
+    const result = await handle({ conversation, lead, message: "Main" });
+    expect(validateServiceAreaTool).not.toHaveBeenCalled();
     expect(lead.save).not.toHaveBeenCalled();
+    expect(result.result.reply).toMatch(/street number and street name/i);
+  });
+
+  test("collecting street address reuses a ZIP captured in the prior message", async () => {
+    const conversation = makeConversation({
+      bookingState: { status: "collecting_street_address", postalCode: "30318" },
+    });
+    const lead = makeLead();
+    const result = await handle({
+      conversation,
+      lead,
+      message: "125 Main Street",
+    });
+    expect(validateServiceAreaTool).toHaveBeenCalledWith({
+      businessId: "b1",
+      postalCode: "30318",
+    });
+    expect(lead.address).toBe("125 Main Street");
+    expect(conversation.bookingState.status).toBe("collecting_preference");
+    expect(result.result.reply).toMatch(/what day works best/i);
   });
 
   test("unsupported ZIP escalates to staff", async () => {
@@ -459,6 +494,90 @@ describe("BookingStateMachineService complete behavior", () => {
     const result = await handle({ conversation, message: "change the appointment" });
     expect(conversation.bookingState).toMatchObject({ status: "collecting_preference", lastError: "reschedule_requested" });
     expect(result.result.reply).toContain("new day");
+  });
+
+  test("accepts conversational yes text", async () => {
+    const conversation = makeConversation({
+      bookingState: { status: "awaiting_confirmation", selectedSlot: SLOT_1 },
+    });
+    const result = await handle({ conversation, message: "Yes please, that works for me" });
+    expect(createAppointmentTool).toHaveBeenCalled();
+    expect(result.result.reply).toContain("You’re booked");
+  });
+
+  test("understands weekday abbreviations and tomorrow variants", async () => {
+    const tuesday = makeConversation({
+      bookingState: { status: "collecting_preference" },
+    });
+    await handle({ conversation: tuesday, message: "Tues" });
+    expect(getAvailabilityTool).toHaveBeenLastCalledWith(
+      expect.objectContaining({ startDate: "2026-07-28" }),
+    );
+
+    const tomorrow = makeConversation({
+      bookingState: { status: "collecting_preference" },
+    });
+    await handle({ conversation: tomorrow, message: "tmrw" });
+    expect(getAvailabilityTool).toHaveBeenLastCalledWith(
+      expect.objectContaining({ startDate: "2026-07-28" }),
+    );
+  });
+
+  test("filters afternoon requests before offering slots", async () => {
+    const conversation = makeConversation({
+      bookingState: { status: "collecting_preference" },
+    });
+    await handle({ conversation, message: "Tues afternoon" });
+    expect(conversation.bookingState.timeOfDay).toBe("afternoon");
+    expect(conversation.bookingState.offeredSlots).toHaveLength(1);
+    expect(
+      new Date(conversation.bookingState.offeredSlots[0].startAt).toISOString(),
+    ).toBe(SLOT_3.startAt);
+  });
+
+  test("records C confirmation and R reschedule replies", async () => {
+    const confirmedConversation = makeConversation({
+      bookingState: { status: "booked", appointment: "a1" },
+    });
+    const confirmed = await handle({
+      conversation: confirmedConversation,
+      message: "C",
+    });
+    expect(Appointment.findOneAndUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ _id: "a1", business: "b1" }),
+      expect.objectContaining({ $set: { customerConfirmedAt: expect.any(Date) } }),
+      { new: true },
+    );
+    expect(confirmed.result.reply).toContain("is confirmed");
+
+    const rescheduleConversation = makeConversation({
+      bookingState: { status: "booked", appointment: "a1" },
+    });
+    const reschedule = await handle({
+      conversation: rescheduleConversation,
+      message: "R",
+    });
+    expect(Appointment.updateOne).toHaveBeenCalledWith(
+      { _id: "a1", business: "b1" },
+      { $set: { customerRescheduleRequestedAt: expect.any(Date) } },
+    );
+    expect(rescheduleConversation.bookingState.status).toBe(
+      "collecting_preference",
+    );
+    expect(reschedule.result.reply).toContain("time of day");
+  });
+
+  test("reschedule intent takes precedence over a casual affirmative", async () => {
+    const conversation = makeConversation({
+      bookingState: { status: "booked", appointment: "a1" },
+    });
+    const result = await handle({
+      conversation,
+      message: "Sure, but I need to reschedule",
+    });
+    expect(Appointment.updateOne).toHaveBeenCalled();
+    expect(Appointment.findOneAndUpdate).not.toHaveBeenCalled();
+    expect(result.result.reply).toMatch(/new day and time of day/i);
   });
 
   test("returns unhandled for ordinary booked and unknown states", async () => {

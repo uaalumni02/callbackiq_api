@@ -12,6 +12,26 @@ const AddressSchema = new Schema(
   { _id: false },
 );
 
+const PendingProviderChangeSchema = new Schema(
+  {
+    type: { type: String, enum: ["move", "cancel"], required: true },
+    status: {
+      type: String,
+      enum: ["pending_review", "approved", "rejected"],
+      default: "pending_review",
+    },
+    startAt: { type: Date, default: null },
+    endAt: { type: Date, default: null },
+    calendarId: { type: String, trim: true, default: "" },
+    eventId: { type: String, trim: true, default: "" },
+    eventSequence: { type: String, trim: true, default: "" },
+    detectedAt: { type: Date, default: Date.now },
+    reviewedAt: { type: Date, default: null },
+    reviewedBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
+  },
+  { _id: false },
+);
+
 const AppointmentSchema = new Schema(
   {
     business: {
@@ -88,6 +108,12 @@ const AppointmentSchema = new Schema(
     failureReason: { type: String, trim: true, default: "", maxlength: 2000 },
 
     confirmedAt: { type: Date, default: null },
+    customerConfirmedAt: { type: Date, default: null },
+    customerRescheduleRequestedAt: { type: Date, default: null },
+    pendingProviderChange: {
+      type: PendingProviderChangeSchema,
+      default: null,
+    },
     canceledAt: { type: Date, default: null },
     completedAt: { type: Date, default: null },
     noShowAt: { type: Date, default: null },
@@ -152,6 +178,11 @@ AppointmentSchema.index(
   },
 );
 AppointmentSchema.index({ business: 1, heldExpiresAt: 1, status: 1 });
+AppointmentSchema.index({
+  business: 1,
+  "pendingProviderChange.status": 1,
+  updatedAt: -1,
+});
 AppointmentSchema.index({ business: 1, lead: 1, createdAt: -1 });
 AppointmentSchema.index({ business: 1, conversation: 1, createdAt: -1 });
 

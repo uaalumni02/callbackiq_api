@@ -103,12 +103,13 @@ describe("GoogleCalendarProvider", () => {
     });
     expect(googleApiRequest).toHaveBeenCalledWith(
       expect.objectContaining({
-        path: "/calendars/calendar%40example.com/events?sendUpdates=none",
+        path: "/calendars/calendar%40example.com/events?sendUpdates=all",
         method: "POST",
         body: expect.objectContaining({
           summary: "Drain cleaning — Jane",
           description: expect.stringContaining("CallBackIQ appointment: a1"),
           start: { dateTime: "2026-07-27T17:00:00.000Z", timeZone: "America/New_York" },
+          attendees: [{ email: "jane@example.com" }],
         }),
       }),
     );
@@ -145,7 +146,7 @@ describe("GoogleCalendarProvider", () => {
       service: { name: "Service" },
     });
     expect(googleApiRequest).toHaveBeenCalledWith(
-      expect.objectContaining({ path: "/calendars/custom%2Fcalendar/events/event%20old%2Fid?sendUpdates=none" }),
+      expect.objectContaining({ path: "/calendars/custom%2Fcalendar/events/event%20old%2Fid?sendUpdates=all" }),
     );
 
     googleApiRequest.mockResolvedValue({ id: "event-3" });

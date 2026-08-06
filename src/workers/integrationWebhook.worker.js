@@ -2,9 +2,16 @@ import ExternalRecordMapping from "../models/externalRecordMapping.js";
 import IntegrationConnection from "../models/integrationConnection.js";
 import IntegrationWebhookEvent from "../models/integrationWebhookEvent.js";
 import { syncGoogleCalendar } from "../services/integrations/googleCalendarSync.service.js";
+import { getGoogleSettings } from "../services/integrations/integrationSettings.service.js";
 
 const processGoogle = async (event) => {
   if (!event.business) return;
+  const connection = await IntegrationConnection.findOne({
+    business: event.business,
+    provider: "google_calendar",
+    status: "connected",
+  });
+  if (!connection || getGoogleSettings(connection).syncEnabled === false) return;
   await syncGoogleCalendar({ businessId: event.business });
 };
 

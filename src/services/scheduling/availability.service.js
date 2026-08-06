@@ -1,6 +1,10 @@
+import { validateServiceArea } from "./appointmentPolicy.service.js";
+import {
+  businessCalendarProviderName,
+  normalizeCalendarProviderName,
+} from "./calendarProviderName.service.js";
 import SchedulingProviderFactory from "./schedulingProviderFactory.js";
 import { formatZonedIso } from "./timezone.service.js";
-import { validateServiceArea } from "./appointmentPolicy.service.js";
 
 class AvailabilityService {
   static async getAvailability({
@@ -10,38 +14,48 @@ class AvailabilityService {
     endDate,
     postalCode,
     excludeAppointmentId = null,
+    providerNameOverride = null,
+    excludeExternalEventId = null,
   }) {
     const businessId = business._id || business.id;
-    const area = await validateServiceArea({ businessId, postalCode });
+    const serviceArea = await validateServiceArea({
+      businessId,
+      postalCode,
+    });
+    const providerName = providerNameOverride
+      ? normalizeCalendarProviderName(providerNameOverride)
+      : businessCalendarProviderName(business);
 
-    if (!area.supported) {
+    if (!serviceArea.supported) {
       return {
         supportedServiceArea: false,
-        reason: area.reason,
-        provider:
-          business?.features?.calendarProvider ||
-          business?.featureSettings?.calendarProvider ||
-          "internal",
+        reason: serviceArea.reason,
+        provider: providerName,
         slots: [],
       };
     }
 
-    const provider = SchedulingProviderFactory.getProvider(business);
-    const slots = await provider.getAvailability({
+    const provider = SchedulingProviderFactory.getProvider(
+      business,
+      providerNameOverride,
+    );
+    const providerOptions = {
       serviceOfferingId,
       startDate,
       endDate,
       postalCode,
       excludeAppointmentId,
-    });
+      ...(excludeExternalEventId
+        ? { excludeExternalEventId }
+        : {}),
+    };
+    const slots = await provider.getAvailability(providerOptions);
     const timeZone = business.timezone || "America/New_York";
 
     return {
       supportedServiceArea: true,
-      provider:
-        business?.features?.calendarProvider ||
-        business?.featureSettings?.calendarProvider ||
-        "internal",
+      provider: providerName,
+      serviceArea,
       slots: slots.map((slot) => ({
         ...slot,
         startAt: formatZonedIso(slot.startAt, timeZone),

@@ -1,3 +1,4 @@
+import Appointment from "../../models/appointment.js";
 import Conversation from "../../models/conversation.js";
 import Lead from "../../models/lead.js";
 import AutomationTriggerService from "../automation/automationTrigger.service.js";
@@ -11,13 +12,42 @@ import rescheduleAppointmentTool from "../../helpers/ai/tools/rescheduleAppointm
 import searchServicesTool from "../../helpers/ai/tools/searchServices.tool.js";
 import validateServiceAreaTool from "../../helpers/ai/tools/validateServiceArea.tool.js";
 
-import { assertVoiceTurnActive } from "../voiceTurnContext.service.js";
 const BOOKING_INTENT = /\b(book|booking|schedule|appointment|available|availability|come out|visit)\b/i;
 const HUMAN_INTENT = /\b(human|person|representative|staff|someone|call me|talk to)\b/i;
-const AFFIRMATIVE = /^(yes|yep|yeah|correct|confirm|confirmed|book it|please do|that works|sounds good|ok|okay|sure)[.!\s]*$/i;
-const NEGATIVE = /^(no|nope|not that|different|another|change it|cancel)[.!\s]*$/i;
+const AFFIRMATIVE_TOKEN = /\b(yes|yep|yeah|yup|correct|confirm|confirmed|book it|please do|that works|works for me|sounds good|ok|okay|sure)\b/i;
+const NEGATIVE_TOKEN = /\b(no|nope|not that|different|another|change it|cancel|do not|don't|not yet)\b/i;
 const EXACT_PRICE = /\b(exact|final|total)\b.{0,25}\b(price|cost|quote|charge)\b|\bhow much (?:will|does) it cost\b/i;
 const ZIP_PATTERN = /\b(\d{5})(?:-\d{4})?\b/;
+const STREET_SUFFIX_PATTERN = /\b(?:street|st|avenue|ave|road|rd|drive|dr|lane|ln|court|ct|boulevard|blvd|parkway|pkwy|place|pl|way|trail|trl|circle|cir|highway|hwy|terrace|ter)\.?\b/i;
+const TOMORROW_PATTERN = /\b(?:tomorrow|tmrw|tmr|tmw|2moro|2morrow|tomo)\b/i;
+
+const isAffirmative = (value) => {
+  const text = String(value || "").trim();
+  return AFFIRMATIVE_TOKEN.test(text) && !NEGATIVE_TOKEN.test(text);
+};
+
+const isNegative = (value) => NEGATIVE_TOKEN.test(String(value || "").trim());
+
+const cleanStreetAddress = (value) =>
+  String(value || "")
+    .trim()
+    .replace(/^(?:yes|yeah|yep|sure|okay|ok)[,\s-]*/i, "")
+    .replace(/^(?:it(?:'s| is)|the address is|address is|we(?:'re| are) at|i(?:'m| am) at|at)\s+/i, "")
+    .replace(ZIP_PATTERN, "")
+    .replace(/^[,;:\s-]+|[,;:\s-]+$/g, "")
+    .replace(/\s{2,}/g, " ");
+
+const parseStreetAddress = (value) => {
+  const street = cleanStreetAddress(value);
+  const hasStreetNumber = /^\d{1,7}[a-z]?\s+/i.test(street);
+  const hasLetters = /[a-z]/i.test(street);
+  const hasEnoughWords = street.split(/\s+/).filter(Boolean).length >= 3;
+  const valid =
+    hasStreetNumber &&
+    hasLetters &&
+    (STREET_SUFFIX_PATTERN.test(street) || hasEnoughWords);
+  return { street, valid };
+};
 
 const fixedResult = ({
   reply,
@@ -60,7 +90,8 @@ const formatSlot = (slot, timeZone) =>
   }).format(new Date(slot.startAt));
 
 const findDateRange = (message, timeZone) => {
-  const explicitDates = String(message).match(/\b20\d{2}-\d{2}-\d{2}\b/g);
+  const text = String(message || "");
+  const explicitDates = text.match(/\b20\d{2}-\d{2}-\d{2}\b/g);
 
   if (explicitDates?.length) {
     return {
@@ -76,29 +107,27 @@ const findDateRange = (message, timeZone) => {
     return formatDateKey(value, timeZone);
   };
 
-  if (/\btoday\b/i.test(message)) {
+  if (/\btoday\b/i.test(text)) {
     return { startDate: todayKey, endDate: todayKey };
   }
 
-  if (/\btomorrow\b/i.test(message)) {
+  if (TOMORROW_PATTERN.test(text)) {
     const key = addDays(1);
     return { startDate: key, endDate: key };
   }
 
   const weekdays = [
-    "sunday",
-    "monday",
-    "tuesday",
-    "wednesday",
-    "thursday",
-    "friday",
-    "saturday",
+    { index: 0, pattern: /\b(?:sun|sunday)\b/i },
+    { index: 1, pattern: /\b(?:mon|monday)\b/i },
+    { index: 2, pattern: /\b(?:tue|tues|tuesday)\b/i },
+    { index: 3, pattern: /\b(?:wed|weds|wednesday)\b/i },
+    { index: 4, pattern: /\b(?:thu|thur|thurs|thursday)\b/i },
+    { index: 5, pattern: /\b(?:fri|friday)\b/i },
+    { index: 6, pattern: /\b(?:sat|saturday)\b/i },
   ];
-  const wanted = weekdays.findIndex((day) =>
-    new RegExp(`\\b${day}\\b`, "i").test(message),
-  );
+  const matchedWeekday = weekdays.find(({ pattern }) => pattern.test(text));
 
-  if (wanted >= 0) {
+  if (matchedWeekday) {
     const shortWeekday = new Intl.DateTimeFormat("en-US", {
       timeZone,
       weekday: "short",
@@ -113,19 +142,61 @@ const findDateRange = (message, timeZone) => {
       Sat: 6,
     };
     const current = weekdayIndex[shortWeekday] ?? 0;
-    let daysAhead = (wanted - current + 7) % 7;
-
+    let daysAhead = (matchedWeekday.index - current + 7) % 7;
     if (daysAhead === 0) daysAhead = 7;
-
     const key = addDays(daysAhead);
     return { startDate: key, endDate: key };
   }
 
-  if (/\bnext week\b/i.test(message)) {
+  if (/\bnext\s+(?:wk|week)\b/i.test(text)) {
     return { startDate: addDays(7), endDate: addDays(13) };
   }
 
   return null;
+};
+
+const findTimeOfDay = (message) => {
+  const text = String(message || "");
+  if (/\b(?:early\s+)?morning\b/i.test(text)) return "morning";
+  if (/\b(?:midday|noon|lunch(?:time)?)\b/i.test(text)) return "midday";
+  if (/\bafternoon\b/i.test(text)) return "afternoon";
+  if (/\b(?:evening|tonight|after\s+work)\b/i.test(text)) return "evening";
+  return "";
+};
+
+const localHour = (date, timeZone) =>
+  Number(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hour: "2-digit",
+      hourCycle: "h23",
+    })
+      .formatToParts(new Date(date))
+      .find((part) => part.type === "hour")?.value,
+  );
+
+const filterSlotsByTimeOfDay = (slots, timeOfDay, timeZone) => {
+  if (!timeOfDay) return slots;
+  const windows = {
+    morning: [6, 12],
+    midday: [11, 14],
+    afternoon: [12, 17],
+    evening: [16, 21],
+  };
+  const [startHour, endHour] = windows[timeOfDay] || [0, 24];
+  return slots.filter((slot) => {
+    const hour = localHour(slot.startAt, timeZone);
+    return Number.isFinite(hour) && hour >= startHour && hour < endHour;
+  });
+};
+
+const spreadSlotOptions = (slots, maximum = 3) => {
+  if (slots.length <= maximum) return slots;
+  if (maximum <= 1) return [slots[0]];
+  const indexes = Array.from({ length: maximum }, (_, index) =>
+    Math.round((index * (slots.length - 1)) / (maximum - 1)),
+  );
+  return [...new Set(indexes)].map((index) => slots[index]);
 };
 
 const selectOfferedSlot = (message, offeredSlots, timeZone) => {
@@ -164,7 +235,6 @@ const selectOfferedSlot = (message, offeredSlots, timeZone) => {
 };
 
 const updateState = async (conversation, changes) => {
-  assertVoiceTurnActive();
   Object.entries(changes).forEach(([key, value]) => {
     conversation.set(`bookingState.${key}`, value);
   });
@@ -191,7 +261,6 @@ class BookingStateMachineService {
     channel = "sms",
     source = "booking_state_machine",
   }) {
-    assertVoiceTurnActive();
     const bookingChannel = channel === "voice" ? "voice" : "sms";
     const bookingSource = String(source || "booking_state_machine");
     const bookingIdempotencyPrefix =
@@ -224,7 +293,6 @@ class BookingStateMachineService {
     }
 
     if (HUMAN_INTENT.test(text)) {
-      assertVoiceTurnActive();
       await escalateToHumanTool({
         businessId: business._id,
         leadId: lead?._id,
@@ -309,6 +377,8 @@ class BookingStateMachineService {
       await updateState(activeConversation, {
         status: "collecting_location",
         serviceOffering: selectedService.id,
+        streetAddress: "",
+        postalCode: "",
       });
 
       if (lead && (!lead.serviceNeeded || lead.serviceNeeded === "Unknown")) {
@@ -319,30 +389,57 @@ class BookingStateMachineService {
       return {
         handled: true,
         result: fixedResult({
-          reply: `I can check times for ${selectedService.name}. What is the service address and ZIP code?`,
+          reply: `I can check times for ${selectedService.name}. I need the address and ZIP code in two steps. First, what is the street address for the service visit?`,
         }),
       };
     }
 
-    if (status === "collecting_location") {
-      const zip =
+    if (
+      status === "collecting_street_address" ||
+      status === "collecting_location"
+    ) {
+      const { street, valid } = parseStreetAddress(text);
+      const suppliedZip =
         text.match(ZIP_PATTERN)?.[1] ||
-        activeConversation.bookingState?.postalCode;
+        activeConversation.bookingState?.postalCode ||
+        "";
 
-      if (!zip) {
+      if (!valid) {
+        await updateState(activeConversation, {
+          status: "collecting_street_address",
+          ...(suppliedZip ? { postalCode: suppliedZip } : {}),
+        });
         return {
           handled: true,
           result: fixedResult({
-            reply: "Please send the service address and 5-digit ZIP code.",
+            reply:
+              "Please send the street address, including the street number and street name—for example, 125 Main Street.",
+          }),
+        };
+      }
+
+      if (lead) {
+        lead.address = street;
+        await lead.save();
+      }
+
+      if (!suppliedZip) {
+        await updateState(activeConversation, {
+          status: "collecting_postal_code",
+          streetAddress: street,
+        });
+        return {
+          handled: true,
+          result: fixedResult({
+            reply: "Thanks. What is the 5-digit ZIP code for that address?",
           }),
         };
       }
 
       const area = await validateServiceAreaTool({
         businessId: business._id,
-        postalCode: zip,
+        postalCode: suppliedZip,
       });
-
       if (!area.supported) {
         await escalateToHumanTool({
           businessId: business._id,
@@ -351,7 +448,6 @@ class BookingStateMachineService {
           reason: "unsupported_service_area",
           customerMessage: text,
         });
-
         return {
           handled: true,
           result: fixedResult({
@@ -362,21 +458,62 @@ class BookingStateMachineService {
         };
       }
 
-      if (lead && text.length > 5) {
-        lead.address = text;
-        await lead.save();
+      await updateState(activeConversation, {
+        status: "collecting_preference",
+        streetAddress: street,
+        postalCode: suppliedZip,
+      });
+      return {
+        handled: true,
+        result: fixedResult({
+          reply:
+            "What day works best, and what time of day do you prefer? For example: Tues afternoon, tmrw morning, next week, or 2026-08-10.",
+        }),
+      };
+    }
+
+    if (status === "collecting_postal_code") {
+      const zip = text.match(ZIP_PATTERN)?.[1];
+      if (!zip) {
+        return {
+          handled: true,
+          result: fixedResult({
+            reply: "Please send the 5-digit ZIP code for the service address.",
+          }),
+        };
+      }
+
+      const area = await validateServiceAreaTool({
+        businessId: business._id,
+        postalCode: zip,
+      });
+      if (!area.supported) {
+        await escalateToHumanTool({
+          businessId: business._id,
+          leadId: lead?._id,
+          conversationId: activeConversation._id,
+          reason: "unsupported_service_area",
+          customerMessage: text,
+        });
+        return {
+          handled: true,
+          result: fixedResult({
+            reply:
+              "That ZIP code is outside the currently approved automated service area. I’ve sent the request to the team to review directly.",
+            category: "service_area_question",
+          }),
+        };
       }
 
       await updateState(activeConversation, {
         status: "collecting_preference",
         postalCode: zip,
       });
-
       return {
         handled: true,
         result: fixedResult({
           reply:
-            "What day works best? You can reply with a weekday, tomorrow, next week, or a date like 2026-08-03.",
+            "What day works best, and what time of day do you prefer? For example: Tues afternoon, tmrw morning, next week, or 2026-08-10.",
         }),
       };
     }
@@ -384,13 +521,14 @@ class BookingStateMachineService {
     if (status === "collecting_preference") {
       const timeZone = business.timezone || "America/New_York";
       const range = findDateRange(text, timeZone);
+      const timeOfDay = findTimeOfDay(text);
 
       if (!range) {
         return {
           handled: true,
           result: fixedResult({
             reply:
-              "Please tell me the day you prefer, such as Tuesday, tomorrow, next week, or 2026-08-03.",
+              "Please tell me the day you prefer, such as Tues afternoon, tmrw morning, next week, or 2026-08-10.",
           }),
         };
       }
@@ -403,20 +541,27 @@ class BookingStateMachineService {
         endDate: range.endDate,
         postalCode: activeConversation.bookingState.postalCode,
       });
-      const offeredSlots = availability.slots.slice(0, 3);
+      const matchingSlots = filterSlotsByTimeOfDay(
+        availability.slots,
+        timeOfDay,
+        timeZone,
+      );
+      const offeredSlots = spreadSlotOptions(matchingSlots, 3);
 
       if (offeredSlots.length === 0) {
         return {
           handled: true,
           result: fixedResult({
-            reply:
-              "I don’t see an available time in that window. Please send another day or date range.",
+            reply: timeOfDay
+              ? `I don’t see an available ${timeOfDay} time in that window. Please choose another time of day or date.`
+              : "I don’t see an available time in that window. Please send another day or date range.",
           }),
         };
       }
 
       await updateState(activeConversation, {
         status: "offering_slots",
+        timeOfDay,
         preferredStart: new Date(offeredSlots[0].startAt),
         preferredEnd: new Date(
           offeredSlots[offeredSlots.length - 1].endAt,
@@ -503,9 +648,12 @@ class BookingStateMachineService {
       });
 
       const serviceName = lead?.serviceNeeded || "the requested service";
-      const address =
-        lead?.address ||
-        `ZIP ${activeConversation.bookingState.postalCode}`;
+      const address = [
+        activeConversation.bookingState.streetAddress || lead?.address,
+        activeConversation.bookingState.postalCode,
+      ]
+        .filter(Boolean)
+        .join(", ") || `ZIP ${activeConversation.bookingState.postalCode}`;
 
       return {
         handled: true,
@@ -519,7 +667,7 @@ class BookingStateMachineService {
     }
 
     if (status === "awaiting_confirmation") {
-      if (NEGATIVE.test(text)) {
+      if (isNegative(text)) {
         await updateState(activeConversation, {
           status: "collecting_preference",
           selectedSlot: null,
@@ -535,7 +683,7 @@ class BookingStateMachineService {
         };
       }
 
-      if (!AFFIRMATIVE.test(text)) {
+      if (!isAffirmative(text)) {
         return {
           handled: true,
           result: fixedResult({
@@ -560,7 +708,10 @@ class BookingStateMachineService {
             lead?.phone || activeConversation.customerPhone,
           customerEmail: lead?.email || "",
           address: {
-            street: lead?.address || "",
+            street:
+              activeConversation.bookingState.streetAddress ||
+              lead?.address ||
+              "",
             postalCode: activeConversation.bookingState.postalCode,
           },
           startAt: selectedSlot.startAt,
@@ -574,7 +725,6 @@ class BookingStateMachineService {
           activeConversation.bookingState.lastError ===
             "reschedule_requested" &&
           activeConversation.bookingState.appointment;
-        assertVoiceTurnActive();
         const appointment = isReschedule
           ? await rescheduleAppointmentTool({
               business,
@@ -592,7 +742,6 @@ class BookingStateMachineService {
               ).toISOString()}`,
               input: bookingInput,
             });
-        assertVoiceTurnActive();
 
         if (appointment.status !== "confirmed") {
           throw new Error(
@@ -639,6 +788,8 @@ class BookingStateMachineService {
     if (status === "booked") {
       const appointmentId = activeConversation.bookingState.appointment;
 
+      // Destructive or schedule-changing intent takes precedence over a casual
+      // affirmative word (for example, "sure, but I need to reschedule").
       if (/\bcancel\b/i.test(text)) {
         try {
           await cancelAppointmentTool({
@@ -675,7 +826,14 @@ class BookingStateMachineService {
         }
       }
 
-      if (/\breschedule|change (?:the )?(?:time|day|appointment)\b/i.test(text)) {
+      if (
+        /^\s*r\s*$/i.test(text) ||
+        /\breschedule|change (?:the )?(?:time|day|appointment)\b/i.test(text)
+      ) {
+        await Appointment.updateOne(
+          { _id: appointmentId, business: business._id },
+          { $set: { customerRescheduleRequestedAt: new Date() } },
+        );
         await updateState(activeConversation, {
           status: "collecting_preference",
           lastError: "reschedule_requested",
@@ -683,8 +841,38 @@ class BookingStateMachineService {
 
         return {
           handled: true,
-          result: fixedResult({ reply: "What new day would you prefer?" }),
+          result: fixedResult({
+            reply:
+              "What new day and time of day would you prefer? For example: Tues afternoon or tmrw morning.",
+          }),
         };
+      }
+
+      // Reminder messages explicitly ask for C or R. Do not treat a repeated
+      // conversational YES after booking as a second confirmation action.
+      if (/^\s*c\s*$/i.test(text)) {
+        const confirmed = await Appointment.findOneAndUpdate(
+          {
+            _id: appointmentId,
+            business: business._id,
+            status: "confirmed",
+          },
+          {
+            $set: { customerConfirmedAt: new Date() },
+          },
+          { new: true },
+        );
+        if (confirmed) {
+          return {
+            handled: true,
+            result: fixedResult({
+              reply: `Thank you—your appointment for ${formatSlot(
+                confirmed,
+                confirmed.timezone,
+              )} is confirmed.`,
+            }),
+          };
+        }
       }
 
       return { handled: false };

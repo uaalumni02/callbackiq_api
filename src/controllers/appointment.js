@@ -1,5 +1,9 @@
 import getOwnedBusiness from "../services/businessScope.service.js";
 import AppointmentService from "../services/scheduling/appointment.service.js";
+import {
+  approveGoogleProviderChange,
+  rejectGoogleProviderChange,
+} from "../services/integrations/googleCalendarChangeReview.service.js";
 
 const getIdempotencyKey = (req) =>
   req.get("Idempotency-Key") || req.body?.idempotencyKey || null;
@@ -102,6 +106,40 @@ class AppointmentController {
       return next(error);
     }
   }
+  static async approveProviderChange(req, res, next) {
+    try {
+      const business = await getOwnedBusiness({
+        user: req.user,
+        requestedBusinessId: req.body?.businessId,
+      });
+      const appointment = await approveGoogleProviderChange({
+        business,
+        appointmentId: req.params.id,
+        reviewedBy: req.user.userId,
+      });
+      return res.status(200).json({ success: true, data: appointment });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  static async rejectProviderChange(req, res, next) {
+    try {
+      const business = await getOwnedBusiness({
+        user: req.user,
+        requestedBusinessId: req.body?.businessId,
+      });
+      const appointment = await rejectGoogleProviderChange({
+        business,
+        appointmentId: req.params.id,
+        reviewedBy: req.user.userId,
+      });
+      return res.status(200).json({ success: true, data: appointment });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
 }
 
 export default AppointmentController;

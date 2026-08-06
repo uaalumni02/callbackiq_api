@@ -3,10 +3,13 @@ import HousecallProProvider from "../../integrations/scheduling/housecallPro.pro
 import InternalSchedulingProvider from "../../integrations/scheduling/internalScheduling.provider.js";
 import JobberProvider from "../../integrations/scheduling/jobber.provider.js";
 import ServiceTitanProvider from "../../integrations/scheduling/serviceTitan.provider.js";
+import {
+  businessCalendarProviderName,
+  normalizeCalendarProviderName,
+} from "./calendarProviderName.service.js";
 
 const PROVIDERS = {
   internal: InternalSchedulingProvider,
-  google: GoogleCalendarProvider,
   google_calendar: GoogleCalendarProvider,
   jobber: JobberProvider,
   housecall_pro: HousecallProProvider,
@@ -15,16 +18,17 @@ const PROVIDERS = {
 
 class SchedulingProviderFactory {
   static getProvider(business, providerNameOverride = null) {
-    const providerName =
-      providerNameOverride ||
-      business?.features?.calendarProvider ||
-      business?.featureSettings?.calendarProvider ||
-      "internal";
+    const providerName = providerNameOverride
+      ? normalizeCalendarProviderName(providerNameOverride)
+      : businessCalendarProviderName(business);
     const Provider = PROVIDERS[providerName];
 
     if (!Provider) {
-      const error = new Error(`Unsupported scheduling provider: ${providerName}`);
+      const error = new Error(
+        `Unsupported scheduling provider: ${providerName}`,
+      );
       error.statusCode = 400;
+      error.code = "UNSUPPORTED_SCHEDULING_PROVIDER";
       throw error;
     }
 
@@ -32,4 +36,5 @@ class SchedulingProviderFactory {
   }
 }
 
+export { PROVIDERS };
 export default SchedulingProviderFactory;
