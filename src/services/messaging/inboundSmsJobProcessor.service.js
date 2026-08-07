@@ -3,7 +3,7 @@ import Conversation from "../../models/conversation.js";
 import Lead from "../../models/lead.js";
 import Message from "../../models/message.js";
 import Db from "../../db/db.js";
-import { generateAIReplyResult } from "../aiReplyService.js";
+import ConversationOrchestratorService from "../conversationOrchestrator.service.js";
 import { sendSms } from "../twilioSmsService.js";
 import AlertService from "../alert.service.js";
 import SocketService from "../socket.service.js";
@@ -285,12 +285,14 @@ export const processInboundSmsJob = async (job) => {
     return { decision: "skipped", reason: "ai_ineligible" };
   }
 
-  const result = await generateAIReplyResult({
+  const orchestration = await ConversationOrchestratorService.process({
     business,
     lead,
+    conversation,
     messages,
-    customerMessage: inboundMessage.body,
+    inboundMessage,
   });
+  const result = orchestration.result;
 
   let updatedLead = lead;
   let updatedConversation = conversation;

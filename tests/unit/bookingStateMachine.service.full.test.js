@@ -350,7 +350,7 @@ describe("BookingStateMachineService complete behavior", () => {
       conversation: makeConversation({ bookingState: { status: "collecting_preference" } }),
       message: "tomorrow",
     });
-    expect(result.result.reply).toContain("another day");
+    expect(result.result.reply).toMatch(/day or time/i);
     expect(ConversionEventService.record).not.toHaveBeenCalled();
   });
 

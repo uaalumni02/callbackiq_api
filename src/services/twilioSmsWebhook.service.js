@@ -389,6 +389,8 @@ export const handleInboundSmsWebhook = async (req, res) => {
           conversation: conversation._id,
           lead: lead._id,
           direction: "inbound",
+          generatedBy: "customer",
+          actorType: "customer",
           from,
           to,
           body,

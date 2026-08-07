@@ -13,6 +13,7 @@ import searchServicesTool from "../../helpers/ai/tools/searchServices.tool.js";
 import validateServiceAreaTool from "../../helpers/ai/tools/validateServiceArea.tool.js";
 
 const BOOKING_INTENT = /\b(book|booking|schedule|appointment|available|availability|come out|visit)\b/i;
+const AVAILABILITY_HINT = /\b(today|tomorrow|tmrw|tmr|monday|tuesday|wednesday|thursday|friday|saturday|sunday|morning|afternoon|evening|tonight|after work|next week|\d{1,2}(?::\d{2})?\s*(?:am|pm)|20\d{2}-\d{2}-\d{2})\b/i;
 const HUMAN_INTENT = /\b(human|person|representative|staff|someone|call me|talk to)\b/i;
 const AFFIRMATIVE_TOKEN = /\b(yes|yep|yeah|yup|correct|confirm|confirmed|book it|please do|that works|works for me|sounds good|ok|okay|sure)\b/i;
 const NEGATIVE_TOKEN = /\b(no|nope|not that|different|another|change it|cancel|do not|don't|not yet)\b/i;
@@ -164,6 +165,23 @@ const findTimeOfDay = (message) => {
   return "";
 };
 
+const findRequestedClockMinutes = (message) => {
+  const match = String(message || "").match(/\b(1[0-2]|0?[1-9])(?::([0-5]\d))?\s*(am|pm)\b/i);
+  if (!match) return null;
+  let hour = Number(match[1]) % 12;
+  if (match[3].toLowerCase() === "pm") hour += 12;
+  return hour * 60 + Number(match[2] || 0);
+};
+
+const localClockMinutes = (date, timeZone) => {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).formatToParts(new Date(date));
+  const hour = Number(parts.find((part) => part.type === "hour")?.value);
+  const minute = Number(parts.find((part) => part.type === "minute")?.value);
+  return Number.isFinite(hour) && Number.isFinite(minute) ? hour * 60 + minute : null;
+};
+
 const localHour = (date, timeZone) =>
   Number(
     new Intl.DateTimeFormat("en-US", {
@@ -287,7 +305,8 @@ class BookingStateMachineService {
     if (
       !stateActive &&
       bookingChannel !== "voice" &&
-      !BOOKING_INTENT.test(text)
+      !BOOKING_INTENT.test(text) &&
+      !AVAILABILITY_HINT.test(text)
     ) {
       return { handled: false };
     }
@@ -333,6 +352,9 @@ class BookingStateMachineService {
         status: "collecting_service",
         offeredSlots: [],
         selectedSlot: null,
+        negotiationAttempts: 0,
+        lastCustomerPreference: text,
+        lastAvailabilityCheckedAt: new Date(),
         expiresAt: null,
         lastError: "",
       });
@@ -352,9 +374,13 @@ class BookingStateMachineService {
     }
 
     if (status === "not_started" || status === "collecting_service") {
+      const serviceQuery =
+        AVAILABILITY_HINT.test(text) && String(lead?.serviceNeeded || "").trim() && lead.serviceNeeded !== "Unknown"
+          ? lead.serviceNeeded
+          : text;
       const matches = await searchServicesTool({
         businessId: business._id,
-        query: text,
+        query: serviceQuery,
       });
 
       if (matches.length !== 1) {
@@ -541,20 +567,96 @@ class BookingStateMachineService {
         endDate: range.endDate,
         postalCode: activeConversation.bookingState.postalCode,
       });
-      const matchingSlots = filterSlotsByTimeOfDay(
+      const requestedClockMinutes = findRequestedClockMinutes(text);
+      const dayPartSlots = filterSlotsByTimeOfDay(
         availability.slots,
         timeOfDay,
         timeZone,
       );
+      const matchingSlots = requestedClockMinutes === null
+        ? dayPartSlots
+        : dayPartSlots.filter((slot) => localClockMinutes(slot.startAt, timeZone) === requestedClockMinutes);
       const offeredSlots = spreadSlotOptions(matchingSlots, 3);
 
       if (offeredSlots.length === 0) {
+        const attempts = Number(activeConversation.bookingState?.negotiationAttempts || 0) + 1;
+        const expandedRange = {
+          startDate: range.startDate,
+          endDate: formatDateKey(new Date(Date.now() + 14 * 86_400_000), timeZone),
+        };
+        let alternatives = [];
+        try {
+          const expanded = await getAvailabilityTool({
+            business,
+            serviceOfferingId: activeConversation.bookingState.serviceOffering,
+            startDate: expandedRange.startDate,
+            endDate: expandedRange.endDate,
+            postalCode: activeConversation.bookingState.postalCode,
+          });
+          const expandedSlots = expanded.slots || [];
+          alternatives = requestedClockMinutes === null
+            ? spreadSlotOptions(expandedSlots, 3)
+            : [...expandedSlots]
+                .sort((a, b) => {
+                  const aMinutes = localClockMinutes(a.startAt, timeZone);
+                  const bMinutes = localClockMinutes(b.startAt, timeZone);
+                  return Math.abs((aMinutes ?? 0) - requestedClockMinutes) - Math.abs((bMinutes ?? 0) - requestedClockMinutes);
+                })
+                .slice(0, 3);
+        } catch {
+          alternatives = [];
+        }
+
+        await updateState(activeConversation, {
+          negotiationAttempts: attempts,
+          lastCustomerPreference: text,
+          lastAvailabilityCheckedAt: new Date(),
+        });
+
+        if (attempts >= 3 && alternatives.length === 0) {
+          await escalateToHumanTool({
+            businessId: business._id,
+            leadId: lead?._id,
+            conversationId: activeConversation._id,
+            reason: "scheduling_no_match_after_three_attempts",
+            customerMessage: text,
+          });
+          await updateState(activeConversation, {
+            status: "human_takeover",
+            escalatedAt: new Date(),
+          });
+          return {
+            handled: true,
+            result: fixedResult({
+              reply: "I’m not finding a good calendar match yet, so I’ve sent your availability to the team. They’ll follow up to find the best time.",
+              category: "human_requested",
+            }),
+          };
+        }
+
+        if (alternatives.length) {
+          const options = alternatives
+            .map((slot, index) => `${index + 1}) ${formatSlot(slot, timeZone)}`)
+            .join("; ");
+          await updateState(activeConversation, {
+            status: "offering_slots",
+            offeredSlots: alternatives.map((slot) => ({
+              startAt: new Date(slot.startAt), endAt: new Date(slot.endAt), timezone: timeZone,
+              label: formatSlot(slot, timeZone),
+            })),
+            expiresAt: new Date(Date.now() + 30 * 60_000),
+          });
+          return { handled: true, result: fixedResult({
+            reply: `That time isn’t open, but I found ${options}. Which works best?`,
+          }) };
+        }
+
         return {
           handled: true,
           result: fixedResult({
             reply: timeOfDay
-              ? `I don’t see an available ${timeOfDay} time in that window. Please choose another time of day or date.`
-              : "I don’t see an available time in that window. Please send another day or date range.",
+              ? `I don’t see an available ${timeOfDay} time in that window. What other day or time works for you?`
+              : "I don’t see an available time in that window. What other day or time works for you?",
           }),
         };
       }
@@ -573,6 +675,9 @@ class BookingStateMachineService {
           label: formatSlot(slot, timeZone),
         })),
         selectedSlot: null,
+        negotiationAttempts: 0,
+        lastCustomerPreference: text,
+        lastAvailabilityCheckedAt: new Date(),
         expiresAt: new Date(Date.now() + 30 * 60_000),
       });
 
