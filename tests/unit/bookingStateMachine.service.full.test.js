@@ -294,7 +294,7 @@ describe("BookingStateMachineService complete behavior", () => {
     });
     expect(lead.address).toBe("125 Main Street");
     expect(conversation.bookingState.status).toBe("collecting_preference");
-    expect(result.result.reply).toMatch(/what day works best/i);
+    expect(result.result.reply).toMatch(/what day and time work best/i);
   });
 
   test("unsupported ZIP escalates to staff", async () => {
@@ -314,7 +314,7 @@ describe("BookingStateMachineService complete behavior", () => {
     expect(lead.address).toContain("123 Main");
     expect(lead.save).toHaveBeenCalled();
     expect(conversation.bookingState).toMatchObject({ status: "collecting_preference", postalCode: "30318" });
-    expect(result.result.reply).toContain("What day works best");
+    expect(result.result.reply).toContain("What day and time work best");
   });
 
   test("collecting preference rejects an unrecognized date", async () => {
@@ -322,7 +322,7 @@ describe("BookingStateMachineService complete behavior", () => {
       conversation: makeConversation({ bookingState: { status: "collecting_preference" } }),
       message: "whenever",
     });
-    expect(result.result.reply).toContain("Please tell me the day");
+    expect(result.result.reply).toContain("Please send the day and time");
   });
 
   test.each([
@@ -564,7 +564,7 @@ describe("BookingStateMachineService complete behavior", () => {
     expect(rescheduleConversation.bookingState.status).toBe(
       "collecting_preference",
     );
-    expect(reschedule.result.reply).toContain("time of day");
+    expect(reschedule.result.reply).toContain("day and time");
   });
 
   test("reschedule intent takes precedence over a casual affirmative", async () => {
@@ -577,7 +577,7 @@ describe("BookingStateMachineService complete behavior", () => {
     });
     expect(Appointment.updateOne).toHaveBeenCalled();
     expect(Appointment.findOneAndUpdate).not.toHaveBeenCalled();
-    expect(result.result.reply).toMatch(/new day and time of day/i);
+    expect(result.result.reply).toMatch(/new day and time/i);
   });
 
   test("returns unhandled for ordinary booked and unknown states", async () => {

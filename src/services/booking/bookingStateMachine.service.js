@@ -11,16 +11,25 @@ import getAvailabilityTool from "../../helpers/ai/tools/getAvailability.tool.js"
 import rescheduleAppointmentTool from "../../helpers/ai/tools/rescheduleAppointment.tool.js";
 import searchServicesTool from "../../helpers/ai/tools/searchServices.tool.js";
 import validateServiceAreaTool from "../../helpers/ai/tools/validateServiceArea.tool.js";
+import {
+  filterSlotsByTimePreference,
+  findDateRange,
+  hasAppointmentPreferenceHint,
+  parseTimePreference,
+  rankSlotsByTimePreference,
+} from "./appointmentPreferenceParser.service.js";
 
 const BOOKING_INTENT = /\b(book|booking|schedule|appointment|available|availability|come out|visit)\b/i;
 const AVAILABILITY_HINT = /\b(today|tomorrow|tmrw|tmr|monday|tuesday|wednesday|thursday|friday|saturday|sunday|morning|afternoon|evening|tonight|after work|next week|\d{1,2}(?::\d{2})?\s*(?:am|pm)|20\d{2}-\d{2}-\d{2})\b/i;
+const hasBookingAvailabilityHint = (value, timeZone = "America/New_York") =>
+  AVAILABILITY_HINT.test(String(value || "")) ||
+  hasAppointmentPreferenceHint(value, timeZone);
 const HUMAN_INTENT = /\b(human|person|representative|staff|someone|call me|talk to)\b/i;
 const AFFIRMATIVE_TOKEN = /\b(yes|yep|yeah|yup|correct|confirm|confirmed|book it|please do|that works|works for me|sounds good|ok|okay|sure)\b/i;
 const NEGATIVE_TOKEN = /\b(no|nope|not that|different|another|change it|cancel|do not|don't|not yet)\b/i;
 const EXACT_PRICE = /\b(exact|final|total)\b.{0,25}\b(price|cost|quote|charge)\b|\bhow much (?:will|does) it cost\b/i;
 const ZIP_PATTERN = /\b(\d{5})(?:-\d{4})?\b/;
 const STREET_SUFFIX_PATTERN = /\b(?:street|st|avenue|ave|road|rd|drive|dr|lane|ln|court|ct|boulevard|blvd|parkway|pkwy|place|pl|way|trail|trl|circle|cir|highway|hwy|terrace|ter)\.?\b/i;
-const TOMORROW_PATTERN = /\b(?:tomorrow|tmrw|tmr|tmw|2moro|2morrow|tomo)\b/i;
 
 const isAffirmative = (value) => {
   const text = String(value || "").trim();
@@ -89,124 +98,6 @@ const formatSlot = (slot, timeZone) =>
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(slot.startAt));
-
-const findDateRange = (message, timeZone) => {
-  const text = String(message || "");
-  const explicitDates = text.match(/\b20\d{2}-\d{2}-\d{2}\b/g);
-
-  if (explicitDates?.length) {
-    return {
-      startDate: explicitDates[0],
-      endDate: explicitDates[1] || explicitDates[0],
-    };
-  }
-
-  const now = new Date();
-  const todayKey = formatDateKey(now, timeZone);
-  const addDays = (days) => {
-    const value = new Date(now.getTime() + days * 86_400_000);
-    return formatDateKey(value, timeZone);
-  };
-
-  if (/\btoday\b/i.test(text)) {
-    return { startDate: todayKey, endDate: todayKey };
-  }
-
-  if (TOMORROW_PATTERN.test(text)) {
-    const key = addDays(1);
-    return { startDate: key, endDate: key };
-  }
-
-  const weekdays = [
-    { index: 0, pattern: /\b(?:sun|sunday)\b/i },
-    { index: 1, pattern: /\b(?:mon|monday)\b/i },
-    { index: 2, pattern: /\b(?:tue|tues|tuesday)\b/i },
-    { index: 3, pattern: /\b(?:wed|weds|wednesday)\b/i },
-    { index: 4, pattern: /\b(?:thu|thur|thurs|thursday)\b/i },
-    { index: 5, pattern: /\b(?:fri|friday)\b/i },
-    { index: 6, pattern: /\b(?:sat|saturday)\b/i },
-  ];
-  const matchedWeekday = weekdays.find(({ pattern }) => pattern.test(text));
-
-  if (matchedWeekday) {
-    const shortWeekday = new Intl.DateTimeFormat("en-US", {
-      timeZone,
-      weekday: "short",
-    }).format(now);
-    const weekdayIndex = {
-      Sun: 0,
-      Mon: 1,
-      Tue: 2,
-      Wed: 3,
-      Thu: 4,
-      Fri: 5,
-      Sat: 6,
-    };
-    const current = weekdayIndex[shortWeekday] ?? 0;
-    let daysAhead = (matchedWeekday.index - current + 7) % 7;
-    if (daysAhead === 0) daysAhead = 7;
-    const key = addDays(daysAhead);
-    return { startDate: key, endDate: key };
-  }
-
-  if (/\bnext\s+(?:wk|week)\b/i.test(text)) {
-    return { startDate: addDays(7), endDate: addDays(13) };
-  }
-
-  return null;
-};
-
-const findTimeOfDay = (message) => {
-  const text = String(message || "");
-  if (/\b(?:early\s+)?morning\b/i.test(text)) return "morning";
-  if (/\b(?:midday|noon|lunch(?:time)?)\b/i.test(text)) return "midday";
-  if (/\bafternoon\b/i.test(text)) return "afternoon";
-  if (/\b(?:evening|tonight|after\s+work)\b/i.test(text)) return "evening";
-  return "";
-};
-
-const findRequestedClockMinutes = (message) => {
-  const match = String(message || "").match(/\b(1[0-2]|0?[1-9])(?::([0-5]\d))?\s*(am|pm)\b/i);
-  if (!match) return null;
-  let hour = Number(match[1]) % 12;
-  if (match[3].toLowerCase() === "pm") hour += 12;
-  return hour * 60 + Number(match[2] || 0);
-};
-
-const localClockMinutes = (date, timeZone) => {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23",
-  }).formatToParts(new Date(date));
-  const hour = Number(parts.find((part) => part.type === "hour")?.value);
-  const minute = Number(parts.find((part) => part.type === "minute")?.value);
-  return Number.isFinite(hour) && Number.isFinite(minute) ? hour * 60 + minute : null;
-};
-
-const localHour = (date, timeZone) =>
-  Number(
-    new Intl.DateTimeFormat("en-US", {
-      timeZone,
-      hour: "2-digit",
-      hourCycle: "h23",
-    })
-      .formatToParts(new Date(date))
-      .find((part) => part.type === "hour")?.value,
-  );
-
-const filterSlotsByTimeOfDay = (slots, timeOfDay, timeZone) => {
-  if (!timeOfDay) return slots;
-  const windows = {
-    morning: [6, 12],
-    midday: [11, 14],
-    afternoon: [12, 17],
-    evening: [16, 21],
-  };
-  const [startHour, endHour] = windows[timeOfDay] || [0, 24];
-  return slots.filter((slot) => {
-    const hour = localHour(slot.startAt, timeZone);
-    return Number.isFinite(hour) && hour >= startHour && hour < endHour;
-  });
-};
 
 const spreadSlotOptions = (slots, maximum = 3) => {
   if (slots.length <= maximum) return slots;
@@ -306,7 +197,7 @@ class BookingStateMachineService {
       !stateActive &&
       bookingChannel !== "voice" &&
       !BOOKING_INTENT.test(text) &&
-      !AVAILABILITY_HINT.test(text)
+      !hasBookingAvailabilityHint(text, business.timezone || "America/New_York")
     ) {
       return { handled: false };
     }
@@ -375,7 +266,7 @@ class BookingStateMachineService {
 
     if (status === "not_started" || status === "collecting_service") {
       const serviceQuery =
-        AVAILABILITY_HINT.test(text) && String(lead?.serviceNeeded || "").trim() && lead.serviceNeeded !== "Unknown"
+        hasBookingAvailabilityHint(text, business.timezone || "America/New_York") && String(lead?.serviceNeeded || "").trim() && lead.serviceNeeded !== "Unknown"
           ? lead.serviceNeeded
           : text;
       const matches = await searchServicesTool({
@@ -493,7 +384,7 @@ class BookingStateMachineService {
         handled: true,
         result: fixedResult({
           reply:
-            "What day works best, and what time of day do you prefer? For example: Tues afternoon, tmrw morning, next week, or 2026-08-10.",
+            "What day and time work best? You can text naturally—for example: tomorrow at 2, day after tomorrow around 3ish, Friday morning, Aug 10 at 2:30, or after work.",
         }),
       };
     }
@@ -539,7 +430,7 @@ class BookingStateMachineService {
         handled: true,
         result: fixedResult({
           reply:
-            "What day works best, and what time of day do you prefer? For example: Tues afternoon, tmrw morning, next week, or 2026-08-10.",
+            "What day and time work best? You can text naturally—for example: tomorrow at 2, day after tomorrow around 3ish, Friday morning, Aug 10 at 2:30, or after work.",
         }),
       };
     }
@@ -547,14 +438,15 @@ class BookingStateMachineService {
     if (status === "collecting_preference") {
       const timeZone = business.timezone || "America/New_York";
       const range = findDateRange(text, timeZone);
-      const timeOfDay = findTimeOfDay(text);
+      const timePreference = parseTimePreference(text, timeZone);
+      const timeOfDay = timePreference.timeOfDay;
 
       if (!range) {
         return {
           handled: true,
           result: fixedResult({
             reply:
-              "Please tell me the day you prefer, such as Tues afternoon, tmrw morning, next week, or 2026-08-10.",
+              "Please send the day and time that work for you. You can say things like tomorrow at 2, day after next around 3ish, Friday morning, Aug 10, or after 5.",
           }),
         };
       }
@@ -567,15 +459,11 @@ class BookingStateMachineService {
         endDate: range.endDate,
         postalCode: activeConversation.bookingState.postalCode,
       });
-      const requestedClockMinutes = findRequestedClockMinutes(text);
-      const dayPartSlots = filterSlotsByTimeOfDay(
+      const matchingSlots = filterSlotsByTimePreference(
         availability.slots,
-        timeOfDay,
+        timePreference,
         timeZone,
       );
-      const matchingSlots = requestedClockMinutes === null
-        ? dayPartSlots
-        : dayPartSlots.filter((slot) => localClockMinutes(slot.startAt, timeZone) === requestedClockMinutes);
       const offeredSlots = spreadSlotOptions(matchingSlots, 3);
 
       if (offeredSlots.length === 0) {
@@ -594,15 +482,20 @@ class BookingStateMachineService {
             postalCode: activeConversation.bookingState.postalCode,
           });
           const expandedSlots = expanded.slots || [];
-          alternatives = requestedClockMinutes === null
-            ? spreadSlotOptions(expandedSlots, 3)
-            : [...expandedSlots]
-                .sort((a, b) => {
-                  const aMinutes = localClockMinutes(a.startAt, timeZone);
-                  const bMinutes = localClockMinutes(b.startAt, timeZone);
-                  return Math.abs((aMinutes ?? 0) - requestedClockMinutes) - Math.abs((bMinutes ?? 0) - requestedClockMinutes);
-                })
-                .slice(0, 3);
+          const expandedMatches = filterSlotsByTimePreference(
+            expandedSlots,
+            timePreference,
+            timeZone,
+          );
+          alternatives = expandedMatches.length
+            ? spreadSlotOptions(expandedMatches, 3)
+            : timePreference.targetMinutes !== null
+              ? rankSlotsByTimePreference(
+                  expandedSlots,
+                  timePreference,
+                  timeZone,
+                ).slice(0, 3)
+              : spreadSlotOptions(expandedSlots, 3);
         } catch {
           alternatives = [];
         }
@@ -948,7 +841,7 @@ class BookingStateMachineService {
           handled: true,
           result: fixedResult({
             reply:
-              "What new day and time of day would you prefer? For example: Tues afternoon or tmrw morning.",
+              "What new day and time would you prefer? You can text naturally—for example: tomorrow at 2, next Friday morning, or day after tomorrow around 3ish.",
           }),
         };
       }

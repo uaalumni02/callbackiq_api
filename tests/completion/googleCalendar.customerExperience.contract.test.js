@@ -99,8 +99,8 @@ describe("Google Calendar customer experience completion contract", () => {
       "src/services/booking/bookingStateMachine.service.js",
     );
 
-    expect(stateMachine).toContain("TOMORROW_PATTERN");
-    expect(stateMachine).toContain("findTimeOfDay");
+    expect(stateMachine).toContain("findDateRange");
+    expect(stateMachine).toContain("parseTimePreference");
     expect(stateMachine).toContain("spreadSlotOptions");
     expect(stateMachine).toContain("parseStreetAddress");
     expect(stateMachine).toContain("collecting_postal_code");

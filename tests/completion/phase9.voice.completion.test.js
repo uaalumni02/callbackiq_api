@@ -241,7 +241,7 @@ describe("Phase 9 completion gate using production voice orchestration", () => {
       customerMessage: "123 Main Street, Atlanta GA 30303",
     });
 
-    expect(areaReply.reply).toMatch(/what day works best/i);
+    expect(areaReply.reply).toMatch(/what day and time work best/i);
     expect(validateServiceAreaTool).toHaveBeenCalledWith({
       businessId: "business-1",
       postalCode: "30303",
