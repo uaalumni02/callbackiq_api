@@ -6,6 +6,34 @@ import { normalizeSmsPhone } from "./smsCompliance.service.js";
 
 const isDuplicateKey = (error) => error?.code === 11000;
 
+// CALLBACKIQ_SMS_TAKEOVER_LIFECYCLE
+// A manual staff reply owns the conversation for a limited period. A later
+// missed call may start a new automated recovery cycle only after that
+// takeover has been inactive long enough to be considered stale.
+const DEFAULT_HUMAN_TAKEOVER_TTL_MINUTES = 60;
+const getHumanTakeoverTtlMs = () => {
+  const configured = Number.parseInt(
+    String(process.env.SMS_HUMAN_TAKEOVER_TTL_MINUTES || ""),
+    10,
+  );
+  const minutes = Number.isFinite(configured) && configured > 0
+    ? configured
+    : DEFAULT_HUMAN_TAKEOVER_TTL_MINUTES;
+  return minutes * 60 * 1000;
+};
+const latestTakeoverActivityAt = (conversation) => {
+  const candidates = [conversation?.humanTakeoverAt, conversation?.lastMessageAt]
+    .map((value) => (value ? new Date(value).getTime() : Number.NaN))
+    .filter(Number.isFinite);
+  return candidates.length ? Math.max(...candidates) : null;
+};
+const isStaleHumanTakeover = (conversation, now = new Date()) => {
+  if (conversation?.humanTakeover !== true) return false;
+  const latestActivityAt = latestTakeoverActivityAt(conversation);
+  if (latestActivityAt == null) return false; // fail closed when history is incomplete
+  return now.getTime() - latestActivityAt >= getHumanTakeoverTtlMs();
+};
+
 const findExistingLead = async ({ businessId, phone }) => {
   return Lead.findOne({
     business: businessId,
@@ -89,6 +117,7 @@ const upsertConversation = async ({
   lead,
   customerPhone,
   body,
+  source,
   reopenEligible,
 }) => {
   const businessId = business._id;
@@ -146,16 +175,26 @@ const upsertConversation = async ({
     updates.lastMessageAt = new Date();
   }
 
-  if (
+  const now = new Date();
+  const staleTakeoverRecovery =
+    reopenEligible &&
+    source === "missed_call" &&
+    isStaleHumanTakeover(conversation, now);
+  const closedConversationRecovery =
     reopenEligible &&
     conversation.status === "closed" &&
-    conversation.humanTakeover !== true
-  ) {
+    conversation.humanTakeover !== true;
+
+  if (staleTakeoverRecovery || closedConversationRecovery) {
     updates.status = "open";
     updates.aiEnabled = true;
     updates.humanTakeover = false;
-    updates.reopenedAt = new Date();
-    updates.reopenReason = "new_customer_contact";
+    updates.humanTakeoverAt = null;
+    updates.humanTakeoverBy = null;
+    updates.reopenedAt = now;
+    updates.reopenReason = staleTakeoverRecovery
+      ? "new_missed_call_after_stale_human_takeover"
+      : "new_customer_contact";
   }
 
   conversation = await Conversation.findByIdAndUpdate(conversation._id, updates, {
@@ -194,6 +233,7 @@ export const getOrCreateSmsLeadAndConversation = async ({
     lead,
     customerPhone: normalizedPhone,
     body: String(body || "").trim(),
+    source,
     reopenEligible,
   });
 

@@ -162,9 +162,27 @@ export const handleSmsRecoveryVoiceWebhook = async (req, res) => {
       providerCallId: callSid,
     });
 
-    const smsEnabled = isBusinessFeatureEnabled(business, "missedCallSmsEnabled");
+    const smsFeatureEnabled = isBusinessFeatureEnabled(business, "missedCallSmsEnabled");
+    // CALLBACKIQ_SMS_TAKEOVER_LIFECYCLE
+    // Never invite a customer to reply to an automated recovery text while the
+    // conversation is intentionally owned by a human or otherwise AI-ineligible.
+    const recoveryAutomationEligible =
+      conversation.aiEnabled !== false &&
+      conversation.humanTakeover !== true &&
+      conversation.status !== "closed" &&
+      conversation.status !== "archived";
+    const smsEnabled = smsFeatureEnabled && recoveryAutomationEligible;
     const starterText = buildMissedCallRecoveryText({ business });
     let smsStatus = smsEnabled ? "failed" : "disabled";
+    if (smsFeatureEnabled && !recoveryAutomationEligible) {
+      logOperationalEvent("twilio.voice.sms_skipped_conversation_muted", {
+        businessId: business._id,
+        conversationId: conversation._id,
+        aiEnabled: conversation.aiEnabled,
+        humanTakeover: conversation.humanTakeover,
+        conversationStatus: conversation.status,
+      });
+    }
     let sentResult = null;
 
     if (smsEnabled) {
