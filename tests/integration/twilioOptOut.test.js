@@ -110,6 +110,7 @@ const createBusiness = async (overrides = {}) => {
     businessName: "Atlanta Pro Plumbing",
     businessType: "plumbing",
     phone: "4045551234",
+    trackingNumber: { provider: "twilio", status: "active" },
     estimatedJobValue: 800,
     isActive: true,
     ...overrides,

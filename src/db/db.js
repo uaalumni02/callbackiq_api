@@ -6,6 +6,8 @@ const BUSINESS_SCOPE_FIELDS = [
   "businessName",
   "businessType",
   "phone",
+  "phoneLookup",
+  "trackingNumber",
   "forwardingPhone",
   "email",
   "website",
@@ -19,6 +21,7 @@ const BUSINESS_SCOPE_FIELDS = [
   "features",
   "communicationLimits",
   "voiceSettings",
+  "setupProgress",
   "isActive",
   "createdAt",
   "updatedAt",
@@ -1001,11 +1004,9 @@ class Db {
     try {
       return await model
         .findOne({
-          $or: [
-            { phone },
-            { businessPhone: phone },
-            { twilioPhoneNumber: phone },
-          ],
+          isActive: true,
+          "trackingNumber.status": "active",
+          $or: [{ phone }, { phoneLookup: phone }],
         })
         .select(BUSINESS_SCOPE_FIELDS);
     } catch (error) {

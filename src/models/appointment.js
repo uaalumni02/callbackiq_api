@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { customerLifecycleField } from "../helpers/customerLifecycle.js";
 
 const { Schema } = mongoose;
 
@@ -39,6 +40,7 @@ const AppointmentSchema = new Schema(
       ref: "Business",
       required: true,
     },
+    customerLifecycleStatus: { ...customerLifecycleField },
     lead: {
       type: Schema.Types.ObjectId,
       ref: "Lead",

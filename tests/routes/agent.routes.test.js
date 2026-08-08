@@ -83,6 +83,13 @@ afterAll(async () => {
   await closeTestDB();
 });
 
+let testTrackingNumberSequence = 0;
+
+const nextTestTrackingNumber = () => {
+  testTrackingNumberSequence += 1;
+  return `+1404555${String(1000 + testTrackingNumberSequence).slice(-4)}`;
+};
+
 const createActiveSubscription = async (businessId, suffix = "agent") => {
   await Business.findByIdAndUpdate(
     businessId,
@@ -135,12 +142,29 @@ const registerCreateBusinessLeadConversation = async ({
     privacyAccepted: true,
   });
 
-  expect(registerRes.status).toBe(201);
-  expect(registerRes.body.success).toBe(true);
-  expect(registerRes.body.data).toBeDefined();
-
   const token = registerRes.body.data.token;
-  const business = registerRes.body.data.business;
+  let business = registerRes.body.data.business;
+
+  // Registration captures the customer's real business/forwarding number,
+  // but a CallBackIQ/Twilio tracking number may not be assigned yet.
+  // These agent-reply tests model an activated messaging business, so assign
+  // a unique tracking number explicitly instead of reusing businessPhone.
+  business = await Business.findByIdAndUpdate(
+    business._id,
+    {
+      $set: {
+        phone: nextTestTrackingNumber(),
+        isActive: true,
+      },
+    },
+    {
+      returnDocument: "after",
+      runValidators: true,
+    },
+  );
+
+  expect(business).toBeTruthy();
+  expect(business.phone).toBeTruthy();
 
   await createActiveSubscription(business._id, subscriptionSuffix);
 

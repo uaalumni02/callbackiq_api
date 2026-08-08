@@ -9,7 +9,9 @@ const hasBusinessIdentity = (business) =>
   Boolean(business?._id || business?.id);
 
 const isActiveBusiness = (business) =>
-  hasBusinessIdentity(business) && business.isActive !== false;
+  hasBusinessIdentity(business) &&
+  business.isActive !== false &&
+  business.trackingNumber?.status === "active";
 
 const materializeBusiness = async (value) => {
   let resolved = await value;
@@ -42,7 +44,9 @@ export const resolveBusinessByTwilioNumber = async (
   if (!normalized) return null;
 
   const query = {
-    ...(activeOnly ? { isActive: true } : {}),
+    ...(activeOnly
+      ? { isActive: true, "trackingNumber.status": "active" }
+      : {}),
     $or: [
       { phoneLookup: normalized },
       { phone: { $in: phoneLookupVariants(normalized) } },
@@ -53,7 +57,7 @@ export const resolveBusinessByTwilioNumber = async (
   const selected =
     typeof fallbackQuery?.select === "function"
       ? fallbackQuery.select(
-          "_id businessName businessType phone phoneLookup smsTemplate estimatedJobValue timezone isActive features owner",
+          "_id businessName businessType phone phoneLookup trackingNumber forwardingPhone smsTemplate estimatedJobValue timezone isActive features voiceSettings owner",
         )
       : fallbackQuery;
   const fallback =

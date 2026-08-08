@@ -32,6 +32,17 @@ const sendXml = (res, { statusCode = 200, body = emptyTwiml() } = {}) => {
   res.type("text/xml");
   return res.status(statusCode).send(body);
 };
+const routingFailure = (res, receivedNumber, webhook) => {
+  const number = String(receivedNumber || "").trim();
+  logOperationalEvent("twilio.routing.unmapped_number", {
+    webhook,
+    to: number,
+    code: "TWILIO_NUMBER_NOT_MAPPED",
+  });
+  res.set("X-CallBackIQ-Routing-Error", "TWILIO_NUMBER_NOT_MAPPED");
+  return sendXml(res, { statusCode: 404 });
+};
+
 const cached = (res, event) =>
   sendXml(res, {
     statusCode: event?.responseStatusCode || 200,
@@ -110,8 +121,9 @@ export const handleSmsRecoveryVoiceWebhook = async (req, res) => {
       businessId: business?._id || null,
       resolved: Boolean(business),
     });
-    if (!business) return sendXml(res);
-
+    if (!business) {
+      return routingFailure(res, twilioNumber, "inbound_voice");
+    }
     const eventIdentity = buildTwilioEventIdentity("inbound_voice", req.body);
     const claim = await claimTwilioWebhookEvent({
       businessId: business._id,
@@ -293,8 +305,13 @@ export const handleTwilioStatusWebhook = async (req, res) => {
         req.body.Called,
         req.body.Caller,
       ]));
-    if (!business) return sendXml(res);
-
+    if (!business) {
+      return routingFailure(
+        res,
+        req.body.To || req.body.Called || req.body.From || req.body.Caller,
+        "status",
+      );
+    }
     const eventType = getTwilioStatusEventType(req.body);
     const eventIdentity = buildTwilioEventIdentity(eventType, req.body);
     const claim = await claimTwilioWebhookEvent({
@@ -380,8 +397,9 @@ export const handleInboundSmsWebhook = async (req, res) => {
       businessId: business?._id || null,
       resolved: Boolean(business),
     });
-    if (!business) return sendXml(res);
-
+    if (!business) {
+      return routingFailure(res, to, "inbound_sms");
+    }
     const eventIdentity = buildTwilioEventIdentity("inbound_sms", req.body);
     const claim = await claimTwilioWebhookEvent({
       businessId: business._id,

@@ -7,6 +7,7 @@ import {
   businessCreateSchema,
   businessUpdateSchema,
 } from "../validator/business.js";
+import { assertBookingCanBeEnabled } from "../services/businessReadiness.service.js";
 import * as Response from "../helpers/response/response.js";
 
 const buildBusinessUpdateDocument = (payload = {}) => {
@@ -53,10 +54,28 @@ class BusinessController {
         );
       }
 
-      const business = await Db.saveBusiness(Business, {
+      const forwardingPhone = String(
+        payload.forwardingPhone || payload.phone || "",
+      ).trim();
+      const businessPayload = {
         ...payload,
+        forwardingPhone,
         owner: ownerId,
-      });
+        trackingNumber: {
+          provider: "twilio",
+          status: "unassigned",
+        },
+        setupProgress: {
+          accountRegistered: true,
+          forwardingPhoneConfigured: Boolean(forwardingPhone),
+          updatedAt: new Date(),
+        },
+      };
+      // phone is a legacy create alias only. Never persist the owner's
+      // existing business number as the CallBackIQ tracking number.
+      delete businessPayload.phone;
+
+      const business = await Db.saveBusiness(Business, businessPayload);
 
       return res.status(201).json({
         success: true,
@@ -140,6 +159,28 @@ class BusinessController {
         stripUnknown: false,
       });
 
+      const currentBusiness = await Db.getBusinessByOwner(Business, ownerId);
+      if (!currentBusiness) {
+        return Response.responseInvalidInput(res, "Business not found");
+      }
+
+      const candidateBusiness = {
+        ...(currentBusiness.toObject?.() || currentBusiness),
+        features: {
+          ...(currentBusiness.features?.toObject?.() ||
+            currentBusiness.features ||
+            {}),
+          ...(payload.features || {}),
+        },
+      };
+
+      if (
+        payload.features?.aiBookingEnabled === true &&
+        currentBusiness.features?.aiBookingEnabled !== true
+      ) {
+        await assertBookingCanBeEnabled(candidateBusiness);
+      }
+
       const updates = buildBusinessUpdateDocument(payload);
 
       const updatedBusiness = await Db.updateBusinessByOwner(
@@ -162,6 +203,14 @@ class BusinessController {
     } catch (error) {
       if (error.isJoi) {
         return Response.responseInvalidInput(res, error.message);
+      }
+      if (error.code === "BOOKING_NOT_READY") {
+        return res.status(error.statusCode || 409).json({
+          success: false,
+          code: error.code,
+          message: error.message,
+          readiness: error.readiness,
+        });
       }
 
       console.error("Error in updateMyBusiness:", error);

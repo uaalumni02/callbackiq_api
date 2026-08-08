@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { customerLifecycleField } from "../helpers/customerLifecycle.js";
 
 const { Schema } = mongoose;
 
@@ -24,6 +25,7 @@ const VoiceSessionSchema = new Schema(
       required: true,
       index: true,
     },
+    customerLifecycleStatus: { ...customerLifecycleField },
     conversation: {
       type: Schema.Types.ObjectId,
       ref: "Conversation",

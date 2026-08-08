@@ -487,7 +487,7 @@ describe("Billing Routes", () => {
     expect(subscription.trialCount).toBe(1);
   });
 
-  test("registration blocks a second business from reusing the same tracking phone", async () => {
+  test("registration blocks a second business from reusing the same forwarding phone", async () => {
     const first = await registerAndCreateBusiness({
       userName: "firstowner",
       email: "first@callbackiq.com",
@@ -496,7 +496,9 @@ describe("Billing Routes", () => {
     });
 
     expect(first.token).toBeTruthy();
-    expect(first.business.phone).toBe("4045551234");
+    expect(first.business.phone).toBeUndefined();
+    expect(first.business.forwardingPhone).toBe("+14045551234");
+    expect(first.business.trackingNumber.status).toBe("unassigned");
 
     const duplicateRegistration = await request(app)
       .post("/api/auth/register")

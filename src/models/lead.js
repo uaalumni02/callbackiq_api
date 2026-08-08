@@ -1,5 +1,6 @@
 import { normalizePhoneToE164 } from "../voice/voicePhone.service.js";
 import mongoose from "mongoose";
+import { customerLifecycleField } from "../helpers/customerLifecycle.js";
 
 const { Schema } = mongoose;
 
@@ -12,6 +13,7 @@ const LeadSchema = new Schema(
       ref: "Business",
       required: [true, "Business is required"],
     },
+    customerLifecycleStatus: { ...customerLifecycleField },
     customerName: { type: String, trim: true, default: "" },
     phone: {
       type: String,

@@ -56,7 +56,9 @@ describe("Auth Routes", () => {
     expect(res.body.data.token).toBeTruthy();
     expect(res.body.data.user.email).toBe("owner@callbackiq.com");
     expect(res.body.data.business.businessName).toBe("Atlanta Pro Plumbing");
-    expect(res.body.data.business.phone).toBe("4045551234");
+    expect(res.body.data.business.phone).toBeUndefined();
+    expect(res.body.data.business.forwardingPhone).toBe("+14045551234");
+    expect(res.body.data.business.trackingNumber.status).toBe("unassigned");
     expect(res.body.data.subscription.status).toBe("trialing");
 
     const savedUser = await User.findOne({
@@ -73,7 +75,9 @@ describe("Auth Routes", () => {
 
     expect(savedBusiness).toBeTruthy();
     expect(savedBusiness.businessName).toBe("Atlanta Pro Plumbing");
-    expect(savedBusiness.phone).toBe("4045551234");
+    // Registration does not persist the customer-entered forwarding number
+    // as the CallBackIQ/Twilio tracking number.
+    expect(savedBusiness.phone).toBeUndefined();
     expect(savedBusiness.isActive).toBe(true);
 
     const savedSubscription = await Subscription.findOne({

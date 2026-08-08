@@ -50,7 +50,8 @@ const TERMINAL_STATUS_SET =
 const isJestRuntime = () =>
   process.env.NODE_ENV === "test" || Boolean(process.env.JEST_WORKER_ID);
 
-const sendXml = (res, body) => res.type("text/xml").status(200).send(body);
+const sendXml = (res, body, statusCode = 200) =>
+  res.type("text/xml").status(statusCode).send(body);
 const callFields = (req = {}) => {
   const body = req.body || {};
   const query = req.query || {};
@@ -70,7 +71,11 @@ const findBusiness = async (phone) => {
   if (!e164) return null;
   // Production routing uses the indexed canonical E.164 field only. Run the
   // included migration before deploying this update.
-  return Business.findOne({ isActive: true, phoneLookup: e164 });
+  return Business.findOne({
+    isActive: true,
+    phoneLookup: e164,
+    "trackingNumber.status": "active",
+  });
 };
 
 const findExistingContext = async (req) => {
@@ -381,11 +386,13 @@ class VoiceWebhookController {
 
       const business = await findBusiness(fields.to);
       if (!business) {
+        res.set("X-CallBackIQ-Routing-Error", "TWILIO_NUMBER_NOT_MAPPED");
         return sendXml(
           res,
           sayTwiml(
             "I’m sorry, this number is not configured for CallBackIQ voice handling.",
           ),
+          404,
         );
       }
       settings = normalizeVoiceSettings(business);

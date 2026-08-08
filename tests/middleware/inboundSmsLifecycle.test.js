@@ -7,7 +7,13 @@ import { evaluateDeterministicInboundGuardrails } from "../../src/helpers/ai/aiG
 import ConversionEventService from "../../src/services/conversionEvent.service.js";
 import AutomationService from "../../src/services/automation/automation.service.js";
 import AutomationTriggerService from "../../src/services/automation/automationTrigger.service.js";
+import { resolveBusinessByTwilioNumber } from "../../src/services/twilioBusinessResolver.service.js";
 import inboundSmsLifecycle from "../../src/middleware/inbound-sms-lifecycle.js";
+
+jest.mock("../../src/services/twilioBusinessResolver.service.js", () => ({
+  __esModule: true,
+  resolveBusinessByTwilioNumber: jest.fn(),
+}));
 
 jest.mock("../../src/models/business.js", () => ({
   __esModule: true,
@@ -52,6 +58,15 @@ const conversationFind = (value) => {
 const response = (statusCode = 200) => Object.assign(new EventEmitter(), { statusCode });
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
+const mockWebhookBusinessQuery = (value) => {
+  const query = {
+    select: jest.fn(() => query),
+    lean: jest.fn().mockResolvedValue(value),
+    then: (resolve, reject) => Promise.resolve(value).then(resolve, reject),
+  };
+  return query;
+};
+
 describe("inboundSmsLifecycle", () => {
   let next;
 
@@ -62,6 +77,11 @@ describe("inboundSmsLifecycle", () => {
     AutomationService.cancelObsolete.mockResolvedValue({ modifiedCount: 1 });
     ConversionEventService.record.mockResolvedValue({ _id: "event" });
     AutomationTriggerService.schedule.mockResolvedValue([]);
+    resolveBusinessByTwilioNumber.mockResolvedValue({
+      _id: "b1",
+      isActive: true,
+      features: { automatedFollowUpEnabled: true },
+    });
   });
 
   test.each([
@@ -75,7 +95,11 @@ describe("inboundSmsLifecycle", () => {
   });
 
   test("passes through when the business is unknown", async () => {
-    Business.findOne.mockReturnValue(selectLean(null));
+    resolveBusinessByTwilioNumber.mockResolvedValueOnce(null);
+
+    Business.findOne.mockReturnValue(
+      mockWebhookBusinessQuery(null),
+    );
     await inboundSmsLifecycle(
       { body: { To: "+14045550101", From: "+14045550100" } },
       response(),
@@ -86,7 +110,9 @@ describe("inboundSmsLifecycle", () => {
   });
 
   test("passes through when no active conversation is found", async () => {
-    Business.findOne.mockReturnValue(selectLean({ _id: "b1" }));
+    Business.findOne.mockReturnValue(
+      mockWebhookBusinessQuery({ _id: "b1" }),
+    );
     Conversation.findOne.mockReturnValue(conversationFind(null));
     await inboundSmsLifecycle(
       { body: { To: "+14045550101", From: "+14045550100" } },
@@ -98,7 +124,9 @@ describe("inboundSmsLifecycle", () => {
   });
 
   test("suppresses obsolete jobs and records a deduplicated customer reply", async () => {
-    Business.findOne.mockReturnValue(selectLean({ _id: "b1" }));
+    Business.findOne.mockReturnValue(
+      mockWebhookBusinessQuery({ _id: "b1" }),
+    );
     Conversation.findOne.mockReturnValue(conversationFind({ _id: "c1", lead: "l1" }));
     const res = response();
     await inboundSmsLifecycle(
@@ -128,7 +156,9 @@ describe("inboundSmsLifecycle", () => {
   test.each(["STOPALL", "UNSUBSCRIBE", "CANCEL", "END", "QUIT", "HELP", "INFO"])(
     "does not schedule qualification follow-up for %s",
     async (command) => {
-      Business.findOne.mockReturnValue(selectLean({ _id: "b1" }));
+      Business.findOne.mockReturnValue(
+      mockWebhookBusinessQuery({ _id: "b1" }),
+    );
       Conversation.findOne.mockReturnValue(conversationFind({ _id: "c1", lead: "l1" }));
       const res = response();
       await inboundSmsLifecycle(
@@ -142,7 +172,9 @@ describe("inboundSmsLifecycle", () => {
 
   test("does not schedule when deterministic safety or fixed handling applies", async () => {
     evaluateDeterministicInboundGuardrails.mockReturnValue({ handled: true });
-    Business.findOne.mockReturnValue(selectLean({ _id: "b1" }));
+    Business.findOne.mockReturnValue(
+      mockWebhookBusinessQuery({ _id: "b1" }),
+    );
     Conversation.findOne.mockReturnValue(conversationFind({ _id: "c1", lead: "l1" }));
     const res = response();
     await inboundSmsLifecycle(
@@ -154,7 +186,19 @@ describe("inboundSmsLifecycle", () => {
   });
 
   test("schedules incomplete qualification after a successful response", async () => {
-    Business.findOne.mockReturnValue(selectLean({ _id: "b1" }));
+    resolveBusinessByTwilioNumber.mockResolvedValue({
+      _id: "b1",
+      isActive: true,
+      features: { automatedFollowUpEnabled: true },
+    });
+
+    Business.findOne.mockReturnValue(
+      mockWebhookBusinessQuery({ _id: "b1" }),
+    );
+
+    Business.findOne.mockReturnValue(
+      mockWebhookBusinessQuery({ _id: "b1" }),
+    );
     Conversation.findOne.mockReturnValue(conversationFind({ _id: "c1", lead: "l1" }));
     Business.findById.mockReturnValue(selectLean({ features: { automatedFollowUpEnabled: true } }));
     Conversation.findById.mockReturnValue(selectLean({ status: "open", humanTakeover: false, bookingState: { status: "collecting_location" } }));
@@ -180,7 +224,9 @@ describe("inboundSmsLifecycle", () => {
 
   test("uses a fallback trigger key when the provider ID is missing", async () => {
     jest.spyOn(Date, "now").mockReturnValue(1234);
-    Business.findOne.mockReturnValue(selectLean({ _id: "b1" }));
+    Business.findOne.mockReturnValue(
+      mockWebhookBusinessQuery({ _id: "b1" }),
+    );
     Conversation.findOne.mockReturnValue(conversationFind({ _id: "c1", lead: null }));
     Business.findById.mockReturnValue(selectLean({ features: { automatedFollowUpEnabled: true } }));
     Conversation.findById.mockReturnValue(selectLean({ status: "open", humanTakeover: false, bookingState: {} }));
@@ -207,7 +253,9 @@ describe("inboundSmsLifecycle", () => {
     [200, { features: { automatedFollowUpEnabled: true } }, { status: "open", bookingState: { status: "offering_slots" } }, { status: "new" }],
     [200, { features: { automatedFollowUpEnabled: true } }, { status: "open", bookingState: {} }, { status: "new", serviceNeeded: "Repair", address: "123 Main", preferredAppointmentTime: "Monday" }],
   ])("suppresses post-response scheduling for ineligible state %#", async (statusCode, updatedBusiness, updatedConversation, updatedLead) => {
-    Business.findOne.mockReturnValue(selectLean({ _id: "b1" }));
+    Business.findOne.mockReturnValue(
+      mockWebhookBusinessQuery({ _id: "b1" }),
+    );
     Conversation.findOne.mockReturnValue(conversationFind({ _id: "c1", lead: "l1" }));
     Business.findById.mockReturnValue(selectLean(updatedBusiness));
     Conversation.findById.mockReturnValue(selectLean(updatedConversation));
@@ -224,11 +272,16 @@ describe("inboundSmsLifecycle", () => {
   });
 
   test("catches middleware and deferred callback failures without blocking Twilio", async () => {
+    resolveBusinessByTwilioNumber.mockRejectedValueOnce(
+      new Error("database down"),
+    );
+
+    Business.findOne.mockReturnValue(
+      mockWebhookBusinessQuery({ _id: "b1" }),
+    );
+
     const consoleError = jest.spyOn(console, "error").mockImplementation(() => {});
-    Business.findOne.mockImplementationOnce(() => {
-      throw new Error("database down");
-    });
-    await inboundSmsLifecycle(
+await inboundSmsLifecycle(
       { body: { To: "business", From: "customer" } },
       response(),
       next,
@@ -236,7 +289,9 @@ describe("inboundSmsLifecycle", () => {
     expect(next).toHaveBeenCalled();
     expect(consoleError).toHaveBeenCalledWith("Inbound SMS lifecycle middleware failed:", expect.any(Error));
 
-    Business.findOne.mockReturnValue(selectLean({ _id: "b1" }));
+    Business.findOne.mockReturnValue(
+      mockWebhookBusinessQuery({ _id: "b1" }),
+    );
     Conversation.findOne.mockReturnValue(conversationFind({ _id: "c1", lead: "l1" }));
     Business.findById.mockImplementation(() => {
       throw new Error("deferred failure");

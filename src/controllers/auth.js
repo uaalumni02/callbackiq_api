@@ -13,6 +13,7 @@ import {
 } from "../validator/auth.js";
 import * as validate from "../helpers/model/user.js";
 import * as Response from "../helpers/response/response.js";
+import { normalizePhoneToE164 as normalizeBusinessPhone } from "../voice/voicePhone.service.js";
 import {
   grantFreeTrial,
   createInactiveSubscription,
@@ -95,6 +96,7 @@ class AuthController {
       role = "owner",
       businessName,
       businessPhone,
+      forwardingPhone,
       businessType = "other",
       smsConsent,
       termsAccepted,
@@ -137,26 +139,29 @@ class AuthController {
         );
       }
 
-      const normalizedBusinessPhone = String(
-        businessPhone || "",
+      // Registration collects the owner's existing business/routing number.
+      // It is NOT the CallBackIQ/Twilio tracking number. Tracking-number
+      // assignment is a post-registration + post-subscription lifecycle.
+      const normalizedForwardingPhone = String(
+        forwardingPhone || businessPhone || "",
       ).trim();
-
-      /*
-       * Reject a duplicate tracking number before creating the User. Without
-       * this check, the Business insert can fail on its unique phone index
-       * after the User has already been saved, leaving an orphaned account.
-       * The unique database index remains the final concurrency safeguard.
-       */
-      const existingBusinessPhone = await Business.exists({
-        phone: normalizedBusinessPhone,
-      });
-
-      if (existingBusinessPhone) {
-        return Response.responseConflict(
-          res,
-          "This business phone is already registered",
-        );
+      const normalizedForwardingLookup =
+        normalizeBusinessPhone(normalizedForwardingPhone) ||
+        normalizedForwardingPhone;
+      if (normalizedForwardingPhone) {
+        const existingForwardingPhone = await Business.exists({
+          forwardingPhone: {
+            $in: [normalizedForwardingPhone, normalizedForwardingLookup],
+          },
+        });
+        if (existingForwardingPhone) {
+          return Response.responseConflict(
+            res,
+            "This forwarding phone is already registered",
+          );
+        }
       }
+
 
       const hashedPassword = await bcrypt.hashPassword(password, 10);
 
@@ -175,7 +180,9 @@ class AuthController {
         password: hashedPassword,
         role,
         businessName,
-        businessPhone: normalizedBusinessPhone,
+        // User.businessPhone is retained for compatibility with existing
+        // profile/session code, but represents the existing business line.
+        businessPhone: normalizedForwardingPhone,
         businessType,
 
         smsConsent: smsConsentGiven,
@@ -195,9 +202,18 @@ class AuthController {
         owner: savedUser._id,
         businessName,
         businessType,
-        phone: normalizedBusinessPhone,
+        forwardingPhone: normalizedForwardingPhone,
         email: normalizedEmail,
         isActive: true,
+        trackingNumber: {
+          provider: "twilio",
+          status: "unassigned",
+        },
+        setupProgress: {
+          accountRegistered: true,
+          forwardingPhoneConfigured: Boolean(normalizedForwardingPhone),
+          updatedAt: now,
+        },
       });
 
       /*
@@ -223,8 +239,17 @@ class AuthController {
         savedSubscription = await createInactiveSubscription(savedBusiness._id);
 
         savedBusiness.isActive = false;
-        await savedBusiness.save();
       }
+      // Registration may create an internal free-trial record, but a tracking
+      // number is not eligible until the customer completes subscription
+      // checkout and Stripe has created a subscription ID.
+      savedBusiness.setupProgress.subscriptionActivated = Boolean(
+        savedSubscription?.isActive &&
+          ["active", "trialing"].includes(savedSubscription?.status) &&
+          String(savedSubscription?.stripeSubscriptionId || "").trim(),
+      );
+      savedBusiness.setupProgress.updatedAt = new Date();
+      await savedBusiness.save();
 
       const token = Token.sign({
         userId: savedUser._id,

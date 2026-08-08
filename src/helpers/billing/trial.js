@@ -34,7 +34,9 @@ export const buildTrialIdentity = (business, ownerId) => {
   const emailKey =
     normalizeEmail(business?.email) || normalizeEmail(business?.owner?.email);
 
-  const phoneKey = normalizePhone(business?.phone || business?.businessPhone);
+  const phoneKey = normalizePhone(
+    business?.forwardingPhone || business?.businessPhone || business?.phone,
+  );
 
   return {
     ownerId,

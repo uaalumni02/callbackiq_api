@@ -47,6 +47,7 @@ describe("POST /api/twilio/voice SMS failure isolation", () => {
       businessName: "Atlanta Pro Plumbing",
       businessType: "plumbing",
       phone: "+14045551234",
+      trackingNumber: { provider: "twilio", status: "active" },
       email: "owner@atlantaproplumbing.com",
       estimatedJobValue: 800,
       features: {

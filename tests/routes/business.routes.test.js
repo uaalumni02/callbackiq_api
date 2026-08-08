@@ -141,7 +141,8 @@ describe("Business Routes", () => {
     expect(response.status).toBe(200);
     expect(response.body.success).toBe(true);
     expect(response.body.data.businessName).toBe("Atlanta Pro Plumbing");
-    expect(response.body.data.phone).toBe("4045551234");
+    expect(response.body.data.phone).toBeUndefined();
+    expect(response.body.data.forwardingPhone).toBe("+14045551234");
     expect(response.body.data.features).toEqual(featureDefaults);
   });
 

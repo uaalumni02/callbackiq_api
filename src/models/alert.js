@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { customerLifecycleField } from "../helpers/customerLifecycle.js";
 
 import * as validate from "../helpers/model/alert.js";
 
@@ -12,6 +13,7 @@ const AlertSchema = new Schema(
       ref: "Business",
       required: [true, "Business is required"],
     },
+    customerLifecycleStatus: { ...customerLifecycleField },
     lead: { type: Schema.Types.ObjectId, ref: "Lead", default: null },
     conversation: {
       type: Schema.Types.ObjectId,

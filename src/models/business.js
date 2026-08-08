@@ -326,6 +326,49 @@ const VoiceSettingsSchema = new Schema(
   { _id: false },
 );
 
+const TrackingNumberSchema = new Schema(
+  {
+    provider: { type: String, enum: ["twilio"], default: "twilio" },
+    status: {
+      type: String,
+      enum: ["unassigned", "assigned", "verified", "active"],
+      default: "unassigned",
+      index: true,
+    },
+    providerSid: { type: String, trim: true, default: "", select: false },
+    assignedAt: { type: Date, default: null },
+    verifiedAt: { type: Date, default: null },
+    activatedAt: { type: Date, default: null },
+    lastError: { type: String, trim: true, maxlength: 1000, default: "" },
+    updatedAt: { type: Date, default: null },
+  },
+  { _id: false },
+);
+
+const SetupProgressSchema = new Schema(
+  {
+    accountRegistered: { type: Boolean, default: true },
+    subscriptionActivated: { type: Boolean, default: false },
+    forwardingPhoneConfigured: { type: Boolean, default: false },
+    trackingNumberAssigned: { type: Boolean, default: false },
+    trackingNumberVerified: { type: Boolean, default: false },
+    trackingNumberActive: { type: Boolean, default: false },
+    servicesConfigured: { type: Boolean, default: false },
+    serviceAreaConfigured: { type: Boolean, default: false },
+    availabilityConfigured: { type: Boolean, default: false },
+    bookingRulesConfigured: { type: Boolean, default: false },
+    aiBookingPermissionConfigured: { type: Boolean, default: false },
+    calendarConfigured: { type: Boolean, default: false },
+    smsRecoveryTested: { type: Boolean, default: false },
+    inboxTested: { type: Boolean, default: false },
+    voiceAiTested: { type: Boolean, default: false },
+    bookingTested: { type: Boolean, default: false },
+    completedAt: { type: Date, default: null },
+    updatedAt: { type: Date, default: null },
+  },
+  { _id: false },
+);
+
 const BusinessSchema = new Schema(
   {
     owner: {
@@ -356,12 +399,19 @@ const BusinessSchema = new Schema(
       validate: [validate.isValidBusinessType, "Invalid business type"],
     },
 
-    // Twilio / CallBackIQ tracking number
+    // CallBackIQ/Twilio tracking number. This is assigned only after
+    // registration + subscription; the owner's existing phone is forwardingPhone.
     phone: {
       type: String,
-      required: [true, "Business phone is required"],
       trim: true,
-      validate: [validate.isValidPhone, "Please enter a valid phone number"],
+      default: undefined,
+      validate: {
+        validator(value) {
+          if (!value) return true;
+          return validate.isValidPhone(value);
+        },
+        message: "Please enter a valid CallBackIQ tracking number",
+      },
     },
     phoneLookup: {
       type: String,
@@ -370,7 +420,11 @@ const BusinessSchema = new Schema(
       select: false,
     },
 
-    // Real business/cell number calls should forward to
+    // Existing business/cell number used as the routing/forwarding destination.
+    trackingNumber: {
+      type: TrackingNumberSchema,
+      default: () => ({}),
+    },
     forwardingPhone: {
       type: String,
       trim: true,
@@ -503,7 +557,10 @@ const BusinessSchema = new Schema(
         default: () => ({}),
       },
     },
-
+    setupProgress: {
+      type: SetupProgressSchema,
+      default: () => ({}),
+    },
     isActive: {
       type: Boolean,
       default: true,
@@ -516,7 +573,7 @@ const BusinessSchema = new Schema(
 );
 
 BusinessSchema.index({ owner: 1, createdAt: -1 });
-BusinessSchema.index({ phone: 1 }, { unique: true });
+BusinessSchema.index({ phone: 1 }, { unique: true, sparse: true });
 BusinessSchema.index(
   { phoneLookup: 1 },
   { unique: true, sparse: true },
@@ -530,7 +587,13 @@ const VOICE_DESTINATION_PHONE_PATHS = [
 
 BusinessSchema.pre("validate", function normalizeVoicePhoneFields() {
   const trackingPhone = normalizeVoicePhone(this.get("phone"));
-  if (trackingPhone) this.set("phoneLookup", trackingPhone);
+  if (trackingPhone) {
+    this.set("phone", trackingPhone);
+    this.set("phoneLookup", trackingPhone);
+  } else {
+    this.set("phone", undefined);
+    this.set("phoneLookup", undefined);
+  }
 
   for (const field of VOICE_DESTINATION_PHONE_PATHS) {
     const raw = this.get(field);
@@ -546,7 +609,8 @@ const normalizeBusinessPhoneUpdate = function normalizeBusinessPhoneUpdate() {
 
   if (Object.prototype.hasOwnProperty.call(set, "phone")) {
     const trackingPhone = normalizeVoicePhone(set.phone);
-    if (trackingPhone) set.phoneLookup = trackingPhone;
+    set.phone = trackingPhone || undefined;
+    set.phoneLookup = trackingPhone || undefined;
   }
 
   for (const field of VOICE_DESTINATION_PHONE_PATHS) {

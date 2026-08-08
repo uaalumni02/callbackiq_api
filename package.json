@@ -67,7 +67,11 @@
     "cleanup:repository-artifacts": "node scripts/cleanup-repository-artifacts.mjs",
     "cleanup:repository-artifacts:apply": "node scripts/cleanup-repository-artifacts.mjs --apply",
     "test:production-readiness:jest": "jest --runInBand tests/unit/smsDeliveryStatus.service.test.js tests/unit/twilioCallStatus.service.test.js tests/unit/manualSmsPolicy.service.test.js tests/unit/voiceUsage.service.test.js tests/unit/voiceSettings.controller.test.js tests/unit/conversationRelay.server.test.js tests/unit/communicationSafety.voiceRelayLimits.test.js tests/integration/voiceAbandonmentRecovery.integration.test.js",
-    "certify:production-readiness": "npm run verify:production-readiness && npm run test:production-readiness && npm run test:production-readiness:jest && npm run test:voice-hardening && npm run build"
+    "certify:production-readiness": "npm run verify:production-readiness && npm run test:production-readiness && npm run test:production-readiness:jest && npm run test:voice-hardening && npm run build",
+    "verify:onboarding-readiness": "node scripts/verify-onboarding-readiness-update.mjs",
+    "migrate:tracking-number-separation": "node src/scripts/migrate-tracking-number-separation.mjs",
+    "backfill:customer-lifecycle": "node src/scripts/backfill-customer-lifecycle.mjs",
+    "verify:onboarding-regression-v3": "node scripts/verify-onboarding-regression-v3.mjs"
   },
   "keywords": [],
   "author": "",
@@ -91,7 +95,6 @@
     "jspdf": "^4.2.1",
     "mongoose": "^9.7.0",
     "nodemailer": "^9.0.3",
-    "nodemon": "^3.1.14",
     "openai": "^6.42.0",
     "resend": "^6.17.1",
     "socket.io": "^4.8.3",
@@ -124,17 +127,20 @@
       "<rootDir>/.callbackiq-voice-hardening-backups/",
       "<rootDir>/callbackiq[^/]*_update/",
       "<rootDir>/CallBackIQ[^/]*(?:Update|Bundle)/",
-      "<rootDir>/.callbackiq-fix-backups/"
+      "<rootDir>/.callbackiq-fix-backups/",
+      "<rootDir>/.callbackiq-update-backups/"
     ],
     "watchPathIgnorePatterns": [
       "<rootDir>/.callbackiq-phase9-backup/",
       "<rootDir>/.callbackiq-backups/",
-      "<rootDir>/.callbackiq-fix-backups/"
+      "<rootDir>/.callbackiq-fix-backups/",
+      "<rootDir>/.callbackiq-update-backups/"
     ],
     "modulePathIgnorePatterns": [
       "<rootDir>/.callbackiq-phase9-backup/",
       "<rootDir>/.callbackiq-backups/",
-      "<rootDir>/.callbackiq-fix-backups/"
+      "<rootDir>/.callbackiq-fix-backups/",
+      "<rootDir>/.callbackiq-update-backups/"
     ],
     "watchman": false
   }

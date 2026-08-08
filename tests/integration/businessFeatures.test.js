@@ -195,11 +195,14 @@ describe("Business feature rollout settings", () => {
     expect(response.status).toBe(200);
     expect(response.body.data.estimatedJobValue).toBe(1500);
     expect(response.body.data.businessName).toBe("Atlanta Pro Plumbing");
-    expect(response.body.data.phone).toBe("4045551234");
+    expect(response.body.data.phone).toBeUndefined();
+    expect(response.body.data.forwardingPhone).toBe("+14045551234");
 
     const storedBusiness = await Business.findById(business._id);
 
     expect(storedBusiness.businessName).toBe("Atlanta Pro Plumbing");
-    expect(storedBusiness.phone).toBe("4045551234");
+    // The partial update must not turn the customer's forwarding number
+    // into a CallBackIQ tracking number.
+    expect(storedBusiness.phone).toBeUndefined();
   });
 });

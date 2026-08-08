@@ -5,6 +5,7 @@ const phonePattern = /^[0-9+\-().\s]{7,20}$/;
 const ownerEditableFeaturesSchema = Joi.object({
   missedCallSmsEnabled: Joi.boolean().optional(),
   aiQualificationEnabled: Joi.boolean().optional(),
+  aiBookingEnabled: Joi.boolean().optional(),
 }).unknown(false);
 
 const commonBusinessFields = {
@@ -19,8 +20,9 @@ const commonBusinessFields = {
     "other",
   ),
 
+  // Create-only compatibility alias. Controllers must never persist this
+  // owner-entered value into Business.phone.
   phone: Joi.string().pattern(phonePattern),
-
   forwardingPhone: Joi.string().pattern(phonePattern).allow(""),
 
   email: Joi.string().email().allow(""),
@@ -38,7 +40,6 @@ const commonBusinessFields = {
   timezone: Joi.string().trim().max(100),
 
   smsTemplate: Joi.string().trim().max(500).allow(""),
-
   estimatedJobValue: Joi.number().min(0).allow(null),
 
   features: ownerEditableFeaturesSchema.optional(),
@@ -51,15 +52,20 @@ const businessCreateSchema = Joi.object({
 
   businessType: commonBusinessFields.businessType.default("other"),
 
-  phone: commonBusinessFields.phone.required(),
+  // At creation time a real forwarding destination is required, whether the
+  // caller uses the new field or the legacy phone alias.
+  forwardingPhone: Joi.string().pattern(phonePattern),
 
   timezone: commonBusinessFields.timezone.default("America/New_York"),
-
   estimatedJobValue: commonBusinessFields.estimatedJobValue.default(null),
-}).unknown(false);
+})
+  .or("forwardingPhone", "phone")
+  .unknown(false);
 
 const businessUpdateSchema = Joi.object({
   ...commonBusinessFields,
+  // Tracking number is provisioned by CallBackIQ and cannot be owner-edited.
+  phone: Joi.forbidden(),
 })
   .min(1)
   .unknown(false);

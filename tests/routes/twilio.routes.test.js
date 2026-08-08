@@ -84,6 +84,7 @@ const createBusiness = async (overrides = {}) => {
     businessName: "Atlanta Pro Plumbing",
     businessType: "plumbing",
     phone: "4045551234",
+    trackingNumber: { provider: "twilio", status: "active" },
     email: "owner@atlantaproplumbing.com",
     estimatedJobValue: 800,
     smsTemplate:
@@ -146,7 +147,7 @@ describe("Twilio Routes", () => {
       expect(sendSms).toHaveBeenCalledWith(
         expect.objectContaining({
           to: "+14045559999",
-          from: "4045551234",
+          from: "+14045551234",
           businessId: business._id,
         }),
       );
@@ -299,7 +300,7 @@ describe("Twilio Routes", () => {
           MessageSid: "SM_NO_BUSINESS",
         });
 
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(404);
       expect(response.headers["content-type"]).toContain("text/xml");
 
       expect(await Lead.countDocuments()).toBe(0);
