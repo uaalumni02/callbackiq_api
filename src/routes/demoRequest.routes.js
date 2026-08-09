@@ -2,6 +2,7 @@ import express from "express";
 import { rateLimit } from "express-rate-limit";
 
 import DemoRequestController from "../controllers/demoRequest.js";
+import DemoBookingController from "../controllers/demoBooking.controller.js";
 import checkAuth from "../middleware/check-auth.js";
 
 const router = express.Router();
@@ -34,6 +35,12 @@ router.get(
   demoBookingLimiter,
   DemoRequestController.getAvailability,
 );
+router.post(
+  "/book",
+  demoCreateLimiter,
+  DemoRequestController.bookDemoRequest,
+);
+router.post("/book", demoCreateLimiter, DemoRequestController.bookDemoRequest);
 router.post("/", demoCreateLimiter, DemoRequestController.createDemoRequest);
 router.get(
   "/:id/manage",

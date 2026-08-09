@@ -4,6 +4,7 @@ import Db from "../db/db.js";
 import DemoRequest from "../models/demoRequest.js";
 import {
   demoRequestSchema,
+  publicDemoBookingSchema,
   publicDemoScheduleSchema,
   publicDemoTokenSchema,
   updateDemoRequestSchema,
@@ -148,6 +149,67 @@ class DemoRequestController {
       }
 
       console.error("Error in createDemoRequest:", error);
+      return Response.responseServerError(res);
+    }
+  }
+
+  static async bookDemoRequest(req, res) {
+    try {
+      const payload = await publicDemoBookingSchema.validateAsync(req.body, {
+        abortEarly: false,
+        stripUnknown: true,
+      });
+
+      // Honeypot submissions receive a generic success response but are never
+      // persisted or emailed.
+      if (payload.faxNumber) {
+        return res.status(201).json({
+          success: true,
+          message: "Your CallBackIQ demo is booked.",
+          data: null,
+        });
+      }
+
+      const { scheduledAt, faxNumber, ...demoPayload } = payload;
+      const scheduleUpdate =
+        await DemoSchedulingService.assertDemoSlotAvailable(
+          DemoRequest,
+          scheduledAt,
+        );
+      const bookingToken = DemoSchedulingService.createBookingToken();
+
+      const demoRequest = await Db.saveDemoRequest(DemoRequest, {
+        ...demoPayload,
+        source: demoPayload.source || "website",
+        bookingTokenHash:
+          DemoSchedulingService.hashBookingToken(bookingToken),
+        ...scheduleUpdate,
+      });
+
+      // A Book Demo record becomes visible to admins only after the customer
+      // has selected a real slot and the scheduled record exists.
+      emitAdminRefresh("demo_scheduled", demoRequest);
+      await DemoNotificationService.notifyScheduled(demoRequest, bookingToken);
+
+      const publicRequest = publicDemo(demoRequest);
+      return res.status(201).json({
+        success: true,
+        message: "Your CallBackIQ demo is booked.",
+        data: {
+          ...publicRequest,
+          request: publicRequest,
+          bookingToken,
+        },
+      });
+    } catch (error) {
+      if (error.isJoi) {
+        return Response.responseInvalidInput(res, error.message);
+      }
+
+      const handled = bookingError(res, error);
+      if (handled) return handled;
+
+      console.error("Error in bookDemoRequest:", error);
       return Response.responseServerError(res);
     }
   }

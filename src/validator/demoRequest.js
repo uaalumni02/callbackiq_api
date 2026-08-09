@@ -24,6 +24,10 @@ export const demoRequestSchema = Joi.object({
   faxNumber: Joi.string().trim().allow("").max(120),
 });
 
+export const publicDemoBookingSchema = demoRequestSchema.keys({
+  scheduledAt: Joi.date().iso().required(),
+});
+
 export const publicDemoScheduleSchema = Joi.object({
   token: Joi.string().trim().min(20).max(200).required(),
   scheduledAt: Joi.date().iso().required(),

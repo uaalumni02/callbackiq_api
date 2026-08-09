@@ -1,21 +1,24 @@
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 
-const getConfig = () => ({
-  apiKey: String(process.env.RESEND_API_KEY || "").trim(),
-  from: String(
-    process.env.DEMO_FROM_EMAIL ||
-      process.env.EMAIL_FROM ||
-      "CallBackIQ <noreply@callbackiq.com>",
-  ).trim(),
-  adminEmail: String(process.env.DEMO_NOTIFICATION_EMAIL || "").trim(),
-  publicAppUrl: String(
-    process.env.PUBLIC_APP_URL ||
-      process.env.FRONTEND_URL ||
-      "http://localhost:3001",
-  )
-    .trim()
-    .replace(/\/+$/, ""),
-});
+const clean = (value) => String(value || "").trim();
+
+const getConfig = () => {
+  const gmailAddress = clean(process.env.GMAIL_ADDRESS);
+
+  return {
+    gmailAddress,
+    gmailPassword: clean(process.env.GMAIL_PASSWORD),
+    senderName: clean(process.env.EMAIL_SENDER_NAME) || "CallBackIQ",
+    // For the current CallBackIQ setup, the Gmail inbox is also the default
+    // destination for internal demo alerts. This can still be overridden later.
+    adminEmail: clean(process.env.DEMO_NOTIFICATION_EMAIL) || gmailAddress,
+    publicAppUrl: clean(
+      process.env.PUBLIC_APP_URL ||
+        process.env.FRONTEND_URL ||
+        "http://localhost:3001",
+    ).replace(/\/+$/, ""),
+  };
+};
 
 const formatDemoTime = (demo) => {
   if (!demo?.scheduledAt) return "Not scheduled";
@@ -43,24 +46,35 @@ const escapeHtml = (value = "") =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
 
+const buildFrom = ({ senderName, gmailAddress }) =>
+  `${senderName} <${gmailAddress}>`;
+
 class DemoNotificationService {
   static isConfigured() {
     const config = getConfig();
-    return Boolean(config.apiKey && config.from);
+    return Boolean(config.gmailAddress && config.gmailPassword);
   }
 
   static async send({ to, subject, html }) {
     const config = getConfig();
-    if (!config.apiKey || !config.from || !to) return false;
+    if (!config.gmailAddress || !config.gmailPassword || !to) return false;
 
     try {
-      const resend = new Resend(config.apiKey);
-      await resend.emails.send({
-        from: config.from,
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: config.gmailAddress,
+          pass: config.gmailPassword,
+        },
+      });
+
+      await transporter.sendMail({
+        from: buildFrom(config),
         to,
         subject,
         html,
       });
+
       return true;
     } catch (error) {
       // Demo booking must remain available even if email delivery is degraded.
@@ -166,5 +180,5 @@ class DemoNotificationService {
   }
 }
 
-export { formatDemoTime };
+export { formatDemoTime, getConfig };
 export default DemoNotificationService;
