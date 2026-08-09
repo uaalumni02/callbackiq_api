@@ -227,9 +227,37 @@ describe("Demo Request Routes", () => {
     expect(res.body.success).toBe(false);
   });
 
-  test("PATCH /api/demo-requests/:id updates demo request for admin", async () => {
+  test("PATCH /api/demo-requests/:id updates and schedules demo request for admin", async () => {
     const { token } = await registerAdmin();
 
+    const demoRequest = await DemoRequest.create(createDemoRequestPayload());
+    const availabilityRes = await request(app).get(
+      "/api/demo-requests/availability",
+    );
+
+    expect(availabilityRes.status).toBe(200);
+    const scheduledAt = availabilityRes.body.data?.slots?.[0]?.start;
+    expect(scheduledAt).toBeTruthy();
+
+    const res = await request(app)
+      .patch(`/api/demo-requests/${demoRequest._id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        status: "scheduled",
+        scheduledAt,
+        adminNotes: "Demo scheduled for Friday.",
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.status).toBe("scheduled");
+    expect(res.body.data.scheduledAt).toBe(scheduledAt);
+    expect(res.body.data.scheduledEndAt).toBeTruthy();
+    expect(res.body.data.adminNotes).toBe("Demo scheduled for Friday.");
+  });
+
+  test("PATCH /api/demo-requests/:id rejects scheduled status without an appointment time", async () => {
+    const { token } = await registerAdmin();
     const demoRequest = await DemoRequest.create(createDemoRequestPayload());
 
     const res = await request(app)
@@ -237,15 +265,13 @@ describe("Demo Request Routes", () => {
       .set("Authorization", `Bearer ${token}`)
       .send({
         status: "scheduled",
-        adminNotes: "Demo scheduled for Friday.",
+        adminNotes: "Should not become scheduled without a real slot.",
       });
 
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.data.status).toBe("scheduled");
-    expect(res.body.data.adminNotes).toBe("Demo scheduled for Friday.");
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toMatch(/requires a scheduled date and time/i);
   });
-
   test("PATCH /api/demo-requests/:id sets contactedAt when status is contacted", async () => {
     const { token } = await registerAdmin();
 
