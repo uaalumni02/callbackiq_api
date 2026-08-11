@@ -23,113 +23,6 @@ const MONTHLY_CALL_VOLUMES = [
   "1000_plus",
 ];
 
-const DEMO_OUTREACH_CHANNELS = ["phone", "email"];
-const DEMO_OUTREACH_ACTIVITY_TYPES = [
-  "call_initiated",
-  "email_initiated",
-  "email_sent",
-];
-
-const demoOutreachActivitySchema = new mongoose.Schema(
-  {
-    type: {
-      type: String,
-      enum: DEMO_OUTREACH_ACTIVITY_TYPES,
-      required: true,
-    },
-    channel: {
-      type: String,
-      enum: DEMO_OUTREACH_CHANNELS,
-      required: true,
-    },
-    actor: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      default: null,
-    },
-    actorEmail: {
-      type: String,
-      trim: true,
-      lowercase: true,
-      default: "",
-    },
-    subject: {
-      type: String,
-      trim: true,
-      default: "",
-      maxlength: 200,
-    },
-    callAttemptId: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-    providerCallSid: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-    providerChildCallSid: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-    clientCallStatus: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-    prospectCallStatus: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-    clientCompletedAt: {
-      type: Date,
-      default: null,
-    },
-    answeredAt: {
-      type: Date,
-      default: null,
-    },
-    completedAt: {
-      type: Date,
-      default: null,
-    },
-    durationSeconds: {
-      type: Number,
-      min: 0,
-      default: null,
-    },
-    providerErrorCode: {
-      type: String,
-      trim: true,
-      default: "",
-      maxlength: 100,
-    },
-    at: {
-      type: Date,
-      required: true,
-      default: Date.now,
-    },
-  },
-  { _id: true },
-);
-
-const normalizeDemoPhoneToE164 = (value = "") => {
-  const raw = String(value || "").trim();
-  if (!raw) return "";
-
-  const compact = raw.replace(/[()\s.-]/g, "");
-  if (/^\+[1-9]\d{7,14}$/.test(compact)) return compact;
-
-  const digits = raw.replace(/\D/g, "");
-  if (digits.length === 10) return "+1" + digits;
-  if (digits.length === 11 && digits.startsWith("1")) return "+" + digits;
-
-  return "";
-};
-
 const demoRequestSchema = new mongoose.Schema(
   {
     fullName: {
@@ -146,12 +39,6 @@ const demoRequestSchema = new mongoose.Schema(
     },
 
     phone: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-
-    phoneE164: {
       type: String,
       trim: true,
       default: "",
@@ -254,22 +141,6 @@ const demoRequestSchema = new mongoose.Schema(
       default: null,
     },
 
-    outreachActivities: {
-      type: [demoOutreachActivitySchema],
-      default: [],
-    },
-
-    lastOutreachAt: {
-      type: Date,
-      default: null,
-    },
-
-    lastOutreachChannel: {
-      type: String,
-      enum: [...DEMO_OUTREACH_CHANNELS, null],
-      default: null,
-    },
-
     scheduledAt: {
       type: Date,
       default: null,
@@ -336,12 +207,6 @@ const demoRequestSchema = new mongoose.Schema(
     timestamps: true,
   },
 );
-
-demoRequestSchema.pre("validate", function normalizeDemoPhone() {
-  if (this.isNew || this.isModified("phone")) {
-    this.phoneE164 = normalizeDemoPhoneToE164(this.phone);
-  }
-});
 
 /* Default admin list. */
 demoRequestSchema.index({ createdAt: -1 });

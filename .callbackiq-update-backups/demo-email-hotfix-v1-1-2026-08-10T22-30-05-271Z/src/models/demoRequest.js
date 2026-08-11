@@ -24,11 +24,7 @@ const MONTHLY_CALL_VOLUMES = [
 ];
 
 const DEMO_OUTREACH_CHANNELS = ["phone", "email"];
-const DEMO_OUTREACH_ACTIVITY_TYPES = [
-  "call_initiated",
-  "email_initiated",
-  "email_sent",
-];
+const DEMO_OUTREACH_ACTIVITY_TYPES = ["call_initiated", "email_initiated"];
 
 const demoOutreachActivitySchema = new mongoose.Schema(
   {
@@ -52,60 +48,6 @@ const demoOutreachActivitySchema = new mongoose.Schema(
       trim: true,
       lowercase: true,
       default: "",
-    },
-    subject: {
-      type: String,
-      trim: true,
-      default: "",
-      maxlength: 200,
-    },
-    callAttemptId: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-    providerCallSid: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-    providerChildCallSid: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-    clientCallStatus: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-    prospectCallStatus: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-    clientCompletedAt: {
-      type: Date,
-      default: null,
-    },
-    answeredAt: {
-      type: Date,
-      default: null,
-    },
-    completedAt: {
-      type: Date,
-      default: null,
-    },
-    durationSeconds: {
-      type: Number,
-      min: 0,
-      default: null,
-    },
-    providerErrorCode: {
-      type: String,
-      trim: true,
-      default: "",
-      maxlength: 100,
     },
     at: {
       type: Date,

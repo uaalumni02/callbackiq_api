@@ -3,10 +3,7 @@ import { rateLimit } from "express-rate-limit";
 
 import DemoRequestController from "../controllers/demoRequest.js";
 import DemoBookingController from "../controllers/demoBooking.controller.js";
-import DemoOutreachController from "../controllers/demoOutreach.controller.js";
-import DemoBrowserCallController from "../controllers/demoBrowserCall.controller.js";
 import checkAuth from "../middleware/check-auth.js";
-import validateTwilioSignature from "../middleware/validate-twilio-signature.js";
 
 const router = express.Router();
 
@@ -31,18 +28,6 @@ const demoBookingLimiter = rateLimit({
     message: "Too many booking requests. Please try again shortly.",
   },
 });
-
-/* Twilio Voice JavaScript SDK callbacks. These requests come from Twilio and are signature-validated. */
-router.post(
-  "/browser-call-twiml",
-  validateTwilioSignature,
-  DemoBrowserCallController.twiml,
-);
-router.post(
-  "/browser-call-status",
-  validateTwilioSignature,
-  DemoBrowserCallController.prospectStatusWebhook,
-);
 
 /* Public lead capture + server-owned scheduling. */
 router.get(
@@ -84,26 +69,6 @@ router.get(
 );
 
 /* Admin sales-pipeline management. */
-router.post(
-  "/:id/outreach-attempts",
-  checkAuth,
-  DemoOutreachController.createContactAttempt,
-);
-router.post(
-  "/:id/emails",
-  checkAuth,
-  DemoOutreachController.sendEmail,
-);
-router.post(
-  "/:id/call-sessions",
-  checkAuth,
-  DemoBrowserCallController.createSession,
-);
-router.post(
-  "/:id/call-sessions/:attemptId/client-status",
-  checkAuth,
-  DemoBrowserCallController.clientStatus,
-);
 router.get("/", checkAuth, DemoRequestController.getDemoRequests);
 router.get("/:id", checkAuth, DemoRequestController.getDemoRequestById);
 router.patch("/:id", checkAuth, DemoRequestController.updateDemoRequest);
