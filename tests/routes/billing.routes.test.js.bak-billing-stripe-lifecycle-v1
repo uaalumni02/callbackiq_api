@@ -204,41 +204,15 @@ const registerAndCreateBusiness = async ({
   expect(registerRes.body.success).toBe(true);
   expect(registerRes.body.data).toBeDefined();
 
-  let token = registerRes.body.data.token;
-  let user = registerRes.body.data.user;
-
   if (role === "admin") {
-    const updatedUser = await User.findOneAndUpdate(
+    await User.findOneAndUpdate(
       { email },
       { $set: { role: "admin" } },
-      { returnDocument: "after", runValidators: true },
     );
-
-    expect(updatedUser).toBeTruthy();
-    expect(updatedUser.role).toBe("admin");
-
-    /*
-     * Registration correctly issues an owner JWT. After promoting this
-     * test-only fixture, log in again so authorization is exercised with a
-     * freshly signed token containing the stored admin role.
-     */
-    const loginRes = await request(app).post("/api/auth/login").send({
-      login: email,
-      password: "Password123",
-    });
-
-    expect(loginRes.status).toBe(200);
-    expect(loginRes.body.success).toBe(true);
-    expect(loginRes.body.data?.user?.role).toBe("admin");
-
-    token = loginRes.body.data.token;
-    user = loginRes.body.data.user;
   }
 
   return {
-    token,
-    user,
-    userId: user._id,
+    token: registerRes.body.data.token,
     business: registerRes.body.data.business,
     subscription: registerRes.body.data.subscription,
   };
@@ -278,117 +252,6 @@ const startTrial = async (token) =>
   request(app)
     .post("/api/billing/free-trial")
     .set("Authorization", `Bearer ${token}`);
-
-const markTrialSpent = async ({
-  business,
-  user,
-  status = "expired",
-  trialEndsAt = new Date(Date.now() - 24 * 60 * 60 * 1000),
-}) => {
-  const now = new Date();
-  const trialStartedAt = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const active = status === "trialing" || status === "active";
-
-  await TrialRedemption.findOneAndUpdate(
-    { business: business._id },
-    {
-      business: business._id,
-      owner: user._id,
-      emailKey: String(user.email || "").trim().toLowerCase(),
-      phoneKey: business.forwardingPhone || "",
-      stripeSubscriptionId: "sub_trial_used",
-      grantedBy: "self",
-      redeemedAt: now,
-    },
-    {
-      upsert: true,
-      returnDocument: "after",
-      runValidators: true,
-      setDefaultsOnInsert: true,
-    },
-  );
-
-  return Subscription.findOneAndUpdate(
-    { business: business._id },
-    {
-      business: business._id,
-      plan: "pro",
-      status,
-      stripeCustomerId: "cus_test_123",
-      stripeSubscriptionId: "sub_trial_used",
-      lastPaymentStatus: status === "trialing" ? "trialing" : status,
-      trialStartedAt,
-      trialEndsAt,
-      trialUsedAt: now,
-      trialCount: 1,
-      currentPeriodStart: trialStartedAt,
-      currentPeriodEnd: trialEndsAt,
-      isActive: active,
-      aiEnabled: active,
-      priceMonthly: 199,
-    },
-    {
-      upsert: true,
-      returnDocument: "after",
-      runValidators: true,
-      setDefaultsOnInsert: true,
-    },
-  );
-};
-
-const mockStripeTrialForExtension = ({
-  stripe,
-  business,
-  subscription,
-}) => {
-  const trialStart = Math.floor(
-    new Date(subscription.trialStartedAt).getTime() / 1000,
-  );
-  const trialEnd = Math.floor(
-    new Date(subscription.trialEndsAt).getTime() / 1000,
-  );
-
-  const baseStripeTrial = {
-    id: "sub_trial_used",
-    customer: "cus_test_123",
-    status: "trialing",
-    current_period_start: trialStart,
-    current_period_end: trialEnd,
-    trial_start: trialStart,
-    trial_end: trialEnd,
-    cancel_at_period_end: false,
-    metadata: {
-      businessId: String(business._id),
-      plan: "pro",
-    },
-    items: {
-      data: [
-        {
-          price: {
-            id: "price_pro_test",
-          },
-        },
-      ],
-    },
-    latest_invoice: {
-      id: "in_test_123",
-    },
-  };
-
-  stripe.subscriptions.retrieve.mockResolvedValue(baseStripeTrial);
-  stripe.subscriptions.update.mockImplementation(
-    async (stripeSubscriptionId, update = {}) => {
-      const nextTrialEnd = Number(update.trial_end || trialEnd);
-
-      return {
-        ...baseStripeTrial,
-        id: stripeSubscriptionId || baseStripeTrial.id,
-        trial_end: nextTrialEnd,
-        current_period_end: nextTrialEnd,
-      };
-    },
-  );
-};
 
 describe("Billing Routes", () => {
   test("POST /api/billing/create-checkout-session rejects unauthenticated request", async () => {
@@ -431,29 +294,18 @@ describe("Billing Routes", () => {
             quantity: 1,
           },
         ],
-        metadata: expect.objectContaining({
-          businessId: String(business._id),
-          plan: "pro",
-          trialRequested: "false",
-        }),
-      }),
-      expect.objectContaining({
-        idempotencyKey: expect.stringContaining(":pro:paid"),
       }),
     );
 
-    /*
-     * Opening paid checkout is not entitlement. Access becomes active only
-     * after a signed Stripe webhook confirms the subscription.
-     */
     const subscription = await Subscription.findOne({
       business: business._id,
     });
 
     expect(subscription).toBeTruthy();
     expect(subscription.plan).toBe("pro");
-    expect(subscription.status).toBe("incomplete");
-    expect(subscription.isActive).toBe(false);
+    expect(subscription.status).toBe("trialing");
+    expect(subscription.lastPaymentStatus).toBe("trialing");
+    expect(subscription.isActive).toBe(true);
     expect(subscription.stripeCustomerId).toBe("cus_test_123");
     expect(subscription.checkoutSessionId).toBe("cs_test_123");
   });
@@ -510,8 +362,7 @@ describe("Billing Routes", () => {
     expect(res.body.success).toBe(false);
   });
 
-  test("POST /api/billing/free-trial creates a 14-day Stripe trial checkout without granting early access", async () => {
-    const stripe = mockStripe();
+  test("POST /api/billing/free-trial starts a 14-day free trial", async () => {
     const { token, business } = await registerAndCreateBusiness();
 
     await resetTrialState(business._id);
@@ -520,24 +371,6 @@ describe("Billing Routes", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(res.body.data.trialOffered).toBe(true);
-    expect(res.body.data.checkoutUrl).toBe(
-      "https://checkout.stripe.com/test-session",
-    );
-
-    expect(stripe.checkout.sessions.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        mode: "subscription",
-        metadata: expect.objectContaining({
-          businessId: String(business._id),
-          plan: "pro",
-          trialRequested: "true",
-        }),
-      }),
-      expect.objectContaining({
-        idempotencyKey: expect.stringContaining(":pro:trial"),
-      }),
-    );
 
     const subscription = await Subscription.findOne({
       business: business._id,
@@ -545,138 +378,132 @@ describe("Billing Routes", () => {
 
     expect(subscription).toBeTruthy();
     expect(subscription.plan).toBe("pro");
-    expect(subscription.status).toBe("incomplete");
-    expect(subscription.lastPaymentStatus).toBe("trial_checkout_started");
-    expect(subscription.isActive).toBe(false);
-    expect(subscription.aiEnabled).toBe(false);
+    expect(subscription.status).toBe("trialing");
+    expect(subscription.isActive).toBe(true);
+    expect(subscription.aiEnabled).toBe(true);
     expect(subscription.priceMonthly).toBe(199);
-    expect(subscription.trialStartedAt).toBeFalsy();
-    expect(subscription.trialEndsAt).toBeFalsy();
-    expect(subscription.trialUsedAt).toBeFalsy();
-    expect(subscription.trialCount).toBe(0);
+    expect(subscription.trialStartedAt).toBeTruthy();
+    expect(subscription.trialEndsAt).toBeTruthy();
+    expect(subscription.currentPeriodStart).toBeTruthy();
+    expect(subscription.currentPeriodEnd).toBeTruthy();
+
+    const trialDays = Math.round(
+      (new Date(subscription.trialEndsAt) -
+        new Date(subscription.trialStartedAt)) /
+        (1000 * 60 * 60 * 24),
+    );
+
+    expect(trialDays).toBe(14);
   });
 
-  test("POST /api/billing/free-trial does not consume lifetime trial usage before Stripe confirms it", async () => {
-    mockStripe();
-
+  test("POST /api/billing/free-trial records lifetime trial usage", async () => {
     const { token, business } = await registerAndCreateBusiness();
 
     await resetTrialState(business._id);
 
-    const res = await startTrial(token);
-    expect(res.status).toBe(200);
+    await startTrial(token);
 
     const subscription = await Subscription.findOne({
       business: business._id,
     });
 
-    expect(subscription.trialUsedAt).toBeFalsy();
-    expect(subscription.trialCount).toBe(0);
+    expect(subscription.trialUsedAt).toBeTruthy();
+    expect(subscription.trialCount).toBe(1);
+    expect(subscription.trialOverrideGrantedAt).toBeFalsy();
 
     const redemption = await TrialRedemption.findOne({
       business: business._id,
     });
 
-    expect(redemption).toBeNull();
+    expect(redemption).toBeTruthy();
+    expect(redemption.grantedBy).toBe("self");
+    expect(redemption.emailKey).toBe("owner@callbackiq.com");
+    expect(redemption.phoneKey).toBe("+14045551234");
   });
 
   test("POST /api/billing/free-trial rejects duplicate active trial", async () => {
-    mockStripe();
-    const customer = await registerAndCreateBusiness();
+    const { token } = await registerAndCreateBusiness();
 
-    await resetTrialState(customer.business._id);
-    await markTrialSpent({
-      business: customer.business,
-      user: customer.user,
-      status: "trialing",
-      trialEndsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    });
+    const res = await startTrial(token);
 
-    const res = await startTrial(customer.token);
-
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
   });
 
   test("POST /api/billing/free-trial rejects a second trial after the first expired", async () => {
-    mockStripe();
-    const customer = await registerAndCreateBusiness();
-
-    await resetTrialState(customer.business._id);
-    await markTrialSpent({
-      business: customer.business,
-      user: customer.user,
-      status: "expired",
-    });
-
-    const second = await startTrial(customer.token);
-
-    expect(second.status).toBe(409);
-    expect(second.body.success).toBe(false);
-
-    const subscription = await Subscription.findOne({
-      business: customer.business._id,
-    });
-
-    expect(subscription.status).toBe("expired");
-    expect(subscription.trialCount).toBe(1);
-    expect(subscription.trialUsedAt).toBeTruthy();
-    expect(subscription.isActive).toBe(false);
-  });
-
-  test("POST /api/billing/free-trial rejects a second trial after cancellation", async () => {
-    mockStripe();
-    const customer = await registerAndCreateBusiness();
-
-    await resetTrialState(customer.business._id);
-    await markTrialSpent({
-      business: customer.business,
-      user: customer.user,
-      status: "canceled",
-    });
-
-    const res = await startTrial(customer.token);
-
-    expect(res.status).toBe(409);
-    expect(res.body.success).toBe(false);
-  });
-
-  test("POST /api/billing/free-trial uses one Stripe idempotency key under concurrent requests", async () => {
-    const stripe = mockStripe();
     const { token, business } = await registerAndCreateBusiness();
 
     await resetTrialState(business._id);
 
-    const results = await Promise.all([startTrial(token), startTrial(token)]);
+    const first = await startTrial(token);
 
-    expect(results.every((res) => res.status === 200)).toBe(true);
+    expect(first.status).toBe(200);
 
-    /*
-     * Checkout creation itself does not consume the lifetime trial. Stripe
-     * receives the same deterministic key so concurrent requests collapse to
-     * the same operation at the payment-provider boundary.
-     */
-    const keys = stripe.checkout.sessions.create.mock.calls.map(
-      ([, options]) => options?.idempotencyKey,
+    await expireTrialInPlace(business._id);
+
+    // The regression this whole feature exists for. Status is now "expired",
+    // which the old eligibility check treated as trial-eligible.
+    const second = await startTrial(token);
+
+    expect(second.status).toBe(400);
+    expect(second.body.success).toBe(false);
+
+    const subscription = await Subscription.findOne({
+      business: business._id,
+    });
+
+    expect(subscription.status).toBe("expired");
+    expect(subscription.trialCount).toBe(1);
+    expect(subscription.isActive).toBe(false);
+  });
+
+  test("POST /api/billing/free-trial rejects a second trial after cancellation", async () => {
+    const { token, business } = await registerAndCreateBusiness();
+
+    await resetTrialState(business._id);
+
+    await startTrial(token);
+
+    await Subscription.findOneAndUpdate(
+      { business: business._id },
+      {
+        status: "canceled",
+        lastPaymentStatus: "canceled",
+        isActive: false,
+        aiEnabled: false,
+      },
     );
 
-    expect(keys).toHaveLength(2);
-    expect(keys[0]).toBeTruthy();
-    expect(new Set(keys).size).toBe(1);
+    const res = await startTrial(token);
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+  });
+
+  test("POST /api/billing/free-trial is idempotent under concurrent requests", async () => {
+    const { token, business } = await registerAndCreateBusiness();
+
+    await resetTrialState(business._id);
+
+    // Two in-flight requests both pass the "already trialed?" read before
+    // either writes. Only the unique index can settle this.
+    const results = await Promise.all([startTrial(token), startTrial(token)]);
+
+    const accepted = results.filter((res) => res.status === 200);
+
+    expect(accepted).toHaveLength(1);
 
     const redemptions = await TrialRedemption.countDocuments({
       business: business._id,
     });
 
-    expect(redemptions).toBe(0);
+    expect(redemptions).toBe(1);
 
     const subscription = await Subscription.findOne({
       business: business._id,
     });
 
-    expect(subscription.status).toBe("incomplete");
-    expect(subscription.trialCount).toBe(0);
-    expect(subscription.trialUsedAt).toBeFalsy();
+    expect(subscription.trialCount).toBe(1);
   });
 
   test("registration blocks a second business from reusing the same forwarding phone", async () => {
@@ -711,14 +538,14 @@ describe("Billing Routes", () => {
     expect(duplicateRegistration.body.success).toBe(false);
 
     /*
-     * Registration never consumes a trial. Rejecting the duplicate forwarding
-     * phone therefore leaves the lifetime-redemption ledger untouched.
+     * The rejected registration must not create another trial redemption for
+     * the same tracking phone.
      */
     const redemptions = await TrialRedemption.countDocuments({
       phoneKey: "+14045551234",
     });
 
-    expect(redemptions).toBe(0);
+    expect(redemptions).toBe(1);
   });
 
   test("POST /api/billing/free-trial allows an unrelated second business", async () => {
@@ -758,45 +585,30 @@ describe("Billing Routes", () => {
   });
 
   test("GET /api/billing/subscription reports canStartTrial false once the trial is spent", async () => {
-    const customer = await registerAndCreateBusiness();
+    const { token, business } = await registerAndCreateBusiness();
 
-    await resetTrialState(customer.business._id);
-    await markTrialSpent({
-      business: customer.business,
-      user: customer.user,
-      status: "trialing",
-      trialEndsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    });
+    await resetTrialState(business._id);
+    await startTrial(token);
 
     const duringTrial = await request(app)
       .get("/api/billing/subscription")
-      .set("Authorization", `Bearer ${customer.token}`);
+      .set("Authorization", `Bearer ${token}`);
 
-    expect(duringTrial.status).toBe(200);
+    // Access is active, so the CTA must be hidden even before expiry.
     expect(duringTrial.body.data.canStartTrial).toBe(false);
 
-    await Subscription.findOneAndUpdate(
-      { business: customer.business._id },
-      {
-        $set: {
-          trialEndsAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
-          currentPeriodEnd: new Date(Date.now() - 24 * 60 * 60 * 1000),
-        },
-      },
-    );
+    await expireTrialInPlace(business._id);
 
     const afterExpiry = await request(app)
       .get("/api/billing/subscription")
-      .set("Authorization", `Bearer ${customer.token}`);
+      .set("Authorization", `Bearer ${token}`);
 
-    expect(afterExpiry.status).toBe(200);
     expect(afterExpiry.body.data.status).toBe("expired");
     expect(afterExpiry.body.data.canStartTrial).toBe(false);
     expect(afterExpiry.body.data.trialUsedAt).toBeTruthy();
   });
 
   test("GET /api/billing/subscription returns existing subscription", async () => {
-    mockStripe();
     const { token, business } = await registerAndCreateBusiness();
 
     await Subscription.findOneAndUpdate(
@@ -826,23 +638,14 @@ describe("Billing Routes", () => {
     expect(res.body.success).toBe(true);
     expect(res.body.data.plan).toBe("pro");
     expect(res.body.data.status).toBe("active");
-    expect(res.body.data.canStartTrial).toBe(false);
   });
 
   test("GET /api/billing/subscription returns active trial", async () => {
-    const customer = await registerAndCreateBusiness();
-
-    await resetTrialState(customer.business._id);
-    await markTrialSpent({
-      business: customer.business,
-      user: customer.user,
-      status: "trialing",
-      trialEndsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    });
+    const { token } = await registerAndCreateBusiness();
 
     const res = await request(app)
       .get("/api/billing/subscription")
-      .set("Authorization", `Bearer ${customer.token}`);
+      .set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
@@ -851,7 +654,6 @@ describe("Billing Routes", () => {
     expect(res.body.data.isActive).toBe(true);
     expect(res.body.data.aiEnabled).toBe(true);
     expect(res.body.data.trialEndsAt).toBeTruthy();
-    expect(res.body.data.canStartTrial).toBe(false);
   });
 
   test("GET /api/billing/subscription expires old trial", async () => {
@@ -896,34 +698,31 @@ describe("Billing Routes", () => {
   });
 
   test("GET /api/billing/subscription expiry does not clear lifetime trial usage", async () => {
-    const customer = await registerAndCreateBusiness();
+    const { token, business } = await registerAndCreateBusiness();
 
-    await resetTrialState(customer.business._id);
-    await markTrialSpent({
-      business: customer.business,
-      user: customer.user,
-      status: "trialing",
-      trialEndsAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
-    });
+    await resetTrialState(business._id);
+    await startTrial(token);
 
-    const res = await request(app)
+    await Subscription.findOneAndUpdate(
+      { business: business._id },
+      {
+        trialEndsAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+      },
+    );
+
+    await request(app)
       .get("/api/billing/subscription")
-      .set("Authorization", `Bearer ${customer.token}`);
-
-    expect(res.status).toBe(200);
+      .set("Authorization", `Bearer ${token}`);
 
     const subscription = await Subscription.findOne({
-      business: customer.business._id,
+      business: business._id,
     });
 
+    // expireTrialIfNeeded rewrites status and access flags. It must leave
+    // trialUsedAt alone or the lifetime limit silently resets.
     expect(subscription.status).toBe("expired");
     expect(subscription.trialUsedAt).toBeTruthy();
     expect(subscription.trialCount).toBe(1);
-
-    const redemption = await TrialRedemption.findOne({
-      business: customer.business._id,
-    });
-    expect(redemption).toBeTruthy();
   });
 
   test("POST /api/billing/customers/:businessId/trial-override requires admin", async () => {
@@ -933,27 +732,20 @@ describe("Billing Routes", () => {
       .post(`/api/billing/customers/${business._id}/trial-override`)
       .set("Authorization", `Bearer ${token}`);
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
     expect(res.body.success).toBe(false);
   });
 
-  test("POST /api/billing/customers/:businessId/trial-override extends an active trial", async () => {
-    const stripe = mockStripe();
+  test("POST /api/billing/customers/:businessId/trial-override grants one more trial", async () => {
     const customer = await registerAndCreateBusiness();
 
     await resetTrialState(customer.business._id);
-    const before = await markTrialSpent({
-      business: customer.business,
-      user: customer.user,
-      status: "trialing",
-      trialEndsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-    });
+    await startTrial(customer.token);
+    await expireTrialInPlace(customer.business._id);
 
-    mockStripeTrialForExtension({
-      stripe,
-      business: customer.business,
-      subscription: before,
-    });
+    const blocked = await startTrial(customer.token);
+
+    expect(blocked.status).toBe(400);
 
     const admin = await registerAndCreateBusiness({
       userName: "platformadmin",
@@ -963,46 +755,40 @@ describe("Billing Routes", () => {
       businessPhone: "6785554321",
     });
 
-    const extension = await request(app)
+    const override = await request(app)
       .post(`/api/billing/customers/${customer.business._id}/trial-override`)
-      .set("Authorization", `Bearer ${admin.token}`)
-      .send({
-        days: 7,
-        reason: "Customer success extension",
-      });
+      .set("Authorization", `Bearer ${admin.token}`);
 
-    expect(extension.status).toBe(200);
-    expect(extension.body.success).toBe(true);
+    expect(override.status).toBe(200);
+    expect(override.body.success).toBe(true);
+
+    // The override must release the identity-level locks too, or the
+    // unique index rejects the regranted trial.
+    const redemptions = await TrialRedemption.countDocuments({
+      business: customer.business._id,
+    });
+
+    expect(redemptions).toBe(0);
+
+    const regranted = await startTrial(customer.token);
+
+    expect(regranted.status).toBe(200);
 
     const subscription = await Subscription.findOne({
       business: customer.business._id,
     });
 
     expect(subscription.status).toBe("trialing");
-    expect(subscription.trialCount).toBe(1);
-    expect(subscription.trialUsedAt).toBeTruthy();
-    expect(new Date(subscription.trialEndsAt).getTime()).toBeGreaterThan(
-      new Date(before.trialEndsAt).getTime(),
-    );
+    expect(subscription.trialCount).toBe(2);
+    expect(subscription.trialOverrideGrantedAt).toBeFalsy();
   });
 
-  test("trial extension preserves the lifetime trial identity lock", async () => {
-    const stripe = mockStripe();
+  test("trial override is single use", async () => {
     const customer = await registerAndCreateBusiness();
 
     await resetTrialState(customer.business._id);
-    const activeTrial = await markTrialSpent({
-      business: customer.business,
-      user: customer.user,
-      status: "trialing",
-      trialEndsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-    });
-
-    mockStripeTrialForExtension({
-      stripe,
-      business: customer.business,
-      subscription: activeTrial,
-    });
+    await startTrial(customer.token);
+    await expireTrialInPlace(customer.business._id);
 
     const admin = await registerAndCreateBusiness({
       userName: "platformadmin",
@@ -1012,31 +798,17 @@ describe("Billing Routes", () => {
       businessPhone: "6785554321",
     });
 
-    const before = await TrialRedemption.findOne({
-      business: customer.business._id,
-    });
-
-    const extension = await request(app)
+    await request(app)
       .post(`/api/billing/customers/${customer.business._id}/trial-override`)
-      .set("Authorization", `Bearer ${admin.token}`)
-      .send({
-        days: 7,
-        reason: "Support extension",
-      });
+      .set("Authorization", `Bearer ${admin.token}`);
 
-    expect(extension.status).toBe(200);
+    await startTrial(customer.token);
+    await expireTrialInPlace(customer.business._id);
 
-    const after = await TrialRedemption.findOne({
-      business: customer.business._id,
-    });
+    const res = await startTrial(customer.token);
 
-    expect(after).toBeTruthy();
-    expect(String(after._id)).toBe(String(before._id));
-
-    const redemptions = await TrialRedemption.countDocuments({
-      business: customer.business._id,
-    });
-    expect(redemptions).toBe(1);
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
   });
 
   test("registration preserves lifetime trial eligibility without consuming it", async () => {
@@ -1169,7 +941,6 @@ describe("Billing Routes", () => {
 
     const res = await request(app)
       .post("/api/billing/webhook")
-      .set("stripe-signature", "test_signature")
       .send({
         type: "checkout.session.completed",
         data: {
@@ -1237,7 +1008,6 @@ describe("Billing Routes", () => {
 
     await request(app)
       .post("/api/billing/webhook")
-      .set("stripe-signature", "test_signature")
       .send({
         type: "checkout.session.completed",
         data: {
@@ -1296,7 +1066,6 @@ describe("Billing Routes", () => {
 
     const res = await request(app)
       .post("/api/billing/webhook")
-      .set("stripe-signature", "test_signature")
       .send({
         type: "customer.subscription.updated",
         data: {
@@ -1336,36 +1105,9 @@ describe("Billing Routes", () => {
   });
 
   test("POST /api/billing/webhook handles invoice.payment_failed", async () => {
-    const stripe = mockStripe();
+    mockStripe();
 
     const { business } = await registerAndCreateBusiness();
-
-    stripe.subscriptions.retrieve.mockResolvedValueOnce({
-      id: "sub_test_123",
-      customer: "cus_test_123",
-      status: "past_due",
-      current_period_start: 1710000000,
-      current_period_end: 1712592000,
-      trial_start: null,
-      trial_end: null,
-      cancel_at_period_end: false,
-      metadata: {
-        businessId: String(business._id),
-        plan: "pro",
-      },
-      items: {
-        data: [
-          {
-            price: {
-              id: "price_pro_test",
-            },
-          },
-        ],
-      },
-      latest_invoice: {
-        id: "in_test_failed",
-      },
-    });
 
     await Subscription.findOneAndUpdate(
       { business: business._id },
@@ -1388,7 +1130,6 @@ describe("Billing Routes", () => {
 
     const res = await request(app)
       .post("/api/billing/webhook")
-      .set("stripe-signature", "test_signature")
       .send({
         type: "invoice.payment_failed",
         data: {

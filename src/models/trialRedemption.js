@@ -36,6 +36,11 @@ const TrialRedemptionSchema = new Schema(
       trim: true,
     },
 
+    stripeSubscriptionId: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     grantedBy: {
       type: String,
       enum: ["self", "admin"],
@@ -58,7 +63,6 @@ TrialRedemptionSchema.index(
   },
   {
     unique: true,
-    name: "trial_redemption_owner_unique",
   },
 );
 
@@ -68,7 +72,6 @@ TrialRedemptionSchema.index(
   },
   {
     unique: true,
-    name: "trial_redemption_email_unique",
   },
 );
 
@@ -83,7 +86,6 @@ TrialRedemptionSchema.index(
         $gt: "",
       },
     },
-    name: "trial_redemption_phone_unique",
   },
 );
 

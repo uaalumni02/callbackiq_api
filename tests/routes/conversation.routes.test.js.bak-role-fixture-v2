@@ -5,7 +5,6 @@ import Business from "../../src/models/business.js";
 import Conversation from "../../src/models/conversation.js";
 import Message from "../../src/models/message.js";
 import Subscription from "../../src/models/subscription.js";
-import User from "../../src/models/user.js";
 import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testDb.js";
 
 /* CALLBACKIQ_CONVERSATION_ROUTE_SMS_MOCK: conversation lifecycle route tests must not depend on
@@ -91,7 +90,8 @@ const registerAndCreateBusiness = async ({
     userName,
     email,
     password: "Password123",
-businessName,
+    role,
+    businessName,
     businessPhone,
     businessType,
     smsConsent: true,
@@ -104,40 +104,9 @@ businessName,
   expect(registerRes.body.data?.token).toBeTruthy();
   expect(registerRes.body.data?.business?._id).toBeTruthy();
 
-  let token = registerRes.body.data.token;
+  const token = registerRes.body.data.token;
   const userId = registerRes.body.data.user._id;
   const businessId = registerRes.body.data.business._id;
-
-  /* CALLBACKIQ_TEST_ROLE_FIX_V2
-   * Public signup creates the normal owner identity. For route authorization
-   * tests that need another role, mutate only the test DB fixture and then
-   * log in through the real auth endpoint to obtain a JWT with that role.
-   */
-  if (role !== "owner") {
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      { $set: { role } },
-      {
-        new: true,
-        runValidators: true,
-      },
-    );
-
-    expect(updatedUser).toBeTruthy();
-    expect(updatedUser.role).toBe(role);
-
-    const loginRes = await request(app).post("/api/auth/login").send({
-      login: email,
-      password: "Password123",
-    });
-
-    expect(loginRes.status).toBe(200);
-    expect(loginRes.body.success).toBe(true);
-    expect(loginRes.body.data?.token).toBeTruthy();
-    expect(loginRes.body.data?.user?.role).toBe(role);
-
-    token = loginRes.body.data.token;
-  }
 
   if (activateSubscription) {
     await createActiveSubscription(businessId);

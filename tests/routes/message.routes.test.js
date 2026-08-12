@@ -47,6 +47,7 @@ const createActiveSubscription = async (businessId) => {
       stripeSubscriptionId: "sub_test_messages",
       plan: "pro",
       status: "active",
+      isActive: true,
       aiEnabled: true,
       cancelAtPeriodEnd: false,
     },

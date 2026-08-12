@@ -125,6 +125,30 @@ const SubscriptionSchema = new Schema(
       type: String,
       default: "",
     },
+    trialNumberReleaseAt: {
+      type: Date,
+      default: null,
+    },
+    trialWelcomeSentAt: {
+      type: Date,
+      default: null,
+    },
+    trialReminder3dSentAt: {
+      type: Date,
+      default: null,
+    },
+    trialReminder1dSentAt: {
+      type: Date,
+      default: null,
+    },
+    trialExpiredNotifiedAt: {
+      type: Date,
+      default: null,
+    },
+    trialNumberReleasedNotifiedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,

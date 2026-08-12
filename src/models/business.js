@@ -244,6 +244,16 @@ const CommunicationLimitsSchema = new Schema(
   },
   { _id: false },
 );
+const TrialCostControlsSchema = new Schema(
+  {
+    enabled: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  { _id: false },
+);
+
 const VoiceSettingsSchema = new Schema(
   {
     answerMode: {
@@ -508,6 +518,10 @@ const BusinessSchema = new Schema(
     },
     communicationLimits: {
       type: CommunicationLimitsSchema,
+      default: () => ({}),
+    },
+    trialCostControls: {
+      type: TrialCostControlsSchema,
       default: () => ({}),
     },
     voiceSettings: {

@@ -376,44 +376,6 @@ const isAccessStatus = (status) => {
   return ["trialing", "active"].includes(status);
 };
 
-/*
- * Keep subscription entitlement separate from Business.isActive.
- * A trial expiring removes product access, but it must not suspend the
- * business account itself or erase lifetime trial-consumption fields.
- */
-const expireTrialIfNeeded = async (subscription) => {
-  if (!subscription) return subscription;
-
-  const trialEndsAt = subscription.trialEndsAt
-    ? new Date(subscription.trialEndsAt)
-    : null;
-
-  const expired =
-    subscription.status === "trialing" &&
-    trialEndsAt &&
-    trialEndsAt <= new Date();
-
-  if (!expired) {
-    return subscription;
-  }
-
-  return Subscription.findByIdAndUpdate(
-    subscription._id,
-    {
-      $set: {
-        status: "expired",
-        lastPaymentStatus: "trial_expired",
-        isActive: false,
-        aiEnabled: false,
-      },
-    },
-    {
-      returnDocument: "after",
-      runValidators: true,
-    },
-  );
-};
-
 const getRequestBusiness = async (req, ownerId) => {
   if (req.business) {
     return req.business;
@@ -552,7 +514,7 @@ class BillingController {
       let subscription = await getRequestSubscription(req, business._id);
 
       if (subscription) {
-        subscription = await expireTrialIfNeeded(subscription);
+        subscription = await expireTrialIfNeeded(business, subscription);
       }
 
       const baseSubscription = subscription || {
@@ -614,18 +576,13 @@ class BillingController {
       }
 
       const hasActiveAccess = isAccessStatus(baseSubscription.status);
-      const trialEligibility = await getTrialEligibility({
-        business,
-        ownerId,
-        subscription,
-      });
 
       return Response.responseOk(
         res,
         {
           ...(baseSubscription.toObject?.() ?? baseSubscription),
           billingDetails,
-          canStartTrial: !hasActiveAccess && trialEligibility.eligible,
+          canStartTrial: !hasActiveAccess && canStartTrial(baseSubscription),
         },
         "Subscription fetched successfully",
       );

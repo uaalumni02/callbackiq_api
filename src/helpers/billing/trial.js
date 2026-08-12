@@ -1,165 +1,158 @@
-import Db from "../../db/db.js";
 import Subscription from "../../models/subscription.js";
 import TrialRedemption from "../../models/trialRedemption.js";
 
 export const TRIAL_DAYS = 14;
 export const TRIAL_PRICE_MONTHLY = 199;
-
 export const TRIAL_DENIED_ALREADY_USED = "trial_already_used";
 export const TRIAL_DENIED_MISSING_EMAIL = "missing_email";
+export const TRIAL_DENIED_DISPOSABLE_EMAIL = "disposable_email";
 
-const addDays = (date, days) => {
-  const copy = new Date(date);
-  copy.setDate(copy.getDate() + days);
-  return copy;
-};
+const DEFAULT_BLOCKED_TRIAL_DOMAINS = new Set([
+  "10minutemail.com",
+  "guerrillamail.com",
+  "mailinator.com",
+  "tempmail.com",
+  "temp-mail.org",
+  "yopmail.com",
+]);
+
+const envBlockedDomains = () =>
+  new Set(
+    String(process.env.TRIAL_BLOCKED_EMAIL_DOMAINS || "")
+      .split(",")
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean),
+  );
 
 export const normalizeEmail = (email = "") => {
-  return String(email || "")
-    .trim()
-    .toLowerCase();
+  const raw = String(email || "").trim().toLowerCase();
+  const at = raw.lastIndexOf("@");
+  if (at <= 0 || at === raw.length - 1) return raw;
+
+  let local = raw.slice(0, at);
+  let domain = raw.slice(at + 1);
+
+  // Gmail treats dots and +aliases as the same mailbox. Canonicalizing only
+  // Gmail avoids incorrectly merging identities for providers with different
+  // mailbox semantics.
+  if (domain === "gmail.com" || domain === "googlemail.com") {
+    domain = "gmail.com";
+    local = local.split("+")[0].replace(/\./g, "");
+  }
+
+  return `${local}@${domain}`;
 };
 
 export const normalizePhone = (phone = "") => {
   const digits = String(phone || "").replace(/\D/g, "");
-
   if (!digits) return "";
   if (digits.length === 10) return `+1${digits}`;
   if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
-
   return `+${digits}`;
 };
 
 export const buildTrialIdentity = (business, ownerId) => {
   const emailKey =
     normalizeEmail(business?.email) || normalizeEmail(business?.owner?.email);
-
   const phoneKey = normalizePhone(
-    business?.forwardingPhone || business?.businessPhone || business?.phone,
+    business?.forwardingPhone || business?.businessPhone || "",
   );
-
-  return {
-    ownerId,
-    emailKey,
-    phoneKey,
-  };
+  return { ownerId, emailKey, phoneKey };
 };
 
-export const canStartTrial = (subscription) => {
-  if (!subscription) return true;
-  if (subscription.trialOverrideGrantedAt) return true;
-
-  return !subscription.trialUsedAt;
+export const isDisposableTrialEmail = (email = "") => {
+  const normalized = normalizeEmail(email);
+  const domain = normalized.split("@")[1] || "";
+  if (!domain) return false;
+  return DEFAULT_BLOCKED_TRIAL_DOMAINS.has(domain) || envBlockedDomains().has(domain);
 };
 
-export const grantFreeTrial = async ({
+const identityQuery = ({ ownerId, emailKey, phoneKey }) => {
+  const checks = [];
+  if (ownerId) checks.push({ owner: ownerId });
+  if (emailKey) checks.push({ emailKey });
+  if (phoneKey) checks.push({ phoneKey });
+  return checks.length ? { $or: checks } : { _id: null };
+};
+
+export const getTrialEligibility = async ({
   business,
   ownerId,
   subscription = null,
-  grantedBy = "self",
+  session = null,
 }) => {
-  const overrideGranted = Boolean(subscription?.trialOverrideGrantedAt);
-
-  if (!canStartTrial(subscription)) {
-    return {
-      granted: false,
-      reason: TRIAL_DENIED_ALREADY_USED,
-    };
-  }
-
   const identity = buildTrialIdentity(business, ownerId);
 
   if (!identity.emailKey) {
     return {
-      granted: false,
+      eligible: false,
       reason: TRIAL_DENIED_MISSING_EMAIL,
+      identity,
     };
   }
 
-  /*
-   * Normal first-use requests perform a friendly read so callers receive a
-   * clean denial without relying on an exception. The unique indexes remain
-   * the source of truth for concurrent requests.
-   */
-  if (!overrideGranted) {
-    const existingRedemption = await Db.findTrialRedemption(
-      TrialRedemption,
+  if (isDisposableTrialEmail(identity.emailKey)) {
+    return {
+      eligible: false,
+      reason: TRIAL_DENIED_DISPOSABLE_EMAIL,
       identity,
-    );
-
-    if (existingRedemption) {
-      return {
-        granted: false,
-        reason: TRIAL_DENIED_ALREADY_USED,
-      };
-    }
+    };
   }
 
-  const now = new Date();
-
-  /*
-   * Always write a fresh redemption record, including after an admin override.
-   * This restores the lifetime identity lock after the additional trial is
-   * consumed. The admin override flow clears the previous business redemption
-   * before this method is called.
-   */
-  try {
-    await Db.createTrialRedemption(TrialRedemption, {
-      business: business._id,
-      owner: ownerId,
-      emailKey: identity.emailKey,
-      phoneKey: identity.phoneKey,
-      grantedBy: overrideGranted ? "admin" : grantedBy,
-      redeemedAt: now,
-    });
-  } catch (error) {
-    if (error?.isDuplicateTrial) {
-      return {
-        granted: false,
-        reason: TRIAL_DENIED_ALREADY_USED,
-      };
-    }
-
-    throw error;
+  if (subscription?.trialUsedAt) {
+    return {
+      eligible: false,
+      reason: TRIAL_DENIED_ALREADY_USED,
+      identity,
+    };
   }
 
-  const trialEndsAt = addDays(now, TRIAL_DAYS);
-
-  const updatedSubscription = await Db.upsertSubscriptionByBusiness(
-    Subscription,
-    business._id,
-    {
-      plan: "pro",
-      status: "trialing",
-      lastPaymentStatus: "trialing",
-      trialStartedAt: now,
-      trialEndsAt,
-      trialUsedAt: subscription?.trialUsedAt || now,
-      trialCount: (subscription?.trialCount || 0) + 1,
-      trialOverrideGrantedAt: null,
-      currentPeriodStart: now,
-      currentPeriodEnd: trialEndsAt,
-      cancelAtPeriodEnd: false,
-      priceMonthly: TRIAL_PRICE_MONTHLY,
-      aiEnabled: true,
-      isActive: true,
-    },
-  );
+  let query = TrialRedemption.findOne(identityQuery(identity));
+  if (session) query = query.session(session);
+  const existing = await query.lean();
 
   return {
-    granted: true,
-    subscription: updatedSubscription,
+    eligible: !existing,
+    reason: existing ? TRIAL_DENIED_ALREADY_USED : null,
+    identity,
+    existingRedemption: existing || null,
   };
 };
 
-export const createInactiveSubscription = async (businessId) => {
-  return Db.upsertSubscriptionByBusiness(Subscription, businessId, {
-    plan: "pro",
-    status: "none",
-    lastPaymentStatus: "trial_unavailable",
-    priceMonthly: TRIAL_PRICE_MONTHLY,
-    aiEnabled: false,
-    isActive: false,
-    cancelAtPeriodEnd: false,
-  });
+export const canStartTrial = async (params) =>
+  (await getTrialEligibility(params)).eligible;
+
+export const createInactiveSubscription = async (businessId) =>
+  Subscription.findOneAndUpdate(
+    { business: businessId },
+    {
+      $setOnInsert: { business: businessId },
+      $set: {
+        plan: "pro",
+        status: "none",
+        lastPaymentStatus: "trial_not_activated",
+        priceMonthly: TRIAL_PRICE_MONTHLY,
+        aiEnabled: false,
+        isActive: false,
+        cancelAtPeriodEnd: false,
+      },
+    },
+    {
+      upsert: true,
+      returnDocument: "after",
+      runValidators: true,
+      setDefaultsOnInsert: true,
+    },
+  );
+
+export default {
+  TRIAL_DAYS,
+  TRIAL_PRICE_MONTHLY,
+  normalizeEmail,
+  normalizePhone,
+  buildTrialIdentity,
+  isDisposableTrialEmail,
+  getTrialEligibility,
+  canStartTrial,
+  createInactiveSubscription,
 };

@@ -15,8 +15,8 @@ import * as validate from "../helpers/model/user.js";
 import * as Response from "../helpers/response/response.js";
 import { normalizePhoneToE164 as normalizeBusinessPhone } from "../voice/voicePhone.service.js";
 import {
-  grantFreeTrial,
   createInactiveSubscription,
+  getTrialEligibility,
 } from "../helpers/billing/trial.js";
 
 import sendPasswordResetEmail from "../helpers/email/mailer.js";
@@ -67,10 +67,14 @@ const hasSecurityStateExpired = (lastFailedLoginAt) => {
   );
 };
 
-const trialGrantedMessage = (granted) => {
-  return granted
-    ? "Account created successfully"
-    : "Account created successfully. This business has already used its free trial, so choose a plan to activate CallBackIQ.";
+const trialEligibilityMessage = (eligibility) => {
+  if (eligibility?.eligible) {
+    return "Account created successfully. Activate your 14-day trial to start CallBackIQ.";
+  }
+  if (eligibility?.reason === "disposable_email") {
+    return "Account created successfully. This email domain is not eligible for a free trial, so choose a paid plan to activate CallBackIQ.";
+  }
+  return "Account created successfully. This customer or business identity has already used its lifetime free trial, so choose a paid plan to activate CallBackIQ.";
 };
 
 const getConsentIp = (req) => {
@@ -178,7 +182,7 @@ class AuthController {
         userName: normalizedUserName,
         email: normalizedEmail,
         password: hashedPassword,
-        role,
+        role: "owner",
         businessName,
         // User.businessPhone is retained for compatibility with existing
         // profile/session code, but represents the existing business line.
@@ -217,39 +221,22 @@ class AuthController {
       });
 
       /*
-       * The signup trial goes through the same helper as the billing
-       * endpoint. Creating it inline here previously skipped the trialUsedAt
-       * stamp and the redemption record, so an expired signup trial still
-       * looked unused and a second trial could be claimed afterward.
+       * Registration never consumes the lifetime trial and never provisions a
+       * telecom resource. It creates the account, checks eligibility, and
+       * waits for signed Stripe completion before access becomes active.
        */
-      const trialResult = await grantFreeTrial({
-        business: savedBusiness,
-        ownerId: savedUser._id,
-        grantedBy: "self",
-      });
-
-      let savedSubscription = trialResult.subscription;
-
-      /*
-       * A denied trial means this identity has already used one, typically a
-       * repeat signup on the same business phone or email. That is not a
-       * reason to block the account â€” it just starts without free access.
-       */
-      if (!trialResult.granted) {
-        savedSubscription = await createInactiveSubscription(savedBusiness._id);
-
-        savedBusiness.isActive = false;
-      }
-      // Registration may create an internal free-trial record, but a tracking
-      // number is not eligible until the customer completes subscription
-      // checkout and Stripe has created a subscription ID.
-      savedBusiness.setupProgress.subscriptionActivated = Boolean(
-        savedSubscription?.isActive &&
-          ["active", "trialing"].includes(savedSubscription?.status) &&
-          String(savedSubscription?.stripeSubscriptionId || "").trim(),
-      );
+      // Keep Business.isActive true: it represents account suspension, not
+      // subscription entitlement. Subscription middleware owns product access.
+      savedBusiness.setupProgress.subscriptionActivated = false;
       savedBusiness.setupProgress.updatedAt = new Date();
       await savedBusiness.save();
+
+      const savedSubscription = await createInactiveSubscription(savedBusiness._id);
+      const trialEligibility = await getTrialEligibility({
+        business: savedBusiness,
+        ownerId: savedUser._id,
+        subscription: savedSubscription,
+      });
 
       const token = Token.sign({
         userId: savedUser._id,
@@ -281,9 +268,12 @@ class AuthController {
           },
           business: savedBusiness,
           subscription: savedSubscription,
-          trialGranted: trialResult.granted,
+          trialGranted: false,
+          trialEligible: trialEligibility.eligible,
+          trialActivationRequired: trialEligibility.eligible,
+          trialDeniedReason: trialEligibility.reason || null,
         },
-        trialGrantedMessage(trialResult.granted),
+        trialEligibilityMessage(trialEligibility),
       );
     } catch (error) {
       if (error.isJoi) {

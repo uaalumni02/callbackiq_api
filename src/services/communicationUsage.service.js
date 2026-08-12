@@ -28,6 +28,41 @@ const customerScopeKey = (phone) => {
   return crypto.createHash("sha256").update(normalized).digest("hex");
 };
 
+export const TRIAL_COMMUNICATION_LIMITS = Object.freeze({
+  smsBusinessHourly: positiveInteger(
+    process.env.TRIAL_SMS_BUSINESS_HOURLY_LIMIT,
+    25,
+  ),
+  smsBusinessDaily: positiveInteger(
+    process.env.TRIAL_SMS_BUSINESS_DAILY_LIMIT,
+    100,
+  ),
+  smsCustomerHourly: positiveInteger(
+    process.env.TRIAL_SMS_CUSTOMER_HOURLY_LIMIT,
+    8,
+  ),
+  smsCustomerDaily: positiveInteger(
+    process.env.TRIAL_SMS_CUSTOMER_DAILY_LIMIT,
+    20,
+  ),
+  aiBusinessHourly: positiveInteger(
+    process.env.TRIAL_AI_BUSINESS_HOURLY_LIMIT,
+    25,
+  ),
+  aiBusinessDaily: positiveInteger(
+    process.env.TRIAL_AI_BUSINESS_DAILY_LIMIT,
+    100,
+  ),
+  aiCustomerHourly: positiveInteger(
+    process.env.TRIAL_AI_CUSTOMER_HOURLY_LIMIT,
+    8,
+  ),
+  aiCustomerDaily: positiveInteger(
+    process.env.TRIAL_AI_CUSTOMER_DAILY_LIMIT,
+    20,
+  ),
+});
+
 export const DEFAULT_COMMUNICATION_LIMITS = Object.freeze({
   smsBusinessHourly: positiveInteger(process.env.DEFAULT_SMS_BUSINESS_HOURLY_LIMIT, 300),
   smsBusinessDaily: positiveInteger(process.env.DEFAULT_SMS_BUSINESS_DAILY_LIMIT, 3000),
@@ -41,8 +76,10 @@ export const DEFAULT_COMMUNICATION_LIMITS = Object.freeze({
 });
 
 export const getCommunicationLimits = (business) => {
-  const configured = toPlainObject(toPlainObject(business).communicationLimits);
-  return {
+  const plainBusiness = toPlainObject(business);
+  const configured = toPlainObject(plainBusiness.communicationLimits);
+
+  const limits = {
     smsBusinessHourly: positiveInteger(
       configured.smsBusinessHourly,
       DEFAULT_COMMUNICATION_LIMITS.smsBusinessHourly,
@@ -80,6 +117,21 @@ export const getCommunicationLimits = (business) => {
       DEFAULT_COMMUNICATION_LIMITS.alertThresholdPercent,
     ),
   };
+
+  /*
+   * Trial accounts get the real CallBackIQ workflow, but expensive provider
+   * usage is capped below normal paid-account allowances.
+   */
+  if (plainBusiness?.trialCostControls?.enabled === true) {
+    for (const key of Object.keys(TRIAL_COMMUNICATION_LIMITS)) {
+      limits[key] = Math.min(
+        limits[key],
+        TRIAL_COMMUNICATION_LIMITS[key],
+      );
+    }
+  }
+
+  return limits;
 };
 
 const getWindowStart = (window, now) => {
@@ -411,6 +463,7 @@ export const reserveAiUsage = (parameters) =>
 
 export default {
   DEFAULT_COMMUNICATION_LIMITS,
+  TRIAL_COMMUNICATION_LIMITS,
   getCommunicationLimits,
   emitCommunicationUsageThresholdAlerts,
   reserveCommunicationUsage,

@@ -46,7 +46,7 @@ const getUserWithLoginSecurity = async (email = validRegisterPayload.email) => {
 };
 
 describe("Auth Routes", () => {
-  test("POST /api/auth/register creates an enabled account with inactive subscription entitlement", async () => {
+  test("POST /api/auth/register creates an inactive business and preserves trial eligibility", async () => {
     const res = await request(app)
       .post("/api/auth/register")
       .send(validRegisterPayload);
@@ -80,9 +80,7 @@ describe("Auth Routes", () => {
     // Registration does not persist the customer-entered forwarding number
     // as the CallBackIQ/Twilio tracking number.
     expect(savedBusiness.phone).toBeUndefined();
-    // Business.isActive is the administrative account switch. Subscription
-    // status/aiEnabled control product entitlement after registration.
-    expect(savedBusiness.isActive).toBe(true);
+    expect(savedBusiness.isActive).toBe(false);
 
     const savedSubscription = await Subscription.findOne({
       business: savedBusiness._id,

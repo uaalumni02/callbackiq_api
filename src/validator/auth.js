@@ -15,7 +15,7 @@ const registerSchema = Joi.object({
     .pattern(/^[\w@!$%*?&-]*$/)
     .required(),
 
-  role: Joi.string().valid("owner", "admin", "member").default("owner"),
+  role: Joi.string().valid("owner").default("owner"),
 
   businessName: Joi.string().min(2).max(100).required(),
   forwardingPhone: Joi.string().min(7).max(30).optional(),

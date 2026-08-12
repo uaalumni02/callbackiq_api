@@ -314,8 +314,6 @@ const markTrialSpent = async ({
       business: business._id,
       plan: "pro",
       status,
-      stripeCustomerId: "cus_test_123",
-      stripeSubscriptionId: "sub_trial_used",
       lastPaymentStatus: status === "trialing" ? "trialing" : status,
       trialStartedAt,
       trialEndsAt,
@@ -332,60 +330,6 @@ const markTrialSpent = async ({
       returnDocument: "after",
       runValidators: true,
       setDefaultsOnInsert: true,
-    },
-  );
-};
-
-const mockStripeTrialForExtension = ({
-  stripe,
-  business,
-  subscription,
-}) => {
-  const trialStart = Math.floor(
-    new Date(subscription.trialStartedAt).getTime() / 1000,
-  );
-  const trialEnd = Math.floor(
-    new Date(subscription.trialEndsAt).getTime() / 1000,
-  );
-
-  const baseStripeTrial = {
-    id: "sub_trial_used",
-    customer: "cus_test_123",
-    status: "trialing",
-    current_period_start: trialStart,
-    current_period_end: trialEnd,
-    trial_start: trialStart,
-    trial_end: trialEnd,
-    cancel_at_period_end: false,
-    metadata: {
-      businessId: String(business._id),
-      plan: "pro",
-    },
-    items: {
-      data: [
-        {
-          price: {
-            id: "price_pro_test",
-          },
-        },
-      ],
-    },
-    latest_invoice: {
-      id: "in_test_123",
-    },
-  };
-
-  stripe.subscriptions.retrieve.mockResolvedValue(baseStripeTrial);
-  stripe.subscriptions.update.mockImplementation(
-    async (stripeSubscriptionId, update = {}) => {
-      const nextTrialEnd = Number(update.trial_end || trialEnd);
-
-      return {
-        ...baseStripeTrial,
-        id: stripeSubscriptionId || baseStripeTrial.id,
-        trial_end: nextTrialEnd,
-        current_period_end: nextTrialEnd,
-      };
     },
   );
 };
@@ -594,7 +538,7 @@ describe("Billing Routes", () => {
 
     const res = await startTrial(customer.token);
 
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
   });
 
@@ -611,7 +555,7 @@ describe("Billing Routes", () => {
 
     const second = await startTrial(customer.token);
 
-    expect(second.status).toBe(409);
+    expect(second.status).toBe(400);
     expect(second.body.success).toBe(false);
 
     const subscription = await Subscription.findOne({
@@ -637,7 +581,7 @@ describe("Billing Routes", () => {
 
     const res = await startTrial(customer.token);
 
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
   });
 
@@ -938,7 +882,6 @@ describe("Billing Routes", () => {
   });
 
   test("POST /api/billing/customers/:businessId/trial-override extends an active trial", async () => {
-    const stripe = mockStripe();
     const customer = await registerAndCreateBusiness();
 
     await resetTrialState(customer.business._id);
@@ -947,12 +890,6 @@ describe("Billing Routes", () => {
       user: customer.user,
       status: "trialing",
       trialEndsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-    });
-
-    mockStripeTrialForExtension({
-      stripe,
-      business: customer.business,
-      subscription: before,
     });
 
     const admin = await registerAndCreateBusiness({
@@ -987,21 +924,14 @@ describe("Billing Routes", () => {
   });
 
   test("trial extension preserves the lifetime trial identity lock", async () => {
-    const stripe = mockStripe();
     const customer = await registerAndCreateBusiness();
 
     await resetTrialState(customer.business._id);
-    const activeTrial = await markTrialSpent({
+    await markTrialSpent({
       business: customer.business,
       user: customer.user,
       status: "trialing",
       trialEndsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-    });
-
-    mockStripeTrialForExtension({
-      stripe,
-      business: customer.business,
-      subscription: activeTrial,
     });
 
     const admin = await registerAndCreateBusiness({
