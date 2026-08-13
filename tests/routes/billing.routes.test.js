@@ -45,11 +45,13 @@ beforeAll(async () => {
 
 beforeEach(() => {
   process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
+  process.env.STRIPE_BILLING_PORTAL_CONFIGURATION_ID = "bpc_test_restricted";
 });
 
 afterEach(async () => {
   jest.clearAllMocks();
   delete process.env.STRIPE_WEBHOOK_SECRET;
+  delete process.env.STRIPE_BILLING_PORTAL_CONFIGURATION_ID;
   await clearTestDB();
 });
 
@@ -60,6 +62,8 @@ afterAll(async () => {
 const mockStripe = () => {
   const stripe = {
     customers: {
+      update: jest.fn().mockResolvedValue({ id: "cus_test_123" }),
+      search: jest.fn().mockResolvedValue({ data: [] }),
       create: jest.fn().mockResolvedValue({
         id: "cus_test_123",
       }),
@@ -116,6 +120,9 @@ const mockStripe = () => {
       },
     },
 
+    setupIntents: {
+      retrieve: jest.fn().mockResolvedValue({ id: "seti_test_123", payment_method: "pm_test_123" }),
+    },
     checkout: {
       sessions: {
         create: jest.fn().mockResolvedValue({
@@ -126,6 +133,7 @@ const mockStripe = () => {
     },
 
     subscriptions: {
+      list: jest.fn().mockResolvedValue({ data: [] }),
       retrieve: jest.fn().mockResolvedValue({
         id: "sub_test_123",
         customer: "cus_test_123",

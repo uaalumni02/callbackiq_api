@@ -17,11 +17,6 @@ import {
 } from "./trackingNumberProvisioning.service.js";
 import { getSubscriptionAccess, ACCESS_LEVELS } from "./subscriptionAccess.service.js";
 import {
-  assertStripeCustomerHasNoCompetingSubscriptions,
-  findExistingStripeCustomerForBusiness,
-  guardCanonicalStripeSubscription,
-} from "./subscriptionIntegrity.service.js";
-import {
   sendTrialWelcomeEmail,
   sendTrialReminderEmail,
   sendTrialExpiredEmail,
@@ -568,14 +563,21 @@ export const createSubscriptionCheckout = async ({
     );
   }
 
-  let stripeCustomerId = existing?.stripeCustomerId;
-  if (!stripeCustomerId) {
-    const existingStripeCustomer = await findExistingStripeCustomerForBusiness({
-      stripe,
-      businessId: business._id,
-    });
-    stripeCustomerId = existingStripeCustomer?.id || "";
+  if (
+    !offerTrial &&
+    ["paused", "expired", "unpaid", "incomplete_expired"].includes(
+      existing?.status,
+    ) &&
+    existing?.stripeSubscriptionId
+  ) {
+    if (stripe?.subscriptions?.cancel) {
+      await stripe.subscriptions.cancel(existing.stripeSubscriptionId);
+    } else if (stripe?.subscriptions?.del) {
+      await stripe.subscriptions.del(existing.stripeSubscriptionId);
+    }
   }
+
+  let stripeCustomerId = existing?.stripeCustomerId;
   if (!stripeCustomerId) {
     const customer = await stripe.customers.create(
       {
@@ -592,13 +594,6 @@ export const createSubscriptionCheckout = async ({
     );
     stripeCustomerId = customer.id;
   }
-  await assertStripeCustomerHasNoCompetingSubscriptions({
-    stripe,
-    business,
-    existingSubscription: existing,
-    stripeCustomerId,
-  });
-
 
   const metadata = {
     ownerId: String(ownerId),
@@ -637,7 +632,7 @@ export const createSubscriptionCheckout = async ({
   const checkout = await stripe.checkout.sessions.create(
     checkoutParams,
     {
-      idempotencyKey: `callbackiq:checkout:${business._id}:${plan}:${offerTrial ? "trial" : "paid"}:${returnToSetup ? "setup" : "billing"}`,
+      idempotencyKey: `callbackiq:checkout:${business._id}:${plan}:${offerTrial ? "trial" : "paid"}`,
     },
   );
 
@@ -705,17 +700,6 @@ export const syncStripeSubscription = async ({
   );
   if (!business) return null;
 
-
-  /* Never let a webhook from sub_B silently replace live canonical sub_A. */
-  const canonicalGuard = await guardCanonicalStripeSubscription({
-    stripe,
-    businessId,
-    incomingStripeSubscription: stripeSubscription,
-    source: "sync_stripe_subscription",
-  });
-  if (!canonicalGuard.allowed) {
-    return canonicalGuard.current || null;
-  }
   const ownerId =
     stripeSubscription?.metadata?.ownerId ||
     fallbackOwnerId ||

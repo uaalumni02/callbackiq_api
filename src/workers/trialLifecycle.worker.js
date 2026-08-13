@@ -1,9 +1,13 @@
 import { processTrialLifecycle } from "../services/trialLifecycle.service.js";
+import { reconcileStripeSubscriptionIntegrity } from "../services/subscriptionIntegrity.service.js";
 
 const DEFAULT_INTERVAL_MS = 60 * 60 * 1000;
+const DEFAULT_INTEGRITY_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 let timer = null;
 let running = false;
+let integrityRunning = false;
+let lastIntegrityRunAt = 0;
 
 export const runTrialLifecycleOnce = async () => {
   if (running) return { skipped: true };
@@ -15,11 +19,33 @@ export const runTrialLifecycleOnce = async () => {
   }
 };
 
+export const runSubscriptionIntegrityOnce = async ({ force = false } = {}) => {
+  const intervalMs =
+    Number(process.env.BILLING_INTEGRITY_INTERVAL_MS) > 0
+      ? Number(process.env.BILLING_INTEGRITY_INTERVAL_MS)
+      : DEFAULT_INTEGRITY_INTERVAL_MS;
+
+  if (!force && Date.now() - lastIntegrityRunAt < intervalMs) return { skipped: true };
+  if (integrityRunning) return { skipped: true };
+
+  integrityRunning = true;
+  try {
+    const result = await reconcileStripeSubscriptionIntegrity();
+    lastIntegrityRunAt = Date.now();
+    return result;
+  } finally {
+    integrityRunning = false;
+  }
+};
+
 export const startTrialLifecycleWorker = async () => {
   if (process.env.NODE_ENV === "test" || timer) return;
 
   await runTrialLifecycleOnce().catch((error) => {
     console.error("Initial trial lifecycle run failed:", error);
+  });
+  await runSubscriptionIntegrityOnce({ force: true }).catch((error) => {
+    console.error("Initial Stripe billing integrity run failed:", error);
   });
 
   const intervalMs =
@@ -30,6 +56,9 @@ export const startTrialLifecycleWorker = async () => {
   timer = setInterval(() => {
     void runTrialLifecycleOnce().catch((error) => {
       console.error("Trial lifecycle worker failed:", error);
+    });
+    void runSubscriptionIntegrityOnce().catch((error) => {
+      console.error("Stripe billing integrity worker failed:", error);
     });
   }, intervalMs);
 
@@ -44,6 +73,7 @@ export const stopTrialLifecycleWorker = () => {
 
 export default {
   runTrialLifecycleOnce,
+  runSubscriptionIntegrityOnce,
   startTrialLifecycleWorker,
   stopTrialLifecycleWorker,
 };

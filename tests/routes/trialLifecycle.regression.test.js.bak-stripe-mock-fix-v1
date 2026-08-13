@@ -123,9 +123,6 @@ describe("Stripe-native trial lifecycle regression", () => {
       customers: {
         create: jest.fn().mockResolvedValue({ id: "cus_trial_1" }),
       },
-      subscriptions: {
-        list: jest.fn().mockResolvedValue({ data: [] }),
-      },
       checkout: {
         sessions: {
           create: jest.fn().mockResolvedValue({

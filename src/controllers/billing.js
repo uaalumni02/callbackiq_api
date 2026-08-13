@@ -16,6 +16,16 @@ import {
   syncStripeSubscription,
 } from "../services/trialLifecycle.service.js";
 import { getTrialEligibility } from "../helpers/billing/trial.js";
+import { processStripeEventOnce } from "../services/billingEvent.service.js";
+import {
+  createTrialPaymentMethodCheckout,
+  completeTrialPaymentMethodCheckout,
+  resumeCanonicalSubscription,
+} from "../services/subscriptionActions.service.js";
+import {
+  assertCanonicalIsOnlyLiveSubscription,
+  guardInvoiceAgainstCanonicalSubscription,
+} from "../services/subscriptionIntegrity.service.js";
 
 const TRIAL_DAYS = 14;
 
@@ -536,6 +546,52 @@ class BillingController {
     }
   }
 
+  static async createTrialPaymentMethodSession(req, res) {
+    try {
+      const ownerId = req.user?.userId;
+      if (!ownerId) return Response.responseBadAuth(res, "Not authenticated");
+      const business = await getRequestBusiness(req, ownerId);
+      if (!business) return Response.responseInvalidInput(res, "Business not found");
+      const result = await createTrialPaymentMethodCheckout({ business, ownerId });
+      return Response.responseOk(
+        res,
+        result,
+        "Trial payment-method checkout session created successfully",
+      );
+    } catch (error) {
+      if (error?.statusCode) {
+        return res.status(error.statusCode).json({
+          success: false,
+          code: error.code,
+          message: error.message,
+        });
+      }
+      console.error("Error in createTrialPaymentMethodSession:", error);
+      return Response.responseServerError(res);
+    }
+  }
+
+  static async resumeSubscription(req, res) {
+    try {
+      const ownerId = req.user?.userId;
+      if (!ownerId) return Response.responseBadAuth(res, "Not authenticated");
+      const business = await getRequestBusiness(req, ownerId);
+      if (!business) return Response.responseInvalidInput(res, "Business not found");
+      const subscription = await resumeCanonicalSubscription({ businessId: business._id });
+      return Response.responseOk(res, subscription, "Subscription resumed successfully");
+    } catch (error) {
+      if (error?.statusCode) {
+        return res.status(error.statusCode).json({
+          success: false,
+          code: error.code,
+          message: error.message,
+        });
+      }
+      console.error("Error in resumeSubscription:", error);
+      return Response.responseServerError(res);
+    }
+  }
+
   static async getMySubscription(req, res) {
     try {
       const ownerId = req.user?.userId;
@@ -709,10 +765,28 @@ class BillingController {
           "Stripe billing portal is not configured.",
         );
       }
+      if (subscription.stripeSubscriptionId) {
+        await assertCanonicalIsOnlyLiveSubscription({
+          stripe,
+          subscription,
+          source: "billing_portal",
+        });
+      }
 
+      const portalConfigurationId = String(
+        process.env.STRIPE_BILLING_PORTAL_CONFIGURATION_ID || "",
+      ).trim();
+      if (!portalConfigurationId) {
+        return res.status(503).json({
+          success: false,
+          code: "STRIPE_PORTAL_CONFIGURATION_REQUIRED",
+          message: "Restricted Stripe billing portal configuration is not configured.",
+        });
+      }
       const portalSession = await stripe.billingPortal.sessions.create({
         customer: subscription.stripeCustomerId,
         return_url: `${getClientUrl()}/billing`,
+        configuration: portalConfigurationId,
       });
 
       return Response.responseOk(
@@ -723,6 +797,13 @@ class BillingController {
         "Billing portal session created successfully",
       );
     } catch (error) {
+      if (error?.statusCode) {
+        return res.status(error.statusCode).json({
+          success: false,
+          code: error.code,
+          message: error.message,
+        });
+      }
       console.error("Error in createBillingPortalSession:", error);
       return Response.responseServerError(res);
     }
@@ -813,36 +894,45 @@ class BillingController {
         signature,
         webhookSecret,
       );
-
-      switch (event.type) {
-        case "checkout.session.completed":
-          await BillingController.handleCheckoutCompleted(event.data.object);
-          break;
-        case "customer.subscription.created":
-        case "customer.subscription.updated":
-        case "customer.subscription.deleted":
-        case "customer.subscription.paused":
-        case "customer.subscription.resumed":
-          await BillingController.handleSubscriptionUpdated(event.data.object);
-          break;
-        case "customer.subscription.trial_will_end": {
-          const subscription = await BillingController.handleSubscriptionUpdated(
-            event.data.object,
-          );
+      const handlers = {
+        "checkout.session.completed": (object) => BillingController.handleCheckoutCompleted(object),
+        "customer.subscription.created": (object) => BillingController.handleSubscriptionUpdated(object),
+        "customer.subscription.updated": (object) => BillingController.handleSubscriptionUpdated(object),
+        "customer.subscription.deleted": (object) => BillingController.handleSubscriptionUpdated(object),
+        "customer.subscription.paused": (object) => BillingController.handleSubscriptionUpdated(object),
+        "customer.subscription.resumed": (object) => BillingController.handleSubscriptionUpdated(object),
+        "customer.subscription.trial_will_end": async (object) => {
+          const subscription = await BillingController.handleSubscriptionUpdated(object);
           await sendTrialLifecycleMessage(subscription, "three_day");
-          break;
-        }
-        case "invoice.paid":
-          await BillingController.handleInvoicePaid(event.data.object);
-          break;
-        case "invoice.payment_failed":
-          await BillingController.handleInvoicePaymentFailed(event.data.object);
-          break;
-        default:
-          break;
-      }
+          return subscription;
+        },
+        "invoice.paid": (object) => BillingController.handleInvoicePaid(object, event.id || ""),
+        "invoice.payment_failed": (object) => BillingController.handleInvoicePaymentFailed(object, event.id || ""),
+      };
 
-      return res.status(200).json({ success: true, received: true });
+      const processingResult = event.id
+        ? await processStripeEventOnce({
+            event,
+            requestId:
+              req.id ||
+              req.headers["x-request-id"] ||
+              req.headers["x-correlation-id"] ||
+              "",
+            handlers,
+          })
+        : {
+            duplicate: false,
+            handled: Boolean(handlers[event.type]),
+            result: handlers[event.type]
+              ? await handlers[event.type](event.data.object)
+              : null,
+          };
+
+      return res.status(200).json({
+        success: true,
+        received: true,
+        duplicate: Boolean(processingResult?.duplicate),
+      });
     } catch (error) {
       console.error("Stripe webhook error:", error.message);
       return res.status(400).json({
@@ -853,6 +943,12 @@ class BillingController {
   }
 
   static async handleCheckoutCompleted(session) {
+    if (
+      session?.mode === "setup" &&
+      session?.metadata?.purpose === "trial_payment_method"
+    ) {
+      return completeTrialPaymentMethodCheckout({ checkoutSession: session });
+    }
     return syncCheckoutSession(session);
   }
 
@@ -860,8 +956,15 @@ class BillingController {
     return syncStripeSubscription({ stripeSubscription });
   }
 
-  static async handleInvoicePaid(invoice) {
+  static async handleInvoicePaid(invoice, eventId = "") {
     if (!invoice.subscription) return null;
+
+    const invoiceGuard = await guardInvoiceAgainstCanonicalSubscription({
+      invoice,
+      eventId,
+      source: "invoice.paid",
+    });
+    if (!invoiceGuard.allowed) return invoiceGuard.subscription || null;
 
     const stripe = getStripeClient();
     const stripeSubscription = await stripe.subscriptions.retrieve(
@@ -886,8 +989,15 @@ class BillingController {
     );
   }
 
-  static async handleInvoicePaymentFailed(invoice) {
+  static async handleInvoicePaymentFailed(invoice, eventId = "") {
     if (!invoice.subscription) return null;
+
+    const invoiceGuard = await guardInvoiceAgainstCanonicalSubscription({
+      invoice,
+      eventId,
+      source: "invoice.payment_failed",
+    });
+    if (!invoiceGuard.allowed) return invoiceGuard.subscription || null;
 
     const stripe = getStripeClient();
     const stripeSubscription = await stripe.subscriptions.retrieve(

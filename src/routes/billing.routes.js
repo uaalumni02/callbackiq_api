@@ -24,6 +24,12 @@ router.post(
   BillingController.createCheckoutSession,
 );
 
+router.post(
+  "/trial-payment-method",
+  BillingController.createTrialPaymentMethodSession,
+);
+router.post("/resume", BillingController.resumeSubscription);
+
 router.get("/subscription", BillingController.getMySubscription);
 
 router.get("/invoices", BillingController.getBillingHistory);
