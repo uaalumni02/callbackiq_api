@@ -304,6 +304,58 @@ export const activateTrackingNumber = async (businessOrId) => {
   ).select("+trackingNumber.providerSid");
 };
 
+export const releaseTrackingNumber = async (businessOrId) => {
+  const business = await loadBusiness(businessOrId);
+  if (!business) {
+    throw provisioningError("BUSINESS_NOT_FOUND", "Business not found.", 404);
+  }
+
+  const providerSid = business.trackingNumber?.providerSid;
+
+  try {
+    if (providerSid) {
+      const client = getClient();
+      try {
+        await client.incomingPhoneNumbers(providerSid).remove();
+      } catch (error) {
+        // If Twilio already considers the number gone, converge local state
+        // instead of retrying forever. Other provider failures remain retryable.
+        const status = Number(error?.status || error?.statusCode || 0);
+        if (status !== 404) throw error;
+      }
+    }
+
+    const now = new Date();
+    return Business.findByIdAndUpdate(
+      business._id,
+      {
+        $unset: {
+          phone: 1,
+          phoneLookup: 1,
+        },
+        $set: {
+          "trackingNumber.status": "unassigned",
+          "trackingNumber.provider": "twilio",
+          "trackingNumber.providerSid": "",
+          "trackingNumber.assignedAt": null,
+          "trackingNumber.verifiedAt": null,
+          "trackingNumber.activatedAt": null,
+          "trackingNumber.lastError": "",
+          "trackingNumber.updatedAt": now,
+          "setupProgress.trackingNumberAssigned": false,
+          "setupProgress.trackingNumberVerified": false,
+          "setupProgress.trackingNumberActive": false,
+          "setupProgress.updatedAt": now,
+        },
+      },
+      { returnDocument: "after" },
+    ).select("+trackingNumber.providerSid");
+  } catch (error) {
+    await setFailure(business._id, error);
+    throw error;
+  }
+};
+
 export const provisionTrackingNumber = async (businessOrId) => {
   let business = await assignTrackingNumber(businessOrId);
   business = await verifyTrackingNumber(business);
@@ -314,5 +366,6 @@ export default {
   assignTrackingNumber,
   verifyTrackingNumber,
   activateTrackingNumber,
+  releaseTrackingNumber,
   provisionTrackingNumber,
 };

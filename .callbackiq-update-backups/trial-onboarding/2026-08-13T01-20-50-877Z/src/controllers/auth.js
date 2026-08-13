@@ -113,13 +113,7 @@ class AuthController {
       const normalizedEmail = String(email || "")
         .trim()
         .toLowerCase();
-      const normalizedUserName =
-        String(userName || "").trim() ||
-        `cbq${crypto
-          .createHash("sha256")
-          .update(normalizedEmail)
-          .digest("hex")
-          .slice(0, 20)}`;
+      const normalizedUserName = String(userName || "").trim();
 
       if (!validate.isValidPassword(password)) {
         return Response.responseInvalidInput(res, "Invalid password format");
@@ -149,10 +143,9 @@ class AuthController {
         );
       }
 
-      // Older registration clients may still send the owner's existing
-      // routing number. The new trial flow collects it during onboarding. It is
-      // never the CallBackIQ/Twilio tracking number; tracking-number assignment
-      // remains a post-subscription lifecycle.
+      // Registration collects the owner's existing business/routing number.
+      // It is NOT the CallBackIQ/Twilio tracking number. Tracking-number
+      // assignment is a post-registration + post-subscription lifecycle.
       const normalizedForwardingPhone = String(
         forwardingPhone || businessPhone || "",
       ).trim();

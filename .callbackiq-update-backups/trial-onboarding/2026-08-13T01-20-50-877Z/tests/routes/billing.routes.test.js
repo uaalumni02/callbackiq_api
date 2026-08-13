@@ -274,12 +274,10 @@ const expireTrialInPlace = async (businessId) => {
   );
 };
 
-const startTrial = async (token, body = undefined) => {
-  const trialRequest = request(app)
+const startTrial = async (token) =>
+  request(app)
     .post("/api/billing/free-trial")
     .set("Authorization", `Bearer ${token}`);
-  return body === undefined ? trialRequest : trialRequest.send(body);
-};
 
 const markTrialSpent = async ({
   business,
@@ -556,29 +554,6 @@ describe("Billing Routes", () => {
     expect(subscription.trialEndsAt).toBeFalsy();
     expect(subscription.trialUsedAt).toBeFalsy();
     expect(subscription.trialCount).toBe(0);
-  });
-
-  test("POST /api/billing/free-trial uses setup-specific Stripe return URLs when onboarding requests them", async () => {
-    const stripe = mockStripe();
-    const { token, business } = await registerAndCreateBusiness();
-
-    await resetTrialState(business._id);
-
-    const res = await startTrial(token, { onboarding: true });
-    expect(res.status).toBe(200);
-    expect(stripe.checkout.sessions.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        success_url: expect.stringContaining(
-          "/trial/activate/success?session_id={CHECKOUT_SESSION_ID}",
-        ),
-        cancel_url: expect.stringContaining(
-          "/setup?step=activate&trial=cancelled",
-        ),
-      }),
-      expect.objectContaining({
-        idempotencyKey: expect.stringContaining(":pro:trial"),
-      }),
-    );
   });
 
   test("POST /api/billing/free-trial does not consume lifetime trial usage before Stripe confirms it", async () => {

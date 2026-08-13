@@ -503,7 +503,6 @@ export const createSubscriptionCheckout = async ({
   ownerId,
   plan = "pro",
   requireTrial = false,
-  returnToSetup = false,
 }) => {
   const priceId = getPriceIdByPlan(plan);
   if (!priceId) {
@@ -618,12 +617,8 @@ export const createSubscriptionCheckout = async ({
     mode: "subscription",
     customer: stripeCustomerId,
     line_items: [{ price: priceId, quantity: 1 }],
-    success_url: returnToSetup
-      ? `${clientUrl}/trial/activate/success?session_id={CHECKOUT_SESSION_ID}`
-      : `${clientUrl}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: returnToSetup
-      ? `${clientUrl}/setup?step=activate&trial=cancelled`
-      : `${clientUrl}/billing`,
+    success_url: `${clientUrl}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${clientUrl}/billing`,
     metadata,
     subscription_data: subscriptionData,
     payment_method_collection: offerTrial ? "if_required" : "always",

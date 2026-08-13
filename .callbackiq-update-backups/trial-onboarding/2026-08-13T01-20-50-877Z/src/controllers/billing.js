@@ -471,7 +471,6 @@ class BillingController {
         ownerId,
         plan: "pro",
         requireTrial: true,
-        returnToSetup: req.body?.onboarding === true,
       });
 
       return Response.responseOk(

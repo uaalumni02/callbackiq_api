@@ -3,8 +3,6 @@ import mongoose from "mongoose";
 
 import Db from "../db/db.js";
 import Business from "../models/business.js";
-import User from "../models/user.js";
-import { normalizePhoneToE164 as normalizeBusinessPhone, phoneLookupVariants } from "../voice/voicePhone.service.js";
 import {
   businessCreateSchema,
   businessUpdateSchema,
@@ -166,29 +164,6 @@ class BusinessController {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      if (payload.forwardingPhone) {
-        const rawForwardingPhone = String(payload.forwardingPhone).trim();
-        const normalizedForwardingPhone = normalizeBusinessPhone(rawForwardingPhone);
-        if (!normalizedForwardingPhone) {
-          return Response.responseInvalidInput(
-            res,
-            "Please enter a valid forwarding phone number",
-          );
-        }
-        const forwardingPhoneVariants = phoneLookupVariants(rawForwardingPhone);
-        const duplicateForwardingPhone = await Business.exists({
-          _id: { $ne: currentBusiness._id },
-          forwardingPhone: { $in: forwardingPhoneVariants },
-        });
-        if (duplicateForwardingPhone) {
-          return Response.responseConflict(
-            res,
-            "This forwarding phone is already registered",
-          );
-        }
-        payload.forwardingPhone = normalizedForwardingPhone;
-      }
-
       const candidateBusiness = {
         ...(currentBusiness.toObject?.() || currentBusiness),
         features: {
@@ -208,13 +183,6 @@ class BusinessController {
 
       const updates = buildBusinessUpdateDocument(payload);
 
-      if (Object.prototype.hasOwnProperty.call(payload, "forwardingPhone")) {
-        updates["setupProgress.forwardingPhoneConfigured"] = Boolean(
-          String(payload.forwardingPhone || "").trim(),
-        );
-        updates["setupProgress.updatedAt"] = new Date();
-      }
-
       const updatedBusiness = await Db.updateBusinessByOwner(
         Business,
         ownerId,
@@ -223,24 +191,6 @@ class BusinessController {
 
       if (!updatedBusiness) {
         return Response.responseInvalidInput(res, "Business not found");
-      }
-
-      const ownerUpdates = {};
-      if (Object.prototype.hasOwnProperty.call(payload, "businessName")) {
-        ownerUpdates.businessName = updatedBusiness.businessName;
-      }
-      if (Object.prototype.hasOwnProperty.call(payload, "businessType")) {
-        ownerUpdates.businessType = updatedBusiness.businessType;
-      }
-      if (Object.prototype.hasOwnProperty.call(payload, "forwardingPhone")) {
-        ownerUpdates.businessPhone = updatedBusiness.forwardingPhone || "";
-      }
-      if (Object.keys(ownerUpdates).length > 0) {
-        await User.findByIdAndUpdate(
-          ownerId,
-          { $set: ownerUpdates },
-          { runValidators: true },
-        );
       }
 
       req.business = updatedBusiness;

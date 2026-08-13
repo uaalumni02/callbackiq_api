@@ -59,21 +59,15 @@ describe("Auth Validator", () => {
       expect(result.businessType).toBe("other");
     });
 
-    test("register allows userName to be omitted for trial signup", async () => {
+    test("register fails without userName", async () => {
       const data = {
         email: "owner@callbackiq.com",
         password: "Password123",
         businessName: "Atlanta Pro Plumbing",
-        termsAccepted: true,
-        privacyAccepted: true,
+        businessPhone: "4045551234",
       };
 
-      const result = await registerSchema.validateAsync(data);
-
-      expect(result.userName).toBeUndefined();
-      expect(result.businessPhone).toBeUndefined();
-      expect(result.forwardingPhone).toBeUndefined();
-      expect(result.businessType).toBe("other");
+      await expect(registerSchema.validateAsync(data)).rejects.toThrow();
     });
 
     test("register fails with empty userName", async () => {
@@ -198,20 +192,15 @@ describe("Auth Validator", () => {
       await expect(registerSchema.validateAsync(data)).rejects.toThrow();
     });
 
-    test("register allows forwarding phone to be omitted until setup", async () => {
+    test("register fails without businessPhone", async () => {
       const data = {
         userName: "demoowner",
         email: "owner@callbackiq.com",
         password: "Password123",
         businessName: "Atlanta Pro Plumbing",
-        termsAccepted: true,
-        privacyAccepted: true,
       };
 
-      const result = await registerSchema.validateAsync(data);
-
-      expect(result.businessPhone).toBeUndefined();
-      expect(result.forwardingPhone).toBeUndefined();
+      await expect(registerSchema.validateAsync(data)).rejects.toThrow();
     });
 
     test("register fails with empty businessPhone", async () => {
