@@ -4,7 +4,7 @@ import {
   assertCanonicalIsOnlyLiveSubscription,
   recordBillingAnomaly,
 } from "./subscriptionIntegrity.service.js";
-import { createSubscriptionCheckout, syncStripeSubscription } from "./trialLifecycle.service.js";
+import { syncStripeSubscription } from "./trialLifecycle.service.js";
 
 const actionError = (code, message, statusCode = 400) => {
   const error = new Error(message);
@@ -29,15 +29,17 @@ export const createTrialPaymentMethodCheckout = async ({ business, ownerId }) =>
   const subscription = await Subscription.findOne({ business: business._id });
   if (
     !subscription ||
+    subscription.status !== "trialing" ||
     !subscription.stripeCustomerId ||
     !subscription.stripeSubscriptionId
   ) {
     throw actionError(
-      "TRIAL_SUBSCRIPTION_REQUIRED",
-      "A Stripe trial subscription is required before adding a payment method.",
+      "ACTIVE_TRIAL_REQUIRED",
+      "An active Stripe trial is required before adding a payment method.",
       409,
     );
   }
+
   const stripe = getStripeClient();
   if (!stripe?.checkout?.sessions?.create) {
     throw actionError(
@@ -46,64 +48,47 @@ export const createTrialPaymentMethodCheckout = async ({ business, ownerId }) =>
       503,
     );
   }
-  let canonicalRemote;
-  try {
-    canonicalRemote = await assertCanonicalIsOnlyLiveSubscription({
-      stripe,
-      subscription,
-      source: "trial_payment_method",
-    });
-  } catch (error) {
-    if (error?.code === "CANONICAL_STRIPE_SUBSCRIPTION_NOT_LIVE") {
-      return createSubscriptionCheckout({
-        business,
-        ownerId,
-        plan: subscription.plan || "pro",
-        requireTrial: false,
-      });
-    }
-    throw error;
-  }
-  const canonicalStatus = String(canonicalRemote.status || "").toLowerCase();
-  if (!["trialing", "paused"].includes(canonicalStatus)) {
+
+  const canonicalRemote = await assertCanonicalIsOnlyLiveSubscription({
+    stripe,
+    subscription,
+    source: "trial_payment_method",
+  });
+  if (String(canonicalRemote.status || "") !== "trialing") {
     throw actionError(
-      "TRIAL_SUBSCRIPTION_REQUIRED",
-      "The canonical Stripe trial is no longer eligible for payment-method setup.",
+      "ACTIVE_TRIAL_REQUIRED",
+      "The canonical Stripe subscription is no longer trialing.",
       409,
     );
   }
-  const reactivatePausedTrial = canonicalStatus === "paused";
+
   const metadata = {
     purpose: "trial_payment_method",
     businessId: String(business._id),
     ownerId: String(ownerId),
     stripeSubscriptionId: String(subscription.stripeSubscriptionId),
-    reactivatePausedTrial: reactivatePausedTrial ? "true" : "false",
   };
   const checkout = await stripe.checkout.sessions.create(
     {
       mode: "setup",
       customer: subscription.stripeCustomerId,
-      success_url: reactivatePausedTrial
-        ? `${clientUrl()}/billing?payment_method=added&reactivation=started&session_id={CHECKOUT_SESSION_ID}`
-        : `${clientUrl()}/billing?payment_method=added&session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${clientUrl()}/billing?payment_method=added&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${clientUrl()}/billing?payment_method=cancelled`,
       metadata,
       setup_intent_data: { metadata },
     },
     {
-      idempotencyKey: reactivatePausedTrial
-        ? `callbackiq:trial-reactivation-payment-method:${business._id}:${subscription.stripeSubscriptionId}`
-        : `callbackiq:trial-payment-method:${business._id}:${subscription.stripeSubscriptionId}`,
+      idempotencyKey: `callbackiq:trial-payment-method:${business._id}:${subscription.stripeSubscriptionId}`,
     },
   );
+
   return {
     checkoutUrl: checkout.url,
     checkoutSessionId: checkout.id,
     subscription,
-    reactivatingPausedTrial: reactivatePausedTrial,
   };
 };
+
 const getSetupIntent = async (stripe, checkoutSession) => {
   const setupIntentRef = checkoutSession?.setup_intent;
   if (!setupIntentRef) return null;
@@ -132,6 +117,7 @@ export const completeTrialPaymentMethodCheckout = async ({ checkoutSession }) =>
   const expectedSubscriptionId = checkoutSession.metadata.stripeSubscriptionId;
   const subscription = await Subscription.findOne({ business: businessId });
   if (!subscription) return null;
+
   if (
     !expectedSubscriptionId ||
     String(subscription.stripeSubscriptionId || "") !==
@@ -150,27 +136,21 @@ export const completeTrialPaymentMethodCheckout = async ({ checkoutSession }) =>
     });
     return subscription;
   }
+
   const stripe = getStripeClient();
   requireStripeActionApis(stripe);
-  const canonicalRemote = await assertCanonicalIsOnlyLiveSubscription({
+  await assertCanonicalIsOnlyLiveSubscription({
     stripe,
     subscription,
     source: "trial_payment_method_complete",
   });
-  const canonicalStatus = String(canonicalRemote.status || "").toLowerCase();
-  if (!["trialing", "paused"].includes(canonicalStatus)) {
-    throw actionError(
-      "TRIAL_SUBSCRIPTION_REQUIRED",
-      "The canonical Stripe trial is no longer eligible for payment-method setup.",
-      409,
-    );
-  }
 
   const setupIntent = await getSetupIntent(stripe, checkoutSession);
   const paymentMethodId =
     typeof setupIntent?.payment_method === "string"
       ? setupIntent.payment_method
       : setupIntent?.payment_method?.id;
+
   if (!paymentMethodId) {
     throw actionError(
       "PAYMENT_METHOD_NOT_FOUND",
@@ -186,6 +166,7 @@ export const completeTrialPaymentMethodCheckout = async ({ checkoutSession }) =>
       idempotencyKey: `callbackiq:trial-default-payment-method:${checkoutSession.id}`,
     },
   );
+
   if (stripe?.customers?.update && subscription.stripeCustomerId) {
     await stripe.customers.update(
       subscription.stripeCustomerId,
@@ -194,27 +175,6 @@ export const completeTrialPaymentMethodCheckout = async ({ checkoutSession }) =>
         idempotencyKey: `callbackiq:customer-default-payment-method:${checkoutSession.id}`,
       },
     );
-  }
-
-  if (canonicalStatus === "paused") {
-    if (!stripe?.subscriptions?.resume) {
-      throw actionError(
-        "STRIPE_SUBSCRIPTION_RESUME_UNAVAILABLE",
-        "Stripe subscription reactivation is not configured.",
-        503,
-      );
-    }
-    const resumedSubscription = await stripe.subscriptions.resume(
-      subscription.stripeSubscriptionId,
-      { billing_cycle_anchor: "now" },
-      {
-        idempotencyKey: `callbackiq:trial-reactivation-resume:${checkoutSession.id}`,
-      },
-    );
-    return syncStripeSubscription({
-      stripeSubscription: resumedSubscription,
-      refreshFromStripe: false,
-    });
   }
 
   return Subscription.findByIdAndUpdate(
@@ -227,6 +187,7 @@ export const completeTrialPaymentMethodCheckout = async ({ checkoutSession }) =>
     { returnDocument: "after", runValidators: true },
   );
 };
+
 export const resumeCanonicalSubscription = async ({ businessId }) => {
   const subscription = await Subscription.findOne({ business: businessId });
   if (!subscription?.stripeSubscriptionId || !subscription?.stripeCustomerId) {
