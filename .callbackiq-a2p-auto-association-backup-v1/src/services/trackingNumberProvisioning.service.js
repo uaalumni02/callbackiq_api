@@ -2,10 +2,6 @@ import twilio from "twilio";
 
 import Business from "../models/business.js";
 import Subscription from "../models/subscription.js";
-import {
-  attachPhoneNumberToBusinessMessagingRegistration,
-  toMessagingComplianceUpdate,
-} from "./a2pMessagingRegistration.service.js";
 import { normalizePhoneToE164 } from "../voice/voicePhone.service.js";
 
 export const TRACKING_NUMBER_STATES = [
@@ -74,7 +70,7 @@ const requireSubscription = async (businessId) => {
 
 const loadBusiness = async (businessOrId) => {
   const id = businessOrId?._id || businessOrId;
-  return Business.findById(id).select("+trackingNumber.providerSid +messagingCompliance.messagingServiceSid");
+  return Business.findById(id).select("+trackingNumber.providerSid");
 };
 
 const areaCodeFromForwardingPhone = (phone) => {
@@ -169,12 +165,6 @@ export const assignTrackingNumber = async (businessOrId) => {
       statusCallback: urls.statusCallback,
     });
 
-    const a2pState = await attachPhoneNumberToBusinessMessagingRegistration({
-      client,
-      business,
-      phoneNumberSid: incoming.sid,
-    });
-
     const normalized = normalizePhoneToE164(
       incoming.phoneNumber || selected,
     );
@@ -184,7 +174,6 @@ export const assignTrackingNumber = async (businessOrId) => {
       business._id,
       {
         $set: {
-          ...toMessagingComplianceUpdate(a2pState),
           phone: normalized,
           phoneLookup: normalized,
           "trackingNumber.status": "assigned",
@@ -345,10 +334,6 @@ export const releaseTrackingNumber = async (businessOrId) => {
           phoneLookup: 1,
         },
         $set: {
-          "messagingCompliance.smsReady": false,
-          "messagingCompliance.senderAttached": false,
-          "messagingCompliance.senderAttachedAt": null,
-          "messagingCompliance.lastCheckedAt": new Date(),
           "trackingNumber.status": "unassigned",
           "trackingNumber.provider": "twilio",
           "trackingNumber.providerSid": "",

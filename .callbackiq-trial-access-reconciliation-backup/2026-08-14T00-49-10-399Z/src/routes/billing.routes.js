@@ -23,7 +23,6 @@ router.post(
   "/create-checkout-session",
   BillingController.createCheckoutSession,
 );
-router.post("/confirm-checkout", BillingController.confirmCheckoutSession);
 
 router.post(
   "/trial-payment-method",
@@ -32,7 +31,6 @@ router.post(
 router.post("/resume", BillingController.resumeSubscription);
 
 router.get("/subscription", BillingController.getMySubscription);
-router.get("/access", BillingController.getMySubscriptionAccess);
 
 router.get("/invoices", BillingController.getBillingHistory);
 

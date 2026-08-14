@@ -379,29 +379,6 @@ const SetupProgressSchema = new Schema(
   { _id: false },
 );
 
-const MessagingComplianceSchema = new Schema(
-  {
-    messagingServiceSid: {
-      type: String,
-      trim: true,
-      default: "",
-      select: false,
-    },
-    a2pStatus: {
-      type: String,
-      enum: ["unconfigured", "configured", "pending", "registered", "failed"],
-      default: "unconfigured",
-    },
-    campaignStatus: { type: String, trim: true, default: "" },
-    smsReady: { type: Boolean, default: false },
-    senderAttached: { type: Boolean, default: false },
-    senderAttachedAt: { type: Date, default: null },
-    lastCheckedAt: { type: Date, default: null },
-    lastError: { type: String, trim: true, maxlength: 1000, default: "" },
-  },
-  { _id: false },
-);
-
 const BusinessSchema = new Schema(
   {
     owner: {
@@ -598,11 +575,6 @@ const BusinessSchema = new Schema(
       type: SetupProgressSchema,
       default: () => ({}),
     },
-    messagingCompliance: {
-      type: MessagingComplianceSchema,
-      default: () => ({}),
-    },
-
     isActive: {
       type: Boolean,
       default: true,

@@ -4,8 +4,6 @@ import cors from "cors";
 import { expressCorsOptions } from "./config/cors.js";
 import authRoutes from "./routes/auth.routes.js";
 import businessRoutes from "./routes/business.routes.js";
-import a2pCustomerOnboardingRoutes from "./routes/a2pCustomerOnboarding.routes.js";
-import a2pEventsRoutes from "./routes/a2pEvents.routes.js";
 import businessFactsRoutes from "./routes/businessFacts.routes.js";
 import businessConfigurationRoutes from "./routes/businessConfiguration.routes.js";
 import leadRoutes from "./routes/lead.routes.js";
@@ -59,12 +57,10 @@ app.use(
   }),
 );
 app.use(cookieParser());
-app.use("/api/a2p-events", a2pEventsRoutes);
 app.use("/api/health", healthRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/businesses", businessFactsRoutes);
 app.use("/api/businesses", businessRoutes);
-app.use("/api/businesses", a2pCustomerOnboardingRoutes);
 app.use("/api/business-configuration", businessConfigurationRoutes);
 app.use("/api/leads", leadRoutes);
 app.use("/api/conversations", conversationRoutes);
