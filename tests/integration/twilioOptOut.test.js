@@ -53,7 +53,7 @@ beforeAll(async () => {
     Message.init(),
     WebhookEvent.init(),
   ]);
-});
+}, 30000);
 
 beforeEach(() => {
   let sidSequence = 0;

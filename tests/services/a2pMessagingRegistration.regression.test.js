@@ -155,7 +155,7 @@ describe("A2P tracking-number auto association regression", () => {
       "utf8",
     );
     expect(provisioning).toContain("attachPhoneNumberToBusinessMessagingRegistration");
-    expect(provisioning).toContain("phoneNumberSid: incoming.sid");
-    expect(provisioning).toContain("...toMessagingComplianceUpdate(a2pState)");
+    expect(provisioning).toContain("phoneNumberSid: purchasedProviderSid");
+    expect(provisioning).toContain("...toMessagingComplianceUpdate(managedA2pState)");
   });
 });

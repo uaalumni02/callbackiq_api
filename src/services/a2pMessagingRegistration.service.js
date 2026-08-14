@@ -2,8 +2,32 @@ const normalizeStatus = (value) => String(value || "").trim().toUpperCase();
 
 const cleanError = (error) => {
   const code = error?.code || error?.status || error?.statusCode || "A2P_LINK_FAILED";
-  const message = error?.message || "Unable to link the tracking number to messaging registration.";
+  const message =
+    error?.message || "Unable to link the tracking number to messaging registration.";
   return `${code}: ${message}`.slice(0, 1000);
+};
+
+const PUBLIC_A2P_ERRORS = Object.freeze({
+  A2P_LINK_INPUT_REQUIRED:
+    "A2P_LINK_INPUT_REQUIRED: Twilio client and phone number SID are required.",
+  SOLE_PROPRIETOR_NUMBER_LIMIT:
+    "SOLE_PROPRIETOR_NUMBER_LIMIT: This Campaign supports one 10DLC sender. Keep the existing sender or migrate this business to Standard/Low-Volume Standard before rotating numbers.",
+  A2P_REGISTRATION_REQUIRED:
+    "A2P_REGISTRATION_REQUIRED: Complete messaging registration before SMS is enabled.",
+  A2P_LINK_FAILED:
+    "A2P_LINK_FAILED: Unable to link the tracking number to messaging registration.",
+});
+
+const sanitizePublicA2pError = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  const separator = raw.indexOf(":");
+  const code = (separator >= 0 ? raw.slice(0, separator) : raw).trim();
+  return (
+    PUBLIC_A2P_ERRORS[code] ||
+    PUBLIC_A2P_ERRORS.A2P_LINK_FAILED
+  ).slice(0, 1000);
 };
 
 const getMessagingServiceSid = (business) =>
@@ -121,5 +145,5 @@ export const toMessagingComplianceUpdate = (state = {}) => ({
   "messagingCompliance.senderAttached": Boolean(state.senderAttached),
   "messagingCompliance.senderAttachedAt": state.senderAttachedAt || null,
   "messagingCompliance.lastCheckedAt": state.lastCheckedAt || new Date(),
-  "messagingCompliance.lastError": String(state.lastError || "").slice(0, 1000),
+  "messagingCompliance.lastError": sanitizePublicA2pError(state.lastError),
 });

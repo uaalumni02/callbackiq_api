@@ -3,6 +3,10 @@ import twilio from "twilio";
 import A2pCustomerRegistration from "../models/a2pCustomerRegistration.js";
 import Business from "../models/business.js";
 import {
+  acquireOperationLease,
+  releaseOperationLease,
+} from "./operationLease.service.js";
+import {
   attachPhoneNumberToBusinessMessagingRegistration,
   toMessagingComplianceUpdate,
 } from "./a2pMessagingRegistration.service.js";
@@ -159,6 +163,9 @@ export const toPublicA2pRegistration = (registration) => {
     };
   }
   const row = registration.toObject ? registration.toObject() : registration;
+  const publicLastError = row.lastError
+    ? "Messaging registration needs attention. Review your details and try again, or contact support."
+    : "";
   return {
     status: row.status,
     registrationType: row.registrationType,
@@ -176,7 +183,7 @@ export const toPublicA2pRegistration = (registration) => {
     submittedAt: row.submittedAt,
     approvedAt: row.approvedAt,
     lastSyncedAt: row.lastSyncedAt,
-    lastError: row.lastError,
+    lastError: publicLastError,
     smsReady: row.status === "ready" && upper(row.numberStatus) === "REGISTERED",
     canActivateTrial: !["not_started", "action_required", "failed"].includes(row.status),
     otpRequired: row.status === "otp_required",
@@ -711,29 +718,258 @@ export const syncA2pCustomerRegistration = async ({ businessId, client = null })
   }
 };
 
+const positiveInteger = (value, fallback) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
+};
+
+const a2pServiceError = (code, message, statusCode = 400, extra = {}) => {
+  const error = new Error(message);
+  error.code = code;
+  error.statusCode = statusCode;
+  Object.assign(error, extra);
+  return error;
+};
+
+const reserveOtpRetry = async (registration) => {
+  const now = new Date();
+  const cooldownMs = positiveInteger(
+    process.env.A2P_OTP_RETRY_COOLDOWN_MS,
+    90_000,
+  );
+  const windowMs = positiveInteger(
+    process.env.A2P_OTP_RETRY_WINDOW_MS,
+    60 * 60 * 1000,
+  );
+  const maxPerWindow = positiveInteger(
+    process.env.A2P_OTP_RETRY_MAX_PER_WINDOW,
+    5,
+  );
+  const cooldownCutoff = new Date(now.getTime() - cooldownMs);
+  const windowCutoff = new Date(now.getTime() - windowMs);
+
+  const identity = {
+    _id: registration._id,
+    registrationType: "sole_proprietor",
+    brandSid: registration.brandSid,
+  };
+  const cooldown = {
+    $or: [
+      { otpRequestedAt: null },
+      { otpRequestedAt: { $exists: false } },
+      { otpRequestedAt: { $lte: cooldownCutoff } },
+    ],
+  };
+
+  let reserved = await A2pCustomerRegistration.findOneAndUpdate(
+    {
+      $and: [
+        identity,
+        cooldown,
+        {
+          $or: [
+            { otpRetryWindowStartedAt: null },
+            { otpRetryWindowStartedAt: { $exists: false } },
+            { otpRetryWindowStartedAt: { $lte: windowCutoff } },
+          ],
+        },
+      ],
+    },
+    {
+      $set: {
+        otpRequestedAt: now,
+        otpRetryWindowStartedAt: now,
+        otpRetryCount: 1,
+      },
+    },
+    { new: true },
+  ).select(selectSecrets);
+
+  if (!reserved) {
+    reserved = await A2pCustomerRegistration.findOneAndUpdate(
+      {
+        $and: [
+          identity,
+          cooldown,
+          { otpRetryWindowStartedAt: { $gt: windowCutoff } },
+          { otpRetryCount: { $lt: maxPerWindow } },
+        ],
+      },
+      {
+        $set: { otpRequestedAt: now },
+        $inc: { otpRetryCount: 1 },
+      },
+      { new: true },
+    ).select(selectSecrets);
+  }
+
+  if (reserved) return reserved;
+
+  const latest = await getRegistrationWithSecrets(registration.business);
+  const lastRequestedAt = latest?.otpRequestedAt
+    ? new Date(latest.otpRequestedAt)
+    : null;
+  const windowStartedAt = latest?.otpRetryWindowStartedAt
+    ? new Date(latest.otpRetryWindowStartedAt)
+    : null;
+
+  if (
+    lastRequestedAt &&
+    now.getTime() - lastRequestedAt.getTime() < cooldownMs
+  ) {
+    const retryAfterSeconds = Math.max(
+      1,
+      Math.ceil(
+        (lastRequestedAt.getTime() + cooldownMs - now.getTime()) / 1000,
+      ),
+    );
+    throw a2pServiceError(
+      "A2P_OTP_RETRY_COOLDOWN",
+      `Wait ${retryAfterSeconds} seconds before requesting another verification code.`,
+      429,
+      { retryAfterSeconds },
+    );
+  }
+
+  const retryAfterSeconds = windowStartedAt
+    ? Math.max(
+        1,
+        Math.ceil(
+          (windowStartedAt.getTime() + windowMs - now.getTime()) / 1000,
+        ),
+      )
+    : Math.ceil(windowMs / 1000);
+
+  throw a2pServiceError(
+    "A2P_OTP_RETRY_LIMIT",
+    "Too many verification-code requests. Try again later.",
+    429,
+    { retryAfterSeconds },
+  );
+};
+
 export const retrySoleProprietorOtp = async ({ businessId, client = null }) => {
   const registration = await getRegistrationWithSecrets(businessId);
   if (!registration?.brandSid || registration.registrationType !== "sole_proprietor") {
-    throw new Error("No Sole Proprietor Brand is available for OTP verification.");
+    throw a2pServiceError(
+      "A2P_OTP_NOT_AVAILABLE",
+      "No Sole Proprietor Brand is available for OTP verification.",
+      400,
+    );
   }
+
+  const reserved = await reserveOtpRetry(registration);
   const twilioClient = client || getTwilioClient();
-  await twilioClient.messaging.v1
-    .brandRegistrations(registration.brandSid)
-    .brandRegistrationOtps.create();
-  registration.otpStatus = "awaiting_yes_reply";
-  registration.otpRequestedAt = new Date();
-  registration.status = "otp_required";
-  registration.lastError = "";
-  await registration.save();
-  return toPublicA2pRegistration(registration);
+
+  try {
+    await twilioClient.messaging.v1
+      .brandRegistrations(reserved.brandSid)
+      .brandRegistrationOtps.create();
+
+    reserved.otpStatus = "awaiting_yes_reply";
+    reserved.status = "otp_required";
+    reserved.lastError = "";
+    await reserved.save();
+    return toPublicA2pRegistration(reserved);
+  } catch (error) {
+    reserved.lastError = "Unable to request another verification code.";
+    await reserved.save().catch(() => {});
+    throw error;
+  }
 };
 
-export const markNumberRegistrationEvent = async ({
+const parseEventDate = (value) => {
+  if (value === null || value === undefined || value === "") return null;
+  const numeric = Number(value);
+  if (Number.isFinite(numeric) && String(value).trim() !== "") {
+    // Twilio A2P schemas expose integer timestamps. Accept either Unix seconds
+    // or milliseconds so schema-version differences cannot corrupt ordering.
+    const millis = Math.abs(numeric) < 1_000_000_000_000 ? numeric * 1000 : numeric;
+    const numericDate = new Date(millis);
+    return Number.isNaN(numericDate.getTime()) ? null : numericDate;
+  }
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+export const resolveNumberLifecycleStatus = ({
+  eventType = "",
+  externalStatus = "",
+} = {}) => {
+  const type = clean(eventType).toLowerCase();
+  const supplied = upper(externalStatus);
+  const isDeregistration = type.includes("number-deregistration.");
+
+  if (isDeregistration) {
+    if (type.endsWith(".successful")) return "DEREGISTERED";
+    if (type.endsWith(".pending")) return "PENDING_DEREGISTRATION";
+    if (type.endsWith(".failed") || type.endsWith(".failure")) {
+      return "DEREGISTRATION_FAILED";
+    }
+  }
+
+  if (supplied) return supplied;
+  if (type.endsWith(".successful")) return "REGISTERED";
+  if (type.endsWith(".failed") || type.endsWith(".failure")) return "FAILURE";
+  if (type.endsWith(".pending")) return "PENDING_REGISTRATION";
+  return "PENDING_REGISTRATION";
+};
+
+export const numberLifecycleRank = (status) => {
+  switch (upper(status)) {
+    case "DEREGISTERED":
+      return 100;
+    case "FAILURE":
+    case "FAILED":
+      return 90;
+    case "DEREGISTRATION_FAILED":
+      return 96;
+    case "REGISTERED":
+      return 80;
+    case "PENDING_DEREGISTRATION":
+      return 95;
+    default:
+      return 10;
+  }
+};
+
+export const shouldIgnoreNumberLifecycleEvent = ({
+  lastEventId = "",
+  lastEventAt = null,
+  lastEventRank = 0,
+  eventId = "",
+  eventAt = null,
+  eventRank = 0,
+} = {}) => {
+  if (eventId && lastEventId && eventId === lastEventId) return "duplicate";
+
+  const incomingDate = parseEventDate(eventAt);
+  const previousDate = parseEventDate(lastEventAt);
+
+  if (incomingDate && previousDate) {
+    if (incomingDate.getTime() < previousDate.getTime()) return "stale";
+    if (
+      incomingDate.getTime() === previousDate.getTime() &&
+      Number(eventRank || 0) < Number(lastEventRank || 0)
+    ) {
+      return "stale";
+    }
+  } else if (
+    !incomingDate &&
+    Number(eventRank || 0) < Number(lastEventRank || 0)
+  ) {
+    // Fail closed when a malformed/missing timestamp would otherwise downgrade
+    // a stronger terminal carrier state.
+    return "stale";
+  }
+
+  return "";
+};
+
+const findRegistrationForNumberEvent = async ({
   phoneNumberSid,
   messagingServiceSid,
   campaignSid,
-  externalStatus,
-  failureReason = "",
 }) => {
   const registrationChecks = [
     ...(campaignSid ? [{ campaignSid }] : []),
@@ -741,12 +977,11 @@ export const markNumberRegistrationEvent = async ({
   ];
 
   let registration = registrationChecks.length
-    ? await A2pCustomerRegistration.findOne({ $or: registrationChecks }).select(selectSecrets)
+    ? await A2pCustomerRegistration.findOne({
+        $or: registrationChecks,
+      }).select(selectSecrets)
     : null;
 
-  // Twilio number-registration events can identify the sender only by PN SID.
-  // Resolve that sender back to its CallBackIQ business so SMS readiness can
-  // still advance even when the event omits the Campaign or Messaging Service.
   if (!registration && phoneNumberSid) {
     const business = await Business.findOne({
       "trackingNumber.providerSid": phoneNumberSid,
@@ -761,61 +996,164 @@ export const markNumberRegistrationEvent = async ({
     }
   }
 
-  if (!registration) return null;
-
-  const status = upper(externalStatus);
-  registration.numberStatus = status;
-  registration.lastSyncedAt = new Date();
-  if (status === "REGISTERED") {
-    registration.status = "ready";
-    registration.approvedAt ||= new Date();
-    registration.lastError = "";
-    await Business.updateOne(
-      { _id: registration.business },
-      {
-        $set: {
-          "messagingCompliance.a2pStatus": "registered",
-          "messagingCompliance.campaignStatus": "VERIFIED",
-          "messagingCompliance.smsReady": true,
-          "messagingCompliance.senderAttached": true,
-          "messagingCompliance.senderAttachedAt": new Date(),
-          "messagingCompliance.lastCheckedAt": new Date(),
-          "messagingCompliance.lastError": "",
-        },
-      },
-    );
-  } else if (status === "FAILURE" || status === "FAILED") {
-    registration.status = "action_required";
-    registration.lastError = clean(failureReason || "Phone-number carrier registration failed.").slice(0, 2000);
-    await Business.updateOne(
-      { _id: registration.business },
-      {
-        $set: {
-          "messagingCompliance.a2pStatus": "failed",
-          "messagingCompliance.smsReady": false,
-          "messagingCompliance.lastCheckedAt": new Date(),
-          "messagingCompliance.lastError": registration.lastError,
-        },
-      },
-    );
-  } else {
-    registration.status = "number_pending";
-    await Business.updateOne(
-      { _id: registration.business },
-      {
-        $set: {
-          "messagingCompliance.a2pStatus": "pending",
-          "messagingCompliance.smsReady": false,
-          "messagingCompliance.lastCheckedAt": new Date(),
-        },
-      },
-    );
-  }
-  await registration.save();
-  return { registration, phoneNumberSid };
+  return registration;
 };
 
-export const markComplianceEvent = async ({ type, data = {}, client = null }) => {
+export const markNumberRegistrationEvent = async ({
+  phoneNumberSid,
+  messagingServiceSid,
+  campaignSid,
+  externalStatus,
+  failureReason = "",
+  eventType = "",
+  eventId = "",
+  eventAt = null,
+}) => {
+  const found = await findRegistrationForNumberEvent({
+    phoneNumberSid,
+    messagingServiceSid,
+    campaignSid,
+  });
+  if (!found) return null;
+
+  let lease = null;
+  try {
+    lease = await acquireOperationLease({
+      key: `a2p-compliance-event:${found.business}`,
+      ttlMs: Number(process.env.A2P_EVENT_PROCESSING_LEASE_MS || 30_000),
+      busyCode: "A2P_EVENT_PROCESSING_BUSY",
+      busyMessage: "Another compliance event is being processed for this business.",
+      busyStatusCode: 503,
+    });
+
+    const registration = await A2pCustomerRegistration.findById(found._id).select(
+      selectSecrets,
+    );
+    if (!registration) return null;
+
+    const status = resolveNumberLifecycleStatus({
+      eventType,
+      externalStatus,
+    });
+    const eventRank = numberLifecycleRank(status);
+    const normalizedEventAt = parseEventDate(eventAt);
+    const ignoreReason = shouldIgnoreNumberLifecycleEvent({
+      lastEventId: registration.lastNumberEventId,
+      lastEventAt: registration.lastNumberEventAt,
+      lastEventRank: registration.lastNumberEventRank,
+      eventId: clean(eventId),
+      eventAt: normalizedEventAt,
+      eventRank,
+    });
+
+    if (ignoreReason) {
+      return {
+        registration,
+        phoneNumberSid,
+        ignored: true,
+        reason: ignoreReason,
+      };
+    }
+
+    const now = new Date();
+    registration.numberStatus = status;
+    registration.lastSyncedAt = now;
+    registration.lastNumberEventId = clean(eventId);
+    registration.lastNumberEventAt = normalizedEventAt || now;
+    registration.lastNumberEventRank = eventRank;
+
+    let businessSet = {
+      "messagingCompliance.lastCheckedAt": now,
+    };
+
+    if (status === "REGISTERED") {
+      registration.status = "ready";
+      registration.approvedAt ||= now;
+      registration.lastError = "";
+      businessSet = {
+        ...businessSet,
+        "messagingCompliance.a2pStatus": "registered",
+        "messagingCompliance.campaignStatus": "VERIFIED",
+        "messagingCompliance.smsReady": true,
+        "messagingCompliance.senderAttached": true,
+        "messagingCompliance.senderAttachedAt": now,
+        "messagingCompliance.lastError": "",
+      };
+    } else if (status === "DEREGISTERED") {
+      registration.status = "action_required";
+      registration.lastError = clean(
+        failureReason ||
+          "The tracking number is no longer registered for A2P messaging.",
+      ).slice(0, 2000);
+      businessSet = {
+        ...businessSet,
+        "messagingCompliance.a2pStatus": "failed",
+        "messagingCompliance.smsReady": false,
+        "messagingCompliance.senderAttached": false,
+        "messagingCompliance.senderAttachedAt": null,
+        "messagingCompliance.lastError":
+          "Messaging registration needs attention. Review A2P status or contact support.",
+      };
+    } else if (status === "PENDING_DEREGISTRATION") {
+      registration.status = "number_pending";
+      registration.lastError =
+        "Carrier deregistration is pending. SMS is disabled until the number is registered again.";
+      businessSet = {
+        ...businessSet,
+        "messagingCompliance.a2pStatus": "pending",
+        "messagingCompliance.smsReady": false,
+        "messagingCompliance.lastError": registration.lastError,
+      };
+    } else if (
+      status === "FAILURE" ||
+      status === "FAILED" ||
+      status === "DEREGISTRATION_FAILED"
+    ) {
+      registration.status = "action_required";
+      registration.lastError = clean(
+        failureReason ||
+          (status === "DEREGISTRATION_FAILED"
+            ? "Carrier deregistration could not be reconciled. SMS remains disabled until status is confirmed."
+            : "Phone-number carrier registration failed."),
+      ).slice(0, 2000);
+      businessSet = {
+        ...businessSet,
+        "messagingCompliance.a2pStatus": "failed",
+        "messagingCompliance.smsReady": false,
+        "messagingCompliance.lastError":
+          "Messaging registration needs attention. Review A2P status or contact support.",
+      };
+    } else {
+      registration.status = "number_pending";
+      registration.lastError = "";
+      businessSet = {
+        ...businessSet,
+        "messagingCompliance.a2pStatus": "pending",
+        "messagingCompliance.smsReady": false,
+        "messagingCompliance.lastError": "",
+      };
+    }
+
+    await Business.updateOne(
+      { _id: registration.business },
+      { $set: businessSet },
+    );
+    await registration.save();
+
+    return { registration, phoneNumberSid, ignored: false };
+  } finally {
+    await releaseOperationLease(lease);
+  }
+};
+
+export const markComplianceEvent = async ({
+  type,
+  data = {},
+  eventId = "",
+  eventAt = null,
+  client = null,
+}) => {
+  const normalizedType = clean(type).toLowerCase();
   const brandSid = clean(
     data.brandsid ||
       data.brandSid ||
@@ -840,22 +1178,32 @@ export const markComplianceEvent = async ({ type, data = {}, client = null }) =>
     data.failurereason || data.failureReason || data.failure_reason,
   );
 
-  if (type.includes("number-registration.")) {
+  if (
+    normalizedType.includes("number-registration.") ||
+    normalizedType.includes("number-deregistration.")
+  ) {
     return markNumberRegistrationEvent({
       phoneNumberSid,
       messagingServiceSid,
       campaignSid,
       externalStatus,
       failureReason,
+      eventType: normalizedType,
+      eventId,
+      eventAt,
     });
   }
 
   let registration = null;
   if (brandSid) {
-    registration = await A2pCustomerRegistration.findOne({ brandSid }).select(selectSecrets);
+    registration = await A2pCustomerRegistration.findOne({ brandSid }).select(
+      selectSecrets,
+    );
   }
   if (!registration && campaignSid) {
-    registration = await A2pCustomerRegistration.findOne({ campaignSid }).select(selectSecrets);
+    registration = await A2pCustomerRegistration.findOne({ campaignSid }).select(
+      selectSecrets,
+    );
   }
   if (!registration && messagingServiceSid) {
     registration = await A2pCustomerRegistration.findOne({
@@ -864,18 +1212,27 @@ export const markComplianceEvent = async ({ type, data = {}, client = null }) =>
   }
   if (!registration) return null;
 
-  if (type.includes("brand-failure") || type.includes("brand-unverified")) {
+  if (
+    normalizedType.includes("brand-failure") ||
+    normalizedType.includes("brand-unverified")
+  ) {
     registration.status = "action_required";
-    registration.lastError = failureReason || "Twilio reported an A2P Brand verification problem.";
-    await registration.save();
-    return registration;
-  }
-  if (type.includes("campaign-failure")) {
-    registration.status = "action_required";
-    registration.lastError = failureReason || "Twilio reported an A2P Campaign verification problem.";
+    registration.lastError =
+      failureReason || "Twilio reported an A2P Brand verification problem.";
     await registration.save();
     return registration;
   }
 
-  return syncA2pCustomerRegistration({ businessId: registration.business, client });
+  if (normalizedType.includes("campaign-failure")) {
+    registration.status = "action_required";
+    registration.lastError =
+      failureReason || "Twilio reported an A2P Campaign verification problem.";
+    await registration.save();
+    return registration;
+  }
+
+  return syncA2pCustomerRegistration({
+    businessId: registration.business,
+    client,
+  });
 };

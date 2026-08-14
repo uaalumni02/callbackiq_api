@@ -28,8 +28,29 @@ const authorized = (req) => {
 const normalizeEvent = (event = {}) => ({
   type: String(event.type || event.eventType || ""),
   data: event.data || event.payload || {},
+  eventId: String(
+    event.id ||
+      event.eventId ||
+      event.event_id ||
+      event.data?.id ||
+      event.data?.event_id ||
+      event.payload?.id ||
+      event.payload?.event_id ||
+      "",
+  ),
+  eventAt:
+    event.time ||
+    event.timestamp ||
+    event.occurredAt ||
+    event.occurred_at ||
+    event.data?.timestamp ||
+    event.data?.updateddate ||
+    event.data?.updatedDate ||
+    event.payload?.timestamp ||
+    event.payload?.updateddate ||
+    event.payload?.updatedDate ||
+    null,
 });
-
 export const receiveA2pComplianceEvents = async (req, res) => {
   if (!authorized(req)) return res.status(401).json({ success: false, message: "Unauthorized." });
   const events = Array.isArray(req.body) ? req.body : [req.body];

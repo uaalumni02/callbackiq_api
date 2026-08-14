@@ -8,6 +8,10 @@ import {
 } from "./a2pMessagingRegistration.service.js";
 import { normalizePhoneToE164 } from "../voice/voicePhone.service.js";
 
+import {
+  acquireOperationLease,
+  releaseOperationLease,
+} from "./operationLease.service.js";
 export const TRACKING_NUMBER_STATES = [
   "unassigned",
   "assigned",
@@ -110,29 +114,59 @@ const setFailure = async (businessId, error) => {
 };
 
 export const assignTrackingNumber = async (businessOrId) => {
-  const business = await loadBusiness(businessOrId);
-  if (!business) {
+  const initialBusiness = await loadBusiness(businessOrId);
+  if (!initialBusiness) {
     throw provisioningError("BUSINESS_NOT_FOUND", "Business not found.", 404);
   }
 
-  await requireSubscription(business._id);
+  await requireSubscription(initialBusiness._id);
 
-  if (!business.forwardingPhone) {
+  if (!initialBusiness.forwardingPhone) {
     throw provisioningError(
       "FORWARDING_PHONE_REQUIRED",
       "Add the existing business phone used for routing before assigning a CallBackIQ number.",
     );
   }
 
-  const currentState = business.trackingNumber?.status || "unassigned";
+  const initialState = initialBusiness.trackingNumber?.status || "unassigned";
   if (
-    business.phone &&
-    ["assigned", "verified", "active"].includes(currentState)
+    initialBusiness.phone &&
+    ["assigned", "verified", "active"].includes(initialState)
   ) {
-    return business;
+    return initialBusiness;
   }
 
+  let lease = null;
+  let purchasedProviderSid = "";
+  let purchasePersisted = false;
+
   try {
+    lease = await acquireOperationLease({
+      key: `tracking-number:${initialBusiness._id}`,
+      ttlMs: Number(process.env.TRACKING_NUMBER_PROVISIONING_LEASE_MS || 120_000),
+      busyCode: "TRACKING_NUMBER_PROVISIONING_IN_PROGRESS",
+      busyMessage:
+        "A CallBackIQ number is already being assigned to this business. Retry shortly.",
+      busyStatusCode: 409,
+      waitMs: Number(process.env.TRACKING_NUMBER_PROVISIONING_WAIT_MS || 3_000),
+      retryDelayMs: 100,
+    });
+
+    // Re-read after obtaining the cross-process lease. A request that finished
+    // while this one was waiting must win without purchasing a second number.
+    const business = await loadBusiness(initialBusiness._id);
+    if (!business) {
+      throw provisioningError("BUSINESS_NOT_FOUND", "Business not found.", 404);
+    }
+
+    const currentState = business.trackingNumber?.status || "unassigned";
+    if (
+      business.phone &&
+      ["assigned", "verified", "active"].includes(currentState)
+    ) {
+      return business;
+    }
+
     const client = getClient();
     const areaCode = areaCodeFromForwardingPhone(business.forwardingPhone);
     const candidates = await client
@@ -169,27 +203,51 @@ export const assignTrackingNumber = async (businessOrId) => {
       statusCallback: urls.statusCallback,
     });
 
+    purchasedProviderSid = String(incoming?.sid || "");
+    if (!purchasedProviderSid) {
+      throw provisioningError(
+        "TRACKING_NUMBER_PROVIDER_RESPONSE_INVALID",
+        "Twilio did not return a phone-number identifier.",
+        502,
+      );
+    }
+
     const a2pState = await attachPhoneNumberToBusinessMessagingRegistration({
       client,
       business,
-      phoneNumberSid: incoming.sid,
+      phoneNumberSid: purchasedProviderSid,
     });
+
+    // A freshly provisioned CallBackIQ number is managed by the automated A2P
+    // lifecycle even when the customer has not submitted its TrustHub details
+    // yet. Mark it pending so the shared SMS sender fails closed rather than
+    // treating it as a legacy/unmanaged sender.
+    const managedA2pState =
+      a2pState?.a2pStatus === "unconfigured"
+        ? {
+            ...a2pState,
+            a2pStatus: "pending",
+            smsReady: false,
+            lastError:
+              a2pState.lastError ||
+              "A2P_REGISTRATION_REQUIRED: Complete messaging registration before SMS is enabled.",
+          }
+        : a2pState;
 
     const normalized = normalizePhoneToE164(
       incoming.phoneNumber || selected,
     );
     const now = new Date();
-
-    return Business.findByIdAndUpdate(
+    const updated = await Business.findByIdAndUpdate(
       business._id,
       {
         $set: {
-          ...toMessagingComplianceUpdate(a2pState),
+          ...toMessagingComplianceUpdate(managedA2pState),
           phone: normalized,
           phoneLookup: normalized,
           "trackingNumber.status": "assigned",
           "trackingNumber.provider": "twilio",
-          "trackingNumber.providerSid": incoming.sid,
+          "trackingNumber.providerSid": purchasedProviderSid,
           "trackingNumber.assignedAt": now,
           "trackingNumber.verifiedAt": null,
           "trackingNumber.activatedAt": null,
@@ -201,9 +259,40 @@ export const assignTrackingNumber = async (businessOrId) => {
       },
       { returnDocument: "after" },
     ).select("+trackingNumber.providerSid");
+
+    if (!updated) {
+      throw provisioningError(
+        "TRACKING_NUMBER_PERSISTENCE_FAILED",
+        "The purchased tracking number could not be saved.",
+        500,
+      );
+    }
+
+    purchasePersisted = true;
+    return updated;
   } catch (error) {
-    await setFailure(business._id, error);
+    if (purchasedProviderSid && !purchasePersisted) {
+      try {
+        const cleanupClient = getClient();
+        await cleanupClient.incomingPhoneNumbers(purchasedProviderSid).remove();
+      } catch (cleanupError) {
+        const status = Number(
+          cleanupError?.status || cleanupError?.statusCode || 0,
+        );
+        if (status !== 404) {
+          console.error("[tracking-number] orphan cleanup failed", {
+            businessId: String(initialBusiness._id),
+            providerSid: purchasedProviderSid,
+            code: cleanupError?.code || status || "unknown",
+          });
+        }
+      }
+    }
+
+    await setFailure(initialBusiness._id, error);
     throw error;
+  } finally {
+    await releaseOperationLease(lease);
   }
 };
 

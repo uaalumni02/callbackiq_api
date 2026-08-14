@@ -9,3 +9,9 @@ build
 *.bak
 *.backup
 *.backup-*
+.callbackiq-*-backup*/
+.callbackiq-*-backups*/
+.callbackiq-security-hardening-backup-v1/
+coverage/
+conversation-test-error.log
+package.json.before-*

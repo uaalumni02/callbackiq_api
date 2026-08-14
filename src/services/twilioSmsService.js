@@ -107,6 +107,28 @@ const getStatusCallback = () => {
 
 const audit = (payload) => recordOutboundSmsAudit(payload);
 
+const ENFORCED_A2P_STATES = new Set(["configured", "pending", "registered", "failed"]);
+
+export const assertA2pSmsReady = (business) => {
+  const compliance = business?.messagingCompliance || {};
+  const state = String(compliance.a2pStatus || "").trim().toLowerCase();
+
+  // Preserve existing manually managed/legacy senders that have never entered
+  // CallBackIQ's automated A2P lifecycle. New number provisioning explicitly
+  // moves managed senders to "pending", so every automated-A2P business is
+  // fail-closed here until Twilio confirms carrier registration.
+  if (!ENFORCED_A2P_STATES.has(state)) return true;
+
+  if (state === "registered" && compliance.smsReady === true) return true;
+
+  const error = new Error(
+    "SMS is unavailable until carrier registration is complete.",
+  );
+  error.code = "A2P_SMS_NOT_READY";
+  error.statusCode = 409;
+  throw error;
+};
+
 export const sendSms = async ({
   to,
   from = "",
@@ -167,6 +189,11 @@ export const sendSms = async ({
     error.operationKey = operationKey;
     throw error;
   }
+  // Preserve committed idempotent replays above, but no new outbound attempt may
+  // reserve disclosure/usage state or reach Twilio unless the managed sender is
+  // carrier-registered.
+  assertA2pSmsReady(resolvedBusiness);
+
   const disclosure = await claimSmsContactDisclosure({
     businessId: resolvedBusinessId,
     phone: normalizedTo,
