@@ -25,7 +25,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>103/103</span>
+                <span class='fraction'>121/121</span>
             </div>
         
             
@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>103/103</span>
+                <span class='fraction'>121/121</span>
             </div>
         
             
@@ -166,7 +166,43 @@
 <a name='L101'></a><a href='#L101'>101</a>
 <a name='L102'></a><a href='#L102'>102</a>
 <a name='L103'></a><a href='#L103'>103</a>
-<a name='L104'></a><a href='#L104'>104</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
+<a name='L104'></a><a href='#L104'>104</a>
+<a name='L105'></a><a href='#L105'>105</a>
+<a name='L106'></a><a href='#L106'>106</a>
+<a name='L107'></a><a href='#L107'>107</a>
+<a name='L108'></a><a href='#L108'>108</a>
+<a name='L109'></a><a href='#L109'>109</a>
+<a name='L110'></a><a href='#L110'>110</a>
+<a name='L111'></a><a href='#L111'>111</a>
+<a name='L112'></a><a href='#L112'>112</a>
+<a name='L113'></a><a href='#L113'>113</a>
+<a name='L114'></a><a href='#L114'>114</a>
+<a name='L115'></a><a href='#L115'>115</a>
+<a name='L116'></a><a href='#L116'>116</a>
+<a name='L117'></a><a href='#L117'>117</a>
+<a name='L118'></a><a href='#L118'>118</a>
+<a name='L119'></a><a href='#L119'>119</a>
+<a name='L120'></a><a href='#L120'>120</a>
+<a name='L121'></a><a href='#L121'>121</a>
+<a name='L122'></a><a href='#L122'>122</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
@@ -270,11 +306,11 @@
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import mongoose from "mongoose";
+import { customerLifecycleField } from "../helpers/customerLifecycle.js";
 &nbsp;
 import * as validate from "../helpers/model/alert.js";
 &nbsp;
 const { Schema } = mongoose;
-&nbsp;
 const alertTypes = [...validate.ALERT_TYPES];
 &nbsp;
 const AlertSchema = new Schema(
@@ -284,6 +320,7 @@ const AlertSchema = new Schema(
       ref: "Business",
       required: [true, "Business is required"],
     },
+    customerLifecycleStatus: { ...customerLifecycleField },
     lead: { type: Schema.Types.ObjectId, ref: "Lead", default: null },
     conversation: {
       type: Schema.Types.ObjectId,
@@ -333,18 +370,34 @@ const AlertSchema = new Schema(
     },
     metadata: { type: Schema.Types.Mixed, default: {} },
     dedupeKey: { type: String, trim: true, maxlength: 200, default: null },
-&nbsp;
     assignedTo: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    assignedAt: { type: Date, default: null },
+    assignedBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
     acknowledgedAt: { type: Date, default: null },
+    acknowledgedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
     resolvedAt: { type: Date, default: null },
+    resolvedBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
     resolution: { type: String, trim: true, default: "", maxlength: 2000 },
     actionRequired: { type: Boolean, default: false },
     dueAt: { type: Date, default: null },
     reason: { type: String, trim: true, default: "", maxlength: 1000 },
-    recommendedAction: { type: String, trim: true, default: "", maxlength: 1000 },
+    recommendedAction: {
+      type: String,
+      trim: true,
+      default: "",
+      maxlength: 1000,
+    },
     aiSummary: { type: String, trim: true, default: "", maxlength: 2000 },
-    lastCustomerMessage: { type: String, trim: true, default: "", maxlength: 1600 },
-&nbsp;
+    lastCustomerMessage: {
+      type: String,
+      trim: true,
+      default: "",
+      maxlength: 1600,
+    },
     readAt: { type: Date, default: null },
     sentAt: { type: Date, default: null },
   },
@@ -371,6 +424,7 @@ AlertSchema.index(
 );
 &nbsp;
 const Alert = mongoose.models.Alert || mongoose.model("Alert", AlertSchema);
+&nbsp;
 export default Alert;
 &nbsp;</pre></td></tr></table></pre>
 
@@ -379,7 +433,7 @@ export default Alert;
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-07-27T20:00:30.783Z
+                at 2026-08-14T23:02:23.090Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

@@ -1,0 +1,21 @@
+{
+  "id": "evt_fixture_subscription_deleted",
+  "object": "event",
+  "type": "customer.subscription.deleted",
+  "livemode": false,
+  "created": 1786741200,
+  "data": {
+    "object": {
+      "id": "sub_fixture",
+      "object": "subscription",
+      "customer": "cus_fixture",
+      "status": "canceled",
+      "cancel_at_period_end": false,
+      "metadata": {
+        "businessId": "000000000000000000000001",
+        "ownerId": "000000000000000000000002",
+        "plan": "pro"
+      }
+    }
+  }
+}

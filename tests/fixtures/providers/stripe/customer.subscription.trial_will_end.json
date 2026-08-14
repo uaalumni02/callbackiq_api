@@ -1,0 +1,22 @@
+{
+  "id": "evt_fixture_trial_will_end",
+  "object": "event",
+  "type": "customer.subscription.trial_will_end",
+  "livemode": false,
+  "created": 1786741200,
+  "data": {
+    "object": {
+      "id": "sub_fixture_trial",
+      "object": "subscription",
+      "customer": "cus_fixture",
+      "status": "trialing",
+      "trial_start": 1786741200,
+      "trial_end": 1787950800,
+      "metadata": {
+        "businessId": "000000000000000000000001",
+        "ownerId": "000000000000000000000002",
+        "plan": "pro"
+      }
+    }
+  }
+}

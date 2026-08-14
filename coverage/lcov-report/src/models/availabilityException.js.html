@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">96.72% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>81/81</span>
+                <span class='fraction'>59/61</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">25% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/0</span>
+                <span class='fraction'>1/4</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>0/0</span>
+                <span class='fraction'>1/1</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">96.72% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>81/81</span>
+                <span class='fraction'>59/61</span>
             </div>
         
             
@@ -124,27 +124,7 @@
 <a name='L59'></a><a href='#L59'>59</a>
 <a name='L60'></a><a href='#L60'>60</a>
 <a name='L61'></a><a href='#L61'>61</a>
-<a name='L62'></a><a href='#L62'>62</a>
-<a name='L63'></a><a href='#L63'>63</a>
-<a name='L64'></a><a href='#L64'>64</a>
-<a name='L65'></a><a href='#L65'>65</a>
-<a name='L66'></a><a href='#L66'>66</a>
-<a name='L67'></a><a href='#L67'>67</a>
-<a name='L68'></a><a href='#L68'>68</a>
-<a name='L69'></a><a href='#L69'>69</a>
-<a name='L70'></a><a href='#L70'>70</a>
-<a name='L71'></a><a href='#L71'>71</a>
-<a name='L72'></a><a href='#L72'>72</a>
-<a name='L73'></a><a href='#L73'>73</a>
-<a name='L74'></a><a href='#L74'>74</a>
-<a name='L75'></a><a href='#L75'>75</a>
-<a name='L76'></a><a href='#L76'>76</a>
-<a name='L77'></a><a href='#L77'>77</a>
-<a name='L78'></a><a href='#L78'>78</a>
-<a name='L79'></a><a href='#L79'>79</a>
-<a name='L80'></a><a href='#L80'>80</a>
-<a name='L81'></a><a href='#L81'>81</a>
-<a name='L82'></a><a href='#L82'>82</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
+<a name='L62'></a><a href='#L62'>62</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
@@ -194,28 +174,8 @@
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
@@ -229,12 +189,14 @@
 &nbsp;
 const { Schema } = mongoose;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
+const START_TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
+const END_TIME_PATTERN = /^(?:([01]\d|2[0-3]):([0-5]\d)|24:00)$/;
 &nbsp;
 const ExceptionWindowSchema = new Schema(
   {
-    startTime: { type: String, required: true, match: TIME_PATTERN },
-    endTime: { type: String, required: true, match: TIME_PATTERN },
+    startTime: { type: String, default: "00:00", match: START_TIME_PATTERN },
+    endTime: { type: String, default: "24:00", match: END_TIME_PATTERN },
+    allDay: { type: Boolean, default: false },
   },
   { _id: false },
 );
@@ -247,12 +209,7 @@ const AvailabilityExceptionSchema = new Schema(
       required: true,
       index: true,
     },
-    date: {
-      type: String,
-      required: true,
-      match: DATE_PATTERN,
-      index: true,
-    },
+    date: { type: String, required: true, match: DATE_PATTERN, index: true },
     type: {
       type: String,
       enum: [
@@ -265,39 +222,22 @@ const AvailabilityExceptionSchema = new Schema(
       ],
       required: true,
     },
-    name: {
-      type: String,
-      trim: true,
-      maxlength: 120,
-      default: "",
-    },
-    allDay: {
-      type: Boolean,
-      default: true,
-    },
-    windows: {
-      type: [ExceptionWindowSchema],
-      default: [],
-    },
-    capacity: {
-      type: Number,
-      min: 0,
-      max: 100,
-      default: 0,
-    },
-    reason: {
-      type: String,
-      trim: true,
-      maxlength: 500,
-      default: "",
-    },
-    active: {
-      type: Boolean,
-      default: true,
-    },
+    name: { type: String, trim: true, maxlength: 120, default: "" },
+    allDay: { type: Boolean, default: true },
+    windows: { type: [ExceptionWindowSchema], default: [] },
+    capacity: { type: Number, min: 0, max: 100, default: 0 },
+    reason: { type: String, trim: true, maxlength: 500, default: "" },
+    active: { type: Boolean, default: true },
   },
   { timestamps: true },
 );
+&nbsp;
+AvailabilityExceptionSchema.pre("validate", function validateSpecialHours() {
+  if (this.type !== "special_hours") <span class="branch-0 cbranch-no" title="branch not covered" >return;</span>
+  if (!this.windows<span class="branch-0 cbranch-no" title="branch not covered" >?.length)</span> <span class="branch-0 cbranch-no" title="branch not covered" >{</span>
+<span class="cstat-no" title="statement not covered" >    this.invalidate("windows", "Special hours require at least one time window.");</span>
+<span class="cstat-no" title="statement not covered" >  }</span>
+});
 &nbsp;
 AvailabilityExceptionSchema.index({ business: 1, date: 1, active: 1 });
 &nbsp;
@@ -313,7 +253,7 @@ export default AvailabilityException;
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-07-27T20:00:30.783Z
+                at 2026-08-14T23:02:23.090Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

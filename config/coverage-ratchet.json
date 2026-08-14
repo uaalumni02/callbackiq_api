@@ -1,0 +1,118 @@
+{
+  "version": 1,
+  "policy": {
+    "description": "Bootstrap floors are intentionally conservative because the checked-in wave3 summary covered only part of src. Run the full CI coverage job, then use npm run coverage:ratchet:update to raise (never lower) the measured baseline. Critical files are gated individually so risky code cannot hide behind the global average.",
+    "globalMinimums": {
+      "branches": 45,
+      "functions": 50,
+      "lines": 60,
+      "statements": 60
+    },
+    "targetMinimums": {
+      "branches": 75,
+      "functions": 80,
+      "lines": 85,
+      "statements": 85
+    }
+  },
+  "criticalFiles": {
+    "src/controllers/billing.js": {
+      "branches": 55,
+      "functions": 85,
+      "lines": 82,
+      "statements": 82
+    },
+    "src/services/subscriptionIntegrity.service.js": {
+      "branches": 45,
+      "functions": 60,
+      "lines": 65,
+      "statements": 65
+    },
+    "src/services/trialLifecycle.service.js": {
+      "branches": 45,
+      "functions": 55,
+      "lines": 65,
+      "statements": 65
+    },
+    "src/services/trackingNumberProvisioning.service.js": {
+      "branches": 35,
+      "functions": 45,
+      "lines": 50,
+      "statements": 50
+    },
+    "src/services/a2pMessagingRegistration.service.js": {
+      "branches": 60,
+      "functions": 75,
+      "lines": 78,
+      "statements": 78
+    },
+    "src/controllers/a2pEvents.controller.js": {
+      "branches": 65,
+      "functions": 95,
+      "lines": 90,
+      "statements": 90
+    },
+    "src/workers/smsProcessing.worker.js": {
+      "branches": 65,
+      "functions": 75,
+      "lines": 80,
+      "statements": 80
+    },
+    "src/workers/trialLifecycle.worker.js": {
+      "branches": 70,
+      "functions": 80,
+      "lines": 85,
+      "statements": 85
+    },
+    "src/middleware/socket-auth.js": {
+      "branches": 80,
+      "functions": 95,
+      "lines": 95,
+      "statements": 95
+    },
+    "src/middleware/validate-twilio-signature.js": {
+      "branches": 85,
+      "functions": 95,
+      "lines": 95,
+      "statements": 95
+    },
+    "src/middleware/require-subscription-access.js": {
+      "branches": 60,
+      "functions": 95,
+      "lines": 80,
+      "statements": 80
+    },
+    "src/helpers/ai/followUpAgent.js": {
+      "branches": 45,
+      "functions": 45,
+      "lines": 50,
+      "statements": 50
+    },
+    "src/helpers/ai/qualifyLeadWithAI.js": {
+      "branches": 45,
+      "functions": 50,
+      "lines": 55,
+      "statements": 55
+    }
+  },
+  "criticalTargets": {
+    "moneyTelecomEntitlement": {
+      "branches": 75,
+      "functions": 85,
+      "lines": 90,
+      "statements": 90
+    },
+    "security": {
+      "branches": 85,
+      "functions": 95,
+      "lines": 95,
+      "statements": 95
+    },
+    "aiBoundary": {
+      "branches": 75,
+      "functions": 80,
+      "lines": 85,
+      "statements": 85
+    }
+  }
+}

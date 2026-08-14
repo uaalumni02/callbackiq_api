@@ -25,14 +25,14 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>35/35</span>
+                <span class='fraction'>40/40</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>14/14</span>
+                <span class='fraction'>9/9</span>
             </div>
         
             
@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>35/35</span>
+                <span class='fraction'>40/40</span>
             </div>
         
             
@@ -98,7 +98,12 @@
 <a name='L33'></a><a href='#L33'>33</a>
 <a name='L34'></a><a href='#L34'>34</a>
 <a name='L35'></a><a href='#L35'>35</a>
-<a name='L36'></a><a href='#L36'>36</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
+<a name='L36'></a><a href='#L36'>36</a>
+<a name='L37'></a><a href='#L37'>37</a>
+<a name='L38'></a><a href='#L38'>38</a>
+<a name='L39'></a><a href='#L39'>39</a>
+<a name='L40'></a><a href='#L40'>40</a>
+<a name='L41'></a><a href='#L41'>41</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
@@ -114,15 +119,19 @@
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">26x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">41x</span>
+<span class="cline-any cline-yes">11x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">11x</span>
 <span class="cline-any cline-yes">11x</span>
-<span class="cline-any cline-yes">10x</span>
+<span class="cline-any cline-yes">11x</span>
+<span class="cline-any cline-yes">11x</span>
 <span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">11x</span>
-<span class="cline-any cline-yes">11x</span>
-<span class="cline-any cline-yes">11x</span>
-<span class="cline-any cline-yes">11x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-yes">2x</span>
@@ -130,6 +139,7 @@
 <span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-yes">9x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
@@ -138,10 +148,13 @@ import HousecallProProvider from "../../integrations/scheduling/housecallPro.pro
 import InternalSchedulingProvider from "../../integrations/scheduling/internalScheduling.provider.js";
 import JobberProvider from "../../integrations/scheduling/jobber.provider.js";
 import ServiceTitanProvider from "../../integrations/scheduling/serviceTitan.provider.js";
+import {
+  businessCalendarProviderName,
+  normalizeCalendarProviderName,
+} from "./calendarProviderName.service.js";
 &nbsp;
 const PROVIDERS = {
   internal: InternalSchedulingProvider,
-  google: GoogleCalendarProvider,
   google_calendar: GoogleCalendarProvider,
   jobber: JobberProvider,
   housecall_pro: HousecallProProvider,
@@ -150,16 +163,17 @@ const PROVIDERS = {
 &nbsp;
 class SchedulingProviderFactory<span class="fstat-no" title="function not covered" > {</span>
   static getProvider(business, providerNameOverride = null) {
-    const providerName =
-      providerNameOverride ||
-      business?.features?.calendarProvider ||
-      business?.featureSettings?.calendarProvider ||
-      "internal";
+    const providerName = providerNameOverride
+      ? normalizeCalendarProviderName(providerNameOverride)
+      : businessCalendarProviderName(business);
     const Provider = PROVIDERS[providerName];
 &nbsp;
     if (!Provider) {
-      const error = new Error(`Unsupported scheduling provider: ${providerName}`);
+      const error = new Error(
+        `Unsupported scheduling provider: ${providerName}`,
+      );
       error.statusCode = 400;
+      error.code = "UNSUPPORTED_SCHEDULING_PROVIDER";
       throw error;
     }
 &nbsp;
@@ -167,6 +181,7 @@ class SchedulingProviderFactory<span class="fstat-no" title="function not covere
   }
 }
 &nbsp;
+export { PROVIDERS };
 export default SchedulingProviderFactory;
 &nbsp;</pre></td></tr></table></pre>
 
@@ -175,7 +190,7 @@ export default SchedulingProviderFactory;
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-07-27T20:00:30.783Z
+                at 2026-08-14T23:02:23.090Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>

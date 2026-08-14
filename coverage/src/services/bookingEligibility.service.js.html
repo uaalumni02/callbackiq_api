@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">79.8% </span>
+                <span class="strong">82.73% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>245/307</span>
+                <span class='fraction'>254/307</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">52.41% </span>
+                <span class="strong">53.9% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>65/124</span>
+                <span class='fraction'>69/128</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">85.71% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>6/7</span>
+                <span class='fraction'>7/7</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">79.8% </span>
+                <span class="strong">82.73% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>245/307</span>
+                <span class='fraction'>254/307</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line medium'></div>
+    <div class='status-line high'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -434,7 +434,7 @@
 <span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">2x</span>
@@ -557,26 +557,26 @@
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
@@ -740,8 +740,8 @@ const getZonedParts = (date, timeZone) =&gt; {
   };
 };
 &nbsp;
-const timeFallsInWindows = <span class="fstat-no" title="function not covered" >(time, windows = []) =&gt;</span>
-<span class="cstat-no" title="statement not covered" >  windows.some((window) =&gt; time &gt;= window.startTime &amp;&amp; time &lt; window.endTime);</span>
+const timeFallsInWindows = (time, windows<span class="branch-0 cbranch-no" title="branch not covered" > = [])</span> =&gt;
+  windows.some((window) =&gt; time &gt;= window.startTime &amp;&amp; time &lt; window.endTime);
 &nbsp;
 const evaluateServiceArea = (serviceArea, zipCode) =&gt; {
   if (!serviceArea) <span class="branch-0 cbranch-no" title="branch not covered" >{</span>
@@ -860,30 +860,30 @@ const evaluateAvailability = async ({
 &nbsp;
   const windows = specialHours<span class="branch-0 cbranch-no" title="branch not covered" >?.windows<span class="branch-0 cbranch-no" title="branch not covered" ><span class="branch-0 cbranch-no" title="branch not covered" >?.l</span></span>ength</span>
 <span class="cstat-no" title="statement not covered" ><span class="branch-0 cbranch-no" title="branch not covered" >    ? specialHours.windows</span></span>
-    : rule<span class="branch-0 cbranch-no" title="branch not covered" ><span class="branch-0 cbranch-no" title="branch not covered" >?.w</span>indows </span>|| [];
-  const enabled = specialHours<span class="branch-0 cbranch-no" title="branch not covered" > ? true </span>: Boolean(rule<span class="branch-0 cbranch-no" title="branch not covered" ><span class="branch-0 cbranch-no" title="branch not covered" >?.e</span>nabled)</span>;
+    : rule<span class="branch-0 cbranch-no" title="branch not covered" >?.w</span>indows<span class="branch-0 cbranch-no" title="branch not covered" > || [];</span>
+  const enabled = specialHours<span class="branch-0 cbranch-no" title="branch not covered" > ? true </span>: Boolean(rule<span class="branch-0 cbranch-no" title="branch not covered" >?.e</span>nabled);
 &nbsp;
-  if (!enabled<span class="branch-0 cbranch-no" title="branch not covered" > || !windows.length<span class="branch-0 cbranch-no" title="branch not covered" >)</span> {</span>
-    if (policy.allowAfterHoursBooking<span class="branch-0 cbranch-no" title="branch not covered" >) {</span>
-      return { available: true, reason: "after_hours_booking_allowed", ...requested<span class="branch-0 cbranch-no" title="branch not covered" > };</span>
-<span class="cstat-no" title="statement not covered" >    }</span>
-<span class="cstat-no" title="statement not covered" ></span>
-<span class="cstat-no" title="statement not covered" >    return { available: false, reason: "business_closed", ...requested<span class="branch-0 cbranch-no" title="branch not covered" > };</span></span>
-<span class="cstat-no" title="statement not covered" >  }</span>
-<span class="cstat-no" title="statement not covered" ></span>
-<span class="cstat-no" title="statement not covered" >  if (!timeFallsInWindows(requested.time, windows)) {</span>
+  if (!enabled || !windows.length<span class="branch-0 cbranch-no" title="branch not covered" >) {</span>
 <span class="cstat-no" title="statement not covered" >    if (policy.allowAfterHoursBooking) {</span>
 <span class="cstat-no" title="statement not covered" >      return { available: true, reason: "after_hours_booking_allowed", ...requested<span class="branch-0 cbranch-no" title="branch not covered" > };</span></span>
 <span class="cstat-no" title="statement not covered" >    }</span>
 <span class="cstat-no" title="statement not covered" ></span>
-<span class="cstat-no" title="statement not covered" >    return { available: false, reason: "outside_operating_window", ...requested<span class="branch-0 cbranch-no" title="branch not covered" > };</span></span>
-<span class="cstat-no" title="statement not covered" >  }</span>
+<span class="cstat-no" title="statement not covered" >    return { available: false, reason: "business_closed", ...requested };</span>
+  }
+&nbsp;
+  if (!timeFallsInWindows(requested.time, windows)<span class="branch-0 cbranch-no" title="branch not covered" >) {</span>
+<span class="cstat-no" title="statement not covered" >    if (policy.allowAfterHoursBooking) {</span>
+<span class="cstat-no" title="statement not covered" >      return { available: true, reason: "after_hours_booking_allowed", ...requested<span class="branch-0 cbranch-no" title="branch not covered" > };</span></span>
+<span class="cstat-no" title="statement not covered" >    }</span>
 <span class="cstat-no" title="statement not covered" ></span>
-<span class="cstat-no" title="statement not covered" >  return {</span>
-<span class="cstat-no" title="statement not covered" >    available: true,</span>
-<span class="cstat-no" title="statement not covered" >    reason: "operating_window_available",</span>
-<span class="cstat-no" title="statement not covered" >    capacity: specialHours?.capacity || rule?.capacity || 1,</span>
-<span class="cstat-no" title="statement not covered" >    ...requested<span class="branch-0 cbranch-no" title="branch not covered" ><span class="branch-0 cbranch-no" title="branch not covered" >,</span></span></span>
+<span class="cstat-no" title="statement not covered" >    return { available: false, reason: "outside_operating_window", ...requested };</span>
+  }
+&nbsp;
+  return {
+    available: true,
+    reason: "operating_window_available",
+    capacity: specialHours<span class="branch-0 cbranch-no" title="branch not covered" >?.capacity </span>|| rule<span class="branch-0 cbranch-no" title="branch not covered" >?.c</span>apacity<span class="branch-0 cbranch-no" title="branch not covered" > || 1,</span>
+    ...requested<span class="branch-0 cbranch-no" title="branch not covered" ><span class="branch-0 cbranch-no" title="branch not covered" >,</span></span>
   };
 };
 &nbsp;
@@ -991,7 +991,7 @@ export const evaluateBookingEligibility = async ({
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-07-27T20:00:31.026Z
+                at 2026-08-14T23:02:23.750Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

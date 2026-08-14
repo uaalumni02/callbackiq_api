@@ -1,0 +1,20 @@
+{
+  "id": "evt_fixture_subscription_paused",
+  "object": "event",
+  "type": "customer.subscription.paused",
+  "livemode": false,
+  "created": 1786741200,
+  "data": {
+    "object": {
+      "id": "sub_fixture",
+      "object": "subscription",
+      "customer": "cus_fixture",
+      "status": "paused",
+      "metadata": {
+        "businessId": "000000000000000000000001",
+        "ownerId": "000000000000000000000002",
+        "plan": "pro"
+      }
+    }
+  }
+}

@@ -25,7 +25,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>67/67</span>
+                <span class='fraction'>77/77</span>
             </div>
         
             
@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>67/67</span>
+                <span class='fraction'>77/77</span>
             </div>
         
             
@@ -130,7 +130,27 @@
 <a name='L65'></a><a href='#L65'>65</a>
 <a name='L66'></a><a href='#L66'>66</a>
 <a name='L67'></a><a href='#L67'>67</a>
-<a name='L68'></a><a href='#L68'>68</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
+<a name='L68'></a><a href='#L68'>68</a>
+<a name='L69'></a><a href='#L69'>69</a>
+<a name='L70'></a><a href='#L70'>70</a>
+<a name='L71'></a><a href='#L71'>71</a>
+<a name='L72'></a><a href='#L72'>72</a>
+<a name='L73'></a><a href='#L73'>73</a>
+<a name='L74'></a><a href='#L74'>74</a>
+<a name='L75'></a><a href='#L75'>75</a>
+<a name='L76'></a><a href='#L76'>76</a>
+<a name='L77'></a><a href='#L77'>77</a>
+<a name='L78'></a><a href='#L78'>78</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
@@ -199,68 +219,78 @@
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import Joi from "joi";
 &nbsp;
-const ALERT_TYPES = [
-  "hot_lead",
-  "missed_call",
-  "customer_reply",
-  "booked_job",
-  "system",
-];
+import { ALERT_TYPES as ALERT_TYPE_SET } from "../helpers/model/alert.js";
 &nbsp;
+const ALERT_TYPES = [...ALERT_TYPE_SET];
 const ALERT_CHANNELS = ["in_app", "email", "sms"];
-const ALERT_STATUSES = ["pending", "sent", "failed", "read"];
+const ALERT_STATUSES = [
+  "pending",
+  "sent",
+  "failed",
+  "read",
+  "acknowledged",
+  "resolved",
+];
 const ALERT_PRIORITIES = ["low", "medium", "high", "critical"];
 &nbsp;
-const alertSchema = Joi.object({
-  lead: Joi.string().hex().length(24).allow(null, "").optional(),
+const objectId = Joi.string().hex().length(24);
+const optionalObjectId = objectId.allow(null, "").optional();
 &nbsp;
+const interventionFields = {
+  conversation: optionalObjectId,
+  appointment: optionalObjectId,
+  assignedTo: optionalObjectId,
+  acknowledgedAt: Joi.date().iso().allow(null).optional(),
+  resolvedAt: Joi.date().iso().allow(null).optional(),
+  resolution: Joi.string().trim().max(2000).allow("").optional(),
+  actionRequired: Joi.boolean().optional(),
+  dueAt: Joi.date().iso().allow(null).optional(),
+  reason: Joi.string().trim().max(1000).allow("").optional(),
+  recommendedAction: Joi.string().trim().max(1000).allow("").optional(),
+  aiSummary: Joi.string().trim().max(2000).allow("").optional(),
+  lastCustomerMessage: Joi.string().trim().max(1600).allow("").optional(),
+};
+&nbsp;
+const alertSchema = Joi.object({
+  lead: optionalObjectId,
   type: Joi.string()
     .valid(...ALERT_TYPES)
     .required(),
-&nbsp;
   channel: Joi.string()
     .valid(...ALERT_CHANNELS)
     .default("in_app"),
-&nbsp;
   title: Joi.string().trim().min(2).max(120).required(),
-&nbsp;
   message: Joi.string().trim().min(2).max(1000).required(),
-&nbsp;
   status: Joi.string()
     .valid(...ALERT_STATUSES)
     .default("pending"),
-&nbsp;
   priority: Joi.string()
     .valid(...ALERT_PRIORITIES)
     .default("medium"),
-&nbsp;
   metadata: Joi.object().unknown(true).default({}),
-&nbsp;
   dedupeKey: Joi.string().trim().max(200).allow(null, "").optional(),
+  ...interventionFields,
 });
 &nbsp;
 const updateAlertSchema = Joi.object({
+  lead: optionalObjectId,
   type: Joi.string()
     .valid(...ALERT_TYPES)
     .optional(),
-&nbsp;
   channel: Joi.string()
     .valid(...ALERT_CHANNELS)
     .optional(),
-&nbsp;
   title: Joi.string().trim().min(2).max(120).optional(),
-&nbsp;
   message: Joi.string().trim().min(2).max(1000).optional(),
-&nbsp;
   status: Joi.string()
     .valid(...ALERT_STATUSES)
     .optional(),
-&nbsp;
   priority: Joi.string()
     .valid(...ALERT_PRIORITIES)
     .optional(),
-&nbsp;
   metadata: Joi.object().unknown(true).optional(),
+  dedupeKey: Joi.string().trim().max(200).allow(null, "").optional(),
+  ...interventionFields,
 }).min(1);
 &nbsp;
 export { alertSchema, updateAlertSchema };
@@ -271,7 +301,7 @@ export { alertSchema, updateAlertSchema };
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-07-27T20:00:31.026Z
+                at 2026-08-14T23:02:23.750Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

@@ -23,9 +23,9 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">95.74% </span>
+                <span class="strong">96.19% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>90/94</span>
+                <span class='fraction'>101/105</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">95.74% </span>
+                <span class="strong">96.19% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>90/94</span>
+                <span class='fraction'>101/105</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line medium'></div>
+    <div class='status-line high'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -157,7 +157,30 @@
 <a name='L92'></a><a href='#L92'>92</a>
 <a name='L93'></a><a href='#L93'>93</a>
 <a name='L94'></a><a href='#L94'>94</a>
-<a name='L95'></a><a href='#L95'>95</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
+<a name='L95'></a><a href='#L95'>95</a>
+<a name='L96'></a><a href='#L96'>96</a>
+<a name='L97'></a><a href='#L97'>97</a>
+<a name='L98'></a><a href='#L98'>98</a>
+<a name='L99'></a><a href='#L99'>99</a>
+<a name='L100'></a><a href='#L100'>100</a>
+<a name='L101'></a><a href='#L101'>101</a>
+<a name='L102'></a><a href='#L102'>102</a>
+<a name='L103'></a><a href='#L103'>103</a>
+<a name='L104'></a><a href='#L104'>104</a>
+<a name='L105'></a><a href='#L105'>105</a>
+<a name='L106'></a><a href='#L106'>106</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
@@ -245,7 +268,6 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
@@ -254,10 +276,11 @@
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import express from "express";
 import cookieParser from "cookie-parser";
 import cors from "cors";
-&nbsp;
 import { expressCorsOptions } from "./config/cors.js";
 import authRoutes from "./routes/auth.routes.js";
 import businessRoutes from "./routes/business.routes.js";
+import a2pCustomerOnboardingRoutes from "./routes/a2pCustomerOnboarding.routes.js";
+import a2pEventsRoutes from "./routes/a2pEvents.routes.js";
 import businessFactsRoutes from "./routes/businessFacts.routes.js";
 import businessConfigurationRoutes from "./routes/businessConfiguration.routes.js";
 import leadRoutes from "./routes/lead.routes.js";
@@ -271,7 +294,8 @@ import aiRoutes from "./routes/ai.routes.js";
 import alertRoutes from "./routes/alert.routes.js";
 import agentRoutes from "./routes/agent.routes.js";
 import billingRoutes from "./routes/billing.routes.js";
-import stripeWebhookRoutes from "./routes/stripeWebhook.routes.js";
+import stripeWebhookRoutes from "./routes/stripeWebHook.routes.js";
+import integrationWebhookRoutes from "./routes/integrationWebhook.routes.js";
 import supportRoutes from "./routes/support.routes.js";
 import demoRequestRoutes from "./routes/demoRequest.routes.js";
 import passwordResetRoutes from "./routes/passwordReset.routes.js";
@@ -283,6 +307,9 @@ import integrationRoutes from "./routes/integration.routes.js";
 import automationRoutes from "./routes/automation.routes.js";
 import revenueRecoveryRoutes from "./routes/revenueRecovery.routes.js";
 import interventionRoutes from "./routes/intervention.routes.js";
+import voiceSettingsRoutes from "./routes/voiceSettings.routes.js";
+import customerRecoveryRoutes from "./routes/customerRecovery.routes.js";
+import voiceOperationsRoutes from "./routes/voiceOperations.routes.js";
 import requestContext from "./middleware/request-context.js";
 import notFound from "./middleware/not-found.js";
 import errorHandler from "./middleware/error-handler.js";
@@ -294,8 +321,10 @@ app.disable("x-powered-by");
 app.set("trust proxy", 1);
 app.use(requestContext);
 &nbsp;
-/* Stripe signature verification requires the untouched raw body. */
+/* Signature verification requires the untouched request body. */
 app.use("/api/billing", stripeWebhookRoutes);
+app.use("/api/integration-webhooks", integrationWebhookRoutes);
+&nbsp;
 app.use(cors(expressCorsOptions));
 app.use(express.json({ limit: bodyLimit }));
 app.use(
@@ -305,13 +334,16 @@ app.use(
   }),
 );
 app.use(cookieParser());
+app.use("/api/a2p-events", a2pEventsRoutes);
 app.use("/api/health", healthRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/businesses", businessFactsRoutes);
 app.use("/api/businesses", businessRoutes);
+app.use("/api/businesses", a2pCustomerOnboardingRoutes);
 app.use("/api/business-configuration", businessConfigurationRoutes);
 app.use("/api/leads", leadRoutes);
 app.use("/api/conversations", conversationRoutes);
+app.use("/api/customers", customerRecoveryRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/calls", callLogRoutes);
 app.use("/api/twilio", twilioRoutes);
@@ -333,6 +365,8 @@ app.use("/api/integrations", integrationRoutes);
 app.use("/api/automation", automationRoutes);
 app.use("/api/analytics/revenue-recovery", revenueRecoveryRoutes);
 app.use("/api/interventions", interventionRoutes);
+app.use("/api/voice-settings", voiceSettingsRoutes);
+app.use("/api/voice-operations", voiceOperationsRoutes);
 &nbsp;
 app.get("/", (req, res) =&gt; {
 <span class="cstat-no" title="statement not covered" >  return res.status(200).json({</span>
@@ -340,7 +374,6 @@ app.get("/", (req, res) =&gt; {
 <span class="cstat-no" title="statement not covered" >    message: "CallBackIQ API is running",</span>
 <span class="cstat-no" title="statement not covered" >  });</span>
 });
-&nbsp;
 app.use(notFound);
 app.use(errorHandler);
 &nbsp;
@@ -352,7 +385,7 @@ export default app;
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-07-27T20:00:30.783Z
+                at 2026-08-14T23:02:23.090Z
             </div>
         <script src="../prettify.js"></script>
         <script>

@@ -1,0 +1,19 @@
+{
+  "id": "evt_fixture_invoice_failed",
+  "object": "event",
+  "type": "invoice.payment_failed",
+  "livemode": false,
+  "created": 1786741200,
+  "data": {
+    "object": {
+      "id": "in_fixture_failed",
+      "object": "invoice",
+      "customer": "cus_fixture",
+      "subscription": "sub_fixture",
+      "billing_reason": "subscription_cycle",
+      "amount_due": 19900,
+      "amount_paid": 0,
+      "currency": "usd"
+    }
+  }
+}
