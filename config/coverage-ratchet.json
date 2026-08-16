@@ -3,10 +3,10 @@
   "policy": {
     "description": "Fresh full-suite coverage is the canonical baseline. Normal updates are raise-only and refuse to run while red; an explicit, reason-gated rebaseline exists only to repair a demonstrably stale baseline. Critical money/telecom/entitlement files are individually gated, and changed source lines carry a higher PR/push coverage bar.",
     "globalMinimums": {
-      "branches": 65.38,
-      "functions": 71.29,
-      "lines": 79.76,
-      "statements": 79.76
+      "branches": 66.84,
+      "functions": 72.44,
+      "lines": 81.11,
+      "statements": 81.11
     },
     "targetMinimums": {
       "branches": 75,
@@ -23,10 +23,10 @@
   },
   "criticalFiles": {
     "src/controllers/billing.js": {
-      "branches": 62.24,
+      "branches": 64.23,
       "functions": 82.97,
-      "lines": 81.24,
-      "statements": 81.24
+      "lines": 81.62,
+      "statements": 81.62
     },
     "src/services/subscriptionIntegrity.service.js": {
       "branches": 78.69,
@@ -35,16 +35,16 @@
       "statements": 99.81
     },
     "src/services/trialLifecycle.service.js": {
-      "branches": 63.38,
+      "branches": 71.31,
       "functions": 92,
-      "lines": 77.58,
-      "statements": 77.58
+      "lines": 81.55,
+      "statements": 81.55
     },
     "src/services/trackingNumberProvisioning.service.js": {
-      "branches": 54.36,
-      "functions": 92.3,
-      "lines": 70.94,
-      "statements": 70.94
+      "branches": 68.64,
+      "functions": 100,
+      "lines": 91.78,
+      "statements": 91.78
     },
     "src/services/a2pMessagingRegistration.service.js": {
       "branches": 58.66,
@@ -105,6 +105,24 @@
       "functions": 100,
       "lines": 100,
       "statements": 100
+    },
+    "src/controllers/twilio.js": {
+      "branches": 70.37,
+      "functions": 22.22,
+      "lines": 29.19,
+      "statements": 29.19
+    },
+    "src/services/a2pCustomerOnboarding.service.js": {
+      "branches": 54.36,
+      "functions": 24.39,
+      "lines": 31.34,
+      "statements": 31.34
+    },
+    "src/services/communicationUsageReservation.service.js": {
+      "branches": 49.5,
+      "functions": 53.33,
+      "lines": 41.23,
+      "statements": 41.23
     }
   },
   "criticalTargets": {
@@ -228,7 +246,7 @@
       }
     }
   },
-  "updatedAt": "2026-08-16T15:04:44.429Z",
+  "updatedAt": "2026-08-16T21:41:13.851Z",
   "lastUpdateMode": "raise-only",
   "lastRebaseline": {
     "at": "2026-08-16T15:04:10.355Z",
