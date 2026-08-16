@@ -4,6 +4,7 @@ import Lead from "../../models/lead.js";
 import AutomationTriggerService from "../automation/automationTrigger.service.js";
 import ConversionEventService from "../conversionEvent.service.js";
 import { formatDateKey } from "../scheduling/timezone.service.js";
+import { assertVoiceTurnActive } from "../voiceTurnContext.service.js";
 import cancelAppointmentTool from "../../helpers/ai/tools/cancelAppointment.tool.js";
 import createAppointmentTool from "../../helpers/ai/tools/createAppointment.tool.js";
 import escalateToHumanTool from "../../helpers/ai/tools/escalateToHuman.tool.js";
@@ -692,6 +693,7 @@ class BookingStateMachineService {
       }
 
       const selectedSlot = activeConversation.bookingState.selectedSlot;
+      assertVoiceTurnActive();
       await updateState(activeConversation, { status: "booking" });
 
       try {
@@ -723,6 +725,7 @@ class BookingStateMachineService {
           activeConversation.bookingState.lastError ===
             "reschedule_requested" &&
           activeConversation.bookingState.appointment;
+        assertVoiceTurnActive();
         const appointment = isReschedule
           ? await rescheduleAppointmentTool({
               business,
@@ -741,6 +744,7 @@ class BookingStateMachineService {
               input: bookingInput,
             });
 
+        assertVoiceTurnActive();
         if (appointment.status !== "confirmed") {
           throw new Error(
             "The appointment provider did not return a confirmed appointment.",

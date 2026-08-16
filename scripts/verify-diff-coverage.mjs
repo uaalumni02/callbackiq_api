@@ -3,7 +3,17 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 
-const root = process.cwd();
+const realpathIfPossible = (value) => {
+  try {
+    return fs.realpathSync.native
+      ? fs.realpathSync.native(value)
+      : fs.realpathSync(value);
+  } catch {
+    return path.resolve(value);
+  }
+};
+
+const root = realpathIfPossible(process.cwd());
 const lcovPath = path.join(root, "coverage", "lcov.info");
 const policyPath = path.join(root, "config", "coverage-ratchet.json");
 const EPSILON = 1e-9;
@@ -109,7 +119,9 @@ let current = null;
 for (const line of fs.readFileSync(lcovPath, "utf8").split(/\r?\n/)) {
   if (line.startsWith("SF:")) {
     const rawPath = line.slice(3);
-    const relative = path.isAbsolute(rawPath) ? path.relative(root, rawPath) : rawPath;
+    const relative = path.isAbsolute(rawPath)
+      ? path.relative(root, realpathIfPossible(rawPath))
+      : rawPath;
     current = { lines: new Map(), branches: [] };
     lcov.set(normalize(relative), current);
     continue;
