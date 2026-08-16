@@ -88,7 +88,11 @@
     "coverage:ratchet:rebaseline": "node scripts/verify-coverage-ratchet.mjs --rebaseline",
     "cleanup:tracked-artifacts": "node scripts/cleanup-tracked-artifacts.mjs",
     "cleanup:tracked-artifacts:apply": "node scripts/cleanup-tracked-artifacts.mjs --apply",
-    "test:risk-hardening": "jest --runInBand tests/unit/subscriptionIntegrity.matrix.hardening.test.js tests/unit/subscriptionActions.matrix.hardening.test.js tests/controllers/billing.moneyPaths.hardening.test.js"
+    "test:risk-hardening": "jest --runInBand tests/unit/subscriptionIntegrity.matrix.hardening.test.js tests/unit/subscriptionActions.matrix.hardening.test.js tests/controllers/billing.moneyPaths.hardening.test.js",
+    "test:coverage-target-lift": "jest --runInBand tests/services/bookingEligibility.targetCoverage.test.js tests/unit/businessConfiguration.targetCoverage.test.js tests/unit/voiceUsage.targetCoverage.test.js tests/unit/googleCalendarSync.targetCoverage.test.js tests/unit/integrationMaintenance.worker.targetCoverage.test.js tests/unit/twilioController.targetCoverage.test.js tests/unit/a2pCustomerOnboarding.publicState.targetCoverage.test.js",
+    "coverage:targets:report": "node scripts/report-coverage-gap.mjs",
+    "verify:coverage-targets": "node scripts/verify-coverage-targets.mjs",
+    "test:coverage:targets": "npm run test:coverage && npm run verify:coverage-targets"
   },
   "keywords": [],
   "author": "",

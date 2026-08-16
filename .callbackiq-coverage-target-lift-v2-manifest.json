@@ -1,0 +1,19 @@
+{
+  "version": "CallBackIQ_Coverage_Target_Lift_v2",
+  "appliedAt": "2026-08-16T15:24:45.532Z",
+  "repo": "/Users/demecobell/Documents/callbackiq_api",
+  "backupRoot": "/Users/demecobell/Documents/callbackiq_api/.callbackiq-coverage-target-lift-v2-backup-2026-08-16T15-24-45-531Z",
+  "created": [
+    "scripts/report-coverage-gap.mjs",
+    "scripts/verify-coverage-targets.mjs",
+    "tests/services/bookingEligibility.targetCoverage.test.js",
+    "tests/unit/a2pCustomerOnboarding.publicState.targetCoverage.test.js",
+    "tests/unit/businessConfiguration.targetCoverage.test.js",
+    "tests/unit/googleCalendarSync.targetCoverage.test.js",
+    "tests/unit/integrationMaintenance.worker.targetCoverage.test.js",
+    "tests/unit/twilioController.targetCoverage.test.js",
+    "tests/unit/voiceUsage.targetCoverage.test.js"
+  ],
+  "overwritten": [],
+  "packageJsonChanged": true
+}
