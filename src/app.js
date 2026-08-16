@@ -36,6 +36,9 @@ import voiceSettingsRoutes from "./routes/voiceSettings.routes.js";
 import customerRecoveryRoutes from "./routes/customerRecovery.routes.js";
 import voiceOperationsRoutes from "./routes/voiceOperations.routes.js";
 import requestContext from "./middleware/request-context.js";
+import securityHeaders from "./middleware/security-headers.js";
+import csrfOriginGuard from "./middleware/csrf-origin-guard.js";
+import securityResponseMonitor from "./middleware/security-response-monitor.js";
 import notFound from "./middleware/not-found.js";
 import errorHandler from "./middleware/error-handler.js";
 
@@ -45,6 +48,8 @@ const bodyLimit = process.env.API_BODY_LIMIT || "1mb";
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
 app.use(requestContext);
+app.use(securityHeaders);
+app.use(securityResponseMonitor);
 
 /* Signature verification requires the untouched request body. */
 app.use("/api/billing", stripeWebhookRoutes);
@@ -59,6 +64,7 @@ app.use(
   }),
 );
 app.use(cookieParser());
+app.use(csrfOriginGuard);
 app.use("/api/a2p-events", a2pEventsRoutes);
 app.use("/api/health", healthRoutes);
 app.use("/api/auth", authRoutes);

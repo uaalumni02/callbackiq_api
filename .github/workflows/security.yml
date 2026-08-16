@@ -1,0 +1,60 @@
+name: Security
+
+on:
+  pull_request:
+    branches:
+      - development
+      - main
+  push:
+    branches:
+      - development
+      - main
+  schedule:
+    - cron: "17 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repository-and-dependency-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Repository security audit
+        run: node scripts/security-repository-audit.mjs
+
+      - name: Runtime dependency audit
+        run: npm audit --omit=dev --audit-level=high
+
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/dependency-review-action@v4
+
+  external-health:
+    if: github.event_name == 'schedule' && vars.CALLBACKIQ_HEALTH_URL != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+      - name: Probe production liveness/readiness
+        env:
+          CALLBACKIQ_HEALTH_URL: ${{ vars.CALLBACKIQ_HEALTH_URL }}
+        run: node scripts/security-health-probe.mjs
