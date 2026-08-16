@@ -28,10 +28,13 @@ jobs:
       CLIENT_URL: http://localhost:3001
       A2P_EVENT_STREAM_USERNAME: ci-a2p-user
       A2P_EVENT_STREAM_PASSWORD: ci-a2p-pass
+      DIFF_COVERAGE_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Use Node.js 20
         uses: actions/setup-node@v4

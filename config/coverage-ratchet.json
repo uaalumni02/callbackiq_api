@@ -1,98 +1,110 @@
 {
-  "version": 1,
+  "version": 2,
   "policy": {
-    "description": "Bootstrap floors are intentionally conservative because the checked-in wave3 summary covered only part of src. Run the full CI coverage job, then use npm run coverage:ratchet:update to raise (never lower) the measured baseline. Critical files are gated individually so risky code cannot hide behind the global average.",
+    "description": "Fresh full-suite coverage is the canonical baseline. Normal updates are raise-only and refuse to run while red; an explicit, reason-gated rebaseline exists only to repair a demonstrably stale baseline. Critical money/telecom/entitlement files are individually gated, and changed source lines carry a higher PR/push coverage bar.",
     "globalMinimums": {
-      "branches": 45,
-      "functions": 50,
-      "lines": 60,
-      "statements": 60
+      "branches": 65.38,
+      "functions": 71.29,
+      "lines": 79.76,
+      "statements": 79.76
     },
     "targetMinimums": {
       "branches": 75,
       "functions": 80,
       "lines": 85,
       "statements": 85
+    },
+    "diffCoverage": {
+      "lines": 85,
+      "branches": 75,
+      "criticalLines": 90,
+      "criticalBranches": 80
     }
   },
   "criticalFiles": {
     "src/controllers/billing.js": {
-      "branches": 55,
-      "functions": 85,
-      "lines": 82,
-      "statements": 82
+      "branches": 62.24,
+      "functions": 82.97,
+      "lines": 81.24,
+      "statements": 81.24
     },
     "src/services/subscriptionIntegrity.service.js": {
-      "branches": 45,
-      "functions": 60,
-      "lines": 65,
-      "statements": 65
+      "branches": 78.69,
+      "functions": 100,
+      "lines": 99.81,
+      "statements": 99.81
     },
     "src/services/trialLifecycle.service.js": {
-      "branches": 45,
-      "functions": 55,
-      "lines": 65,
-      "statements": 65
+      "branches": 63.38,
+      "functions": 92,
+      "lines": 77.58,
+      "statements": 77.58
     },
     "src/services/trackingNumberProvisioning.service.js": {
-      "branches": 35,
-      "functions": 45,
-      "lines": 50,
-      "statements": 50
+      "branches": 54.36,
+      "functions": 92.3,
+      "lines": 70.94,
+      "statements": 70.94
     },
     "src/services/a2pMessagingRegistration.service.js": {
-      "branches": 60,
-      "functions": 75,
-      "lines": 78,
-      "statements": 78
+      "branches": 58.66,
+      "functions": 90,
+      "lines": 85.23,
+      "statements": 85.23
     },
     "src/controllers/a2pEvents.controller.js": {
-      "branches": 65,
-      "functions": 95,
-      "lines": 90,
-      "statements": 90
+      "branches": 67.12,
+      "functions": 100,
+      "lines": 97.05,
+      "statements": 97.05
     },
     "src/workers/smsProcessing.worker.js": {
-      "branches": 65,
-      "functions": 75,
-      "lines": 80,
-      "statements": 80
+      "branches": 73.8,
+      "functions": 71.42,
+      "lines": 77.69,
+      "statements": 77.69
     },
     "src/workers/trialLifecycle.worker.js": {
-      "branches": 70,
-      "functions": 80,
-      "lines": 85,
-      "statements": 85
+      "branches": 93.18,
+      "functions": 100,
+      "lines": 93.67,
+      "statements": 93.67
     },
     "src/middleware/socket-auth.js": {
-      "branches": 80,
-      "functions": 95,
-      "lines": 95,
-      "statements": 95
+      "branches": 86.81,
+      "functions": 100,
+      "lines": 98.36,
+      "statements": 98.36
     },
     "src/middleware/validate-twilio-signature.js": {
-      "branches": 85,
-      "functions": 95,
-      "lines": 95,
-      "statements": 95
+      "branches": 94.11,
+      "functions": 100,
+      "lines": 100,
+      "statements": 100
     },
     "src/middleware/require-subscription-access.js": {
-      "branches": 60,
-      "functions": 95,
-      "lines": 80,
-      "statements": 80
+      "branches": 61.9,
+      "functions": 100,
+      "lines": 80.61,
+      "statements": 80.61
     },
     "src/helpers/ai/followUpAgent.js": {
-      "branches": 45,
-      "functions": 45,
-      "lines": 50,
-      "statements": 50
+      "branches": 56.89,
+      "functions": 100,
+      "lines": 97.48,
+      "statements": 97.48
     },
     "src/helpers/ai/qualifyLeadWithAI.js": {
-      "branches": 45,
-      "functions": 50,
-      "lines": 55,
-      "statements": 55
+      "branches": 58.2,
+      "functions": 100,
+      "lines": 99.41,
+      "statements": 99.41
+    },
+    "src/services/subscriptionActions.service.js": {
+      "branches": 86.71,
+      "functions": 100,
+      "lines": 100,
+      "statements": 100
     }
   },
   "criticalTargets": {
@@ -114,5 +126,113 @@
       "lines": 85,
       "statements": 85
     }
+  },
+  "riskWatchFiles": {
+    "src/controllers/twilio.js": {
+      "category": "moneyTelecomEntitlement",
+      "target": {
+        "branches": 75,
+        "functions": 85,
+        "lines": 90,
+        "statements": 90
+      }
+    },
+    "src/services/a2pCustomerOnboarding.service.js": {
+      "category": "moneyTelecomEntitlement",
+      "target": {
+        "branches": 75,
+        "functions": 85,
+        "lines": 90,
+        "statements": 90
+      }
+    },
+    "src/services/communicationUsageReservation.service.js": {
+      "category": "moneyTelecomEntitlement",
+      "target": {
+        "branches": 75,
+        "functions": 85,
+        "lines": 90,
+        "statements": 90
+      }
+    },
+    "src/services/twilioUsageTrigger.service.js": {
+      "category": "moneyTelecomEntitlement",
+      "target": {
+        "branches": 75,
+        "functions": 85,
+        "lines": 90,
+        "statements": 90
+      }
+    },
+    "src/workers/integrationMaintenance.worker.js": {
+      "category": "moneyTelecomEntitlement",
+      "target": {
+        "branches": 75,
+        "functions": 85,
+        "lines": 90,
+        "statements": 90
+      }
+    },
+    "src/workers/integrationWebhook.worker.js": {
+      "category": "moneyTelecomEntitlement",
+      "target": {
+        "branches": 75,
+        "functions": 85,
+        "lines": 90,
+        "statements": 90
+      }
+    },
+    "src/voice/voiceSessionMaintenance.service.js": {
+      "category": "moneyTelecomEntitlement",
+      "target": {
+        "branches": 75,
+        "functions": 85,
+        "lines": 90,
+        "statements": 90
+      }
+    },
+    "src/scripts/backfill-trial-redemptions.js": {
+      "category": "moneyTelecomEntitlement",
+      "target": {
+        "branches": 75,
+        "functions": 85,
+        "lines": 90,
+        "statements": 90
+      }
+    },
+    "src/services/integrations/googleCalendarSync.service.js": {
+      "category": "moneyTelecomEntitlement",
+      "target": {
+        "branches": 75,
+        "functions": 85,
+        "lines": 90,
+        "statements": 90
+      }
+    },
+    "src/services/integrations/googleCalendarChangeReview.service.js": {
+      "category": "moneyTelecomEntitlement",
+      "target": {
+        "branches": 75,
+        "functions": 85,
+        "lines": 90,
+        "statements": 90
+      }
+    },
+    "src/services/integrations/jobberWorkflow.service.js": {
+      "category": "moneyTelecomEntitlement",
+      "target": {
+        "branches": 75,
+        "functions": 85,
+        "lines": 90,
+        "statements": 90
+      }
+    }
+  },
+  "updatedAt": "2026-08-16T15:04:44.429Z",
+  "lastUpdateMode": "raise-only",
+  "lastRebaseline": {
+    "at": "2026-08-16T15:04:10.355Z",
+    "reason": "replace stale partial baseline with fresh full-suite post-hardening baseline",
+    "actor": "demecobell"
   }
 }
