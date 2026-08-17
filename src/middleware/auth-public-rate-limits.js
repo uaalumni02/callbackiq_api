@@ -6,6 +6,10 @@ const positiveInteger = (value, fallback) => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 };
 
+const shouldSkipPublicAuthLimiter = () =>
+  process.env.NODE_ENV === "test" &&
+  process.env.TEST_AUTH_PUBLIC_RATE_LIMITS !== "true";
+
 const createAuthLimiter = ({
   bucket,
   windowMs,
@@ -16,6 +20,7 @@ const createAuthLimiter = ({
     limit,
     standardHeaders: "draft-8",
     legacyHeaders: false,
+    skip: shouldSkipPublicAuthLimiter,
     handler: (req, res, _next, options) => {
       MonitoringService.captureEvent(
         "auth_rate_limit_triggered",

@@ -107,7 +107,7 @@ describe("Twilio signature middleware", () => {
     expect(twilio.validateRequest).toHaveBeenCalledWith(
       "auth-token",
       "valid-signature",
-      "http://localhost:3000/api/twilio/sms",
+      getWebhookUrl(req),
       req.body,
     );
     expect(next).toHaveBeenCalledWith();

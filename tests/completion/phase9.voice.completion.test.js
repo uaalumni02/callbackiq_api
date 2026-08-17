@@ -6,6 +6,7 @@ import sendConfirmationSmsTool from "../../src/helpers/ai/tools/sendConfirmation
 import validateServiceAreaTool from "../../src/helpers/ai/tools/validateServiceArea.tool.js";
 import { assessInboundSafety } from "../../src/services/safetyAssessmentService.js";
 import VoiceAgentService from "../../src/voice/voiceAgent.service.js";
+import VoiceUnderstandingService from "../../src/voice/voiceUnderstanding.service.js";
 import Alert from "../../src/models/alert.js";
 import {
   determineInitialVoiceRoute,
@@ -127,6 +128,13 @@ const setNested = (target, path, value) => {
   cursor[parts.at(-1)] = value;
 };
 
+jest.mock("../../src/voice/voiceUnderstanding.service.js", () => ({
+  __esModule: true,
+  default: {
+    classifyVoiceTurn: jest.fn(),
+  },
+}));
+
 const makeSession = () => {
   const lead = {
     _id: "lead-1",
@@ -193,6 +201,24 @@ describe("Phase 9 completion gate using production voice orchestration", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     assessInboundSafety.mockResolvedValue({ isEmergency: false });
+    VoiceUnderstandingService.classifyVoiceTurn.mockImplementation(
+      async ({ customerMessage }) => ({
+        intent: "other",
+        language: "en",
+        directedAbuse: false,
+        situationProfanity: false,
+        entities: {
+          service: "",
+          name: "",
+          location: "",
+          city: "",
+          postalCode: "",
+          urgency: "",
+          preference: "",
+        },
+        safety: await assessInboundSafety(customerMessage),
+      }),
+    );
     searchServicesTool.mockResolvedValue([
       { id: "service-1", name: "Drain cleaning", score: 1 },
     ]);

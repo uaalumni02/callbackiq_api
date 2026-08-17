@@ -7,6 +7,7 @@ import VoiceAgentService from "../../src/voice/voiceAgent.service.js";
 import VoiceCallbackService from "../../src/voice/voiceCallback.service.js";
 import VoiceHandoffService from "../../src/voice/voiceHandoff.service.js";
 import VoiceAvailabilityService from "../../src/voice/voiceAvailability.service.js";
+import VoiceUnderstandingService from "../../src/voice/voiceUnderstanding.service.js";
 
 jest.mock("../../src/models/appointment.js", () => ({
   __esModule: true,
@@ -59,6 +60,13 @@ jest.mock("../../src/voice/voiceHandoff.service.js", () => ({
   default: { request: jest.fn() },
 }));
 
+jest.mock("../../src/voice/voiceUnderstanding.service.js", () => ({
+  __esModule: true,
+  default: {
+    classifyVoiceTurn: jest.fn(),
+  },
+}));
+
 const makeSession = () => {
   const lead = {
     _id: "lead-1",
@@ -97,6 +105,24 @@ describe("VoiceAgentService callback-first recovery", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     assessInboundSafety.mockResolvedValue({ isEmergency: false });
+    VoiceUnderstandingService.classifyVoiceTurn.mockImplementation(
+      async ({ customerMessage }) => ({
+        intent: "other",
+        language: "en",
+        directedAbuse: false,
+        situationProfanity: false,
+        entities: {
+          service: "",
+          name: "",
+          location: "",
+          city: "",
+          postalCode: "",
+          urgency: "",
+          preference: "",
+        },
+        safety: await assessInboundSafety(customerMessage),
+      }),
+    );
     VoiceCallbackService.isActive.mockReturnValue(false);
     VoiceCallbackService.handle.mockResolvedValue({
       reply: "I created a callback request.",

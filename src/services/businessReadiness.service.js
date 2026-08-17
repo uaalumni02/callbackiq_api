@@ -107,6 +107,8 @@ export const buildBusinessReadiness = async (
       trackingStatus(business),
     ),
     trackingNumberActive: trackingStatus(business) === "active",
+    // CALLBACKIQ_A2P_ORCHESTRATION_READINESS
+    smsMessagingReady: business.messagingCompliance?.smsReady === true,
     servicesConfigured: services.some(
       (service) => Number(service.durationMinutes) > 0,
     ),
@@ -131,6 +133,7 @@ export const buildBusinessReadiness = async (
     smsRecoveryReady:
       checks.subscriptionActive &&
       checks.trackingNumberActive &&
+      checks.smsMessagingReady &&
       business.features?.missedCallSmsEnabled !== false,
     calendarReady: checks.calendarConfigured,
     bookingConfigurationReady,
@@ -163,6 +166,13 @@ export const buildBusinessReadiness = async (
     checks.trackingNumberActive,
     "tracking_number_not_active",
     "Your CallBackIQ number must be assigned, verified, and active.",
+    "/setup",
+  );
+  addMissing(
+    missingRequirements.smsRecovery,
+    checks.smsMessagingReady,
+    "messaging_registration_pending",
+    "Text messaging carrier verification is still processing. Calls are active; SMS will turn on automatically after registration completes.",
     "/setup",
   );
   addMissing(
@@ -299,6 +309,7 @@ export const buildBusinessReadiness = async (
     trackingNumberAssigned: checks.trackingNumberAssigned,
     trackingNumberVerified: checks.trackingNumberVerified,
     trackingNumberActive: checks.trackingNumberActive,
+    smsMessagingReady: checks.smsMessagingReady,
     servicesConfigured: checks.servicesConfigured,
     serviceAreaConfigured: checks.serviceAreaConfigured,
     availabilityConfigured: checks.availabilityConfigured,
@@ -340,6 +351,12 @@ export const buildBusinessReadiness = async (
       lastError: business.trackingNumber?.lastError || "",
     },
     forwardingPhone: business.forwardingPhone || "",
+    messagingCompliance: {
+      a2pStatus: business.messagingCompliance?.a2pStatus || "unconfigured",
+      campaignStatus: business.messagingCompliance?.campaignStatus || "",
+      smsReady: checks.smsMessagingReady,
+      senderAttached: Boolean(business.messagingCompliance?.senderAttached),
+    },
     calendarProvider: provider,
     checks,
     states,

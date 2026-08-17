@@ -15,6 +15,11 @@ import {
   stopAutomationWorker,
 } from "./workers/automation.worker.js";
 import { initializeConversationRelayServer } from "./voice/conversationRelay.server.js";
+// CALLBACKIQ_A2P_RECONCILIATION_WORKER
+import {
+  startA2pReconciliationWorker,
+  stopA2pReconciliationWorker,
+} from "./workers/a2pReconciliation.worker.js";
 
 const port = Number(process.env.PORT) || 3000;
 const shutdownTimeoutMs =
@@ -95,6 +100,7 @@ const shutdown = async (signal, exitCode = 0) => {
   forcedExitTimer.unref();
 
   try {
+    stopA2pReconciliationWorker();
     stopAutomationWorker();
     stopSmsProcessingWorker();
     await conversationRelayServer.close();
@@ -126,6 +132,7 @@ process.on("uncaughtException", (error) => {
 
 const startServer = async () => {
   await connectDB();
+  startA2pReconciliationWorker();
   await startAutomationWorker();
   await startSmsProcessingWorker();
   httpServer.listen(port, () => {

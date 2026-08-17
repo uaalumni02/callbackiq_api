@@ -86,11 +86,42 @@ describe("googleCalendarConnection.service complete behavior", () => {
   });
 
   test.each([
-    "GOOGLE_CALENDAR_CLIENT_ID",
-    "GOOGLE_CALENDAR_CLIENT_SECRET",
-    "GOOGLE_CALENDAR_REDIRECT_URI",
-  ])("requires Google configuration field %s", async (field) => {
-    delete process.env[field];
+    [
+      "Google OAuth client ID",
+      [
+        "GOOGLE_CALENDAR_CLIENT_ID",
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_OAUTH_CLIENT_ID",
+      ],
+    ],
+    [
+      "Google OAuth client secret",
+      [
+        "GOOGLE_CALENDAR_CLIENT_SECRET",
+        "GOOGLE_CLIENT_SECRET",
+        "GOOGLE_OAUTH_CLIENT_SECRET",
+      ],
+    ],
+  ])("requires %s when no configured alias is available", async (_label, fields) => {
+    fields.forEach((field) => {
+      delete process.env[field];
+    });
+
+    await expect(buildGoogleAuthorizationUrl("b1")).rejects.toMatchObject({
+      statusCode: 503,
+      code: "GOOGLE_OAUTH_NOT_CONFIGURED",
+    });
+  });
+
+  test("requires a Google OAuth redirect URI when no configured alias is available", async () => {
+    [
+      "GOOGLE_CALENDAR_REDIRECT_URI",
+      "GOOGLE_REDIRECT_URI",
+      "GOOGLE_OAUTH_REDIRECT_URI",
+    ].forEach((field) => {
+      delete process.env[field];
+    });
+
     await expect(buildGoogleAuthorizationUrl("b1")).rejects.toMatchObject({
       statusCode: 503,
       code: "GOOGLE_OAUTH_NOT_CONFIGURED",
