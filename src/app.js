@@ -32,6 +32,7 @@ import integrationRoutes from "./routes/integration.routes.js";
 import automationRoutes from "./routes/automation.routes.js";
 import revenueRecoveryRoutes from "./routes/revenueRecovery.routes.js";
 import interventionRoutes from "./routes/intervention.routes.js";
+import ownerExperienceRoutes from "./routes/ownerExperience.routes.js";
 import voiceSettingsRoutes from "./routes/voiceSettings.routes.js";
 import customerRecoveryRoutes from "./routes/customerRecovery.routes.js";
 import voiceOperationsRoutes from "./routes/voiceOperations.routes.js";
@@ -96,6 +97,7 @@ app.use("/api/integrations", integrationRoutes);
 app.use("/api/automation", automationRoutes);
 app.use("/api/analytics/revenue-recovery", revenueRecoveryRoutes);
 app.use("/api/interventions", interventionRoutes);
+app.use("/api/owner", ownerExperienceRoutes);
 app.use("/api/voice-settings", voiceSettingsRoutes);
 app.use("/api/voice-operations", voiceOperationsRoutes);
 

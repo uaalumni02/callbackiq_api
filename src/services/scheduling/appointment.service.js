@@ -260,8 +260,14 @@ const createHold = async ({
 const populateAppointment = (query) =>
   query
     .populate("serviceOffering", "name category durationMinutes estimatedValue")
-    .populate("lead", "customerName phone serviceNeeded urgency status source recovered")
-    .populate("conversation", "customerPhone customerName status humanTakeover")
+    .populate(
+      "lead",
+      "customerName phone serviceNeeded urgency status source recovered recoveredBy summary preferredAppointmentTime qualifiedAt firstRespondedAt bookedAt estimatedValue actualRevenue",
+    )
+    .populate(
+      "conversation",
+      "customerPhone customerName status humanTakeover bookingState conversationMemory lastMessage lastMessageAt",
+    )
     .populate("rescheduledFrom", "startAt endAt status")
     .populate("rescheduledTo", "startAt endAt status");
 
