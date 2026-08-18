@@ -93,7 +93,8 @@
     "coverage:targets:report": "node scripts/report-coverage-gap.mjs",
     "verify:coverage-targets": "node scripts/verify-coverage-targets.mjs",
     "test:coverage:targets": "npm run test:coverage && npm run verify:coverage-targets",
-    "test:ci:core": "npm run audit:repository-hygiene && npm run test:coverage && npm run coverage:risk-report && npm run verify:coverage-ratchet && npm run verify:diff-coverage && npm run test:hardening && npm run build"
+    "test:ci:core": "npm run audit:repository-hygiene && npm run test:coverage && npm run coverage:risk-report && npm run verify:coverage-ratchet && npm run verify:diff-coverage && npm run test:hardening && npm run build",
+    "test:sms-market-readiness": "jest tests/unit/smsTurnPolicy.marketReadiness.test.js --runInBand --no-cache"
   },
   "keywords": [],
   "author": "",

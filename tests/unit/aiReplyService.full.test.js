@@ -206,7 +206,7 @@ describe("aiReplyService complete behavior", () => {
     buildAIConfigurationContext.mockResolvedValue(configuration);
     runFollowUpAgent.mockResolvedValue(agentResult);
     const messages = [{ direction: "inbound", body: "My drain is clogged" }];
-    await expect(generateAIReplyResult({ business, lead, messages })).resolves.toBe(agentResult);
+    await expect(generateAIReplyResult({ business, lead, messages })).resolves.toMatchObject(agentResult);
     expect(qualifyLeadWithAI).toHaveBeenCalledWith({
       messageBody: "My drain is clogged",
       business,

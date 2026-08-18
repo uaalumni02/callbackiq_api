@@ -1,0 +1,11 @@
+{
+  "version": "1.0.0",
+  "appliedAt": "2026-08-18T00:37:57.814Z",
+  "backup": "/Users/demecobell/Documents/.callbackiq-local-backups/callbackiq_api/sms-market-readiness-2026-08-18T00-37-57-808Z",
+  "sha256": {
+    "src/services/messaging/smsTurnPolicy.service.js": "4eeb22bf2571b9884335a1edb8e90e2545416fa65f23ff648ca24acc1a4ed88f",
+    "src/services/aiReplyService.js": "7c63d4ac127657e33586cc03a37d93f597c3a172c4a6c4bbc47d417b7be11c94",
+    "src/helpers/ai/followUpAgent.js": "d5be7f8aad3927991ccdbb6e324e47e79785616c46ca3b4dd1206313e37645a8",
+    "tests/unit/smsTurnPolicy.marketReadiness.test.js": "43bf8900eb1dba2eca90d6c53af02b4143482b1a4955c188a01d56e2eabe0cd8"
+  }
+}

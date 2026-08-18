@@ -17,6 +17,10 @@ import { buildAIConfigurationContext } from "./businessConfiguration.service.js"
 import BookingStateMachineService from "./booking/bookingStateMachine.service.js";
 import { reserveAiUsage } from "./communicationUsage.service.js";
 import { logOperationalError } from "../helpers/logging/safeLogger.js";
+import {
+  applySmsTurnPolicy,
+  evaluateSmsTurnPolicy,
+} from "./messaging/smsTurnPolicy.service.js";
 
 const fallbackReply = SAFE_REPLIES.fallback;
 
@@ -133,8 +137,24 @@ export const generateAIReplyResult = async ({
       customerMessage: latestCustomerMessage,
       recentMessages: messages,
     });
+
+    const smsTurnPolicy = evaluateSmsTurnPolicy({
+      customerMessage: latestCustomerMessage,
+      business,
+      lead,
+      conversation,
+    });
     if (deterministicAssessment.handled) {
       return deterministicResult(deterministicAssessment);
+    }
+
+    /*
+     * Deterministic market-readiness policy handles cases where asking the
+     * customer to repeat information would be objectively wrong. Booking
+     * remains authoritative whenever aiBookingEnabled is on.
+     */
+    if (smsTurnPolicy.directResult) {
+      return smsTurnPolicy.directResult;
     }
 
     /*
@@ -176,7 +196,7 @@ export const generateAIReplyResult = async ({
       }),
       buildAIConfigurationContext(business),
     ]);
-    return await runFollowUpAgent({
+    const agentResult = await runFollowUpAgent({
       business,
       businessName: business?.businessName,
       businessType: business?.businessType || "other",
@@ -185,6 +205,14 @@ export const generateAIReplyResult = async ({
       recentMessages: messages,
       inboundAssessment,
       businessConfiguration,
+    });
+
+    return applySmsTurnPolicy({
+      result: agentResult,
+      policy: smsTurnPolicy,
+      business,
+      lead,
+      conversation,
     });
   } catch (error) {
     logOperationalError("ai_reply.generation_failed", error, {
