@@ -44,7 +44,7 @@ const validObjectIdOrNull = (value) =>
 
 const limitsFor = (business = {}) => {
   const settings = business.voiceSettings || {};
-  return {
+  const limits = {
     dailySeconds: Math.round(
       clamp(settings.dailyVoiceMinutes, 240, 1, 100000) * 60,
     ),
@@ -57,6 +57,22 @@ const limitsFor = (business = {}) => {
       ? settings.voiceUsageWarningThresholds
       : [70, 85, 100],
   };
+
+  if (business?.trialCostControls?.enabled === true) {
+    const trialDailySeconds =
+      clamp(process.env.TRIAL_VOICE_DAILY_MINUTES, 30, 1, 1440) * 60;
+    const trialMonthlySeconds =
+      clamp(process.env.TRIAL_VOICE_MONTHLY_MINUTES, 300, 1, 10000) * 60;
+    limits.dailySeconds = Math.min(limits.dailySeconds, trialDailySeconds);
+    limits.monthlySeconds = Math.min(
+      limits.monthlySeconds,
+      trialMonthlySeconds,
+    );
+    limits.hardCapEnabled = true;
+    limits.overageEnabled = false;
+  }
+
+  return limits;
 };
 
 const ensureLedger = ({ businessId, type, now, mongoSession = null }) =>

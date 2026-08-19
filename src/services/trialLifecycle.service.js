@@ -33,6 +33,14 @@ const RELEASE_GRACE_DAYS = Math.max(
   1,
   Number(process.env.TRIAL_NUMBER_RELEASE_GRACE_DAYS) || 7,
 );
+const NO_PAYMENT_METHOD_RELEASE_GRACE_HOURS = Math.max(
+  1,
+  Number(process.env.TRIAL_NO_PAYMENT_METHOD_NUMBER_RELEASE_GRACE_HOURS) || 48,
+);
+const releaseGraceMsForStatus = (status) =>
+  String(status || "").toLowerCase() === "paused"
+    ? NO_PAYMENT_METHOD_RELEASE_GRACE_HOURS * 60 * 60 * 1000
+    : RELEASE_GRACE_DAYS * DAY_MS;
 
 const configuredLimit = (name, fallback) => {
   const value = Number(process.env[name]);
@@ -805,7 +813,7 @@ export const syncStripeSubscription = async ({
   } else if (terminalTrialStatus && current?.trialUsedAt) {
     update.trialNumberReleaseAt =
       current.trialNumberReleaseAt ||
-      new Date(Date.now() + RELEASE_GRACE_DAYS * DAY_MS);
+      new Date(Date.now() + releaseGraceMsForStatus(status));
   }
 
   const subscription = await Subscription.findOneAndUpdate(
@@ -975,7 +983,7 @@ export const processTrialLifecycle = async (now = new Date()) => {
           // worker is temporarily unavailable.
           const releaseAt =
             subscription.trialNumberReleaseAt ||
-            new Date(now.getTime() + RELEASE_GRACE_DAYS * DAY_MS);
+            new Date(now.getTime() + releaseGraceMsForStatus("paused"));
           await Subscription.updateOne(
             { _id: subscription._id },
             {

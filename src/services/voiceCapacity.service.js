@@ -98,21 +98,37 @@ export const resolveVoiceCapacityLimits = ({ business, settings = {} } = {}) => 
     VOICE_CAPACITY_CONFIGURED_MAX_DURATION_SECONDS,
   );
 
-  return {
-    maximum: clamp(
-      settings.maxConcurrentCalls ?? business?.voiceSettings?.maxConcurrentCalls,
-      defaultMaximum,
-      1,
-      100,
-    ),
-    durationSeconds: clamp(
-      settings.maxCallDurationSeconds ??
-        business?.voiceSettings?.maxCallDurationSeconds,
-      defaultDurationSeconds,
-      60,
-      VOICE_CAPACITY_CONFIGURED_MAX_DURATION_SECONDS,
-    ),
-  };
+  let maximum = clamp(
+    settings.maxConcurrentCalls ?? business?.voiceSettings?.maxConcurrentCalls,
+    defaultMaximum,
+    1,
+    100,
+  );
+  let durationSeconds = clamp(
+    settings.maxCallDurationSeconds ??
+      business?.voiceSettings?.maxCallDurationSeconds,
+    defaultDurationSeconds,
+    60,
+    VOICE_CAPACITY_CONFIGURED_MAX_DURATION_SECONDS,
+  );
+
+  if (business?.trialCostControls?.enabled === true) {
+    maximum = Math.min(
+      maximum,
+      clamp(process.env.TRIAL_VOICE_MAX_CONCURRENT_CALLS, 2, 1, 10),
+    );
+    durationSeconds = Math.min(
+      durationSeconds,
+      clamp(
+        process.env.TRIAL_VOICE_MAX_CALL_DURATION_SECONDS,
+        300,
+        60,
+        VOICE_CAPACITY_MAX_DURATION_SECONDS,
+      ),
+    );
+  }
+
+  return { maximum, durationSeconds };
 };
 
 export const acquireVoiceCapacity = async ({

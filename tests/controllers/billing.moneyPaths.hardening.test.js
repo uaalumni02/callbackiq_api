@@ -110,6 +110,46 @@ jest.mock("../../src/services/subscriptionAccess.service.js", () => ({
   getSubscriptionAccess: (...args) => mockGetSubscriptionAccess(...args),
 }));
 
+
+/*
+ * Keep BillingController money-path tests isolated from trial identity
+ * verification and browser security challenges.
+ *
+ * IMPORTANT:
+ * securityGateEnabled() is synchronous in production. Returning a Promise
+ * here is truthy and would incorrectly activate Turnstile in these tests.
+ */
+jest.mock("../../src/services/trialIdentityVerification.service.js", () => ({
+  __esModule: true,
+
+  assertTrialIdentityVerified: jest.fn().mockResolvedValue({
+    ok: true,
+    success: true,
+    verified: true,
+    isVerified: true,
+    eligible: true,
+    allowed: true,
+    canProceed: true,
+    canStartTrial: true,
+    complete: true,
+    completed: true,
+    passed: true,
+    required: false,
+    verificationRequired: false,
+    requiresVerification: false,
+    needsVerification: false,
+    blocked: false,
+    pending: false,
+    conflict: false,
+    duplicate: false,
+    status: "verified",
+    reason: "",
+  }),
+
+  // Must remain SYNCHRONOUS.
+  securityGateEnabled: jest.fn(() => false),
+}));
+
 const BillingController = require("../../src/controllers/billing.js").default;
 
 const makeRes = () => {

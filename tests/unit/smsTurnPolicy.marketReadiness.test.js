@@ -4,6 +4,12 @@ import {
   extractServiceNeed,
 } from "../../src/services/messaging/smsTurnPolicy.service.js";
 
+// CALLBACKIQ_RESTORE_SMS_TEST_TIME
+afterEach(() => {
+  jest.useRealTimers();
+});
+
+
 const business = (overrides = {}) => ({
   businessName: "Birmingham Plumbing",
   timezone: "America/Chicago",
@@ -64,6 +70,11 @@ describe("SMS market-readiness turn policy", () => {
   });
 
   it("replaces the exact broken re-ask regression", () => {
+    // CALLBACKIQ_FIXED_SMS_REGRESSION_TIME
+    // Keep "tomorrow at 9am" deterministic instead of depending on CI date.
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date("2026-08-18T16:00:00.000Z"));
+
     const message = "Tomorrow at 9am are you available for the service?";
     const testBusiness = business();
     const policy = evaluateSmsTurnPolicy({

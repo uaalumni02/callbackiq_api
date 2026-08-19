@@ -209,10 +209,21 @@ class BusinessController {
       const updates = buildBusinessUpdateDocument(payload);
 
       if (Object.prototype.hasOwnProperty.call(payload, "forwardingPhone")) {
+        const previousForwardingPhone = normalizeBusinessPhone(
+          currentBusiness.forwardingPhone || "",
+        );
+        const nextForwardingPhone = normalizeBusinessPhone(
+          payload.forwardingPhone || "",
+        );
         updates["setupProgress.forwardingPhoneConfigured"] = Boolean(
           String(payload.forwardingPhone || "").trim(),
         );
         updates["setupProgress.updatedAt"] = new Date();
+
+        if (previousForwardingPhone !== nextForwardingPhone) {
+          updates.forwardingPhoneVerifiedAt = null;
+          updates.forwardingPhoneVerifiedValue = "";
+        }
       }
 
       const updatedBusiness = await Db.updateBusinessByOwner(
