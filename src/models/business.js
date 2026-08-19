@@ -254,6 +254,28 @@ const TrialCostControlsSchema = new Schema(
   { _id: false },
 );
 
+const SignupSecuritySchema = new Schema(
+  {
+    ipHash: { type: String, trim: true, default: "", select: false },
+    userAgentHash: { type: String, trim: true, default: "", select: false },
+    businessNameKey: { type: String, trim: true, default: "" },
+  },
+  { _id: false },
+);
+
+const AccountLifecycleSchema = new Schema(
+  {
+    status: {
+      type: String,
+      enum: ["active", "deleting"],
+      default: "active",
+    },
+    deletionStartedAt: { type: Date, default: null },
+    lastError: { type: String, trim: true, maxlength: 1000, default: "" },
+  },
+  { _id: false },
+);
+
 const VoiceSettingsSchema = new Schema(
   {
     answerMode: {
@@ -470,6 +492,15 @@ const BusinessSchema = new Schema(
         message: "Please enter a valid forwarding phone number",
       },
     },
+    forwardingPhoneVerifiedAt: {
+      type: Date,
+      default: null,
+    },
+    forwardingPhoneVerifiedValue: {
+      type: String,
+      trim: true,
+      default: "",
+    },
 
     email: {
       type: String,
@@ -545,6 +576,14 @@ const BusinessSchema = new Schema(
     },
     trialCostControls: {
       type: TrialCostControlsSchema,
+      default: () => ({}),
+    },
+    signupSecurity: {
+      type: SignupSecuritySchema,
+      default: () => ({}),
+    },
+    accountLifecycle: {
+      type: AccountLifecycleSchema,
       default: () => ({}),
     },
     voiceSettings: {

@@ -38,6 +38,8 @@ const registerSchema = Joi.object({
     "any.only": "Privacy Policy acceptance is required",
     "any.required": "Privacy Policy acceptance is required",
   }),
+
+  securityChallengeToken: Joi.string().trim().max(4096).allow("").optional(),
 });
 
 const loginSchema = Joi.object({

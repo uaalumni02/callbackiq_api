@@ -18,6 +18,11 @@ import {
   createInactiveSubscription,
   getTrialEligibility,
 } from "../helpers/billing/trial.js";
+import {
+  issueEmailVerification,
+  securityGateEnabled,
+} from "../services/trialIdentityVerification.service.js";
+import { captureSignupSecurity } from "../services/trialRisk.service.js";
 
 import sendPasswordResetEmail from "../helpers/email/mailer.js";
 
@@ -109,6 +114,21 @@ class AuthController {
 
     try {
       await registerSchema.validateAsync(req.body);
+
+      if (securityGateEnabled("REGISTER_TURNSTILE_REQUIRED")) {
+        const challenge = await verifyTurnstileToken(
+          req.body?.securityChallengeToken || "",
+          req,
+          { expectedAction: "register" },
+        );
+        if (!challenge.success) {
+          return res.status(403).json({
+            success: false,
+            code: "REGISTRATION_SECURITY_CHALLENGE_REQUIRED",
+            message: "Complete the security check before creating your account.",
+          });
+        }
+      }
 
       const normalizedEmail = String(email || "")
         .trim()
@@ -225,6 +245,7 @@ class AuthController {
           forwardingPhoneConfigured: Boolean(normalizedForwardingPhone),
           updatedAt: now,
         },
+        signupSecurity: captureSignupSecurity(req, businessName),
       });
 
       /*
@@ -244,6 +265,19 @@ class AuthController {
         ownerId: savedUser._id,
         subscription: savedSubscription,
       });
+
+      let emailVerificationSent = false;
+      if (securityGateEnabled("TRIAL_REQUIRE_EMAIL_VERIFICATION")) {
+        try {
+          const verification = await issueEmailVerification({ user: savedUser });
+          emailVerificationSent = verification?.sent === true;
+        } catch (verificationError) {
+          console.error("Unable to send signup email verification:", {
+            code: verificationError?.code,
+            message: verificationError?.message,
+          });
+        }
+      }
 
       const token = Token.sign({
         userId: savedUser._id,
@@ -279,6 +313,10 @@ class AuthController {
           trialEligible: trialEligibility.eligible,
           trialActivationRequired: trialEligibility.eligible,
           trialDeniedReason: trialEligibility.reason || null,
+          emailVerificationRequired: securityGateEnabled(
+            "TRIAL_REQUIRE_EMAIL_VERIFICATION",
+          ),
+          emailVerificationSent,
         },
         trialEligibilityMessage(trialEligibility),
       );

@@ -12,6 +12,11 @@ import {
   acquireOperationLease,
   releaseOperationLease,
 } from "./operationLease.service.js";
+import {
+  assertAutomaticProvisioningBudget,
+  provisioningBudgetEnabled,
+} from "./trialTelecomGuard.service.js";
+import { securityGateEnabled } from "./trialIdentityVerification.service.js";
 export const TRACKING_NUMBER_STATES = [
   "unassigned",
   "assigned",
@@ -119,7 +124,30 @@ export const assignTrackingNumber = async (businessOrId) => {
     throw provisioningError("BUSINESS_NOT_FOUND", "Business not found.", 404);
   }
 
-  await requireSubscription(initialBusiness._id);
+  const subscription = await requireSubscription(initialBusiness._id);
+
+  if (
+    subscription?.status === "trialing" &&
+    securityGateEnabled("TRIAL_REQUIRE_PHONE_VERIFICATION")
+  ) {
+    const currentForwardingPhone = normalizePhoneToE164(
+      initialBusiness.forwardingPhone,
+    );
+    const verifiedForwardingPhone = normalizePhoneToE164(
+      initialBusiness.forwardingPhoneVerifiedValue,
+    );
+    if (
+      !initialBusiness.forwardingPhoneVerifiedAt ||
+      !currentForwardingPhone ||
+      verifiedForwardingPhone !== currentForwardingPhone
+    ) {
+      throw provisioningError(
+        "TRIAL_PHONE_VERIFICATION_REQUIRED",
+        "Verify ownership of the forwarding phone before a trial tracking number can be purchased.",
+        403,
+      );
+    }
+  }
 
   if (!initialBusiness.forwardingPhone) {
     throw provisioningError(
@@ -137,6 +165,7 @@ export const assignTrackingNumber = async (businessOrId) => {
   }
 
   let lease = null;
+  let globalProvisionLease = null;
   let purchasedProviderSid = "";
   let purchasePersisted = false;
 
@@ -166,6 +195,25 @@ export const assignTrackingNumber = async (businessOrId) => {
     ) {
       return business;
     }
+
+    if (provisioningBudgetEnabled()) {
+      globalProvisionLease = await acquireOperationLease({
+        key: "tracking-number:global-auto-provision",
+        ttlMs: Number(
+          process.env.TWILIO_GLOBAL_PROVISIONING_LEASE_MS || 120_000,
+        ),
+        busyCode: "TWILIO_GLOBAL_PROVISIONING_IN_PROGRESS",
+        busyMessage:
+          "Another tracking-number purchase is being finalized. Retry shortly.",
+        busyStatusCode: 409,
+        waitMs: Number(
+          process.env.TWILIO_GLOBAL_PROVISIONING_WAIT_MS || 5_000,
+        ),
+        retryDelayMs: 100,
+      });
+    }
+
+    await assertAutomaticProvisioningBudget();
 
     const client = getClient();
     const areaCode = areaCodeFromForwardingPhone(business.forwardingPhone);
@@ -292,6 +340,7 @@ export const assignTrackingNumber = async (businessOrId) => {
     await setFailure(initialBusiness._id, error);
     throw error;
   } finally {
+    await releaseOperationLease(globalProvisionLease);
     await releaseOperationLease(lease);
   }
 };

@@ -57,6 +57,18 @@ If you did not request this password reset, you can ignore this email.`,
   return result;
 };
 
+export const sendEmailVerificationEmail = async ({ email, token }) =>
+  sendEmail({
+    to: email,
+    subject: "Verify your CallBackIQ business email",
+    testMessageId: "test-email-verification",
+    text: `Verify your business email before activating your CallBackIQ free trial.
+
+Verify email: ${getClientUrl()}/verify-email?token=${encodeURIComponent(token)}
+
+This verification link expires in 24 hours. If you did not create a CallBackIQ account, you can ignore this email.`,
+  });
+
 export const sendTrialWelcomeEmail = async ({
   email,
   businessName,

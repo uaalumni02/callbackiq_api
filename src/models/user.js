@@ -107,6 +107,23 @@ const UserSchema = new Schema(
       default: null,
     },
 
+    emailVerifiedAt: {
+      type: Date,
+      default: null,
+    },
+
+    emailVerificationTokenHash: {
+      type: String,
+      default: null,
+      select: false,
+    },
+
+    emailVerificationExpiresAt: {
+      type: Date,
+      default: null,
+      select: false,
+    },
+
     resetToken: {
       type: String,
       default: null,
@@ -212,6 +229,8 @@ UserSchema.methods.toJSON = function () {
   delete obj.password;
   delete obj.resetToken;
   delete obj.resetTokenExpiresAt;
+  delete obj.emailVerificationTokenHash;
+  delete obj.emailVerificationExpiresAt;
   delete obj.failedLoginAttempts;
   delete obj.lastFailedLoginAt;
   delete obj.loginBlockedUntil;

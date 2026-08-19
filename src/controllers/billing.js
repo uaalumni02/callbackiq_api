@@ -30,6 +30,12 @@ import {
   ACCESS_LEVELS,
   getSubscriptionAccess,
 } from "../services/subscriptionAccess.service.js";
+import {
+  assertTrialIdentityVerified,
+  securityGateEnabled,
+} from "../services/trialIdentityVerification.service.js";
+import { enforceTrialActivationRisk } from "../services/trialRisk.service.js";
+import { verifyTurnstileToken } from "../helpers/security/turnstile.js";
 
 const TRIAL_DAYS = 14;
 
@@ -479,6 +485,25 @@ class BillingController {
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
       }
+
+      await assertTrialIdentityVerified({ ownerId, business });
+
+      if (securityGateEnabled("TRIAL_TURNSTILE_REQUIRED")) {
+        const challenge = await verifyTurnstileToken(
+          req.body?.securityChallengeToken || "",
+          req,
+          { expectedAction: "trial_activation" },
+        );
+        if (!challenge.success) {
+          return res.status(403).json({
+            success: false,
+            code: "TRIAL_SECURITY_CHALLENGE_REQUIRED",
+            message: "Complete the security check before activating the free trial.",
+          });
+        }
+      }
+
+      await enforceTrialActivationRisk({ business });
 
       const result = await createSubscriptionCheckout({
         business,

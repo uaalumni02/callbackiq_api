@@ -21,7 +21,7 @@ const getClientIp = (req) => {
   return req.ip || req.socket?.remoteAddress || "";
 };
 
-const verifyTurnstileToken = async (token, req) => {
+const verifyTurnstileToken = async (token, req, options = {}) => {
   const secretKey = String(process.env.TURNSTILE_SECRET_KEY || "").trim();
 
   if (!secretKey) {
@@ -91,7 +91,9 @@ const verifyTurnstileToken = async (token, req) => {
     ).trim();
 
     const expectedAction = String(
-      process.env.TURNSTILE_EXPECTED_ACTION || "",
+      options.expectedAction ||
+        process.env.TURNSTILE_EXPECTED_ACTION ||
+        "",
     ).trim();
 
     const hostnameMatches =

@@ -581,9 +581,10 @@ class Db {
 
   static async deleteBusinessByOwner(model, ownerId) {
     try {
-      return await model.findOneAndDelete({
-        owner: ownerId,
-      });
+      const { deleteBusinessSafely } = await import(
+        "../services/businessDeletion.service.js"
+      );
+      return await deleteBusinessSafely({ ownerId });
     } catch (error) {
       console.error("Error deleting business by owner:", error);
       throw error;
@@ -592,7 +593,10 @@ class Db {
 
   static async deleteBusiness(model, id) {
     try {
-      return await model.findByIdAndDelete(id);
+      const { deleteBusinessSafely } = await import(
+        "../services/businessDeletion.service.js"
+      );
+      return await deleteBusinessSafely({ businessId: id });
     } catch (error) {
       console.error("Error deleting business:", error);
       throw error;
