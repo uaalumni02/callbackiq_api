@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 
 import DemoRequest from "../models/demoRequest.js";
+import OwnerBrowserCallController from "./ownerBrowserCall.controller.js";
 import { isAdminUser } from "../helpers/model/admin.js";
 import * as Response from "../helpers/response/response.js";
 import DemoBrowserCallService, {
@@ -79,6 +80,10 @@ class DemoBrowserCallController {
   }
 
   static async twiml(req, res) {
+    if (clean(req.body?.callType).toLowerCase() === "owner_lead") {
+      return OwnerBrowserCallController.twiml(req, res);
+    }
+
     try {
       const demoId = clean(req.body?.demoRequestId);
       const attemptId = clean(req.body?.attemptId);
@@ -102,6 +107,10 @@ class DemoBrowserCallController {
   }
 
   static async prospectStatusWebhook(req, res) {
+    if (clean(req.query?.callType).toLowerCase() === "owner_lead") {
+      return OwnerBrowserCallController.prospectStatusWebhook(req, res);
+    }
+
     try {
       const demoId = clean(req.query?.demoRequestId);
       const attemptId = clean(req.query?.attemptId);

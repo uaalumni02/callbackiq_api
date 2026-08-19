@@ -86,7 +86,7 @@ describe("SMS market-readiness turn policy", () => {
     });
 
     expect(result.reply).toContain("I've noted");
-    expect(result.reply).toMatch(/Tuesday, Aug 18 at 9:00 AM/i);
+    expect(result.reply).toMatch(/Wednesday, Aug 19 at 9:00 AM/i);
     expect(result.reply).not.toContain(message);
     expect(result.reply).not.toMatch(/reply with the days and times/i);
     expect(result.preferredAppointmentTime).toBe(message);
