@@ -118,6 +118,111 @@ const setFailure = async (businessId, error) => {
   ).catch(() => {});
 };
 
+export const isTrackingNumberStateInconsistent = (business) => {
+  const state = String(business?.trackingNumber?.status || "unassigned");
+  const providerSid = String(business?.trackingNumber?.providerSid || "").trim();
+  return Boolean(
+    business?.phone &&
+      (!["assigned", "verified", "active"].includes(state) || !providerSid),
+  );
+};
+
+const findProviderNumberByPhone = async (client, phone) => {
+  const normalized = normalizePhoneToE164(phone);
+  if (!normalized) return null;
+
+  let candidates = [];
+  try {
+    candidates = await client.incomingPhoneNumbers.list({
+      phoneNumber: normalized,
+      limit: 20,
+    });
+  } catch (_filteredLookupError) {
+    // Some Twilio helper versions/accounts do not support the phoneNumber
+    // filter consistently. Fall back to the account inventory, but only on
+    // this rare invariant-recovery path.
+    candidates = await client.incomingPhoneNumbers.list({ limit: 1000 });
+  }
+
+  return (
+    candidates.find(
+      (candidate) =>
+        normalizePhoneToE164(candidate?.phoneNumber) === normalized,
+    ) || null
+  );
+};
+
+export const reconcileExistingTrackingNumber = async ({
+  business,
+  client = getClient(),
+}) => {
+  const normalized = normalizePhoneToE164(business?.phone);
+  if (!normalized) {
+    throw provisioningError(
+      "TRACKING_NUMBER_STATE_INCONSISTENT",
+      "A CallBackIQ phone is stored, but it is not a valid E.164 number. Reconcile the business record before provisioning another number.",
+      409,
+    );
+  }
+
+  const incoming = await findProviderNumberByPhone(client, normalized);
+  if (!incoming?.sid) {
+    throw provisioningError(
+      "TRACKING_NUMBER_STATE_INCONSISTENT",
+      "A CallBackIQ phone is already stored for this business, but the number could not be verified in the configured Twilio account. No replacement number was purchased.",
+      409,
+    );
+  }
+
+  const expected = webhookUrls();
+  const webhookMatches =
+    incoming.voiceUrl === expected.voiceUrl &&
+    incoming.smsUrl === expected.smsUrl &&
+    incoming.statusCallback === expected.statusCallback;
+
+  if (!webhookMatches) {
+    await client.incomingPhoneNumbers(incoming.sid).update({
+      voiceMethod: "POST",
+      voiceUrl: expected.voiceUrl,
+      smsMethod: "POST",
+      smsUrl: expected.smsUrl,
+      statusCallbackMethod: "POST",
+      statusCallback: expected.statusCallback,
+    });
+  }
+
+  const now = new Date();
+  const providerCreatedAt = incoming.dateCreated
+    ? new Date(incoming.dateCreated)
+    : now;
+
+  return Business.findByIdAndUpdate(
+    business._id,
+    {
+      $set: {
+        phone: normalized,
+        phoneLookup: normalized,
+        "trackingNumber.provider": "twilio",
+        "trackingNumber.providerSid": String(incoming.sid),
+        "trackingNumber.status": "active",
+        "trackingNumber.assignedAt":
+          business.trackingNumber?.assignedAt || providerCreatedAt,
+        "trackingNumber.verifiedAt":
+          business.trackingNumber?.verifiedAt || now,
+        "trackingNumber.activatedAt":
+          business.trackingNumber?.activatedAt || now,
+        "trackingNumber.updatedAt": now,
+        "trackingNumber.lastError": "",
+        "setupProgress.trackingNumberAssigned": true,
+        "setupProgress.trackingNumberVerified": true,
+        "setupProgress.trackingNumberActive": true,
+        "setupProgress.updatedAt": now,
+      },
+    },
+    { returnDocument: "after" },
+  ).select("+trackingNumber.providerSid");
+};
+
 export const assignTrackingNumber = async (businessOrId) => {
   const initialBusiness = await loadBusiness(businessOrId);
   if (!initialBusiness) {
@@ -159,7 +264,8 @@ export const assignTrackingNumber = async (businessOrId) => {
   const initialState = initialBusiness.trackingNumber?.status || "unassigned";
   if (
     initialBusiness.phone &&
-    ["assigned", "verified", "active"].includes(initialState)
+    ["assigned", "verified", "active"].includes(initialState) &&
+    String(initialBusiness.trackingNumber?.providerSid || "").trim()
   ) {
     return initialBusiness;
   }
@@ -191,9 +297,20 @@ export const assignTrackingNumber = async (businessOrId) => {
     const currentState = business.trackingNumber?.status || "unassigned";
     if (
       business.phone &&
-      ["assigned", "verified", "active"].includes(currentState)
+      ["assigned", "verified", "active"].includes(currentState) &&
+      String(business.trackingNumber?.providerSid || "").trim()
     ) {
       return business;
+    }
+
+    if (business.phone) {
+      // A stored phone means CallBackIQ may already own a carrier resource.
+      // Reconcile the provider identity and webhooks before any purchase path.
+      // If Twilio cannot verify it, fail closed instead of buying a duplicate.
+      return reconcileExistingTrackingNumber({
+        business,
+        client: getClient(),
+      });
     }
 
     if (provisioningBudgetEnabled()) {

@@ -1,0 +1,46 @@
+{
+  "_id": "6a33ff7944ce80eaef2cb543",
+  "businessName": "Atlanta Pro Plumbing & Drain",
+  "phone": "+14709052202",
+  "phoneLookup": "+14709052202",
+  "isActive": true,
+  "trackingNumber": {
+    "provider": "twilio",
+    "status": "unassigned",
+    "providerSid": "",
+    "assignedAt": null,
+    "verifiedAt": null,
+    "activatedAt": null,
+    "lastError": "",
+    "updatedAt": null
+  },
+  "setupProgress": {
+    "accountRegistered": true,
+    "subscriptionActivated": false,
+    "forwardingPhoneConfigured": false,
+    "trackingNumberAssigned": false,
+    "trackingNumberVerified": false,
+    "trackingNumberActive": false,
+    "servicesConfigured": false,
+    "serviceAreaConfigured": false,
+    "availabilityConfigured": false,
+    "bookingRulesConfigured": false,
+    "aiBookingPermissionConfigured": false,
+    "calendarConfigured": false,
+    "smsRecoveryTested": false,
+    "inboxTested": false,
+    "voiceAiTested": false,
+    "bookingTested": false,
+    "completedAt": null,
+    "updatedAt": null
+  },
+  "messagingCompliance": {
+    "a2pStatus": "registered",
+    "campaignStatus": "VERIFIED",
+    "smsReady": true,
+    "senderAttached": true,
+    "senderAttachedAt": "2026-08-14T01:44:12.514Z",
+    "lastCheckedAt": "2026-08-14T01:44:12.514Z",
+    "lastError": ""
+  }
+}

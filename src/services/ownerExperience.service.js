@@ -368,7 +368,7 @@ class OwnerExperienceService {
       revenue,
       openCustomerCount,
       openInterventionCount,
-      activeConversations,
+      pipelineRows,
       preview,
     ] = await Promise.all([
       RevenueRecoveryService.summary({
@@ -381,36 +381,92 @@ class OwnerExperienceService {
         status: { $in: ["new", "contacted"] },
       }),
       Alert.countDocuments(ownerInterventionFilter(business._id)),
-      Conversation.find({
-        business: business._id,
-        status: "open",
-      })
-        .select("bookingState.status humanTakeover")
-        .lean(),
+      Conversation.aggregate([
+        {
+          $match: {
+            business: business._id,
+            status: "open",
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 },
+            staffFollowUp: {
+              $sum: {
+                $cond: [
+                  {
+                    $or: [
+                      { $eq: ["$humanTakeover", true] },
+                      {
+                        $in: [
+                          "$bookingState.status",
+                          ["human_takeover", "failed"],
+                        ],
+                      },
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
+            waitingOnCustomer: {
+              $sum: {
+                $cond: [
+                  {
+                    $in: [
+                      "$bookingState.status",
+                      ["offering_slots", "awaiting_confirmation"],
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
+            bookingNow: {
+              $sum: {
+                $cond: [{ $eq: ["$bookingState.status", "booking"] }, 1, 0],
+              },
+            },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            staffFollowUp: 1,
+            waitingOnCustomer: 1,
+            bookingNow: 1,
+            automationWorking: {
+              $max: [
+                0,
+                {
+                  $subtract: [
+                    "$total",
+                    {
+                      $add: [
+                        "$staffFollowUp",
+                        "$waitingOnCustomer",
+                        "$bookingNow",
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        },
+      ]),
       attentionPreview(business._id, 5),
     ]);
 
-    const pipeline = activeConversations.reduce(
-      (result, conversation) => {
-        const stage = String(conversation.bookingState?.status || "not_started");
-        if (conversation.humanTakeover || stage === "human_takeover" || stage === "failed") {
-          result.staffFollowUp += 1;
-        } else if (["offering_slots", "awaiting_confirmation"].includes(stage)) {
-          result.waitingOnCustomer += 1;
-        } else if (stage === "booking") {
-          result.bookingNow += 1;
-        } else {
-          result.automationWorking += 1;
-        }
-        return result;
-      },
-      {
-        automationWorking: 0,
-        waitingOnCustomer: 0,
-        bookingNow: 0,
-        staffFollowUp: 0,
-      },
-    );
+    const pipeline = pipelineRows[0] || {
+      automationWorking: 0,
+      waitingOnCustomer: 0,
+      bookingNow: 0,
+      staffFollowUp: 0,
+    };
 
     return {
       period: {
@@ -469,7 +525,7 @@ class OwnerExperienceService {
       "all",
     ]);
     const normalizedView = allowedViews.has(view) ? view : "active";
-    const cappedLimit = Math.min(Math.max(Number(limit) || 50, 1), 100);
+    const cappedLimit = Math.min(Math.max(Number(limit) || 50, 1), 250);
     const normalizedSkip = Math.max(Number(skip) || 0, 0);
     const normalizedSearch = String(search || "").trim().slice(0, 120);
 
@@ -495,7 +551,12 @@ class OwnerExperienceService {
       }),
     ]);
     const needsMeLeadIds = [
-      ...new Set([...takeoverLeadIds, ...interventionLeadIds].map((id) => String(id))),
+      ...new Map(
+        [...takeoverLeadIds, ...interventionLeadIds].map((id) => [
+          String(id),
+          id,
+        ]),
+      ).values(),
     ];
 
     const filter = { business: business._id };
@@ -523,36 +584,57 @@ class OwnerExperienceService {
       ];
     }
 
-    const [
-      total,
-      leads,
-      activeCount,
-      bookedCount,
-      waitingCount,
-      needsMeCount,
-    ] = await Promise.all([
-      Lead.countDocuments(filter),
-      Lead.find(filter)
-        .sort({ updatedAt: -1 })
-        .skip(normalizedSkip)
-        .limit(cappedLimit)
-        .lean(),
-      Lead.countDocuments({
-        business: business._id,
-        status: { $in: ["new", "contacted"] },
-      }),
-      Lead.countDocuments({ business: business._id, status: "booked" }),
-      Lead.countDocuments({
-        business: business._id,
-        status: { $in: ["new", "contacted"] },
-        _id: { $in: waitingLeadIds },
-      }),
-      Lead.countDocuments({
-        business: business._id,
-        status: { $in: ["new", "contacted"] },
-        _id: { $in: needsMeLeadIds },
-      }),
+    const scopedFilter = { ...filter };
+    delete scopedFilter.business;
+
+    const [facet = {}] = await Lead.aggregate([
+      { $match: { business: business._id } },
+      {
+        $facet: {
+          page: [
+            { $match: scopedFilter },
+            { $sort: { updatedAt: -1 } },
+            { $skip: normalizedSkip },
+            { $limit: cappedLimit },
+          ],
+          total: [{ $match: scopedFilter }, { $count: "value" }],
+          active: [
+            { $match: { status: { $in: ["new", "contacted"] } } },
+            { $count: "value" },
+          ],
+          booked: [
+            { $match: { status: "booked" } },
+            { $count: "value" },
+          ],
+          waiting: [
+            {
+              $match: {
+                status: { $in: ["new", "contacted"] },
+                _id: { $in: waitingLeadIds },
+              },
+            },
+            { $count: "value" },
+          ],
+          needsMe: [
+            {
+              $match: {
+                status: { $in: ["new", "contacted"] },
+                _id: { $in: needsMeLeadIds },
+              },
+            },
+            { $count: "value" },
+          ],
+        },
+      },
     ]);
+
+    const leads = Array.isArray(facet.page) ? facet.page : [];
+    const count = (key) => Number(facet?.[key]?.[0]?.value || 0);
+    const total = count("total");
+    const activeCount = count("active");
+    const bookedCount = count("booked");
+    const waitingCount = count("waiting");
+    const needsMeCount = count("needsMe");
 
     if (!leads.length) {
       return {

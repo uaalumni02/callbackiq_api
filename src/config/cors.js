@@ -56,7 +56,7 @@ const expressCorsOptions = {
   origin: corsOrigin,
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Authorization", "Content-Type", "X-Requested-With"],
+  allowedHeaders: ["Authorization", "Content-Type", "X-Requested-With", "Idempotency-Key"],
   maxAge: 86400,
 };
 

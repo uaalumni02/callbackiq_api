@@ -46,6 +46,8 @@ jest.mock("../../src/models/alert.js", () => ({
   __esModule: true,
   default: {
     find: jest.fn(),
+    aggregate: jest.fn(),
+    countDocuments: jest.fn(),
     findOne: jest.fn(),
     findOneAndUpdate: jest.fn(),
   },
@@ -325,7 +327,7 @@ describe("Phase 2-8 controllers", () => {
       );
     });
 
-    test("lists appointments after releasing expired holds", async () => {
+    test("lists appointments without performing expired-hold writes", async () => {
       AppointmentService.list.mockResolvedValue([{ _id: "a1" }]);
       const req = makeReq({
         query: { businessId: "b1", status: "confirmed" },
@@ -334,9 +336,7 @@ describe("Phase 2-8 controllers", () => {
 
       await AppointmentController.list(req, res, jest.fn());
 
-      expect(AppointmentService.releaseExpiredHolds).toHaveBeenCalledWith(
-        "b1",
-      );
+      expect(AppointmentService.releaseExpiredHolds).not.toHaveBeenCalled();
       expect(AppointmentService.list).toHaveBeenCalledWith({
         businessId: "b1",
         query: req.query,
@@ -640,7 +640,11 @@ describe("Phase 2-8 controllers", () => {
       ],
     ])("builds list filters %#", async (queryValues, expectedFilter) => {
       const query = chain([{ _id: "alert1" }]);
+
+      Alert.aggregate.mockResolvedValue([{ _id: "alert1" }]);
+      Alert.countDocuments.mockResolvedValue(1);
       Alert.find.mockReturnValue(query);
+
       const req = makeReq({
         query: {
           businessId: "b1",
@@ -650,45 +654,94 @@ describe("Phase 2-8 controllers", () => {
           limit: "300",
         },
       });
+
       const res = makeRes();
 
       await InterventionController.list(req, res, jest.fn());
 
-      expect(Alert.find.mock.calls[0][0]).toEqual(expectedFilter);
-      expect(Alert.find.mock.calls[0][0]).toMatchObject({
+      const pipeline = Alert.aggregate.mock.calls[0][0];
+      const matchStage = pipeline.find((stage) => stage.$match);
+
+      expect(matchStage).toBeDefined();
+      expect(matchStage.$match).toEqual(expectedFilter);
+      expect(matchStage.$match).toMatchObject({
         business: "b1",
         priority: "high",
         assignedTo: "u2",
       });
-      expect(query.populate).toHaveBeenCalledTimes(4);
-      expect(query.limit).toHaveBeenCalledWith(250);
-      expect(res.json).toHaveBeenCalledWith({
-        success: true,
-        data: [{ _id: "alert1" }],
-      });
-    });
 
+      expect(pipeline).toContainEqual({ $skip: 0 });
+      expect(pipeline).toContainEqual({ $limit: 250 });
+
+      expect(Alert.countDocuments).toHaveBeenCalledWith(
+        matchStage.$match,
+      );
+
+      expect(Alert.find).toHaveBeenCalledWith({
+        _id: { $in: ["alert1"] },
+        business: "b1",
+      });
+
+      expect(query.populate).toHaveBeenCalledTimes(4);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          data: [{ _id: "alert1" }],
+        }),
+      );
+    });
     test("queries enough records for severity ordering and returns the default 100", async () => {
       const alerts = Array.from({ length: 101 }, (_, index) => ({
         _id: `alert-${index}`,
         priority: index === 100 ? "critical" : "low",
         createdAt: new Date(2026, 6, 27, 12, 0, index).toISOString(),
       }));
+
+      const orderedIds = [
+        "alert-100",
+        ...Array.from({ length: 99 }, (_, index) => `alert-${index}`),
+      ];
+
+      Alert.aggregate.mockResolvedValue(
+        orderedIds.map((_id) => ({ _id })),
+      );
+      Alert.countDocuments.mockResolvedValue(alerts.length);
+
       const query = chain(alerts);
+      Alert.find.mockReturnValue(query);
+
       const res = makeRes();
 
-      Alert.find.mockReturnValue(query);
       await InterventionController.list(makeReq(), res, jest.fn());
 
-      expect(query.limit).toHaveBeenCalledWith(250);
-      expect(res.json).toHaveBeenCalledWith({
-        success: true,
-        data: expect.any(Array),
-      });
-      expect(res.json.mock.calls[0][0].data).toHaveLength(100);
-      expect(res.json.mock.calls[0][0].data[0]._id).toBe("alert-100");
-    });
+      const pipeline = Alert.aggregate.mock.calls[0][0];
 
+      expect(pipeline).toContainEqual({ $skip: 0 });
+      expect(pipeline).toContainEqual({ $limit: 100 });
+
+      expect(Alert.countDocuments).toHaveBeenCalledTimes(1);
+
+      expect(Alert.find).toHaveBeenCalledWith({
+        _id: { $in: orderedIds },
+        business: "b1",
+      });
+
+      expect(res.status).toHaveBeenCalledWith(200);
+
+      const payload = res.json.mock.calls[0][0];
+
+      expect(payload).toEqual(
+        expect.objectContaining({
+          success: true,
+          data: expect.any(Array),
+        }),
+      );
+
+      expect(payload.data).toHaveLength(100);
+      expect(payload.data[0]._id).toBe("alert-100");
+    });
     test.each([
       ["acknowledge", {}],
       ["resolve", {}],

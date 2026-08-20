@@ -9,11 +9,19 @@ import app from "./app.js";
 import connectDB from "./db/connection.js";
 import socketAuth from "./middleware/socket-auth.js";
 import SocketService from "./services/socket.service.js";
+import {
+  closeSocketRedisAdapter,
+  initializeSocketRedisAdapter,
+} from "./services/socketRedisAdapter.service.js";
 import { socketCorsOptions } from "./config/cors.js";
 import {
   startAutomationWorker,
   stopAutomationWorker,
 } from "./workers/automation.worker.js";
+import {
+  startAppointmentMaintenanceWorker,
+  stopAppointmentMaintenanceWorker,
+} from "./workers/appointmentMaintenance.worker.js";
 import { initializeConversationRelayServer } from "./voice/conversationRelay.server.js";
 // CALLBACKIQ_A2P_RECONCILIATION_WORKER
 import {
@@ -101,10 +109,12 @@ const shutdown = async (signal, exitCode = 0) => {
 
   try {
     stopA2pReconciliationWorker();
+    stopAppointmentMaintenanceWorker();
     stopAutomationWorker();
     stopSmsProcessingWorker();
     await conversationRelayServer.close();
     await closeSocketServer();
+    await closeSocketRedisAdapter();
     await closeHttpServer();
     if (mongoose.connection.readyState !== 0) {
       await mongoose.connection.close();
@@ -132,7 +142,9 @@ process.on("uncaughtException", (error) => {
 
 const startServer = async () => {
   await connectDB();
+  await initializeSocketRedisAdapter(io);
   startA2pReconciliationWorker();
+  startAppointmentMaintenanceWorker();
   await startAutomationWorker();
   await startSmsProcessingWorker();
   httpServer.listen(port, () => {
