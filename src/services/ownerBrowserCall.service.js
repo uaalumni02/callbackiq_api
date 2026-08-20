@@ -54,9 +54,9 @@ const resolveSharedBrowserCallConfig = () => ({
   ),
 });
 
-const requireBusinessCallerId = (value) => {
+const requireBusinessCallerId = (value, trackingStatus = "active") => {
   const callerId = normalizePhoneToE164(value);
-  if (!callerId) {
+  if (!callerId || String(trackingStatus || "") !== "active") {
     throw callError(
       "OWNER_BROWSER_CALL_CALLER_ID_NOT_CONFIGURED",
       "This business needs an active CallBackIQ tracking number before browser calling can be used.",
@@ -409,7 +409,10 @@ class OwnerBrowserCallService {
     }
 
     const config = resolveSharedBrowserCallConfig();
-    const callerId = requireBusinessCallerId(business.phone);
+    const callerId = requireBusinessCallerId(
+      business.phone,
+      business.trackingNumber?.status,
+    );
 
     // Resolve this before issuing the token so configuration failures do not
     // create a browser session that can never report provider status.
@@ -475,7 +478,10 @@ class OwnerBrowserCallService {
       );
     }
 
-    const callerId = requireBusinessCallerId(business.phone);
+    const callerId = requireBusinessCallerId(
+      business.phone,
+      business.trackingNumber?.status,
+    );
     const target = await resolveTarget({
       businessId: params.businessId,
       leadId: params.leadId,
@@ -533,11 +539,14 @@ class OwnerBrowserCallService {
     if (!mapProspectStatus(payload?.CallStatus)) return null;
 
     const business = await BusinessModel.findById(params.businessId)
-      .select("phone")
+      .select("phone trackingNumber.status")
       .lean();
     if (!business) return null;
 
-    const callerId = requireBusinessCallerId(business.phone);
+    const callerId = requireBusinessCallerId(
+      business.phone,
+      business.trackingNumber?.status,
+    );
     const target = await resolveTarget({
       businessId: params.businessId,
       leadId: params.leadId,

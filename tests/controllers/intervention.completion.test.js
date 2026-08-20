@@ -6,7 +6,9 @@ import getOwnedBusiness from "../../src/services/businessScope.service.js";
 
 jest.mock("../../src/models/alert.js", () => ({
   __esModule: true,
-  default: { find: jest.fn(), findOneAndUpdate: jest.fn() },
+  default: { find: jest.fn(),
+    aggregate: jest.fn(),
+    countDocuments: jest.fn(), findOneAndUpdate: jest.fn() },
 }));
 jest.mock("../../src/services/businessScope.service.js", () => ({
   __esModule: true,
@@ -55,16 +57,26 @@ describe("intervention completion behavior", () => {
   });
 
   test("returns a severity-sorted intervention queue", async () => {
-    Alert.find.mockReturnValue(
-      queryChain([
-        { _id: "low", priority: "low", createdAt: "2026-07-27T12:00:00Z" },
-        {
-          _id: "critical",
-          priority: "critical",
-          createdAt: "2026-07-27T11:00:00Z",
-        },
-      ]),
-    );
+    const records = [
+      {
+        _id: "low",
+        priority: "low",
+        createdAt: "2026-07-27T12:00:00Z",
+      },
+      {
+        _id: "critical",
+        priority: "critical",
+        createdAt: "2026-07-27T11:00:00Z",
+      },
+    ];
+
+    Alert.aggregate.mockResolvedValue([
+      { _id: "critical" },
+      { _id: "low" },
+    ]);
+    Alert.countDocuments.mockResolvedValue(2);
+    Alert.find.mockReturnValue(queryChain(records));
+
     const res = response();
 
     await InterventionController.list(
@@ -74,29 +86,54 @@ describe("intervention completion behavior", () => {
     );
 
     expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.json.mock.calls[0][0].data.map((item) => item._id)).toEqual([
-      "critical",
-      "low",
-    ]);
+
+    expect(
+      res.json.mock.calls[0][0].data.map((item) => item._id),
+    ).toEqual(["critical", "low"]);
   });
 
   test("adds escaped search criteria and respects limits", async () => {
-    const chain = queryChain([]);
-    Alert.find.mockReturnValue(chain);
+    Alert.aggregate.mockResolvedValue([]);
+    Alert.countDocuments.mockResolvedValue(0);
+
     const res = response();
 
     await InterventionController.list(
       {
         user: { userId: "u1" },
-        query: { search: "gas (leak)", limit: "10", resolved: "all" },
+        query: {
+          search: "gas (leak)",
+          limit: "10",
+          resolved: "all",
+        },
       },
       res,
       jest.fn(),
     );
 
-    expect(Alert.find).toHaveBeenCalledWith(
-      expect.objectContaining({ $and: expect.any(Array) }),
+    const pipeline = Alert.aggregate.mock.calls[0][0];
+    const matchStage = pipeline.find((stage) => stage.$match);
+
+    expect(matchStage).toBeDefined();
+    expect(matchStage.$match).toEqual(
+      expect.objectContaining({
+        $and: expect.any(Array),
+      }),
     );
-    expect(res.json).toHaveBeenCalledWith({ success: true, data: [] });
+
+    expect(pipeline).toContainEqual({ $skip: 0 });
+    expect(pipeline).toContainEqual({ $limit: 10 });
+
+    expect(Alert.countDocuments).toHaveBeenCalledWith(
+      matchStage.$match,
+    );
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: true,
+        data: [],
+      }),
+    );
   });
 });

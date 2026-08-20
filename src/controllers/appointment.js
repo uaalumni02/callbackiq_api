@@ -30,7 +30,6 @@ class AppointmentController {
   static async list(req, res, next) {
     try {
       const business = await getOwnedBusiness({ user: req.user, requestedBusinessId: req.query.businessId });
-      await AppointmentService.releaseExpiredHolds(business._id);
       const appointments = await AppointmentService.list({ businessId: business._id, query: req.query });
       return res.status(200).json({ success: true, data: appointments });
     } catch (error) {

@@ -10,6 +10,8 @@ jest.mock("../../src/models/alert.js", () => ({
   __esModule: true,
   default: {
     find: jest.fn(),
+    aggregate: jest.fn(),
+    countDocuments: jest.fn(),
     findOne: jest.fn(),
     findOneAndUpdate: jest.fn(),
   },
@@ -109,19 +111,46 @@ describe("Intervention Center completion audit", () => {
 
   test("lists only business-scoped intervention records and applies filters", async () => {
     const records = [
-      { _id: "critical", priority: "critical", createdAt: new Date("2026-07-28T10:00:00Z") },
-      { _id: "high", priority: "high", createdAt: new Date("2026-07-28T11:00:00Z") },
+      {
+        _id: "critical",
+        priority: "critical",
+        createdAt: new Date("2026-07-28T10:00:00Z"),
+      },
+      {
+        _id: "high",
+        priority: "high",
+        createdAt: new Date("2026-07-28T11:00:00Z"),
+      },
     ];
+
+    Alert.aggregate.mockResolvedValue([
+      { _id: "critical" },
+      { _id: "high" },
+    ]);
+    Alert.countDocuments.mockResolvedValue(records.length);
     Alert.find.mockReturnValue(listQuery(records));
+
     const res = response();
 
     await InterventionController.list(
-      request({ query: { resolved: "false", priority: "high", search: "gas leak", limit: "25" } }),
+      request({
+        query: {
+          resolved: "false",
+          priority: "high",
+          search: "gas leak",
+          limit: "25",
+        },
+      }),
       res,
       jest.fn(),
     );
 
-    expect(Alert.find).toHaveBeenCalledWith(
+    const pipeline = Alert.aggregate.mock.calls[0][0];
+    const matchStage = pipeline.find((stage) => stage.$match);
+
+    expect(matchStage).toBeDefined();
+
+    expect(matchStage.$match).toEqual(
       expect.objectContaining({
         business: BUSINESS_ID,
         priority: "high",
@@ -129,6 +158,19 @@ describe("Intervention Center completion audit", () => {
         $and: expect.any(Array),
       }),
     );
+
+    expect(pipeline).toContainEqual({ $skip: 0 });
+    expect(pipeline).toContainEqual({ $limit: 25 });
+
+    expect(Alert.countDocuments).toHaveBeenCalledWith(
+      matchStage.$match,
+    );
+
+    expect(Alert.find).toHaveBeenCalledWith({
+      _id: { $in: ["critical", "high"] },
+      business: BUSINESS_ID,
+    });
+
     expect(res.status).toHaveBeenCalledWith(200);
   });
 

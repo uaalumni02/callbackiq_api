@@ -55,7 +55,6 @@ router.post(
   demoCreateLimiter,
   DemoRequestController.bookDemoRequest,
 );
-router.post("/book", demoCreateLimiter, DemoRequestController.bookDemoRequest);
 router.post("/", demoCreateLimiter, DemoRequestController.createDemoRequest);
 router.get(
   "/:id/manage",

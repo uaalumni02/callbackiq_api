@@ -170,19 +170,69 @@ class InterventionController {
         Math.max(Number(req.query.limit) || 100, 1),
         250,
       );
+      const requestedSkip = Math.max(Number(req.query.skip) || 0, 0);
 
-      // Query enough records before sorting so critical work is not excluded
-      // by MongoDB's initial due-date ordering.
-      const alerts = await populate(Alert.find(filter))
-        .sort({ dueAt: 1, createdAt: -1 })
-        .limit(250)
-        .lean();
+      const [orderedRows, total] = await Promise.all([
+        Alert.aggregate([
+          { $match: filter },
+          {
+            $addFields: {
+              __priorityRank: {
+                $switch: {
+                  branches: [
+                    { case: { $eq: ["$priority", "critical"] }, then: 4 },
+                    { case: { $eq: ["$priority", "high"] }, then: 3 },
+                    { case: { $eq: ["$priority", "medium"] }, then: 2 },
+                    { case: { $eq: ["$priority", "low"] }, then: 1 },
+                  ],
+                  default: 0,
+                },
+              },
+              __dueSort: {
+                $ifNull: ["$dueAt", new Date("9999-12-31T23:59:59.999Z")],
+              },
+            },
+          },
+          {
+            $sort: {
+              __priorityRank: -1,
+              __dueSort: 1,
+              createdAt: -1,
+              _id: 1,
+            },
+          },
+          { $skip: requestedSkip },
+          { $limit: requestedLimit },
+          { $project: { _id: 1 } },
+        ]),
+        Alert.countDocuments(filter),
+      ]);
 
-      alerts.sort(compareInterventions);
+      const orderedIds = orderedRows.map((row) => row._id);
+      const populated = orderedIds.length
+        ? await populate(
+            Alert.find({
+              _id: { $in: orderedIds },
+              business: business._id,
+            }),
+          ).lean()
+        : [];
+      const byId = new Map(
+        populated.map((item) => [String(item._id), item]),
+      );
+      const alerts = orderedIds
+        .map((id) => byId.get(String(id)))
+        .filter(Boolean);
 
       return res.status(200).json({
         success: true,
-        data: alerts.slice(0, requestedLimit),
+        data: alerts,
+        pagination: {
+          total,
+          limit: requestedLimit,
+          skip: requestedSkip,
+          hasMore: requestedSkip + alerts.length < total,
+        },
       });
     } catch (error) {
       return next(error);

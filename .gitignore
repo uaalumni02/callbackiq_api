@@ -16,3 +16,6 @@ coverage/
 conversation-test-error.log
 package.json.before-*
 .callbackiq-trial-abuse-hardening-last-backup.json
+
+# Local Twilio/tracking-number backups
+atlanta-tracking-number-backup-*.json
