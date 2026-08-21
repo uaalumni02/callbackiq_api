@@ -151,7 +151,7 @@ process.on("uncaughtException", (error) => {
 const startServer = async () => {
     // CALLBACKIQ_STARTUP_HARDENING_V1
   normalizeRuntimeEnvironment();
-  validateEnvironment({ throwOnError: true });
+  validateEnvironment(process.env, { throwOnError: true });
   assertServerProcessRole();
   assertRealtimeScalingConfig();
   startRuntimeMetricsLogging();
