@@ -8,6 +8,7 @@ import * as Response from "../helpers/response/response.js";
 import AlertService from "../services/alert.service.js";
 import SocketService from "../services/socket.service.js";
 
+import { getLeadsPage, setPaginationHeaders } from "../services/cursorPagination.service.js";
 const getBusinessForOwner = async (ownerId) => {
   return typeof Db.getBusinessScopeByOwner === "function"
     ? Db.getBusinessScopeByOwner(Business, ownerId)
@@ -139,9 +140,10 @@ class LeadController {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      const leads = await Db.getLeadsByBusiness(Lead, business._id);
-
-      return Response.responseOk(res, leads, "Leads fetched");
+      // CALLBACKIQ_LEAD_CURSOR_PAGINATION_V1
+      const page = await getLeadsPage(business._id, req.query);
+      setPaginationHeaders(res, page);
+      return Response.responseOk(res, page.items, "Leads fetched");
     } catch (error) {
       console.error("Error in getMyLeads:", error);
       return Response.responseServerError(res);

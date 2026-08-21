@@ -9,6 +9,7 @@ import messageValidator from "../validator/message.js";
 import * as Response from "../helpers/response/response.js";
 import SocketService from "../services/socket.service.js";
 
+import { getMessagesPage, setPaginationHeaders } from "../services/cursorPagination.service.js";
 const getBusinessForOwner = async (ownerId) => {
   return typeof Db.getBusinessScopeByOwner === "function"
     ? Db.getBusinessScopeByOwner(Business, ownerId)
@@ -64,12 +65,10 @@ class MessageController {
         );
       }
 
-      const messages = await Db.getMessagesByConversation(
-        Message,
-        conversationId,
-      );
-
-      return Response.responseOk(res, messages, "Messages fetched");
+      // CALLBACKIQ_MESSAGE_CURSOR_PAGINATION_V1
+      const page = await getMessagesPage(conversationId, req.query);
+      setPaginationHeaders(res, page);
+      return Response.responseOk(res, page.items, "Messages fetched");
     } catch (error) {
       console.error("Error in getMessagesByConversation:", error);
       return Response.responseServerError(res);

@@ -94,7 +94,14 @@
     "verify:coverage-targets": "node scripts/verify-coverage-targets.mjs",
     "test:coverage:targets": "npm run test:coverage && npm run verify:coverage-targets",
     "test:ci:core": "npm run audit:repository-hygiene && npm run test:coverage && npm run coverage:risk-report && npm run verify:coverage-ratchet && npm run verify:diff-coverage && npm run test:hardening && npm run build",
-    "test:sms-market-readiness": "jest tests/unit/smsTurnPolicy.marketReadiness.test.js --runInBand --no-cache"
+    "test:sms-market-readiness": "jest tests/unit/smsTurnPolicy.marketReadiness.test.js --runInBand --no-cache",
+    "start:worker": "node build/worker.js",
+    "migrate:indexes": "node scripts/migrate-production-indexes.mjs",
+    "release:gate": "node scripts/production-release-gate.mjs",
+    "metrics:snapshot": "node scripts/production-metrics-snapshot.mjs",
+    "perf:http:budget": "node perf/http-budget.mjs",
+    "test:production-hardening-v1": "node --test hardening-tests/production-hardening-v1.test.mjs",
+    "release:certify": "npm run release:gate && npm run test:production-hardening-v1 && npm run test:ci && npm run migrate:indexes -- --dry-run && npm run build"
   },
   "keywords": [],
   "author": "",

@@ -122,7 +122,7 @@ export const getTrialEligibility = async ({
 export const canStartTrial = async (params) =>
   (await getTrialEligibility(params)).eligible;
 
-export const createInactiveSubscription = async (businessId) =>
+export const createInactiveSubscription = async (businessId, { session = null } = {}) =>
   Subscription.findOneAndUpdate(
     { business: businessId },
     {
@@ -142,6 +142,7 @@ export const createInactiveSubscription = async (businessId) =>
       returnDocument: "after",
       runValidators: true,
       setDefaultsOnInsert: true,
+      session,
     },
   );
 

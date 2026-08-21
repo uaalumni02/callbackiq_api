@@ -43,11 +43,14 @@ import securityResponseMonitor from "./middleware/security-response-monitor.js";
 import notFound from "./middleware/not-found.js";
 import errorHandler from "./middleware/error-handler.js";
 
+import { resolveTrustProxy } from "./config/runtime-environment.js";
+import { requestMetricsMiddleware } from "./services/runtimeMetrics.service.js";
 const app = express();
 const bodyLimit = process.env.API_BODY_LIMIT || "1mb";
 
 app.disable("x-powered-by");
-app.set("trust proxy", 1);
+app.set("trust proxy", resolveTrustProxy());
+app.use(requestMetricsMiddleware);
 app.use(requestContext);
 app.use(securityHeaders);
 app.use(securityResponseMonitor);

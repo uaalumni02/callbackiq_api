@@ -23,6 +23,14 @@ import {
   stopAppointmentMaintenanceWorker,
 } from "./workers/appointmentMaintenance.worker.js";
 import { initializeConversationRelayServer } from "./voice/conversationRelay.server.js";
+import { validateEnvironment } from "./config/env.js";
+import { startRuntimeMetricsLogging } from "./services/runtimeMetrics.service.js";
+import {
+  assertRealtimeScalingConfig,
+  assertServerProcessRole,
+  normalizeRuntimeEnvironment,
+  shouldRunEmbeddedWorkers,
+} from "./config/runtime-environment.js";
 // CALLBACKIQ_A2P_RECONCILIATION_WORKER
 import {
   startA2pReconciliationWorker,
@@ -141,12 +149,26 @@ process.on("uncaughtException", (error) => {
 });
 
 const startServer = async () => {
-  await connectDB();
+    // CALLBACKIQ_STARTUP_HARDENING_V1
+  normalizeRuntimeEnvironment();
+  validateEnvironment({ throwOnError: true });
+  assertServerProcessRole();
+  assertRealtimeScalingConfig();
+  startRuntimeMetricsLogging();
+await connectDB();
   await initializeSocketRedisAdapter(io);
-  startA2pReconciliationWorker();
-  startAppointmentMaintenanceWorker();
-  await startAutomationWorker();
-  await startSmsProcessingWorker();
+  if (shouldRunEmbeddedWorkers()) {
+    startA2pReconciliationWorker();
+  }
+  if (shouldRunEmbeddedWorkers()) {
+    startAppointmentMaintenanceWorker();
+  }
+  if (shouldRunEmbeddedWorkers()) {
+    await startAutomationWorker();
+  }
+  if (shouldRunEmbeddedWorkers()) {
+    await startSmsProcessingWorker();
+  }
   httpServer.listen(port, () => {
     console.log(`Server running on http://localhost:${port}`);
     console.log("Socket.IO server initialized");

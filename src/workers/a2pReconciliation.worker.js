@@ -1,5 +1,6 @@
 import A2pCustomerRegistration from "../models/a2pCustomerRegistration.js";
 import { syncA2pCustomerRegistration } from "../services/a2pCustomerOnboarding.service.js";
+import { withDistributedLease } from "../services/distributedLease.service.js";
 import {
   logOperationalEvent,
   logOperationalError,
@@ -54,9 +55,20 @@ export const runA2pReconciliationCycle = async () => {
       summary.processed += 1;
       try {
         const before = String(registration.status || "");
-        const result = await syncA2pCustomerRegistration({
+        const result = await withDistributedLease(
+        `a2p-reconcile:${String(registration.business)}`,
+        () => syncA2pCustomerRegistration({
           businessId: registration.business,
-        });
+        }),
+        {
+          ttlMs:
+            Number.parseInt(
+              process.env.A2P_RECONCILIATION_LEASE_MS || "300000",
+              10,
+            ) || 300000,
+          metadata: { businessId: String(registration.business) },
+        },
+      );
         if (String(result?.status || "") !== before) summary.advanced += 1;
       } catch (error) {
         summary.failed += 1;

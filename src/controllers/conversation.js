@@ -9,6 +9,8 @@ import * as Response from "../helpers/response/response.js";
 import SocketService from "../services/socket.service.js";
 
 import { normalizePhoneToE164, phoneLookupVariants } from "../voice/voicePhone.service.js";
+import { isCurrentAdminRequest } from "../helpers/security/current-admin.js";
+import { getConversationsPage, setPaginationHeaders } from "../services/cursorPagination.service.js";
 const getBusinessForOwner = async (ownerId) => {
   return typeof Db.getBusinessScopeByOwner === "function"
     ? Db.getBusinessScopeByOwner(Business, ownerId)
@@ -169,7 +171,7 @@ class ConversationController {
       conversationBusinessReference,
     );
 
-    if (isAdminRequest(req)) {
+    if (await isCurrentAdminRequest(req)) {
       return {
         requesterId,
         conversation,
@@ -255,12 +257,10 @@ class ConversationController {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      const conversations = await Db.getConversationsByBusiness(
-        Conversation,
-        business._id,
-      );
-
-      const payload = conversations.map((conversation) =>
+      // CALLBACKIQ_CONVERSATION_CURSOR_PAGINATION_V1
+      const page = await getConversationsPage(business._id, req.query);
+      setPaginationHeaders(res, page);
+      const payload = page.items.map((conversation) =>
         withConversationPermissions(conversation, true),
       );
 

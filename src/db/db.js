@@ -78,10 +78,10 @@ class Db {
     }
   }
 
-  static async saveUser(model, userData) {
+  static async saveUser(model, userData, { session = null } = {}) {
     try {
       const user = new model(userData);
-      return await user.save();
+      return await user.save(session ? { session } : undefined);
     } catch (error) {
       console.error("Actual Mongoose Save Error:", error);
       throw error;
@@ -487,10 +487,10 @@ class Db {
 
   // ----- Business methods -----
 
-  static async saveBusiness(model, data) {
+  static async saveBusiness(model, data, { session = null } = {}) {
     try {
       const business = new model(data);
-      return await business.save();
+      return await business.save(session ? { session } : undefined);
     } catch (error) {
       console.error("Error saving business:", error);
       throw error;
