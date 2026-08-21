@@ -78,6 +78,27 @@ const ServiceOfferingSchema = new Schema(
       min: 0,
       default: null,
     },
+    priceEstimateMin: {
+      type: Number,
+      min: 0,
+      default: null,
+    },
+    priceEstimateMax: {
+      type: Number,
+      min: 0,
+      default: null,
+    },
+    disclosePriceEstimate: {
+      type: Boolean,
+      default: false,
+    },
+    priceEstimateDisclaimer: {
+      type: String,
+      trim: true,
+      maxlength: 500,
+      default:
+        "This is a rough estimate only. Final pricing depends on the actual scope, site conditions, parts, and technician evaluation.",
+    },
     diagnosticFee: {
       type: Number,
       min: 0,
@@ -115,6 +136,17 @@ ServiceOfferingSchema.pre("validate", function normalizeService() {
   this.category = String(this.category || "general").trim().toLowerCase();
   this.keywords = normalizeKeywordList(this.keywords);
   this.excludedKeywords = normalizeKeywordList(this.excludedKeywords);
+
+  if (
+    this.priceEstimateMin != null &&
+    this.priceEstimateMax != null &&
+    Number(this.priceEstimateMax) < Number(this.priceEstimateMin)
+  ) {
+    this.invalidate(
+      "priceEstimateMax",
+      "priceEstimateMax must be greater than or equal to priceEstimateMin",
+    );
+  }
 });
 
 ServiceOfferingSchema.index(

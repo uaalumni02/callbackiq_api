@@ -19,6 +19,17 @@ const SchedulingPolicySchema = new Schema(
     requireServiceBeforeBooking: { type: Boolean, default: true },
     allowSameDayBooking: { type: Boolean, default: false },
     allowAfterHoursBooking: { type: Boolean, default: false },
+    aiBookingConfirmationMode: {
+      type: String,
+      enum: ["auto", "manual"],
+      default: "auto",
+    },
+    manualApprovalHoldMinutes: {
+      type: Number,
+      min: 5,
+      max: 1440,
+      default: 30,
+    },
     customerCancellationAllowed: { type: Boolean, default: true },
     cancellationNoticeMinutes: { type: Number, min: 0, max: 43200, default: 1440 },
     confirmationMessageTemplate: {

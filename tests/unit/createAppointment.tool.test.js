@@ -6,6 +6,19 @@ jest.mock("../../src/services/scheduling/appointment.service.js", () => ({
   default: { create: jest.fn() },
 }));
 
+jest.mock("../../src/services/scheduling/appointmentPolicy.service.js", () => ({
+  __esModule: true,
+  getSchedulingPolicy: jest.fn().mockResolvedValue({
+    aiBookingConfirmationMode: "automatic",
+    manualApprovalHoldMinutes: 30,
+  }),
+  getBookableService: jest.fn().mockResolvedValue({
+    _id: "service-1",
+    requiresHumanReview: false,
+    aiCanBook: true,
+  }),
+}));
+
 describe("createAppointmentTool source attribution", () => {
   beforeEach(() => jest.clearAllMocks());
 

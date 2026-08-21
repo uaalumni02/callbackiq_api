@@ -1,6 +1,7 @@
 import Appointment from "../../models/appointment.js";
 import Conversation from "../../models/conversation.js";
 import Lead from "../../models/lead.js";
+import ServiceOffering from "../../models/serviceOffering.js";
 import AutomationTriggerService from "../automation/automationTrigger.service.js";
 import ConversionEventService from "../conversionEvent.service.js";
 import { formatDateKey } from "../scheduling/timezone.service.js";
@@ -28,6 +29,7 @@ const hasBookingAvailabilityHint = (value, timeZone = "America/New_York") =>
 const HUMAN_INTENT = /\b(human|person|representative|staff|someone|call me|talk to)\b/i;
 const AFFIRMATIVE_TOKEN = /\b(yes|yep|yeah|yup|correct|confirm|confirmed|book it|please do|that works|works for me|sounds good|ok|okay|sure)\b/i;
 const NEGATIVE_TOKEN = /\b(no|nope|not that|different|another|change it|cancel|do not|don't|not yet)\b/i;
+const PRICE_INTENT = /\b(price|pricing|cost|estimate|estimated|quote|ballpark|how much|rate|charge)\b/i;
 const EXACT_PRICE = /\b(exact|final|total)\b.{0,25}\b(price|cost|quote|charge)\b|\bhow much (?:will|does) it cost\b/i;
 const ZIP_PATTERN = /\b(\d{5})(?:-\d{4})?\b/;
 const STREET_SUFFIX_PATTERN = /\b(?:street|st|avenue|ave|road|rd|drive|dr|lane|ln|court|ct|boulevard|blvd|parkway|pkwy|place|pl|way|trail|trl|circle|cir|highway|hwy|terrace|ter)\.?\b/i;
@@ -89,6 +91,77 @@ const fixedResult = ({
     violations: [],
   },
 });
+
+const formatCurrency = (value) =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(Number(value));
+
+const resolvePricingService = async ({
+  businessId,
+  bookingState,
+  lead,
+  text,
+}) => {
+  if (bookingState?.serviceOffering) {
+    return ServiceOffering.findOne({
+      _id: bookingState.serviceOffering,
+      business: businessId,
+      active: true,
+      aiCanDiscuss: true,
+    }).lean();
+  }
+
+  const matches = await searchServicesTool({
+    businessId,
+    query: String(lead?.serviceNeeded || "").trim() || text,
+  });
+  if (matches.length !== 1) return null;
+
+  return ServiceOffering.findOne({
+    _id: matches[0].id,
+    business: businessId,
+    active: true,
+    aiCanDiscuss: true,
+  }).lean();
+};
+
+const buildApprovedPriceEstimate = (service) => {
+  if (!service?.disclosePriceEstimate) return "";
+
+  const min =
+    service.priceEstimateMin == null ? null : Number(service.priceEstimateMin);
+  const max =
+    service.priceEstimateMax == null ? null : Number(service.priceEstimateMax);
+  let range = "";
+
+  if (Number.isFinite(min) && Number.isFinite(max)) {
+    range =
+      min === max
+        ? `around ${formatCurrency(min)}`
+        : `roughly ${formatCurrency(min)}–${formatCurrency(max)}`;
+  } else if (Number.isFinite(min)) {
+    range = `starting around ${formatCurrency(min)}`;
+  } else if (Number.isFinite(max)) {
+    range = `typically up to about ${formatCurrency(max)}`;
+  }
+
+  if (!range) return "";
+
+  const diagnostic =
+    service.discloseDiagnosticFee && service.diagnosticFee != null
+      ? ` A diagnostic/service-call fee of ${formatCurrency(
+          service.diagnosticFee,
+        )} may apply.`
+      : "";
+  const disclaimer =
+    String(service.priceEstimateDisclaimer || "").trim() ||
+    "This is a rough estimate only. Final pricing depends on the actual scope, site conditions, parts, and technician evaluation.";
+
+  return `For ${service.name}, the business-approved rough estimate is ${range}.${diagnostic} ${disclaimer}`;
+};
 
 const formatSlot = (slot, timeZone) =>
   new Intl.DateTimeFormat("en-US", {
@@ -222,12 +295,23 @@ class BookingStateMachineService {
       };
     }
 
-    if (EXACT_PRICE.test(text)) {
+    if (PRICE_INTENT.test(text)) {
+      const pricingService = await resolvePricingService({
+        businessId: business._id,
+        bookingState: activeConversation.bookingState,
+        lead,
+        text,
+      });
+      const approvedEstimate = buildApprovedPriceEstimate(pricingService);
+
       return {
         handled: true,
         result: fixedResult({
           reply:
-            "I can help schedule the visit, but the team must confirm final scope and pricing after reviewing the job.",
+            approvedEstimate ||
+            (EXACT_PRICE.test(text)
+              ? "I can help schedule the visit, but the team must confirm final scope and pricing after reviewing the job."
+              : "I don’t have a business-approved price range for that service, so I don’t want to guess. I can still help schedule a visit so the team can assess the job and confirm pricing."),
           category: "pricing_request",
         }),
       };
@@ -541,7 +625,7 @@ class BookingStateMachineService {
             expiresAt: new Date(Date.now() + 30 * 60_000),
           });
           return { handled: true, result: fixedResult({
-            reply: `That time isn’t open, but I found ${options}. Which works best?`,
+            reply: `That requested time is outside the current bookable availability or is already taken, but I found ${options}. Which works best?`,
           }) };
         }
 
@@ -745,6 +829,30 @@ class BookingStateMachineService {
             });
 
         assertVoiceTurnActive();
+        if (
+          appointment.status === "held" &&
+          appointment.requiresBusinessApproval === true
+        ) {
+          await updateState(activeConversation, {
+            status: "pending_business_confirmation",
+            appointment: appointment._id,
+            expiresAt: appointment.heldExpiresAt || null,
+            lastError: "",
+          });
+
+          return {
+            handled: true,
+            result: fixedResult({
+              reply: `I’ve reserved ${formatSlot(
+                appointment,
+                appointment.timezone,
+              )} for ${
+                lead?.serviceNeeded || "your service request"
+              } pending business approval. The team will text you as soon as they accept the appointment.`,
+            }),
+          };
+        }
+
         if (appointment.status !== "confirmed") {
           throw new Error(
             "The appointment provider did not return a confirmed appointment.",
@@ -785,6 +893,59 @@ class BookingStateMachineService {
           }),
         };
       }
+    }
+
+    if (status === "pending_business_confirmation") {
+      const appointmentId = activeConversation.bookingState.appointment;
+      const appointment = appointmentId
+        ? await Appointment.findOne({
+            _id: appointmentId,
+            business: business._id,
+          })
+        : null;
+
+      if (appointment?.status === "confirmed") {
+        await updateState(activeConversation, {
+          status: "booked",
+          expiresAt: null,
+          lastError: "",
+        });
+        return {
+          handled: true,
+          result: fixedResult({
+            reply: `Your appointment is confirmed for ${formatSlot(
+              appointment,
+              appointment.timezone,
+            )}. Reply here if you need to reschedule or cancel.`,
+          }),
+        };
+      }
+
+      if (appointment?.status === "held") {
+        return {
+          handled: true,
+          result: fixedResult({
+            reply:
+              "Your requested appointment is still awaiting business approval. The team will text you as soon as it is accepted.",
+          }),
+        };
+      }
+
+      await updateState(activeConversation, {
+        status: "collecting_preference",
+        appointment: null,
+        selectedSlot: null,
+        offeredSlots: [],
+        expiresAt: null,
+        lastError: "business_approval_unavailable",
+      });
+      return {
+        handled: true,
+        result: fixedResult({
+          reply:
+            "That appointment request could not be confirmed. What other day or time works for you?",
+        }),
+      };
     }
 
     if (status === "booked") {

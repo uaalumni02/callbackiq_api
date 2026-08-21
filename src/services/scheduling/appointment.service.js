@@ -1,6 +1,7 @@
 import crypto from "crypto";
 
 import Appointment from "../../models/appointment.js";
+import Conversation from "../../models/conversation.js";
 import Lead from "../../models/lead.js";
 import ServiceOffering from "../../models/serviceOffering.js";
 import AlertService from "../alert.service.js";
@@ -17,6 +18,7 @@ import SchedulingProviderFactory from "./schedulingProviderFactory.js";
 import { businessCalendarProviderName } from "./calendarProviderName.service.js";
 import {
   cancelAppointmentNotifications,
+  scheduleAppointmentChangeNotice,
   scheduleAppointmentReminders,
   schedulePostAppointmentFollowUp,
 } from "./appointmentNotification.service.js";
@@ -24,7 +26,7 @@ import { addMinutes, formatDateKey } from "./timezone.service.js";
 
 const ACTIVE_STATUSES = new Set(["held", "confirmed"]);
 const VALID_TRANSITIONS = {
-  held: new Set(["confirmed", "failed"]),
+  held: new Set(["confirmed", "failed", "canceled"]),
   confirmed: new Set(["canceled", "completed", "no_show", "rescheduled"]),
   canceled: new Set(),
   completed: new Set(),
@@ -39,6 +41,17 @@ const normalizeAddress = (address = {}) => ({
   state: String(address?.state || "").trim(),
   postalCode: String(address?.postalCode || "").trim(),
 });
+
+const formatCustomerAppointmentTime = (appointment, business) =>
+  new Intl.DateTimeFormat("en-US", {
+    timeZone:
+      appointment.timezone || business.timezone || "America/New_York",
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(appointment.startAt));
 
 const getSlotKey = (startAt, endAt) =>
   `${new Date(startAt).toISOString()}|${new Date(endAt).toISOString()}`;
@@ -221,6 +234,9 @@ const createHold = async ({
     actualRevenue: input.actualRevenue || 0,
     idempotencyKey,
     heldExpiresAt: addMinutes(new Date(), Number(input.holdMinutes || 5)),
+    requiresBusinessApproval: input.requiresBusinessApproval === true,
+    approvalRequestedAt:
+      input.requiresBusinessApproval === true ? new Date() : null,
     notes: input.notes || "",
   };
 
@@ -322,13 +338,24 @@ class AppointmentService {
     });
 
     if (!confirm || hold.status !== "held") {
+      if (hold.requiresBusinessApproval) {
+        SocketService.emitToBusiness(
+          business._id,
+          "appointment:approval_requested",
+          hold,
+        );
+        SocketService.emitDashboardRefresh(
+          business._id,
+          "appointment_approval_requested",
+        );
+      }
       return hold;
     }
 
     return this.confirm({ business, appointmentId: hold._id });
   }
 
-  static async confirm({ business, appointmentId }) {
+  static async confirm({ business, appointmentId, approvedBy = null }) {
     const appointment = await getAppointmentForBusiness(
       business._id,
       appointmentId,
@@ -394,6 +421,11 @@ class AppointmentService {
       appointment.confirmedAt = new Date();
       appointment.heldExpiresAt = null;
       appointment.failureReason = "";
+      if (appointment.requiresBusinessApproval) {
+        appointment.approvalDecisionAt = new Date();
+        appointment.approvalDecisionBy = approvedBy || null;
+        appointment.approvalDeclineReason = "";
+      }
       await appointment.save();
     } catch (error) {
       // If Google accepted the insert but MongoDB did not persist confirmation,
@@ -458,6 +490,37 @@ class AppointmentService {
 
     // Confirmation is durable at this point. Secondary notifications and
     // analytics must never roll the appointment back if they fail.
+    if (appointment.requiresBusinessApproval) {
+      await runNonBlockingAppointmentSideEffect({
+        appointment,
+        businessId: business._id,
+        label: "business approval customer confirmation",
+        task: async () => {
+          const serviceName = service?.name || "service";
+          const businessName = business.businessName || "The service team";
+          const when = formatCustomerAppointmentTime(appointment, business);
+          await scheduleAppointmentChangeNotice({
+            appointment,
+            key: "business_approval_confirmed",
+            body: `${businessName}: Confirmed — your ${serviceName} appointment is scheduled for ${when}. Reply here if you need to reschedule or cancel.`,
+          });
+          if (appointment.conversation) {
+            await Conversation.updateOne(
+              { _id: appointment.conversation, business: business._id },
+              {
+                $set: {
+                  "bookingState.status": "booked",
+                  "bookingState.appointment": appointment._id,
+                  "bookingState.expiresAt": null,
+                  "bookingState.lastError": "",
+                },
+              },
+            );
+          }
+        },
+      });
+    }
+
     try {
       await scheduleAppointmentReminders({ appointment });
     } catch (error) {
@@ -512,6 +575,83 @@ class AppointmentService {
     SocketService.emitDashboardRefresh(
       business._id,
       "appointment_confirmed",
+    );
+    return appointment;
+  }
+
+  static async decline({
+    business,
+    appointmentId,
+    reason = "The requested time could not be accepted.",
+    declinedBy = null,
+  }) {
+    const appointment = await getAppointmentForBusiness(
+      business._id,
+      appointmentId,
+    );
+
+    if (
+      appointment.status !== "held" ||
+      appointment.requiresBusinessApproval !== true
+    ) {
+      const error = new Error(
+        "Only appointment requests awaiting business approval can be declined.",
+      );
+      error.statusCode = 409;
+      error.code = "APPOINTMENT_NOT_AWAITING_APPROVAL";
+      throw error;
+    }
+
+    appointment.status = "failed";
+    appointment.activeSlotKey = null;
+    appointment.slotClaimKeys = [];
+    appointment.capacityLane = null;
+    appointment.heldExpiresAt = null;
+    appointment.approvalDecisionAt = new Date();
+    appointment.approvalDecisionBy = declinedBy || null;
+    appointment.approvalDeclineReason = String(reason || "").trim();
+    appointment.failureReason =
+      appointment.approvalDeclineReason || "Appointment request declined.";
+    await appointment.save();
+
+    if (appointment.conversation) {
+      await Conversation.updateOne(
+        { _id: appointment.conversation, business: business._id },
+        {
+          $set: {
+            "bookingState.status": "failed",
+            "bookingState.lastError": "business_declined",
+            "bookingState.expiresAt": null,
+          },
+        },
+      );
+    }
+
+    await runNonBlockingAppointmentSideEffect({
+      appointment,
+      businessId: business._id,
+      label: "business decline customer notice",
+      task: () =>
+        scheduleAppointmentChangeNotice({
+          appointment,
+          key: "business_approval_declined",
+          body: `${
+            business.businessName || "The service team"
+          }: We couldn't confirm ${formatCustomerAppointmentTime(
+            appointment,
+            business,
+          )}. Reply with another day or time and we'll help find the next available option.`,
+        }),
+    });
+
+    SocketService.emitToBusiness(
+      business._id,
+      "appointment:declined",
+      appointment,
+    );
+    SocketService.emitDashboardRefresh(
+      business._id,
+      "appointment_declined",
     );
     return appointment;
   }
