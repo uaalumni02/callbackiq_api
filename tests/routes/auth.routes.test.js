@@ -5,6 +5,20 @@ import User from "../../src/models/user.js";
 import Business from "../../src/models/business.js";
 import Subscription from "../../src/models/subscription.js";
 import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testDb.js";
+import sendPasswordResetEmail from "../../src/helpers/email/mailer.js";
+
+jest.mock("../../src/helpers/email/mailer.js", () => {
+  const actual = jest.requireActual("../../src/helpers/email/mailer.js");
+
+  return {
+    ...actual,
+    __esModule: true,
+    default: jest.fn().mockResolvedValue({
+      accepted: ["owner@callbackiq.com"],
+      messageId: "test-password-reset-email",
+    }),
+  };
+});
 
 beforeAll(async () => {
   await connectTestDB();
@@ -437,9 +451,17 @@ describe("Auth Routes", () => {
       },
     );
 
+    sendPasswordResetEmail.mockClear();
+
     await request(app).post("/api/password-reset").send({
       email: "owner@callbackiq.com",
     });
+
+    const resetEmailCall = sendPasswordResetEmail.mock.calls.at(-1);
+    expect(resetEmailCall).toBeTruthy();
+
+    const plaintextResetToken = resetEmailCall[1];
+    expect(plaintextResetToken).toEqual(expect.any(String));
 
     const userWithToken = await User.findOne({
       email: "owner@callbackiq.com",
@@ -449,8 +471,12 @@ describe("Auth Routes", () => {
 
     expect(userWithToken.resetToken).toBeTruthy();
 
+    // Production stores only the SHA-256 hash. The plaintext token exists
+    // only in the password-reset email.
+    expect(userWithToken.resetToken).not.toBe(plaintextResetToken);
+
     const resetRes = await request(app)
-      .post(`/api/password-reset/${userWithToken.resetToken}`)
+      .post(`/api/password-reset/${plaintextResetToken}`)
       .send({
         password: "NewPassword123",
       });

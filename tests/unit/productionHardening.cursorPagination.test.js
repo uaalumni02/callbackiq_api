@@ -1,18 +1,18 @@
-const mockLeadFind = jest.fn();
-const mockConversationFind = jest.fn();
-const mockMessageFind = jest.fn();
+import Lead from "../../src/models/lead.js";
+import Conversation from "../../src/models/conversation.js";
+import Message from "../../src/models/message.js";
 
 jest.mock("../../src/models/lead.js", () => ({
   __esModule: true,
-  default: { find: mockLeadFind },
+  default: { find: jest.fn() },
 }));
 jest.mock("../../src/models/conversation.js", () => ({
   __esModule: true,
-  default: { find: mockConversationFind },
+  default: { find: jest.fn() },
 }));
 jest.mock("../../src/models/message.js", () => ({
   __esModule: true,
-  default: { find: mockMessageFind },
+  default: { find: jest.fn() },
 }));
 
 import {
@@ -55,16 +55,16 @@ describe("cursor pagination", () => {
       { _id: id(2), createdAt: new Date("2026-01-02") },
       { _id: id(1), createdAt: new Date("2026-01-01") },
     ];
-    mockLeadFind.mockReturnValue(makeChain(documents));
+    Lead.find.mockReturnValue(makeChain(documents));
 
     const first = await getLeadsPage("biz", { limit: "2" });
     expect(first.items).toHaveLength(2);
     expect(first.hasMore).toBe(true);
     expect(first.nextCursor).toEqual(expect.any(String));
 
-    mockLeadFind.mockReturnValue(makeChain([]));
+    Lead.find.mockReturnValue(makeChain([]));
     await getLeadsPage("biz", { limit: "2", cursor: first.nextCursor });
-    expect(mockLeadFind).toHaveBeenLastCalledWith(
+    expect(Lead.find).toHaveBeenLastCalledWith(
       expect.objectContaining({
         business: "biz",
         $or: expect.any(Array),
@@ -90,18 +90,18 @@ describe("cursor pagination", () => {
         lastMessageAt: null,
       },
     ];
-    mockConversationFind.mockReturnValue(makeChain(documents));
+    Conversation.find.mockReturnValue(makeChain(documents));
 
     const page = await getConversationsPage("biz", { limit: "2" });
     expect(page.items).toHaveLength(2);
     expect(page.nextCursor).toEqual(expect.any(String));
 
-    mockConversationFind.mockReturnValue(makeChain([]));
+    Conversation.find.mockReturnValue(makeChain([]));
     await getConversationsPage("biz", {
       limit: "2",
       cursor: page.nextCursor,
     });
-    expect(mockConversationFind).toHaveBeenLastCalledWith(
+    expect(Conversation.find).toHaveBeenLastCalledWith(
       expect.objectContaining({ $or: expect.any(Array) }),
     );
   });
@@ -111,24 +111,24 @@ describe("cursor pagination", () => {
       { _id: id(1), createdAt: new Date("2026-01-01") },
       { _id: id(2), createdAt: new Date("2026-01-02") },
     ];
-    mockMessageFind.mockReturnValue(makeChain(documents));
+    Message.find.mockReturnValue(makeChain(documents));
 
     const page = await getMessagesPage("conversation", { limit: "1" });
     expect(page.items).toHaveLength(1);
     expect(page.hasMore).toBe(true);
 
-    mockMessageFind.mockReturnValue(makeChain([]));
+    Message.find.mockReturnValue(makeChain([]));
     await getMessagesPage("conversation", {
       limit: "1",
       cursor: page.nextCursor,
     });
-    expect(mockMessageFind).toHaveBeenLastCalledWith(
+    expect(Message.find).toHaveBeenLastCalledWith(
       expect.objectContaining({ $or: expect.any(Array) }),
     );
   });
 
   test("rejects malformed cursors", async () => {
-    mockLeadFind.mockReturnValue(makeChain([]));
+    Lead.find.mockReturnValue(makeChain([]));
     await expect(
       getLeadsPage("biz", { cursor: "not-a-cursor" }),
     ).rejects.toMatchObject({ code: "INVALID_CURSOR" });

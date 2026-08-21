@@ -1,13 +1,11 @@
-const mockFindOneAndUpdate = jest.fn();
-const mockUpdateOne = jest.fn();
-const mockDeleteOne = jest.fn();
+import ProductionOperationLease from "../../src/models/productionOperationLease.js";
 
 jest.mock("../../src/models/productionOperationLease.js", () => ({
   __esModule: true,
   default: {
-    findOneAndUpdate: mockFindOneAndUpdate,
-    updateOne: mockUpdateOne,
-    deleteOne: mockDeleteOne,
+    findOneAndUpdate: jest.fn(),
+    updateOne: jest.fn(),
+    deleteOne: jest.fn(),
   },
 }));
 
@@ -28,7 +26,7 @@ describe("distributed lease service", () => {
   });
 
   test("acquires an available lease", async () => {
-    mockFindOneAndUpdate.mockImplementation((filter, update) =>
+    ProductionOperationLease.findOneAndUpdate.mockImplementation((filter, update) =>
       leaseQuery({
         _id: filter._id,
         ownerToken: update.$set.ownerToken,
@@ -42,7 +40,7 @@ describe("distributed lease service", () => {
   });
 
   test("treats duplicate-key contention as a skipped lease", async () => {
-    mockFindOneAndUpdate.mockImplementation(() => ({
+    ProductionOperationLease.findOneAndUpdate.mockImplementation(() => ({
       lean: jest.fn().mockRejectedValue(Object.assign(new Error("duplicate"), { code: 11000 })),
     }));
 
@@ -53,7 +51,7 @@ describe("distributed lease service", () => {
   });
 
   test("propagates unexpected acquisition failures", async () => {
-    mockFindOneAndUpdate.mockImplementation(() => ({
+    ProductionOperationLease.findOneAndUpdate.mockImplementation(() => ({
       lean: jest.fn().mockRejectedValue(new Error("db down")),
     }));
 
@@ -61,8 +59,8 @@ describe("distributed lease service", () => {
   });
 
   test("renews and releases by owner token", async () => {
-    mockUpdateOne.mockResolvedValue({ matchedCount: 1 });
-    mockDeleteOne.mockResolvedValue({ deletedCount: 1 });
+    ProductionOperationLease.updateOne.mockResolvedValue({ matchedCount: 1 });
+    ProductionOperationLease.deleteOne.mockResolvedValue({ deletedCount: 1 });
 
     await expect(
       renewDistributedLease("job:1", "owner", { ttlMs: 1000 }),
@@ -72,7 +70,7 @@ describe("distributed lease service", () => {
   });
 
   test("skips operation when lease is held elsewhere", async () => {
-    mockFindOneAndUpdate.mockImplementation(() => leaseQuery(null));
+    ProductionOperationLease.findOneAndUpdate.mockImplementation(() => leaseQuery(null));
     const operation = jest.fn();
 
     const result = await withDistributedLease("job:1", operation, {
@@ -88,13 +86,13 @@ describe("distributed lease service", () => {
   });
 
   test("runs operation and releases acquired lease", async () => {
-    mockFindOneAndUpdate.mockImplementation((filter, update) =>
+    ProductionOperationLease.findOneAndUpdate.mockImplementation((filter, update) =>
       leaseQuery({
         _id: filter._id,
         ownerToken: update.$set.ownerToken,
       }),
     );
-    mockDeleteOne.mockResolvedValue({ deletedCount: 1 });
+    ProductionOperationLease.deleteOne.mockResolvedValue({ deletedCount: 1 });
 
     const result = await withDistributedLease(
       "job:1",
@@ -107,7 +105,7 @@ describe("distributed lease service", () => {
       skipped: false,
       value: "done",
     });
-    expect(mockDeleteOne).toHaveBeenCalledTimes(1);
+    expect(ProductionOperationLease.deleteOne).toHaveBeenCalledTimes(1);
   });
 
   test("requires a key and operation", async () => {

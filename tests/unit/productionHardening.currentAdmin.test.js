@@ -1,9 +1,9 @@
-const mockFindById = jest.fn();
+import User from "../../src/models/user.js";
 
 jest.mock("../../src/models/user.js", () => ({
   __esModule: true,
   default: {
-    findById: mockFindById,
+    findById: jest.fn(),
   },
 }));
 
@@ -13,7 +13,7 @@ import {
 } from "../../src/helpers/security/current-admin.js";
 
 const setLookupResult = (value) => {
-  mockFindById.mockReturnValue({
+  User.findById.mockReturnValue({
     select: jest.fn().mockReturnValue({
       lean: jest.fn().mockResolvedValue(value),
     }),
@@ -22,12 +22,12 @@ const setLookupResult = (value) => {
 
 describe("fresh admin authorization", () => {
   beforeEach(() => {
-    mockFindById.mockReset();
+    User.findById.mockReset();
   });
 
   test("returns null without a current user id", async () => {
     await expect(getCurrentAuthorizationUser({ user: null })).resolves.toBeNull();
-    expect(mockFindById).not.toHaveBeenCalled();
+    expect(User.findById).not.toHaveBeenCalled();
   });
 
   test("accepts current admin role from MongoDB", async () => {

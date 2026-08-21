@@ -1,9 +1,9 @@
-const mockFindOneAndUpdate = jest.fn();
+import RequestRateLimitBucket from "../../src/models/requestRateLimitBucket.js";
 
 jest.mock("../../src/models/requestRateLimitBucket.js", () => ({
   __esModule: true,
   default: {
-    findOneAndUpdate: mockFindOneAndUpdate,
+    findOneAndUpdate: jest.fn(),
   },
 }));
 
@@ -39,7 +39,7 @@ describe("distributed auth rate limiting", () => {
   });
 
   test("allows requests within the shared limit", async () => {
-    mockFindOneAndUpdate.mockReturnValue(queryResult({ count: 1 }));
+    RequestRateLimitBucket.findOneAndUpdate.mockReturnValue(queryResult({ count: 1 }));
     const middleware = createDistributedAuthRateLimit({
       scope: "test",
       windowMs: 60000,
@@ -51,11 +51,11 @@ describe("distributed auth rate limiting", () => {
 
     await middleware(req, res, next);
     expect(next).toHaveBeenCalledTimes(1);
-    expect(mockFindOneAndUpdate).toHaveBeenCalledTimes(1);
+    expect(RequestRateLimitBucket.findOneAndUpdate).toHaveBeenCalledTimes(1);
   });
 
   test("returns 429 after the distributed limit", async () => {
-    mockFindOneAndUpdate.mockReturnValue(queryResult({ count: 3 }));
+    RequestRateLimitBucket.findOneAndUpdate.mockReturnValue(queryResult({ count: 3 }));
     const middleware = createDistributedAuthRateLimit({
       scope: "test",
       windowMs: 60000,
@@ -69,7 +69,7 @@ describe("distributed auth rate limiting", () => {
   });
 
   test("fails closed in production when Mongo rate limiting fails", async () => {
-    mockFindOneAndUpdate.mockReturnValue({
+    RequestRateLimitBucket.findOneAndUpdate.mockReturnValue({
       lean: jest.fn().mockRejectedValue(new Error("db down")),
     });
     const middleware = createDistributedAuthRateLimit({
@@ -85,7 +85,7 @@ describe("distributed auth rate limiting", () => {
 
   test("can fail open only when explicitly configured", async () => {
     process.env.AUTH_RATE_LIMIT_FAIL_CLOSED = "false";
-    mockFindOneAndUpdate.mockReturnValue({
+    RequestRateLimitBucket.findOneAndUpdate.mockReturnValue({
       lean: jest.fn().mockRejectedValue(new Error("db down")),
     });
     const middleware = createDistributedAuthRateLimit({
@@ -115,7 +115,7 @@ describe("distributed auth rate limiting", () => {
 
     await middleware({ ip: "127.0.0.1", socket: {} }, makeResponse(), next);
     expect(next).toHaveBeenCalledTimes(1);
-    expect(mockFindOneAndUpdate).not.toHaveBeenCalled();
+    expect(RequestRateLimitBucket.findOneAndUpdate).not.toHaveBeenCalled();
   });
 
   test("rejects invalid factory configuration", () => {
