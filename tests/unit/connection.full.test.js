@@ -69,13 +69,15 @@ describe("MongoDB connection configuration", () => {
     );
   });
 
-  test("logs and exits when MONGO_URL is missing", async () => {
+  test("logs and exits when all MongoDB connection URLs are missing", async () => {
+    delete process.env.MONGODB_URI;
     delete process.env.MONGO_URL;
+    delete process.env.MONGO_URI;
     await expect(connectDB()).resolves.toBeUndefined();
     expect(mongoose.connect).not.toHaveBeenCalled();
     expect(console.error).toHaveBeenCalledWith(
       "MongoDB connection failed:",
-      "MONGO_URL is missing from .env",
+      "MONGODB_URI is missing (legacy MONGO_URL/MONGO_URI are also accepted)",
     );
     expect(process.exit).toHaveBeenCalledWith(1);
   });
