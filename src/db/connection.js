@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 
+import { getMongoUrl } from "../config/runtime-environment.js";
 const toNonNegativeInteger = (value, fallback) => {
   const parsedValue = Number.parseInt(value, 10);
 
@@ -10,10 +11,10 @@ const toNonNegativeInteger = (value, fallback) => {
 
 const connectDB = async () => {
   try {
-    const DB_URL = process.env.MONGO_URL;
+    const DB_URL = getMongoUrl();
 
     if (!DB_URL) {
-      throw new Error("MONGO_URL is missing from .env");
+      throw new Error("MONGODB_URI is missing (legacy MONGO_URL/MONGO_URI are also accepted)");
     }
 
     const configuredMaxPoolSize = toNonNegativeInteger(

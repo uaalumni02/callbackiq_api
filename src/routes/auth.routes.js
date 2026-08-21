@@ -5,6 +5,12 @@ import VerificationController from "../controllers/verification.js";
 import checkAuth from "../middleware/check-auth.js";
 import loginRateLimit from "../middleware/login-rate-limit.js";
 import {
+  distributedLoginRateLimit,
+  distributedPasswordResetRequestRateLimit,
+  distributedPasswordResetSubmitRateLimit,
+  distributedRegisterRateLimit,
+} from "../middleware/auth-distributed-rate-limits.js";
+import {
   registerRateLimit,
   passwordResetRequestRateLimit,
   passwordResetSubmitRateLimit,
@@ -16,9 +22,9 @@ import {
 
 const router = express.Router();
 
-router.post("/register", registerRateLimit, AuthController.register);
+router.post("/register", distributedRegisterRateLimit, registerRateLimit, AuthController.register);
 
-router.post("/login", loginRateLimit, AuthController.login);
+router.post("/login", distributedLoginRateLimit, loginRateLimit, AuthController.login);
 
 router.get("/me", checkAuth, AuthController.me);
 
@@ -42,13 +48,13 @@ router.post(
 router.post("/logout", AuthController.logout);
 
 router.post(
-  "/request-password-reset",
+  "/request-password-reset", distributedPasswordResetRequestRateLimit,
   passwordResetRequestRateLimit,
   AuthController.requestPasswordReset,
 );
 
 router.post(
-  "/reset-password/:resetToken",
+  "/reset-password/:resetToken", distributedPasswordResetSubmitRateLimit,
   passwordResetSubmitRateLimit,
   AuthController.resetPassword,
 );

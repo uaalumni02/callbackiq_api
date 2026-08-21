@@ -4,6 +4,7 @@ import checkAuth from "../middleware/check-auth.js";
 import checkSubscription from "../middleware/check-subscription.js";
 import ConversationController from "../controllers/conversation.js";
 
+import { isCurrentAdminRequest } from "../helpers/security/current-admin.js";
 const router = express.Router();
 
 const ADMIN_ROLES = new Set([
@@ -20,15 +21,14 @@ const getAuthenticatedRole = (req) =>
 
 // Business owners keep the existing subscription requirement. Admins can
 // perform management actions without needing a customer subscription record.
-const checkSubscriptionUnlessAdmin = (req, res, next) => {
-  if (
-    req.user?.isAdmin === true ||
-    ADMIN_ROLES.has(getAuthenticatedRole(req))
-  ) {
-    return next();
+// CALLBACKIQ_FRESH_ADMIN_ROUTE_V1
+const checkSubscriptionUnlessAdmin = async (req, res, next) => {
+  try {
+    if (await isCurrentAdminRequest(req)) return next();
+    return checkSubscription(req, res, next);
+  } catch (error) {
+    return next(error);
   }
-
-  return checkSubscription(req, res, next);
 };
 
 router

@@ -26,7 +26,14 @@ import { captureSignupSecurity } from "../services/trialRisk.service.js";
 
 import sendPasswordResetEmail from "../helpers/email/mailer.js";
 
+import mongoose from "mongoose";
+import { runRegistrationTransaction } from "../services/registrationTransaction.service.js";
 const isProduction = process.env.NODE_ENV === "production";
+const shouldExposeAuthToken = !isProduction &&
+  process.env.AUTH_RESPONSE_TOKEN_ENABLED !== "false";
+
+const hashPasswordResetToken = (token) =>
+  crypto.createHash("sha256").update(String(token || ""), "utf8").digest("hex");
 
 const cookieOptions = {
   httpOnly: true,
@@ -205,7 +212,17 @@ class AuthController {
        */
       const smsConsentGiven = Boolean(smsConsent);
 
-      const savedUser = await Db.saveUser(User, {
+      // CALLBACKIQ_REGISTRATION_TRANSACTION_V1
+      // CALLBACKIQ_REGISTRATION_TRANSACTION_V1_1
+      let savedUser;
+      let savedBusiness;
+      let savedSubscription;
+      let trialEligibility;
+      let emailVerificationSent = false;
+
+      const persistRegistration = async (registrationSession = null) => {
+
+      savedUser = await Db.saveUser(User, {
         userName: normalizedUserName,
         email: normalizedEmail,
         password: hashedPassword,
@@ -227,9 +244,9 @@ class AuthController {
         termsAcceptedAt: now,
         privacyAccepted: true,
         privacyAcceptedAt: now,
-      });
+      }, { session: registrationSession });
 
-      const savedBusiness = await Db.saveBusiness(Business, {
+      savedBusiness = await Db.saveBusiness(Business, {
         owner: savedUser._id,
         businessName,
         businessType,
@@ -246,7 +263,7 @@ class AuthController {
           updatedAt: now,
         },
         signupSecurity: captureSignupSecurity(req, businessName),
-      });
+      }, { session: registrationSession });
 
       /*
        * Registration never consumes the lifetime trial and never provisions a
@@ -257,17 +274,19 @@ class AuthController {
       // subscription entitlement. Subscription middleware owns product access.
       savedBusiness.setupProgress.subscriptionActivated = false;
       savedBusiness.setupProgress.updatedAt = new Date();
-      await savedBusiness.save();
+      await savedBusiness.save({ session: registrationSession });
 
-      const savedSubscription = await createInactiveSubscription(savedBusiness._id);
-      const trialEligibility = await getTrialEligibility({
+      savedSubscription = await createInactiveSubscription(savedBusiness._id, { session: registrationSession });
+      trialEligibility = await getTrialEligibility({
         business: savedBusiness,
         ownerId: savedUser._id,
         subscription: savedSubscription,
+        session: registrationSession,
       });
 
-      let emailVerificationSent = false;
-      if (securityGateEnabled("TRIAL_REQUIRE_EMAIL_VERIFICATION")) {
+      };
+      await runRegistrationTransaction(persistRegistration);
+if (securityGateEnabled("TRIAL_REQUIRE_EMAIL_VERIFICATION")) {
         try {
           const verification = await issueEmailVerification({ user: savedUser });
           emailVerificationSent = verification?.sent === true;
@@ -278,6 +297,7 @@ class AuthController {
           });
         }
       }
+    
 
       const token = Token.sign({
         userId: savedUser._id,
@@ -291,7 +311,7 @@ class AuthController {
       return Response.responseCreated(
         res,
         {
-          token,
+          ...(shouldExposeAuthToken ? { token } : {}),
           user: {
             _id: savedUser._id,
             userName: savedUser.userName,
@@ -434,7 +454,7 @@ class AuthController {
       return Response.responseOk(
         res,
         {
-          token,
+          ...(shouldExposeAuthToken ? { token } : {}),
           user: {
             _id: authenticatedUser._id,
             userName: authenticatedUser.userName,
@@ -505,11 +525,12 @@ class AuthController {
 
       const resetToken = crypto.randomBytes(32).toString("hex");
       const resetTokenExpiresAt = new Date(Date.now() + 30 * 60 * 1000);
+      const resetTokenHash = hashPasswordResetToken(resetToken);
 
       await Db.savePasswordResetToken(
         User,
         user._id,
-        resetToken,
+        resetTokenHash,
         resetTokenExpiresAt,
       );
 
@@ -553,7 +574,8 @@ class AuthController {
         return Response.responseInvalidInput(res, "Invalid password format");
       }
 
-      const user = await Db.findUserByPasswordResetToken(User, resetToken);
+      const resetTokenHash = hashPasswordResetToken(resetToken);
+      const user = await Db.findUserByPasswordResetToken(User, resetTokenHash);
 
       if (!user) {
         return Response.responseInvalidInput(

@@ -1,0 +1,135 @@
+// CALLBACKIQ_PRODUCTION_HARDENING_V1
+import "dotenv/config";
+import mongoose from "mongoose";
+import connectDB from "./db/connection.js";
+import { validateEnvironment } from "./config/env.js";
+import {
+  assertRealtimeScalingConfig,
+  assertValidProcessRole,
+  getProcessRole,
+  normalizeRuntimeEnvironment,
+} from "./config/runtime-environment.js";
+import {
+  startA2pReconciliationWorker,
+  stopA2pReconciliationWorker,
+} from "./workers/a2pReconciliation.worker.js";
+import {
+  startAppointmentMaintenanceWorker,
+  stopAppointmentMaintenanceWorker,
+} from "./workers/appointmentMaintenance.worker.js";
+import {
+  startAutomationWorker,
+  stopAutomationWorker,
+} from "./workers/automation.worker.js";
+import {
+  startSmsProcessingWorker,
+  stopSmsProcessingWorker,
+} from "./workers/smsProcessing.worker.js";
+
+const roleMap = {
+  worker: [
+    ["a2p", startA2pReconciliationWorker, stopA2pReconciliationWorker],
+    [
+      "maintenance",
+      startAppointmentMaintenanceWorker,
+      stopAppointmentMaintenanceWorker,
+    ],
+    ["automation", startAutomationWorker, stopAutomationWorker],
+    ["sms", startSmsProcessingWorker, stopSmsProcessingWorker],
+  ],
+  "worker-sms": [["sms", startSmsProcessingWorker, stopSmsProcessingWorker]],
+  "worker-automation": [
+    ["automation", startAutomationWorker, stopAutomationWorker],
+  ],
+  // Trial lifecycle/reconciliation is currently owned by automation scheduling.
+  "worker-lifecycle": [
+    ["automation", startAutomationWorker, stopAutomationWorker],
+  ],
+  "worker-a2p": [
+    ["a2p", startA2pReconciliationWorker, stopA2pReconciliationWorker],
+  ],
+  "worker-maintenance": [
+    [
+      "maintenance",
+      startAppointmentMaintenanceWorker,
+      stopAppointmentMaintenanceWorker,
+    ],
+  ],
+};
+
+let stopping = false;
+let activeStops = [];
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const shutdown = async (signal, exitCode = 0) => {
+  if (stopping) return;
+  stopping = true;
+  console.log(`Worker shutdown requested (${signal})`);
+
+  for (const [name, stop] of activeStops.reverse()) {
+    try {
+      await Promise.resolve(stop());
+    } catch (error) {
+      console.error(`Failed stopping ${name} worker:`, error);
+      exitCode = 1;
+    }
+  }
+
+  // Existing queue leases remain the source of truth. This grace period lets
+  // any synchronous stop signal be observed before Mongo is closed.
+  const graceMs = Math.min(
+    10000,
+    Math.max(
+      0,
+      Number.parseInt(process.env.WORKER_DRAIN_GRACE_MS || "3000", 10) || 0,
+    ),
+  );
+  if (graceMs) await delay(graceMs);
+
+  await mongoose.connection.close().catch((error) => {
+    console.error("MongoDB close failed:", error);
+    exitCode = 1;
+  });
+
+  process.exitCode = exitCode;
+};
+
+const startWorkerProcess = async () => {
+  normalizeRuntimeEnvironment();
+  validateEnvironment({ throwOnError: true });
+  assertRealtimeScalingConfig();
+
+  const role = assertValidProcessRole();
+  if (!roleMap[role]) {
+    throw new Error(
+      `PROCESS_ROLE=${role} is not a worker role. Use worker, worker-sms, worker-automation, worker-lifecycle, worker-a2p, or worker-maintenance.`,
+    );
+  }
+
+  await connectDB();
+  activeStops = roleMap[role].map(([name, start, stop]) => {
+    start();
+    console.log(`Started ${name} worker`);
+    return [name, stop];
+  });
+
+  console.log(`CallBackIQ worker process ready (${getProcessRole()})`);
+};
+
+process.once("SIGTERM", () => void shutdown("SIGTERM"));
+process.once("SIGINT", () => void shutdown("SIGINT"));
+
+process.on("unhandledRejection", (error) => {
+  console.error("Unhandled worker rejection:", error);
+  void shutdown("unhandledRejection", 1);
+});
+process.on("uncaughtException", (error) => {
+  console.error("Uncaught worker exception:", error);
+  void shutdown("uncaughtException", 1);
+});
+
+void startWorkerProcess().catch((error) => {
+  console.error("Worker startup failed:", error);
+  void shutdown("startupFailure", 1);
+});
