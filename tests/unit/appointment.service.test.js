@@ -452,7 +452,7 @@ describe("AppointmentService", () => {
     Appointment.findOne.mockResolvedValueOnce(canceled);
     await expect(AppointmentService.cancel({ business, appointmentId: "a1" })).resolves.toBe(canceled);
 
-    Appointment.findOne.mockResolvedValueOnce(appointmentDoc({ status: "held" }));
+    Appointment.findOne.mockResolvedValueOnce(appointmentDoc({ status: "completed" }));
     await expect(AppointmentService.cancel({ business, appointmentId: "a1" })).rejects.toMatchObject({
       code: "INVALID_APPOINTMENT_TRANSITION",
     });

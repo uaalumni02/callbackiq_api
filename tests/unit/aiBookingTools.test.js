@@ -2,7 +2,11 @@ import ServiceOffering from "../../src/models/serviceOffering.js";
 import Conversation from "../../src/models/conversation.js";
 import AppointmentService from "../../src/services/scheduling/appointment.service.js";
 import AvailabilityService from "../../src/services/scheduling/availability.service.js";
-import { validateServiceArea } from "../../src/services/scheduling/appointmentPolicy.service.js";
+import {
+  getBookableService,
+  getSchedulingPolicy,
+  validateServiceArea,
+} from "../../src/services/scheduling/appointmentPolicy.service.js";
 import ConversionEventService from "../../src/services/conversionEvent.service.js";
 import InterventionService from "../../src/services/intervention.service.js";
 import { searchServicesTool } from "../../src/helpers/ai/tools/searchServices.tool.js";
@@ -25,6 +29,8 @@ jest.mock("../../src/services/scheduling/availability.service.js", () => ({
 }));
 jest.mock("../../src/services/scheduling/appointmentPolicy.service.js", () => ({
   __esModule: true,
+  getBookableService: jest.fn(),
+  getSchedulingPolicy: jest.fn(),
   validateServiceArea: jest.fn(),
 }));
 jest.mock("../../src/services/conversionEvent.service.js", () => ({
@@ -39,7 +45,20 @@ jest.mock("../../src/services/intervention.service.js", () => ({
 const leanResult = (value) => ({ lean: jest.fn().mockResolvedValue(value) });
 
 describe("AI booking tools", () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+
+    getSchedulingPolicy.mockResolvedValue({
+      aiBookingConfirmationMode: "automatic",
+      manualApprovalHoldMinutes: 30,
+    });
+
+    getBookableService.mockResolvedValue({
+      _id: "s1",
+      requiresHumanReview: false,
+      aiCanBook: true,
+    });
+  });
 
   test("searches, scores, excludes, sorts, limits, and serializes services", async () => {
     const services = [
@@ -87,10 +106,27 @@ describe("AI booking tools", () => {
     AppointmentService.create.mockResolvedValue({ _id: "a1" });
     AppointmentService.reschedule.mockResolvedValue({ _id: "a2" });
     const business = { _id: "b1" };
-    await createAppointmentTool({ business, input: { startAt: "date" }, idempotencyKey: "key" });
+    await createAppointmentTool({
+      business,
+      input: { startAt: "date", serviceOfferingId: "s1" },
+      idempotencyKey: "key",
+    });
+
+    expect(getSchedulingPolicy).toHaveBeenCalledWith("b1");
+    expect(getBookableService).toHaveBeenCalledWith({
+      businessId: "b1",
+      serviceOfferingId: "s1",
+    });
+
     expect(AppointmentService.create).toHaveBeenCalledWith({
       business,
-      input: { startAt: "date", source: "sms", bookedBy: "ai" },
+      input: expect.objectContaining({
+        startAt: "date",
+        serviceOfferingId: "s1",
+        source: "sms",
+        bookedBy: "ai",
+        requiresBusinessApproval: false,
+      }),
       idempotencyKey: "key",
       confirm: true,
     });

@@ -409,6 +409,7 @@ describe("Phase 2-8 controllers", () => {
       expect(AppointmentService.confirm).toHaveBeenCalledWith({
         business,
         appointmentId: "a1",
+        approvedBy: "u1",
       });
       expect(AppointmentService.cancel).toHaveBeenCalledWith({
         business,

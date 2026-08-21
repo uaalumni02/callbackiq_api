@@ -70,7 +70,29 @@ class AppointmentController {
   static async confirm(req, res, next) {
     try {
       const business = await getOwnedBusiness({ user: req.user, requestedBusinessId: req.body.businessId });
-      const appointment = await AppointmentService.confirm({ business, appointmentId: req.params.id });
+      const appointment = await AppointmentService.confirm({
+        business,
+        appointmentId: req.params.id,
+        approvedBy: req.user?.userId || null,
+      });
+      return res.status(200).json({ success: true, data: appointment });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  static async decline(req, res, next) {
+    try {
+      const business = await getOwnedBusiness({
+        user: req.user,
+        requestedBusinessId: req.body.businessId,
+      });
+      const appointment = await AppointmentService.decline({
+        business,
+        appointmentId: req.params.id,
+        reason: req.body.reason || "",
+        declinedBy: req.user?.userId || null,
+      });
       return res.status(200).json({ success: true, data: appointment });
     } catch (error) {
       return next(error);

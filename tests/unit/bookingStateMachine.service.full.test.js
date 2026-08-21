@@ -1,5 +1,6 @@
 import Appointment from "../../src/models/appointment.js";
 import Conversation from "../../src/models/conversation.js";
+import ServiceOffering from "../../src/models/serviceOffering.js";
 import AutomationTriggerService from "../../src/services/automation/automationTrigger.service.js";
 import BookingStateMachineService from "../../src/services/booking/bookingStateMachine.service.js";
 import ConversionEventService from "../../src/services/conversionEvent.service.js";
@@ -16,6 +17,10 @@ jest.mock("../../src/models/appointment.js", () => ({
   default: { findOneAndUpdate: jest.fn(), updateOne: jest.fn() },
 }));
 jest.mock("../../src/models/conversation.js", () => ({
+  __esModule: true,
+  default: { findOne: jest.fn() },
+}));
+jest.mock("../../src/models/serviceOffering.js", () => ({
   __esModule: true,
   default: { findOne: jest.fn() },
 }));
@@ -114,6 +119,16 @@ const handle = ({ conversation = makeConversation(), lead = makeLead(), message 
 describe("BookingStateMachineService complete behavior", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    ServiceOffering.findOne.mockReturnValue({
+      lean: jest.fn().mockResolvedValue({
+        _id: "s1",
+        business: "b1",
+        name: "HVAC diagnostic",
+        estimatedValue: 350,
+        diagnosticFee: 89,
+        discloseDiagnosticFee: true,
+      }),
+    });
     jest.useFakeTimers();
     jest.setSystemTime(new Date("2026-07-27T12:00:00.000Z"));
     searchServicesTool.mockResolvedValue([{ id: "s1", name: "HVAC diagnostic" }]);

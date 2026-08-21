@@ -107,6 +107,20 @@ const AppointmentSchema = new Schema(
     slotClaimKeys: { type: [String], default: [] },
     capacityLane: { type: Number, min: 1, default: null },
     heldExpiresAt: { type: Date, default: null },
+    requiresBusinessApproval: { type: Boolean, default: false, index: true },
+    approvalRequestedAt: { type: Date, default: null },
+    approvalDecisionAt: { type: Date, default: null },
+    approvalDecisionBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    approvalDeclineReason: {
+      type: String,
+      trim: true,
+      default: "",
+      maxlength: 1000,
+    },
     failureReason: { type: String, trim: true, default: "", maxlength: 2000 },
 
     confirmedAt: { type: Date, default: null },
@@ -180,6 +194,12 @@ AppointmentSchema.index(
   },
 );
 AppointmentSchema.index({ business: 1, heldExpiresAt: 1, status: 1 });
+AppointmentSchema.index({
+  business: 1,
+  requiresBusinessApproval: 1,
+  status: 1,
+  startAt: 1,
+});
 AppointmentSchema.index({
   business: 1,
   "pendingProviderChange.status": 1,

@@ -35,6 +35,12 @@ export const searchServicesTool = async ({ businessId, query }) => {
     category: service.category,
     durationMinutes: service.durationMinutes,
     estimatedValue: service.estimatedValue,
+    priceEstimateMin: service.priceEstimateMin,
+    priceEstimateMax: service.priceEstimateMax,
+    disclosePriceEstimate: service.disclosePriceEstimate,
+    priceEstimateDisclaimer: service.priceEstimateDisclaimer,
+    diagnosticFee: service.diagnosticFee,
+    discloseDiagnosticFee: service.discloseDiagnosticFee,
     requiresHumanReview: service.requiresHumanReview,
     score,
   }));
