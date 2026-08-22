@@ -108,6 +108,21 @@ const isSafeMongoFixture = (rawValue) => {
     .trim()
     .replace(/[;,.)]+$/, "");
 
+  /*
+   * RFC-reserved .invalid hostnames are safe for committed fixtures.
+   *
+   * Keep this deliberately strict: credentials/userinfo before the host
+   * are NOT allowed by this expression, so a URI containing an embedded
+   * username/password remains eligible for secret detection.
+   */
+  if (
+    /^mongodb(?:\+srv)?:\/\/example\.invalid(?::\d+)?(?:\/|$)/i.test(
+      value,
+    )
+  ) {
+    return true;
+  }
+
   return /^mongodb:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?(?:\/|$)/i.test(
     value,
   );

@@ -13,17 +13,17 @@ describe("production hardening runtime environment", () => {
   test("normalizes legacy Mongo and API URL aliases", () => {
     const env = {
       NODE_ENV: "production",
-      MONGO_URL: "mongodb://example/test",
+      MONGO_URL: "mongodb://example.invalid/test",
       API_PUBLIC_URL: "https://api.example.com",
     };
 
     const result = normalizeRuntimeEnvironment(env);
 
-    expect(result.mongoUrl).toBe("mongodb://example/test");
-    expect(env.MONGODB_URI).toBe("mongodb://example/test");
+    expect(result.mongoUrl).toBe("mongodb://example.invalid/test");
+    expect(env.MONGODB_URI).toBe("mongodb://example.invalid/test");
     expect(env.PUBLIC_API_URL).toBe("https://api.example.com");
     expect(env.TWILIO_WEBHOOK_BASE_URL).toBe("https://api.example.com");
-    expect(getMongoUrl(env)).toBe("mongodb://example/test");
+    expect(getMongoUrl(env)).toBe("mongodb://example.invalid/test");
     expect(getCanonicalPublicApiUrl(env)).toBe("https://api.example.com");
   });
 

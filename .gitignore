@@ -19,3 +19,5 @@ package.json.before-*
 
 # Local Twilio/tracking-number backups
 atlanta-tracking-number-backup-*.json
+.callbackiq-*backup*
+.env.backup.*

@@ -82,7 +82,7 @@
     "test:hardening": "node --test hardening-tests/*.test.mjs",
     "perf:webhook": "node perf/webhook-burst.mjs",
     "perf:socket": "node perf/socket-fanout.mjs",
-    "test:ci": "npm run test:ci:core && npm run test:replica-set",
+    "test:ci": "npm run test:ci:core && npm run test:replica-set && npm run test:production-certification",
     "verify:diff-coverage": "node scripts/verify-diff-coverage.mjs",
     "coverage:risk-report": "node scripts/report-coverage-risk.mjs",
     "coverage:ratchet:rebaseline": "node scripts/verify-coverage-ratchet.mjs --rebaseline",
@@ -101,7 +101,11 @@
     "metrics:snapshot": "node scripts/production-metrics-snapshot.mjs",
     "perf:http:budget": "node perf/http-budget.mjs",
     "test:production-hardening-v1": "node --test hardening-tests/production-hardening-v1.test.mjs",
-    "release:certify": "npm run release:gate && npm run test:production-hardening-v1 && npm run test:ci && npm run migrate:indexes -- --dry-run && npm run build"
+    "release:certify": "npm run release:gate && npm run test:production-hardening-v1 && npm run test:ci && npm run migrate:indexes -- --dry-run && npm run build",
+    "test:provider-safety": "jest tests/unit/externalProviderSafety.test.js --runInBand --no-cache --verbose",
+    "test:provider-contracts": "node scripts/run-provider-contracts.mjs",
+    "test:production-certification": "node scripts/run-production-certification.mjs",
+    "smoke:staging:safe": "node scripts/staging-production-smoke.mjs"
   },
   "keywords": [],
   "author": "",
@@ -174,6 +178,9 @@
       "<rootDir>/.callbackiq-fix-backups/",
       "<rootDir>/.callbackiq-update-backups/"
     ],
-    "watchman": false
+    "watchman": false,
+    "setupFilesAfterEnv": [
+      "<rootDir>/tests/setup/externalProviderSafety.js"
+    ]
   }
 }
