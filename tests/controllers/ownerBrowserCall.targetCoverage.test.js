@@ -1,0 +1,224 @@
+const mockGetOwnedBusiness = jest.fn();
+const mockCreateSession = jest.fn();
+const mockBuildTwiml = jest.fn();
+const mockApplyProspectStatus = jest.fn();
+const mockBuildFailureTwiml = jest.fn(() => "<Response><Hangup/></Response>");
+const mockIsValidObjectId = jest.fn();
+
+jest.mock("mongoose", () => ({
+  __esModule: true,
+  default: { isValidObjectId: (...args) => mockIsValidObjectId(...args) },
+}));
+
+jest.mock("../../src/services/businessScope.service.js", () => ({
+  __esModule: true,
+  default: (...args) => mockGetOwnedBusiness(...args),
+}));
+
+jest.mock("../../src/services/ownerBrowserCall.service.js", () => ({
+  __esModule: true,
+  default: {
+    createSession: (...args) => mockCreateSession(...args),
+    buildTwiml: (...args) => mockBuildTwiml(...args),
+    applyProspectStatus: (...args) => mockApplyProspectStatus(...args),
+  },
+  buildFailureTwiml: (...args) => mockBuildFailureTwiml(...args),
+}));
+
+import OwnerBrowserCallController, {
+  ownerCallParamsFrom,
+} from "../../src/controllers/ownerBrowserCall.controller.js";
+
+const makeRes = () => {
+  const res = {};
+  res.status = jest.fn(() => res);
+  res.json = jest.fn(() => res);
+  res.type = jest.fn(() => res);
+  res.send = jest.fn(() => res);
+  return res;
+};
+
+const makeReq = (overrides = {}) => ({
+  params: { leadId: "66c000000000000000000002" },
+  query: { businessId: "66c000000000000000000001" },
+  body: {},
+  user: { userId: "owner-1" },
+  ...overrides,
+});
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockIsValidObjectId.mockReturnValue(true);
+  mockGetOwnedBusiness.mockResolvedValue({
+    _id: "66c000000000000000000001",
+    phone: "+14045550999",
+  });
+  mockCreateSession.mockResolvedValue({
+    lead: { id: "66c000000000000000000002" },
+    session: { token: "token" },
+  });
+  mockBuildTwiml.mockResolvedValue("<Response><Dial/></Response>");
+  mockApplyProspectStatus.mockResolvedValue({ _id: "log-1" });
+});
+
+describe("owner browser call controller target coverage", () => {
+  test("normalizes provider session parameters", () => {
+    expect(
+      ownerCallParamsFrom({
+        callType: " owner_lead ",
+        businessId: " biz-1 ",
+        leadId: " lead-1 ",
+        attemptId: " attempt-1 ",
+        expiresAt: " 123 ",
+        sessionSignature: " sig ",
+      }),
+    ).toEqual({
+      callType: "owner_lead",
+      businessId: "biz-1",
+      leadId: "lead-1",
+      attemptId: "attempt-1",
+      expiresAt: "123",
+      sessionSignature: "sig",
+    });
+  });
+
+  test("createSession rejects malformed customer ids before ownership lookup", async () => {
+    mockIsValidObjectId.mockReturnValue(false);
+    const res = makeRes();
+
+    await OwnerBrowserCallController.createSession(makeReq(), res, jest.fn());
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(mockGetOwnedBusiness).not.toHaveBeenCalled();
+  });
+
+  test("createSession scopes the call to the authenticated business", async () => {
+    const res = makeRes();
+
+    await OwnerBrowserCallController.createSession(makeReq(), res, jest.fn());
+
+    expect(mockGetOwnedBusiness).toHaveBeenCalledWith({
+      user: { userId: "owner-1" },
+      requestedBusinessId: "66c000000000000000000001",
+    });
+    expect(mockCreateSession).toHaveBeenCalledWith({
+      business: expect.objectContaining({ _id: "66c000000000000000000001" }),
+      leadId: "66c000000000000000000002",
+      actorId: "owner-1",
+    });
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  test("createSession returns not found when the lead disappears", async () => {
+    mockCreateSession.mockResolvedValue(null);
+    const res = makeRes();
+
+    await OwnerBrowserCallController.createSession(makeReq(), res, jest.fn());
+
+    expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  test.each([
+    ["OWNER_BROWSER_CALL_PHONE_MISSING", 400],
+    ["OWNER_BROWSER_CALL_CALLER_ID_NOT_CONFIGURED", 409],
+    ["OWNER_BROWSER_CALL_ACCOUNT_NOT_CONFIGURED", 503],
+    ["OWNER_BROWSER_CALL_API_KEY_NOT_CONFIGURED", 503],
+    ["OWNER_BROWSER_CALL_API_SECRET_NOT_CONFIGURED", 503],
+    ["OWNER_BROWSER_CALL_APP_NOT_CONFIGURED", 503],
+    ["OWNER_BROWSER_CALL_WEBHOOK_NOT_CONFIGURED", 503],
+  ])("createSession maps %s to HTTP %s", async (code, status) => {
+    mockCreateSession.mockRejectedValue(
+      Object.assign(new Error(`failure: ${code}`), { code }),
+    );
+    const res = makeRes();
+    const next = jest.fn();
+
+    await OwnerBrowserCallController.createSession(makeReq(), res, next);
+
+    expect(res.status).toHaveBeenCalledWith(status);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  test("createSession delegates unexpected failures to error middleware", async () => {
+    const error = new Error("database unavailable");
+    mockCreateSession.mockRejectedValue(error);
+    const res = makeRes();
+    const next = jest.fn();
+
+    await OwnerBrowserCallController.createSession(makeReq(), res, next);
+
+    expect(next).toHaveBeenCalledWith(error);
+  });
+
+  test("twiml returns XML generated by the service", async () => {
+    const res = makeRes();
+    const req = makeReq({
+      body: {
+        callType: "owner_lead",
+        businessId: "biz-1",
+        leadId: "lead-1",
+        attemptId: "attempt-1",
+        expiresAt: "123",
+        sessionSignature: "sig",
+      },
+    });
+
+    await OwnerBrowserCallController.twiml(req, res);
+
+    expect(mockBuildTwiml).toHaveBeenCalledWith({
+      params: ownerCallParamsFrom(req.body),
+    });
+    expect(res.type).toHaveBeenCalledWith("text/xml");
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith("<Response><Dial/></Response>");
+  });
+
+  test("twiml converts service errors to provider-safe failure XML", async () => {
+    mockBuildTwiml.mockRejectedValue(new Error("invalid session"));
+    const res = makeRes();
+    const spy = jest.spyOn(console, "error").mockImplementation(() => {});
+
+    await OwnerBrowserCallController.twiml(makeReq(), res);
+
+    expect(mockBuildFailureTwiml).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith("<Response><Hangup/></Response>");
+    spy.mockRestore();
+  });
+
+  test("status webhook forwards signed query params and always acknowledges success", async () => {
+    const res = makeRes();
+    const req = makeReq({
+      query: {
+        callType: "owner_lead",
+        businessId: "biz-1",
+        leadId: "lead-1",
+        attemptId: "attempt-1",
+        expiresAt: "123",
+        sessionSignature: "sig",
+      },
+      body: { CallSid: "CA1", CallStatus: "completed" },
+    });
+
+    await OwnerBrowserCallController.prospectStatusWebhook(req, res);
+
+    expect(mockApplyProspectStatus).toHaveBeenCalledWith({
+      params: ownerCallParamsFrom(req.query),
+      payload: req.body,
+    });
+    expect(res.status).toHaveBeenCalledWith(204);
+    expect(res.send).toHaveBeenCalled();
+  });
+
+  test("status webhook acknowledges provider callbacks even when local audit persistence fails", async () => {
+    mockApplyProspectStatus.mockRejectedValue(new Error("database unavailable"));
+    const spy = jest.spyOn(console, "error").mockImplementation(() => {});
+    const res = makeRes();
+
+    await OwnerBrowserCallController.prospectStatusWebhook(makeReq(), res);
+
+    expect(res.status).toHaveBeenCalledWith(204);
+    expect(res.send).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+});

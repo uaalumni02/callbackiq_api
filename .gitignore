@@ -15,3 +15,6 @@ build
 coverage/
 conversation-test-error.log
 package.json.before-*
+
+.callbackiq-*backup*
+.env.backup.*
