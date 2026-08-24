@@ -40,6 +40,10 @@ describe("integration token encryption", () => {
     expect(() => decryptSecret("bad-format")).toThrow("invalid format");
     const encrypted = encryptSecret("secret");
     const [iv, tag, body] = encrypted.split(".");
-    expect(() => decryptSecret(`${iv}.${tag}.${body.slice(0, -1)}A`)).toThrow();
+
+    const tamperedBody =
+      `${body[0] === "A" ? "B" : "A"}${body.slice(1)}`;
+
+    expect(() => decryptSecret(`${iv}.${tag}.${tamperedBody}`)).toThrow();
   });
 });
