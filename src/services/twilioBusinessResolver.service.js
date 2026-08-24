@@ -1,5 +1,6 @@
 import Db from "../db/db.js";
 import Business from "../models/business.js";
+import { resolveTrackingNumberContext } from "./marketingAttribution.service.js"; // CALLBACKIQ_MARKETING_ATTRIBUTION_V1
 import {
   normalizePhoneToE164,
   phoneLookupVariants,
@@ -21,7 +22,7 @@ const materializeBusiness = async (value) => {
   return resolved;
 };
 
-export const resolveBusinessByTwilioNumber = async (
+const resolveLegacyBusinessByTwilioNumber = async (
   phone,
   { activeOnly = true } = {},
 ) => {
@@ -65,6 +66,34 @@ export const resolveBusinessByTwilioNumber = async (
   return hasBusinessIdentity(fallback) ? fallback : null;
 };
 
+export const resolveTwilioNumberContext = async (
+  phone,
+  options = {},
+) => {
+  const tracked = await resolveTrackingNumberContext(phone, options);
+  if (tracked?.business) return tracked;
+
+  const business = await resolveLegacyBusinessByTwilioNumber(phone, options);
+  return business
+    ? {
+        business,
+        trackingNumber: null,
+        marketingSource: null,
+        attribution: {
+          sourceId: "",
+          sourceName: "",
+          channel: "",
+          campaign: "",
+          trackingNumberId: "",
+          trackingNumber: String(business.phone || ""),
+        },
+      }
+    : null;
+};
+
+export const resolveBusinessByTwilioNumber = async (phone, options = {}) =>
+  (await resolveTwilioNumberContext(phone, options))?.business || null;
+
 export const resolveBusinessFromWebhookPhones = async (
   phones = [],
   options = {},
@@ -85,6 +114,7 @@ export const resolveBusinessFromWebhookPhones = async (
 };
 
 export default {
+  resolveTwilioNumberContext,
   resolveBusinessByTwilioNumber,
   resolveBusinessFromWebhookPhones,
 };

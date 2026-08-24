@@ -23,6 +23,28 @@ const CallLogSchema = new Schema(
       default: null,
     },
 
+    // CALLBACKIQ_MARKETING_ATTRIBUTION_V1: attribution is captured when the phone rings, before outcome is known.
+    marketingSource: {
+      type: Schema.Types.ObjectId,
+      ref: "MarketingSource",
+      default: null,
+      index: true,
+    },
+    trackingNumber: {
+      type: Schema.Types.ObjectId,
+      ref: "TrackingNumber",
+      default: null,
+      index: true,
+    },
+    attribution: {
+      sourceId: { type: String, trim: true, default: "" },
+      sourceName: { type: String, trim: true, default: "" },
+      channel: { type: String, trim: true, default: "" },
+      campaign: { type: String, trim: true, default: "" },
+      trackingNumberId: { type: String, trim: true, default: "" },
+      trackingNumber: { type: String, trim: true, default: "" },
+    },
+
     from: {
       type: String,
       required: true,
@@ -163,6 +185,11 @@ CallLogSchema.index({
 CallLogSchema.index({
   business: 1,
   status: 1,
+  createdAt: -1,
+});
+CallLogSchema.index({
+  business: 1,
+  marketingSource: 1,
   createdAt: -1,
 });
 

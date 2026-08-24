@@ -805,3 +805,49 @@ Before merging changes that touch money, telecom, security, access control, cust
 ---
 
 **CallBackIQ — Voice AI + intelligent SMS recovery for home-service businesses.**
+
+
+## Marketing Source → Revenue Attribution
+
+CallBackIQ now treats marketing attribution as a measurement layer around the existing recovery engine rather than as a replacement for Voice AI or SMS.
+
+The owner workflow remains **Home → Inbox → Appointments → Needs Attention → Settings**. Marketing attribution answers a different question: **where did every tracked call come from, what happened to it, and which opportunities did CallBackIQ recover?**
+
+### Attribution model
+
+- `MarketingSource` stores logical sources such as Google Ads, Google LSA, Google Business Profile, Facebook, Yelp, direct mail, referral, and other sources.
+- `TrackingNumber` stores telephony resources separately from marketing sources. This keeps the model compatible with future number pools/DNI without coupling one source permanently to one number.
+- `CallLog` is the authoritative attribution root because attribution is captured when the call arrives, before the final call outcome is known.
+- `Lead.source` remains an operational channel field (`missed_call`, `sms`, `voice`, etc.). It is intentionally **not** reused as a marketing source.
+- Appointments and conversion events store attribution references plus immutable snapshots so historical reports remain understandable after a source is renamed.
+- Twilio routing is dual-read during migration: the new `TrackingNumber` mapping is checked first and the existing `Business.phone` mapping remains a compatibility fallback.
+- Replies to a source-number conversation remain on that owned source number when it is active and messaging-ready.
+
+### Owner APIs
+
+`GET /api/marketing-sources` lists configured sources, source numbers, plan limits, and provisioning state.
+
+`POST /api/marketing-sources` creates a source label.
+
+`PATCH /api/marketing-sources/:id` updates a source.
+
+`POST /api/marketing-sources/:id/tracking-number` assigns an additional Twilio source number. Source-number purchases are restricted to active paid subscriptions and require the primary number plus carrier messaging registration to be ready.
+
+`GET /api/analytics/revenue-recovery/marketing-sources` returns all-call source performance including total calls, answered calls, missed calls, recovered calls, bookings, total booked value, and recovered value. The existing `/sources` endpoint remains available for operational/recovery-channel reporting.
+
+### Compatibility migration
+
+Run:
+
+```bash
+node scripts/backfill-primary-tracking-numbers.mjs
+```
+
+The migration mirrors each existing `Business.phone` into the new `TrackingNumber` collection. It does **not** remove or repurpose `Business.phone`; the legacy field stays in place during the compatibility period.
+
+### Pricing
+
+The customer-facing Pro price is now **$99/month** with a 14-day free trial. Pro includes the primary CallBackIQ recovery number and up to **3 additional marketing source tracking numbers** by default. The source-number limit can be changed with `ATTRIBUTION_INCLUDED_SOURCE_NUMBERS`.
+
+**Stripe is authoritative for the actual amount charged.** Before deploying the $99 offer, create/select a recurring $99/month Stripe Price and set `STRIPE_PRO_PRICE_ID` to that Price ID. Changing UI copy does not modify an existing Stripe Price.
+

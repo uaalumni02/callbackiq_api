@@ -87,6 +87,26 @@ const conversationSchema = new Schema(
     customerPhoneLookup: { type: String, trim: true, default: "" },
     activeRecord: { type: Boolean, default: true },
     customerName: { type: String, trim: true, default: "Customer" },
+    // CALLBACKIQ_MARKETING_ATTRIBUTION_V1: keep replies on the same owned source number that received the inquiry.
+    replyFromPhone: { type: String, trim: true, default: "" },
+    latestMarketingSource: {
+      type: Schema.Types.ObjectId,
+      ref: "MarketingSource",
+      default: null,
+    },
+    latestTrackingNumber: {
+      type: Schema.Types.ObjectId,
+      ref: "TrackingNumber",
+      default: null,
+    },
+    latestAttribution: {
+      sourceId: { type: String, trim: true, default: "" },
+      sourceName: { type: String, trim: true, default: "" },
+      channel: { type: String, trim: true, default: "" },
+      campaign: { type: String, trim: true, default: "" },
+      trackingNumberId: { type: String, trim: true, default: "" },
+      trackingNumber: { type: String, trim: true, default: "" },
+    },
     status: {
       type: String,
       enum: ["open", "closed", "archived"],

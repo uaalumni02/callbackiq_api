@@ -27,6 +27,14 @@ class RevenueRecoveryController {
     try { return res.json({ success: true, data: await RevenueRecoveryService.sources(await getContext(req)) }); }
     catch (error) { return next(error); }
   }
+  static async marketingSources(req, res, next) {
+    try {
+      return res.json({
+        success: true,
+        data: await RevenueRecoveryService.marketingSources(await getContext(req)),
+      });
+    } catch (error) { return next(error); }
+  }
   static async lost(req, res, next) {
     try {
       const context = await getContext(req);

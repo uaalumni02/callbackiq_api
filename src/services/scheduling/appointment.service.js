@@ -1,6 +1,8 @@
 import crypto from "crypto";
 
+import mongoose from "mongoose";
 import Appointment from "../../models/appointment.js";
+import CallLog from "../../models/callLog.js"; // CALLBACKIQ_MARKETING_ATTRIBUTION_V1
 import Conversation from "../../models/conversation.js";
 import Lead from "../../models/lead.js";
 import ServiceOffering from "../../models/serviceOffering.js";
@@ -174,6 +176,62 @@ const exactSlotAvailable = async ({
   );
 };
 
+const emptyAppointmentAttribution = () => ({
+  marketingSource: null,
+  trackingNumber: null,
+  attribution: {},
+});
+
+const resolveAppointmentAttribution = async ({ businessId, input }) => {
+  if (input?.marketingSource || input?.trackingNumber || input?.attribution) {
+    return {
+      marketingSource: input.marketingSource || null,
+      trackingNumber: input.trackingNumber || null,
+      attribution: input.attribution || {},
+    };
+  }
+
+  /*
+   * Marketing attribution is supplemental booking metadata.
+   * It must never block appointment creation, confirmation, or rescheduling.
+   *
+   * Unit tests and some internal callers intentionally use synthetic IDs such
+   * as "b1" and "l1". Do not send those through ObjectId-backed CallLog
+   * queries.
+   */
+  if (!mongoose.isValidObjectId(businessId)) {
+    return emptyAppointmentAttribution();
+  }
+
+  const filter = {
+    business: businessId,
+    marketingSource: { $ne: null },
+  };
+
+  if (input?.lead) {
+    if (!mongoose.isValidObjectId(input.lead)) {
+      return emptyAppointmentAttribution();
+    }
+
+    filter.lead = input.lead;
+  } else if (input?.customerPhone) {
+    filter.from = String(input.customerPhone).trim();
+  } else {
+    return emptyAppointmentAttribution();
+  }
+
+  const call = await CallLog.findOne(filter)
+    .sort({ createdAt: -1 })
+    .select("marketingSource trackingNumber attribution")
+    .lean();
+
+  return {
+    marketingSource: call?.marketingSource || null,
+    trackingNumber: call?.trackingNumber || null,
+    attribution: call?.attribution || {},
+  };
+};
+
 const createHold = async ({
   business,
   service,
@@ -206,6 +264,10 @@ const createHold = async ({
   }
 
   const timeZone = input.timezone || business.timezone || "America/New_York";
+  const appointmentAttribution = await resolveAppointmentAttribution({
+    businessId,
+    input,
+  });
   const capacity = await getSlotCapacity({
     businessId,
     startAt,
@@ -228,6 +290,9 @@ const createHold = async ({
     status: "held",
     source: input.source || "manual",
     bookedBy: input.bookedBy || "staff",
+    marketingSource: appointmentAttribution.marketingSource,
+    trackingNumber: appointmentAttribution.trackingNumber,
+    attribution: appointmentAttribution.attribution,
     provider: businessCalendarProviderName(business),
     estimatedValue:
       input.estimatedValue ?? service.estimatedValue ?? business.estimatedJobValue ?? 0,

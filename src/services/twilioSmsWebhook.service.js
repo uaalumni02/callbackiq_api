@@ -20,7 +20,8 @@ import { parseInboundTwilioMedia, buildMediaOnlyAcknowledgement } from "./messag
 import { getOrCreateSmsLeadAndConversation } from "./messaging/smsConversation.service.js";
 import { enqueueInboundSmsJob } from "./messaging/smsProcessingQueue.service.js";
 import { processTwilioMessageStatus } from "./messaging/smsDeliveryStatus.service.js";
-import { resolveBusinessByTwilioNumber, resolveBusinessFromWebhookPhones } from "./twilioBusinessResolver.service.js";
+import { resolveBusinessByTwilioNumber, resolveBusinessFromWebhookPhones, resolveTwilioNumberContext } from "./twilioBusinessResolver.service.js";
+import { syncLatestAttribution } from "./marketingAttribution.service.js"; // CALLBACKIQ_MARKETING_ATTRIBUTION_V1
 import { executeManualSmsOperation } from "./messaging/manualSmsOperation.service.js";
 import { resolveBusinessForTwilioStatus } from "./twilioStatusBusinessResolver.service.js";
 import { processTwilioCallStatus } from "./twilioCallStatus.service.js";
@@ -49,13 +50,13 @@ const cached = (res, event) =>
     body: event?.responseBody || emptyTwiml(),
   });
 
-const saveOutbound = async ({ business, conversation, lead, to, body, sent, generatedBy, usageCategory, actorType, metadata }) => {
+const saveOutbound = async ({ business, conversation, lead, from = "", to, body, sent, generatedBy, usageCategory, actorType, metadata }) => {
   const message = await Message.create({
     business: business._id,
     conversation: conversation._id,
     lead: lead?._id || conversation.lead || null,
     direction: "outbound",
-    from: business.phone,
+    from: from || business.phone,
     to,
     body: sent?.body || body,
     provider: "twilio",
@@ -116,7 +117,13 @@ export const handleSmsRecoveryVoiceWebhook = async (req, res) => {
     });
     if (!customerPhone || !twilioNumber) return sendXml(res);
 
-    const business = await resolveBusinessByTwilioNumber(twilioNumber);
+    const numberContext =
+      typeof resolveTwilioNumberContext === "function"
+        ? await resolveTwilioNumberContext(twilioNumber)
+        : null;
+    const business =
+      numberContext?.business ||
+      (await resolveBusinessByTwilioNumber(twilioNumber));
     logOperationalEvent("twilio.voice.business_resolved", {
       businessId: business?._id || null,
       resolved: Boolean(business),
@@ -145,6 +152,9 @@ export const handleSmsRecoveryVoiceWebhook = async (req, res) => {
           durationSeconds: 0,
           provider: "twilio",
           providerCallId: callSid,
+          marketingSource: numberContext?.marketingSource?._id || null,
+          trackingNumber: numberContext?.trackingNumber?._id || null,
+          attribution: numberContext?.attribution || {},
           missedCallTextSent: false,
           missedCallTextDelivered: false,
           recovered: false,
@@ -161,6 +171,19 @@ export const handleSmsRecoveryVoiceWebhook = async (req, res) => {
       source: "missed_call",
       reopenEligible: true,
     });
+    if (
+      numberContext?.trackingNumber ||
+      numberContext?.marketingSource
+    ) {
+      await syncLatestAttribution({
+        businessId: business._id,
+        leadId: lead._id,
+        conversationId: conversation._id,
+        trackingNumber: numberContext?.trackingNumber || null,
+        marketingSource: numberContext?.marketingSource || null,
+        calledPhone: twilioNumber,
+      });
+    }
     await CallLog.findByIdAndUpdate(callLog._id, {
       lead: lead._id,
       conversation: conversation._id,
@@ -202,7 +225,7 @@ export const handleSmsRecoveryVoiceWebhook = async (req, res) => {
         sentResult = await sendSms({
           business,
           businessId: business._id,
-          from: business.phone,
+          from: numberContext?.trackingNumber?.phoneNumber || business.phone,
           to: customerPhone,
           body: starterText,
           actorType: "webhook",
@@ -221,6 +244,7 @@ export const handleSmsRecoveryVoiceWebhook = async (req, res) => {
             business,
             conversation,
             lead,
+            from: numberContext?.trackingNumber?.phoneNumber || business.phone,
             to: customerPhone,
             body: starterText,
             sent: sentResult,
@@ -347,7 +371,7 @@ const sendCommandReply = async ({ business, conversation, lead, to, commandResul
   const sent = await sendSms({
     business,
     businessId: business._id,
-    from: business.phone,
+    from: conversation.replyFromPhone || business.phone,
     to,
     body: commandResult.reply,
     allowOptedOut: commandResult.allowOptedOutReply,
@@ -365,6 +389,7 @@ const sendCommandReply = async ({ business, conversation, lead, to, commandResul
       business,
       conversation,
       lead,
+      from: conversation.replyFromPhone || business.phone,
       to,
       body: commandResult.reply,
       sent,
@@ -388,7 +413,13 @@ export const handleInboundSmsWebhook = async (req, res) => {
     const from = normalizeSmsPhone(rawFrom);
     if (!from || !to || (!body && media.length === 0)) return sendXml(res);
 
-    const business = await resolveBusinessByTwilioNumber(to);
+    const numberContext =
+      typeof resolveTwilioNumberContext === "function"
+        ? await resolveTwilioNumberContext(to)
+        : null;
+    const business =
+      numberContext?.business ||
+      (await resolveBusinessByTwilioNumber(to));
     logOperationalEvent("twilio.sms.received", {
       from: rawFrom,
       to,
@@ -416,6 +447,19 @@ export const handleInboundSmsWebhook = async (req, res) => {
       source: "sms",
       reopenEligible: true,
     });
+    if (
+      numberContext?.trackingNumber ||
+      numberContext?.marketingSource
+    ) {
+      await syncLatestAttribution({
+        businessId: business._id,
+        leadId: lead._id,
+        conversationId: conversation._id,
+        trackingNumber: numberContext?.trackingNumber || null,
+        marketingSource: numberContext?.marketingSource || null,
+        calledPhone: to,
+      });
+    }
 
     const inboundMessage = await Message.findOneAndUpdate(
       { business: business._id, providerMessageId },
@@ -477,7 +521,7 @@ export const handleInboundSmsWebhook = async (req, res) => {
       const sent = await sendSms({
         business,
         businessId: business._id,
-        from: business.phone,
+        from: conversation.replyFromPhone || business.phone,
         to: from,
         body: reply,
         actorType: "webhook",
