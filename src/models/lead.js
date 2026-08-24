@@ -57,6 +57,25 @@ const LeadSchema = new Schema(
       enum: ["missed_call", "manual", "sms", "voice", "web", "other"],
       default: "manual",
     },
+    // CALLBACKIQ_MARKETING_ATTRIBUTION_V1: source above is operational channel, not marketing attribution.
+    latestMarketingSource: {
+      type: Schema.Types.ObjectId,
+      ref: "MarketingSource",
+      default: null,
+    },
+    latestTrackingNumber: {
+      type: Schema.Types.ObjectId,
+      ref: "TrackingNumber",
+      default: null,
+    },
+    latestAttribution: {
+      sourceId: { type: String, trim: true, default: "" },
+      sourceName: { type: String, trim: true, default: "" },
+      channel: { type: String, trim: true, default: "" },
+      campaign: { type: String, trim: true, default: "" },
+      trackingNumberId: { type: String, trim: true, default: "" },
+      trackingNumber: { type: String, trim: true, default: "" },
+    },
     summary: { type: String, trim: true, default: "", maxlength: 1000 },
     notes: { type: String, trim: true, default: "", maxlength: 2000 },
 

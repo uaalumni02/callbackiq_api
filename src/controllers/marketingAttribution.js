@@ -1,0 +1,83 @@
+// CALLBACKIQ_MARKETING_ATTRIBUTION_V1
+import getOwnedBusiness from "../services/businessScope.service.js";
+import {
+  createMarketingSource,
+  listMarketingSources,
+  provisionMarketingTrackingNumber,
+  updateMarketingSource,
+} from "../services/marketingSource.service.js";
+
+const ownedBusiness = (req) =>
+  getOwnedBusiness({
+    user: req.user,
+    requestedBusinessId: req.query.businessId,
+  });
+
+const sendKnownError = (res, error) =>
+  res.status(error?.statusCode || 500).json({
+    success: false,
+    code: error?.code || "MARKETING_ATTRIBUTION_ERROR",
+    message: error?.message || "Marketing attribution request failed.",
+  });
+
+class MarketingAttributionController {
+  static async list(req, res, next) {
+    try {
+      const business = await ownedBusiness(req);
+      const data = await listMarketingSources({ businessId: business._id });
+      return res.json({ success: true, data });
+    } catch (error) {
+      if (error?.statusCode) return sendKnownError(res, error);
+      return next(error);
+    }
+  }
+
+  static async create(req, res, next) {
+    try {
+      const business = await ownedBusiness(req);
+      const data = await createMarketingSource({
+        businessId: business._id,
+        name: req.body?.name,
+        channel: req.body?.channel,
+        campaign: req.body?.campaign,
+      });
+      return res.status(201).json({ success: true, data });
+    } catch (error) {
+      if (error?.statusCode || error?.code === 11000) {
+        return sendKnownError(res, error);
+      }
+      return next(error);
+    }
+  }
+
+  static async update(req, res, next) {
+    try {
+      const business = await ownedBusiness(req);
+      const data = await updateMarketingSource({
+        businessId: business._id,
+        sourceId: req.params.id,
+        updates: req.body || {},
+      });
+      return res.json({ success: true, data });
+    } catch (error) {
+      if (error?.statusCode) return sendKnownError(res, error);
+      return next(error);
+    }
+  }
+
+  static async provisionNumber(req, res, next) {
+    try {
+      const business = await ownedBusiness(req);
+      const data = await provisionMarketingTrackingNumber({
+        businessId: business._id,
+        sourceId: req.params.id,
+      });
+      return res.status(201).json({ success: true, data });
+    } catch (error) {
+      if (error?.statusCode) return sendKnownError(res, error);
+      return next(error);
+    }
+  }
+}
+
+export default MarketingAttributionController;

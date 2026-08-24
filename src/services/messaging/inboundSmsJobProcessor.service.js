@@ -115,7 +115,7 @@ const persistOutboundReply = async ({
         conversation: conversation._id,
         lead: lead._id,
         direction: "outbound",
-        from: business.phone,
+        from: conversation.replyFromPhone || business.phone,
         to: conversation.customerPhone,
         body: reply,
         provider: "twilio",
@@ -169,7 +169,7 @@ const persistOutboundReply = async ({
     const sent = await sendSms({
       business,
       businessId: business._id,
-      from: business.phone,
+      from: conversation.replyFromPhone || business.phone,
       to: conversation.customerPhone,
       body: reply,
       actorType: isAiGenerated ? "ai" : "webhook",

@@ -21,6 +21,26 @@ const ConversionEventSchema = new Schema(
       default: null,
     },
     callLog: { type: Schema.Types.ObjectId, ref: "CallLog", default: null },
+    // CALLBACKIQ_MARKETING_ATTRIBUTION_V1: do not overload the existing source/channel fields.
+    marketingSource: {
+      type: Schema.Types.ObjectId,
+      ref: "MarketingSource",
+      default: null,
+      index: true,
+    },
+    trackingNumber: {
+      type: Schema.Types.ObjectId,
+      ref: "TrackingNumber",
+      default: null,
+    },
+    attribution: {
+      sourceId: { type: String, trim: true, default: "" },
+      sourceName: { type: String, trim: true, default: "" },
+      channel: { type: String, trim: true, default: "" },
+      campaign: { type: String, trim: true, default: "" },
+      trackingNumberId: { type: String, trim: true, default: "" },
+      trackingNumber: { type: String, trim: true, default: "" },
+    },
     type: {
       type: String,
       enum: [

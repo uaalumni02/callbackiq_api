@@ -95,6 +95,27 @@ const AppointmentSchema = new Schema(
       required: true,
     },
 
+    // CALLBACKIQ_MARKETING_ATTRIBUTION_V1: immutable booking attribution snapshot.
+    marketingSource: {
+      type: Schema.Types.ObjectId,
+      ref: "MarketingSource",
+      default: null,
+      index: true,
+    },
+    trackingNumber: {
+      type: Schema.Types.ObjectId,
+      ref: "TrackingNumber",
+      default: null,
+    },
+    attribution: {
+      sourceId: { type: String, trim: true, default: "" },
+      sourceName: { type: String, trim: true, default: "" },
+      channel: { type: String, trim: true, default: "" },
+      campaign: { type: String, trim: true, default: "" },
+      trackingNumberId: { type: String, trim: true, default: "" },
+      trackingNumber: { type: String, trim: true, default: "" },
+    },
+
     provider: { type: String, trim: true, default: "internal" },
     externalAppointmentId: { type: String, trim: true, default: null },
     externalCalendarId: { type: String, trim: true, default: null },

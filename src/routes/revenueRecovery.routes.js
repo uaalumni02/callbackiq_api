@@ -7,6 +7,7 @@ router.use(checkAuth, checkSubscription);
 router.get("/summary", RevenueRecoveryController.summary);
 router.get("/trends", RevenueRecoveryController.trends);
 router.get("/sources", RevenueRecoveryController.sources);
+router.get("/marketing-sources", RevenueRecoveryController.marketingSources);
 router.get("/lost-opportunities", RevenueRecoveryController.lost);
 router.get("/funnel", RevenueRecoveryController.funnel);
 export default router;
