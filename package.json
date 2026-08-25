@@ -105,7 +105,10 @@
     "test:provider-safety": "jest tests/unit/externalProviderSafety.test.js --runInBand --no-cache --verbose",
     "test:provider-contracts": "node scripts/run-provider-contracts.mjs",
     "test:production-certification": "node scripts/run-production-certification.mjs",
-    "smoke:staging:safe": "node scripts/staging-production-smoke.mjs"
+    "smoke:staging:safe": "node scripts/staging-production-smoke.mjs",
+    "migrate:scale-indexes": "node scripts/migrate-scale-indexes.mjs",
+    "verify:scale-hardening": "node scripts/verify-scale-hardening.mjs",
+    "test:scale-hardening": "jest tests/unit/scaleCache.service.test.js --runInBand"
   },
   "keywords": [],
   "author": "",

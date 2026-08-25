@@ -25,6 +25,7 @@ import {
 import { initializeConversationRelayServer } from "./voice/conversationRelay.server.js";
 import { validateEnvironment } from "./config/env.js";
 import { startRuntimeMetricsLogging } from "./services/runtimeMetrics.service.js";
+import { closeScaleCache } from "./services/scaleCache.service.js";
 import {
   assertRealtimeScalingConfig,
   assertServerProcessRole,
@@ -44,6 +45,29 @@ const shutdownTimeoutMs =
     : 10000;
 
 const httpServer = createServer(app);
+
+// CALLBACKIQ_SCALE_HARDENING_V1
+const positiveInteger = (value, fallback) => {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+httpServer.keepAliveTimeout = positiveInteger(
+  process.env.HTTP_KEEP_ALIVE_TIMEOUT_MS,
+  65_000,
+);
+httpServer.headersTimeout = Math.max(
+  httpServer.keepAliveTimeout + 1_000,
+  positiveInteger(process.env.HTTP_HEADERS_TIMEOUT_MS, 66_000),
+);
+httpServer.requestTimeout = positiveInteger(
+  process.env.HTTP_REQUEST_TIMEOUT_MS,
+  30_000,
+);
+httpServer.maxRequestsPerSocket = positiveInteger(
+  process.env.HTTP_MAX_REQUESTS_PER_SOCKET,
+  1_000,
+);
 const io = new Server(httpServer, {
   cors: socketCorsOptions,
   transports: ["websocket", "polling"],
@@ -123,6 +147,7 @@ const shutdown = async (signal, exitCode = 0) => {
     await conversationRelayServer.close();
     await closeSocketServer();
     await closeSocketRedisAdapter();
+    await closeScaleCache();
     await closeHttpServer();
     if (mongoose.connection.readyState !== 0) {
       await mongoose.connection.close();
