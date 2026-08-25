@@ -1,3 +1,4 @@
+// CALLBACKIQ_SCALE_HARDENING_V1
 import {
   claimNextInboundSmsJob,
   completeInboundSmsJob,
@@ -6,29 +7,53 @@ import {
 } from "../services/messaging/smsProcessingQueue.service.js";
 import { safelyProcessInboundSmsJob } from "../services/messaging/inboundSmsJobProcessor.service.js";
 import AlertService from "../services/alert.service.js";
-import { logOperationalEvent, logOperationalError } from "../helpers/logging/safeLogger.js";
+import {
+  logOperationalEvent,
+  logOperationalError,
+} from "../helpers/logging/safeLogger.js";
 
 const DEFAULT_INTERVAL_MS = 1_000;
-const DEFAULT_BATCH_SIZE = 10;
+const DEFAULT_BATCH_SIZE = 25;
+const DEFAULT_CONCURRENCY = 5;
+
 let timer = null;
 let running = false;
 
 const intervalMs = () => {
   const value = Number(process.env.SMS_PROCESSING_INTERVAL_MS);
-  return Number.isFinite(value) && value >= 250 ? value : DEFAULT_INTERVAL_MS;
+  return Number.isFinite(value) && value >= 100 ? value : DEFAULT_INTERVAL_MS;
+};
+
+const busyDelayMs = () => {
+  const value = Number(process.env.SMS_PROCESSING_BUSY_DELAY_MS);
+  return Number.isFinite(value) && value >= 0 ? Math.min(1000, value) : 25;
 };
 
 const batchSize = () => {
   const value = Number(process.env.SMS_PROCESSING_BATCH_SIZE);
   return Number.isFinite(value) && value >= 1
-    ? Math.min(50, Math.floor(value))
+    ? Math.min(200, Math.floor(value))
     : DEFAULT_BATCH_SIZE;
 };
 
+const concurrency = () => {
+  if (process.env.NODE_ENV === "test") return 1;
+  const value = Number(process.env.SMS_PROCESSING_CONCURRENCY);
+  return Number.isFinite(value) && value >= 1
+    ? Math.min(50, Math.floor(value))
+    : DEFAULT_CONCURRENCY;
+};
+
 const processWithHeartbeat = async (job) => {
-  const heartbeatEveryMs = Math.max(5_000, Math.floor(Number(process.env.SMS_PROCESSING_LEASE_MS || 60_000) / 3));
+  const heartbeatEveryMs = Math.max(
+    5_000,
+    Math.floor(Number(process.env.SMS_PROCESSING_LEASE_MS || 60_000) / 3),
+  );
   const heartbeat = setInterval(() => {
-    void heartbeatInboundSmsJob({ jobId: job._id, leaseToken: job.leaseToken }).catch((error) =>
+    void heartbeatInboundSmsJob({
+      jobId: job._id,
+      leaseToken: job.leaseToken,
+    }).catch((error) =>
       logOperationalError("sms.processing_worker.heartbeat_failed", error, {
         jobId: job._id,
         businessId: job.business,
@@ -36,6 +61,7 @@ const processWithHeartbeat = async (job) => {
     );
   }, heartbeatEveryMs);
   heartbeat.unref?.();
+
   try {
     return await safelyProcessInboundSmsJob(job);
   } finally {
@@ -43,78 +69,119 @@ const processWithHeartbeat = async (job) => {
   }
 };
 
+const processClaimedJob = async (job) => {
+  try {
+    const result = await processWithHeartbeat(job);
+    await completeInboundSmsJob({
+      jobId: job._id,
+      leaseToken: job.leaseToken,
+      result,
+    });
+  } catch (error) {
+    const failed = await failInboundSmsJob({
+      job,
+      leaseToken: job.leaseToken,
+      error,
+    });
+    if (failed?.status === "dead") {
+      await AlertService.createSystemAlert({
+        businessId: job.business,
+        title: "SMS response failed permanently",
+        message:
+          "CallBackIQ could not process a customer SMS after multiple attempts. Review the conversation and respond manually.",
+        priority: "critical",
+        metadata: {
+          jobId: String(job._id),
+          conversationId: String(job.conversation),
+          inboundMessageId: String(job.inboundMessage),
+          attempts: failed.attemptCount,
+        },
+        dedupeKey: `sms_processing_dead:${job._id}`,
+      });
+    }
+  }
+};
+
 export const drainSmsProcessingQueueOnce = async () => {
   if (running) return { processed: 0, skipped: true };
   running = true;
+
+  const maxJobs = batchSize();
+  const laneCount = Math.min(concurrency(), maxJobs);
+  let nextSlot = 0;
   let processed = 0;
-  try {
-    for (let index = 0; index < batchSize(); index += 1) {
+
+  const runLane = async () => {
+    while (true) {
+      const slot = nextSlot;
+      nextSlot += 1;
+      if (slot >= maxJobs) return;
+
       const job = await claimNextInboundSmsJob();
-      if (!job) break;
+      if (!job) return;
+
       processed += 1;
-      try {
-        const result = await processWithHeartbeat(job);
-        await completeInboundSmsJob({
-          jobId: job._id,
-          leaseToken: job.leaseToken,
-          result,
-        });
-      } catch (error) {
-        const failed = await failInboundSmsJob({
-          job,
-          leaseToken: job.leaseToken,
-          error,
-        });
-        if (failed?.status === "dead") {
-          await AlertService.createSystemAlert({
-            businessId: job.business,
-            title: "SMS response failed permanently",
-            message:
-              "CallBackIQ could not process a customer SMS after multiple attempts. Review the conversation and respond manually.",
-            priority: "critical",
-            metadata: {
-              jobId: String(job._id),
-              conversationId: String(job.conversation),
-              inboundMessageId: String(job.inboundMessage),
-              attempts: failed.attemptCount,
-            },
-            dedupeKey: `sms_processing_dead:${job._id}`,
-          });
-        }
-      }
+      await processClaimedJob(job);
     }
+  };
+
+  try {
+    await Promise.all(
+      Array.from({ length: laneCount }, () => runLane()),
+    );
   } finally {
     running = false;
   }
-  return { processed, skipped: false };
+
+  return {
+    processed,
+    skipped: false,
+  };
 };
 
-const scheduleNext = () => {
+const scheduleNext = (delayMs = intervalMs()) => {
   timer = setTimeout(async () => {
     try {
       const result = await drainSmsProcessingQueueOnce();
+      const saturated = result.processed >= batchSize();
       if (result.processed > 0) {
-        logOperationalEvent("sms.processing_worker.batch", result);
+        logOperationalEvent("sms.processing_worker.batch", {
+          ...result,
+          saturated,
+          concurrency: concurrency(),
+        });
+      }
+      if (timer) {
+        scheduleNext(saturated ? busyDelayMs() : intervalMs());
       }
     } catch (error) {
       logOperationalError("sms.processing_worker.failed", error);
-    } finally {
-      if (timer) scheduleNext();
+      if (timer) scheduleNext(intervalMs());
     }
-  }, intervalMs());
+  }, delayMs);
   timer.unref?.();
 };
 
 export const startSmsProcessingWorker = async () => {
-  if (timer || String(process.env.SMS_PROCESSING_WORKER_ENABLED || "true").toLowerCase() === "false") {
+  if (
+    timer ||
+    String(process.env.SMS_PROCESSING_WORKER_ENABLED || "true").toLowerCase() ===
+      "false"
+  ) {
     return;
   }
+
   logOperationalEvent("sms.processing_worker.started", {
     intervalMs: intervalMs(),
+    busyDelayMs: busyDelayMs(),
     batchSize: batchSize(),
+    concurrency: concurrency(),
   });
-  await drainSmsProcessingQueueOnce();
-  scheduleNext();
+
+  const initial = await drainSmsProcessingQueueOnce();
+  scheduleNext(
+    initial.processed >= batchSize() ? busyDelayMs() : intervalMs(),
+  );
 };
 
 export const stopSmsProcessingWorker = () => {

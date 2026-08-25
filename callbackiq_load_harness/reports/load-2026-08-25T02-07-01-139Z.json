@@ -1,0 +1,622 @@
+{
+  "runTag": "load-2026-08-25T02-07-01-139Z",
+  "generatedAt": "2026-08-25T02:07:25.139Z",
+  "target": {
+    "api": "http://127.0.0.1:3000",
+    "ui": "http://127.0.0.1:3001"
+  },
+  "businesses": [
+    {
+      "id": "6a33ff7944ce80eaef2cb543",
+      "ownerId": "6a33fd9444ce80eaef2cb542",
+      "name": "Atlanta Pro Plumbing & Drain",
+      "phone": "+14709052202"
+    },
+    {
+      "id": "6a7e69e15ab394844b6ed9d2",
+      "ownerId": "6a7e69e15ab394844b6ed9d1",
+      "name": "Birmingham Plumbing",
+      "phone": "+12058397006"
+    }
+  ],
+  "safety": {
+    "registrationTested": false,
+    "trialTested": false,
+    "numberProvisioningTested": false,
+    "numberPurchasesTested": false,
+    "heavyRealPhoneLoadPerformed": false,
+    "providerSideEffectsEnabled": false,
+    "liveCallsEnabled": false,
+    "attributionFixturesEnabled": true,
+    "attributionFixturesRetained": true,
+    "strictAttributionPropagation": false
+  },
+  "metrics": {
+    "requests": 75,
+    "failures": 0,
+    "statusCounts": {
+      "200": 63,
+      "201": 12
+    },
+    "p50Ms": 290.27,
+    "p95Ms": 913.7,
+    "p99Ms": 1003.85,
+    "maxMs": 1003.85,
+    "endpointStats": {
+      "api-root": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 17.94,
+        "p95Ms": 17.94,
+        "p99Ms": 17.94,
+        "maxMs": 17.94
+      },
+      "business-mine:atlanta": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 93.83,
+        "p95Ms": 93.83,
+        "p99Ms": 93.83,
+        "maxMs": 93.83
+      },
+      "business-mine:birmingham": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 93.04,
+        "p95Ms": 93.04,
+        "p99Ms": 93.04,
+        "maxMs": 93.04
+      },
+      "auth-me:atlanta": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 40.53,
+        "p95Ms": 40.53,
+        "p99Ms": 40.53,
+        "maxMs": 40.53
+      },
+      "config-bootstrap:atlanta": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 441.5,
+        "p95Ms": 441.5,
+        "p99Ms": 441.5,
+        "maxMs": 441.5
+      },
+      "marketing:atlanta": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 648.04,
+        "p95Ms": 648.04,
+        "p99Ms": 648.04,
+        "maxMs": 648.04
+      },
+      "dashboard:atlanta": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 841.03,
+        "p95Ms": 841.03,
+        "p99Ms": 841.03,
+        "maxMs": 841.03
+      },
+      "appointments:atlanta": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 913.7,
+        "p95Ms": 913.7,
+        "p99Ms": 913.7,
+        "maxMs": 913.7
+      },
+      "calls:atlanta": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 934.59,
+        "p95Ms": 934.59,
+        "p99Ms": 934.59,
+        "maxMs": 934.59
+      },
+      "leads:atlanta": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 951.66,
+        "p95Ms": 951.66,
+        "p99Ms": 951.66,
+        "maxMs": 951.66
+      },
+      "conversations:atlanta": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 1003.85,
+        "p95Ms": 1003.85,
+        "p99Ms": 1003.85,
+        "maxMs": 1003.85
+      },
+      "auth-me:birmingham": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 48.47,
+        "p95Ms": 48.47,
+        "p99Ms": 48.47,
+        "maxMs": 48.47
+      },
+      "appointments:birmingham": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 221.57,
+        "p95Ms": 221.57,
+        "p99Ms": 221.57,
+        "maxMs": 221.57
+      },
+      "marketing:birmingham": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 278.48,
+        "p95Ms": 278.48,
+        "p99Ms": 278.48,
+        "maxMs": 278.48
+      },
+      "leads:birmingham": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 431.98,
+        "p95Ms": 431.98,
+        "p99Ms": 431.98,
+        "maxMs": 431.98
+      },
+      "dashboard:birmingham": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 441.9,
+        "p95Ms": 441.9,
+        "p99Ms": 441.9,
+        "maxMs": 441.9
+      },
+      "conversations:birmingham": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 520.43,
+        "p95Ms": 520.43,
+        "p99Ms": 520.43,
+        "maxMs": 520.43
+      },
+      "calls:birmingham": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 525.91,
+        "p95Ms": 525.91,
+        "p99Ms": 525.91,
+        "maxMs": 525.91
+      },
+      "config-bootstrap:birmingham": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 624.87,
+        "p95Ms": 624.87,
+        "p99Ms": 624.87,
+        "maxMs": 624.87
+      },
+      "attrib-source-list:atlanta": {
+        "count": 3,
+        "failures": 0,
+        "p50Ms": 216.46,
+        "p95Ms": 251.88,
+        "p99Ms": 251.88,
+        "maxMs": 251.88
+      },
+      "attrib-call-list:atlanta": {
+        "count": 3,
+        "failures": 0,
+        "p50Ms": 584.9,
+        "p95Ms": 598.38,
+        "p99Ms": 598.38,
+        "maxMs": 598.38
+      },
+      "attrib-signed-status:atlanta": {
+        "count": 3,
+        "failures": 0,
+        "p50Ms": 296.9,
+        "p95Ms": 308.21,
+        "p99Ms": 308.21,
+        "maxMs": 308.21
+      },
+      "attrib-create-lead:atlanta": {
+        "count": 3,
+        "failures": 0,
+        "p50Ms": 228.46,
+        "p95Ms": 402.71,
+        "p99Ms": 402.71,
+        "maxMs": 402.71
+      },
+      "attrib-create-conversation:atlanta": {
+        "count": 3,
+        "failures": 0,
+        "p50Ms": 255.08,
+        "p95Ms": 262.35,
+        "p99Ms": 262.35,
+        "maxMs": 262.35
+      },
+      "attrib-read-lead:atlanta": {
+        "count": 3,
+        "failures": 0,
+        "p50Ms": 259.44,
+        "p95Ms": 277.65,
+        "p99Ms": 277.65,
+        "maxMs": 277.65
+      },
+      "attrib-read-conversation:atlanta": {
+        "count": 3,
+        "failures": 0,
+        "p50Ms": 308.39,
+        "p95Ms": 317.07,
+        "p99Ms": 317.07,
+        "maxMs": 317.07
+      },
+      "attrib-isolation-calls:atlanta": {
+        "count": 3,
+        "failures": 0,
+        "p50Ms": 568.87,
+        "p95Ms": 616.99,
+        "p99Ms": 616.99,
+        "maxMs": 616.99
+      },
+      "attrib-isolation-sources:atlanta": {
+        "count": 3,
+        "failures": 0,
+        "p50Ms": 212.2,
+        "p95Ms": 217.44,
+        "p99Ms": 217.44,
+        "maxMs": 217.44
+      },
+      "attrib-services:atlanta": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 82.91,
+        "p95Ms": 82.91,
+        "p99Ms": 82.91,
+        "maxMs": 82.91
+      },
+      "attrib-source-list:birmingham": {
+        "count": 3,
+        "failures": 0,
+        "p50Ms": 209.21,
+        "p95Ms": 219.06,
+        "p99Ms": 219.06,
+        "maxMs": 219.06
+      },
+      "attrib-call-list:birmingham": {
+        "count": 3,
+        "failures": 0,
+        "p50Ms": 573.84,
+        "p95Ms": 584.59,
+        "p99Ms": 584.59,
+        "maxMs": 584.59
+      },
+      "attrib-signed-status:birmingham": {
+        "count": 3,
+        "failures": 0,
+        "p50Ms": 294.07,
+        "p95Ms": 294.68,
+        "p99Ms": 294.68,
+        "maxMs": 294.68
+      },
+      "attrib-create-lead:birmingham": {
+        "count": 3,
+        "failures": 0,
+        "p50Ms": 207.76,
+        "p95Ms": 209.12,
+        "p99Ms": 209.12,
+        "maxMs": 209.12
+      },
+      "attrib-create-conversation:birmingham": {
+        "count": 3,
+        "failures": 0,
+        "p50Ms": 288.94,
+        "p95Ms": 291.64,
+        "p99Ms": 291.64,
+        "maxMs": 291.64
+      },
+      "attrib-read-lead:birmingham": {
+        "count": 3,
+        "failures": 0,
+        "p50Ms": 274.36,
+        "p95Ms": 505.32,
+        "p99Ms": 505.32,
+        "maxMs": 505.32
+      },
+      "attrib-read-conversation:birmingham": {
+        "count": 3,
+        "failures": 0,
+        "p50Ms": 314.47,
+        "p95Ms": 663.42,
+        "p99Ms": 663.42,
+        "maxMs": 663.42
+      },
+      "attrib-isolation-calls:birmingham": {
+        "count": 3,
+        "failures": 0,
+        "p50Ms": 563,
+        "p95Ms": 566.89,
+        "p99Ms": 566.89,
+        "maxMs": 566.89
+      },
+      "attrib-isolation-sources:birmingham": {
+        "count": 3,
+        "failures": 0,
+        "p50Ms": 227.54,
+        "p95Ms": 246.55,
+        "p99Ms": 246.55,
+        "maxMs": 246.55
+      },
+      "attrib-services:birmingham": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 84.22,
+        "p95Ms": 84.22,
+        "p99Ms": 84.22,
+        "maxMs": 84.22
+      }
+    }
+  },
+  "createdCount": 0,
+  "attribution": [
+    {
+      "business": "Atlanta Pro Plumbing & Drain",
+      "fakeNumber": "+12125550110",
+      "marketingSourceId": "6a8cf8c8d63aade58f4ec2a0",
+      "trackingNumberId": "6a8cf8c8d63aade58f4ec2a1",
+      "callLogId": "6a8cf8c9d63aade58f4ec2a2",
+      "leadId": "6a8cf8ca8e91d8568269db4b",
+      "conversationId": "6a8cf8ca8e91d8568269db4c",
+      "sourceVisible": true,
+      "callVisible": true,
+      "signedWebhookRouting": true,
+      "directResolver": {
+        "available": true,
+        "ok": true,
+        "resolvedBusinessId": "6a33ff7944ce80eaef2cb543",
+        "resolvedTrackingId": "6a8cf8c8d63aade58f4ec2a1",
+        "resolvedSourceId": "6a8cf8c8d63aade58f4ec2a0"
+      },
+      "callAttribution": {
+        "sourceOk": true,
+        "trackingOk": true
+      },
+      "leadAutomaticPropagation": {
+        "sourceOk": false,
+        "trackingOk": false
+      },
+      "conversationAutomaticPropagation": {
+        "sourceOk": false,
+        "trackingOk": false
+      },
+      "leadAttributionPersistence": {
+        "sourceOk": true,
+        "trackingOk": true
+      },
+      "conversationAttributionPersistence": {
+        "sourceOk": true,
+        "trackingOk": true
+      },
+      "appointment": {
+        "skipped": "No active service offering configured."
+      },
+      "crossTenantLeak": false
+    },
+    {
+      "business": "Atlanta Pro Plumbing & Drain",
+      "fakeNumber": "+12125550111",
+      "marketingSourceId": "6a8cf8ccd63aade58f4ec2a3",
+      "trackingNumberId": "6a8cf8ccd63aade58f4ec2a4",
+      "callLogId": "6a8cf8ccd63aade58f4ec2a5",
+      "leadId": "6a8cf8cd8e91d8568269db4f",
+      "conversationId": "6a8cf8ce8e91d8568269db50",
+      "sourceVisible": true,
+      "callVisible": true,
+      "signedWebhookRouting": true,
+      "directResolver": {
+        "available": true,
+        "ok": true,
+        "resolvedBusinessId": "6a33ff7944ce80eaef2cb543",
+        "resolvedTrackingId": "6a8cf8ccd63aade58f4ec2a4",
+        "resolvedSourceId": "6a8cf8ccd63aade58f4ec2a3"
+      },
+      "callAttribution": {
+        "sourceOk": true,
+        "trackingOk": true
+      },
+      "leadAutomaticPropagation": {
+        "sourceOk": false,
+        "trackingOk": false
+      },
+      "conversationAutomaticPropagation": {
+        "sourceOk": false,
+        "trackingOk": false
+      },
+      "leadAttributionPersistence": {
+        "sourceOk": true,
+        "trackingOk": true
+      },
+      "conversationAttributionPersistence": {
+        "sourceOk": true,
+        "trackingOk": true
+      },
+      "appointment": {
+        "skipped": "Only the first attribution source per business gets an appointment inheritance check."
+      },
+      "crossTenantLeak": false
+    },
+    {
+      "business": "Atlanta Pro Plumbing & Drain",
+      "fakeNumber": "+12125550112",
+      "marketingSourceId": "6a8cf8cfd63aade58f4ec2a6",
+      "trackingNumberId": "6a8cf8cfd63aade58f4ec2a7",
+      "callLogId": "6a8cf8cfd63aade58f4ec2a8",
+      "leadId": "6a8cf8d18e91d8568269db53",
+      "conversationId": "6a8cf8d18e91d8568269db54",
+      "sourceVisible": true,
+      "callVisible": true,
+      "signedWebhookRouting": true,
+      "directResolver": {
+        "available": true,
+        "ok": true,
+        "resolvedBusinessId": "6a33ff7944ce80eaef2cb543",
+        "resolvedTrackingId": "6a8cf8cfd63aade58f4ec2a7",
+        "resolvedSourceId": "6a8cf8cfd63aade58f4ec2a6"
+      },
+      "callAttribution": {
+        "sourceOk": true,
+        "trackingOk": true
+      },
+      "leadAutomaticPropagation": {
+        "sourceOk": false,
+        "trackingOk": false
+      },
+      "conversationAutomaticPropagation": {
+        "sourceOk": false,
+        "trackingOk": false
+      },
+      "leadAttributionPersistence": {
+        "sourceOk": true,
+        "trackingOk": true
+      },
+      "conversationAttributionPersistence": {
+        "sourceOk": true,
+        "trackingOk": true
+      },
+      "appointment": {
+        "skipped": "Only the first attribution source per business gets an appointment inheritance check."
+      },
+      "crossTenantLeak": false
+    },
+    {
+      "business": "Birmingham Plumbing",
+      "fakeNumber": "+12135550110",
+      "marketingSourceId": "6a8cf8d3d63aade58f4ec2a9",
+      "trackingNumberId": "6a8cf8d3d63aade58f4ec2aa",
+      "callLogId": "6a8cf8d3d63aade58f4ec2ab",
+      "leadId": "6a8cf8d48e91d8568269db57",
+      "conversationId": "6a8cf8d48e91d8568269db58",
+      "sourceVisible": true,
+      "callVisible": true,
+      "signedWebhookRouting": true,
+      "directResolver": {
+        "available": true,
+        "ok": true,
+        "resolvedBusinessId": "6a7e69e15ab394844b6ed9d2",
+        "resolvedTrackingId": "6a8cf8d3d63aade58f4ec2aa",
+        "resolvedSourceId": "6a8cf8d3d63aade58f4ec2a9"
+      },
+      "callAttribution": {
+        "sourceOk": true,
+        "trackingOk": true
+      },
+      "leadAutomaticPropagation": {
+        "sourceOk": false,
+        "trackingOk": false
+      },
+      "conversationAutomaticPropagation": {
+        "sourceOk": false,
+        "trackingOk": false
+      },
+      "leadAttributionPersistence": {
+        "sourceOk": true,
+        "trackingOk": true
+      },
+      "conversationAttributionPersistence": {
+        "sourceOk": true,
+        "trackingOk": true
+      },
+      "appointment": {
+        "skipped": "No active service offering configured."
+      },
+      "crossTenantLeak": false
+    },
+    {
+      "business": "Birmingham Plumbing",
+      "fakeNumber": "+12135550111",
+      "marketingSourceId": "6a8cf8d6d63aade58f4ec2ac",
+      "trackingNumberId": "6a8cf8d6d63aade58f4ec2ad",
+      "callLogId": "6a8cf8d6d63aade58f4ec2ae",
+      "leadId": "6a8cf8d78e91d8568269db5b",
+      "conversationId": "6a8cf8d88e91d8568269db5c",
+      "sourceVisible": true,
+      "callVisible": true,
+      "signedWebhookRouting": true,
+      "directResolver": {
+        "available": true,
+        "ok": true,
+        "resolvedBusinessId": "6a7e69e15ab394844b6ed9d2",
+        "resolvedTrackingId": "6a8cf8d6d63aade58f4ec2ad",
+        "resolvedSourceId": "6a8cf8d6d63aade58f4ec2ac"
+      },
+      "callAttribution": {
+        "sourceOk": true,
+        "trackingOk": true
+      },
+      "leadAutomaticPropagation": {
+        "sourceOk": false,
+        "trackingOk": false
+      },
+      "conversationAutomaticPropagation": {
+        "sourceOk": false,
+        "trackingOk": false
+      },
+      "leadAttributionPersistence": {
+        "sourceOk": true,
+        "trackingOk": true
+      },
+      "conversationAttributionPersistence": {
+        "sourceOk": true,
+        "trackingOk": true
+      },
+      "appointment": {
+        "skipped": "Only the first attribution source per business gets an appointment inheritance check."
+      },
+      "crossTenantLeak": false
+    },
+    {
+      "business": "Birmingham Plumbing",
+      "fakeNumber": "+12135550112",
+      "marketingSourceId": "6a8cf8d9d63aade58f4ec2af",
+      "trackingNumberId": "6a8cf8dad63aade58f4ec2b0",
+      "callLogId": "6a8cf8dad63aade58f4ec2b1",
+      "leadId": "6a8cf8db8e91d8568269db5f",
+      "conversationId": "6a8cf8db8e91d8568269db60",
+      "sourceVisible": true,
+      "callVisible": true,
+      "signedWebhookRouting": true,
+      "directResolver": {
+        "available": true,
+        "ok": true,
+        "resolvedBusinessId": "6a7e69e15ab394844b6ed9d2",
+        "resolvedTrackingId": "6a8cf8dad63aade58f4ec2b0",
+        "resolvedSourceId": "6a8cf8d9d63aade58f4ec2af"
+      },
+      "callAttribution": {
+        "sourceOk": true,
+        "trackingOk": true
+      },
+      "leadAutomaticPropagation": {
+        "sourceOk": false,
+        "trackingOk": false
+      },
+      "conversationAutomaticPropagation": {
+        "sourceOk": false,
+        "trackingOk": false
+      },
+      "leadAttributionPersistence": {
+        "sourceOk": true,
+        "trackingOk": true
+      },
+      "conversationAttributionPersistence": {
+        "sourceOk": true,
+        "trackingOk": true
+      },
+      "appointment": {
+        "skipped": "Only the first attribution source per business gets an appointment inheritance check."
+      },
+      "crossTenantLeak": false
+    }
+  ],
+  "failures": []
+}
