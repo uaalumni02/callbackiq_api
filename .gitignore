@@ -18,3 +18,5 @@ package.json.before-*
 
 .callbackiq-*backup*
 .env.backup.*
+
+callbackiq_load_harness/reports/*.json
