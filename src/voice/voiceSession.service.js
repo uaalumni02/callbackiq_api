@@ -135,13 +135,43 @@ class VoiceSessionService {
       return populateSession(VoiceSession.findById(session._id));
     }
 
-    let lead = session.lead ? await Lead.findById(session.lead) : null;
-    if (!lead && usableCaller) {
-      lead = await Lead.findOne({
-        business: business._id,
-        phone: normalizedFrom,
-      }).sort({ createdAt: -1 });
-    }
+    /*
+     * Lead, conversation, and call-log discovery are independent once the
+     * VoiceSession exists. Resolve them concurrently to avoid serial Atlas
+     * round trips. Creation remains ordered below because Conversation depends
+     * on Lead and CallLog depends on both.
+     */
+    const leadLookup = session.lead
+      ? Lead.findById(session.lead)
+      : usableCaller
+        ? Lead.findOne({
+            business: business._id,
+            phone: normalizedFrom,
+          }).sort({ createdAt: -1 })
+        : Promise.resolve(null);
+
+    const conversationLookup = session.conversation
+      ? Conversation.findById(session.conversation)
+      : usableCaller
+        ? Conversation.findOne({
+            business: business._id,
+            customerPhone: normalizedFrom,
+            status: "open",
+          }).sort({ lastMessageAt: -1 })
+        : Promise.resolve(null);
+
+    const callLogLookup = session.callLog
+      ? CallLog.findById(session.callLog)
+      : CallLog.findOne({
+          business: business._id,
+          providerCallId: providerCallSid,
+        });
+
+    let [lead, conversation, callLog] = await Promise.all([
+      leadLookup,
+      conversationLookup,
+      callLogLookup,
+    ]);
     if (!lead) {
       lead = await Lead.create({
         business: business._id,
@@ -159,16 +189,6 @@ class VoiceSessionService {
       emit("emitLeadCreated", business._id, lead);
     }
 
-    let conversation = session.conversation
-      ? await Conversation.findById(session.conversation)
-      : null;
-    if (!conversation && usableCaller) {
-      conversation = await Conversation.findOne({
-        business: business._id,
-        customerPhone: normalizedFrom,
-        status: "open",
-      }).sort({ lastMessageAt: -1 });
-    }
     if (!conversation) {
       conversation = await Conversation.create({
         business: business._id,
@@ -184,13 +204,6 @@ class VoiceSessionService {
       emit("emitConversationCreated", business._id, conversation);
     }
 
-    let callLog = session.callLog ? await CallLog.findById(session.callLog) : null;
-    if (!callLog) {
-      callLog = await CallLog.findOne({
-        business: business._id,
-        providerCallId: providerCallSid,
-      });
-    }
     if (!callLog) {
       try {
         callLog = await CallLog.create({

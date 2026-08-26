@@ -2,7 +2,11 @@ node_modules
 .vscode/
 build
 .env
+.env.voice-load
+.env.*
+!.env.example
 .eslintrc.json
+
 .callbackiq-backups/
 .callbackiq-fix-backups/
 .callbackiq-phase9-backup/
@@ -22,4 +26,7 @@ atlanta-tracking-number-backup-*.json
 .callbackiq-*backup*
 .env.backup.*
 
-callbackiq_load_harness/reports/*.json
+# Local load-test output
+callbackiq_load_harness/reports/*.json*.before-*
+voice-relay-load-*.json
+voice-webhook-load-*.json

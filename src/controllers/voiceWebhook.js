@@ -402,11 +402,30 @@ class VoiceWebhookController {
 
       session = await VoiceSessionService.ensureContext({ business, ...fields });
       if (isTerminal(session)) return sendXml(res, emptyTwiml());
+
+      /*
+       * Preflight and business-hours resolution are independent. Start the
+       * hours lookup immediately so its MongoDB reads overlap the preflight
+       * fraud/usage checks instead of adding another serial round trip.
+       *
+       * Attach the rejection handler before awaiting preflight so an early
+       * preflight rejection can never leave an unhandled promise rejection.
+       */
+      const isOpenPromise = VoiceAvailabilityService.isBusinessOpen(business)
+        .catch((error) => {
+          logOperationalWarning("voice.business_hours_lookup_failed", {
+            businessId: business._id,
+            errorCode: error?.code || error?.name || "error",
+          });
+          return false;
+        });
+
       const preflight = await VoicePreflightService.checkVoicePreflight({
         business,
         callerPhone: fields.from,
         sessionId: session._id,
       });
+
       if (!preflight.allowed) {
         return fallbackSmsResponse({
           res, session, failureReason: preflight.reason,
@@ -414,15 +433,7 @@ class VoiceWebhookController {
         });
       }
 
-      let isOpen = false;
-      try {
-        isOpen = await VoiceAvailabilityService.isBusinessOpen(business);
-      } catch (error) {
-        logOperationalWarning("voice.business_hours_lookup_failed", {
-          businessId: business._id,
-          errorCode: error?.code || error?.name || "error",
-        });
-      }
+      const isOpen = await isOpenPromise;
       const scenario = getScenarioName(isOpen);
       const action = getScenarioAction({ settings, isOpen });
       const route = determineInitialVoiceRoute({ settings, isOpen });

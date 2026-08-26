@@ -152,7 +152,10 @@ const releaseLedgerReservation = async ({
         },
       },
     ],
-    mongoSession ? { session: mongoSession } : undefined,
+    {
+      ...(mongoSession ? { session: mongoSession } : {}),
+      updatePipeline: true,
+    },
   );
 };
 
@@ -285,10 +288,24 @@ export const reserveVoiceUsage = async ({
   let rejectionReason = "";
   try {
     await mongoSession.withTransaction(async () => {
-      const [daily, monthly] = await Promise.all([
-        ensureLedger({ businessId, type: "day", now, mongoSession }),
-        ensureLedger({ businessId, type: "month", now, mongoSession }),
-      ]);
+      /*
+       * MongoDB does not support parallel operations on the same
+       * transaction session. Keep ledger initialization sequential
+       * while preserving transaction atomicity.
+       */
+      const daily = await ensureLedger({
+        businessId,
+        type: "day",
+        now,
+        mongoSession,
+      });
+
+      const monthly = await ensureLedger({
+        businessId,
+        type: "month",
+        now,
+        mongoSession,
+      });
       reservedDaily = await reserveLedger({
         ledger: daily,
         requested,
@@ -436,10 +453,23 @@ const executeReconciliationTransaction = async ({
         releasedSeconds += reservation.requestedSeconds;
       }
 
-      const [dayLedger, monthLedger] = await Promise.all([
-        ensureLedger({ businessId, type: "day", now, mongoSession }),
-        ensureLedger({ businessId, type: "month", now, mongoSession }),
-      ]);
+      /*
+       * Never run concurrent operations with the same MongoDB
+       * transaction session.
+       */
+      const dayLedger = await ensureLedger({
+        businessId,
+        type: "day",
+        now,
+        mongoSession,
+      });
+
+      const monthLedger = await ensureLedger({
+        businessId,
+        type: "month",
+        now,
+        mongoSession,
+      });
       const metrics = {
         completedSeconds: Math.max(0, Number(actualSeconds) || 0),
         openAiInputTokens: Math.max(0, Number(openAiInputTokens) || 0),
@@ -496,6 +526,98 @@ const executeReconciliationTransaction = async ({
   }
 };
 
+export const enqueueVoiceUsageReconciliation = async ({
+  businessId,
+  sessionId,
+  actualSeconds = 0,
+  openAiInputTokens = 0,
+  openAiOutputTokens = 0,
+  twilioEstimatedCostCents = 0,
+  openAiEstimatedCostCents = 0,
+  transferAttempts = 0,
+  now = new Date(),
+}) => {
+  const normalizedSessionId = validObjectIdOrNull(sessionId);
+
+  if (!businessId || !normalizedSessionId) {
+    return { queued: false, reason: "voice_usage_reconciliation_context_required" };
+  }
+
+  const purgeAt = new Date(now.getTime() + 90 * DAY_MS);
+
+  try {
+    const reconciliation = await VoiceUsageReconciliation.findOneAndUpdate(
+      { session: normalizedSessionId },
+      {
+        $setOnInsert: {
+          business: businessId,
+          session: normalizedSessionId,
+          state: "pending",
+          ownerToken: "pending",
+          leaseExpiresAt: now,
+          queuedAt: now,
+          actualSeconds: Math.max(0, Number(actualSeconds) || 0),
+          openAiInputTokens: Math.max(0, Number(openAiInputTokens) || 0),
+          openAiOutputTokens: Math.max(0, Number(openAiOutputTokens) || 0),
+          twilioEstimatedCostCents: Math.max(
+            0,
+            Number(twilioEstimatedCostCents) || 0,
+          ),
+          openAiEstimatedCostCents: Math.max(
+            0,
+            Number(openAiEstimatedCostCents) || 0,
+          ),
+          transferAttempts: Math.max(0, Number(transferAttempts) || 0),
+          purgeAt,
+        },
+      },
+      {
+        upsert: true,
+        returnDocument: "after",
+        setDefaultsOnInsert: true,
+      },
+    );
+
+    return {
+      queued: reconciliation?.state !== "completed",
+      completed: reconciliation?.state === "completed",
+      reconciliationId: reconciliation?._id || null,
+      state: reconciliation?.state || "",
+    };
+  } catch (error) {
+    if (error?.code === 11000) {
+      const existing = await VoiceUsageReconciliation.findOne({
+        session: normalizedSessionId,
+      }).lean();
+
+      return {
+        queued: existing?.state !== "completed",
+        completed: existing?.state === "completed",
+        replayed: true,
+        reconciliationId: existing?._id || null,
+        state: existing?.state || "",
+      };
+    }
+
+    throw error;
+  }
+};
+
+export const listVoiceUsageReconciliationCandidates = async ({
+  now = new Date(),
+  limit = 25,
+} = {}) =>
+  VoiceUsageReconciliation.find({
+    $or: [
+      { state: "pending" },
+      { state: "failed", leaseExpiresAt: { $lte: now } },
+      { state: "processing", leaseExpiresAt: { $lte: now } },
+    ],
+  })
+    .sort({ queuedAt: 1, createdAt: 1 })
+    .limit(Math.max(1, Math.min(500, Number(limit) || 25)))
+    .lean();
+
 export const reconcileVoiceUsage = async ({
   businessId,
   sessionId,
@@ -519,6 +641,7 @@ export const reconcileVoiceUsage = async ({
       {
         session: normalizedSessionId,
         $or: [
+          { state: "pending" },
           { state: "failed" },
           { state: "processing", leaseExpiresAt: { $lte: now } },
         ],
@@ -535,6 +658,10 @@ export const reconcileVoiceUsage = async ({
           leaseExpiresAt,
           failureCode: "",
           failureMessage: "",
+          lastAttemptAt: now,
+        },
+        $inc: {
+          attemptCount: 1,
         },
       },
       { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
@@ -776,6 +903,8 @@ export const getVoiceUsageSummary = async ({ businessId, now = new Date() }) => 
 
 export default {
   reserveVoiceUsage,
+  enqueueVoiceUsageReconciliation,
+  listVoiceUsageReconciliationCandidates,
   reconcileVoiceUsage,
   releaseVoiceUsageReservation,
   sweepExpiredVoiceUsageReservations,

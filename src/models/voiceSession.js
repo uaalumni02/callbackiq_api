@@ -68,6 +68,20 @@ const VoiceSessionSchema = new Schema(
       default: null,
     },
     estimatedValue: { type: Number, min: 0, default: 0 },
+
+    openAiUsage: {
+      inputTokens: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
+      outputTokens: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
+    },
+
     failureReason: { type: String, trim: true, maxlength: 2000, default: "" },
     signatureValidated: { type: Boolean, default: false },
     fallbackSmsStatus: {

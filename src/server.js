@@ -1,4 +1,8 @@
 import { startSmsProcessingWorker, stopSmsProcessingWorker } from "./workers/smsProcessing.worker.js";
+import {
+  startVoiceUsageReconciliationWorker,
+  stopVoiceUsageReconciliationWorker,
+} from "./workers/voiceUsageReconciliation.worker.js";
 import "dotenv/config";
 
 import mongoose from "mongoose";
@@ -144,6 +148,7 @@ const shutdown = async (signal, exitCode = 0) => {
     stopAppointmentMaintenanceWorker();
     stopAutomationWorker();
     stopSmsProcessingWorker();
+    stopVoiceUsageReconciliationWorker();
     await conversationRelayServer.close();
     await closeSocketServer();
     await closeSocketRedisAdapter();
@@ -193,6 +198,9 @@ await connectDB();
   }
   if (shouldRunEmbeddedWorkers()) {
     await startSmsProcessingWorker();
+  }
+  if (shouldRunEmbeddedWorkers()) {
+    startVoiceUsageReconciliationWorker();
   }
   httpServer.listen(port, () => {
     console.log(`Server running on http://localhost:${port}`);

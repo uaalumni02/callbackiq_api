@@ -70,7 +70,7 @@ const updateCapacity = ({
         },
       },
     ],
-    { upsert, returnDocument: "after" },
+    { upsert, returnDocument: "after", updatePipeline: true },
   );
 
 const createVoiceCapacityAlert = async (payload) => {
