@@ -568,6 +568,88 @@ export const containsPromptInjection = (value) => {
 };
 
 /*
+ * Safety hazards remain deterministic and fail-safe, but a hazard word that
+ * appears inside a clearly negated clause must not create a false emergency.
+ *
+ * Examples:
+ *   "There is no flooding."                         -> not a flood hazard
+ *   "I don't smell gas."                            -> not a gas hazard
+ *   "No, I smell gas."                              -> gas hazard
+ *   "There was no flooding earlier, but now it is." -> flood hazard
+ *
+ * Contrast words and sentence punctuation create independent safety clauses so
+ * a negated historical statement cannot suppress a later affirmative hazard.
+ */
+const SAFETY_NEGATION_PREFIX =
+  /(?:^|\b)(?:no|never|without|not|isn['’]?t|aren['’]?t|wasn['’]?t|weren['’]?t|don['’]?t|doesn['’]?t|didn['’]?t|can['’]?t|couldn['’]?t|haven['’]?t|hasn['’]?t|hadn['’]?t|is not|are not|was not|were not|do not|does not|did not|cannot|could not|have not|has not|had not)\b(?:\s+\w+){0,3}\s*$/i;
+
+const SAFETY_FALSE_NEGATION =
+  /\bnot\s+(?:only|just)\b/i;
+
+const splitSafetyClauses = (text) =>
+  String(text || "")
+    .split(
+      /(?:[.!?;]+|\b(?:but|however|although|though|yet|except)\b)/i,
+    )
+    .map((clause) => clause.trim())
+    .filter(Boolean);
+
+const isNegatedSafetyMatch = (clause, matchIndex) => {
+  /*
+   * Limit the scope of negation. This intentionally does not treat a distant
+   * "not" elsewhere in the sentence as negating the hazard.
+   */
+  const prefix = clause
+    .slice(Math.max(0, matchIndex - 90), matchIndex)
+    .trim();
+
+  if (!prefix) return false;
+
+  /*
+   * "not only smoke..." and "not just smoke..." are affirmative mentions,
+   * not safety negations.
+   */
+  if (SAFETY_FALSE_NEGATION.test(prefix.slice(-40))) {
+    return false;
+  }
+
+  return SAFETY_NEGATION_PREFIX.test(prefix);
+};
+
+const patternHasAffirmedSafetyMatch = (pattern, text) => {
+  for (const clause of splitSafetyClauses(text)) {
+    /*
+     * Clone the expression so global/sticky lastIndex state can never leak
+     * between calls. Use global matching so a negated first occurrence does
+     * not hide a later affirmative occurrence in the same clause.
+     */
+    const flags = Array.from(
+      new Set(
+        `${pattern.flags.replace(/[gy]/g, "")}g`
+          .split(""),
+      ),
+    ).join("");
+
+    const matcher = new RegExp(pattern.source, flags);
+
+    let match;
+
+    while ((match = matcher.exec(clause)) !== null) {
+      if (!isNegatedSafetyMatch(clause, match.index)) {
+        return true;
+      }
+
+      // Defensive guard for any zero-length expression.
+      if (match[0] === "") {
+        matcher.lastIndex += 1;
+      }
+    }
+  }
+
+  return false;
+};
+
+/*
  * Returns the hazard type ("gas", "fire", "electrical", "flood", "sewage",
  * "other") when the message describes a safety hazard, or an empty string
  * when it does not. The first matching group wins, and groups are ordered by
@@ -581,7 +663,9 @@ export const detectSafetyHazardType = (value) => {
   }
 
   const matchedGroup = SAFETY_HAZARD_PATTERN_GROUPS.find((group) =>
-    group.patterns.some((pattern) => pattern.test(text)),
+    group.patterns.some((pattern) =>
+      patternHasAffirmedSafetyMatch(pattern, text),
+    ),
   );
 
   return matchedGroup ? matchedGroup.type : "";

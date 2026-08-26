@@ -60,6 +60,45 @@ describe("AI guardrails branch coverage", () => {
   });
 
   test.each([
+    ["There is no flooding.", ""],
+    ["The pipe is leaking but it isn't flooding.", ""],
+    ["There is no standing water.", ""],
+    ["I don't smell gas.", ""],
+    ["I do not smell gas.", ""],
+    ["There is no smoke or fire.", ""],
+    ["No, I smell gas.", "gas"],
+    [
+      "There was no flooding earlier, but now the basement is flooding.",
+      "flood",
+    ],
+    [
+      "There was no smoke earlier; now the kitchen is on fire.",
+      "fire",
+    ],
+    ["It is not only smoke, the room is filling with smoke.", "fire"],
+  ])(
+    "handles safety-hazard negation precisely for %s",
+    (message, expected) => {
+      expect(Guardrails.detectSafetyHazardType(message)).toBe(expected);
+
+      const assessment =
+        Guardrails.evaluateDeterministicInboundGuardrails({
+          customerMessage: message,
+          recentMessages: [],
+        });
+
+      if (expected) {
+        expect(assessment.category).toBe("emergency");
+        expect(assessment.skipAI).toBe(true);
+        expect(assessment.hazardType).toBe(expected);
+      } else {
+        expect(assessment.category).not.toBe("emergency");
+        expect(assessment.hazardType).toBe("");
+      }
+    },
+  );
+
+  test.each([
     "STOP",
     "stop all",
     "UNSUBSCRIBE",

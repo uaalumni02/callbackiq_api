@@ -26,30 +26,74 @@ export const acquireVoiceConnectionLease = async ({
       cond: { $gt: ["$$lease.expiresAt", now] },
     },
   };
+
+  /*
+   * MongoDB does not permit $expr in the predicate of an upsert.
+   *
+   * Ensure the per-IP bucket exists first using a simple equality
+   * predicate. Concurrent creators may race on the unique ipHash
+   * index; a duplicate-key result is harmless because another caller
+   * successfully created the same bucket.
+   */
   try {
-    const bucket = await VoiceConnectionBucket.findOneAndUpdate(
+    await VoiceConnectionBucket.updateOne(
+      { ipHash },
       {
-        ipHash,
-        $expr: { $lt: [{ $size: filterExpired }, max] },
-      },
-      [
-        {
-          $set: {
-            ipHash,
-            leases: {
-              $concatArrays: [filterExpired, [{ leaseId, expiresAt }]],
-            },
-            purgeAt,
-          },
+        $setOnInsert: {
+          ipHash,
+          leases: [],
+          purgeAt,
         },
-      ],
-      { upsert: true, returnDocument: "after" },
+      },
+      { upsert: true },
     );
-    return { allowed: true, leaseId, ipHash, lease: { leaseId, ipHash }, pending: bucket.leases.length };
   } catch (error) {
-    if (error?.code === 11000) return { allowed: false, reason: "voice_ws_pending_limit" };
-    throw error;
+    if (error?.code !== 11000) throw error;
   }
+
+  /*
+   * The actual reservation remains a single atomic document update.
+   * MongoDB re-evaluates this predicate while applying concurrent
+   * writes, so no lease is appended once the active count reaches max.
+   */
+  const bucket = await VoiceConnectionBucket.findOneAndUpdate(
+    {
+      ipHash,
+      $expr: { $lt: [{ $size: filterExpired }, max] },
+    },
+    [
+      {
+        $set: {
+          ipHash,
+          leases: {
+            $concatArrays: [filterExpired, [{ leaseId, expiresAt }]],
+          },
+          purgeAt,
+        },
+      },
+    ],
+    {
+      upsert: false,
+      returnDocument: "after",
+      updatePipeline: true,
+    },
+  );
+
+  if (!bucket) {
+    return {
+      allowed: false,
+      reason: "voice_ws_pending_limit",
+      ipHash,
+    };
+  }
+
+  return {
+    allowed: true,
+    leaseId,
+    ipHash,
+    lease: { leaseId, ipHash },
+    pending: bucket.leases.length,
+  };
 };
 
 export const releaseVoiceConnectionLease = async (lease = {}) => {
@@ -78,6 +122,7 @@ export const sweepVoiceConnectionLeases = async ({ now = new Date() } = {}) => {
         },
       },
     ],
+    { updatePipeline: true },
   );
   return { modified: result.modifiedCount || 0 };
 };

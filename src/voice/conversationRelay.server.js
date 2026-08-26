@@ -260,6 +260,8 @@ export const initializeConversationRelayServer = (
     let session = null;
     let setupReceived = false;
     let pendingIpReleased = false;
+    let pendingIpReleasePromise = null;
+    let transportClosed = false;
     let intentionalEnd = false;
     let failureStarted = false;
     let capacityReserved = false;
@@ -280,11 +282,38 @@ export const initializeConversationRelayServer = (
     let currentTurn = 0;
 
     const releasePending = () => {
-      if (pendingIpReleased) return;
+      /*
+       * The pending-IP lease protects only the WebSocket admission/setup
+       * window. Once setup succeeds, MongoDB must actually remove the lease
+       * before this caller stops consuming a pending slot.
+       *
+       * Keep the operation idempotent and share the same promise across
+       * setup, close, and timeout paths.
+       */
+      if (pendingIpReleasePromise) return pendingIpReleasePromise;
+
       pendingIpReleased = true;
-      void voiceConnectionLeaseService
-        .releaseVoiceConnectionLease(connectionLease)
-        .catch((error) => logOperationalError("conversation_relay.connection_lease_release_failed", error));
+
+      pendingIpReleasePromise = Promise.resolve(
+        voiceConnectionLeaseService.releaseVoiceConnectionLease(connectionLease),
+      ).catch((error) => {
+        logOperationalError(
+          "conversation_relay.connection_lease_release_failed",
+          error,
+        );
+      });
+
+      return pendingIpReleasePromise;
+    };
+
+    const assertSetupTransportOpen = () => {
+      if (!transportClosed && socket.readyState === WebSocket.OPEN) return;
+
+      const error = new Error(
+        "ConversationRelay transport closed while voice setup was still in progress.",
+      );
+      error.code = "VOICE_TRANSPORT_CLOSED_DURING_SETUP";
+      throw error;
     };
 
     const clearTimer = (timer) => {
@@ -397,11 +426,10 @@ export const initializeConversationRelayServer = (
       );
 
       try {
-        await voiceUsageService.reconcileVoiceUsage({
+        const payload = {
           businessId:
             session.business?._id || session.business,
           sessionId: session._id,
-          reservedSeconds: voiceUsageReservedSeconds,
           actualSeconds,
           openAiInputTokens:
             Number(session.openAiUsage?.inputTokens) || 0,
@@ -409,7 +437,23 @@ export const initializeConversationRelayServer = (
             Number(session.openAiUsage?.outputTokens) || 0,
           transferAttempts:
             Number(session.metadata?.transferAttempts) || 0,
-        });
+        };
+
+        /*
+         * Production uses durable asynchronous reconciliation so call teardown
+         * never launches a full Mongo transaction burst. Legacy/injected test
+         * services can continue using the synchronous API.
+         */
+        if (
+          typeof voiceUsageService.enqueueVoiceUsageReconciliation ===
+          "function"
+        ) {
+          await voiceUsageService.enqueueVoiceUsageReconciliation(
+            payload,
+          );
+        } else {
+          await voiceUsageService.reconcileVoiceUsage(payload);
+        }
       } catch (error) {
         logOperationalError(
           "conversation_relay.usage_reconciliation_failed",
@@ -839,8 +883,24 @@ export const initializeConversationRelayServer = (
         voiceSessionId,
         setup: message,
       });
+
+      // The peer may disconnect while MongoDB is resolving the session.
+      // Never continue provisioning a call whose transport is already gone.
+      assertSetupTransportOpen();
+
       setupReceived = true;
-      releasePending();
+
+      /*
+       * Wait until the distributed pending-IP admission lease is actually
+       * removed before continuing into full-call capacity/usage reservation.
+       * Without awaiting this write, rapid connection churn can see stale
+       * pending leases and incorrectly return HTTP 429.
+       */
+      await releasePending();
+
+      // The distributed lease release itself is asynchronous MongoDB work.
+      assertSetupTransportOpen();
+
       clearTimer(handshakeTimer);
       handshakeTimer = null;
 
@@ -866,11 +926,22 @@ export const initializeConversationRelayServer = (
         }
       }
 
+      assertSetupTransportOpen();
+
       const capacity = await voiceCapacityService.acquireVoiceCapacity({
         business: session.business,
         session,
         settings: session.business?.voiceSettings || {},
       });
+      if (capacity.allowed) {
+        capacityReserved = true;
+      }
+
+      if (transportClosed || socket.readyState !== WebSocket.OPEN) {
+        await releaseCapacity();
+        assertSetupTransportOpen();
+      }
+
       if (!capacity.allowed) {
         const error = new Error(
           "Voice AI capacity is temporarily unavailable. The configured recovery workflow was used.",
@@ -878,7 +949,6 @@ export const initializeConversationRelayServer = (
         error.code = capacity.reason || "VOICE_CONCURRENCY_LIMIT";
         throw error;
       }
-      capacityReserved = true;
 
       const usage = await voiceUsageService.reserveVoiceUsage({
         business: session.business,
@@ -886,6 +956,18 @@ export const initializeConversationRelayServer = (
         reserveSeconds: 60,
         reservationKey: `voice:${session._id}:initial`,
       });
+
+      if (usage.allowed) {
+        voiceUsageReservedSeconds = Number(usage.reservedSeconds) || 0;
+      }
+
+      if (transportClosed || socket.readyState !== WebSocket.OPEN) {
+        // The call disappeared while usage reservation was being persisted.
+        // Undo both resources before leaving setup.
+        await releaseCapacity();
+        await reconcileVoiceUsageSafely();
+        assertSetupTransportOpen();
+      }
 
       if (!usage.allowed) {
         const error = new Error(
@@ -896,7 +978,6 @@ export const initializeConversationRelayServer = (
         throw error;
       }
 
-      voiceUsageReservedSeconds = Number(usage.reservedSeconds) || 0;
       let voiceUsageTopUpSequence = 0;
       const topUpEveryMs = Math.max(30_000, Number(process.env.VOICE_USAGE_TOP_UP_INTERVAL_MS) || 45_000);
       const topUp = async () => {
@@ -925,6 +1006,20 @@ export const initializeConversationRelayServer = (
         role: "system",
         text: "ConversationRelay session connected.",
       });
+
+      /*
+       * Synthetic-load readiness marker only. Never emit this packet to a
+       * production Twilio ConversationRelay connection.
+       */
+      if (
+        process.env.NODE_ENV !== "production" &&
+        process.env.VOICE_LOAD_TEST_MODE === "true"
+      ) {
+        safeSend(socket, {
+          type: "callbackiq_setup_ready",
+          voiceSessionId: String(session._id),
+        });
+      }
       if (forceFailureAfterSetup) {
         throw new Error("Forced Phase 9 staging WebSocket failure test.");
       }
@@ -997,6 +1092,65 @@ export const initializeConversationRelayServer = (
         }
         return;
       }
+      /*
+       * Synthetic load-test completion only.
+       *
+       * ConversationRelay does not provide an inbound "end" frame in the
+       * protocol handled by this server. The load harness therefore needs an
+       * explicit way to finish a synthetic call without making production
+       * unexpected-disconnect recovery classify it as abandoned.
+       *
+       * This control frame is impossible to activate in production.
+       */
+      if (
+        message.type === "callbackiq_test_complete" &&
+        process.env.NODE_ENV !== "production" &&
+        process.env.VOICE_LOAD_TEST_MODE === "true"
+      ) {
+        if (!session?._id || !setupReceived) return;
+
+        clearAllTimers();
+        clearTimer(usageTopUpTimer);
+
+        const requestedOutcome =
+          message.outcome === "caller_declined"
+            ? "caller_declined"
+            : "direct_answer_resolved";
+
+        const inferred =
+          voiceOutcomeService.inferVoiceOutcome(session);
+
+        await voiceOutcomeService.commitVoiceOutcome({
+          sessionId: session._id,
+          outcome: inferred || requestedOutcome,
+          status: "completed",
+          metadata: {
+            source: "synthetic_load_test",
+            synthetic: true,
+          },
+        });
+
+        intentionalEnd = true;
+
+        // The transport no longer needs a live concurrency slot.
+        await releaseCapacity();
+
+        // Reconciliation only queues durable accounting work now.
+        await reconcileVoiceUsageSafely();
+
+        safeSend(socket, {
+          type: "callbackiq_test_complete_ack",
+          voiceSessionId: String(session._id),
+        });
+
+        closeTransport(
+          1000,
+          "CallBackIQ synthetic load test complete",
+        );
+
+        return;
+      }
+
       if (message.type === "error") {
         const errorCode = extractRelayErrorCode(message);
         const error = new Error(message.description || "ConversationRelay error");
@@ -1030,10 +1184,19 @@ export const initializeConversationRelayServer = (
       messageChain = messageChain
         .then(() => handleRelayMessage(raw))
         .catch(async (error) => {
+          if (error?.code === "VOICE_TRANSPORT_CLOSED_DURING_SETUP") {
+            // Idempotent safety cleanup. The close handler will perform
+            // abandonment/outcome recovery after this setup chain settles.
+            await releaseCapacity();
+            await reconcileVoiceUsageSafely();
+            return;
+          }
+
           if (error?.code === "VOICE_FRAME_BEFORE_SETUP") {
             await failGracefully(error);
             return;
           }
+
           await failGracefully(error);
         })
         .catch((error) => {
@@ -1047,6 +1210,10 @@ export const initializeConversationRelayServer = (
     });
 
     socket.on("close", (code, reasonBuffer) => {
+
+      // Set this before any asynchronous cleanup so an in-flight setup can
+      // never acquire or retain resources for an already-dead transport.
+      transportClosed = true;
 
       releasePending();
 
@@ -1064,9 +1231,11 @@ export const initializeConversationRelayServer = (
 
         .then(async () => {
 
-          await reconcileVoiceUsageSafely();
-
+          // A closed WebSocket is no longer consuming live-call capacity.
+          // Free that inexpensive lease before heavier billing reconciliation.
           await releaseCapacity();
+
+          await reconcileVoiceUsageSafely();
 
           if (!session?._id || intentionalEnd || failureStarted) return;
 

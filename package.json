@@ -108,7 +108,13 @@
     "smoke:staging:safe": "node scripts/staging-production-smoke.mjs",
     "migrate:scale-indexes": "node scripts/migrate-scale-indexes.mjs",
     "verify:scale-hardening": "node scripts/verify-scale-hardening.mjs",
-    "test:scale-hardening": "jest tests/unit/scaleCache.service.test.js --runInBand"
+    "test:scale-hardening": "jest tests/unit/scaleCache.service.test.js --runInBand",
+    "voice-load:seed": "node scripts/seed-voice-load-business.mjs",
+    "perf:voice:webhook": "node perf/voice-webhook-burst.mjs",
+    "perf:voice:capacity": "node perf/voice-capacity-load.mjs",
+    "perf:voice:relay": "node perf/voice-relay-load.mjs",
+    "perf:voice:relay:ai": "node perf/voice-relay-load.mjs --ai",
+    "perf:voice:transport": "node perf/voice-relay-transport-load.mjs"
   },
   "keywords": [],
   "author": "",
