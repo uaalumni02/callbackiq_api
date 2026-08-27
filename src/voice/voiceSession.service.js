@@ -173,35 +173,59 @@ class VoiceSessionService {
       callLogLookup,
     ]);
     if (!lead) {
-      lead = await Lead.create({
-        business: business._id,
-        customerName: usableCaller ? "Voice Caller" : "Anonymous Voice Caller",
-        phone: storedCaller,
-        serviceNeeded: "Unknown",
-        urgency: "medium",
-        source: "voice",
-        status: "new",
-        estimatedValue: business.estimatedJobValue || 0,
-        notes: usableCaller
-          ? "Lead created automatically from a CallBackIQ voice session."
-          : "Lead created from a blocked or unavailable caller ID. Obtain and confirm a callback number before promising follow-up.",
-      });
-      emit("emitLeadCreated", business._id, lead);
+      try {
+        lead = await Lead.create({
+          business: business._id,
+          customerName: usableCaller ? "Voice Caller" : "Anonymous Voice Caller",
+          phone: storedCaller,
+          serviceNeeded: "Unknown",
+          urgency: "medium",
+          source: "voice",
+          status: "new",
+          estimatedValue: business.estimatedJobValue || 0,
+          notes: usableCaller
+            ? "Lead created automatically from a CallBackIQ voice session."
+            : "Lead created from a blocked or unavailable caller ID. Obtain and confirm a callback number before promising follow-up.",
+        });
+        emit("emitLeadCreated", business._id, lead);
+      } catch (error) {
+        // Two first-time calls from the same caller can both observe no Lead.
+        // The unique business+phoneLookup index is authoritative; the loser of
+        // that race must attach to the Lead that won instead of failing a call.
+        if (error?.code !== 11000 || !usableCaller) throw error;
+        lead = await Lead.findOne({
+          business: business._id,
+          phone: normalizedFrom,
+        }).sort({ createdAt: -1 });
+        if (!lead) throw error;
+      }
     }
 
     if (!conversation) {
-      conversation = await Conversation.create({
-        business: business._id,
-        lead: lead._id,
-        customerPhone: storedCaller,
-        customerName: lead.customerName || "Voice Caller",
-        status: "open",
-        aiEnabled: true,
-        humanTakeover: false,
-        lastMessage: "Voice session started.",
-        lastMessageAt: new Date(),
-      });
-      emit("emitConversationCreated", business._id, conversation);
+      try {
+        conversation = await Conversation.create({
+          business: business._id,
+          lead: lead._id,
+          customerPhone: storedCaller,
+          customerName: lead.customerName || "Voice Caller",
+          status: "open",
+          aiEnabled: true,
+          humanTakeover: false,
+          lastMessage: "Voice session started.",
+          lastMessageAt: new Date(),
+        });
+        emit("emitConversationCreated", business._id, conversation);
+      } catch (error) {
+        // Same-caller concurrent calls can also race on the unique active
+        // conversation identity. Reuse the open conversation that won.
+        if (error?.code !== 11000 || !usableCaller) throw error;
+        conversation = await Conversation.findOne({
+          business: business._id,
+          customerPhone: normalizedFrom,
+          status: "open",
+        }).sort({ lastMessageAt: -1 });
+        if (!conversation) throw error;
+      }
     }
 
     if (!callLog) {
