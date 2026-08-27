@@ -82,7 +82,7 @@
     "test:hardening": "node --test hardening-tests/*.test.mjs",
     "perf:webhook": "node perf/webhook-burst.mjs",
     "perf:socket": "node perf/socket-fanout.mjs",
-    "test:ci": "npm run test:ci:core && npm run test:replica-set && npm run test:production-certification",
+    "test:ci": "npm run test:ci:core && npm run test:replica-set && npm run test:production-certification && npm run test:voice-concurrency",
     "verify:diff-coverage": "node scripts/verify-diff-coverage.mjs",
     "coverage:risk-report": "node scripts/report-coverage-risk.mjs",
     "coverage:ratchet:rebaseline": "node scripts/verify-coverage-ratchet.mjs --rebaseline",
@@ -114,7 +114,11 @@
     "perf:voice:capacity": "node perf/voice-capacity-load.mjs",
     "perf:voice:relay": "node perf/voice-relay-load.mjs",
     "perf:voice:relay:ai": "node perf/voice-relay-load.mjs --ai",
-    "perf:voice:transport": "node perf/voice-relay-transport-load.mjs"
+    "perf:voice:transport": "node perf/voice-relay-transport-load.mjs",
+    "test:voice-concurrency": "jest tests/integration/voiceConcurrency/voiceConcurrency.certification.test.js --runInBand --no-cache",
+    "certify:voice-concurrency": "node scripts/certify-voice-concurrency.mjs",
+    "certify:voice-concurrency:load": "node scripts/certify-voice-concurrency.mjs --load",
+    "certify:voice-concurrency:ai": "node scripts/certify-voice-concurrency.mjs --load --ai"
   },
   "keywords": [],
   "author": "",
