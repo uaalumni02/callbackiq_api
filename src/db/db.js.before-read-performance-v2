@@ -626,29 +626,11 @@ class Db {
       throw error;
     }
   }
-  static async getLeadById(
-    model,
-    id,
-    {
-      populateBusiness = true,
-      lean = false,
-    } = {},
-  ) {
+  static async getLeadById(model, id) {
     try {
-      let query = model.findById(id);
-
-      if (populateBusiness) {
-        query = query.populate(
-          "business",
-          "businessName businessType phone",
-        );
-      }
-
-      if (lean) {
-        query = query.lean();
-      }
-
-      return await query;
+      return await model
+        .findById(id)
+        .populate("business", "businessName businessType phone");
     } catch (error) {
       console.error("Error fetching lead by ID:", error);
       throw error;
@@ -735,50 +717,13 @@ class Db {
       throw error;
     }
   }
-  static async getConversationById(
-    model,
-    id,
-    {
-      populateBusiness = true,
-      populateLead = true,
-      populateArchivedBy = true,
-      lean = false,
-      select = null,
-    } = {},
-  ) {
+  static async getConversationById(model, id) {
     try {
-      let query = model.findById(id);
-
-      if (select) {
-        query = query.select(select);
-      }
-
-      if (populateBusiness) {
-        query = query.populate(
-          "business",
-          "businessName phone owner",
-        );
-      }
-
-      if (populateLead) {
-        query = query.populate(
-          "lead",
-          "customerName phone serviceNeeded urgency status",
-        );
-      }
-
-      if (populateArchivedBy) {
-        query = query.populate(
-          "archivedBy",
-          "userName email role",
-        );
-      }
-
-      if (lean) {
-        query = query.lean();
-      }
-
-      return await query;
+      return await model
+        .findById(id)
+        .populate("business", "businessName phone owner")
+        .populate("lead", "customerName phone serviceNeeded urgency status")
+        .populate("archivedBy", "userName email role");
     } catch (error) {
       console.error("Error fetching conversation:", error);
       throw error;

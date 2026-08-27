@@ -43,46 +43,22 @@ class MessageController {
         return Response.responseInvalidInput(res, "Invalid conversation ID");
       }
 
-      /*
-       * checkSubscription has already resolved the authenticated tenant
-       * business and attached it to req.business. Reuse it instead of
-       * repeating the owner -> Business query for every message read.
-       */
-      const business =
-        req.business ||
-        (await getBusinessForOwner(ownerId));
+      const business = await getBusinessForOwner(ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      /*
-       * This authorization lookup does not need a fully populated
-       * Conversation. Business/lead/archive documents would immediately be
-       * discarded before the actual message query.
-       */
       const conversation = await Db.getConversationById(
         Conversation,
         conversationId,
-        {
-          populateBusiness: false,
-          populateLead: false,
-          populateArchivedBy: false,
-          lean: true,
-          select:
-            "_id business customerPhone customerName status",
-        },
       );
 
       if (!conversation) {
         return Response.responseInvalidInput(res, "Conversation not found");
       }
 
-      const conversationBusinessId =
-        conversation.business?._id ||
-        conversation.business;
-
-      if (String(conversationBusinessId) !== String(business._id)) {
+      if (String(conversation.business._id) !== String(business._id)) {
         return Response.responseBadAuth(
           res,
           "You cannot access these messages",
@@ -90,11 +66,7 @@ class MessageController {
       }
 
       // CALLBACKIQ_MESSAGE_CURSOR_PAGINATION_V1
-      const page = await getMessagesPage(
-        conversationId,
-        req.query,
-        { conversation },
-      );
+      const page = await getMessagesPage(conversationId, req.query);
       setPaginationHeaders(res, page);
       return Response.responseOk(res, page.items, "Messages fetched");
     } catch (error) {

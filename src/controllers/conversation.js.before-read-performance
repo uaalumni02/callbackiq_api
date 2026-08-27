@@ -144,12 +144,7 @@ const createOrReuseConversation = async ({ businessId, payload }) => {
 };
 
 class ConversationController {
-  static async getAuthorizedConversation(
-    req,
-    res,
-    deniedMessage,
-    { readOnly = false } = {},
-  ) {
+  static async getAuthorizedConversation(req, res, deniedMessage) {
     const requesterId = req.user?.userId;
     const { id } = req.params;
 
@@ -163,31 +158,7 @@ class ConversationController {
       return null;
     }
 
-    /*
-     * Preserve the existing fresh-admin authorization semantics while
-     * optimizing only the read/database path in this change.
-     */
-    const currentAdmin = await isCurrentAdminRequest(req);
-
-    /*
-     * For the read-only owner path, Business is already resolved by
-     * subscription middleware. Keep lead/archive population for API
-     * compatibility, but skip the redundant Business populate.
-     *
-     * Write/admin paths retain the historical fully-populated behavior.
-     */
-    const conversation = await Db.getConversationById(
-      Conversation,
-      id,
-      readOnly && !currentAdmin
-        ? {
-            populateBusiness: false,
-            populateLead: true,
-            populateArchivedBy: true,
-            lean: true,
-          }
-        : undefined,
-    );
+    const conversation = await Db.getConversationById(Conversation, id);
 
     if (!conversation) {
       Response.responseInvalidInput(res, "Conversation not found");
@@ -196,12 +167,11 @@ class ConversationController {
 
     const conversationBusinessReference =
       conversation.business?._id || conversation.business;
-
     const conversationBusinessId = getReferenceId(
       conversationBusinessReference,
     );
 
-    if (currentAdmin) {
+    if (await isCurrentAdminRequest(req)) {
       return {
         requesterId,
         conversation,
@@ -211,9 +181,7 @@ class ConversationController {
       };
     }
 
-    const business =
-      req.business ||
-      (await getBusinessForOwner(requesterId));
+    const business = await getBusinessForOwner(requesterId);
 
     if (!business) {
       Response.responseInvalidInput(res, "Business not found");
@@ -225,22 +193,9 @@ class ConversationController {
       return null;
     }
 
-    const responseConversation =
-      readOnly
-        ? {
-            ...conversation,
-            business: {
-              _id: business._id,
-              businessName: business.businessName,
-              phone: business.phone,
-              owner: business.owner,
-            },
-          }
-        : conversation;
-
     return {
       requesterId,
-      conversation: responseConversation,
+      conversation,
       business,
       businessId: business._id,
       isAdmin: false,
@@ -296,9 +251,7 @@ class ConversationController {
         return Response.responseBadAuth(res, "Not authenticated");
       }
 
-      const business =
-        req.business ||
-        (await getBusinessForOwner(ownerId));
+      const business = await getBusinessForOwner(ownerId);
 
       if (!business) {
         return Response.responseInvalidInput(res, "Business not found");
@@ -324,7 +277,6 @@ class ConversationController {
         req,
         res,
         "You cannot access this conversation",
-        { readOnly: true },
       );
 
       if (!access) return undefined;

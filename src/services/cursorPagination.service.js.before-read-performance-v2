@@ -145,11 +145,7 @@ export const getConversationsPage = async (businessId, query = {}) => {
   });
 };
 
-export const getMessagesPage = async (
-  conversationId,
-  query = {},
-  { conversation = null } = {},
-) => {
+export const getMessagesPage = async (conversationId, query = {}) => {
   const limit = normalizePageLimit(query.limit);
   const cursor = decodeCursor(query.cursor);
   const filter = { conversation: conversationId };
@@ -163,42 +159,15 @@ export const getMessagesPage = async (
     ];
   }
 
-  const messageQuery = Message.find(filter)
+  const documents = await Message.find(filter)
     .sort({ createdAt: 1, _id: 1 })
     .limit(limit + 1)
-    .populate("lead", "customerName phone serviceNeeded");
-
-  /*
-   * If the controller has already authorized and loaded the Conversation,
-   * do not query it again through populate().
-   */
-  if (!conversation) {
-    messageQuery.populate(
-      "conversation",
-      "customerPhone customerName status",
-    );
-  }
-
-  const documents = await messageQuery.lean();
-
-  const conversationSummary = conversation
-    ? {
-        _id: conversation._id,
-        customerPhone: conversation.customerPhone,
-        customerName: conversation.customerName,
-        status: conversation.status,
-      }
-    : null;
-
-  const responseDocuments = conversationSummary
-    ? documents.map((message) => ({
-        ...message,
-        conversation: conversationSummary,
-      }))
-    : documents;
+    .populate("lead", "customerName phone serviceNeeded")
+    .populate("conversation", "customerPhone customerName status")
+    .lean();
 
   return finishPage({
-    documents: responseDocuments,
+    documents,
     limit,
     cursorFor: (item) => ({
       createdAt: item.createdAt,
