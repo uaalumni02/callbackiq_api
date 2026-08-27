@@ -1,0 +1,411 @@
+{
+  "runTag": "concurrency-30-fixed-20260826-212330",
+  "generatedAt": "2026-08-27T01:24:15.508Z",
+  "target": {
+    "api": "http://127.0.0.1:3000",
+    "ui": "http://127.0.0.1:3001"
+  },
+  "businesses": [
+    {
+      "id": "6a33ff7944ce80eaef2cb543",
+      "ownerId": "6a33fd9444ce80eaef2cb542",
+      "name": "Atlanta Pro Plumbing & Drain",
+      "phone": "+14709052202"
+    },
+    {
+      "id": "6a7e69e15ab394844b6ed9d2",
+      "ownerId": "6a7e69e15ab394844b6ed9d1",
+      "name": "Birmingham Plumbing",
+      "phone": "+12058397006"
+    }
+  ],
+  "safety": {
+    "registrationTested": false,
+    "trialTested": false,
+    "numberProvisioningTested": false,
+    "numberPurchasesTested": false,
+    "heavyRealPhoneLoadPerformed": false,
+    "providerSideEffectsEnabled": false,
+    "liveCallsEnabled": false,
+    "attributionFixturesEnabled": false,
+    "attributionFixturesRetained": false,
+    "strictAttributionPropagation": false
+  },
+  "metrics": {
+    "requests": 731,
+    "failures": 0,
+    "statusCounts": {
+      "200": 431,
+      "201": 300
+    },
+    "p50Ms": 2050.39,
+    "p95Ms": 6037.09,
+    "p99Ms": 6107.51,
+    "maxMs": 6151.4,
+    "endpointStats": {
+      "api-root": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 18.2,
+        "p95Ms": 18.2,
+        "p99Ms": 18.2,
+        "maxMs": 18.2
+      },
+      "business-mine:atlanta": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 94.76,
+        "p95Ms": 94.76,
+        "p99Ms": 94.76,
+        "maxMs": 94.76
+      },
+      "business-mine:birmingham": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 82.08,
+        "p95Ms": 82.08,
+        "p99Ms": 82.08,
+        "maxMs": 82.08
+      },
+      "auth-me:atlanta": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 38.18,
+        "p95Ms": 38.18,
+        "p99Ms": 38.18,
+        "maxMs": 38.18
+      },
+      "dashboard:atlanta": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 45.85,
+        "p95Ms": 45.85,
+        "p99Ms": 45.85,
+        "maxMs": 45.85
+      },
+      "config-bootstrap:atlanta": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 102.6,
+        "p95Ms": 102.6,
+        "p99Ms": 102.6,
+        "maxMs": 102.6
+      },
+      "marketing:atlanta": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 255.2,
+        "p95Ms": 255.2,
+        "p99Ms": 255.2,
+        "maxMs": 255.2
+      },
+      "appointments:atlanta": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 306.98,
+        "p95Ms": 306.98,
+        "p99Ms": 306.98,
+        "maxMs": 306.98
+      },
+      "leads:atlanta": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 493.34,
+        "p95Ms": 493.34,
+        "p99Ms": 493.34,
+        "maxMs": 493.34
+      },
+      "conversations:atlanta": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 838.71,
+        "p95Ms": 838.71,
+        "p99Ms": 838.71,
+        "maxMs": 838.71
+      },
+      "calls:atlanta": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 2045.71,
+        "p95Ms": 2045.71,
+        "p99Ms": 2045.71,
+        "maxMs": 2045.71
+      },
+      "dashboard:birmingham": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 52.26,
+        "p95Ms": 52.26,
+        "p99Ms": 52.26,
+        "maxMs": 52.26
+      },
+      "auth-me:birmingham": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 53.01,
+        "p95Ms": 53.01,
+        "p99Ms": 53.01,
+        "maxMs": 53.01
+      },
+      "config-bootstrap:birmingham": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 110.08,
+        "p95Ms": 110.08,
+        "p99Ms": 110.08,
+        "maxMs": 110.08
+      },
+      "appointments:birmingham": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 227.91,
+        "p95Ms": 227.91,
+        "p99Ms": 227.91,
+        "maxMs": 227.91
+      },
+      "marketing:birmingham": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 228.39,
+        "p95Ms": 228.39,
+        "p99Ms": 228.39,
+        "maxMs": 228.39
+      },
+      "leads:birmingham": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 480.53,
+        "p95Ms": 480.53,
+        "p99Ms": 480.53,
+        "maxMs": 480.53
+      },
+      "conversations:birmingham": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 602.05,
+        "p95Ms": 602.05,
+        "p99Ms": 602.05,
+        "maxMs": 602.05
+      },
+      "calls:birmingham": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 1651.85,
+        "p95Ms": 1651.85,
+        "p99Ms": 1651.85,
+        "maxMs": 1651.85
+      },
+      "create-lead:atlanta": {
+        "count": 50,
+        "failures": 0,
+        "p50Ms": 1471.36,
+        "p95Ms": 3024.55,
+        "p99Ms": 3802.34,
+        "maxMs": 3802.34
+      },
+      "create-conversation:atlanta": {
+        "count": 50,
+        "failures": 0,
+        "p50Ms": 1982.8,
+        "p95Ms": 2099.59,
+        "p99Ms": 2933.95,
+        "maxMs": 2933.95
+      },
+      "create-call:atlanta": {
+        "count": 50,
+        "failures": 0,
+        "p50Ms": 1207.14,
+        "p95Ms": 2830.21,
+        "p99Ms": 2955.53,
+        "maxMs": 2955.53
+      },
+      "dashboard-refresh:atlanta": {
+        "count": 50,
+        "failures": 0,
+        "p50Ms": 875.89,
+        "p95Ms": 1227.24,
+        "p99Ms": 1236.44,
+        "maxMs": 1236.44
+      },
+      "read-lead:atlanta": {
+        "count": 50,
+        "failures": 0,
+        "p50Ms": 4978.9,
+        "p95Ms": 5236.95,
+        "p99Ms": 5242.08,
+        "maxMs": 5242.08
+      },
+      "read-messages:atlanta": {
+        "count": 50,
+        "failures": 0,
+        "p50Ms": 5970.74,
+        "p95Ms": 6120.35,
+        "p99Ms": 6151.04,
+        "maxMs": 6151.04
+      },
+      "read-conversation:atlanta": {
+        "count": 50,
+        "failures": 0,
+        "p50Ms": 5967.81,
+        "p95Ms": 6108.5,
+        "p99Ms": 6151.4,
+        "maxMs": 6151.4
+      },
+      "create-lead:birmingham": {
+        "count": 50,
+        "failures": 0,
+        "p50Ms": 2039.43,
+        "p95Ms": 4077.64,
+        "p99Ms": 5009.79,
+        "maxMs": 5009.79
+      },
+      "create-conversation:birmingham": {
+        "count": 50,
+        "failures": 0,
+        "p50Ms": 1898.77,
+        "p95Ms": 2071.58,
+        "p99Ms": 2967.01,
+        "maxMs": 2967.01
+      },
+      "create-call:birmingham": {
+        "count": 50,
+        "failures": 0,
+        "p50Ms": 1886.19,
+        "p95Ms": 3875.32,
+        "p99Ms": 3978.04,
+        "maxMs": 3978.04
+      },
+      "dashboard-refresh:birmingham": {
+        "count": 50,
+        "failures": 0,
+        "p50Ms": 893.31,
+        "p95Ms": 2051.55,
+        "p99Ms": 2208.48,
+        "maxMs": 2208.48
+      },
+      "read-lead:birmingham": {
+        "count": 50,
+        "failures": 0,
+        "p50Ms": 4096.57,
+        "p95Ms": 5067.39,
+        "p99Ms": 5159.12,
+        "maxMs": 5159.12
+      },
+      "read-conversation:birmingham": {
+        "count": 50,
+        "failures": 0,
+        "p50Ms": 4965.29,
+        "p95Ms": 6035.83,
+        "p99Ms": 6083.18,
+        "maxMs": 6083.18
+      },
+      "read-messages:birmingham": {
+        "count": 50,
+        "failures": 0,
+        "p50Ms": 4972.32,
+        "p95Ms": 6079.42,
+        "p99Ms": 6081.07,
+        "maxMs": 6081.07
+      },
+      "postload-dashboard:atlanta": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 150.2,
+        "p95Ms": 150.2,
+        "p99Ms": 150.2,
+        "maxMs": 150.2
+      },
+      "postload-attribution:atlanta": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 245.74,
+        "p95Ms": 245.74,
+        "p99Ms": 245.74,
+        "maxMs": 245.74
+      },
+      "postload-appointments:atlanta": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 281.78,
+        "p95Ms": 281.78,
+        "p99Ms": 281.78,
+        "maxMs": 281.78
+      },
+      "postload-leads:atlanta": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 516.44,
+        "p95Ms": 516.44,
+        "p99Ms": 516.44,
+        "maxMs": 516.44
+      },
+      "postload-conversations:atlanta": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 603.12,
+        "p95Ms": 603.12,
+        "p99Ms": 603.12,
+        "maxMs": 603.12
+      },
+      "postload-calls:atlanta": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 1239.44,
+        "p95Ms": 1239.44,
+        "p99Ms": 1239.44,
+        "maxMs": 1239.44
+      },
+      "postload-dashboard:birmingham": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 48.49,
+        "p95Ms": 48.49,
+        "p99Ms": 48.49,
+        "maxMs": 48.49
+      },
+      "postload-appointments:birmingham": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 229.99,
+        "p95Ms": 229.99,
+        "p99Ms": 229.99,
+        "maxMs": 229.99
+      },
+      "postload-attribution:birmingham": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 232,
+        "p95Ms": 232,
+        "p99Ms": 232,
+        "maxMs": 232
+      },
+      "postload-leads:birmingham": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 418.09,
+        "p95Ms": 418.09,
+        "p99Ms": 418.09,
+        "maxMs": 418.09
+      },
+      "postload-conversations:birmingham": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 553.03,
+        "p95Ms": 553.03,
+        "p99Ms": 553.03,
+        "maxMs": 553.03
+      },
+      "postload-calls:birmingham": {
+        "count": 1,
+        "failures": 0,
+        "p50Ms": 1065.81,
+        "p95Ms": 1065.81,
+        "p99Ms": 1065.81,
+        "maxMs": 1065.81
+      }
+    }
+  },
+  "createdCount": 100,
+  "attribution": [],
+  "failures": []
+}

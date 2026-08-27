@@ -191,42 +191,17 @@ class LeadController {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      /*
-       * The authenticated Business is already request-scoped. Avoid another
-       * Business populate solely for tenant comparison/serialization.
-       */
-      const lead = await Db.getLeadById(
-        Lead,
-        id,
-        {
-          populateBusiness: false,
-          lean: true,
-        },
-      );
+      const lead = await Db.getLeadById(Lead, id);
 
       if (!lead) {
         return Response.responseInvalidInput(res, "Lead not found");
       }
 
-      const leadBusinessId =
-        lead.business?._id ||
-        lead.business;
-
-      if (String(leadBusinessId) !== String(business._id)) {
+      if (String(lead.business._id) !== String(business._id)) {
         return Response.responseBadAuth(res, "You cannot access this lead");
       }
 
-      const payload = {
-        ...lead,
-        business: {
-          _id: business._id,
-          businessName: business.businessName,
-          businessType: business.businessType,
-          phone: business.phone,
-        },
-      };
-
-      return Response.responseOk(res, payload, "Lead fetched");
+      return Response.responseOk(res, lead, "Lead fetched");
     } catch (error) {
       console.error("Error in getLeadById:", error);
       return Response.responseServerError(res);

@@ -146,39 +146,9 @@ function fakeCustomerPhone(index, businessIndex = 0) {
     "813", "818", "832", "917", "929"
   ];
 
-  /*
-   * Give each load-test run an explicit synthetic phone namespace.
-   *
-   * The harness intentionally stays inside the NANP 555-0100..0199
-   * fictional-number range because some harness modes exercise webhook
-   * behavior and must never target an arbitrary real subscriber.
-   *
-   * LOAD_PHONE_NAMESPACE shifts the selected area-code block while the
-   * flow index remains unique inside that block.
-   */
-  const namespaceRaw = Number.parseInt(
-    process.env.LOAD_PHONE_NAMESPACE || "0",
-    10
-  );
-
-  if (!Number.isInteger(namespaceRaw) || namespaceRaw < 0) {
-    throw new Error(
-      `Invalid LOAD_PHONE_NAMESPACE: ${process.env.LOAD_PHONE_NAMESPACE}`
-    );
-  }
-
   const slotsPerAreaCode = 100;
-
-  /*
-   * Namespace values wrap across the available fictional-number pools.
-   * businessOffset keeps the two business workloads separated in their
-   * deterministic sequence; uniqueness is still enforced by MongoDB.
-   */
-  const namespaceOffset =
-    (namespaceRaw % areaCodes.length) * slotsPerAreaCode;
-
   const businessOffset = businessIndex * 1000;
-  const uniqueIndex = businessOffset + namespaceOffset + index;
+  const uniqueIndex = businessOffset + index;
 
   const areaIndex =
     Math.floor(uniqueIndex / slotsPerAreaCode) % areaCodes.length;
