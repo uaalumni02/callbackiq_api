@@ -383,6 +383,31 @@ export const provisionMarketingTrackingNumber = async ({
     const normalized = normalizePhoneToE164(
       incoming.phoneNumber || selected,
     );
+
+    // Legacy released rows created before CALLBACKIQ_ATTRIBUTION_10OF10_V1 may still occupy the
+    // globally unique live lookup key. Re-save them under the released
+    // tombstone namespace before inserting the carrier-recycled number.
+    const releasedCollision = await TrackingNumber.findOne({
+      phoneLookup: normalized,
+      status: "released",
+    }).select("+phoneLookup");
+    if (releasedCollision) {
+      releasedCollision.releasedAt = releasedCollision.releasedAt || new Date();
+      await releasedCollision.save();
+    }
+
+    const liveCollision = await TrackingNumber.exists({
+      phoneLookup: normalized,
+      status: { $ne: "released" },
+    });
+    if (liveCollision) {
+      throw sourceError(
+        "TRACKING_NUMBER_PHONE_COLLISION",
+        "Twilio returned a phone number that is already assigned inside CallBackIQ. The new provider resource will be released automatically.",
+        409,
+      );
+    }
+
     const number = await TrackingNumber.create({
       business: businessId,
       marketingSource: sourceId,
@@ -462,6 +487,9 @@ export const releaseMarketingTrackingNumber = async ({ businessId, sourceId }) =
     }
 
     number.status = "released";
+    number.releasedAt = new Date();
+    number.voiceEnabled = false;
+    number.smsEnabled = false;
     number.smsReady = false;
     number.senderAttached = false;
     await number.save();
