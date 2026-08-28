@@ -1,5 +1,15 @@
 import VoiceSession from "../../src/models/voiceSession.js";
 import VoiceSessionService from "../../src/voice/voiceSession.service.js";
+import {
+  resolveTrackingNumberContext,
+  syncLatestAttribution,
+} from "../../src/services/marketingAttribution.service.js";
+
+jest.mock("../../src/services/marketingAttribution.service.js", () => ({
+  __esModule: true,
+  resolveTrackingNumberContext: jest.fn(),
+  syncLatestAttribution: jest.fn(),
+}));
 
 jest.mock("../../src/models/alert.js", () => ({
   __esModule: true,
@@ -81,6 +91,8 @@ const populatedQuery = (value) => ({
 describe("VoiceSessionService initial context upsert", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    resolveTrackingNumberContext.mockResolvedValue(null);
+    syncLatestAttribution.mockResolvedValue(null);
     VoiceSession.findOneAndUpdate.mockResolvedValue({
       _id: "voice-session-1",
       lead: "lead-1",

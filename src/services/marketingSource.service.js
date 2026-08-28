@@ -89,7 +89,7 @@ const requirePaidPlan = async (businessId) => {
 };
 
 export const listMarketingSources = async ({ businessId }) => {
-  const [sources, numbers, subscription] = await Promise.all([
+  const [sources, numbers, subscription, business] = await Promise.all([
     MarketingSource.find({
       business: businessId,
       status: { $ne: "archived" },
@@ -105,6 +105,7 @@ export const listMarketingSources = async ({ businessId }) => {
       .sort({ createdAt: 1 })
       .lean(),
     Subscription.findOne({ business: businessId }).lean(),
+    loadBusiness(businessId),
   ]);
 
   const numbersBySource = new Map();
@@ -131,6 +132,13 @@ export const listMarketingSources = async ({ businessId }) => {
       remainingAdditionalNumbers: Math.max(0, limit - activeAdditionalNumbers),
       paidPlanActive:
         subscription?.isActive === true && subscription?.status === "active",
+      primaryNumberActive:
+        business?.isActive !== false &&
+        business?.trackingNumber?.status === "active" &&
+        Boolean(business?.phone),
+      smsRegistered:
+        business?.messagingCompliance?.a2pStatus === "registered" &&
+        business?.messagingCompliance?.smsReady === true,
     },
   };
 };
@@ -415,9 +423,90 @@ export const provisionMarketingTrackingNumber = async ({
   }
 };
 
+export const releaseMarketingTrackingNumber = async ({ businessId, sourceId }) => {
+  let lease = null;
+  try {
+    lease = await acquireOperationLease({
+      key: `marketing-number-release:${businessId}:${sourceId}`,
+      ttlMs: 60_000,
+      busyCode: "MARKETING_NUMBER_RELEASE_IN_PROGRESS",
+      busyMessage: "This tracking number is already being released.",
+      busyStatusCode: 409,
+      waitMs: 2_000,
+      retryDelayMs: 100,
+    });
+
+    const number = await TrackingNumber.findOne({
+      business: businessId,
+      marketingSource: sourceId,
+      kind: "marketing",
+      status: "active",
+    }).select("+providerSid");
+
+    if (!number) return { released: false, alreadyReleased: true };
+
+    const providerSid = String(number.providerSid || "").trim();
+    if (providerSid) {
+      try {
+        await getTwilioClient().incomingPhoneNumbers(providerSid).remove();
+      } catch (error) {
+        const status = Number(error?.status || error?.statusCode || 0);
+        if (status !== 404) {
+          throw sourceError(
+            "MARKETING_NUMBER_RELEASE_FAILED",
+            "The tracking number could not be released from Twilio. No local changes were made.",
+            502,
+          );
+        }
+      }
+    }
+
+    number.status = "released";
+    number.smsReady = false;
+    number.senderAttached = false;
+    await number.save();
+
+    return {
+      released: true,
+      trackingNumberId: String(number._id),
+      phoneNumber: number.phoneNumber,
+    };
+  } finally {
+    await releaseOperationLease(lease);
+  }
+};
+
+export const archiveMarketingSource = async ({ businessId, sourceId }) => {
+  const activeNumber = await TrackingNumber.exists({
+    business: businessId,
+    marketingSource: sourceId,
+    kind: "marketing",
+    status: "active",
+  });
+  if (activeNumber) {
+    throw sourceError(
+      "MARKETING_NUMBER_RELEASE_REQUIRED",
+      "Release this source's tracking number before archiving the source.",
+      409,
+    );
+  }
+
+  const source = await MarketingSource.findOneAndUpdate(
+    { _id: sourceId, business: businessId, status: { $ne: "archived" } },
+    { $set: { status: "archived" } },
+    { returnDocument: "after" },
+  );
+  if (!source) {
+    throw sourceError("MARKETING_SOURCE_NOT_FOUND", "Marketing source not found.", 404);
+  }
+  return source;
+};
+
 export default {
   listMarketingSources,
   createMarketingSource,
   updateMarketingSource,
   provisionMarketingTrackingNumber,
+  releaseMarketingTrackingNumber,
+  archiveMarketingSource,
 };
