@@ -1,9 +1,11 @@
 // CALLBACKIQ_MARKETING_ATTRIBUTION_V1
 import getOwnedBusiness from "../services/businessScope.service.js";
 import {
+  archiveMarketingSource,
   createMarketingSource,
   listMarketingSources,
   provisionMarketingTrackingNumber,
+  releaseMarketingTrackingNumber,
   updateMarketingSource,
 } from "../services/marketingSource.service.js";
 
@@ -73,6 +75,33 @@ class MarketingAttributionController {
         sourceId: req.params.id,
       });
       return res.status(201).json({ success: true, data });
+    } catch (error) {
+      if (error?.statusCode) return sendKnownError(res, error);
+      return next(error);
+    }
+  }
+  static async releaseNumber(req, res, next) {
+    try {
+      const business = await ownedBusiness(req);
+      const data = await releaseMarketingTrackingNumber({
+        businessId: business._id,
+        sourceId: req.params.id,
+      });
+      return res.json({ success: true, data });
+    } catch (error) {
+      if (error?.statusCode) return sendKnownError(res, error);
+      return next(error);
+    }
+  }
+
+  static async archive(req, res, next) {
+    try {
+      const business = await ownedBusiness(req);
+      const data = await archiveMarketingSource({
+        businessId: business._id,
+        sourceId: req.params.id,
+      });
+      return res.json({ success: true, data });
     } catch (error) {
       if (error?.statusCode) return sendKnownError(res, error);
       return next(error);

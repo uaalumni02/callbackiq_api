@@ -1,4 +1,5 @@
 import Business from "../models/business.js";
+import { resolveTwilioNumberContext } from "../services/twilioBusinessResolver.service.js"; // CALLBACKIQ_ATTRIBUTION_PRODUCTION_HARDENING
 import VoiceSession from "../models/voiceSession.js";
 import TwilioController from "./twilio.js";
 import {
@@ -67,15 +68,8 @@ const callFields = (req = {}) => {
 };
 
 const findBusiness = async (phone) => {
-  const e164 = normalizePhoneToE164(phone);
-  if (!e164) return null;
-  // Production routing uses the indexed canonical E.164 field only. Run the
-  // included migration before deploying this update.
-  return Business.findOne({
-    isActive: true,
-    phoneLookup: e164,
-    "trackingNumber.status": "active",
-  });
+  const numberContext = await resolveTwilioNumberContext(phone);
+  return numberContext?.business || null;
 };
 
 const findExistingContext = async (req) => {

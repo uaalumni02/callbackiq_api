@@ -2,6 +2,7 @@ import crypto from "crypto";
 
 import mongoose from "mongoose";
 import Appointment from "../../models/appointment.js";
+import { normalizePhoneToE164 } from "../../voice/voicePhone.service.js";
 import CallLog from "../../models/callLog.js"; // CALLBACKIQ_MARKETING_ATTRIBUTION_V1
 import Conversation from "../../models/conversation.js";
 import Lead from "../../models/lead.js";
@@ -215,7 +216,11 @@ const resolveAppointmentAttribution = async ({ businessId, input }) => {
 
     filter.lead = input.lead;
   } else if (input?.customerPhone) {
-    filter.from = String(input.customerPhone).trim();
+    const normalizedCustomerPhone = normalizePhoneToE164(input.customerPhone);
+    if (!normalizedCustomerPhone) {
+      return { marketingSource: null, trackingNumber: null, attribution: {} };
+    }
+    filter.from = normalizedCustomerPhone;
   } else {
     return emptyAppointmentAttribution();
   }
@@ -263,6 +268,10 @@ const createHold = async ({
     throw error;
   }
 
+  const attribution = await resolveAppointmentAttribution({
+    businessId,
+    input,
+  });
   const timeZone = input.timezone || business.timezone || "America/New_York";
   const appointmentAttribution = await resolveAppointmentAttribution({
     businessId,
@@ -290,6 +299,9 @@ const createHold = async ({
     status: "held",
     source: input.source || "manual",
     bookedBy: input.bookedBy || "staff",
+    marketingSource: attribution.marketingSource,
+    trackingNumber: attribution.trackingNumber,
+    attribution: attribution.attribution,
     marketingSource: appointmentAttribution.marketingSource,
     trackingNumber: appointmentAttribution.trackingNumber,
     attribution: appointmentAttribution.attribution,
@@ -1011,6 +1023,9 @@ class AppointmentService {
         channel: appointment.source,
         estimatedValue: appointment.estimatedValue,
         actualRevenue: appointment.actualRevenue,
+        marketingSourceId: appointment.marketingSource || null,
+        trackingNumberId: appointment.trackingNumber || null,
+        attribution: appointment.attribution || {},
         idempotencyKey: `job_completed:${appointment._id}`,
       });
       if (appointment.lead) {

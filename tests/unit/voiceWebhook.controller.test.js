@@ -4,6 +4,12 @@ import VoiceWebhookController from "../../src/controllers/voiceWebhook.js";
 import VoiceAvailabilityService from "../../src/voice/voiceAvailability.service.js";
 import VoiceSessionService from "../../src/voice/voiceSession.service.js";
 import VoiceFailureService from "../../src/voice/voiceFailure.service.js";
+import { resolveTwilioNumberContext } from "../../src/services/twilioBusinessResolver.service.js";
+
+jest.mock("../../src/services/twilioBusinessResolver.service.js", () => ({
+  __esModule: true,
+  resolveTwilioNumberContext: jest.fn(),
+}));
 
 jest.mock("../../src/models/business.js", () => ({
   __esModule: true,
@@ -76,6 +82,12 @@ describe("VoiceWebhookController business-selected AI/SMS routing", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    resolveTwilioNumberContext.mockImplementation(async () => ({
+      business: await Business.findOne(),
+      trackingNumber: null,
+      marketingSource: null,
+      attribution: {},
+    }));
     process.env = {
       ...originalEnv,
       VOICE_HTTP_PUBLIC_URL: "https://api.callbackiq.com",

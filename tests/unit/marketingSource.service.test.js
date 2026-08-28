@@ -121,6 +121,10 @@ describe("MarketingSourceService", () => {
       }),
     );
 
+    Business.findById.mockReturnValue(
+      selectPromise({}),
+    );
+
     const result = await listMarketingSources({
       businessId: "business-1",
     });

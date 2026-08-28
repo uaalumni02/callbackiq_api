@@ -11,5 +11,7 @@ router.get("/", MarketingAttributionController.list);
 router.post("/", MarketingAttributionController.create);
 router.patch("/:id", MarketingAttributionController.update);
 router.post("/:id/tracking-number", MarketingAttributionController.provisionNumber);
+router.delete("/:id/tracking-number", MarketingAttributionController.releaseNumber);
+router.delete("/:id", MarketingAttributionController.archive);
 
 export default router;

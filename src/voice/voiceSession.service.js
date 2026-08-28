@@ -17,6 +17,7 @@ import {
   normalizePhoneToE164,
 } from "./voicePhone.service.js";
 import VoiceTranscriptService from "./voiceTranscript.service.js";
+import { resolveTrackingNumberContext, syncLatestAttribution } from "../services/marketingAttribution.service.js"; // CALLBACKIQ_ATTRIBUTION_PRODUCTION_HARDENING
 
 const TERMINAL_STATUSES = new Set(["completed", "failed", "canceled"]);
 const TRANSITIONS = Object.freeze({
@@ -93,6 +94,7 @@ class VoiceSessionService {
 
     const normalizedFrom = normalizePhoneToE164(from);
     const normalizedTo = normalizePhoneToE164(to) || String(to || "").trim();
+    const numberContext = await resolveTrackingNumberContext(normalizedTo);
     const usableCaller = isUsableCallerId(normalizedFrom);
     const storedCaller = usableCaller ? normalizedFrom : anonymousContact();
 
@@ -213,6 +215,7 @@ class VoiceSessionService {
           humanTakeover: false,
           lastMessage: "Voice session started.",
           lastMessageAt: new Date(),
+          replyFromPhone: normalizedTo || business.phone,
         });
         emit("emitConversationCreated", business._id, conversation);
       } catch (error) {
@@ -241,6 +244,9 @@ class VoiceSessionService {
           durationSeconds: 0,
           provider: "twilio",
           providerCallId: providerCallSid,
+          marketingSource: numberContext?.marketingSource?._id || null,
+          trackingNumber: numberContext?.trackingNumber?._id || null,
+          attribution: numberContext?.attribution || {},
           missedCallTextSent: false,
           recovered: false,
           notes: usableCaller
@@ -255,6 +261,17 @@ class VoiceSessionService {
           providerCallId: providerCallSid,
         });
       }
+    }
+
+    if (numberContext?.marketingSource && numberContext?.trackingNumber) {
+      await syncLatestAttribution({
+        businessId: business._id,
+        leadId: lead._id,
+        conversationId: conversation._id,
+        trackingNumber: numberContext.trackingNumber,
+        marketingSource: numberContext.marketingSource,
+        calledPhone: normalizedTo,
+      });
     }
 
     const updated = await VoiceSession.findByIdAndUpdate(
