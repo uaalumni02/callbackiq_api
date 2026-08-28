@@ -11,6 +11,13 @@ jest.mock("../../src/models/business.js", () => ({
   },
 }));
 
+jest.mock("../../src/models/trackingNumber.js", () => ({
+  __esModule: true,
+  default: {
+    findOne: jest.fn(),
+  },
+}));
+
 jest.mock("../../src/services/messaging/contactPreference.service.js", () => ({
   __esModule: true,
   isSmsSuppressed: jest.fn(),
@@ -40,6 +47,7 @@ jest.mock("../../src/services/outboundSmsAudit.service.js", () => ({
 
 import twilio from "twilio";
 import Business from "../../src/models/business.js";
+import TrackingNumber from "../../src/models/trackingNumber.js";
 import { isSmsSuppressed } from "../../src/services/messaging/contactPreference.service.js";
 import {
   reserveCommunicationUsageOperation,
@@ -86,6 +94,11 @@ describe("central outbound SMS policy", () => {
     });
     Business.findById.mockResolvedValue(business);
     Business.findOne.mockResolvedValue(business);
+    TrackingNumber.findOne.mockReturnValue({
+      select: jest.fn().mockReturnValue({
+        lean: jest.fn().mockResolvedValue(null),
+      }),
+    });
     isSmsSuppressed.mockResolvedValue(false);
     findCommunicationOperation.mockResolvedValue(null);
     isUncertainProviderFailure.mockReturnValue(false);

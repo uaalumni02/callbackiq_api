@@ -268,15 +268,11 @@ const createHold = async ({
     throw error;
   }
 
-  const attribution = await resolveAppointmentAttribution({
-    businessId,
-    input,
-  });
-  const timeZone = input.timezone || business.timezone || "America/New_York";
   const appointmentAttribution = await resolveAppointmentAttribution({
     businessId,
     input,
   });
+  const timeZone = input.timezone || business.timezone || "America/New_York";
   const capacity = await getSlotCapacity({
     businessId,
     startAt,
@@ -299,9 +295,6 @@ const createHold = async ({
     status: "held",
     source: input.source || "manual",
     bookedBy: input.bookedBy || "staff",
-    marketingSource: attribution.marketingSource,
-    trackingNumber: attribution.trackingNumber,
-    attribution: attribution.attribution,
     marketingSource: appointmentAttribution.marketingSource,
     trackingNumber: appointmentAttribution.trackingNumber,
     attribution: appointmentAttribution.attribution,

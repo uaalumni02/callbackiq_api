@@ -77,7 +77,10 @@ TrackingNumberSchema.pre("validate", function normalizeNumber() {
     return;
   }
   this.phoneNumber = normalized;
-  this.phoneLookup = normalized;
+  this.phoneLookup =
+    this.status === "released"
+      ? `released:${this._id}:${normalized}`
+      : normalized;
 });
 
 TrackingNumberSchema.index({ phoneLookup: 1 }, { unique: true });

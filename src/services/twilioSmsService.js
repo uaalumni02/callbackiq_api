@@ -159,11 +159,41 @@ export const sendSms = async ({
   }
   const resolvedBusiness = await resolveBusiness({ business, businessId, from });
   const resolvedBusinessId = resolvedBusiness._id || resolvedBusiness.id;
-  const configuredFrom = requiredText(resolvedBusiness.phone, "business SMS phone");
-  if (from && normalizePhone(from) !== normalizePhone(configuredFrom)) {
-    const error = new Error("The requested SMS sender is not assigned to the authenticated business.");
-    error.code = "SMS_SENDER_NOT_OWNED";
+  const primaryFrom = requiredText(resolvedBusiness.phone, "business SMS phone");
+  const requestedFrom = from ? normalizePhone(from) : "";
+  const normalizedPrimaryFrom = normalizePhone(primaryFrom);
+  let configuredFrom = primaryFrom;
+  let forceDirectSender = Boolean(requestedFrom);
+
+  if (from && !requestedFrom) {
+    const error = new Error("The requested SMS sender is not a valid phone number.");
+    error.code = "INVALID_SMS_SENDER";
+    error.statusCode = 400;
     throw error;
+  }
+
+  if (requestedFrom && requestedFrom !== normalizedPrimaryFrom) {
+    const ownedTrackingNumber = await TrackingNumber.findOne({
+      business: resolvedBusinessId,
+      phoneLookup: requestedFrom,
+      status: "active",
+      smsEnabled: true,
+      smsReady: true,
+      senderAttached: true,
+    })
+      .select("phoneNumber")
+      .lean();
+
+    if (!ownedTrackingNumber?.phoneNumber) {
+      const error = new Error(
+        "The requested SMS sender is not an active messaging-ready number owned by this business.",
+      );
+      error.code = "SMS_SENDER_NOT_OWNED";
+      error.statusCode = 403;
+      throw error;
+    }
+
+    configuredFrom = ownedTrackingNumber.phoneNumber;
   }
   let normalizedBody = requiredText(body, "body");
   const explicitKey = String(metadata?.idempotencyKey || "").trim();
@@ -276,7 +306,12 @@ export const sendSms = async ({
     const sent = await client.messages.create({
       to: normalizedTo,
       body: normalizedBody,
-      ...(configuredMessagingServiceSid ? { messagingServiceSid: configuredMessagingServiceSid } : { from: configuredFrom }),
+      ...(configuredMessagingServiceSid
+        ? { messagingServiceSid: configuredMessagingServiceSid }
+        : {}),
+      ...(forceDirectSender || !configuredMessagingServiceSid
+        ? { from: configuredFrom }
+        : {}),
       ...(statusCallback ? { statusCallback } : {}),
     });
     await commitCommunicationUsageReservation({ reservation: lifecycle?.reservation, providerOperationId: sent?.sid || "", providerStatus: sent?.status || "sent" });

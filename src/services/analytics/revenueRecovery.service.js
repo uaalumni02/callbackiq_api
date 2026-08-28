@@ -155,18 +155,18 @@ class RevenueRecoveryService {
   }
 
   static async marketingSources({ businessId, startDate, endDate }) {
+    // CALLBACKIQ_ATTRIBUTION_10OF10_V1: marketing source revenue reconciliation
     const { start, end } = getRange({ startDate, endDate });
     const dateFilter = { $gte: start, $lte: end };
     const missedStatuses = ["missed", "voicemail", "failed", "busy", "no_answer"];
 
-    const [sourceDocuments, callRows, bookingRows, recoveredRows] =
+    const [sourceDocuments, callRows, bookingRows, recoveredBookingEvents] =
       await Promise.all([
-        MarketingSource.find({
-          business: businessId,
-          status: { $ne: "archived" },
-        }).lean(),
+        // Include archived sources so historical reports never lose their label.
+        MarketingSource.find({ business: businessId }).lean(),
         CallLog.aggregate([
           { $match: { business: businessId, createdAt: dateFilter } },
+          { $sort: { createdAt: -1 } },
           {
             $group: {
               _id: "$marketingSource",
@@ -175,13 +175,12 @@ class RevenueRecoveryService {
                 $sum: { $cond: [{ $eq: ["$status", "answered"] }, 1, 0] },
               },
               missedCalls: {
-                $sum: {
-                  $cond: [{ $in: ["$status", missedStatuses] }, 1, 0],
-                },
+                $sum: { $cond: [{ $in: ["$status", missedStatuses] }, 1, 0] },
               },
-              recoveredCalls: {
-                $sum: { $cond: ["$recovered", 1, 0] },
-              },
+              recoveredCalls: { $sum: { $cond: ["$recovered", 1, 0] } },
+              snapshotSourceName: { $first: "$attribution.sourceName" },
+              snapshotChannel: { $first: "$attribution.channel" },
+              snapshotCampaign: { $first: "$attribution.campaign" },
             },
           },
         ]),
@@ -193,34 +192,126 @@ class RevenueRecoveryService {
               confirmedAt: dateFilter,
             },
           },
+          { $sort: { confirmedAt: -1 } },
           {
             $group: {
               _id: "$marketingSource",
               bookedJobs: { $sum: 1 },
-              estimatedBookedRevenue: { $sum: "$estimatedValue" },
-              actualBookedRevenue: { $sum: "$actualRevenue" },
+              actualBookedRevenue: {
+                $sum: {
+                  $cond: [{ $eq: ["$status", "completed"] }, "$actualRevenue", 0],
+                },
+              },
+              estimatedBookedRevenue: {
+                $sum: {
+                  $cond: [{ $eq: ["$status", "confirmed"] }, "$estimatedValue", 0],
+                },
+              },
+              totalBookedAttributableValue: {
+                $sum: {
+                  $switch: {
+                    branches: [
+                      { case: { $eq: ["$status", "completed"] }, then: "$actualRevenue" },
+                      { case: { $eq: ["$status", "confirmed"] }, then: "$estimatedValue" },
+                    ],
+                    default: 0,
+                  },
+                },
+              },
+              snapshotSourceName: { $first: "$attribution.sourceName" },
+              snapshotChannel: { $first: "$attribution.channel" },
+              snapshotCampaign: { $first: "$attribution.campaign" },
             },
           },
         ]),
-        ConversionEvent.aggregate([
-          {
-            $match: {
-              business: businessId,
-              type: "appointment_booked",
-              occurredAt: dateFilter,
-              "metadata.recovered": true,
-            },
-          },
-          {
-            $group: {
-              _id: "$marketingSource",
-              recoveredBookedJobs: { $sum: 1 },
-              estimatedRecoveredRevenue: { $sum: "$estimatedValue" },
-              actualRecoveredRevenue: { $sum: "$actualRevenue" },
-            },
-          },
-        ]),
+        ConversionEvent.find({
+          business: businessId,
+          type: "appointment_booked",
+          occurredAt: dateFilter,
+          "metadata.recovered": true,
+        })
+          .select("appointment marketingSource attribution estimatedValue occurredAt")
+          .sort({ occurredAt: 1 })
+          .lean(),
       ]);
+
+    const recoveredAppointmentIds = [
+      ...new Set(
+        recoveredBookingEvents
+          .map((event) => event.appointment)
+          .filter(Boolean)
+          .map((id) => String(id)),
+      ),
+    ];
+
+    const [completionEvents, recoveredAppointments] = recoveredAppointmentIds.length
+      ? await Promise.all([
+          // Deliberately no occurredAt range: a July booking completed in August
+          // must still reconcile July's booked cohort to its final revenue.
+          ConversionEvent.find({
+            business: businessId,
+            type: "job_completed",
+            appointment: { $in: recoveredAppointmentIds },
+          })
+            .select("appointment actualRevenue occurredAt attribution marketingSource")
+            .sort({ occurredAt: 1 })
+            .lean(),
+          Appointment.find({
+            business: businessId,
+            _id: { $in: recoveredAppointmentIds },
+          })
+            .select("status actualRevenue")
+            .lean(),
+        ])
+      : [[], []];
+
+    const completionByAppointment = new Map();
+    for (const event of completionEvents) {
+      if (event.appointment) completionByAppointment.set(String(event.appointment), event);
+    }
+    const appointmentById = new Map(
+      recoveredAppointments.map((appointment) => [String(appointment._id), appointment]),
+    );
+
+    const recoveredRows = new Map();
+    for (const event of recoveredBookingEvents) {
+      const sourceKey = event.marketingSource ? String(event.marketingSource) : "unattributed";
+      if (!recoveredRows.has(sourceKey)) {
+        recoveredRows.set(sourceKey, {
+          _id: event.marketingSource || null,
+          recoveredBookedJobs: 0,
+          actualRecoveredRevenue: 0,
+          estimatedRecoveredRevenue: 0,
+          totalRecoveredAttributableValue: 0,
+          snapshotSourceName: event.attribution?.sourceName || "",
+          snapshotChannel: event.attribution?.channel || "",
+          snapshotCampaign: event.attribution?.campaign || "",
+        });
+      }
+      const row = recoveredRows.get(sourceKey);
+      row.recoveredBookedJobs += 1;
+      if (!row.snapshotSourceName && event.attribution?.sourceName) {
+        row.snapshotSourceName = event.attribution.sourceName;
+        row.snapshotChannel = event.attribution?.channel || "";
+        row.snapshotCampaign = event.attribution?.campaign || "";
+      }
+
+      const appointmentId = event.appointment ? String(event.appointment) : "";
+      const completionEvent = appointmentId ? completionByAppointment.get(appointmentId) : null;
+      const appointment = appointmentId ? appointmentById.get(appointmentId) : null;
+      const completed = Boolean(completionEvent) || appointment?.status === "completed";
+      if (completed) {
+        const actual = Number(
+          completionEvent?.actualRevenue ?? appointment?.actualRevenue ?? 0,
+        );
+        row.actualRecoveredRevenue += Number.isFinite(actual) ? actual : 0;
+        row.totalRecoveredAttributableValue += Number.isFinite(actual) ? actual : 0;
+      } else {
+        const estimate = Number(event.estimatedValue || 0);
+        row.estimatedRecoveredRevenue += Number.isFinite(estimate) ? estimate : 0;
+        row.totalRecoveredAttributableValue += Number.isFinite(estimate) ? estimate : 0;
+      }
+    }
 
     const rows = new Map();
     const keyFor = (id) => (id ? String(id) : "unattributed");
@@ -232,19 +323,37 @@ class RevenueRecoveryService {
           name: id ? "Unknown source" : "Unattributed",
           channel: id ? "other" : "unattributed",
           campaign: "",
+          status: id ? "unknown" : "unattributed",
           totalCalls: 0,
           answeredCalls: 0,
           missedCalls: 0,
           recoveredCalls: 0,
           bookedJobs: 0,
           recoveredBookedJobs: 0,
+          // Compatibility names now have precise semantics:
+          // actual = realized completed revenue; estimated = open confirmed pipeline.
           estimatedBookedRevenue: 0,
           actualBookedRevenue: 0,
+          totalBookedAttributableValue: 0,
           estimatedRecoveredRevenue: 0,
           actualRecoveredRevenue: 0,
+          totalRecoveredAttributableValue: 0,
         });
       }
       return rows.get(key);
+    };
+
+    const applySnapshot = (target, row) => {
+      if (!target.sourceId) return;
+      if (target.name === "Unknown source" && row?.snapshotSourceName) {
+        target.name = row.snapshotSourceName;
+      }
+      if ((!target.channel || target.channel === "other") && row?.snapshotChannel) {
+        target.channel = row.snapshotChannel;
+      }
+      if (!target.campaign && row?.snapshotCampaign) {
+        target.campaign = row.snapshotCampaign;
+      }
     };
 
     for (const source of sourceDocuments) {
@@ -255,16 +364,49 @@ class RevenueRecoveryService {
         status: source.status,
       });
     }
-    for (const row of callRows) Object.assign(ensure(row._id), row);
-    for (const row of bookingRows) Object.assign(ensure(row._id), row);
-    for (const row of recoveredRows) Object.assign(ensure(row._id), row);
+    for (const row of callRows) {
+      const target = ensure(row._id);
+      Object.assign(target, {
+        totalCalls: row.totalCalls || 0,
+        answeredCalls: row.answeredCalls || 0,
+        missedCalls: row.missedCalls || 0,
+        recoveredCalls: row.recoveredCalls || 0,
+      });
+      applySnapshot(target, row);
+    }
+    for (const row of bookingRows) {
+      const target = ensure(row._id);
+      Object.assign(target, {
+        bookedJobs: row.bookedJobs || 0,
+        actualBookedRevenue: row.actualBookedRevenue || 0,
+        estimatedBookedRevenue: row.estimatedBookedRevenue || 0,
+        totalBookedAttributableValue: row.totalBookedAttributableValue || 0,
+      });
+      applySnapshot(target, row);
+    }
+    for (const row of recoveredRows.values()) {
+      const target = ensure(row._id);
+      Object.assign(target, {
+        recoveredBookedJobs: row.recoveredBookedJobs || 0,
+        actualRecoveredRevenue: row.actualRecoveredRevenue || 0,
+        estimatedRecoveredRevenue: row.estimatedRecoveredRevenue || 0,
+        totalRecoveredAttributableValue: row.totalRecoveredAttributableValue || 0,
+      });
+      applySnapshot(target, row);
+    }
 
     return [...rows.values()]
-      .filter((row) => row.sourceId || row.totalCalls || row.bookedJobs)
+      .filter(
+        (row) =>
+          row.totalCalls ||
+          row.bookedJobs ||
+          row.recoveredBookedJobs ||
+          (row.sourceId && row.status !== "archived"),
+      )
       .sort(
         (left, right) =>
           right.totalCalls - left.totalCalls ||
-          right.actualBookedRevenue - left.actualBookedRevenue,
+          right.totalBookedAttributableValue - left.totalBookedAttributableValue,
       );
   }
 
