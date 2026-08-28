@@ -1,23 +1,42 @@
-node_modules
+node_modules/
 .vscode/
-build
+build/
+
+# Environment / secrets
 .env
 .env.voice-load
 .env.*
 !.env.example
+.env.backup.*
+
+# Local editor / lint config
 .eslintrc.json
 
+# CallBackIQ local backups
 .callbackiq-backups/
 .callbackiq-fix-backups/
 .callbackiq-phase9-backup/
-*.bak
-*.backup
-*.backup-*
 .callbackiq-*-backup*/
 .callbackiq-*-backups*/
+.callbackiq-*backup*
 .callbackiq-security-hardening-backup-v1/
+
+# Generic backup / temporary files
+*.bak
+*.bak-*
+*.backup
+*.backup-*
+*.before-*
+*.orig
+*.rej
+*~
+*.tmp
+
+# Coverage / generated output
 coverage/
 conversation-test-error.log
+
+# Package/source snapshots
 package.json.before-*
 .callbackiq-trial-abuse-hardening-last-backup.json
 
@@ -27,6 +46,12 @@ atlanta-tracking-number-backup-*.json
 .env.backup.*
 
 # Local load-test output
-callbackiq_load_harness/reports/*.json*.before-*
+callbackiq_load_harness/reports/
+callbackiq_load_harness/*.before-*
 voice-relay-load-*.json
 voice-webhook-load-*.json
+
+# Local performance / certification reports
+voice-concurrency-certification-*.json
+# Generated benchmark / certification output
+# Local source backups / temporary patch artifacts
