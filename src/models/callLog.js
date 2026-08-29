@@ -164,6 +164,17 @@ const CallLogSchema = new Schema(
       maxlength: 2000,
       default: "",
     },
+
+    // CALLBACKIQ_ATTRIBUTION_10OF10_FULL_V2: operational soft deletion.
+    // Historical attribution reports intentionally retain these records.
+    deletedAt: { type: Date, default: null, index: true },
+    deletedBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    deletionReason: {
+      type: String,
+      trim: true,
+      maxlength: 500,
+      default: "",
+    },
   },
   {
     timestamps: true,
@@ -177,6 +188,8 @@ CallLogSchema.index({
   business: 1,
   createdAt: -1,
 });
+// CALLBACKIQ_ATTRIBUTION_10OF10_FULL_V2: operational call-history paging.
+CallLogSchema.index({ business: 1, deletedAt: 1, createdAt: -1 });
 
 /*
  * Supports filtering calls by answered, missed, busy, no_answer, and

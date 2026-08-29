@@ -22,6 +22,14 @@ router
     LeadController.getMyLeads,
   );
 
+router.get(
+  "/page",
+  checkAuth,
+  checkActiveBusiness,
+  checkSubscription,
+  LeadController.getMyLeadsOverview,
+);
+
 router.patch(
   "/:id/status",
   checkAuth,

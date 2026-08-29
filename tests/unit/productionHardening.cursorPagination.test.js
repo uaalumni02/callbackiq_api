@@ -67,7 +67,11 @@ describe("cursor pagination", () => {
     expect(Lead.find).toHaveBeenLastCalledWith(
       expect.objectContaining({
         business: "biz",
-        $or: expect.any(Array),
+        $and: expect.arrayContaining([
+          expect.objectContaining({
+            $or: expect.any(Array),
+          }),
+        ]),
       }),
     );
   });

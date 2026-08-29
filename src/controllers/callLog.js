@@ -5,6 +5,12 @@ import Business from "../models/business.js";
 import CallLog from "../models/callLog.js";
 import callLogValidator from "../validator/callLog.js";
 import * as Response from "../helpers/response/response.js";
+import SocketService from "../services/socket.service.js";
+import {
+  getCallLogsOverview,
+  getCallLogsPage,
+  setPaginationHeaders,
+} from "../services/cursorPagination.service.js";
 
 const getBusinessForOwner = async (ownerId) => {
   return typeof Db.getBusinessScopeByOwner === "function"
@@ -80,11 +86,34 @@ class CallLogController {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      const callLogs = await Db.getCallLogsByBusiness(CallLog, business._id);
-
-      return Response.responseOk(res, callLogs, "Call logs fetched");
+      const page = await getCallLogsPage(business._id, req.query);
+      setPaginationHeaders(res, page);
+      return Response.responseOk(res, page.items, "Call logs fetched");
     } catch (error) {
       console.error("Error in getMyCallLogs:", error);
+      return Response.responseServerError(res);
+    }
+  }
+
+  static async getMyCallLogsOverview(req, res) {
+    try {
+      const ownerId = req.user?.userId;
+      if (!ownerId) {
+        return Response.responseBadAuth(res, "Not authenticated");
+      }
+
+      const business = await getBusinessForOwner(ownerId);
+      if (!business) {
+        return Response.responseInvalidInput(res, "Business not found");
+      }
+
+      const data = await getCallLogsOverview(business._id, req.query);
+      return Response.responseOk(res, data, "Call log page fetched");
+    } catch (error) {
+      console.error("Error in getMyCallLogsOverview:", error);
+      if (error?.code === "INVALID_CURSOR") {
+        return Response.responseInvalidInput(res, "Invalid pagination cursor");
+      }
       return Response.responseServerError(res);
     }
   }
@@ -110,7 +139,7 @@ class CallLogController {
 
       const callLog = await Db.getCallLogById(CallLog, id);
 
-      if (!callLog) {
+      if (!callLog || callLog.deletedAt) {
         return Response.responseInvalidInput(res, "Call log not found");
       }
 
@@ -148,7 +177,7 @@ class CallLogController {
 
       const callLog = await Db.getCallLogById(CallLog, id);
 
-      if (!callLog) {
+      if (!callLog || callLog.deletedAt) {
         return Response.responseInvalidInput(res, "Call log not found");
       }
 
@@ -198,7 +227,7 @@ class CallLogController {
 
       const callLog = await Db.getCallLogById(CallLog, id);
 
-      if (!callLog) {
+      if (!callLog || callLog.deletedAt) {
         return Response.responseInvalidInput(res, "Call log not found");
       }
 
@@ -206,11 +235,33 @@ class CallLogController {
         return Response.responseBadAuth(res, "You cannot delete this call log");
       }
 
-      await deleteCallLogForBusiness(id, business._id);
+      // CALLBACKIQ_ATTRIBUTION_10OF10_FULL_V2:
+      // Hide the operational record without destroying attribution history.
+      const deleted = await CallLog.findOneAndUpdate(
+        { _id: id, business: business._id, deletedAt: null },
+        {
+          $set: {
+            deletedAt: new Date(),
+            deletedBy: ownerId,
+            deletionReason: "Deleted from Call Activity",
+          },
+        },
+        { returnDocument: "after" },
+      );
+
+      if (!deleted) {
+        return Response.responseInvalidInput(res, "Call log not found");
+      }
+
+      SocketService.emitToBusiness(business._id, "call:deleted", {
+        callId: id,
+        deletedAt: deleted.deletedAt,
+      });
+      SocketService.emitDashboardRefresh(business._id, "call_log_hidden");
 
       return res.status(200).json({
         success: true,
-        message: "Call log deleted successfully",
+        message: "Call log hidden successfully",
       });
     } catch (error) {
       console.error("Error in deleteCallLog:", error);

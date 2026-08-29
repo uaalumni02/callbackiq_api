@@ -74,6 +74,14 @@ const ConversionEventSchema = new Schema(
 );
 
 ConversionEventSchema.index({ business: 1, occurredAt: -1, type: 1 });
+// CALLBACKIQ_ATTRIBUTION_10OF10_FULL_V2: equality fields precede the range field.
+ConversionEventSchema.index({ business: 1, type: 1, occurredAt: -1 });
+ConversionEventSchema.index({
+  business: 1,
+  marketingSource: 1,
+  type: 1,
+  occurredAt: -1,
+});
 ConversionEventSchema.index({ business: 1, lead: 1, occurredAt: 1 });
 ConversionEventSchema.index({ business: 1, appointment: 1, occurredAt: 1 });
 ConversionEventSchema.index(

@@ -58,6 +58,27 @@ const LeadSchema = new Schema(
       default: "manual",
     },
     // CALLBACKIQ_MARKETING_ATTRIBUTION_V1: source above is operational channel, not marketing attribution.
+    // CALLBACKIQ_ATTRIBUTION_10OF10_FULL_V2:
+    // first* fields are immutable acquisition attribution; latest* fields are
+    // the most recent attributed interaction for this customer.
+    firstMarketingSource: {
+      type: Schema.Types.ObjectId,
+      ref: "MarketingSource",
+      default: null,
+    },
+    firstTrackingNumber: {
+      type: Schema.Types.ObjectId,
+      ref: "TrackingNumber",
+      default: null,
+    },
+    firstAttribution: {
+      sourceId: { type: String, trim: true, default: "" },
+      sourceName: { type: String, trim: true, default: "" },
+      channel: { type: String, trim: true, default: "" },
+      campaign: { type: String, trim: true, default: "" },
+      trackingNumberId: { type: String, trim: true, default: "" },
+      trackingNumber: { type: String, trim: true, default: "" },
+    },
     latestMarketingSource: {
       type: Schema.Types.ObjectId,
       ref: "MarketingSource",
@@ -145,6 +166,11 @@ LeadSchema.index({ business: 1, urgency: 1, createdAt: -1 });
 LeadSchema.index({ business: 1, leadQualityScore: -1, createdAt: -1 });
 LeadSchema.index({ business: 1, recovered: 1, bookedAt: -1 });
 LeadSchema.index({ business: 1, appointment: 1 });
+// CALLBACKIQ_ATTRIBUTION_10OF10_FULL_V2: analytics/reporting indexes.
+LeadSchema.index({ business: 1, firstRespondedAt: -1 });
+LeadSchema.index({ business: 1, qualifiedAt: -1 });
+LeadSchema.index({ business: 1, firstMarketingSource: 1, createdAt: -1 });
+LeadSchema.index({ business: 1, latestMarketingSource: 1, createdAt: -1 });
 
 LeadSchema.index(
   { business: 1, phoneLookup: 1 },
