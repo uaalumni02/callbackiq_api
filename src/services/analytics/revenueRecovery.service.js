@@ -61,8 +61,33 @@ class RevenueRecoveryService {
           $group: {
             _id: null,
             count: { $sum: 1 },
-            estimated: { $sum: "$estimatedValue" },
-            actual: { $sum: "$actualRevenue" },
+            estimated: {
+              $sum: {
+                $cond: [{ $eq: ["$status", "confirmed"] }, "$estimatedValue", 0],
+              },
+            },
+            actual: {
+              $sum: {
+                $cond: [{ $eq: ["$status", "completed"] }, "$actualRevenue", 0],
+              },
+            },
+            attributable: {
+              $sum: {
+                $switch: {
+                  branches: [
+                    {
+                      case: { $eq: ["$status", "completed"] },
+                      then: "$actualRevenue",
+                    },
+                    {
+                      case: { $eq: ["$status", "confirmed"] },
+                      then: "$estimatedValue",
+                    },
+                  ],
+                  default: 0,
+                },
+              },
+            },
           },
         },
       ]),
@@ -72,8 +97,27 @@ class RevenueRecoveryService {
           $group: {
             _id: null,
             count: { $sum: 1 },
-            estimated: { $sum: "$estimatedValue" },
+            // Open pipeline only: once actual revenue exists, do not also count
+            // the estimate for the same recovered job.
+            estimated: {
+              $sum: {
+                $cond: [
+                  { $ne: ["$completedAt", null] },
+                  0,
+                  "$estimatedValue",
+                ],
+              },
+            },
             actual: { $sum: "$actualRevenue" },
+            attributable: {
+              $sum: {
+                $cond: [
+                  { $ne: ["$completedAt", null] },
+                  "$actualRevenue",
+                  "$estimatedValue",
+                ],
+              },
+            },
           },
         },
       ]),
@@ -90,8 +134,18 @@ class RevenueRecoveryService {
       ]),
     ]);
 
-    const appointmentSummary = booked[0] || { count: 0, estimated: 0, actual: 0 };
-    const recoveredSummary = recovered[0] || { count: 0, estimated: 0, actual: 0 };
+    const appointmentSummary = booked[0] || {
+      count: 0,
+      estimated: 0,
+      actual: 0,
+      attributable: 0,
+    };
+    const recoveredSummary = recovered[0] || {
+      count: 0,
+      estimated: 0,
+      actual: 0,
+      attributable: 0,
+    };
 
     return {
       missedCalls,
@@ -110,8 +164,10 @@ class RevenueRecoveryService {
       ),
       estimatedRecoveredRevenue: recoveredSummary.estimated || 0,
       actualRecoveredRevenue: recoveredSummary.actual || 0,
+      totalRecoveredAttributableValue: recoveredSummary.attributable || 0,
       estimatedBookedRevenue: appointmentSummary.estimated || 0,
       actualBookedRevenue: appointmentSummary.actual || 0,
+      totalBookedAttributableValue: appointmentSummary.attributable || 0,
       averageFirstResponseSeconds: Math.round(responseTiming[0]?.average || 0),
       startDate: start.toISOString(),
       endDate: end.toISOString(),
@@ -119,22 +175,122 @@ class RevenueRecoveryService {
   }
 
   static async trends({ businessId, startDate, endDate }) {
+    // CALLBACKIQ_ATTRIBUTION_10OF10_FULL_V2:
+    // Return the exact daily contract consumed by RevenueRecovery.js. We use
+    // authoritative collections instead of assuming every lifecycle stage has
+    // a ConversionEvent.
     const { start, end } = getRange({ startDate, endDate });
-    return ConversionEvent.aggregate([
-      { $match: { business: businessId, occurredAt: { $gte: start, $lte: end } } },
-      {
-        $group: {
-          _id: {
-            date: { $dateToString: { format: "%Y-%m-%d", date: "$occurredAt" } },
-            type: "$type",
+    const dateFilter = { $gte: start, $lte: end };
+    const missedStatuses = ["missed", "voicemail", "failed", "busy", "no_answer"];
+    const dayGroup = (dateExpression) => ({
+      $dateToString: { format: "%Y-%m-%d", date: dateExpression },
+    });
+
+    const [missedRows, qualifiedRows, bookedRows, recoveredRows] =
+      await Promise.all([
+        CallLog.aggregate([
+          {
+            $match: {
+              business: businessId,
+              status: { $in: missedStatuses },
+              createdAt: dateFilter,
+            },
           },
-          count: { $sum: 1 },
-          estimatedValue: { $sum: "$estimatedValue" },
-          actualRevenue: { $sum: "$actualRevenue" },
-        },
-      },
-      { $sort: { "_id.date": 1 } },
-    ]);
+          {
+            $group: {
+              _id: dayGroup("$createdAt"),
+              missedCalls: { $sum: 1 },
+            },
+          },
+        ]),
+        Lead.aggregate([
+          {
+            $match: {
+              business: businessId,
+              qualifiedAt: dateFilter,
+            },
+          },
+          {
+            $group: {
+              _id: dayGroup("$qualifiedAt"),
+              qualifiedLeads: { $sum: 1 },
+            },
+          },
+        ]),
+        Appointment.aggregate([
+          {
+            $match: {
+              business: businessId,
+              status: { $in: ["confirmed", "completed", "no_show"] },
+              confirmedAt: dateFilter,
+            },
+          },
+          {
+            $group: {
+              _id: dayGroup("$confirmedAt"),
+              appointmentsBooked: { $sum: 1 },
+            },
+          },
+        ]),
+        Lead.aggregate([
+          {
+            $match: {
+              business: businessId,
+              recovered: true,
+              bookedAt: dateFilter,
+            },
+          },
+          {
+            $group: {
+              _id: dayGroup("$bookedAt"),
+              recoveredLeads: { $sum: 1 },
+              estimatedRecoveredRevenue: {
+                $sum: {
+                  $cond: [
+                    { $ne: ["$completedAt", null] },
+                    0,
+                    "$estimatedValue",
+                  ],
+                },
+              },
+              actualRecoveredRevenue: { $sum: "$actualRevenue" },
+            },
+          },
+        ]),
+      ]);
+
+    const rows = new Map();
+    const ensure = (period) => {
+      if (!rows.has(period)) {
+        rows.set(period, {
+          _id: period,
+          period,
+          missedCalls: 0,
+          qualifiedLeads: 0,
+          appointmentsBooked: 0,
+          recoveredLeads: 0,
+          estimatedRecoveredRevenue: 0,
+          actualRecoveredRevenue: 0,
+        });
+      }
+      return rows.get(period);
+    };
+
+    for (const sourceRows of [
+      missedRows,
+      qualifiedRows,
+      bookedRows,
+      recoveredRows,
+    ]) {
+      for (const row of sourceRows) {
+        if (!row?._id) continue;
+        Object.assign(ensure(row._id), row, { _id: row._id, period: row._id });
+      }
+    }
+
+    return [...rows.values()].sort((left, right) =>
+      String(left.period).localeCompare(String(right.period)),
+    );
   }
 
   static async sources({ businessId, startDate, endDate }) {

@@ -11,6 +11,11 @@ router
   .post(checkAuth, checkSubscription, CallLogController.createCallLog)
   .get(checkAuth, checkSubscription, CallLogController.getMyCallLogs);
 
+router.get(
+  "/page",
+  checkAuth, checkSubscription, CallLogController.getMyCallLogsOverview
+);
+
 router
   .route("/:id")
   .get(checkAuth, checkSubscription, CallLogController.getCallLogById)

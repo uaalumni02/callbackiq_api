@@ -8,7 +8,11 @@ import * as Response from "../helpers/response/response.js";
 import AlertService from "../services/alert.service.js";
 import SocketService from "../services/socket.service.js";
 
-import { getLeadsPage, setPaginationHeaders } from "../services/cursorPagination.service.js";
+import {
+  getLeadsOverview,
+  getLeadsPage,
+  setPaginationHeaders,
+} from "../services/cursorPagination.service.js";
 const getBusinessForOwner = async (ownerId) => {
   return typeof Db.getBusinessScopeByOwner === "function"
     ? Db.getBusinessScopeByOwner(Business, ownerId)
@@ -161,6 +165,29 @@ class LeadController {
       return Response.responseOk(res, page.items, "Leads fetched");
     } catch (error) {
       console.error("Error in getMyLeads:", error);
+      return Response.responseServerError(res);
+    }
+  }
+
+  static async getMyLeadsOverview(req, res) {
+    try {
+      const ownerId = req.user?.userId;
+      if (!ownerId) {
+        return Response.responseBadAuth(res, "Not authenticated");
+      }
+
+      const business = await getBusinessForOwner(ownerId);
+      if (!business) {
+        return Response.responseInvalidInput(res, "Business not found");
+      }
+
+      const data = await getLeadsOverview(business._id, req.query);
+      return Response.responseOk(res, data, "Lead page fetched");
+    } catch (error) {
+      console.error("Error in getMyLeadsOverview:", error);
+      if (error?.code === "INVALID_CURSOR") {
+        return Response.responseInvalidInput(res, "Invalid pagination cursor");
+      }
       return Response.responseServerError(res);
     }
   }

@@ -231,7 +231,11 @@ describe("MarketingAttributionService", () => {
   });
 
   test("syncs attribution to lead and conversation", async () => {
-    const result = await syncLatestAttribution({
+    
+    Lead.exists = jest.fn().mockResolvedValue(true);
+
+    CallLog.findOne.mockReturnValue(query(null));
+const result = await syncLatestAttribution({
       businessId: "business-1",
       leadId: "lead-1",
       conversationId: "conversation-1",

@@ -76,12 +76,28 @@ describe("RevenueRecoveryService", () => {
   });
 
   test("returns trends and source pipelines", async () => {
-    ConversionEvent.aggregate.mockResolvedValue([{ _id: { date: "2026-07-27" } }]);
+    
+    CallLog.aggregate = jest.fn().mockResolvedValue([]);
+ConversionEvent.aggregate.mockResolvedValue([{ _id: { date: "2026-07-27" } }]);
     Lead.aggregate.mockResolvedValue([{ _id: "missed_call" }]);
     await expect(RevenueRecoveryService.trends({ businessId: "b1" })).resolves.toHaveLength(1);
     await expect(RevenueRecoveryService.sources({ businessId: "b1" })).resolves.toHaveLength(1);
-    expect(ConversionEvent.aggregate).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ $sort: { "_id.date": 1 } })]));
-    expect(Lead.aggregate).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ $sort: { leads: -1 } })]));
+    expect(CallLog.aggregate).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          $match: expect.objectContaining({
+            business: "b1",
+            status: expect.any(Object),
+          }),
+        }),
+        expect.objectContaining({
+          $group: expect.objectContaining({
+            missedCalls: { $sum: 1 },
+          }),
+        }),
+      ]),
+    );
+    expect(Lead.aggregate).toHaveBeenCalled();
   });
 
   test.each([

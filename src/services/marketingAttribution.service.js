@@ -81,16 +81,64 @@ export const syncLatestAttribution = async ({
 
   if (leadId) {
     tasks.push(
-      Lead.updateOne(
-        { _id: leadId, business: businessId },
-        {
-          $set: {
-            latestMarketingSource: marketingSource?._id || null,
-            latestTrackingNumber: trackingNumber?._id || null,
-            latestAttribution: attribution,
+      (async () => {
+        // CALLBACKIQ_ATTRIBUTION_10OF10_FULL_V2: first touch is write-once.
+        // For pre-upgrade leads, derive it from the earliest attributed CallLog
+        // instead of incorrectly treating the newest interaction as acquisition.
+        if (trackingNumber?._id) {
+          const firstTouchMissing = await Lead.exists({
+            _id: leadId,
+            business: businessId,
+            $or: [
+              { firstTrackingNumber: null },
+              { firstTrackingNumber: { $exists: false } },
+            ],
+          });
+
+          if (firstTouchMissing) {
+            const earliestCall = await CallLog.findOne({
+              business: businessId,
+              lead: leadId,
+              trackingNumber: { $ne: null },
+            })
+              .sort({ createdAt: 1, _id: 1 })
+              .select("marketingSource trackingNumber attribution")
+              .lean();
+
+            await Lead.updateOne(
+              {
+                _id: leadId,
+                business: businessId,
+                $or: [
+                  { firstTrackingNumber: null },
+                  { firstTrackingNumber: { $exists: false } },
+                ],
+              },
+              {
+                $set: {
+                  firstMarketingSource:
+                    earliestCall?.marketingSource || marketingSource?._id || null,
+                  firstTrackingNumber:
+                    earliestCall?.trackingNumber || trackingNumber._id,
+                  firstAttribution:
+                    earliestCall?.attribution || attribution,
+                },
+              },
+            );
+          }
+        }
+
+        return Lead.updateOne(
+          { _id: leadId, business: businessId },
+          {
+            $set: {
+              latestMarketingSource: marketingSource?._id || null,
+              latestTrackingNumber: trackingNumber?._id || null,
+              latestAttribution: attribution,
+            },
           },
-        },
-      ),
+        );
+      })(),
     );
   }
 
