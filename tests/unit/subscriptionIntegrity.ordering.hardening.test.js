@@ -136,7 +136,7 @@ describe("subscription integrity ordering and invoice guards", () => {
         customer: "cus-1",
         subscription: "sub-B",
         billing_reason: "subscription_cycle",
-        amount_due: 19900,
+        amount_due: 9900,
       },
       eventId: "evt-1",
     });
@@ -158,7 +158,7 @@ describe("subscription integrity ordering and invoice guards", () => {
         customer: "cus-1",
         subscription: "sub-A",
         billing_reason: "subscription_update",
-        amount_paid: 19900,
+        amount_paid: 9900,
       },
       eventId: "evt-update",
     });

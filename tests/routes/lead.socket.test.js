@@ -93,7 +93,7 @@ describe("Lead Socket.IO route integration", () => {
       business: business._id,
       plan: "pro",
       status: "active",
-      priceMonthly: 199,
+      priceMonthly: 99,
       aiEnabled: true,
       isActive: true,
       cancelAtPeriodEnd: false,

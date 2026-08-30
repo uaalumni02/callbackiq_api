@@ -2,7 +2,7 @@ import Subscription from "../../models/subscription.js";
 import TrialRedemption from "../../models/trialRedemption.js";
 
 export const TRIAL_DAYS = 14;
-export const TRIAL_PRICE_MONTHLY = 199;
+export const TRIAL_PRICE_MONTHLY = 99;
 export const TRIAL_DENIED_ALREADY_USED = "trial_already_used";
 export const TRIAL_DENIED_MISSING_EMAIL = "missing_email";
 export const TRIAL_DENIED_DISPOSABLE_EMAIL = "disposable_email";

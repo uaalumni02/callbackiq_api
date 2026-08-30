@@ -202,7 +202,7 @@ describe("billing checkout confirmation and access routes", () => {
             trialCount: 1,
             currentPeriodStart: trialStartedAt,
             currentPeriodEnd: trialEndsAt,
-            priceMonthly: 199,
+            priceMonthly: 99,
             isActive: true,
             aiEnabled: true,
           },
