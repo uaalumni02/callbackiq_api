@@ -8,6 +8,7 @@ const router = express.Router();
 router.use(checkAuth, checkSubscription);
 
 router.get("/", MarketingAttributionController.list);
+router.get("/report", MarketingAttributionController.report);
 router.post("/", MarketingAttributionController.create);
 router.patch("/:id", MarketingAttributionController.update);
 router.post("/:id/tracking-number", MarketingAttributionController.provisionNumber);

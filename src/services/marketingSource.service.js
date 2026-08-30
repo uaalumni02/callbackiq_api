@@ -5,7 +5,6 @@ import MarketingSource, {
 } from "../models/marketingSource.js";
 import Subscription from "../models/subscription.js";
 import TrackingNumber from "../models/trackingNumber.js";
-import { attachPhoneNumberToBusinessMessagingRegistration } from "./a2pMessagingRegistration.service.js";
 import {
   acquireOperationLease,
   releaseOperationLease,
@@ -76,17 +75,6 @@ const loadBusiness = async (businessId) =>
     "+messagingCompliance.messagingServiceSid +trackingNumber.providerSid",
   );
 
-const requirePaidPlan = async (businessId) => {
-  const subscription = await Subscription.findOne({ business: businessId }).lean();
-  if (!subscription?.isActive || subscription.status !== "active") {
-    throw sourceError(
-      "PAID_PLAN_REQUIRED_FOR_SOURCE_NUMBERS",
-      "Additional marketing source numbers are available after the paid Pro plan is active. You can configure source labels during the trial.",
-      402,
-    );
-  }
-  return subscription;
-};
 
 export const listMarketingSources = async ({ businessId }) => {
   const [sources, numbers, subscription, business] = await Promise.all([
@@ -132,6 +120,7 @@ export const listMarketingSources = async ({ businessId }) => {
       remainingAdditionalNumbers: Math.max(0, limit - activeAdditionalNumbers),
       paidPlanActive:
         subscription?.isActive === true && subscription?.status === "active",
+      attributionOnlyAvailable: true,
       primaryNumberActive:
         business?.isActive !== false &&
         business?.trackingNumber?.status === "active" &&
@@ -191,6 +180,9 @@ export const updateMarketingSource = async ({
 }) => {
   const allowed = {};
   if (updates.name !== undefined) allowed.name = String(updates.name || "").trim();
+  if (updates.monthlySpend !== undefined) {
+    allowed.monthlySpend = Math.max(0, Number(updates.monthlySpend) || 0);
+  }
   if (updates.campaign !== undefined) {
     allowed.campaign = String(updates.campaign || "").trim();
   }
@@ -251,25 +243,15 @@ export const provisionMarketingTrackingNumber = async ({
   }).select("-providerSid -phoneLookup");
   if (existing) return existing;
 
-  await requirePaidPlan(businessId);
-
   const business = await loadBusiness(businessId);
   if (!business || business.isActive === false) {
     throw sourceError("BUSINESS_NOT_FOUND", "Business not found.", 404);
   }
-  if (business.trackingNumber?.status !== "active" || !business.phone) {
+  if (!normalizePhoneToE164(business.forwardingPhone)) {
     throw sourceError(
-      "PRIMARY_TRACKING_NUMBER_REQUIRED",
-      "Activate the primary CallBackIQ number before adding marketing source numbers.",
-    );
-  }
-  if (
-    business.messagingCompliance?.a2pStatus !== "registered" ||
-    business.messagingCompliance?.smsReady !== true
-  ) {
-    throw sourceError(
-      "SMS_REGISTRATION_REQUIRED",
-      "Finish carrier messaging registration before adding a marketing source number so missed-call recovery works on that number.",
+      "FORWARDING_PHONE_REQUIRED",
+      "Add the business forwarding phone before assigning a marketing tracking number.",
+      409,
     );
   }
 
@@ -331,7 +313,6 @@ export const provisionMarketingTrackingNumber = async ({
       .availablePhoneNumbers("US")
       .local.list({
         ...(areaCode ? { areaCode } : {}),
-        smsEnabled: true,
         voiceEnabled: true,
         limit: 1,
       });
@@ -340,7 +321,7 @@ export const provisionMarketingTrackingNumber = async ({
     if (!selected) {
       throw sourceError(
         "NO_MARKETING_TRACKING_NUMBER_AVAILABLE",
-        "No SMS/voice-capable local tracking number is currently available.",
+        "No voice-capable local tracking number is currently available.",
         503,
       );
     }
@@ -362,20 +343,6 @@ export const provisionMarketingTrackingNumber = async ({
       throw sourceError(
         "TRACKING_NUMBER_PROVIDER_RESPONSE_INVALID",
         "Twilio did not return a phone-number identifier.",
-        502,
-      );
-    }
-
-    const a2pState = await attachPhoneNumberToBusinessMessagingRegistration({
-      client,
-      business,
-      phoneNumberSid: purchasedSid,
-    });
-
-    if (a2pState?.senderAttached === false) {
-      throw sourceError(
-        "MARKETING_NUMBER_SENDER_ATTACH_FAILED",
-        "The tracking number was purchased but could not be attached to the business messaging registration.",
         502,
       );
     }
@@ -417,10 +384,15 @@ export const provisionMarketingTrackingNumber = async ({
       provider: "twilio",
       providerSid: purchasedSid,
       status: "active",
+      callHandlingMode: "forward",
+      forwardingPhone: business.forwardingPhone || "",
       voiceEnabled: true,
-      smsEnabled: true,
-      senderAttached: true,
-      smsReady: true,
+      smsEnabled: false,
+      smsRecoveryEnabled: false,
+      voiceAiEnabled: false,
+      recordingEnabled: false,
+      senderAttached: false,
+      smsReady: false,
       assignedAt: new Date(),
       activatedAt: new Date(),
     });

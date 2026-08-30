@@ -2,6 +2,7 @@ import Business from "../../src/models/business.js";
 import MarketingSource from "../../src/models/marketingSource.js";
 import Subscription from "../../src/models/subscription.js";
 import TrackingNumber from "../../src/models/trackingNumber.js";
+import { getTwilioClient } from "../../src/services/twilioSmsService.js";
 
 import {
   createMarketingSource,
@@ -43,6 +44,7 @@ jest.mock("../../src/models/trackingNumber.js", () => ({
     find: jest.fn(),
     findOne: jest.fn(),
     countDocuments: jest.fn(),
+    exists: jest.fn(),
     create: jest.fn(),
   },
 }));
@@ -91,6 +93,8 @@ describe("MarketingSourceService", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     process.env.ATTRIBUTION_INCLUDED_SOURCE_NUMBERS = "3";
+    process.env.TWILIO_WEBHOOK_BASE_URL =
+      "https://api.callbackiq.test";
   });
 
   test("lists sources and number limits", async () => {
@@ -308,29 +312,114 @@ describe("MarketingSourceService", () => {
     expect(Subscription.findOne).not.toHaveBeenCalled();
   });
 
-  test("requires paid plan for additional source number", async () => {
+  test("provisions attribution-only source number without paid plan or A2P", async () => {
     MarketingSource.findOne.mockResolvedValue({
       _id: "source-1",
       name: "Google Ads",
     });
 
-    TrackingNumber.findOne.mockReturnValue(selectPromise(null));
+    TrackingNumber.findOne.mockReturnValue(
+      selectPromise(null),
+    );
+    TrackingNumber.countDocuments.mockResolvedValue(0);
+    TrackingNumber.exists.mockResolvedValue(null);
 
-    Subscription.findOne.mockReturnValue(
-      chain({
+    Business.findById.mockReturnValue(
+      selectPromise({
+        _id: "business-1",
         isActive: true,
-        status: "trialing",
+        forwardingPhone: "+14045550100",
       }),
     );
 
-    await expect(
-      provisionMarketingTrackingNumber({
+    const listAvailableNumbers = jest
+      .fn()
+      .mockResolvedValue([
+        { phoneNumber: "+14045550123" },
+      ]);
+
+    const createIncomingNumber = jest
+      .fn()
+      .mockResolvedValue({
+        sid: "PN_MARKETING_1",
+        phoneNumber: "+14045550123",
+      });
+
+    const incomingPhoneNumbers = jest.fn();
+    incomingPhoneNumbers.create =
+      createIncomingNumber;
+
+    const availablePhoneNumbers = jest
+      .fn()
+      .mockReturnValue({
+        local: {
+          list: listAvailableNumbers,
+        },
+      });
+
+    getTwilioClient.mockReturnValue({
+      availablePhoneNumbers,
+      incomingPhoneNumbers,
+    });
+
+    TrackingNumber.create.mockResolvedValue({
+      _id: "number-1",
+      business: "business-1",
+      marketingSource: "source-1",
+      phoneNumber: "+14045550123",
+      kind: "marketing",
+      callHandlingMode: "forward",
+      voiceEnabled: true,
+      smsEnabled: false,
+      smsRecoveryEnabled: false,
+      voiceAiEnabled: false,
+      senderAttached: false,
+      smsReady: false,
+      status: "active",
+    });
+
+    const result =
+      await provisionMarketingTrackingNumber({
         businessId: "business-1",
         sourceId: "source-1",
-      }),
-    ).rejects.toMatchObject({
-      code: "PAID_PLAN_REQUIRED_FOR_SOURCE_NUMBERS",
-      statusCode: 402,
+      });
+
+    expect(result).toMatchObject({
+      _id: "number-1",
+      callHandlingMode: "forward",
+      smsEnabled: false,
+      smsRecoveryEnabled: false,
+      voiceAiEnabled: false,
     });
+
+    expect(Subscription.findOne).not.toHaveBeenCalled();
+
+    expect(listAvailableNumbers).toHaveBeenCalledWith(
+      expect.objectContaining({
+        voiceEnabled: true,
+        limit: 1,
+      }),
+    );
+
+    expect(
+      listAvailableNumbers.mock.calls[0][0],
+    ).not.toHaveProperty("smsEnabled");
+
+    expect(TrackingNumber.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        business: "business-1",
+        marketingSource: "source-1",
+        kind: "marketing",
+        callHandlingMode: "forward",
+        forwardingPhone: "+14045550100",
+        voiceEnabled: true,
+        smsEnabled: false,
+        smsRecoveryEnabled: false,
+        voiceAiEnabled: false,
+        recordingEnabled: false,
+        senderAttached: false,
+        smsReady: false,
+      }),
+    );
   });
 });

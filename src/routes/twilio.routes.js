@@ -12,6 +12,7 @@ import {
 } from "../middleware/twilio-webhook-rate-limit.js";
 import TwilioController from "../controllers/twilio.js";
 import VoiceWebhookController from "../controllers/voiceWebhook.js";
+import TrackingVoiceController from "../controllers/trackingVoice.controller.js";
 
 const router = express.Router();
 
@@ -24,8 +25,17 @@ router.post(
   "/voice",
   validateTwilioSignature,
   twilioVoiceWebhookRateLimit,
+  TrackingVoiceController.initial,
   VoiceWebhookController.initial,
 );
+router.post(
+  "/tracking-call-complete",
+  validateTwilioSignature,
+  twilioVoiceWebhookRateLimit,
+  TrackingVoiceController.complete,
+  VoiceWebhookController.initial,
+);
+
 router.post(
   "/voice-overflow",
   validateTwilioSignature,

@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import mongoose from "mongoose";
 // CALLBACKIQ_MARKETING_ATTRIBUTION_V1
 import Business from "../models/business.js";
 import CallLog from "../models/callLog.js";
@@ -5,6 +7,7 @@ import Conversation from "../models/conversation.js";
 import Lead from "../models/lead.js";
 import MarketingSource from "../models/marketingSource.js";
 import TrackingNumber from "../models/trackingNumber.js";
+import AttributionTouch from "../models/attributionTouch.js";
 import { normalizePhoneToE164 } from "../voice/voicePhone.service.js";
 
 export const buildAttributionSnapshot = ({
@@ -60,6 +63,18 @@ export const resolveTrackingNumberContext = async (
   };
 };
 
+const trackingAttributionTouchId = ({ businessId, callLogId }) => {
+  const digest = createHash("sha256")
+    .update(
+      `${String(businessId)}:${String(callLogId)}:tracking_number`,
+      "utf8",
+    )
+    .digest("hex")
+    .slice(0, 24);
+
+  return new mongoose.Types.ObjectId(digest);
+};
+
 export const syncLatestAttribution = async ({
   businessId,
   leadId = null,
@@ -67,6 +82,7 @@ export const syncLatestAttribution = async ({
   trackingNumber = null,
   marketingSource = null,
   calledPhone = "",
+  callLogId = null,
 }) => {
   const attribution = buildAttributionSnapshot({
     marketingSource,
@@ -159,6 +175,42 @@ export const syncLatestAttribution = async ({
   }
 
   await Promise.all(tasks);
+
+  /*
+   * Immutable call-scoped evidence. Twilio can retry webhooks, so use a
+   * deterministic ID and $setOnInsert rather than inserting duplicate rows.
+   */
+  if (
+    (trackingNumber?._id || marketingSource?._id) &&
+    callLogId
+  ) {
+    const touchId = trackingAttributionTouchId({
+      businessId,
+      callLogId,
+    });
+
+    await AttributionTouch.updateOne(
+      { _id: touchId },
+      {
+        $setOnInsert: {
+          _id: touchId,
+          business: businessId,
+          lead: leadId || null,
+          conversation: conversationId || null,
+          callLog: callLogId,
+          marketingSource: marketingSource?._id || null,
+          trackingNumber: trackingNumber?._id || null,
+          source: attribution.sourceName,
+          campaign: attribution.campaign,
+          method: "tracking_number",
+          confidence: "high",
+          occurredAt: new Date(),
+        },
+      },
+      { upsert: true },
+    );
+  }
+
   return attribution;
 };
 

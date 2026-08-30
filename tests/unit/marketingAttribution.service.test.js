@@ -4,6 +4,7 @@ import Conversation from "../../src/models/conversation.js";
 import Lead from "../../src/models/lead.js";
 import MarketingSource from "../../src/models/marketingSource.js";
 import TrackingNumber from "../../src/models/trackingNumber.js";
+import AttributionTouch from "../../src/models/attributionTouch.js";
 import { normalizePhoneToE164 } from "../../src/voice/voicePhone.service.js";
 
 import {
@@ -49,6 +50,11 @@ jest.mock("../../src/models/trackingNumber.js", () => ({
   default: { findOne: jest.fn() },
 }));
 
+jest.mock("../../src/models/attributionTouch.js", () => ({
+  __esModule: true,
+  default: { updateOne: jest.fn() },
+}));
+
 jest.mock("../../src/voice/voicePhone.service.js", () => ({
   __esModule: true,
   normalizePhoneToE164: jest.fn(),
@@ -73,6 +79,10 @@ describe("MarketingAttributionService", () => {
 
     Lead.updateOne.mockResolvedValue({ acknowledged: true });
     Conversation.updateOne.mockResolvedValue({ acknowledged: true });
+    AttributionTouch.updateOne.mockResolvedValue({
+      acknowledged: true,
+      upsertedCount: 1,
+    });
   });
 
   test("builds attribution snapshot", () => {
@@ -237,6 +247,7 @@ describe("MarketingAttributionService", () => {
     CallLog.findOne.mockReturnValue(query(null));
 const result = await syncLatestAttribution({
       businessId: "business-1",
+      callLogId: "507f1f77bcf86cd799439090",
       leadId: "lead-1",
       conversationId: "conversation-1",
       marketingSource: {
@@ -261,6 +272,37 @@ const result = await syncLatestAttribution({
           latestMarketingSource: "source-1",
         }),
       },
+    );
+  });
+
+  test("uses the same immutable attribution touch id for repeated sync of one call", async () => {
+    const args = {
+      businessId: "business-1",
+      callLogId: "507f1f77bcf86cd799439090",
+      marketingSource: {
+        _id: "source-1",
+        name: "Google Ads",
+        channel: "google_ads",
+        campaign: "Emergency Plumbing",
+      },
+      trackingNumber: {
+        _id: "number-1",
+        phoneNumber: "+14045550123",
+      },
+    };
+
+    await syncLatestAttribution(args);
+    await syncLatestAttribution(args);
+
+    expect(AttributionTouch.updateOne).toHaveBeenCalledTimes(2);
+
+    const firstFilter =
+      AttributionTouch.updateOne.mock.calls[0][0];
+    const secondFilter =
+      AttributionTouch.updateOne.mock.calls[1][0];
+
+    expect(String(firstFilter._id)).toBe(
+      String(secondFilter._id),
     );
   });
 

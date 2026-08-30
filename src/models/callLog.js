@@ -79,6 +79,29 @@ const CallLogSchema = new Schema(
       min: 0,
     },
 
+    /*
+     * Keep provider lifecycle state separate from the business outcome.
+     * A parent Twilio call completing does not prove the business answered.
+     */
+    providerStatus: { type: String, trim: true, default: "" },
+    destinationCallSid: { type: String, trim: true, default: "" },
+    disposition: {
+      type: String,
+      enum: [
+        "routing",
+        "answered_by_business",
+        "answered_by_ai",
+        "missed",
+        "busy",
+        "no_answer",
+        "failed",
+        "voicemail",
+      ],
+      default: "routing",
+      index: true,
+    },
+    answeredAt: { type: Date, default: null },
+
     provider: {
       type: String,
       enum: ["manual", "twilio", "system"],

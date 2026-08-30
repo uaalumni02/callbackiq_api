@@ -8,6 +8,7 @@ import {
   releaseMarketingTrackingNumber,
   updateMarketingSource,
 } from "../services/marketingSource.service.js";
+import { getAttributionReport } from "../services/marketingAttributionReport.service.js";
 
 const ownedBusiness = (req) =>
   getOwnedBusiness({
@@ -23,6 +24,20 @@ const sendKnownError = (res, error) =>
   });
 
 class MarketingAttributionController {
+  static async report(req, res, next) {
+    try {
+      const business = await ownedBusiness(req);
+      const data = await getAttributionReport({
+        businessId: business._id,
+        start: req.query.start,
+        end: req.query.end,
+      });
+      return res.json({ success: true, data });
+    } catch (error) {
+      if (error?.statusCode) return sendKnownError(res, error);
+      return next(error);
+    }
+  }
   static async list(req, res, next) {
     try {
       const business = await ownedBusiness(req);

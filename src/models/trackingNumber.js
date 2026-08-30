@@ -53,8 +53,23 @@ const TrackingNumberSchema = new Schema(
       default: "pending",
       index: true,
     },
+    callHandlingMode: {
+      type: String,
+      enum: ["forward", "overflow", "ai"],
+      default: "forward",
+      index: true,
+    },
+    forwardingPhone: { type: String, trim: true, default: "" },
     voiceEnabled: { type: Boolean, default: true },
-    smsEnabled: { type: Boolean, default: true },
+    smsEnabled: {
+      type: Boolean,
+      default: function defaultSmsCapability() {
+        return this.kind === "marketing" ? false : true;
+      },
+    },
+    smsRecoveryEnabled: { type: Boolean, default: false },
+    voiceAiEnabled: { type: Boolean, default: false },
+    recordingEnabled: { type: Boolean, default: false },
     senderAttached: { type: Boolean, default: false },
     smsReady: { type: Boolean, default: false },
     assignedAt: { type: Date, default: Date.now },

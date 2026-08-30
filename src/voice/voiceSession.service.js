@@ -240,7 +240,9 @@ class VoiceSessionService {
           from: storedCaller,
           to: normalizedTo || business.phone,
           direction: "inbound",
-          status: "answered",
+          status: "missed",
+          disposition: "routing",
+          providerStatus: "ringing",
           durationSeconds: 0,
           provider: "twilio",
           providerCallId: providerCallSid,
@@ -265,6 +267,7 @@ class VoiceSessionService {
 
     if (numberContext?.marketingSource && numberContext?.trackingNumber) {
       await syncLatestAttribution({
+      callLogId: callLog?._id || null,
         businessId: business._id,
         leadId: lead._id,
         conversationId: conversation._id,
