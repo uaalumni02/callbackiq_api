@@ -24,6 +24,14 @@ const SubscriptionSchema = new Schema(
       index: true,
     },
 
+    // Snapshot of the Stripe Price attached to the canonical subscription.
+    // This keeps billing history truthful across future price changes.
+    stripePriceId: {
+      type: String,
+      default: "",
+      index: true,
+    },
+
     plan: {
       type: String,
       enum: ["starter", "pro", "agency"],
@@ -93,7 +101,7 @@ const SubscriptionSchema = new Schema(
 
     priceMonthly: {
       type: Number,
-      default: 199,
+      default: 99,
     },
 
     currentPeriodStart: {

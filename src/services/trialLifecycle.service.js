@@ -11,6 +11,7 @@ import {
   buildTrialIdentity,
   getTrialEligibility,
 } from "../helpers/billing/trial.js";
+import { getStripeSubscriptionPriceSnapshot } from "../helpers/billing/stripeSubscriptionPrice.js";
 import {
   provisionTrackingNumber,
   releaseTrackingNumber,
@@ -148,25 +149,37 @@ const buildTrialSubscriptionUpdate = ({
   plan,
   trialStartedAt,
   trialEndsAt,
-}) => ({
-  stripeCustomerId: stripeSubscription.customer || "",
-  stripeSubscriptionId: stripeSubscription.id || "",
-  checkoutSessionId,
-  latestInvoiceId: latestInvoiceId(stripeSubscription),
-  plan,
-  status: "trialing",
-  lastPaymentStatus: "trialing",
-  ...getPeriodDates(stripeSubscription),
-  trialStartedAt,
-  trialEndsAt,
-  trialUsedAt: existingSubscription?.trialUsedAt || trialStartedAt,
-  trialCount: Math.max(1, Number(existingSubscription?.trialCount || 0)),
-  cancelAtPeriodEnd: Boolean(stripeSubscription.cancel_at_period_end),
-  priceMonthly: TRIAL_PRICE_MONTHLY,
-  isActive: true,
-  aiEnabled: true,
-  trialNumberReleaseAt: null,
-});
+}) => {
+  const priceSnapshot = getStripeSubscriptionPriceSnapshot(
+    stripeSubscription,
+    {
+      fallbackPriceMonthly:
+        existingSubscription?.priceMonthly ?? TRIAL_PRICE_MONTHLY,
+      fallbackStripePriceId: existingSubscription?.stripePriceId || "",
+    },
+  );
+
+  return {
+    stripeCustomerId: stripeSubscription.customer || "",
+    stripeSubscriptionId: stripeSubscription.id || "",
+    stripePriceId: priceSnapshot.stripePriceId,
+    checkoutSessionId,
+    latestInvoiceId: latestInvoiceId(stripeSubscription),
+    plan,
+    status: "trialing",
+    lastPaymentStatus: "trialing",
+    ...getPeriodDates(stripeSubscription),
+    trialStartedAt,
+    trialEndsAt,
+    trialUsedAt: existingSubscription?.trialUsedAt || trialStartedAt,
+    trialCount: Math.max(1, Number(existingSubscription?.trialCount || 0)),
+    cancelAtPeriodEnd: Boolean(stripeSubscription.cancel_at_period_end),
+    priceMonthly: priceSnapshot.priceMonthly ?? TRIAL_PRICE_MONTHLY,
+    isActive: true,
+    aiEnabled: true,
+    trialNumberReleaseAt: null,
+  };
+};
 
 const isSameStripeTrialRedemption = ({
   redemption,
@@ -655,6 +668,7 @@ export const createSubscriptionCheckout = async ({
       $setOnInsert: { business: business._id },
       $set: {
         stripeCustomerId,
+        stripePriceId: priceId,
         checkoutSessionId: checkout.id,
         plan,
         status: "incomplete",
@@ -790,10 +804,18 @@ export const syncStripeSubscription = async ({
     status,
   );
   const current = await Subscription.findOne({ business: businessId });
+  const priceSnapshot = getStripeSubscriptionPriceSnapshot(
+    stripeSubscription,
+    {
+      fallbackPriceMonthly: current?.priceMonthly ?? TRIAL_PRICE_MONTHLY,
+      fallbackStripePriceId: current?.stripePriceId || "",
+    },
+  );
 
   const update = {
     stripeCustomerId: stripeSubscription?.customer || current?.stripeCustomerId || "",
     stripeSubscriptionId: stripeSubscription?.id || current?.stripeSubscriptionId || "",
+    stripePriceId: priceSnapshot.stripePriceId,
     checkoutSessionId: checkoutSessionId || current?.checkoutSessionId || "",
     latestInvoiceId: latestInvoiceId(stripeSubscription),
     plan,
@@ -805,7 +827,7 @@ export const syncStripeSubscription = async ({
     cancelAtPeriodEnd: Boolean(stripeSubscription?.cancel_at_period_end),
     isActive,
     aiEnabled: isActive,
-    priceMonthly: TRIAL_PRICE_MONTHLY,
+    priceMonthly: priceSnapshot.priceMonthly ?? TRIAL_PRICE_MONTHLY,
   };
 
   if (isActive) {

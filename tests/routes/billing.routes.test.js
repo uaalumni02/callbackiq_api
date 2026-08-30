@@ -92,8 +92,8 @@ const mockStripe = () => {
             id: "in_test_123",
             number: "INV-001",
             status: "paid",
-            amount_due: 19900,
-            amount_paid: 19900,
+            amount_due: 9900,
+            amount_paid: 9900,
             currency: "usd",
             hosted_invoice_url: "https://invoice.stripe.com/test",
             invoice_pdf: "https://invoice.stripe.com/test.pdf",
@@ -105,7 +105,7 @@ const mockStripe = () => {
       }),
 
       retrieveUpcoming: jest.fn().mockResolvedValue({
-        amount_due: 19900,
+        amount_due: 9900,
         currency: "usd",
         next_payment_attempt: 1712592000,
       }),
@@ -335,7 +335,7 @@ const markTrialSpent = async ({
       currentPeriodEnd: trialEndsAt,
       isActive: active,
       aiEnabled: active,
-      priceMonthly: 199,
+      priceMonthly: 99,
     },
     {
       upsert: true,
@@ -559,7 +559,7 @@ describe("Billing Routes", () => {
     expect(subscription.lastPaymentStatus).toBe("trial_checkout_started");
     expect(subscription.isActive).toBe(false);
     expect(subscription.aiEnabled).toBe(false);
-    expect(subscription.priceMonthly).toBe(199);
+    expect(subscription.priceMonthly).toBe(99);
     expect(subscription.trialStartedAt).toBeFalsy();
     expect(subscription.trialEndsAt).toBeFalsy();
     expect(subscription.trialUsedAt).toBeFalsy();
@@ -902,7 +902,7 @@ describe("Billing Routes", () => {
         currentPeriodEnd: new Date(Date.now() - 24 * 60 * 60 * 1000),
         isActive: true,
         aiEnabled: true,
-        priceMonthly: 199,
+        priceMonthly: 99,
       },
       {
         upsert: true,
@@ -1191,6 +1191,9 @@ describe("Billing Routes", () => {
           {
             price: {
               id: "price_pro_test",
+              unit_amount: 9900,
+              currency: "usd",
+              recurring: { interval: "month", interval_count: 1 },
             },
           },
         ],
@@ -1232,6 +1235,8 @@ describe("Billing Routes", () => {
     expect(subscription.plan).toBe("pro");
     expect(subscription.stripeCustomerId).toBe("cus_test_123");
     expect(subscription.stripeSubscriptionId).toBe("sub_test_123");
+    expect(subscription.stripePriceId).toBe("price_pro_test");
+    expect(subscription.priceMonthly).toBe(99);
   });
 
   test("POST /api/billing/webhook marks a Stripe-side trial as used", async () => {
@@ -1318,6 +1323,9 @@ describe("Billing Routes", () => {
           {
             price: {
               id: "price_agency_test",
+              unit_amount: 19900,
+              currency: "usd",
+              recurring: { interval: "month", interval_count: 1 },
             },
           },
         ],
@@ -1349,6 +1357,9 @@ describe("Billing Routes", () => {
                 {
                   price: {
                     id: "price_agency_test",
+                    unit_amount: 19900,
+                    currency: "usd",
+                    recurring: { interval: "month", interval_count: 1 },
                   },
                 },
               ],
@@ -1366,6 +1377,8 @@ describe("Billing Routes", () => {
     expect(subscription.plan).toBe("agency");
     expect(subscription.status).toBe("active");
     expect(subscription.stripeSubscriptionId).toBe("sub_test_123");
+    expect(subscription.stripePriceId).toBe("price_agency_test");
+    expect(subscription.priceMonthly).toBe(199);
   });
 
   test("POST /api/billing/webhook handles invoice.payment_failed", async () => {
