@@ -15,7 +15,10 @@ import {
   syncCheckoutSession,
   syncStripeSubscription,
 } from "../services/trialLifecycle.service.js";
-import { getTrialEligibility } from "../helpers/billing/trial.js";
+import {
+  getTrialEligibility,
+  TRIAL_PRICE_MONTHLY,
+} from "../helpers/billing/trial.js";
 import { processStripeEventOnce } from "../services/billingEvent.service.js";
 import {
   createTrialPaymentMethodCheckout,
@@ -859,7 +862,7 @@ class BillingController {
         trialOverrideGrantedAt: null,
         isActive: false,
         aiEnabled: true,
-        priceMonthly: 199,
+        priceMonthly: TRIAL_PRICE_MONTHLY,
         currentPeriodStart: null,
         currentPeriodEnd: null,
         latestInvoiceId: "",

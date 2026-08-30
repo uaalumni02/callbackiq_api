@@ -19,6 +19,6 @@ export const createActiveTrial = async (businessId) => {
     currentPeriodEnd: trialEndsAt,
     isActive: true,
     aiEnabled: true,
-    priceMonthly: 199,
+    priceMonthly: 99,
   });
 };

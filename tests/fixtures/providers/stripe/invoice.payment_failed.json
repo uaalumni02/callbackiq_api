@@ -11,7 +11,7 @@
       "customer": "cus_fixture",
       "subscription": "sub_fixture",
       "billing_reason": "subscription_cycle",
-      "amount_due": 19900,
+      "amount_due": 9900,
       "amount_paid": 0,
       "currency": "usd"
     }
