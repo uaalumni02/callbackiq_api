@@ -80,7 +80,6 @@ export const recordBillingAnomaly = async ({
         $setOnInsert: {
           dedupeKey,
           firstSeenAt: now,
-          occurrences: 0,
         },
         $set: payload,
         $inc: { occurrences: 1 },
@@ -89,7 +88,7 @@ export const recordBillingAnomaly = async ({
         upsert: true,
         returnDocument: "after",
         runValidators: true,
-        setDefaultsOnInsert: true,
+        setDefaultsOnInsert: false,
       },
     );
 

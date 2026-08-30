@@ -103,7 +103,7 @@ describe("subscriptionIntegrity.service adversarial matrix", () => {
     expect(mockBillingAnomalyFindOneAndUpdate).toHaveBeenCalledWith(
       { dedupeKey: "dedupe-1" },
       expect.objectContaining({
-        $setOnInsert: expect.objectContaining({ dedupeKey: "dedupe-1", occurrences: 0 }),
+        $setOnInsert: expect.objectContaining({ dedupeKey: "dedupe-1" }),
         $set: expect.objectContaining({
           business: "biz-1",
           type: "duplicate_subscription",
@@ -501,8 +501,8 @@ describe("subscriptionIntegrity.service adversarial matrix", () => {
           customer: "cus-1",
           subscription: "sub-b",
           billing_reason: "subscription_cycle",
-          amount_paid: 19900,
-          amount_due: 19900,
+          amount_paid: 9900,
+          amount_due: 9900,
         },
         eventId: "evt-1",
       }),
