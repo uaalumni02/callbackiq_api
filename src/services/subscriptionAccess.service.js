@@ -14,6 +14,25 @@ export const getSubscriptionAccess = (
 ) => {
   const status = String(subscription?.status || "none").toLowerCase();
 
+  // CALLBACKIQ_STALE_TRIAL_ACCESS_GUARD
+  //
+  // Lifecycle reconciliation normally persists an ended trial as "expired".
+  // Request-time authorization must still fail safely if a stale database
+  // record remains "trialing" after trialEndsAt.
+  if (
+    status === "trialing" &&
+    subscription?.trialEndsAt &&
+    !isFuture(subscription.trialEndsAt, now)
+  ) {
+    return {
+      level: ACCESS_LEVELS.READ_ONLY,
+      status: "expired",
+      automationAllowed: false,
+      providerActionsAllowed: false,
+      reason: "inactive_expired",
+    };
+  }
+
   if (
     status === "trialing" &&
     isFuture(subscription?.trialEndsAt, now) &&

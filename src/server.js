@@ -41,6 +41,10 @@ import {
   startA2pReconciliationWorker,
   stopA2pReconciliationWorker,
 } from "./workers/a2pReconciliation.worker.js";
+import {
+  startTrialLifecycleWorker,
+  stopTrialLifecycleWorker,
+} from "./workers/trialLifecycle.worker.js";
 
 const port = Number(process.env.PORT) || 3000;
 const shutdownTimeoutMs =
@@ -145,6 +149,7 @@ const shutdown = async (signal, exitCode = 0) => {
 
   try {
     stopA2pReconciliationWorker();
+    stopTrialLifecycleWorker();
     stopAppointmentMaintenanceWorker();
     stopAutomationWorker();
     stopSmsProcessingWorker();
@@ -189,6 +194,9 @@ await connectDB();
   await initializeSocketRedisAdapter(io);
   if (shouldRunEmbeddedWorkers()) {
     startA2pReconciliationWorker();
+  }
+  if (shouldRunEmbeddedWorkers()) {
+    await startTrialLifecycleWorker();
   }
   if (shouldRunEmbeddedWorkers()) {
     startAppointmentMaintenanceWorker();

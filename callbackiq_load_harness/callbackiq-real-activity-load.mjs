@@ -1227,19 +1227,66 @@ async function uiSmoke() {
   const context = await browser.newContext();
   const page = await context.newPage();
   const uiErrors = [];
-  page.on("console", (msg) => { if (msg.type() === "error") uiErrors.push(`console: ${msg.text()}`); });
-  page.on("pageerror", (err) => uiErrors.push(`pageerror: ${err.message}`));
-  page.on("response", (res) => {
-    if (res.status() >= 500) uiErrors.push(`HTTP ${res.status()} ${res.url()}`);
+  let uiAuthenticated = false;
+
+  page.on("console", (msg) => {
+    if (msg.type() !== "error") return;
+
+    const message = msg.text();
+
+    /*
+     * The login screen performs an intentional session probe.
+     * An unauthenticated /api/auth/me response is expected before login.
+     * Do not classify the browser's generic 401 resource message as a
+     * runtime failure until authentication has completed.
+     */
+    if (
+      !uiAuthenticated &&
+      /Failed to load resource: the server responded with a status of 401/i.test(
+        message,
+      )
+    ) {
+      return;
+    }
+
+    uiErrors.push(`console: ${message}`);
   });
 
-  await page.goto(`${cfg.uiBase}/login`, { waitUntil: "networkidle" });
+  page.on("pageerror", (err) =>
+    uiErrors.push(`pageerror: ${err.message}`)
+  );
+
+  page.on("response", (res) => {
+    const status = res.status();
+
+    if (status >= 500) {
+      uiErrors.push(`HTTP ${status} ${res.url()}`);
+      return;
+    }
+
+    /*
+     * A 401/403 after a successful login is meaningful and must fail
+     * the smoke test.
+     */
+    if (uiAuthenticated && (status === 401 || status === 403)) {
+      uiErrors.push(`HTTP ${status} ${res.url()}`);
+    }
+  });
+
+  await page.goto(`${cfg.uiBase}/login`, { waitUntil: "domcontentloaded", timeout: 20000 });
   await page.locator("#login").fill(login);
   await page.locator("#password").fill(password);
   await Promise.all([
-    page.waitForURL((url) => url.pathname === "/dashboard" || url.pathname === "/admin-dashboard", { timeout: 20000 }),
+    page.waitForURL(
+      (url) =>
+        url.pathname === "/dashboard" ||
+        url.pathname === "/admin-dashboard",
+      { timeout: 20000 },
+    ),
     page.locator('button[type="submit"]').click(),
   ]);
+
+  uiAuthenticated = true;
 
   const routes = [
     "/dashboard",
@@ -1261,7 +1308,22 @@ async function uiSmoke() {
   for (const route of routes) {
     const started = performance.now();
     try {
-      const res = await page.goto(`${cfg.uiBase}${route}`, { waitUntil: "networkidle", timeout: 25000 });
+      const res = await page.goto(`${cfg.uiBase}${route}`, {
+        waitUntil: "domcontentloaded",
+        timeout: 20000,
+      });
+
+      await page.locator("body").waitFor({
+        state: "visible",
+        timeout: 10000,
+      });
+
+      /*
+       * Give React effects/API requests enough time to surface immediate
+       * runtime/auth failures without waiting for persistent realtime
+       * connections to become idle.
+       */
+      await page.waitForTimeout(750);
       const durationMs = performance.now() - started;
       const status = res?.status() || 0;
       metrics.push({ label: `ui:${route}`, method: "BROWSER", route, status, ok: status < 500, durationMs });

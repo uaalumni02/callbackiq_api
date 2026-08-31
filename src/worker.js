@@ -25,6 +25,10 @@ import {
   startSmsProcessingWorker,
   stopSmsProcessingWorker,
 } from "./workers/smsProcessing.worker.js";
+import {
+  startTrialLifecycleWorker,
+  stopTrialLifecycleWorker,
+} from "./workers/trialLifecycle.worker.js";
 
 const roleMap = {
   worker: [
@@ -35,15 +39,15 @@ const roleMap = {
       stopAppointmentMaintenanceWorker,
     ],
     ["automation", startAutomationWorker, stopAutomationWorker],
+    ["lifecycle", startTrialLifecycleWorker, stopTrialLifecycleWorker],
     ["sms", startSmsProcessingWorker, stopSmsProcessingWorker],
   ],
   "worker-sms": [["sms", startSmsProcessingWorker, stopSmsProcessingWorker]],
   "worker-automation": [
     ["automation", startAutomationWorker, stopAutomationWorker],
   ],
-  // Trial lifecycle/reconciliation is currently owned by automation scheduling.
   "worker-lifecycle": [
-    ["automation", startAutomationWorker, stopAutomationWorker],
+    ["lifecycle", startTrialLifecycleWorker, stopTrialLifecycleWorker],
   ],
   "worker-a2p": [
     ["a2p", startA2pReconciliationWorker, stopA2pReconciliationWorker],
