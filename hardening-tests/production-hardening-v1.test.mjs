@@ -15,7 +15,10 @@ test("canonical MongoDB configuration supports MONGODB_URI", () => {
 
 test("startup validates environment before connecting", () => {
   const server = read("src/server.js");
-  const validateAt = server.indexOf("validateEnvironment({ throwOnError: true })");
+  const validationCall = server.match(
+    /validateEnvironment\(\s*(?:process\.env\s*,\s*)?\{\s*throwOnError:\s*true\s*\}\s*\)/,
+  );
+  const validateAt = validationCall?.index ?? -1;
   const connectAt = server.indexOf("await connectDB()");
   assert.ok(validateAt >= 0, "validateEnvironment startup call missing");
   assert.ok(connectAt >= 0, "connectDB startup call missing");
@@ -50,9 +53,17 @@ test("conversation admin bypass re-checks current database role", () => {
 
 test("registration is transaction-backed", () => {
   const auth = read("src/controllers/auth.js");
-  assert.match(auth, /startSession/);
-  assert.match(auth, /withTransaction/);
+  const transactionService = read("src/services/registrationTransaction.service.js");
+
+  // The controller delegates the transaction boundary to a dedicated service.
+  assert.match(auth, /runRegistrationTransaction\(persistRegistration\)/);
   assert.match(auth, /registrationSession/);
+
+  // Production/staging must fail closed unless the deployment supports
+  // transactions; the service owns session creation and withTransaction.
+  assert.match(transactionService, /registrationTransactionsRequired/);
+  assert.match(transactionService, /mongoose\.startSession\(\)/);
+  assert.match(transactionService, /session\.withTransaction/);
 });
 
 test("growth endpoints use bounded cursor pagination", () => {

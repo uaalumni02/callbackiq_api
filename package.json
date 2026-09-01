@@ -118,7 +118,8 @@
     "test:voice-concurrency": "jest tests/integration/voiceConcurrency/voiceConcurrency.certification.test.js --runInBand --no-cache",
     "certify:voice-concurrency": "node scripts/certify-voice-concurrency.mjs",
     "certify:voice-concurrency:load": "node scripts/certify-voice-concurrency.mjs --load",
-    "certify:voice-concurrency:ai": "node scripts/certify-voice-concurrency.mjs --load --ai"
+    "certify:voice-concurrency:ai": "node scripts/certify-voice-concurrency.mjs --load --ai",
+    "test:prepilot-telecom-coverage": "jest --runInBand --no-cache tests/unit/twilioController.targetCoverage.test.js tests/unit/a2pCustomerOnboarding.lifecycle.targetCoverage.test.js tests/unit/communicationUsageReservation.targetCoverage.test.js"
   },
   "keywords": [],
   "author": "",
@@ -141,7 +142,7 @@
     "joi": "^18.2.1",
     "jsonwebtoken": "^9.0.3",
     "jspdf": "^4.2.1",
-    "mongoose": "^9.7.0",
+    "mongoose": "9.7.2",
     "nodemailer": "^9.0.3",
     "openai": "^6.42.0",
     "redis": "^6.2.1",
