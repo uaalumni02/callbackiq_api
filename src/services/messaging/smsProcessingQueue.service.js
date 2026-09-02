@@ -3,6 +3,14 @@ import SmsProcessingJob from "../../models/smsProcessingJob.js";
 
 const DEFAULT_LEASE_MS = 60_000;
 const DEFAULT_MAX_ATTEMPTS = 5;
+const DEFAULT_TURN_COALESCE_MS = 3_000;
+
+const turnCoalesceMs = () => {
+  const configured = Number(process.env.SMS_TURN_COALESCE_MS);
+  return Number.isFinite(configured) && configured >= 0
+    ? Math.min(15_000, configured)
+    : DEFAULT_TURN_COALESCE_MS;
+};
 
 const leaseMs = () => {
   const configured = Number(process.env.SMS_PROCESSING_LEASE_MS);
@@ -42,7 +50,7 @@ export const enqueueInboundSmsJob = async ({
         priority,
         attemptCount: 0,
         maxAttempts: maxAttempts(),
-        availableAt: new Date(),
+        availableAt: new Date(Date.now() + turnCoalesceMs()),
       },
     },
     {
@@ -120,6 +128,30 @@ export const failInboundSmsJob = async ({ job, error, leaseToken }) => {
   );
 };
 
+export const deferInboundSmsJob = async ({
+  jobId,
+  leaseToken,
+  delayMs = 500,
+  reason = "conversation_busy",
+}) => {
+  const safeDelay = Math.max(100, Math.min(5_000, Number(delayMs) || 500));
+  return SmsProcessingJob.findOneAndUpdate(
+    { _id: jobId, status: "processing", leaseToken },
+    {
+      $set: {
+        status: "queued",
+        availableAt: new Date(Date.now() + safeDelay),
+        leaseToken: "",
+        leaseExpiresAt: null,
+        processingStartedAt: null,
+        lastError: reason,
+      },
+      $inc: { attemptCount: -1 },
+    },
+    { returnDocument: "after" },
+  );
+};
+
 export const heartbeatInboundSmsJob = async ({ jobId, leaseToken }) => {
   return SmsProcessingJob.updateOne(
     { _id: jobId, status: "processing", leaseToken },
@@ -148,5 +180,6 @@ export default {
   completeInboundSmsJob,
   failInboundSmsJob,
   heartbeatInboundSmsJob,
+  deferInboundSmsJob,
   getInboundSmsQueueHealth,
 };

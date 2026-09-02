@@ -57,6 +57,18 @@ describe("SMS market-readiness turn policy", () => {
     },
   );
 
+  it("does not convert a generic booking request into a fake time preference", () => {
+    const policy = evaluateSmsTurnPolicy({
+      customerMessage: "book",
+      business: business(),
+      lead: {},
+    });
+
+    expect(policy.intent.scheduling).toBe(true);
+    expect(policy.appointmentHint).toBe(false);
+    expect(policy.directResult).toBeNull();
+  });
+
   it("does not steal scheduling from the real booking state machine when enabled", () => {
     const policy = evaluateSmsTurnPolicy({
       customerMessage: "Tomorrow at 9am",

@@ -1,9 +1,11 @@
+import { withDistributedLease } from "../services/distributedLease.service.js";
 // CALLBACKIQ_SCALE_HARDENING_V1
 import {
   claimNextInboundSmsJob,
   completeInboundSmsJob,
   failInboundSmsJob,
   heartbeatInboundSmsJob,
+  deferInboundSmsJob,
 } from "../services/messaging/smsProcessingQueue.service.js";
 import { safelyProcessInboundSmsJob } from "../services/messaging/inboundSmsJobProcessor.service.js";
 import AlertService from "../services/alert.service.js";
@@ -71,7 +73,33 @@ const processWithHeartbeat = async (job) => {
 
 const processClaimedJob = async (job) => {
   try {
-    const result = await processWithHeartbeat(job);
+    const lease = await withDistributedLease(
+      `sms-conversation:${job.conversation}`,
+      () => processWithHeartbeat(job),
+      {
+        ttlMs: Math.max(
+          15_000,
+          Number(process.env.SMS_CONVERSATION_LEASE_MS || process.env.SMS_PROCESSING_LEASE_MS || 60_000),
+        ),
+        metadata: {
+          worker: "sms_processing",
+          jobId: String(job._id),
+          businessId: String(job.business),
+        },
+      },
+    );
+
+    if (!lease.acquired) {
+      await deferInboundSmsJob({
+        jobId: job._id,
+        leaseToken: job.leaseToken,
+        delayMs: 500,
+        reason: "conversation_lease_busy",
+      });
+      return;
+    }
+
+    const result = lease.value;
     await completeInboundSmsJob({
       jobId: job._id,
       leaseToken: job.leaseToken,

@@ -1,3 +1,4 @@
+import { classifySmsIntent } from "../messaging/smsIntentClassifier.service.js";
 import Appointment from "../../models/appointment.js";
 import Conversation from "../../models/conversation.js";
 import Lead from "../../models/lead.js";
@@ -263,6 +264,11 @@ class BookingStateMachineService {
     }
 
     const text = String(customerMessage || "").trim();
+    const smsIntent = classifySmsIntent({
+      customerMessage: text,
+      business,
+      conversation: activeConversation,
+    });
     const currentStatus =
       activeConversation.bookingState?.status || "not_started";
     const stateActive = currentStatus !== "not_started";
@@ -270,13 +276,13 @@ class BookingStateMachineService {
     if (
       !stateActive &&
       bookingChannel !== "voice" &&
-      !BOOKING_INTENT.test(text) &&
+      !smsIntent.intents.scheduling &&
       !hasBookingAvailabilityHint(text, business.timezone || "America/New_York")
     ) {
       return { handled: false };
     }
 
-    if (HUMAN_INTENT.test(text)) {
+    if (smsIntent.intents.human) {
       await escalateToHumanTool({
         businessId: business._id,
         leadId: lead?._id,
@@ -295,7 +301,7 @@ class BookingStateMachineService {
       };
     }
 
-    if (PRICE_INTENT.test(text)) {
+    if (smsIntent.intents.pricing) {
       const pricingService = await resolvePricingService({
         businessId: business._id,
         bookingState: activeConversation.bookingState,
@@ -750,7 +756,7 @@ class BookingStateMachineService {
     }
 
     if (status === "awaiting_confirmation") {
-      if (isNegative(text)) {
+      if (smsIntent.response.negative) {
         await updateState(activeConversation, {
           status: "collecting_preference",
           selectedSlot: null,
@@ -766,7 +772,7 @@ class BookingStateMachineService {
         };
       }
 
-      if (!isAffirmative(text)) {
+      if (!smsIntent.response.affirmative) {
         return {
           handled: true,
           result: fixedResult({

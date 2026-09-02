@@ -3,6 +3,7 @@ const mockCompleteInboundSmsJob = jest.fn();
 const mockFailInboundSmsJob = jest.fn();
 const mockHeartbeatInboundSmsJob = jest.fn();
 const mockSafelyProcessInboundSmsJob = jest.fn();
+const mockWithDistributedLease = jest.fn();
 const mockCreateSystemAlert = jest.fn();
 const mockLogOperationalEvent = jest.fn();
 const mockLogOperationalError = jest.fn();
@@ -23,6 +24,10 @@ jest.mock(
     safelyProcessInboundSmsJob: mockSafelyProcessInboundSmsJob,
   }),
 );
+
+jest.mock("../../src/services/distributedLease.service.js", () => ({
+  withDistributedLease: mockWithDistributedLease,
+}));
 
 jest.mock("../../src/services/alert.service.js", () => ({
   __esModule: true,
@@ -67,6 +72,11 @@ describe("smsProcessing.worker hardening", () => {
   beforeEach(() => {
     jest.useRealTimers();
     jest.clearAllMocks();
+    mockWithDistributedLease.mockImplementation(async (_key, operation) => ({
+      acquired: true,
+      skipped: false,
+      value: await operation(),
+    }));
     process.env.SMS_PROCESSING_BATCH_SIZE = "10";
     process.env.SMS_PROCESSING_LEASE_MS = "60000";
     process.env.SMS_PROCESSING_WORKER_ENABLED = "true";

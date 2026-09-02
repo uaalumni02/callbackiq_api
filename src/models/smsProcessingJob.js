@@ -31,6 +31,7 @@ const SmsProcessingJobSchema = new Schema(
     completedAt: { type: Date, default: null },
     deadAt: { type: Date, default: null },
     lastError: { type: String, trim: true, maxlength: 4000, default: "" },
+    coalescedInto: { type: Schema.Types.ObjectId, ref: "SmsProcessingJob", default: null, index: true },
     result: { type: Schema.Types.Mixed, default: {} },
   },
   { timestamps: true },

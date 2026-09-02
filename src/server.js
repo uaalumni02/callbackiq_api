@@ -1,3 +1,7 @@
+import {
+  startConversationLifecycleWorker,
+  stopConversationLifecycleWorker,
+} from "./workers/conversationLifecycle.worker.js";
 import { startSmsProcessingWorker, stopSmsProcessingWorker } from "./workers/smsProcessing.worker.js";
 import {
   startVoiceUsageReconciliationWorker,
@@ -153,6 +157,7 @@ const shutdown = async (signal, exitCode = 0) => {
     stopAppointmentMaintenanceWorker();
     stopAutomationWorker();
     stopSmsProcessingWorker();
+    stopConversationLifecycleWorker();
     stopVoiceUsageReconciliationWorker();
     await conversationRelayServer.close();
     await closeSocketServer();
@@ -206,6 +211,7 @@ await connectDB();
   }
   if (shouldRunEmbeddedWorkers()) {
     await startSmsProcessingWorker();
+    startConversationLifecycleWorker();
   }
   if (shouldRunEmbeddedWorkers()) {
     startVoiceUsageReconciliationWorker();

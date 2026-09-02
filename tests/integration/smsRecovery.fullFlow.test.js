@@ -38,8 +38,10 @@ jest.mock("../../src/models/message.js", () => ({
   default: {
     findById: jest.fn(),
     findOne: jest.fn(),
+    find: jest.fn(),
     findOneAndUpdate: jest.fn(),
     findByIdAndUpdate: jest.fn(),
+    updateMany: jest.fn(),
     create: jest.fn(),
   },
 }));
@@ -149,6 +151,13 @@ jest.mock("../../src/voice/smsRecoveryVoicePrompt.service.js", () => ({
   __esModule: true,
   buildSmsRecoveryVoicePrompt: jest.fn(),
 }));
+
+const leanQuery = (value) => ({
+  sort: jest.fn().mockReturnThis(),
+  select: jest.fn().mockReturnThis(),
+  limit: jest.fn().mockReturnThis(),
+  lean: jest.fn().mockResolvedValue(value),
+});
 
 const createResponse = () => {
   const res = { type: jest.fn(), status: jest.fn(), send: jest.fn() };
@@ -280,7 +289,13 @@ test("the queued job generates and persists the AI reply exactly once", async ()
     status: "queued",
     deliveryStatus: "queued",
   };
-  Message.findOne.mockResolvedValue(null);
+  Message.findOne
+    .mockReturnValueOnce(leanQuery(null))
+    .mockResolvedValueOnce(null);
+  Message.find
+    .mockReturnValueOnce(leanQuery([inboundMessage]))
+    .mockReturnValueOnce(leanQuery([]));
+  Message.updateMany.mockResolvedValue({ modifiedCount: 0 });
   Message.create.mockResolvedValue(queuedOutbound);
   Message.findOneAndUpdate.mockResolvedValue(claimedOutbound);
   Message.findByIdAndUpdate.mockResolvedValue(sentOutbound);

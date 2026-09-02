@@ -1,0 +1,2882 @@
+[
+  {
+    "id": "golden-0001",
+    "message": "Can someone come tomorrow at 9?",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0002",
+    "message": "Can someone come tomorrow at 9?.",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0003",
+    "message": "Can someone come tomorrow at 9?!",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0004",
+    "message": "Can someone come tomorrow at 9? please",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0005",
+    "message": "Can someone come tomorrow at 9? thanks",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0006",
+    "message": "Can someone come tomorrow at 9? right now",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0007",
+    "message": "Hi, Can someone come tomorrow at 9?",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0008",
+    "message": "Hi, Can someone come tomorrow at 9?.",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0009",
+    "message": "Hi, Can someone come tomorrow at 9?!",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0010",
+    "message": "Hi, Can someone come tomorrow at 9? please",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0011",
+    "message": "Hi, Can someone come tomorrow at 9? thanks",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0012",
+    "message": "Hi, Can someone come tomorrow at 9? right now",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0013",
+    "message": "Hey, Can someone come tomorrow at 9?",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0014",
+    "message": "Hey, Can someone come tomorrow at 9?.",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0015",
+    "message": "Hey, Can someone come tomorrow at 9?!",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0016",
+    "message": "Hey, Can someone come tomorrow at 9? please",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0017",
+    "message": "Hey, Can someone come tomorrow at 9? thanks",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0018",
+    "message": "Hey, Can someone come tomorrow at 9? right now",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0019",
+    "message": "Please, Can someone come tomorrow at 9?",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0020",
+    "message": "Please, Can someone come tomorrow at 9?.",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0021",
+    "message": "Please, Can someone come tomorrow at 9?!",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0022",
+    "message": "Please, Can someone come tomorrow at 9? please",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0023",
+    "message": "Please, Can someone come tomorrow at 9? thanks",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0024",
+    "message": "Please, Can someone come tomorrow at 9? right now",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0025",
+    "message": "Quick question: Can someone come tomorrow at 9?",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0026",
+    "message": "Quick question: Can someone come tomorrow at 9?.",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0027",
+    "message": "Quick question: Can someone come tomorrow at 9?!",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0028",
+    "message": "Quick question: Can someone come tomorrow at 9? please",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0029",
+    "message": "Quick question: Can someone come tomorrow at 9? thanks",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0030",
+    "message": "Quick question: Can someone come tomorrow at 9? right now",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0031",
+    "message": "Friday morning works",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0032",
+    "message": "Friday morning works.",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0033",
+    "message": "Friday morning works!",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0034",
+    "message": "Friday morning works please",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0035",
+    "message": "Friday morning works thanks",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0036",
+    "message": "Friday morning works right now",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0037",
+    "message": "Hi, Friday morning works",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0038",
+    "message": "Hi, Friday morning works.",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0039",
+    "message": "Hi, Friday morning works!",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0040",
+    "message": "Hi, Friday morning works please",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0041",
+    "message": "Hi, Friday morning works thanks",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0042",
+    "message": "Hi, Friday morning works right now",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0043",
+    "message": "Hey, Friday morning works",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0044",
+    "message": "Hey, Friday morning works.",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0045",
+    "message": "Hey, Friday morning works!",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0046",
+    "message": "Hey, Friday morning works please",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0047",
+    "message": "Hey, Friday morning works thanks",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0048",
+    "message": "Hey, Friday morning works right now",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0049",
+    "message": "Please, Friday morning works",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0050",
+    "message": "Please, Friday morning works.",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0051",
+    "message": "Please, Friday morning works!",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0052",
+    "message": "Please, Friday morning works please",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0053",
+    "message": "Please, Friday morning works thanks",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0054",
+    "message": "Please, Friday morning works right now",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0055",
+    "message": "Quick question: Friday morning works",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0056",
+    "message": "Quick question: Friday morning works.",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0057",
+    "message": "Quick question: Friday morning works!",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0058",
+    "message": "Quick question: Friday morning works please",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0059",
+    "message": "Quick question: Friday morning works thanks",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0060",
+    "message": "Quick question: Friday morning works right now",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0061",
+    "message": "Can you come after work tomorrow?",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0062",
+    "message": "Can you come after work tomorrow?.",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0063",
+    "message": "Can you come after work tomorrow?!",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0064",
+    "message": "Can you come after work tomorrow? please",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0065",
+    "message": "Can you come after work tomorrow? thanks",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0066",
+    "message": "Can you come after work tomorrow? right now",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0067",
+    "message": "Hi, Can you come after work tomorrow?",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0068",
+    "message": "Hi, Can you come after work tomorrow?.",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0069",
+    "message": "Hi, Can you come after work tomorrow?!",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0070",
+    "message": "Hi, Can you come after work tomorrow? please",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0071",
+    "message": "Hi, Can you come after work tomorrow? thanks",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0072",
+    "message": "Hi, Can you come after work tomorrow? right now",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0073",
+    "message": "Hey, Can you come after work tomorrow?",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0074",
+    "message": "Hey, Can you come after work tomorrow?.",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0075",
+    "message": "Hey, Can you come after work tomorrow?!",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0076",
+    "message": "Hey, Can you come after work tomorrow? please",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0077",
+    "message": "Hey, Can you come after work tomorrow? thanks",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0078",
+    "message": "Hey, Can you come after work tomorrow? right now",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0079",
+    "message": "Please, Can you come after work tomorrow?",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0080",
+    "message": "Please, Can you come after work tomorrow?.",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0081",
+    "message": "Please, Can you come after work tomorrow?!",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0082",
+    "message": "Please, Can you come after work tomorrow? please",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0083",
+    "message": "Please, Can you come after work tomorrow? thanks",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0084",
+    "message": "Please, Can you come after work tomorrow? right now",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0085",
+    "message": "Quick question: Can you come after work tomorrow?",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0086",
+    "message": "Quick question: Can you come after work tomorrow?.",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0087",
+    "message": "Quick question: Can you come after work tomorrow?!",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0088",
+    "message": "Quick question: Can you come after work tomorrow? please",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0089",
+    "message": "Quick question: Can you come after work tomorrow? thanks",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0090",
+    "message": "Quick question: Can you come after work tomorrow? right now",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0091",
+    "message": "Monday after 3 please",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0092",
+    "message": "Monday after 3 please.",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0093",
+    "message": "Monday after 3 please!",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0094",
+    "message": "Monday after 3 please please",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0095",
+    "message": "Monday after 3 please thanks",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0096",
+    "message": "Monday after 3 please right now",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0097",
+    "message": "Hi, Monday after 3 please",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0098",
+    "message": "Hi, Monday after 3 please.",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0099",
+    "message": "Hi, Monday after 3 please!",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0100",
+    "message": "Hi, Monday after 3 please please",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0101",
+    "message": "Hi, Monday after 3 please thanks",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0102",
+    "message": "Hi, Monday after 3 please right now",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0103",
+    "message": "Hey, Monday after 3 please",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0104",
+    "message": "Hey, Monday after 3 please.",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0105",
+    "message": "Hey, Monday after 3 please!",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0106",
+    "message": "Hey, Monday after 3 please please",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0107",
+    "message": "Hey, Monday after 3 please thanks",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0108",
+    "message": "Hey, Monday after 3 please right now",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0109",
+    "message": "Please, Monday after 3 please",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0110",
+    "message": "Please, Monday after 3 please.",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0111",
+    "message": "Please, Monday after 3 please!",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0112",
+    "message": "Please, Monday after 3 please please",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0113",
+    "message": "Please, Monday after 3 please thanks",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0114",
+    "message": "Please, Monday after 3 please right now",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0115",
+    "message": "Quick question: Monday after 3 please",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0116",
+    "message": "Quick question: Monday after 3 please.",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0117",
+    "message": "Quick question: Monday after 3 please!",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0118",
+    "message": "Quick question: Monday after 3 please please",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0119",
+    "message": "Quick question: Monday after 3 please thanks",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0120",
+    "message": "Quick question: Monday after 3 please right now",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0121",
+    "message": "Tomorrow around 2 is best",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0122",
+    "message": "Tomorrow around 2 is best.",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0123",
+    "message": "Tomorrow around 2 is best!",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0124",
+    "message": "Tomorrow around 2 is best please",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0125",
+    "message": "Tomorrow around 2 is best thanks",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0126",
+    "message": "Tomorrow around 2 is best right now",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0127",
+    "message": "Hi, Tomorrow around 2 is best",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0128",
+    "message": "Hi, Tomorrow around 2 is best.",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0129",
+    "message": "Hi, Tomorrow around 2 is best!",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0130",
+    "message": "Hi, Tomorrow around 2 is best please",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0131",
+    "message": "Hi, Tomorrow around 2 is best thanks",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0132",
+    "message": "Hi, Tomorrow around 2 is best right now",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0133",
+    "message": "Hey, Tomorrow around 2 is best",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0134",
+    "message": "Hey, Tomorrow around 2 is best.",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0135",
+    "message": "Hey, Tomorrow around 2 is best!",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0136",
+    "message": "Hey, Tomorrow around 2 is best please",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0137",
+    "message": "Hey, Tomorrow around 2 is best thanks",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0138",
+    "message": "Hey, Tomorrow around 2 is best right now",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0139",
+    "message": "Please, Tomorrow around 2 is best",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0140",
+    "message": "Please, Tomorrow around 2 is best.",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0141",
+    "message": "Please, Tomorrow around 2 is best!",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0142",
+    "message": "Please, Tomorrow around 2 is best please",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0143",
+    "message": "Please, Tomorrow around 2 is best thanks",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0144",
+    "message": "Please, Tomorrow around 2 is best right now",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0145",
+    "message": "Quick question: Tomorrow around 2 is best",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0146",
+    "message": "Quick question: Tomorrow around 2 is best.",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0147",
+    "message": "Quick question: Tomorrow around 2 is best!",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0148",
+    "message": "Quick question: Tomorrow around 2 is best please",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0149",
+    "message": "Quick question: Tomorrow around 2 is best thanks",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0150",
+    "message": "Quick question: Tomorrow around 2 is best right now",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0151",
+    "message": "Could someone be here Tuesday morning?",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0152",
+    "message": "Could someone be here Tuesday morning?.",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0153",
+    "message": "Could someone be here Tuesday morning?!",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0154",
+    "message": "Could someone be here Tuesday morning? please",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0155",
+    "message": "Could someone be here Tuesday morning? thanks",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0156",
+    "message": "Could someone be here Tuesday morning? right now",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0157",
+    "message": "Hi, Could someone be here Tuesday morning?",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0158",
+    "message": "Hi, Could someone be here Tuesday morning?.",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0159",
+    "message": "Hi, Could someone be here Tuesday morning?!",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0160",
+    "message": "Hi, Could someone be here Tuesday morning? please",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0161",
+    "message": "Hi, Could someone be here Tuesday morning? thanks",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0162",
+    "message": "Hi, Could someone be here Tuesday morning? right now",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0163",
+    "message": "Hey, Could someone be here Tuesday morning?",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0164",
+    "message": "Hey, Could someone be here Tuesday morning?.",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0165",
+    "message": "Hey, Could someone be here Tuesday morning?!",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0166",
+    "message": "Hey, Could someone be here Tuesday morning? please",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0167",
+    "message": "Hey, Could someone be here Tuesday morning? thanks",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0168",
+    "message": "Hey, Could someone be here Tuesday morning? right now",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0169",
+    "message": "Please, Could someone be here Tuesday morning?",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0170",
+    "message": "Please, Could someone be here Tuesday morning?.",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0171",
+    "message": "Please, Could someone be here Tuesday morning?!",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0172",
+    "message": "Please, Could someone be here Tuesday morning? please",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0173",
+    "message": "Please, Could someone be here Tuesday morning? thanks",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0174",
+    "message": "Please, Could someone be here Tuesday morning? right now",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0175",
+    "message": "Quick question: Could someone be here Tuesday morning?",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0176",
+    "message": "Quick question: Could someone be here Tuesday morning?.",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0177",
+    "message": "Quick question: Could someone be here Tuesday morning?!",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0178",
+    "message": "Quick question: Could someone be here Tuesday morning? please",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0179",
+    "message": "Quick question: Could someone be here Tuesday morning? thanks",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0180",
+    "message": "Quick question: Could someone be here Tuesday morning? right now",
+    "expected": {
+      "primaryIntent": "scheduling",
+      "human": false,
+      "scheduling": true
+    }
+  },
+  {
+    "id": "golden-0181",
+    "message": "I want to talk to a person",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0182",
+    "message": "I want to talk to a person.",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0183",
+    "message": "I want to talk to a person!",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0184",
+    "message": "I want to talk to a person please",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0185",
+    "message": "I want to talk to a person thanks",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0186",
+    "message": "I want to talk to a person right now",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0187",
+    "message": "Hi, I want to talk to a person",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0188",
+    "message": "Hi, I want to talk to a person.",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0189",
+    "message": "Hi, I want to talk to a person!",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0190",
+    "message": "Hi, I want to talk to a person please",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0191",
+    "message": "Hi, I want to talk to a person thanks",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0192",
+    "message": "Hi, I want to talk to a person right now",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0193",
+    "message": "Hey, I want to talk to a person",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0194",
+    "message": "Hey, I want to talk to a person.",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0195",
+    "message": "Hey, I want to talk to a person!",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0196",
+    "message": "Hey, I want to talk to a person please",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0197",
+    "message": "Hey, I want to talk to a person thanks",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0198",
+    "message": "Hey, I want to talk to a person right now",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0199",
+    "message": "Please, I want to talk to a person",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0200",
+    "message": "Please, I want to talk to a person.",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0201",
+    "message": "Please, I want to talk to a person!",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0202",
+    "message": "Please, I want to talk to a person please",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0203",
+    "message": "Please, I want to talk to a person thanks",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0204",
+    "message": "Please, I want to talk to a person right now",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0205",
+    "message": "Quick question: I want to talk to a person",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0206",
+    "message": "Quick question: I want to talk to a person.",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0207",
+    "message": "Quick question: I want to talk to a person!",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0208",
+    "message": "Quick question: I want to talk to a person please",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0209",
+    "message": "Quick question: I want to talk to a person thanks",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0210",
+    "message": "Quick question: I want to talk to a person right now",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0211",
+    "message": "Please transfer me to a human",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0212",
+    "message": "Please transfer me to a human.",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0213",
+    "message": "Please transfer me to a human!",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0214",
+    "message": "Please transfer me to a human please",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0215",
+    "message": "Please transfer me to a human thanks",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0216",
+    "message": "Please transfer me to a human right now",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0217",
+    "message": "Hi, Please transfer me to a human",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0218",
+    "message": "Hi, Please transfer me to a human.",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0219",
+    "message": "Hi, Please transfer me to a human!",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0220",
+    "message": "Hi, Please transfer me to a human please",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0221",
+    "message": "Hi, Please transfer me to a human thanks",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0222",
+    "message": "Hi, Please transfer me to a human right now",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0223",
+    "message": "Hey, Please transfer me to a human",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0224",
+    "message": "Hey, Please transfer me to a human.",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0225",
+    "message": "Hey, Please transfer me to a human!",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0226",
+    "message": "Hey, Please transfer me to a human please",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0227",
+    "message": "Hey, Please transfer me to a human thanks",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0228",
+    "message": "Hey, Please transfer me to a human right now",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0229",
+    "message": "Please, Please transfer me to a human",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0230",
+    "message": "Please, Please transfer me to a human.",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0231",
+    "message": "Please, Please transfer me to a human!",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0232",
+    "message": "Please, Please transfer me to a human please",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0233",
+    "message": "Please, Please transfer me to a human thanks",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0234",
+    "message": "Please, Please transfer me to a human right now",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0235",
+    "message": "Quick question: Please transfer me to a human",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0236",
+    "message": "Quick question: Please transfer me to a human.",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0237",
+    "message": "Quick question: Please transfer me to a human!",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0238",
+    "message": "Quick question: Please transfer me to a human please",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0239",
+    "message": "Quick question: Please transfer me to a human thanks",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0240",
+    "message": "Quick question: Please transfer me to a human right now",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0241",
+    "message": "Have someone call me",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0242",
+    "message": "Have someone call me.",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0243",
+    "message": "Have someone call me!",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0244",
+    "message": "Have someone call me please",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0245",
+    "message": "Have someone call me thanks",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0246",
+    "message": "Have someone call me right now",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0247",
+    "message": "Hi, Have someone call me",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0248",
+    "message": "Hi, Have someone call me.",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0249",
+    "message": "Hi, Have someone call me!",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0250",
+    "message": "Hi, Have someone call me please",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0251",
+    "message": "Hi, Have someone call me thanks",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0252",
+    "message": "Hi, Have someone call me right now",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0253",
+    "message": "Hey, Have someone call me",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0254",
+    "message": "Hey, Have someone call me.",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0255",
+    "message": "Hey, Have someone call me!",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0256",
+    "message": "Hey, Have someone call me please",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0257",
+    "message": "Hey, Have someone call me thanks",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0258",
+    "message": "Hey, Have someone call me right now",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0259",
+    "message": "Please, Have someone call me",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0260",
+    "message": "Please, Have someone call me.",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0261",
+    "message": "Please, Have someone call me!",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0262",
+    "message": "Please, Have someone call me please",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0263",
+    "message": "Please, Have someone call me thanks",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0264",
+    "message": "Please, Have someone call me right now",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0265",
+    "message": "Quick question: Have someone call me",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0266",
+    "message": "Quick question: Have someone call me.",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0267",
+    "message": "Quick question: Have someone call me!",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0268",
+    "message": "Quick question: Have someone call me please",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0269",
+    "message": "Quick question: Have someone call me thanks",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0270",
+    "message": "Quick question: Have someone call me right now",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0271",
+    "message": "I do not want a bot, get me a person",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0272",
+    "message": "I do not want a bot, get me a person.",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0273",
+    "message": "I do not want a bot, get me a person!",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0274",
+    "message": "I do not want a bot, get me a person please",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0275",
+    "message": "I do not want a bot, get me a person thanks",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0276",
+    "message": "I do not want a bot, get me a person right now",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0277",
+    "message": "Hi, I do not want a bot, get me a person",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0278",
+    "message": "Hi, I do not want a bot, get me a person.",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0279",
+    "message": "Hi, I do not want a bot, get me a person!",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0280",
+    "message": "Hi, I do not want a bot, get me a person please",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0281",
+    "message": "Hi, I do not want a bot, get me a person thanks",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0282",
+    "message": "Hi, I do not want a bot, get me a person right now",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0283",
+    "message": "Hey, I do not want a bot, get me a person",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0284",
+    "message": "Hey, I do not want a bot, get me a person.",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0285",
+    "message": "Hey, I do not want a bot, get me a person!",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0286",
+    "message": "Hey, I do not want a bot, get me a person please",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0287",
+    "message": "Hey, I do not want a bot, get me a person thanks",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0288",
+    "message": "Hey, I do not want a bot, get me a person right now",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0289",
+    "message": "Please, I do not want a bot, get me a person",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0290",
+    "message": "Please, I do not want a bot, get me a person.",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0291",
+    "message": "Please, I do not want a bot, get me a person!",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0292",
+    "message": "Please, I do not want a bot, get me a person please",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0293",
+    "message": "Please, I do not want a bot, get me a person thanks",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0294",
+    "message": "Please, I do not want a bot, get me a person right now",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0295",
+    "message": "Quick question: I do not want a bot, get me a person",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0296",
+    "message": "Quick question: I do not want a bot, get me a person.",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0297",
+    "message": "Quick question: I do not want a bot, get me a person!",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0298",
+    "message": "Quick question: I do not want a bot, get me a person please",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0299",
+    "message": "Quick question: I do not want a bot, get me a person thanks",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0300",
+    "message": "Quick question: I do not want a bot, get me a person right now",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0301",
+    "message": "Can I speak with the manager?",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0302",
+    "message": "Can I speak with the manager?.",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0303",
+    "message": "Can I speak with the manager?!",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0304",
+    "message": "Can I speak with the manager? please",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0305",
+    "message": "Can I speak with the manager? thanks",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0306",
+    "message": "Can I speak with the manager? right now",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0307",
+    "message": "Hi, Can I speak with the manager?",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0308",
+    "message": "Hi, Can I speak with the manager?.",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0309",
+    "message": "Hi, Can I speak with the manager?!",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0310",
+    "message": "Hi, Can I speak with the manager? please",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0311",
+    "message": "Hi, Can I speak with the manager? thanks",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0312",
+    "message": "Hi, Can I speak with the manager? right now",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0313",
+    "message": "Hey, Can I speak with the manager?",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0314",
+    "message": "Hey, Can I speak with the manager?.",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0315",
+    "message": "Hey, Can I speak with the manager?!",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0316",
+    "message": "Hey, Can I speak with the manager? please",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0317",
+    "message": "Hey, Can I speak with the manager? thanks",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0318",
+    "message": "Hey, Can I speak with the manager? right now",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0319",
+    "message": "Please, Can I speak with the manager?",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  },
+  {
+    "id": "golden-0320",
+    "message": "Please, Can I speak with the manager?.",
+    "expected": {
+      "primaryIntent": "human",
+      "human": true,
+      "scheduling": false
+    }
+  }
+]

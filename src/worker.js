@@ -1,3 +1,7 @@
+import {
+  startConversationLifecycleWorker,
+  stopConversationLifecycleWorker,
+} from "./workers/conversationLifecycle.worker.js";
 // CALLBACKIQ_PRODUCTION_HARDENING_V1
 import "dotenv/config";
 import mongoose from "mongoose";
@@ -41,8 +45,12 @@ const roleMap = {
     ["automation", startAutomationWorker, stopAutomationWorker],
     ["lifecycle", startTrialLifecycleWorker, stopTrialLifecycleWorker],
     ["sms", startSmsProcessingWorker, stopSmsProcessingWorker],
+    ["sms-lifecycle", startConversationLifecycleWorker, stopConversationLifecycleWorker],
   ],
-  "worker-sms": [["sms", startSmsProcessingWorker, stopSmsProcessingWorker]],
+  "worker-sms": [
+    ["sms", startSmsProcessingWorker, stopSmsProcessingWorker],
+    ["sms-lifecycle", startConversationLifecycleWorker, stopConversationLifecycleWorker],
+  ],
   "worker-automation": [
     ["automation", startAutomationWorker, stopAutomationWorker],
   ],

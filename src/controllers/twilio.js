@@ -1,33 +1,34 @@
 import {
-  handleInboundSmsWebhook,
-  handleManualSmsRequest,
   handleSmsRecoveryVoiceWebhook,
   handleTwilioStatusWebhook,
+  handleInboundSmsWebhook,
+  handleManualSmsRequest,
 } from "../services/twilioSmsWebhook.service.js";
 
 /*
- * The public Twilio controller is intentionally thin.
+ * TwilioController is intentionally a thin Express adapter.
  *
- * Inbound SMS, voice-recovery, status-callback and manual-SMS business logic
- * lives in twilioSmsWebhook.service.js, where idempotency, tenant resolution,
- * communication limits and provider safety are tested. Keeping old private
- * helper implementations in this controller inflated critical-file coverage
- * risk and created two competing sources of truth.
+ * Persistence, compliance, idempotency, conversation orchestration,
+ * provider behavior, Voice/SMS workflows, and business logic live in
+ * twilioSmsWebhook.service.js.
+ *
+ * Keeping this controller thin prevents duplicate implementations and
+ * gives Twilio workflows one authoritative production path.
  */
 class TwilioController {
-  static async voiceWebhook(req, res) {
+  static voiceWebhook(req, res) {
     return handleSmsRecoveryVoiceWebhook(req, res);
   }
 
-  static async statusWebhook(req, res) {
+  static statusWebhook(req, res) {
     return handleTwilioStatusWebhook(req, res);
   }
 
-  static async handleInboundSms(req, res) {
+  static handleInboundSms(req, res) {
     return handleInboundSmsWebhook(req, res);
   }
 
-  static async sendManualSms(req, res) {
+  static sendManualSms(req, res) {
     return handleManualSmsRequest(req, res);
   }
 }

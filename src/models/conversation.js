@@ -37,6 +37,7 @@ const BookingStateSchema = new Schema(
         "offering_slots",
         "awaiting_confirmation",
         "booking",
+        "pending_business_confirmation",
         "booked",
         "failed",
         "human_takeover",
@@ -130,11 +131,38 @@ const conversationSchema = new Schema(
       lastUpdatedAt: { type: Date, default: null },
     },
     orchestration: {
+      phase: {
+        type: String,
+        enum: [
+          "recovering",
+          "qualifying",
+          "collecting_location",
+          "scheduling",
+          "awaiting_customer_confirmation",
+          "awaiting_business_approval",
+          "confirmed",
+          "post_booking",
+          "human_takeover",
+          "closed",
+        ],
+        default: "recovering",
+        index: true,
+      },
       lastOutcome: { type: String, trim: true, maxlength: 80, default: "" },
+      lastIntent: { type: String, trim: true, maxlength: 80, default: "" },
+      lastIntentConfidence: { type: Number, min: 0, max: 100, default: 0 },
+      lastCustomerTurnAt: { type: Date, default: null },
+      lastAutomatedReplyAt: { type: Date, default: null },
+      lastStateTransitionAt: { type: Date, default: null },
       lastInboundMessage: { type: Schema.Types.ObjectId, ref: "Message", default: null },
       lastOutboundMessage: { type: Schema.Types.ObjectId, ref: "Message", default: null },
       silentFailureCount: { type: Number, min: 0, default: 0 },
       lastEscalatedAt: { type: Date, default: null },
+    },
+    lifecycle: {
+      recoveryNudgeCount: { type: Number, min: 0, max: 2, default: 0 },
+      nextRecoveryNudgeAt: { type: Date, default: null },
+      lastLifecycleActionAt: { type: Date, default: null },
     },
     lastMessage: { type: String, trim: true, default: "" },
     lastMessageAt: { type: Date, default: Date.now },
@@ -206,6 +234,8 @@ conversationSchema.index({
   "bookingState.status": 1,
   "bookingState.expiresAt": 1,
 });
+conversationSchema.index({ status: 1, "orchestration.phase": 1, lastMessageAt: 1 });
+conversationSchema.index({ status: 1, "lifecycle.nextRecoveryNudgeAt": 1 });
 
 conversationSchema.index(
   { business: 1, customerPhoneLookup: 1, activeRecord: 1 },

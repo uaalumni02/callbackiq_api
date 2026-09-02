@@ -1,3 +1,6 @@
+import { classifySmsIntent } from "./smsIntentClassifier.service.js";
+import { buildSmsStatePatch } from "./smsConversationState.service.js";
+import { loadCustomerTurn, completeCoalescedJobs } from "./smsTurnAggregation.service.js";
 import Business from "../../models/business.js";
 import Conversation from "../../models/conversation.js";
 import Lead from "../../models/lead.js";
@@ -231,13 +234,33 @@ const persistOutboundReply = async ({
     });
     return { sent: true, message: outbound };
   } catch (error) {
+    const uncertain = [
+      "SMS_PROVIDER_OUTCOME_UNCERTAIN",
+      "SMS_DELIVERY_RECONCILIATION_REQUIRED",
+    ].includes(String(error?.code || ""));
     await Message.findByIdAndUpdate(claimed._id, {
       status: "failed",
       deliveryStatus: "failed",
-      deliveryAttemptedAt: null,
+      deliveryAttemptedAt: uncertain ? claimed.deliveryAttemptedAt || new Date() : null,
+      deliveryUncertain: uncertain,
       deliveryErrorCode: String(error?.code || "provider_error"),
       deliveryErrorMessage: String(error?.message || "SMS provider failure").slice(0, 1000),
     });
+    if (uncertain) {
+      await AlertService.createSystemAlert({
+        businessId: business._id,
+        title: "SMS provider outcome requires reconciliation",
+        message: "CallBackIQ blocked an automatic resend because Twilio may have accepted the reply. Review provider reconciliation before sending again.",
+        priority: "high",
+        metadata: {
+          conversationId: String(conversation._id),
+          inboundMessageId: String(inboundMessage._id),
+          outboundMessageId: String(claimed._id),
+        },
+        dedupeKey: `sms_delivery_uncertain:${claimed._id}`,
+      });
+      return { sent: false, reason: "delivery_uncertain", message: claimed };
+    }
     throw error;
   }
 };
@@ -256,9 +279,19 @@ export const processInboundSmsJob = async (job) => {
     throw error;
   }
 
-  const messages = await getMessagesForReply(conversation._id);
+  const customerTurn = await loadCustomerTurn({
+    conversationId: conversation._id,
+    anchorMessage: inboundMessage,
+  });
+  const messages = customerTurn.historyMessages;
+  const effectiveInboundMessage = customerTurn.primaryInboundMessage;
+  const classification = classifySmsIntent({
+    customerMessage: customerTurn.customerMessage,
+    business,
+    conversation,
+  });
   const deterministicAssessment = evaluateDeterministicInboundGuardrails({
-    customerMessage: inboundMessage.body,
+    customerMessage: customerTurn.customerMessage,
     recentMessages: messages,
   });
   const aiQualificationEnabled = isBusinessFeatureEnabled(
@@ -290,7 +323,7 @@ export const processInboundSmsJob = async (job) => {
     lead,
     conversation,
     messages,
-    inboundMessage,
+    inboundMessage: effectiveInboundMessage,
   });
   const result = orchestration.result;
 
@@ -332,12 +365,33 @@ export const processInboundSmsJob = async (job) => {
     });
   }
 
+  updatedConversation = await Conversation.findByIdAndUpdate(
+    updatedConversation._id,
+    {
+      $set: buildSmsStatePatch({
+        conversation: updatedConversation,
+        classification,
+        outcome: orchestration.outcome,
+        now: new Date(),
+        hasCustomerReply: true,
+      }),
+    },
+    { returnDocument: "after", runValidators: true },
+  );
+
   const delivery = await persistOutboundReply({
     business,
     lead: updatedLead,
     conversation: updatedConversation,
     inboundMessage,
     result,
+  });
+
+  await completeCoalescedJobs({
+    conversationId: updatedConversation._id,
+    primaryJobId: job._id,
+    primaryMessageId: inboundMessage._id,
+    turnMessageIds: customerTurn.turnMessageIds,
   });
 
   return {

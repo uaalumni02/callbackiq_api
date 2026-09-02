@@ -1,3 +1,4 @@
+import { classifySmsIntent } from "./smsIntentClassifier.service.js";
 import {
   findDateRange,
   hasAppointmentPreferenceHint,
@@ -276,15 +277,24 @@ export const evaluateSmsTurnPolicy = ({
     timePreference?.targetMinutes !== null ||
     Boolean(timePreference?.timeOfDay);
 
+  const canonical = classifySmsIntent({
+    customerMessage: text,
+    business,
+    conversation,
+    now,
+  });
   const intent = {
-    pricing: hasPricingIntent(text),
-    human: hasHumanIntent(text),
-    status: hasStatusIntent(text),
-    cancel: hasCancelIntent(text),
-    reschedule: hasRescheduleIntent(text),
-    scheduling: appointmentHint,
-    service: Boolean(serviceNeeded),
+    pricing: canonical.intents.pricing,
+    human: canonical.intents.human,
+    status: canonical.intents.status,
+    cancel: canonical.intents.cancel,
+    reschedule: canonical.intents.reschedule,
+    scheduling: canonical.intents.scheduling,
+    service: Boolean(serviceNeeded || canonical.entities.serviceNeeded),
     urgent: ACTIVE_URGENCY.test(text),
+    correction: canonical.intents.correction,
+    newService: canonical.intents.newService,
+    callback: canonical.intents.callback,
   };
 
   const existingService =
@@ -355,7 +365,7 @@ export const evaluateSmsTurnPolicy = ({
     });
   } else if (
     !autoBookingEnabled &&
-    intent.scheduling &&
+    appointmentHint &&
     intent.pricing
   ) {
     directResult = fixedResult({
@@ -369,7 +379,7 @@ export const evaluateSmsTurnPolicy = ({
       serviceNeeded: knownService,
       urgency: intent.urgent ? "high" : clean(lead?.urgency) || "medium",
     });
-  } else if (!autoBookingEnabled && intent.scheduling) {
+  } else if (!autoBookingEnabled && appointmentHint) {
     directResult = fixedResult({
       reply: safePreferenceAcknowledgement({
         business,
