@@ -1,3 +1,4 @@
+// CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1: alerts
 import Alert from "../models/alert.js";
 import SocketService from "./socket.service.js";
 
@@ -62,6 +63,7 @@ class AlertService {
   static async create({
     businessId,
     leadId = null,
+    conversationId = null,
     type,
     channel = "in_app",
     title,
@@ -70,6 +72,12 @@ class AlertService {
     status,
     metadata = {},
     dedupeKey = null,
+    actionRequired = false,
+    dueAt = null,
+    reason = "",
+    recommendedAction = "",
+    aiSummary = "",
+    lastCustomerMessage = "",
   }) {
     if (!businessId) {
       throw new Error("businessId is required to create an alert");
@@ -82,6 +90,7 @@ class AlertService {
     const payload = {
       business: businessId,
       lead: leadId || null,
+      conversation: conversationId || null,
       type,
       channel,
       title,
@@ -90,6 +99,12 @@ class AlertService {
       status: normalizedStatus,
       metadata,
       dedupeKey: dedupeKey || null,
+      actionRequired: Boolean(actionRequired),
+      dueAt: dueAt || null,
+      reason: truncate(reason, 1000),
+      recommendedAction: truncate(recommendedAction, 1000),
+      aiSummary: truncate(aiSummary, 2000),
+      lastCustomerMessage: truncate(lastCustomerMessage, 1600),
       sentAt:
         normalizedStatus === "sent" || normalizedStatus === "read" ? now : null,
       readAt: normalizedStatus === "read" ? now : null,
@@ -269,7 +284,101 @@ class AlertService {
       dedupeKey: `ai_review:${providerMessageId || messageId}`,
     });
   }
+  static async createHumanHandoffAlert({
+    businessId,
+    leadId,
+    conversationId,
+    messageId,
+    providerMessageId,
+    customerName,
+    customerPhone,
+    customerMessage = "",
+    result = {},
+    lead = {},
+  }) {
+    const customer = getCustomerLabel({ customerName, customerPhone });
+    const category = String(result?.messageCategory || "human_requested");
+    const riskFlags = Array.isArray(result?.riskFlags) ? result.riskFlags : [];
+    const urgency = String(result?.urgency || lead?.urgency || "")
+      .trim()
+      .toLowerCase();
+    const isEmergency =
+      category === "emergency" ||
+      category === "hazardous_diy_request" ||
+      urgency === "emergency" ||
+      riskFlags.includes("safety_hazard") ||
+      riskFlags.includes("hazardous_diy_request");
+    const isUrgent = isEmergency || urgency === "high";
+    const parseSla = (value, fallback) => {
+      const parsed = Number.parseInt(String(value || ""), 10);
+      return Number.isFinite(parsed) && parsed >= 1
+        ? Math.min(240, parsed)
+        : fallback;
+    };
+    const slaMinutes = isEmergency
+      ? parseSla(process.env.SMS_EMERGENCY_CALLBACK_SLA_MINUTES, 5)
+      : isUrgent
+        ? parseSla(process.env.SMS_URGENT_CALLBACK_SLA_MINUTES, 10)
+        : parseSla(process.env.SMS_HUMAN_CALLBACK_SLA_MINUTES, 15);
+    const dueAt = new Date(Date.now() + slaMinutes * 60 * 1000);
+    const serviceNeeded = String(
+      result?.serviceNeeded || lead?.serviceNeeded || "",
+    ).trim();
+    const address = String(result?.address || lead?.address || "").trim();
+    const preferredAppointmentTime = String(
+      result?.preferredAppointmentTime || lead?.preferredAppointmentTime || "",
+    ).trim();
+    const detailParts = [
+      serviceNeeded && serviceNeeded !== "Unknown"
+        ? `service: ${serviceNeeded}`
+        : "",
+      urgency ? `urgency: ${urgency}` : "",
+      address ? `address: ${address}` : "",
+    ].filter(Boolean);
 
+    /*
+     * Use strict creation here. The customer acknowledgement promises that a
+     * person has been asked to follow up, so the queue must not send that
+     * promise unless the action-required staff alert is durably stored. The
+     * unique dedupe key makes retries safe.
+     */
+    return this.create({
+      businessId,
+      leadId,
+      conversationId,
+      type: isEmergency ? "safety_emergency" : "human_requested",
+      title: isUrgent
+        ? "Urgent customer callback required"
+        : "Customer requested a callback",
+      message: `${customer} requested human follow-up at ${customerPhone || "the texting number"}.${
+        detailParts.length ? ` ${detailParts.join("; ")}.` : ""
+      }`,
+      priority: isEmergency ? "critical" : "high",
+      actionRequired: true,
+      dueAt,
+      reason: category,
+      recommendedAction: `Call ${customerPhone || "the customer"} and review the full SMS conversation before responding.`,
+      aiSummary: String(result?.summary || lead?.summary || ""),
+      lastCustomerMessage: customerMessage,
+      metadata: {
+        conversationId: conversationId ? String(conversationId) : null,
+        messageId: messageId ? String(messageId) : null,
+        providerMessageId: providerMessageId || null,
+        customerPhone: customerPhone || null,
+        callbackPhone: result?.handoff?.callbackPhone || customerPhone || null,
+        callbackRequested: result?.handoff?.callbackRequested === true,
+        messageCategory: category,
+        riskFlags,
+        serviceNeeded: serviceNeeded || null,
+        urgency: urgency || null,
+        urgent: isUrgent,
+        address: address || null,
+        preferredAppointmentTime: preferredAppointmentTime || null,
+        callbackSlaMinutes: slaMinutes,
+      },
+      dedupeKey: `human_handoff:${providerMessageId || messageId}`,
+    });
+  }
   static async createHotLeadAlert({
     businessId,
     leadId,

@@ -307,11 +307,18 @@ describe("Twilio SMS opt-out handling", () => {
 
     const criticalAlert = await Alert.findOne({
       business: business._id,
-      dedupeKey: "ai_review:SM_EMERGENCY_123",
+      dedupeKey: "human_handoff:SM_EMERGENCY_123",
     });
 
     expect(criticalAlert).toBeTruthy();
     expect(criticalAlert.priority).toBe("critical");
+    // CALLBACKIQ_SMS_EMERGENCY_ALERT_CONTRACT_V1_0_3
+    expect(criticalAlert.type).toBe("safety_emergency");
+    expect(criticalAlert.actionRequired).toBe(true);
+    expect(criticalAlert.dueAt).toBeTruthy();
+    expect(String(criticalAlert.conversation)).toBe(
+      String(conversation._id),
+    );
 
     const customerReplyAlert = await Alert.findOne({
       business: business._id,

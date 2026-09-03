@@ -1,3 +1,4 @@
+// CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1: webhook
 import { processInboundSmsJob } from "./messaging/inboundSmsJobProcessor.service.js";
 import CallLog from "../models/callLog.js";
 import Conversation from "../models/conversation.js";
@@ -27,6 +28,7 @@ import { resolveBusinessForTwilioStatus } from "./twilioStatusBusinessResolver.s
 import { processTwilioCallStatus } from "./twilioCallStatus.service.js";
 
 import { evaluateDeterministicInboundGuardrails } from "../helpers/ai/aiGuardrails.js";
+import { isHumanHandoffStatusQuestion } from "./messaging/smsHandoff.service.js";
 const xml = (body) => `<?xml version="1.0" encoding="UTF-8"?>${body}`;
 const emptyTwiml = () => xml("<Response></Response>");
 const sendXml = (res, { statusCode = 200, body = emptyTwiml() } = {}) => {
@@ -556,11 +558,15 @@ export const handleInboundSmsWebhook = async (req, res) => {
       // deterministic guardrail assessment before checking the optional AI
       // qualification feature, so emergencies and other guarded messages are
       // never silently dropped when general AI qualification is disabled.
+      const postHandoffStatusEligible =
+        conversation.humanTakeover === true &&
+        isHumanHandoffStatusQuestion(body);
       const eligible =
-        conversation.aiEnabled !== false &&
-        conversation.humanTakeover !== true &&
-        conversation.status !== "closed" &&
-        conversation.status !== "archived";
+        postHandoffStatusEligible ||
+        (conversation.aiEnabled !== false &&
+          conversation.humanTakeover !== true &&
+          conversation.status !== "closed" &&
+          conversation.status !== "archived");
 
       if (eligible) {
         const queuedJob = await enqueueInboundSmsJob({
@@ -577,6 +583,7 @@ export const handleInboundSmsWebhook = async (req, res) => {
           businessId: business._id,
           conversationId: conversation._id,
           inboundMessageId: inboundMessage._id,
+          postHandoffStatusEligible,
         });
       } else {
         logOperationalEvent("twilio.sms.ai_skipped", {
