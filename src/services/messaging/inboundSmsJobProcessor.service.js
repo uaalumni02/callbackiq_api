@@ -1,3 +1,4 @@
+// CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1: processor
 import { classifySmsIntent } from "./smsIntentClassifier.service.js";
 import { buildSmsStatePatch } from "./smsConversationState.service.js";
 import { loadCustomerTurn, completeCoalescedJobs } from "./smsTurnAggregation.service.js";
@@ -13,6 +14,17 @@ import SocketService from "../socket.service.js";
 import { logOperationalEvent, logOperationalError } from "../../helpers/logging/safeLogger.js";
 import { evaluateDeterministicInboundGuardrails } from "../../helpers/ai/aiGuardrails.js";
 import { isBusinessFeatureEnabled } from "../../helpers/businessFeatures.js";
+import {
+  buildFailedHumanHandoffUpdate,
+  buildFinalizedHumanHandoffUpdate,
+  buildHumanHandoffStatusResult,
+  buildPendingHumanHandoffUpdate,
+  ensureHumanHandoffResult,
+  isHumanHandoffSource,
+  isHumanHandoffStatusQuestion,
+  requiresHumanHandoff,
+  shouldSendHumanHandoffStatusAcknowledgement,
+} from "./smsHandoff.service.js";
 
 const VALID_URGENCIES = new Set(["low", "medium", "high", "emergency"]);
 
@@ -44,17 +56,6 @@ const buildLeadUpdates = (lead, result) => {
   if (Number.isFinite(estimatedValue) && estimatedValue > 0) updates.estimatedValue = estimatedValue;
   if (!lead.firstRespondedAt) updates.firstRespondedAt = new Date();
   return updates;
-};
-
-const requiresHumanTakeover = (result) => {
-  const riskFlags = Array.isArray(result?.riskFlags) ? result.riskFlags : [];
-  return (
-    ["emergency", "hazardous_diy_request", "human_requested"].includes(
-      result?.messageCategory,
-    ) ||
-    riskFlags.includes("safety_hazard") ||
-    riskFlags.includes("hazardous_diy_request")
-  );
 };
 
 const persistOutboundReply = async ({
@@ -133,6 +134,11 @@ const persistOutboundReply = async ({
           source: "inbound_sms_reply",
           decision: result?.decision || "reply",
           messageCategory: result?.messageCategory || "unknown",
+          handoffRequired: result?.handoff?.required === true,
+          handoffReason: result?.handoff?.reason || "",
+          handoffStatusAcknowledgement:
+            result?.handoff?.statusAcknowledgement === true,
+          idempotencyKey: `sms-inbound-reply:${business._id}:${inboundMessage._id}`,
         },
       });
     } catch (error) {
@@ -181,12 +187,20 @@ const persistOutboundReply = async ({
       conversationId: conversation._id,
       leadId: lead._id,
       directResponse: true,
+      bypassUsageLimits:
+        result?.handoff?.required === true ||
+        result?.handoff?.statusAcknowledgement === true,
       metadata: {
         aiGenerated: isAiGenerated,
         generatedBy: isAiGenerated ? "ai" : "guardrail",
         decision: result?.decision,
         messageCategory: result?.messageCategory,
         inboundMessageId: String(inboundMessage._id),
+        handoffRequired: result?.handoff?.required === true,
+        handoffReason: result?.handoff?.reason || "",
+        handoffStatusAcknowledgement:
+          result?.handoff?.statusAcknowledgement === true,
+        idempotencyKey: `sms-inbound-reply:${business._id}:${inboundMessage._id}`,
       },
     });
 
@@ -285,6 +299,114 @@ export const processInboundSmsJob = async (job) => {
   });
   const messages = customerTurn.historyMessages;
   const effectiveInboundMessage = customerTurn.primaryInboundMessage;
+  const handoffSource = isHumanHandoffSource({
+    conversation,
+    inboundMessageId: inboundMessage._id,
+  });
+
+  /*
+   * A worker can crash after persisting the provider result but before marking
+   * the queue job complete. Treat the durable outbound record as authoritative
+   * and complete the retry without generating or sending a duplicate message.
+   */
+  if (conversation.humanTakeover === true && handoffSource) {
+    const existingHandoffReply = await Message.findOne({
+      business: business._id,
+      inReplyToMessage: inboundMessage._id,
+    });
+    const hasDurableProviderOutcome = Boolean(
+      existingHandoffReply?.providerMessageId ||
+        existingHandoffReply?.deliveryUncertain === true ||
+        existingHandoffReply?.status === "suppressed",
+    );
+
+    if (hasDurableProviderOutcome) {
+      await completeCoalescedJobs({
+        conversationId: conversation._id,
+        primaryJobId: job._id,
+        primaryMessageId: inboundMessage._id,
+        turnMessageIds: customerTurn.turnMessageIds,
+      });
+      return {
+        decision: "human_handoff",
+        messageCategory: "human_requested",
+        outboundMessageId: existingHandoffReply?._id || null,
+        sent: Boolean(existingHandoffReply?.providerMessageId),
+        suppressed: existingHandoffReply?.status === "suppressed",
+        duplicate: true,
+      };
+    }
+  }
+
+  /*
+   * Once a person owns the conversation, CallBackIQ does not restart the AI.
+   * It may send one deterministic, throttled status acknowledgement when the
+   * customer asks whether the callback request was received.
+   */
+  const handoffStatusQuestion =
+    conversation.humanTakeover === true &&
+    isHumanHandoffStatusQuestion(customerTurn.customerMessage);
+
+  if (handoffStatusQuestion) {
+    if (!shouldSendHumanHandoffStatusAcknowledgement({ conversation })) {
+      await completeCoalescedJobs({
+        conversationId: conversation._id,
+        primaryJobId: job._id,
+        primaryMessageId: inboundMessage._id,
+        turnMessageIds: customerTurn.turnMessageIds,
+      });
+      return {
+        decision: "skipped",
+        reason: "human_handoff_status_throttled",
+      };
+    }
+
+    const statusResult = buildHumanHandoffStatusResult({ business });
+    const delivery = await persistOutboundReply({
+      business,
+      lead,
+      conversation,
+      inboundMessage,
+      result: statusResult,
+    });
+
+    if (
+      delivery?.sent === true ||
+      delivery?.suppressed === true ||
+      delivery?.reason === "delivery_uncertain"
+    ) {
+      const statusUpdatedConversation = await Conversation.findByIdAndUpdate(
+        conversation._id,
+        {
+          $set: {
+            "orchestration.handoffStatusReplyAt": new Date(),
+            "orchestration.lastOutboundMessage": delivery?.message?._id || null,
+          },
+        },
+        { returnDocument: "after", runValidators: true },
+      );
+      SocketService.emitConversationUpdated(
+        business._id,
+        statusUpdatedConversation,
+      );
+    }
+
+    await completeCoalescedJobs({
+      conversationId: conversation._id,
+      primaryJobId: job._id,
+      primaryMessageId: inboundMessage._id,
+      turnMessageIds: customerTurn.turnMessageIds,
+    });
+
+    return {
+      decision: statusResult.decision,
+      messageCategory: statusResult.messageCategory,
+      outboundMessageId: delivery?.message?._id || null,
+      sent: delivery?.sent === true,
+      suppressed: delivery?.suppressed === true,
+    };
+  }
+
   const classification = classifySmsIntent({
     customerMessage: customerTurn.customerMessage,
     business,
@@ -298,11 +420,16 @@ export const processInboundSmsJob = async (job) => {
     business,
     "aiQualificationEnabled",
   );
-  const mayProcessAI =
+  const pendingHandoff =
+    conversation?.orchestration?.handoffStatus === "pending_ack";
+  const retryingSameHandoff = pendingHandoff && handoffSource;
+  const automationEligible =
     conversation.aiEnabled !== false &&
     conversation.humanTakeover !== true &&
     conversation.status !== "closed" &&
-    conversation.status !== "archived" &&
+    conversation.status !== "archived";
+  const mayProcessAI =
+    ((!pendingHandoff && automationEligible) || retryingSameHandoff) &&
     (deterministicAssessment.handled || aiQualificationEnabled);
 
   if (!mayProcessAI) {
@@ -312,8 +439,15 @@ export const processInboundSmsJob = async (job) => {
       aiEnabled: conversation.aiEnabled,
       humanTakeover: conversation.humanTakeover,
       conversationStatus: conversation.status,
+      handoffStatus: conversation?.orchestration?.handoffStatus || "",
       aiQualificationEnabled,
       deterministicHandled: deterministicAssessment.handled,
+    });
+    await completeCoalescedJobs({
+      conversationId: conversation._id,
+      primaryJobId: job._id,
+      primaryMessageId: inboundMessage._id,
+      turnMessageIds: customerTurn.turnMessageIds,
     });
     return { decision: "skipped", reason: "ai_ineligible" };
   }
@@ -325,7 +459,18 @@ export const processInboundSmsJob = async (job) => {
     messages,
     inboundMessage: effectiveInboundMessage,
   });
-  const result = orchestration.result;
+  let result = orchestration.result || {};
+  const handoffRequired = requiresHumanHandoff(result);
+
+  if (handoffRequired) {
+    result = ensureHumanHandoffResult({
+      result,
+      business,
+      lead,
+      conversation,
+      customerMessage: customerTurn.customerMessage,
+    });
+  }
 
   let updatedLead = lead;
   let updatedConversation = conversation;
@@ -338,21 +483,42 @@ export const processInboundSmsJob = async (job) => {
     SocketService.emitLeadUpdated(business._id, updatedLead);
   }
 
-  if (requiresHumanTakeover(result)) {
-    updatedConversation = await Conversation.findByIdAndUpdate(
-      conversation._id,
-      {
-        aiEnabled: false,
-        humanTakeover: true,
-        humanTakeoverAt: new Date(),
-        humanTakeoverBy: null,
-      },
-      { returnDocument: "after", runValidators: true },
-    );
-    SocketService.emitConversationUpdated(business._id, updatedConversation);
-  }
+  const statePatch = buildSmsStatePatch({
+    conversation: updatedConversation,
+    classification,
+    outcome: orchestration.outcome,
+    now: new Date(),
+    hasCustomerReply: true,
+  });
+  const pendingHandoffPatch = handoffRequired
+    ? buildPendingHumanHandoffUpdate({
+        inboundMessageId: inboundMessage._id,
+        conversation: updatedConversation,
+        result,
+      })
+    : {};
 
-  if (result?.shouldAlertOwner === true) {
+  updatedConversation = await Conversation.findByIdAndUpdate(
+    updatedConversation._id,
+    { $set: { ...statePatch, ...pendingHandoffPatch } },
+    { returnDocument: "after", runValidators: true },
+  );
+  SocketService.emitConversationUpdated(business._id, updatedConversation);
+
+  if (handoffRequired) {
+    await AlertService.createHumanHandoffAlert({
+      businessId: business._id,
+      leadId: updatedLead._id,
+      conversationId: updatedConversation._id,
+      messageId: inboundMessage._id,
+      providerMessageId: inboundMessage.providerMessageId,
+      customerName: updatedLead.customerName,
+      customerPhone: updatedConversation.customerPhone,
+      customerMessage: customerTurn.customerMessage,
+      result,
+      lead: updatedLead,
+    });
+  } else if (result?.shouldAlertOwner === true) {
     await AlertService.createAIReviewAlert({
       businessId: business._id,
       leadId: updatedLead._id,
@@ -365,27 +531,96 @@ export const processInboundSmsJob = async (job) => {
     });
   }
 
-  updatedConversation = await Conversation.findByIdAndUpdate(
-    updatedConversation._id,
-    {
-      $set: buildSmsStatePatch({
-        conversation: updatedConversation,
-        classification,
-        outcome: orchestration.outcome,
-        now: new Date(),
-        hasCustomerReply: true,
-      }),
-    },
-    { returnDocument: "after", runValidators: true },
-  );
+  let delivery;
+  try {
+    delivery = await persistOutboundReply({
+      business,
+      lead: updatedLead,
+      conversation: updatedConversation,
+      inboundMessage,
+      result,
+    });
 
-  const delivery = await persistOutboundReply({
-    business,
-    lead: updatedLead,
-    conversation: updatedConversation,
-    inboundMessage,
-    result,
-  });
+    if (
+      handoffRequired &&
+      delivery?.sent !== true &&
+      delivery?.suppressed !== true &&
+      delivery?.reason !== "delivery_uncertain"
+    ) {
+      const error = new Error(
+        "Human handoff acknowledgement did not produce a durable provider outcome",
+      );
+      error.code = "SMS_HANDOFF_ACK_REQUIRED";
+      throw error;
+    }
+  } catch (error) {
+    if (handoffRequired) {
+      const latestConversation =
+        (await Conversation.findById(updatedConversation._id)) ||
+        updatedConversation;
+      const failedConversation = await Conversation.findByIdAndUpdate(
+        updatedConversation._id,
+        {
+          $set: buildFailedHumanHandoffUpdate({
+            inboundMessageId: inboundMessage._id,
+            conversation: latestConversation,
+            result,
+            error,
+          }),
+          $inc: { "orchestration.silentFailureCount": 1 },
+        },
+        { returnDocument: "after", runValidators: true },
+      );
+      SocketService.emitConversationUpdated(business._id, failedConversation);
+      await AlertService.createSystemAlert({
+        businessId: business._id,
+        title: "Human handoff acknowledgement failed",
+        message:
+          "CallBackIQ could not confirm the customer handoff SMS. The queue will retry; review this conversation immediately.",
+        priority: "critical",
+        metadata: {
+          conversationId: String(updatedConversation._id),
+          inboundMessageId: String(inboundMessage._id),
+          errorCode: String(error?.code || "SMS_HANDOFF_DELIVERY_FAILED"),
+        },
+        dedupeKey: `sms_handoff_delivery_failed:${inboundMessage._id}`,
+      });
+    }
+    throw error;
+  }
+
+  if (handoffRequired) {
+    const deliveryStatus = delivery?.sent
+      ? "acknowledged"
+      : delivery?.suppressed
+        ? "suppressed"
+        : "delivery_uncertain";
+    const latestConversation =
+      (await Conversation.findById(updatedConversation._id)) ||
+      updatedConversation;
+    updatedConversation = await Conversation.findByIdAndUpdate(
+      updatedConversation._id,
+      {
+        $set: buildFinalizedHumanHandoffUpdate({
+          inboundMessageId: inboundMessage._id,
+          outboundMessageId: delivery?.message?._id || null,
+          conversation: latestConversation,
+          result,
+          deliveryStatus,
+        }),
+      },
+      { returnDocument: "after", runValidators: true },
+    );
+    SocketService.emitConversationUpdated(business._id, updatedConversation);
+    SocketService.emitDashboardRefresh(business._id, "sms_human_handoff_ready");
+    logOperationalEvent("twilio.sms.human_handoff_finalized", {
+      businessId: business._id,
+      conversationId: updatedConversation._id,
+      inboundMessageId: inboundMessage._id,
+      outboundMessageId: delivery?.message?._id || null,
+      deliveryStatus,
+    });
+  }
 
   await completeCoalescedJobs({
     conversationId: updatedConversation._id,
@@ -400,6 +635,9 @@ export const processInboundSmsJob = async (job) => {
     outboundMessageId: delivery?.message?._id || null,
     sent: delivery?.sent === true,
     suppressed: delivery?.suppressed === true,
+    handoffStatus: handoffRequired
+      ? updatedConversation?.orchestration?.handoffStatus || ""
+      : "",
   };
 };
 

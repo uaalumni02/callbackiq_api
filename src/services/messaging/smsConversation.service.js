@@ -1,3 +1,4 @@
+// CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1: conversation-service
 import Lead from "../../models/lead.js";
 import Conversation from "../../models/conversation.js";
 import SocketService from "../socket.service.js";
@@ -195,6 +196,20 @@ const upsertConversation = async ({
     updates.reopenReason = staleTakeoverRecovery
       ? "new_missed_call_after_stale_human_takeover"
       : "new_customer_contact";
+    updates["bookingState.status"] = "not_started";
+    updates["bookingState.escalatedAt"] = null;
+    updates["orchestration.phase"] = "recovering";
+    updates["orchestration.handoffStatus"] = "";
+    updates["orchestration.handoffReason"] = "";
+    updates["orchestration.handoffRequestedAt"] = null;
+    updates["orchestration.handoffAcknowledgedAt"] = null;
+    updates["orchestration.handoffInboundMessage"] = null;
+    updates["orchestration.handoffOutboundMessage"] = null;
+    updates["orchestration.handoffCallbackPhone"] = "";
+    updates["orchestration.handoffLastError"] = "";
+    updates["orchestration.handoffStatusReplyAt"] = null;
+    updates["orchestration.silentFailureCount"] = 0;
+    updates["orchestration.lastStateTransitionAt"] = now;
   }
 
   conversation = await Conversation.findByIdAndUpdate(conversation._id, updates, {

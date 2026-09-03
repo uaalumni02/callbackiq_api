@@ -1,3 +1,4 @@
+// CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1: conversation-model
 import { normalizePhoneToE164 } from "../voice/voicePhone.service.js";
 import mongoose from "mongoose";
 import { customerLifecycleField } from "../helpers/customerLifecycle.js";
@@ -158,6 +159,33 @@ const conversationSchema = new Schema(
       lastOutboundMessage: { type: Schema.Types.ObjectId, ref: "Message", default: null },
       silentFailureCount: { type: Number, min: 0, default: 0 },
       lastEscalatedAt: { type: Date, default: null },
+      handoffStatus: {
+        type: String,
+        enum: [
+          "",
+          "pending_ack",
+          "acknowledged",
+          "delivery_uncertain",
+          "suppressed",
+        ],
+        default: "",
+      },
+      handoffReason: { type: String, trim: true, maxlength: 120, default: "" },
+      handoffRequestedAt: { type: Date, default: null },
+      handoffAcknowledgedAt: { type: Date, default: null },
+      handoffInboundMessage: {
+        type: Schema.Types.ObjectId,
+        ref: "Message",
+        default: null,
+      },
+      handoffOutboundMessage: {
+        type: Schema.Types.ObjectId,
+        ref: "Message",
+        default: null,
+      },
+      handoffCallbackPhone: { type: String, trim: true, default: "" },
+      handoffLastError: { type: String, trim: true, maxlength: 1000, default: "" },
+      handoffStatusReplyAt: { type: Date, default: null },
     },
     lifecycle: {
       recoveryNudgeCount: { type: Number, min: 0, max: 2, default: 0 },
@@ -235,6 +263,10 @@ conversationSchema.index({
   "bookingState.expiresAt": 1,
 });
 conversationSchema.index({ status: 1, "orchestration.phase": 1, lastMessageAt: 1 });
+conversationSchema.index({
+  "orchestration.handoffStatus": 1,
+  "orchestration.handoffRequestedAt": 1,
+});
 conversationSchema.index({ status: 1, "lifecycle.nextRecoveryNudgeAt": 1 });
 
 conversationSchema.index(

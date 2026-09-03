@@ -1,3 +1,4 @@
+// CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1: policy
 import { classifySmsIntent } from "./smsIntentClassifier.service.js";
 import {
   findDateRange,
@@ -214,7 +215,7 @@ const safePreferenceAcknowledgement = ({
 }) => {
   const service = clean(serviceNeeded);
   const servicePhrase = service ? ` for ${service}` : "";
-  return `I've noted ${preferenceLabel}${servicePhrase} as your preferred time. ${getBusinessName(
+  return `I've noted ${preferenceLabel}${servicePhrase} as your preferred time. This is a request, not a confirmed appointment. ${getBusinessName(
     business,
   )} will confirm availability as soon as possible.`;
 };
@@ -228,7 +229,7 @@ const pricingAndSchedulingReply = ({
   const servicePhrase = service ? ` for ${service}` : "";
   return `Final pricing depends on the diagnosis, so ${getBusinessName(
     business,
-  )} will confirm the cost. I've also noted ${preferenceLabel}${servicePhrase} as your preferred time.`;
+  )} will confirm the cost. I've also noted ${preferenceLabel}${servicePhrase} as your preferred time. This is a request, not a confirmed appointment. The team will confirm availability directly.`;
 };
 
 const pricingReply = ({ lead, business }) => {
@@ -334,9 +335,9 @@ export const evaluateSmsTurnPolicy = ({
    */
   if (!autoBookingEnabled && intent.human) {
     directResult = fixedResult({
-      reply: `I've alerted ${getBusinessName(
+      reply: `Absolutely. I've asked ${getBusinessName(
         business,
-      )} that you'd like a person to follow up. They will respond directly as soon as possible.`,
+      )} to call you at the number you're texting from. A team member will follow up as soon as possible.`,
       category: "human_requested",
       shouldAlertOwner: true,
       alertPriority: "high",
