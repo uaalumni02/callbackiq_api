@@ -7,6 +7,7 @@ import { monitorTwilioVoiceWebhookLatency } from "../middleware/twilio-webhook-l
 import {
   manualSmsRateLimit,
   twilioSmsWebhookRateLimit,
+  twilioSmsFallbackWebhookRateLimit,
   twilioStatusWebhookRateLimit,
   twilioVoiceWebhookRateLimit,
 } from "../middleware/twilio-webhook-rate-limit.js";
@@ -109,7 +110,7 @@ router.post(
 router.post(
   "/sms-fallback",
   validateTwilioSignature,
-  twilioSmsWebhookRateLimit,
+  twilioSmsFallbackWebhookRateLimit,
   TwilioController.handleInboundSms,
 );
 router.post(

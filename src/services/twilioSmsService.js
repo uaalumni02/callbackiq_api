@@ -31,6 +31,17 @@ import {
 let twilioClient = null;
 let cachedAccountSid = "";
 let cachedAuthToken = "";
+let beforeSmsProviderSendHookForTests = null;
+
+export const setBeforeSmsProviderSendHookForTests = (hook) => {
+  if (process.env.NODE_ENV !== "test") {
+    throw new Error(
+      "setBeforeSmsProviderSendHookForTests is available only in NODE_ENV=test.",
+    );
+  }
+  beforeSmsProviderSendHookForTests =
+    typeof hook === "function" ? hook : null;
+};
 
 const getCredentials = () => ({
   accountSid: String(process.env.TWILIO_ACCOUNT_SID || "").trim(),
@@ -252,15 +263,54 @@ export const sendSms = async ({
       });
     }
   };
+  // Compliance precedence: an opted-out recipient must be identified
+  // before send-window policy and before communication usage reservation.
+  // A second authoritative check remains immediately before the Twilio
+  // provider call to close the opt-out/send race.
   if (!allowOptedOut) {
-    const suppressed = await isSmsSuppressed({ businessId: resolvedBusinessId, phone: normalizedTo });
+    const suppressed = await isSmsSuppressed({
+      businessId: resolvedBusinessId,
+      phone: normalizedTo,
+    });
+
     if (suppressed) {
-      const result = { sid: "", status: "suppressed", suppressed: true, reason: "customer_opted_out", to: normalizedTo, from: configuredFrom, body: normalizedBody, ...segment };
+      const result = {
+        sid: "",
+        status: "suppressed",
+        suppressed: true,
+        reason: "customer_opted_out",
+        to: normalizedTo,
+        from: configuredFrom,
+        body: normalizedBody,
+        ...segment,
+      };
+
       await releaseSmsContactDisclosure({ claim: disclosure.claim });
-      await safeAudit({ businessId: resolvedBusinessId, actorId, actorType, source, usageCategory, conversationId, leadId, from: configuredFrom, to: normalizedTo, body: normalizedBody, status: "suppressed", reason: result.reason, metadata: { ...metadata, segment, operationKey } });
+
+      await safeAudit({
+        businessId: resolvedBusinessId,
+        actorId,
+        actorType,
+        source,
+        usageCategory,
+        conversationId,
+        leadId,
+        from: configuredFrom,
+        to: normalizedTo,
+        body: normalizedBody,
+        status: "suppressed",
+        reason: result.reason,
+        metadata: {
+          ...metadata,
+          segment,
+          operationKey,
+        },
+      });
+
       return result;
     }
   }
+
   const sendWindow = evaluateSmsSendWindow({ business: resolvedBusiness, category: usageCategory, directResponse, bypassQuietHours });
   if (!sendWindow.allowed) {
     const result = { sid: "", status: "blocked", suppressed: true, policyBlocked: true, reason: sendWindow.reason, to: normalizedTo, from: configuredFrom, body: normalizedBody, sendWindow, ...segment };
@@ -301,6 +351,71 @@ export const sendSms = async ({
     throw error;
   }
   try {
+    if (
+      process.env.NODE_ENV === "test" &&
+      typeof beforeSmsProviderSendHookForTests === "function"
+    ) {
+      await beforeSmsProviderSendHookForTests({
+        businessId: resolvedBusinessId,
+        to: normalizedTo,
+        operationKey,
+      });
+    }
+
+    // Re-read the authoritative preference at the last safe boundary before
+    // the provider call. A soft opt-out that committed while this send was
+    // reserving usage/disclosure must win.
+    if (!allowOptedOut) {
+      const suppressedBeforeProviderSend = await isSmsSuppressed({
+        businessId: resolvedBusinessId,
+        phone: normalizedTo,
+      });
+
+      if (suppressedBeforeProviderSend) {
+        await releaseCommunicationUsageReservation({
+          reservation: lifecycle?.reservation,
+          usage,
+          reason: "customer_opted_out_pre_provider_send",
+        });
+        await releaseSmsContactDisclosure({ claim: disclosure.claim });
+
+        const result = {
+          sid: "",
+          status: "suppressed",
+          suppressed: true,
+          reason: "customer_opted_out",
+          to: normalizedTo,
+          from: configuredFrom,
+          body: normalizedBody,
+          usage,
+          ...segment,
+        };
+
+        await safeAudit({
+          businessId: resolvedBusinessId,
+          actorId,
+          actorType,
+          source,
+          usageCategory,
+          conversationId,
+          leadId,
+          from: configuredFrom,
+          to: normalizedTo,
+          body: normalizedBody,
+          status: "suppressed",
+          reason: "customer_opted_out_pre_provider_send",
+          metadata: {
+            ...metadata,
+            segment,
+            sendWindow,
+            operationKey,
+          },
+        });
+
+        return result;
+      }
+    }
+
     const client = getTwilioClient();
     const configuredMessagingServiceSid = String(messagingServiceSid || "").trim();
     const statusCallback = getStatusCallback();
@@ -355,4 +470,5 @@ export const resetTwilioClient = () => {
   twilioClient = null;
   cachedAccountSid = "";
   cachedAuthToken = "";
+  beforeSmsProviderSendHookForTests = null;
 };

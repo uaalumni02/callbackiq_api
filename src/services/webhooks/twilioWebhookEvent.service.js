@@ -1,12 +1,18 @@
 import crypto from "crypto";
 import WebhookEvent from "../../models/webhookEvent.js";
 
-const DEFAULT_LEASE_MS = 60_000;
+const DEFAULT_LEASE_MS = 5_000;
+const DEFAULT_DUPLICATE_WAIT_MS = 5_500;
+
 const leaseMs = () => {
   const value = Number(process.env.TWILIO_WEBHOOK_LEASE_MS);
-  return Number.isFinite(value) && value >= 10_000 ? value : DEFAULT_LEASE_MS;
+  return Number.isFinite(value) && value >= 3_000
+    ? Math.min(30_000, value)
+    : DEFAULT_LEASE_MS;
 };
+
 const isDuplicateKeyError = (error) => error?.code === 11000;
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export const claimTwilioWebhookEvent = async ({
   businessId,
@@ -35,7 +41,13 @@ export const claimTwilioWebhookEvent = async ({
       firstReceivedAt: now,
       lastReceivedAt: now,
     });
-    return { claimed: true, duplicate: false, reclaimed: false, leaseToken, event };
+    return {
+      claimed: true,
+      duplicate: false,
+      reclaimed: false,
+      leaseToken,
+      event,
+    };
   } catch (error) {
     if (!isDuplicateKeyError(error)) throw error;
   }
@@ -66,8 +78,15 @@ export const claimTwilioWebhookEvent = async ({
     },
     { returnDocument: "after" },
   );
+
   if (reclaimed) {
-    return { claimed: true, duplicate: true, reclaimed: true, leaseToken, event: reclaimed };
+    return {
+      claimed: true,
+      duplicate: true,
+      reclaimed: true,
+      leaseToken,
+      event: reclaimed,
+    };
   }
 
   const event = await WebhookEvent.findOneAndUpdate(
@@ -75,7 +94,14 @@ export const claimTwilioWebhookEvent = async ({
     { $inc: { duplicateCount: 1 }, $set: { lastReceivedAt: now } },
     { returnDocument: "after" },
   );
-  return { claimed: false, duplicate: true, reclaimed: false, leaseToken: "", event };
+
+  return {
+    claimed: false,
+    duplicate: true,
+    reclaimed: false,
+    leaseToken: "",
+    event,
+  };
 };
 
 export const heartbeatTwilioWebhookEvent = async ({ eventId, leaseToken }) =>
@@ -84,24 +110,59 @@ export const heartbeatTwilioWebhookEvent = async ({ eventId, leaseToken }) =>
     { $set: { leaseExpiresAt: new Date(Date.now() + leaseMs()) } },
   );
 
-export const completeTwilioWebhookEvent = async (
+export const waitForTwilioWebhookEventSettlement = async (
   eventId,
-  { statusCode = 200, contentType = "text/xml", responseBody = "" } = {},
+  {
+    maxWaitMs = DEFAULT_DUPLICATE_WAIT_MS,
+    pollMs = 150,
+  } = {},
 ) => {
   if (!eventId) return null;
-  return WebhookEvent.findByIdAndUpdate(
-    eventId,
+  const started = Date.now();
+  const safePollMs = Math.max(50, Math.min(500, Number(pollMs) || 150));
+  const safeWaitMs = Math.max(0, Math.min(8_000, Number(maxWaitMs) || 0));
+
+  while (true) {
+    const event = await WebhookEvent.findById(eventId);
+    if (!event) return null;
+    if (event.status !== "processing") return event;
+
+    const expiresAt = event.leaseExpiresAt
+      ? new Date(event.leaseExpiresAt).getTime()
+      : 0;
+    if (!expiresAt || expiresAt <= Date.now()) return event;
+    if (Date.now() - started >= safeWaitMs) return event;
+
+    await delay(safePollMs);
+  }
+};
+
+export const completeTwilioWebhookEvent = async (
+  eventId,
+  {
+    leaseToken = "",
+    statusCode = 200,
+    contentType = "text/xml",
+    responseBody = "",
+  } = {},
+) => {
+  if (!eventId || !leaseToken) return null;
+
+  return WebhookEvent.findOneAndUpdate(
+    { _id: eventId, status: "processing", leaseToken },
     {
-      status: "completed",
-      completedAt: new Date(),
-      failedAt: null,
-      failureReason: "",
-      leaseToken: "",
-      leaseExpiresAt: null,
-      responseStatusCode: statusCode,
-      responseContentType: contentType,
-      responseBody,
-      lastReceivedAt: new Date(),
+      $set: {
+        status: "completed",
+        completedAt: new Date(),
+        failedAt: null,
+        failureReason: "",
+        leaseToken: "",
+        leaseExpiresAt: null,
+        responseStatusCode: statusCode,
+        responseContentType: contentType,
+        responseBody,
+        lastReceivedAt: new Date(),
+      },
     },
     { returnDocument: "after" },
   );
@@ -110,23 +171,34 @@ export const completeTwilioWebhookEvent = async (
 export const failTwilioWebhookEvent = async (
   eventId,
   error,
-  { statusCode = 200, contentType = "text/xml", responseBody = "" } = {},
+  {
+    leaseToken = "",
+    statusCode = 200,
+    contentType = "text/xml",
+    responseBody = "",
+  } = {},
 ) => {
-  if (!eventId) return null;
+  if (!eventId || !leaseToken) return null;
+
   const failureReason =
-    error instanceof Error ? error.message : String(error || "Unknown error");
-  return WebhookEvent.findByIdAndUpdate(
-    eventId,
+    error instanceof Error
+      ? error.message
+      : String(error || "Unknown error");
+
+  return WebhookEvent.findOneAndUpdate(
+    { _id: eventId, status: "processing", leaseToken },
     {
-      status: "failed",
-      failedAt: new Date(),
-      failureReason,
-      leaseToken: "",
-      leaseExpiresAt: null,
-      responseStatusCode: statusCode,
-      responseContentType: contentType,
-      responseBody,
-      lastReceivedAt: new Date(),
+      $set: {
+        status: "failed",
+        failedAt: new Date(),
+        failureReason,
+        leaseToken: "",
+        leaseExpiresAt: null,
+        responseStatusCode: statusCode,
+        responseContentType: contentType,
+        responseBody,
+        lastReceivedAt: new Date(),
+      },
     },
     { returnDocument: "after" },
   );

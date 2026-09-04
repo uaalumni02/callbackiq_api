@@ -88,6 +88,7 @@ describe("twilioWebhookEvent service", () => {
     const claim = await claimTwilioWebhookEvent(buildClaim());
 
     const completed = await completeTwilioWebhookEvent(claim.event._id, {
+      leaseToken: claim.leaseToken,
       statusCode: 200,
       contentType: "text/xml",
       responseBody: "<Response></Response>",
@@ -108,6 +109,7 @@ describe("twilioWebhookEvent service", () => {
       claim.event._id,
       new Error("AI provider failed"),
       {
+        leaseToken: claim.leaseToken,
         statusCode: 200,
         contentType: "text/xml",
         responseBody: "<Response></Response>",

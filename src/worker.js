@@ -30,6 +30,14 @@ import {
   stopSmsProcessingWorker,
 } from "./workers/smsProcessing.worker.js";
 import {
+  startSmsIngressReconciliationWorker,
+  stopSmsIngressReconciliationWorker,
+} from "./workers/smsIngressReconciliation.worker.js";
+import {
+  startSmsDeliveryReconciliationWorker,
+  stopSmsDeliveryReconciliationWorker,
+} from "./workers/smsDeliveryReconciliation.worker.js";
+import {
   startTrialLifecycleWorker,
   stopTrialLifecycleWorker,
 } from "./workers/trialLifecycle.worker.js";
@@ -45,10 +53,14 @@ const roleMap = {
     ["automation", startAutomationWorker, stopAutomationWorker],
     ["lifecycle", startTrialLifecycleWorker, stopTrialLifecycleWorker],
     ["sms", startSmsProcessingWorker, stopSmsProcessingWorker],
+    ["sms-ingress", startSmsIngressReconciliationWorker, stopSmsIngressReconciliationWorker],
+    ["sms-delivery", startSmsDeliveryReconciliationWorker, stopSmsDeliveryReconciliationWorker],
     ["sms-lifecycle", startConversationLifecycleWorker, stopConversationLifecycleWorker],
   ],
   "worker-sms": [
     ["sms", startSmsProcessingWorker, stopSmsProcessingWorker],
+    ["sms-ingress", startSmsIngressReconciliationWorker, stopSmsIngressReconciliationWorker],
+    ["sms-delivery", startSmsDeliveryReconciliationWorker, stopSmsDeliveryReconciliationWorker],
     ["sms-lifecycle", startConversationLifecycleWorker, stopConversationLifecycleWorker],
   ],
   "worker-automation": [

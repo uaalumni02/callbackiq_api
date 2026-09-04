@@ -92,6 +92,24 @@ try {
     name: "sms_ingress_orphan_reconciliation",
   });
 
+  await ensureIndex({
+    collection: db.collection("smsdeliveryreconciliationevents"),
+    key: { business: 1, eventKey: 1 },
+    name: "sms_delivery_reconciliation_event_unique",
+    unique: true,
+  });
+
+  await ensureIndex({
+    collection: db.collection("smsdeliveryreconciliationevents"),
+    key: {
+      status: 1,
+      availableAt: 1,
+      leaseExpiresAt: 1,
+      createdAt: 1,
+    },
+    name: "sms_delivery_reconciliation_work_queue",
+  });
+
   console.log("SMS reliability indexes are ready.");
 } finally {
   await mongoose.disconnect();
