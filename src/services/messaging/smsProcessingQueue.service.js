@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import SmsProcessingJob from "../../models/smsProcessingJob.js";
+import Message from "../../models/message.js";
 
 const DEFAULT_LEASE_MS = 60_000;
 const DEFAULT_MAX_ATTEMPTS = 5;
@@ -159,6 +160,80 @@ export const heartbeatInboundSmsJob = async ({ jobId, leaseToken }) => {
   );
 };
 
+export const reconcileOrphanedInboundSmsJobs = async ({
+  limit = 100,
+  horizonMs = 7 * 24 * 60 * 60 * 1000,
+} = {}) => {
+  const safeLimit = Math.max(1, Math.min(500, Number(limit) || 100));
+  const cutoff = new Date(Date.now() - Math.max(60000, Number(horizonMs) || 0));
+
+  const candidates = await Message.find({
+    direction: "inbound",
+    provider: "twilio",
+    providerMessageId: { $ne: "" },
+    "metadata.processingRequired": true,
+    "metadata.processingEnqueuedAt": null,
+    createdAt: { $gte: cutoff },
+  })
+    .sort({ createdAt: 1, _id: 1 })
+    .limit(safeLimit)
+    .select("_id business conversation lead providerMessageId")
+    .lean();
+
+  if (!candidates.length) {
+    return { examined: 0, repaired: 0 };
+  }
+
+  const existingJobs = await SmsProcessingJob.find({
+    inboundMessage: { $in: candidates.map((item) => item._id) },
+  })
+    .select("inboundMessage")
+    .lean();
+  const existing = new Set(
+    existingJobs.map((job) => String(job.inboundMessage)),
+  );
+
+  let repaired = 0;
+  for (const message of candidates) {
+    if (existing.has(String(message._id))) {
+      await Message.updateOne(
+        { _id: message._id },
+        {
+          $set: {
+            "metadata.processingEnqueuedAt": new Date(),
+            "metadata.processingReconciled": true,
+          },
+        },
+      );
+      continue;
+    }
+    if (!message.business || !message.conversation || !message.lead) continue;
+
+    await enqueueInboundSmsJob({
+      businessId: message.business,
+      inboundMessageId: message._id,
+      conversationId: message.conversation,
+      leadId: message.lead,
+      providerMessageId: message.providerMessageId,
+    });
+    await Message.updateOne(
+      { _id: message._id },
+      {
+        $set: {
+          "metadata.processingEnqueuedAt": new Date(),
+          "metadata.processingReconciled": true,
+        },
+      },
+    );
+    repaired += 1;
+  }
+
+  return {
+    examined: candidates.length,
+    repaired,
+  };
+};
+
 export const getInboundSmsQueueHealth = async () => {
   const now = new Date();
   const [queued, retry, processing, expired, dead] = await Promise.all([
@@ -181,5 +256,6 @@ export default {
   failInboundSmsJob,
   heartbeatInboundSmsJob,
   deferInboundSmsJob,
+  reconcileOrphanedInboundSmsJobs,
   getInboundSmsQueueHealth,
 };

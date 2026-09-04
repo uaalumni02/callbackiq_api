@@ -1,9 +1,9 @@
 import express from "express";
 import checkAuth from "../middleware/check-auth.js";
 import checkSubscription from "../middleware/check-subscription.js";
-import inboundSmsLifecycle from "../middleware/inbound-sms-lifecycle.js";
 import missedCallAutomationLifecycle from "../middleware/missed-call-automation-lifecycle.js";
 import validateTwilioSignature from "../middleware/validate-twilio-signature.js";
+import { monitorTwilioVoiceWebhookLatency } from "../middleware/twilio-webhook-latency.js";
 import {
   manualSmsRateLimit,
   twilioSmsWebhookRateLimit,
@@ -25,6 +25,18 @@ router.post(
   "/voice",
   validateTwilioSignature,
   twilioVoiceWebhookRateLimit,
+  // CALLBACKIQ_VOICE_P95_MONITOR
+  monitorTwilioVoiceWebhookLatency,
+  TrackingVoiceController.initial,
+  VoiceWebhookController.initial,
+);
+
+router.post(
+  "/voice-fallback",
+  validateTwilioSignature,
+  twilioVoiceWebhookRateLimit,
+  // CALLBACKIQ_VOICE_P95_MONITOR
+  monitorTwilioVoiceWebhookLatency,
   TrackingVoiceController.initial,
   VoiceWebhookController.initial,
 );
@@ -32,6 +44,8 @@ router.post(
   "/tracking-call-complete",
   validateTwilioSignature,
   twilioVoiceWebhookRateLimit,
+  // CALLBACKIQ_VOICE_P95_MONITOR
+  monitorTwilioVoiceWebhookLatency,
   TrackingVoiceController.complete,
   VoiceWebhookController.initial,
 );
@@ -40,18 +54,24 @@ router.post(
   "/voice-overflow",
   validateTwilioSignature,
   twilioVoiceWebhookRateLimit,
+  // CALLBACKIQ_VOICE_P95_MONITOR
+  monitorTwilioVoiceWebhookLatency,
   VoiceWebhookController.overflow,
 );
 router.post(
   "/voice-complete",
   validateTwilioSignature,
   twilioVoiceWebhookRateLimit,
+  // CALLBACKIQ_VOICE_P95_MONITOR
+  monitorTwilioVoiceWebhookLatency,
   VoiceWebhookController.complete,
 );
 router.post(
   "/voice-transfer-complete",
   validateTwilioSignature,
   twilioVoiceWebhookRateLimit,
+  // CALLBACKIQ_VOICE_P95_MONITOR
+  monitorTwilioVoiceWebhookLatency,
   VoiceWebhookController.transferComplete,
 );
 
@@ -59,6 +79,8 @@ router.post(
   "/voice-staff-screen",
   validateTwilioSignature,
   twilioVoiceWebhookRateLimit,
+  // CALLBACKIQ_VOICE_P95_MONITOR
+  monitorTwilioVoiceWebhookLatency,
   VoiceWebhookController.staffScreen,
 );
 
@@ -66,6 +88,8 @@ router.post(
   "/voice-staff-screen-decision",
   validateTwilioSignature,
   twilioVoiceWebhookRateLimit,
+  // CALLBACKIQ_VOICE_P95_MONITOR
+  monitorTwilioVoiceWebhookLatency,
   VoiceWebhookController.staffScreenDecision,
 );
 router.post(
@@ -79,7 +103,13 @@ router.post(
   "/sms",
   validateTwilioSignature,
   twilioSmsWebhookRateLimit,
-  inboundSmsLifecycle,
+  TwilioController.handleInboundSms,
+);
+
+router.post(
+  "/sms-fallback",
+  validateTwilioSignature,
+  twilioSmsWebhookRateLimit,
   TwilioController.handleInboundSms,
 );
 router.post(

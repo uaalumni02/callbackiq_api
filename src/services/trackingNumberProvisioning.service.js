@@ -7,6 +7,7 @@ import {
   toMessagingComplianceUpdate,
 } from "./a2pMessagingRegistration.service.js";
 import { normalizePhoneToE164 } from "../voice/voicePhone.service.js";
+import { buildTwilioWebhookUrls } from "./twilioWebhookReliability.service.js";
 
 import {
   acquireOperationLease,
@@ -96,12 +97,8 @@ const areaCodeFromForwardingPhone = (phone) => {
 };
 
 const webhookUrls = () => {
-  const base = getWebhookBaseUrl();
-  return {
-    voiceUrl: `${base}/api/twilio/voice`,
-    smsUrl: `${base}/api/twilio/sms`,
-    statusCallback: `${base}/api/twilio/status`,
-  };
+  // CALLBACKIQ_TWILIO_RELIABILITY_URLS
+  return buildTwilioWebhookUrls(getWebhookBaseUrl());
 };
 
 const setFailure = async (businessId, error) => {
@@ -177,15 +174,21 @@ export const reconcileExistingTrackingNumber = async ({
   const expected = webhookUrls();
   const webhookMatches =
     incoming.voiceUrl === expected.voiceUrl &&
+    incoming.voiceFallbackUrl === expected.voiceFallbackUrl &&
     incoming.smsUrl === expected.smsUrl &&
+    incoming.smsFallbackUrl === expected.smsFallbackUrl &&
     incoming.statusCallback === expected.statusCallback;
 
   if (!webhookMatches) {
     await client.incomingPhoneNumbers(incoming.sid).update({
       voiceMethod: "POST",
-      voiceUrl: expected.voiceUrl,
-      smsMethod: "POST",
-      smsUrl: expected.smsUrl,
+        voiceUrl: expected.voiceUrl,
+        voiceFallbackMethod: "POST",
+        voiceFallbackUrl: expected.voiceFallbackUrl,
+        smsMethod: "POST",
+        smsUrl: expected.smsUrl,
+        smsFallbackMethod: "POST",
+        smsFallbackUrl: expected.smsFallbackUrl,
       statusCallbackMethod: "POST",
       statusCallback: expected.statusCallback,
     });
@@ -362,8 +365,12 @@ export const assignTrackingNumber = async (businessOrId) => {
       ).slice(0, 45)}`,
       voiceMethod: "POST",
       voiceUrl: urls.voiceUrl,
+      voiceFallbackMethod: "POST",
+      voiceFallbackUrl: urls.voiceFallbackUrl,
       smsMethod: "POST",
       smsUrl: urls.smsUrl,
+      smsFallbackMethod: "POST",
+      smsFallbackUrl: urls.smsFallbackUrl,
       statusCallbackMethod: "POST",
       statusCallback: urls.statusCallback,
     });
@@ -504,9 +511,13 @@ export const verifyTrackingNumber = async (businessOrId) => {
         .incomingPhoneNumbers(business.trackingNumber.providerSid)
         .update({
           voiceMethod: "POST",
-          voiceUrl: expected.voiceUrl,
-          smsMethod: "POST",
-          smsUrl: expected.smsUrl,
+        voiceUrl: expected.voiceUrl,
+        voiceFallbackMethod: "POST",
+        voiceFallbackUrl: expected.voiceFallbackUrl,
+        smsMethod: "POST",
+        smsUrl: expected.smsUrl,
+        smsFallbackMethod: "POST",
+        smsFallbackUrl: expected.smsFallbackUrl,
           statusCallbackMethod: "POST",
           statusCallback: expected.statusCallback,
         });

@@ -74,6 +74,17 @@ export const attachPhoneNumberToBusinessMessagingRegistration = async ({
   }
 
   try {
+    // CALLBACKIQ_NUMBER_LEVEL_INBOUND_WEBHOOKS
+    // The number carries CallBackIQ's retry fragments and primary/fallback URLs.
+    // Force the per-business Messaging Service to preserve those number-level
+    // inbound settings instead of silently overriding them.
+    const messagingService = client.messaging.v1.services(messagingServiceSid);
+    if (typeof messagingService?.update === "function") {
+      await messagingService.update({
+        useInboundWebhookOnNumber: true,
+      });
+    }
+
     // Attach first. New CallBackIQ customers can have a Messaging Service before
     // their Brand/Campaign reaches approval; the sender must still be retained in
     // the correct per-business Sender Pool while compliance progresses.

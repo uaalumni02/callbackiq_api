@@ -254,11 +254,15 @@ describe("tracking number reconciliation target coverage", () => {
     expect(state.incomingPhoneNumbers).toHaveBeenCalledWith("PN123");
     expect(state.update).toHaveBeenCalledWith({
       voiceMethod: "POST",
-      voiceUrl: expectedWebhookState.voiceUrl,
+      voiceUrl: "https://api.callbackiq.test/api/twilio/voice#ct=1500&rt=5000&tt=14000&rc=1&rp=ct,rt,5xx",
+      voiceFallbackMethod: "POST",
+      voiceFallbackUrl: "https://api.callbackiq.test/api/twilio/voice-fallback#ct=1500&rt=5000&tt=12000&rc=0",
       smsMethod: "POST",
-      smsUrl: expectedWebhookState.smsUrl,
+      smsUrl: "https://api.callbackiq.test/api/twilio/sms#ct=1500&rt=5000&tt=12000&rc=2&rp=ct,rt,5xx",
+      smsFallbackMethod: "POST",
+      smsFallbackUrl: "https://api.callbackiq.test/api/twilio/sms-fallback#ct=1500&rt=5000&tt=12000&rc=0",
       statusCallbackMethod: "POST",
-      statusCallback: expectedWebhookState.statusCallback,
+      statusCallback: "https://api.callbackiq.test/api/twilio/status#ct=1500&rt=5000&tt=12000&rc=2&rp=ct,rt,5xx",
     });
     expect(Business.findByIdAndUpdate).toHaveBeenCalledWith(
       "biz-1",
@@ -291,7 +295,22 @@ describe("tracking number reconciliation target coverage", () => {
         activatedAt,
       },
     });
-    const state = makeClient();
+    const state = makeClient({
+      candidates: [
+        makeIncoming({
+          voiceMethod: "POST",
+          voiceUrl: "https://api.callbackiq.test/api/twilio/voice#ct=1500&rt=5000&tt=14000&rc=1&rp=ct,rt,5xx",
+          voiceFallbackMethod: "POST",
+          voiceFallbackUrl: "https://api.callbackiq.test/api/twilio/voice-fallback#ct=1500&rt=5000&tt=12000&rc=0",
+          smsMethod: "POST",
+          smsUrl: "https://api.callbackiq.test/api/twilio/sms#ct=1500&rt=5000&tt=12000&rc=2&rp=ct,rt,5xx",
+          smsFallbackMethod: "POST",
+          smsFallbackUrl: "https://api.callbackiq.test/api/twilio/sms-fallback#ct=1500&rt=5000&tt=12000&rc=0",
+          statusCallbackMethod: "POST",
+          statusCallback: "https://api.callbackiq.test/api/twilio/status#ct=1500&rt=5000&tt=12000&rc=2&rp=ct,rt,5xx",
+        }),
+      ],
+    });
     Business.findByIdAndUpdate.mockReturnValue(selected({
       ...business,
       trackingNumber: { status: "active", providerSid: "PN123" },

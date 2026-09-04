@@ -1,9 +1,21 @@
 import ContactPreference from "../../models/contactPreference.js";
 import normalizePhone from "../../helpers/normalizePhone.js";
-import { SAFE_REPLIES, isHelpKeyword, isStopKeyword } from "../../helpers/ai/aiGuardrails.js";
+import { SAFE_REPLIES } from "../../helpers/ai/aiGuardrails.js";
 import { isSoftOptOutPhrase } from "./smsCompliance.service.js";
 
-const START_KEYWORDS = new Set(["START", "UNSTOP"]);
+const TWILIO_STOP_KEYWORDS = new Set([
+  "STOP",
+  "STOPALL",
+  "UNSUBSCRIBE",
+  "CANCEL",
+  "END",
+  "QUIT",
+  "REVOKE",
+  "OPTOUT",
+]);
+const TWILIO_START_KEYWORDS = new Set(["START", "UNSTOP", "YES"]);
+const TWILIO_HELP_KEYWORDS = new Set(["HELP", "INFO"]);
+
 const normalizeKeyword = (value) =>
   String(value || "")
     .trim()
@@ -11,7 +23,95 @@ const normalizeKeyword = (value) =>
     .trim()
     .toUpperCase();
 
-export const isStartKeyword = (value) => START_KEYWORDS.has(normalizeKeyword(value));
+// Twilio manages keywords only when the entire inbound body is an exact
+// supported keyword. Keep this stricter than normalizeKeyword so punctuation
+// variants are not mistaken for provider-managed events.
+const normalizeProviderKeyword = (value) =>
+  String(value || "").trim().toUpperCase();
+
+const normalizeOptOutType = (value) =>
+  String(value || "")
+    .trim()
+    .toUpperCase();
+
+export const isStartKeyword = (value) =>
+  TWILIO_START_KEYWORDS.has(normalizeKeyword(value));
+
+export const classifyInboundSmsCommand = (
+  messageBody,
+  { twilioOptOutType = "" } = {},
+) => {
+  const keyword = normalizeKeyword(messageBody);
+  const providerKeyword = normalizeProviderKeyword(messageBody);
+  const optOutType = normalizeOptOutType(twilioOptOutType);
+
+  if (
+    optOutType === "STOP" ||
+    TWILIO_STOP_KEYWORDS.has(providerKeyword)
+  ) {
+    return {
+      handled: true,
+      action: "opt_out",
+      providerManaged: true,
+      softOptOut: false,
+      keyword: providerKeyword || keyword || "STOP",
+      optOutType: optOutType || "STOP",
+    };
+  }
+
+  const punctuatedStop =
+    keyword !== providerKeyword &&
+    TWILIO_STOP_KEYWORDS.has(keyword);
+  const softOptOut =
+    punctuatedStop || isSoftOptOutPhrase(messageBody);
+  if (softOptOut) {
+    return {
+      handled: true,
+      action: "opt_out",
+      providerManaged: false,
+      softOptOut: true,
+      keyword: keyword || String(messageBody || "").trim(),
+      optOutType: "",
+    };
+  }
+
+  if (
+    optOutType === "START" ||
+    TWILIO_START_KEYWORDS.has(providerKeyword)
+  ) {
+    return {
+      handled: true,
+      action: "opt_in",
+      providerManaged: true,
+      softOptOut: false,
+      keyword: providerKeyword || keyword || "START",
+      optOutType: optOutType || "START",
+    };
+  }
+
+  if (
+    optOutType === "HELP" ||
+    TWILIO_HELP_KEYWORDS.has(providerKeyword)
+  ) {
+    return {
+      handled: true,
+      action: "help",
+      providerManaged: true,
+      softOptOut: false,
+      keyword: providerKeyword || keyword || "HELP",
+      optOutType: optOutType || "HELP",
+    };
+  }
+
+  return {
+    handled: false,
+    action: "",
+    providerManaged: false,
+    softOptOut: false,
+    keyword,
+    optOutType,
+  };
+};
 
 export const getSmsPreference = async ({ businessId, phone }) => {
   const normalizedPhone = normalizePhone(phone);
@@ -74,43 +174,121 @@ export const optInSms = async ({
   );
 };
 
-export const processInboundSmsCommand = async ({ businessId, phone, messageBody }) => {
-  const softOptOut = isSoftOptOutPhrase(messageBody);
-  if (isStopKeyword(messageBody) || softOptOut) {
+export const processInboundSmsCommand = async ({
+  businessId,
+  phone,
+  messageBody,
+  twilioOptOutType = "",
+  suppressProviderManagedReply = false,
+}) => {
+  const classification = classifyInboundSmsCommand(messageBody, {
+    twilioOptOutType,
+  });
+
+  if (!classification.handled) {
+    return {
+      ...classification,
+      reply: "",
+      allowOptedOutReply: false,
+    };
+  }
+
+  if (classification.action === "opt_out") {
     await optOutSms({
       businessId,
       phone,
-      source: softOptOut ? "customer_request" : "twilio_keyword",
-      keyword: messageBody,
+      source: classification.providerManaged
+        ? "twilio_keyword"
+        : "customer_request",
+      keyword: classification.keyword || messageBody,
     });
-    return {
-      handled: true,
-      action: "opt_out",
-      reply: SAFE_REPLIES.optOut,
-      allowOptedOutReply: true,
-      softOptOut,
-    };
-  }
 
-  if (isStartKeyword(messageBody)) {
-    await optInSms({ businessId, phone, keyword: messageBody });
     return {
-      handled: true,
-      action: "opt_in",
+      ...classification,
       reply:
-        "You have been resubscribed and may receive automated text messages from this business. Reply STOP to opt out.",
-      allowOptedOutReply: true,
+        classification.providerManaged && suppressProviderManagedReply
+          ? ""
+          : SAFE_REPLIES.optOut,
+      allowOptedOutReply:
+        !classification.providerManaged || !suppressProviderManagedReply,
     };
   }
 
-  if (isHelpKeyword(messageBody)) {
+  if (classification.action === "opt_in") {
+    /*
+     * CALLBACKIQ_SOFT_OPTOUT_START_OWNERSHIP
+     *
+     * A natural-language opt-out such as "please stop texting me" is stored
+     * locally by CallBackIQ but does not create a Twilio STOP block.
+     *
+     * In that state, a later exact START must:
+     *   1. reactivate the local preference, and
+     *   2. receive a CallBackIQ confirmation because Twilio may not reply.
+     *
+     * When the webhook actually contains OptOutType=START, Twilio has already
+     * handled the opt-in response and we continue suppressing our duplicate.
+     */
+    const existingPreference = await getSmsPreference({
+      businessId,
+      phone,
+    });
+
+    const twilioConfirmedStart =
+      normalizeOptOutType(twilioOptOutType) === "START";
+
+    const locallyManagedOptOut =
+      existingPreference?.smsStatus === "opted_out" &&
+      existingPreference?.source === "customer_request" &&
+      !twilioConfirmedStart;
+
+    await optInSms({
+      businessId,
+      phone,
+      source: locallyManagedOptOut
+        ? "customer_request"
+        : "twilio_keyword",
+      keyword: classification.keyword || messageBody,
+    });
+
+    const suppressStartReply =
+      classification.providerManaged &&
+      suppressProviderManagedReply &&
+      !locallyManagedOptOut;
+
     return {
-      handled: true,
-      action: "help",
-      reply: SAFE_REPLIES.help,
-      allowOptedOutReply: true,
+      ...classification,
+      reply: suppressStartReply
+        ? ""
+        : "You have been resubscribed and may receive automated text messages from this business. Reply STOP to opt out.",
+      allowOptedOutReply: !suppressStartReply,
     };
   }
 
-  return { handled: false, action: "", reply: "", allowOptedOutReply: false };
+  if (classification.action === "help") {
+    return {
+      ...classification,
+      reply:
+        classification.providerManaged && suppressProviderManagedReply
+          ? ""
+          : SAFE_REPLIES.help,
+      allowOptedOutReply:
+        !classification.providerManaged || !suppressProviderManagedReply,
+    };
+  }
+
+  return {
+    ...classification,
+    reply: "",
+    allowOptedOutReply: false,
+  };
+};
+
+export default {
+  classifyInboundSmsCommand,
+  getSmsPreference,
+  isSmsSuppressed,
+  isStartKeyword,
+  optOutSms,
+  optInSms,
+  processInboundSmsCommand,
 };

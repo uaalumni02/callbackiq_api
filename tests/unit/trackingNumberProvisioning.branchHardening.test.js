@@ -315,9 +315,16 @@ describe("tracking number provisioning branch hardening", () => {
 
     expect(twilioState.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        voiceUrl: "https://api.callbackiq.test/api/twilio/voice",
-        smsUrl: "https://api.callbackiq.test/api/twilio/sms",
-        statusCallback: "https://api.callbackiq.test/api/twilio/status",
+        voiceMethod: "POST",
+        voiceUrl: "https://api.callbackiq.test/api/twilio/voice#ct=1500&rt=5000&tt=14000&rc=1&rp=ct,rt,5xx",
+        voiceFallbackMethod: "POST",
+        voiceFallbackUrl: "https://api.callbackiq.test/api/twilio/voice-fallback#ct=1500&rt=5000&tt=12000&rc=0",
+        smsMethod: "POST",
+        smsUrl: "https://api.callbackiq.test/api/twilio/sms#ct=1500&rt=5000&tt=12000&rc=2&rp=ct,rt,5xx",
+        smsFallbackMethod: "POST",
+        smsFallbackUrl: "https://api.callbackiq.test/api/twilio/sms-fallback#ct=1500&rt=5000&tt=12000&rc=0",
+        statusCallbackMethod: "POST",
+        statusCallback: "https://api.callbackiq.test/api/twilio/status#ct=1500&rt=5000&tt=12000&rc=2&rp=ct,rt,5xx",
       }),
     );
   });
