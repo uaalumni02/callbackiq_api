@@ -290,6 +290,7 @@ export const evaluateSmsTurnPolicy = ({
     status: canonical.intents.status,
     cancel: canonical.intents.cancel,
     reschedule: canonical.intents.reschedule,
+    availabilityInquiry: canonical.intents.availabilityInquiry,
     scheduling: canonical.intents.scheduling,
     service: Boolean(serviceNeeded || canonical.entities.serviceNeeded),
     urgent: ACTIVE_URGENCY.test(text),
@@ -364,6 +365,13 @@ export const evaluateSmsTurnPolicy = ({
       shouldAlertOwner: true,
       alertPriority: "high",
     });
+  } else if (!autoBookingEnabled && intent.availabilityInquiry) {
+    /*
+     * A question about the business calendar must be answered from the real
+     * availability provider. Do not convert the question into a customer
+     * preference and do not short-circuit the async scheduling layer.
+     */
+    directResult = null;
   } else if (
     !autoBookingEnabled &&
     appointmentHint &&
@@ -432,11 +440,12 @@ export const applySmsTurnPolicy = ({
       clean(result.serviceNeeded) ||
       policy.serviceNeeded ||
       clean(lead?.serviceNeeded),
-    preferredAppointmentTime:
-      clean(result.preferredAppointmentTime) ||
-      (policy.intent.scheduling
-        ? policy.text
-        : clean(lead?.preferredAppointmentTime)),
+    preferredAppointmentTime: policy.intent.availabilityInquiry
+      ? clean(lead?.preferredAppointmentTime)
+      : clean(result.preferredAppointmentTime) ||
+        (policy.intent.scheduling
+          ? policy.text
+          : clean(lead?.preferredAppointmentTime)),
   };
 
   const reply = clean(next.reply);
@@ -447,6 +456,7 @@ export const applySmsTurnPolicy = ({
    */
   if (
     policy.intent.scheduling &&
+    !policy.intent.availabilityInquiry &&
     GENERIC_SCHEDULING_REPLY.test(reply)
   ) {
     next.reply = safePreferenceAcknowledgement({
@@ -496,6 +506,7 @@ export const applySmsTurnPolicy = ({
 
   if (
     policy.intent.scheduling &&
+    !policy.intent.availabilityInquiry &&
     ACKNOWLEDGED_PREFERENCE_REPLY.test(clean(next.reply))
   ) {
     next.preferredAppointmentTime = policy.text;

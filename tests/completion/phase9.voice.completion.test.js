@@ -14,6 +14,19 @@ import {
   VOICE_ROUTE,
 } from "../../src/voice/voiceRoutingPolicy.service.js";
 
+jest.mock("../../src/services/businessReadiness.service.js", () => ({
+  __esModule: true,
+  buildBusinessReadiness: jest.fn().mockResolvedValue({
+    states: {
+      bookingReady: true,
+      bookingConfigurationReady: true,
+    },
+    missingRequirements: {
+      booking: [],
+    },
+  }),
+}));
+
 jest.mock("../../src/models/appointment.js", () => ({
   __esModule: true,
   default: { findById: jest.fn() },

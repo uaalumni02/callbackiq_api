@@ -62,6 +62,34 @@ describe("production SMS intent classifier", () => {
     expect(result.intents.scheduling).toBe(true);
   });
 
+  test.each([
+    "What is you availability this week?",
+    "What is your availability this week?",
+    "What’s your availability tomorrow?",
+    "Do you have anything available this week?",
+    "What's your earliest opening?",
+    "What times are available Friday?",
+    "Are you available this weekend?",
+    "Any openings after 5?",
+    "When can you come out?",
+  ])("recognizes availability inquiry without treating it as a selected time: %s", (message) => {
+    const result = classifySmsIntent({ customerMessage: message });
+    expect(result.intents.availabilityInquiry).toBe(true);
+    expect(result.intents.scheduling).toBe(true);
+    expect(result.primaryIntent).toBe("availability_inquiry");
+  });
+
+  test.each([
+    "Friday works for me.",
+    "Tomorrow afternoon.",
+    "Around 3 PM Wednesday.",
+    "Anytime after 5 Thursday.",
+  ])("keeps actual customer preferences out of availability-inquiry intent: %s", (message) => {
+    const result = classifySmsIntent({ customerMessage: message });
+    expect(result.intents.availabilityInquiry).toBe(false);
+    expect(result.intents.scheduling).toBe(true);
+  });
+
   test.each(["okay", "ok", "confirm", "confirmed", "book it"])(
     "recognizes conversational confirmation: %s",
     (message) => {

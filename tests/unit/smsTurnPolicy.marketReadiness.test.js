@@ -57,6 +57,39 @@ describe("SMS market-readiness turn policy", () => {
     },
   );
 
+  it("routes an availability question to live availability without persisting the question as a preference", () => {
+    const message = "What is you availability this week?";
+    const testBusiness = business();
+    const lead = {
+      serviceNeeded: "sink is clogged",
+      preferredAppointmentTime: "",
+    };
+    const policy = evaluateSmsTurnPolicy({
+      customerMessage: message,
+      business: testBusiness,
+      lead,
+      now: new Date("2026-09-03T22:00:00-04:00"),
+    });
+
+    expect(policy.intent.availabilityInquiry).toBe(true);
+    expect(policy.intent.scheduling).toBe(true);
+    expect(policy.appointmentHint).toBe(true);
+    expect(policy.directResult).toBeNull();
+
+    const result = applySmsTurnPolicy({
+      business: testBusiness,
+      lead,
+      policy,
+      result: {
+        reply: "The business will confirm availability.",
+        preferredAppointmentTime: message,
+      },
+    });
+
+    expect(result.preferredAppointmentTime).toBe("");
+    expect(result.reply).not.toContain("I've noted");
+  });
+
   it("does not convert a generic booking request into a fake time preference", () => {
     const policy = evaluateSmsTurnPolicy({
       customerMessage: "book",
