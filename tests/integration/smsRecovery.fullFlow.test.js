@@ -10,7 +10,10 @@ import { sendSms } from "../../src/services/twilioSmsService.js";
 import { resolveBusinessByTwilioNumber } from "../../src/services/twilioBusinessResolver.service.js";
 import { getOrCreateSmsLeadAndConversation } from "../../src/services/messaging/smsConversation.service.js";
 import { enqueueInboundSmsJob } from "../../src/services/messaging/smsProcessingQueue.service.js";
-import { processInboundSmsCommand } from "../../src/services/messaging/contactPreference.service.js";
+import {
+  classifyInboundSmsCommand,
+  processInboundSmsCommand,
+} from "../../src/services/messaging/contactPreference.service.js";
 import {
   claimTwilioWebhookEvent,
   completeTwilioWebhookEvent,
@@ -41,6 +44,7 @@ jest.mock("../../src/models/message.js", () => ({
     find: jest.fn(),
     findOneAndUpdate: jest.fn(),
     findByIdAndUpdate: jest.fn(),
+    updateOne: jest.fn(),
     updateMany: jest.fn(),
     create: jest.fn(),
   },
@@ -76,8 +80,14 @@ jest.mock("../../src/services/messaging/smsProcessingQueue.service.js", () => ({
 }));
 jest.mock("../../src/services/messaging/contactPreference.service.js", () => ({
   __esModule: true,
+  classifyInboundSmsCommand: jest.fn(),
   processInboundSmsCommand: jest.fn(),
 }));
+jest.mock("../../src/services/messaging/inboundSmsLifecycle.service.js", () => ({
+  __esModule: true,
+  runInboundSmsLifecycleAfterClaim: jest.fn().mockResolvedValue({}),
+}));
+
 jest.mock("../../src/services/webhooks/twilioWebhookEvent.service.js", () => ({
   __esModule: true,
   claimTwilioWebhookEvent: jest.fn(),
@@ -213,6 +223,16 @@ beforeEach(() => {
   completeTwilioWebhookEvent.mockResolvedValue({});
   getOrCreateSmsLeadAndConversation.mockResolvedValue({ lead, conversation });
   Message.findOneAndUpdate.mockResolvedValue(inboundMessage);
+
+  // CALLBACKIQ_FULL_FLOW_CLASSIFIER_DEFAULT
+  classifyInboundSmsCommand.mockReturnValue({
+    handled: false,
+    action: "",
+    providerManaged: false,
+    softOptOut: false,
+    keyword: "I HAVE A LEAKING FAUCET",
+    optOutType: "",
+  });
   processInboundSmsCommand.mockResolvedValue({ handled: false });
   enqueueInboundSmsJob.mockResolvedValue({ _id: "job-1" });
   isBusinessFeatureEnabled.mockReturnValue(true);

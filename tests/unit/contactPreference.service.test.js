@@ -191,6 +191,10 @@ describe("contactPreference service", () => {
     expect(result).toEqual({
       handled: false,
       action: "",
+      providerManaged: false,
+      softOptOut: false,
+      keyword: "MY DRAIN IS CLOGGED",
+      optOutType: "",
       reply: "",
       allowOptedOutReply: false,
     });

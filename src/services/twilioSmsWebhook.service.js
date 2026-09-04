@@ -15,7 +15,12 @@ import {
   completeTwilioWebhookEvent,
   failTwilioWebhookEvent,
 } from "./webhooks/twilioWebhookEvent.service.js";
-import { processInboundSmsCommand } from "./messaging/contactPreference.service.js";
+import {
+  classifyInboundSmsCommand,
+  processInboundSmsCommand,
+} from "./messaging/contactPreference.service.js";
+import { sendIdempotentInboundSmsReply } from "./messaging/idempotentInboundSmsReply.service.js";
+import { runInboundSmsLifecycleAfterClaim } from "./messaging/inboundSmsLifecycle.service.js";
 import { buildMissedCallRecoveryText, normalizeSmsPhone } from "./messaging/smsCompliance.service.js";
 import { parseInboundTwilioMedia, buildMediaOnlyAcknowledgement } from "./messaging/smsMedia.service.js";
 import { getOrCreateSmsLeadAndConversation } from "./messaging/smsConversation.service.js";
@@ -412,6 +417,12 @@ export const handleInboundSmsWebhook = async (req, res) => {
     const body = String(req.body.Body || "").trim();
     const media = parseInboundTwilioMedia(req.body);
     const providerMessageId = String(req.body.MessageSid || req.body.SmsSid || "").trim();
+    // CALLBACKIQ_TWILIO_OPTOUTTYPE_INGRESS
+    const twilioOptOutType = String(req.body.OptOutType || "").trim();
+    const commandClassification = body
+      ? classifyInboundSmsCommand(body, { twilioOptOutType })
+      : { handled: false };
+    const mediaOnly = !body && media.length > 0;
     const from = normalizeSmsPhone(rawFrom);
     if (!from || !to || (!body && media.length === 0)) return sendXml(res);
 
@@ -449,6 +460,19 @@ export const handleInboundSmsWebhook = async (req, res) => {
       source: "sms",
       reopenEligible: true,
     });
+
+    const postHandoffStatusEligible =
+      conversation.humanTakeover === true &&
+      isHumanHandoffStatusQuestion(body);
+    // CALLBACKIQ_DURABLE_PROCESSING_INTENT
+    const processingRequired =
+      !commandClassification.handled &&
+      !mediaOnly &&
+      (postHandoffStatusEligible ||
+        (conversation.aiEnabled !== false &&
+          conversation.humanTakeover !== true &&
+          conversation.status !== "closed" &&
+          conversation.status !== "archived"));
     if (
       numberContext?.trackingNumber ||
       numberContext?.marketingSource
@@ -466,6 +490,13 @@ export const handleInboundSmsWebhook = async (req, res) => {
     const inboundMessage = await Message.findOneAndUpdate(
       { business: business._id, providerMessageId },
       {
+        // CALLBACKIQ_DURABLE_MESSAGE_INTENT
+        // Refresh processing intent even when a failed webhook reclaims an
+        // inbound Message that was already persisted before the failure.
+        $set: {
+          "metadata.twilioOptOutType": twilioOptOutType,
+          "metadata.processingRequired": processingRequired,
+        },
         $setOnInsert: {
           business: business._id,
           conversation: conversation._id,
@@ -482,26 +513,38 @@ export const handleInboundSmsWebhook = async (req, res) => {
           status: "received",
           deliveryStatus: "received",
           segmentCount: 0,
+          "metadata.processingEnqueuedAt": null,
         },
       },
       { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
     );
     SocketService.emitMessageCreated(business._id, inboundMessage);
 
-    const commandResult = body
-      ? await processInboundSmsCommand({
-          businessId: business._id,
-          phone: from,
-          messageBody: body,
-        })
-      : { handled: false };
+    await runInboundSmsLifecycleAfterClaim({
+      business,
+      conversation,
+      lead,
+      inboundMessage,
+    });
 
-    if (commandResult.handled) {
+    // CALLBACKIQ_IDEMPOTENT_COMMAND_MMS_REPLY
+    if (commandClassification.handled) {
+      const commandResult = await processInboundSmsCommand({
+        businessId: business._id,
+        phone: from,
+        messageBody: body,
+        twilioOptOutType,
+        suppressProviderManagedReply: true,
+      });
+
       const updates = {
         lastMessage: body,
         lastMessageAt: new Date(),
-        ...(commandResult.action === "opt_out" ? { aiEnabled: false } : {}),
-        ...(commandResult.action === "opt_in" && conversation.humanTakeover !== true
+        ...(commandResult.action === "opt_out"
+          ? { aiEnabled: false }
+          : {}),
+        ...(commandResult.action === "opt_in" &&
+        conversation.humanTakeover !== true
           ? { aiEnabled: true, status: "open" }
           : {}),
       };
@@ -510,91 +553,75 @@ export const handleInboundSmsWebhook = async (req, res) => {
         updates,
         { returnDocument: "after" },
       );
-      SocketService.emitConversationUpdated(business._id, updatedConversation);
-      await sendCommandReply({
-        business,
-        conversation: updatedConversation,
-        lead,
-        to: from,
-        commandResult,
-      });
-    } else if (!body && media.length) {
+      SocketService.emitConversationUpdated(
+        business._id,
+        updatedConversation,
+      );
+
+      if (commandResult.reply) {
+        await sendIdempotentInboundSmsReply({
+          business,
+          conversation: updatedConversation,
+          lead,
+          inboundMessage,
+          body: commandResult.reply,
+          generatedBy: "guardrail",
+          usageCategory: "compliance",
+          actorType: "webhook",
+          allowOptedOut: commandResult.allowOptedOutReply === true,
+          bypassUsageLimits: true,
+          metadata: {
+            source: "inbound_sms_command",
+            action: commandResult.action,
+            providerManaged: commandResult.providerManaged === true,
+          },
+        });
+      }
+    } else if (mediaOnly) {
       const reply = buildMediaOnlyAcknowledgement(media);
-      const sent = await sendSms({
+      await sendIdempotentInboundSmsReply({
         business,
-        businessId: business._id,
-        from: conversation.replyFromPhone || business.phone,
-        to: from,
+        conversation,
+        lead,
+        inboundMessage,
         body: reply,
-        actorType: "webhook",
-        source: "inbound_mms_acknowledgement",
+        generatedBy: "guardrail",
         usageCategory: "guardrail_reply",
+        actorType: "webhook",
+        metadata: {
+          source: "inbound_mms_acknowledgement",
+          mediaCount: media.length,
+        },
+      });
+    } else if (processingRequired) {
+      const queuedJob = await enqueueInboundSmsJob({
+        businessId: business._id,
+        inboundMessageId: inboundMessage._id,
         conversationId: conversation._id,
         leadId: lead._id,
-        directResponse: true,
-        metadata: { inboundMessageId: String(inboundMessage._id), mediaCount: media.length },
+        providerMessageId,
       });
-      if (!sent?.suppressed) {
-        await saveOutbound({
-          business,
-          conversation,
-          lead,
-          to: from,
-          body: reply,
-          sent,
-          generatedBy: "guardrail",
-          usageCategory: "guardrail_reply",
-          actorType: "webhook",
-          metadata: { source: "inbound_mms_acknowledgement" },
-        });
-        await updateConversationLastMessage({ businessId: business._id, conversation, body: reply });
-      }
-    } else {
-      const aiQualificationEnabled = isBusinessFeatureEnabled(
-        business,
-        "aiQualificationEnabled",
+      await Message.updateOne(
+        { _id: inboundMessage._id },
+        { $set: { "metadata.processingEnqueuedAt": new Date() } },
       );
-      // Queue every automation-eligible customer reply. The worker performs the
-      // deterministic guardrail assessment before checking the optional AI
-      // qualification feature, so emergencies and other guarded messages are
-      // never silently dropped when general AI qualification is disabled.
-      const postHandoffStatusEligible =
-        conversation.humanTakeover === true &&
-        isHumanHandoffStatusQuestion(body);
-      const eligible =
-        postHandoffStatusEligible ||
-        (conversation.aiEnabled !== false &&
-          conversation.humanTakeover !== true &&
-          conversation.status !== "closed" &&
-          conversation.status !== "archived");
-
-      if (eligible) {
-        const queuedJob = await enqueueInboundSmsJob({
-          businessId: business._id,
-          inboundMessageId: inboundMessage._id,
-          conversationId: conversation._id,
-          leadId: lead._id,
-          providerMessageId,
-        });
-        if (process.env.NODE_ENV === "test" && req.app && queuedJob) {
-          await processInboundSmsJob(queuedJob);
-        }
-        logOperationalEvent("twilio.sms.ai_queued", {
-          businessId: business._id,
-          conversationId: conversation._id,
-          inboundMessageId: inboundMessage._id,
-          postHandoffStatusEligible,
-        });
-      } else {
-        logOperationalEvent("twilio.sms.ai_skipped", {
-          businessId: business._id,
-          conversationId: conversation._id,
-          aiEnabled: conversation.aiEnabled,
-          humanTakeover: conversation.humanTakeover,
-          conversationStatus: conversation.status,
-          aiQualificationEnabled,
-        });
+      if (process.env.NODE_ENV === "test" && req.app && queuedJob) {
+        await processInboundSmsJob(queuedJob);
       }
+      logOperationalEvent("twilio.sms.ai_queued", {
+        businessId: business._id,
+        conversationId: conversation._id,
+        inboundMessageId: inboundMessage._id,
+        postHandoffStatusEligible,
+      });
+    } else {
+      logOperationalEvent("twilio.sms.ai_skipped", {
+        businessId: business._id,
+        conversationId: conversation._id,
+        aiEnabled: conversation.aiEnabled,
+        humanTakeover: conversation.humanTakeover,
+        conversationStatus: conversation.status,
+      });
     }
 
     const customerReplyAssessment = body

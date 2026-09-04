@@ -20,6 +20,7 @@ import {
   releaseSmsContactDisclosure,
 } from "./smsContactDisclosure.service.js";
 import { logOperationalError } from "../helpers/logging/safeLogger.js";
+import { buildTwilioWebhookUrls } from "./twilioWebhookReliability.service.js";
 import {
   ensureOptOutDisclosure,
   estimateSmsSegments,
@@ -103,7 +104,7 @@ const getStatusCallback = () => {
   )
     .trim()
     .replace(/\/+$/, "");
-  return base ? `${base}/api/twilio/status` : "";
+  return base ? buildTwilioWebhookUrls(base).statusCallback : "";
 };
 
 const audit = (payload) => recordOutboundSmsAudit(payload);

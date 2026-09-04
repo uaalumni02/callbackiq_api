@@ -1,3 +1,5 @@
+import { startSmsIngressReconciliationWorker, stopSmsIngressReconciliationWorker } from "./workers/smsIngressReconciliation.worker.js";
+import { assertTwilioProductionConfig } from "./config/twilio-production-config.js";
 import {
   startConversationLifecycleWorker,
   stopConversationLifecycleWorker,
@@ -157,6 +159,7 @@ const shutdown = async (signal, exitCode = 0) => {
     stopAppointmentMaintenanceWorker();
     stopAutomationWorker();
     stopSmsProcessingWorker();
+    stopSmsIngressReconciliationWorker();
     stopConversationLifecycleWorker();
     stopVoiceUsageReconciliationWorker();
     await conversationRelayServer.close();
@@ -189,6 +192,7 @@ process.on("uncaughtException", (error) => {
 });
 
 const startServer = async () => {
+  assertTwilioProductionConfig();
     // CALLBACKIQ_STARTUP_HARDENING_V1
   normalizeRuntimeEnvironment();
   validateEnvironment(process.env, { throwOnError: true });
@@ -211,6 +215,7 @@ await connectDB();
   }
   if (shouldRunEmbeddedWorkers()) {
     await startSmsProcessingWorker();
+    await startSmsIngressReconciliationWorker();
     startConversationLifecycleWorker();
   }
   if (shouldRunEmbeddedWorkers()) {

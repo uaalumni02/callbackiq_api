@@ -75,6 +75,14 @@ export const isSoftOptOutPhrase = (value) => {
   const text = String(value || "").trim();
   if (!text) return false;
   if (/\b(?:do\s+not|don['’]?t|never)\s+stop\b/i.test(text)) return false;
+  // CALLBACKIQ_SOFT_OPTOUT_QUESTION_GUARD
+  // Asking how opt-out works is not itself an opt-out request.
+  if (
+    /\b(?:how|where|what|when)\b[^?]{0,60}\bopt\s*[- ]?out\b[^?]*\?/i.test(text) ||
+    /\bhow\s+(?:do|can|would)\s+i\s+opt\s*[- ]?out\b/i.test(text)
+  ) {
+    return false;
+  }
   return SOFT_OPT_OUT_PATTERNS.some((pattern) => pattern.test(text));
 };
 

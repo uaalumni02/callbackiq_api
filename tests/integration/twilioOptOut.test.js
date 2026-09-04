@@ -161,15 +161,15 @@ describe("Twilio SMS opt-out handling", () => {
     expect(conversationAfterStop.aiEnabled).toBe(false);
 
     /*
-     * The first provider call is the STOP confirmation. A later missed call
-     * must not create another provider send.
+     * Twilio owns the exact STOP keyword confirmation. CallBackIQ persists
+     * the local opt-out but must not send a duplicate confirmation.
      */
-    expect(mockTwilioMessageCreate).toHaveBeenCalledTimes(1);
+    expect(mockTwilioMessageCreate).toHaveBeenCalledTimes(0);
 
     const voiceResponse = await sendMissedCall();
 
     expect(voiceResponse.status).toBe(200);
-    expect(mockTwilioMessageCreate).toHaveBeenCalledTimes(1);
+    expect(mockTwilioMessageCreate).toHaveBeenCalledTimes(0);
 
     const callLog = await CallLog.findOne({
       business: business._id,
@@ -185,8 +185,7 @@ describe("Twilio SMS opt-out handling", () => {
       direction: "outbound",
     });
 
-    expect(outboundMessages).toHaveLength(1);
-    expect(outboundMessages[0].body).toMatch(/unsubscribed/i);
+    expect(outboundMessages).toHaveLength(0);
   });
 
   test("START reactivates SMS and allows the next missed-call message", async () => {
@@ -213,7 +212,11 @@ describe("Twilio SMS opt-out handling", () => {
 
     await sendMissedCall("CA_AFTER_START_123");
 
-    expect(mockTwilioMessageCreate).toHaveBeenCalledTimes(3);
+    /*
+     * STOP and START confirmations are owned by Twilio. The only provider
+     * send here should be the legitimate missed-call recovery after START.
+     */
+    expect(mockTwilioMessageCreate).toHaveBeenCalledTimes(1);
 
     const callLog = await CallLog.findOne({
       business: business._id,
@@ -228,31 +231,113 @@ describe("Twilio SMS opt-out handling", () => {
       direction: "outbound",
     });
 
-    expect(outboundMessages).toHaveLength(3);
+    expect(outboundMessages).toHaveLength(1);
   });
 
-  test("HELP sends the fixed response without running qualification", async () => {
+  test("HELP is provider-managed and does not run qualification", async () => {
     const business = await createBusiness();
 
     const response = await sendSmsWebhook("HELP", "SM_HELP_123");
 
     expect(response.status).toBe(200);
     expect(generateAIReplyResult).not.toHaveBeenCalled();
-    expect(mockTwilioMessageCreate).toHaveBeenCalledTimes(1);
+
+    /*
+     * Twilio owns the exact HELP keyword response, so CallBackIQ must not
+     * create a second provider message or persist a duplicate outbound reply.
+     */
+    expect(mockTwilioMessageCreate).toHaveBeenCalledTimes(0);
 
     const outboundMessage = await Message.findOne({
       business: business._id,
       direction: "outbound",
     });
 
-    expect(outboundMessage).toBeTruthy();
-    expect(outboundMessage.body).toMatch(/automated service assistant/i);
+    expect(outboundMessage).toBeNull();
 
     expect(
       await ContactPreference.countDocuments({
         business: business._id,
       }),
     ).toBe(0);
+  });
+
+  test("START after a natural-language opt-out restores SMS and receives a CallBackIQ confirmation", async () => {
+    // CALLBACKIQ_SOFT_OPTOUT_START_REGRESSION
+    const business = await createBusiness();
+
+    const softStopResponse = await sendSmsWebhook(
+      "Please stop texting me",
+      "SM_SOFT_STOP_123",
+    );
+
+    expect(softStopResponse.status).toBe(200);
+    expect(generateAIReplyResult).not.toHaveBeenCalled();
+
+    let preference = await ContactPreference.findOne({
+      business: business._id,
+      phone: "+14045559999",
+    });
+
+    expect(preference).toBeTruthy();
+    expect(preference.smsStatus).toBe("opted_out");
+    expect(preference.source).toBe("customer_request");
+
+    /*
+     * The soft opt-out is CallBackIQ-managed, so its confirmation is an
+     * application send rather than a Twilio-owned keyword confirmation.
+     */
+    expect(mockTwilioMessageCreate).toHaveBeenCalledTimes(1);
+
+    const startResponse = await sendSmsWebhook(
+      "START",
+      "SM_SOFT_START_123",
+    );
+
+    expect(startResponse.status).toBe(200);
+
+    preference = await ContactPreference.findOne({
+      business: business._id,
+      phone: "+14045559999",
+    });
+
+    expect(preference.smsStatus).toBe("active");
+    expect(preference.optedInAt).toBeTruthy();
+    expect(preference.optedOutAt).toBeNull();
+
+    /*
+     * Because Twilio never had a STOP block for the natural-language
+     * opt-out, CallBackIQ owns this START confirmation.
+     */
+    expect(mockTwilioMessageCreate).toHaveBeenCalledTimes(2);
+
+    const outboundMessages = await Message.find({
+      business: business._id,
+      direction: "outbound",
+    });
+
+    expect(outboundMessages).toHaveLength(2);
+    expect(
+      outboundMessages.some((message) =>
+        /resubscribed/i.test(String(message.body || "")),
+      ),
+    ).toBe(true);
+
+    /*
+     * Re-activation must also restore the actual recovery path, not merely
+     * change the preference record.
+     */
+    await sendMissedCall("CA_AFTER_SOFT_START_123");
+
+    expect(mockTwilioMessageCreate).toHaveBeenCalledTimes(3);
+
+    const callLog = await CallLog.findOne({
+      business: business._id,
+      providerCallId: "CA_AFTER_SOFT_START_123",
+    });
+
+    expect(callLog).toBeTruthy();
+    expect(callLog.missedCallTextSent).toBe(true);
   });
 
   test("an emergency bypasses ordinary AI and enables human takeover", async () => {
