@@ -5,6 +5,9 @@ import Lead from "../../models/lead.js";
 import ServiceOffering from "../../models/serviceOffering.js";
 import AutomationTriggerService from "../automation/automationTrigger.service.js";
 import ConversionEventService from "../conversionEvent.service.js";
+import AlertService from "../alert.service.js";
+import { buildBusinessReadiness } from "../businessReadiness.service.js";
+import { logOperationalError, logOperationalEvent } from "../../helpers/logging/safeLogger.js";
 import { formatDateKey } from "../scheduling/timezone.service.js";
 import { assertVoiceTurnActive } from "../voiceTurnContext.service.js";
 import cancelAppointmentTool from "../../helpers/ai/tools/cancelAppointment.tool.js";
@@ -218,6 +221,250 @@ const selectOfferedSlot = (message, offeredSlots, timeZone) => {
   );
 };
 
+const handleReadOnlyAvailabilityInquiry = async ({
+  business,
+  lead,
+  conversation,
+  text,
+}) => {
+  const businessName = String(
+    business?.businessName || "the business",
+  ).trim();
+  const businessId = business?._id || business?.id;
+  const timeZone = business?.timezone || "America/New_York";
+  const knownService = String(lead?.serviceNeeded || "").trim();
+
+  if (!businessId || !knownService || knownService === "Unknown") {
+    return {
+      handled: true,
+      result: fixedResult({
+        reply:
+          "I can check the business calendar for you. What service do you need help with?",
+        category: "availability_inquiry",
+      }),
+    };
+  }
+
+  let matches = [];
+  try {
+    matches = await searchServicesTool({
+      businessId,
+      query: knownService,
+    });
+  } catch {
+    matches = [];
+  }
+
+  if (matches.length !== 1) {
+    if (matches.length > 1) {
+      const choices = matches
+        .slice(0, 3)
+        .map((item) => item.name)
+        .join(", ");
+      return {
+        handled: true,
+        result: fixedResult({
+          reply: `I can check live availability, but I need to match the job to the right service first. I found: ${choices}. Which service do you need?`,
+          category: "availability_inquiry",
+        }),
+      };
+    }
+
+    return {
+      handled: true,
+      result: fixedResult({
+        reply: `I can’t verify live availability for that service right now. Tell me the day and time you prefer, and ${businessName} can confirm it.`,
+        category: "availability_inquiry",
+      }),
+    };
+  }
+
+  const service = matches[0];
+  const requestedRange = findDateRange(text, timeZone);
+  const today = formatDateKey(new Date(), timeZone);
+  const range = requestedRange || {
+    startDate: today,
+    endDate: formatDateKey(new Date(Date.now() + 6 * 86_400_000), timeZone),
+  };
+  const timePreference = parseTimePreference(text, timeZone);
+  const postalCode = String(lead?.address || "").match(ZIP_PATTERN)?.[1] || "";
+
+  try {
+    const availability = await getAvailabilityTool({
+      business,
+      serviceOfferingId: service.id,
+      startDate: range.startDate,
+      endDate: range.endDate,
+      postalCode,
+    });
+
+    if (availability?.supportedServiceArea === false) {
+      return {
+        handled: true,
+        result: fixedResult({
+          reply: `That location needs a service-area review before I can show bookable times. ${businessName} can confirm availability directly.`,
+          category: "availability_inquiry",
+        }),
+      };
+    }
+
+    const rawSlots = Array.isArray(availability?.slots)
+      ? [...availability.slots].sort(
+          (left, right) =>
+            new Date(left.startAt).getTime() - new Date(right.startAt).getTime(),
+        )
+      : [];
+    const matchingSlots = filterSlotsByTimePreference(
+      rawSlots,
+      timePreference,
+      timeZone,
+    );
+    const offeredSlots = spreadSlotOptions(matchingSlots, 3);
+
+    if (!offeredSlots.length) {
+      const qualifier = timePreference?.timeOfDay
+        ? ` ${timePreference.timeOfDay}`
+        : "";
+      return {
+        handled: true,
+        result: fixedResult({
+          reply: `I checked the current calendar and don’t see an open${qualifier} time in that window for ${service.name}. Send another day or time and I can check that window.`,
+          category: "availability_inquiry",
+        }),
+      };
+    }
+
+    const options = offeredSlots
+      .map((slot) => formatSlot(slot, timeZone))
+      .join("; ");
+
+    return {
+      handled: true,
+      result: fixedResult({
+        reply: `I found these current openings for ${service.name}: ${options}. If one works, reply with the day and time you want. This is availability only, not a confirmed appointment; ${businessName} will confirm your request.`,
+        category: "availability_inquiry",
+      }),
+    };
+  } catch (error) {
+    const failure = await handleAvailabilityProviderFailure({
+      business,
+      lead,
+      conversation,
+      error,
+      customerMessage: text,
+      code: "read_only_availability_provider_failed",
+      category: "availability_inquiry",
+    });
+    failure.result.reply =
+      "I can’t verify live availability right now. I’ve alerted the team so they can follow up with available times.";
+    return failure;
+  }
+};
+
+// CALLBACKIQ_BOOKING_RECOVERY_FIX_V2: calendar/provider failure is never represented as zero availability.
+const handleAvailabilityProviderFailure = async ({
+  business,
+  lead,
+  conversation,
+  error,
+  customerMessage = "",
+  code = "availability_provider_failed",
+  category = "human_requested",
+}) => {
+  logOperationalError(`booking.${code}`, error, {
+    businessId: business?._id || business?.id,
+    leadId: lead?._id || null,
+    conversationId: conversation?._id || null,
+    errorCode: String(error?.code || "AVAILABILITY_PROVIDER_ERROR"),
+  });
+
+  await AlertService.createSystemAlert({
+    businessId: business._id,
+    title: "Scheduling availability check failed",
+    message:
+      "CallBackIQ could not read the scheduling provider. The customer was not told the business had no openings.",
+    priority: "high",
+    metadata: {
+      leadId: lead?._id ? String(lead._id) : "",
+      conversationId: conversation?._id ? String(conversation._id) : "",
+      errorCode: String(error?.code || "AVAILABILITY_PROVIDER_ERROR"),
+      source: code,
+      customerMessage: String(customerMessage || "").slice(0, 500),
+    },
+    dedupeKey: `booking_provider_failure:${business._id}:${conversation?._id || lead?._id || "unknown"}:${String(error?.code || code)}`,
+  }).catch((alertError) => {
+    logOperationalError("booking.provider_failure_alert_failed", alertError, {
+      businessId: business?._id || business?.id,
+      conversationId: conversation?._id || null,
+    });
+  });
+
+  return {
+    handled: true,
+    result: fixedResult({
+      reply:
+        "I’m having trouble checking the live schedule right now. I’ve alerted the team so they can follow up with available times.",
+      category,
+    }),
+  };
+};
+
+const handleBookingReadinessFailure = async ({
+  business,
+  lead,
+  conversation,
+  readiness = null,
+  error = null,
+  customerMessage = "",
+}) => {
+  const missing = readiness?.missingRequirements?.booking || [];
+  const firstMissing = missing[0] || null;
+
+  if (error) {
+    logOperationalError("booking.readiness_check_failed", error, {
+      businessId: business?._id || business?.id,
+      conversationId: conversation?._id || null,
+    });
+  } else {
+    logOperationalEvent("booking.runtime_not_ready", {
+      businessId: business?._id || business?.id,
+      conversationId: conversation?._id || null,
+      code: firstMissing?.code || "BOOKING_NOT_READY",
+    });
+  }
+
+  await AlertService.createSystemAlert({
+    businessId: business._id,
+    title: "Automatic booking is not ready",
+    message:
+      firstMissing?.message ||
+      "CallBackIQ blocked an automated booking attempt because required scheduling configuration is incomplete.",
+    priority: "high",
+    metadata: {
+      leadId: lead?._id ? String(lead._id) : "",
+      conversationId: conversation?._id ? String(conversation._id) : "",
+      code: firstMissing?.code || error?.code || "BOOKING_NOT_READY",
+      missingRequirements: missing.map((item) => item.code),
+      customerMessage: String(customerMessage || "").slice(0, 500),
+    },
+    dedupeKey: `booking_not_ready:${business._id}:${firstMissing?.code || error?.code || "unknown"}`,
+  }).catch((alertError) => {
+    logOperationalError("booking.readiness_alert_failed", alertError, {
+      businessId: business?._id || business?.id,
+      conversationId: conversation?._id || null,
+    });
+  });
+
+  return {
+    handled: true,
+    result: fixedResult({
+      reply:
+        "The scheduling system isn’t available for automatic booking right now. I’ve alerted the team so they can follow up with you directly.",
+      category: "human_requested",
+    }),
+  };
+};
+
 const updateState = async (conversation, changes) => {
   Object.entries(changes).forEach(([key, value]) => {
     conversation.set(`bookingState.${key}`, value);
@@ -251,7 +498,29 @@ class BookingStateMachineService {
       bookingChannel === "voice" ? "voice-" : "";
     const bookingEventPrefix = bookingChannel === "voice" ? "voice:" : "";
     const enabled = Boolean(business?.features?.aiBookingEnabled);
-    if (!enabled) return { handled: false };
+    const text = String(customerMessage || "").trim();
+
+    if (!enabled) {
+      const smsIntent = classifySmsIntent({
+        customerMessage: text,
+        business,
+        conversation,
+      });
+
+      if (
+        bookingChannel === "sms" &&
+        smsIntent.intents.availabilityInquiry
+      ) {
+        return handleReadOnlyAvailabilityInquiry({
+          business,
+          lead,
+          conversation,
+          text,
+        });
+      }
+
+      return { handled: false };
+    }
 
     const activeConversation = await this.findConversation({
       business,
@@ -263,7 +532,6 @@ class BookingStateMachineService {
       return { handled: false };
     }
 
-    const text = String(customerMessage || "").trim();
     const smsIntent = classifySmsIntent({
       customerMessage: text,
       business,
@@ -321,6 +589,32 @@ class BookingStateMachineService {
           category: "pricing_request",
         }),
       };
+    }
+
+    // CALLBACKIQ_BOOKING_RECOVERY_FIX_V2: feature flag alone is insufficient; booking must be operationally ready now.
+    let runtimeReadiness;
+    try {
+      runtimeReadiness = await buildBusinessReadiness(business, {
+        persist: false,
+      });
+    } catch (error) {
+      return handleBookingReadinessFailure({
+        business,
+        lead,
+        conversation: activeConversation,
+        error,
+        customerMessage: text,
+      });
+    }
+
+    if (!runtimeReadiness?.states?.bookingReady) {
+      return handleBookingReadinessFailure({
+        business,
+        lead,
+        conversation: activeConversation,
+        readiness: runtimeReadiness,
+        customerMessage: text,
+      });
     }
 
     let status = currentStatus;
@@ -542,14 +836,26 @@ class BookingStateMachineService {
         };
       }
 
-      const availability = await getAvailabilityTool({
-        business,
-        serviceOfferingId:
-          activeConversation.bookingState.serviceOffering,
-        startDate: range.startDate,
-        endDate: range.endDate,
-        postalCode: activeConversation.bookingState.postalCode,
-      });
+      let availability;
+      try {
+        availability = await getAvailabilityTool({
+          business,
+          serviceOfferingId:
+            activeConversation.bookingState.serviceOffering,
+          startDate: range.startDate,
+          endDate: range.endDate,
+          postalCode: activeConversation.bookingState.postalCode,
+        });
+      } catch (error) {
+        return handleAvailabilityProviderFailure({
+          business,
+          lead,
+          conversation: activeConversation,
+          error,
+          customerMessage: text,
+          code: "primary_availability_provider_failed",
+        });
+      }
       const matchingSlots = filterSlotsByTimePreference(
         availability.slots,
         timePreference,
@@ -587,8 +893,15 @@ class BookingStateMachineService {
                   timeZone,
                 ).slice(0, 3)
               : spreadSlotOptions(expandedSlots, 3);
-        } catch {
-          alternatives = [];
+        } catch (error) {
+          return handleAvailabilityProviderFailure({
+            business,
+            lead,
+            conversation: activeConversation,
+            error,
+            customerMessage: text,
+            code: "expanded_availability_provider_failed",
+          });
         }
 
         await updateState(activeConversation, {

@@ -35,6 +35,53 @@ const isStaleHumanTakeover = (conversation, now = new Date()) => {
   return now.getTime() - latestActivityAt >= getHumanTakeoverTtlMs();
 };
 
+
+// CALLBACKIQ_BOOKING_RECOVERY_FIX_V2: history remains on Lead/Conversation/Message; only active workflow state is reset.
+const resetActiveRecoveryJourney = ({ now, reason, recoveryJourneyKey }) => ({
+  status: "open",
+  aiEnabled: true,
+  humanTakeover: false,
+  humanTakeoverAt: null,
+  humanTakeoverBy: null,
+  reopenedAt: now,
+  reopenReason: reason,
+
+  "bookingState.status": "not_started",
+  "bookingState.serviceOffering": null,
+  "bookingState.streetAddress": "",
+  "bookingState.postalCode": "",
+  "bookingState.timeOfDay": "",
+  "bookingState.preferredStart": null,
+  "bookingState.preferredEnd": null,
+  "bookingState.offeredSlots": [],
+  "bookingState.selectedSlot": null,
+  "bookingState.appointment": null,
+  "bookingState.expiresAt": null,
+  "bookingState.lastError": "",
+  "bookingState.negotiationAttempts": 0,
+  "bookingState.lastCustomerPreference": "",
+  "bookingState.lastAvailabilityCheckedAt": null,
+  "bookingState.escalatedAt": null,
+
+  "orchestration.recoveryJourneyKey": recoveryJourneyKey,
+  "orchestration.recoveryJourneyStartedAt": now,
+  "orchestration.phase": "recovering",
+  "orchestration.lastOutcome": "",
+  "orchestration.lastIntent": "",
+  "orchestration.lastIntentConfidence": 0,
+  "orchestration.lastStateTransitionAt": now,
+  "orchestration.handoffStatus": "",
+  "orchestration.handoffReason": "",
+  "orchestration.handoffRequestedAt": null,
+  "orchestration.handoffAcknowledgedAt": null,
+  "orchestration.handoffInboundMessage": null,
+  "orchestration.handoffOutboundMessage": null,
+  "orchestration.handoffCallbackPhone": "",
+  "orchestration.handoffLastError": "",
+  "orchestration.handoffStatusReplyAt": null,
+  "orchestration.silentFailureCount": 0,
+});
+
 const findExistingLead = async ({ businessId, phone }) => {
   return Lead.findOne({
     business: businessId,
@@ -120,6 +167,7 @@ const upsertConversation = async ({
   body,
   source,
   reopenEligible,
+  recoveryJourneyKey,
 }) => {
   const businessId = business._id;
   let conversation = await findActiveConversation({ businessId, customerPhone });
@@ -177,6 +225,17 @@ const upsertConversation = async ({
   }
 
   const now = new Date();
+  const normalizedRecoveryJourneyKey = String(recoveryJourneyKey || "").trim();
+  const previousRecoveryJourneyKey = String(
+    conversation?.orchestration?.recoveryJourneyKey || "",
+  ).trim();
+  const freshMissedCallRecovery =
+    reopenEligible &&
+    source === "missed_call" &&
+    conversation.humanTakeover !== true &&
+    Boolean(normalizedRecoveryJourneyKey) &&
+    normalizedRecoveryJourneyKey !== previousRecoveryJourneyKey;
+
   const staleTakeoverRecovery =
     reopenEligible &&
     source === "missed_call" &&
@@ -186,30 +245,26 @@ const upsertConversation = async ({
     conversation.status === "closed" &&
     conversation.humanTakeover !== true;
 
-  if (staleTakeoverRecovery || closedConversationRecovery) {
-    updates.status = "open";
-    updates.aiEnabled = true;
-    updates.humanTakeover = false;
-    updates.humanTakeoverAt = null;
-    updates.humanTakeoverBy = null;
-    updates.reopenedAt = now;
-    updates.reopenReason = staleTakeoverRecovery
+  if (
+    freshMissedCallRecovery ||
+    staleTakeoverRecovery ||
+    closedConversationRecovery
+  ) {
+    const reason = staleTakeoverRecovery
       ? "new_missed_call_after_stale_human_takeover"
-      : "new_customer_contact";
-    updates["bookingState.status"] = "not_started";
-    updates["bookingState.escalatedAt"] = null;
-    updates["orchestration.phase"] = "recovering";
-    updates["orchestration.handoffStatus"] = "";
-    updates["orchestration.handoffReason"] = "";
-    updates["orchestration.handoffRequestedAt"] = null;
-    updates["orchestration.handoffAcknowledgedAt"] = null;
-    updates["orchestration.handoffInboundMessage"] = null;
-    updates["orchestration.handoffOutboundMessage"] = null;
-    updates["orchestration.handoffCallbackPhone"] = "";
-    updates["orchestration.handoffLastError"] = "";
-    updates["orchestration.handoffStatusReplyAt"] = null;
-    updates["orchestration.silentFailureCount"] = 0;
-    updates["orchestration.lastStateTransitionAt"] = now;
+      : freshMissedCallRecovery
+        ? "new_missed_call_recovery_journey"
+        : "new_customer_contact";
+
+    Object.assign(
+      updates,
+      resetActiveRecoveryJourney({
+        now,
+        reason,
+        recoveryJourneyKey:
+          normalizedRecoveryJourneyKey || previousRecoveryJourneyKey,
+      }),
+    );
   }
 
   conversation = await Conversation.findByIdAndUpdate(conversation._id, updates, {
@@ -228,6 +283,7 @@ export const getOrCreateSmsLeadAndConversation = async ({
   body = "",
   source = "sms",
   reopenEligible = true,
+  recoveryJourneyKey = "",
 }) => {
   if (!business?._id) throw new Error("business is required");
   const normalizedPhone = normalizeSmsPhone(customerPhone);
@@ -250,6 +306,7 @@ export const getOrCreateSmsLeadAndConversation = async ({
     body: String(body || "").trim(),
     source,
     reopenEligible,
+    recoveryJourneyKey,
   });
 
   return { lead, conversation, customerPhone: normalizedPhone };

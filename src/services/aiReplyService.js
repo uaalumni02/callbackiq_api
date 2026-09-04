@@ -21,8 +21,28 @@ import {
   applySmsTurnPolicy,
   evaluateSmsTurnPolicy,
 } from "./messaging/smsTurnPolicy.service.js";
+import { classifySmsIntent } from "./messaging/smsIntentClassifier.service.js";
 
 const fallbackReply = SAFE_REPLIES.fallback;
+
+const SMS_URGENCY_RANK = Object.freeze({
+  "": -1,
+  low: 0,
+  medium: 1,
+  high: 2,
+  emergency: 3,
+});
+
+const preserveTurnUrgency = (result, turnUrgency) => {
+  const candidate = String(turnUrgency || "");
+  if (!(candidate in SMS_URGENCY_RANK) || !candidate) return result;
+  const current = String(result?.urgency || "");
+  const preserved =
+    (SMS_URGENCY_RANK[current] ?? -1) >= SMS_URGENCY_RANK[candidate]
+      ? current
+      : candidate;
+  return { ...result, urgency: preserved };
+};
 
 const getLatestInboundMessage = (messages) => {
   if (!Array.isArray(messages)) return "";
@@ -126,6 +146,8 @@ export const generateAIReplyResult = async ({
     };
   }
 
+  let turnUrgency = "";
+
   try {
     /*
      * Re-run deterministic safeguards here because booking is an earlier
@@ -138,6 +160,14 @@ export const generateAIReplyResult = async ({
       recentMessages: messages,
     });
 
+    // CALLBACKIQ_BOOKING_RECOVERY_FIX_V2: urgency is extracted before the booking branch can short-circuit AI qualification.
+    const turnClassification = classifySmsIntent({
+      customerMessage: latestCustomerMessage,
+      business,
+      conversation,
+    });
+    turnUrgency = turnClassification?.entities?.urgency || "";
+
     const smsTurnPolicy = evaluateSmsTurnPolicy({
       customerMessage: latestCustomerMessage,
       business,
@@ -145,7 +175,10 @@ export const generateAIReplyResult = async ({
       conversation,
     });
     if (deterministicAssessment.handled) {
-      return deterministicResult(deterministicAssessment);
+      return preserveTurnUrgency(
+        deterministicResult(deterministicAssessment),
+        turnUrgency,
+      );
     }
 
     /*
@@ -154,7 +187,7 @@ export const generateAIReplyResult = async ({
      * remains authoritative whenever aiBookingEnabled is on.
      */
     if (smsTurnPolicy.directResult) {
-      return smsTurnPolicy.directResult;
+      return preserveTurnUrgency(smsTurnPolicy.directResult, turnUrgency);
     }
 
     /*
@@ -167,7 +200,9 @@ export const generateAIReplyResult = async ({
       conversation,
       customerMessage: latestCustomerMessage,
     });
-    if (booking.handled) return booking.result;
+    if (booking.handled) {
+      return preserveTurnUrgency(booking.result, turnUrgency);
+    }
 
     const aiUsage = await reserveAiUsage({
       business,
@@ -207,19 +242,20 @@ export const generateAIReplyResult = async ({
       businessConfiguration,
     });
 
-    return applySmsTurnPolicy({
+    const policyResult = applySmsTurnPolicy({
       result: agentResult,
       policy: smsTurnPolicy,
       business,
       lead,
       conversation,
     });
+    return preserveTurnUrgency(policyResult, turnUrgency);
   } catch (error) {
     logOperationalError("ai_reply.generation_failed", error, {
       businessId: business?._id || business?.id,
       requestId: error?.request_id || null,
     });
-    return buildFallbackResult(error);
+    return preserveTurnUrgency(buildFallbackResult(error), turnUrgency);
   }
 };
 

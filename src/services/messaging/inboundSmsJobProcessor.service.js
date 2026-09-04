@@ -27,6 +27,24 @@ import {
 } from "./smsHandoff.service.js";
 
 const VALID_URGENCIES = new Set(["low", "medium", "high", "emergency"]);
+const SMS_URGENCY_RANK = Object.freeze({
+  low: 0,
+  medium: 1,
+  high: 2,
+  emergency: 3,
+});
+const preserveHigherUrgency = (current, candidate) => {
+  const currentValue = VALID_URGENCIES.has(String(current || ""))
+    ? String(current)
+    : "medium";
+  const candidateValue = VALID_URGENCIES.has(String(candidate || ""))
+    ? String(candidate)
+    : "";
+  if (!candidateValue) return currentValue;
+  return SMS_URGENCY_RANK[candidateValue] > SMS_URGENCY_RANK[currentValue]
+    ? candidateValue
+    : currentValue;
+};
 
 const getMessagesForReply = async (conversationId) =>
   typeof Db.getMessagesForAI === "function"
@@ -38,8 +56,17 @@ const buildLeadUpdates = (lead, result) => {
   const serviceNeeded = String(result?.serviceNeeded || "").trim();
   if (serviceNeeded && serviceNeeded !== "Unknown") updates.serviceNeeded = serviceNeeded;
 
-  if (result?.messageCategory === "emergency") updates.urgency = "emergency";
-  else if (VALID_URGENCIES.has(result?.urgency)) updates.urgency = result.urgency;
+  if (result?.messageCategory === "emergency") {
+    updates.urgency = "emergency";
+  } else if (VALID_URGENCIES.has(result?.urgency)) {
+    const preservedUrgency = preserveHigherUrgency(
+      lead?.urgency,
+      result.urgency,
+    );
+    if (preservedUrgency !== lead?.urgency) {
+      updates.urgency = preservedUrgency;
+    }
+  }
 
   for (const [field, value] of [
     ["address", result?.address],

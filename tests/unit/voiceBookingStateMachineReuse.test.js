@@ -1,6 +1,19 @@
 import BookingStateMachineService from "../../src/services/booking/bookingStateMachine.service.js";
 import searchServicesTool from "../../src/helpers/ai/tools/searchServices.tool.js";
 
+jest.mock("../../src/services/businessReadiness.service.js", () => ({
+  __esModule: true,
+  buildBusinessReadiness: jest.fn().mockResolvedValue({
+    states: {
+      bookingReady: true,
+      bookingConfigurationReady: true,
+    },
+    missingRequirements: {
+      booking: [],
+    },
+  }),
+}));
+
 jest.mock("../../src/models/conversation.js", () => ({
   __esModule: true,
   default: { findOne: jest.fn() },

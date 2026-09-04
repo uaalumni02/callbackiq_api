@@ -4,6 +4,8 @@ import ServiceOffering from "../../src/models/serviceOffering.js";
 import AutomationTriggerService from "../../src/services/automation/automationTrigger.service.js";
 import BookingStateMachineService from "../../src/services/booking/bookingStateMachine.service.js";
 import ConversionEventService from "../../src/services/conversionEvent.service.js";
+import AlertService from "../../src/services/alert.service.js";
+import { buildBusinessReadiness } from "../../src/services/businessReadiness.service.js";
 import cancelAppointmentTool from "../../src/helpers/ai/tools/cancelAppointment.tool.js";
 import createAppointmentTool from "../../src/helpers/ai/tools/createAppointment.tool.js";
 import escalateToHumanTool from "../../src/helpers/ai/tools/escalateToHuman.tool.js";
@@ -32,6 +34,20 @@ jest.mock("../../src/services/automation/automationTrigger.service.js", () => ({
 jest.mock("../../src/services/conversionEvent.service.js", () => ({
   __esModule: true,
   default: { record: jest.fn() },
+}));
+jest.mock("../../src/services/alert.service.js", () => ({
+  __esModule: true,
+  default: { createSystemAlert: jest.fn() },
+}));
+jest.mock("../../src/services/businessReadiness.service.js", () => ({
+  __esModule: true,
+  buildBusinessReadiness: jest.fn(),
+  default: { buildBusinessReadiness: jest.fn() },
+}));
+jest.mock("../../src/helpers/logging/safeLogger.js", () => ({
+  __esModule: true,
+  logOperationalError: jest.fn(),
+  logOperationalEvent: jest.fn(),
 }));
 jest.mock("../../src/services/scheduling/timezone.service.js", () => ({
   __esModule: true,
@@ -119,6 +135,11 @@ const handle = ({ conversation = makeConversation(), lead = makeLead(), message 
 describe("BookingStateMachineService complete behavior", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    buildBusinessReadiness.mockResolvedValue({
+      states: { bookingReady: true },
+      missingRequirements: { booking: [] },
+    });
+    AlertService.createSystemAlert.mockResolvedValue({});
     ServiceOffering.findOne.mockReturnValue({
       lean: jest.fn().mockResolvedValue({
         _id: "s1",
@@ -185,6 +206,65 @@ describe("BookingStateMachineService complete behavior", () => {
 
   test("does nothing when AI booking is disabled", async () => {
     await expect(handle({ customBusiness: { ...business, features: { aiBookingEnabled: false } } })).resolves.toEqual({ handled: false });
+  });
+
+  test("queries real business availability for an availability inquiry even when auto-booking is disabled", async () => {
+    const customBusiness = {
+      ...business,
+      businessName: "Atlanta Pro Plumbing & Drain",
+      features: { aiBookingEnabled: false },
+    };
+    const lead = makeLead({ serviceNeeded: "sink is clogged" });
+    searchServicesTool.mockResolvedValueOnce([
+      { id: "s1", name: "Drain cleaning" },
+    ]);
+
+    const result = await handle({
+      customBusiness,
+      lead,
+      message: "What is you availability this week?",
+    });
+
+    expect(searchServicesTool).toHaveBeenCalledWith({
+      businessId: "b1",
+      query: "sink is clogged",
+    });
+    expect(getAvailabilityTool).toHaveBeenCalledWith(
+      expect.objectContaining({
+        business: customBusiness,
+        serviceOfferingId: "s1",
+      }),
+    );
+    expect(result.handled).toBe(true);
+    expect(result.result.messageCategory).toBe("availability_inquiry");
+    expect(result.result.preferredAppointmentTime).toBe("");
+    expect(result.result.reply).toMatch(/current openings/i);
+    expect(result.result.reply).toMatch(/not a confirmed appointment/i);
+    expect(result.result.reply).not.toMatch(/I've noted/i);
+  });
+
+  test("never invents availability when the calendar provider cannot be queried", async () => {
+    const customBusiness = {
+      ...business,
+      businessName: "Atlanta Pro Plumbing & Drain",
+      features: { aiBookingEnabled: false },
+    };
+    const lead = makeLead({ serviceNeeded: "sink is clogged" });
+    searchServicesTool.mockResolvedValueOnce([
+      { id: "s1", name: "Drain cleaning" },
+    ]);
+    getAvailabilityTool.mockRejectedValueOnce(new Error("provider unavailable"));
+
+    const result = await handle({
+      customBusiness,
+      lead,
+      message: "What is your availability this week?",
+    });
+
+    expect(result.handled).toBe(true);
+    expect(result.result.messageCategory).toBe("availability_inquiry");
+    expect(result.result.preferredAppointmentTime).toBe("");
+    expect(result.result.reply).toMatch(/can’t verify live availability right now/i);
   });
 
   test("does nothing without a conversation or during human takeover", async () => {
@@ -598,5 +678,106 @@ describe("BookingStateMachineService complete behavior", () => {
   test("returns unhandled for ordinary booked and unknown states", async () => {
     await expect(handle({ conversation: makeConversation({ bookingState: { status: "booked" } }), message: "thanks" })).resolves.toEqual({ handled: false });
     await expect(handle({ conversation: makeConversation({ bookingState: { status: "mystery" } }), message: "book" })).resolves.toEqual({ handled: false });
+  });
+});
+
+
+describe("Booking production readiness/provider regressions", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date("2026-09-04T22:00:00.000Z"));
+    buildBusinessReadiness.mockResolvedValue({
+      states: { bookingReady: true },
+      missingRequirements: { booking: [] },
+    });
+    AlertService.createSystemAlert.mockResolvedValue({});
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+  });
+
+  test("blocks automatic booking when runtime readiness is incomplete", async () => {
+    buildBusinessReadiness.mockResolvedValue({
+      states: { bookingReady: false },
+      missingRequirements: {
+        booking: [
+          {
+            code: "availability_required",
+            message: "Configure availability before booking.",
+          },
+        ],
+      },
+    });
+
+    const result = await handle({
+      conversation: makeConversation({
+        bookingState: { status: "collecting_preference" },
+      }),
+      message: "tomorrow",
+    });
+
+    expect(result.handled).toBe(true);
+    expect(result.result.messageCategory).toBe("human_requested");
+    expect(result.result.reply).toMatch(/alerted the team/i);
+    expect(getAvailabilityTool).not.toHaveBeenCalled();
+    expect(AlertService.createSystemAlert).toHaveBeenCalled();
+  });
+
+  test("provider failure is a handoff, not a no-slots response", async () => {
+    const providerError = Object.assign(new Error("calendar offline"), {
+      code: "GOOGLE_RECONNECT_REQUIRED",
+    });
+    getAvailabilityTool.mockRejectedValue(providerError);
+
+    const result = await handle({
+      conversation: makeConversation({
+        bookingState: { status: "collecting_preference" },
+      }),
+      message: "tomorrow",
+    });
+
+    expect(result.result.messageCategory).toBe("human_requested");
+    expect(result.result.reply).toMatch(/trouble checking the live schedule/i);
+    expect(result.result.reply).not.toMatch(/don.?t see an available/i);
+    expect(AlertService.createSystemAlert).toHaveBeenCalled();
+  });
+
+  test("expanded provider failure is not swallowed as zero availability", async () => {
+    getAvailabilityTool
+      .mockResolvedValueOnce({ slots: [] })
+      .mockRejectedValueOnce(
+        Object.assign(new Error("calendar token expired"), {
+          code: "GOOGLE_RECONNECT_REQUIRED",
+        }),
+      );
+
+    const result = await handle({
+      conversation: makeConversation({
+        bookingState: { status: "collecting_preference" },
+      }),
+      message: "tomorrow",
+    });
+
+    expect(getAvailabilityTool).toHaveBeenCalledTimes(2);
+    expect(result.result.messageCategory).toBe("human_requested");
+    expect(result.result.reply).toMatch(/trouble checking the live schedule/i);
+    expect(AlertService.createSystemAlert).toHaveBeenCalled();
+  });
+
+  test("true zero slots remains a zero-slots outcome without provider alert", async () => {
+    getAvailabilityTool.mockResolvedValue({ slots: [] });
+
+    const result = await handle({
+      conversation: makeConversation({
+        bookingState: { status: "collecting_preference" },
+      }),
+      message: "tomorrow",
+    });
+
+    expect(result.result.reply).toMatch(/don.?t see an available/i);
+    expect(AlertService.createSystemAlert).not.toHaveBeenCalled();
   });
 });

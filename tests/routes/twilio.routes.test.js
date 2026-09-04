@@ -57,7 +57,7 @@ const defaultAIResult = {
 beforeAll(async () => {
   await connectTestDB();
   await Promise.all([Message.init(), WebhookEvent.init()]);
-});
+}, 20_000);
 
 beforeEach(() => {
   generateAIReplyResult.mockResolvedValue({
