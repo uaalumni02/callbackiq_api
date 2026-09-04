@@ -177,6 +177,18 @@ export const twilioSmsWebhookRateLimit = createCommunicationRouteRateLimit({
   keyBuilder: phonePair,
 });
 
+export const twilioSmsFallbackWebhookRateLimit =
+  createCommunicationRouteRateLimit({
+    name: "twilio-sms-fallback",
+    max: positiveInteger(
+      process.env.TWILIO_SMS_FALLBACK_WEBHOOKS_PER_MINUTE,
+      240,
+    ),
+    windowMs: 60_000,
+    twiml: true,
+    keyBuilder: phonePair,
+  });
+
 export const twilioStatusWebhookRateLimit = createCommunicationRouteRateLimit({
   name: "twilio-status",
   max: positiveInteger(process.env.TWILIO_STATUS_WEBHOOKS_PER_MINUTE, 600),

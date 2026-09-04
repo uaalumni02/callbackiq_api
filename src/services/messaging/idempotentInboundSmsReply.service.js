@@ -241,7 +241,9 @@ export const sendIdempotentInboundSmsReply = async ({
       provider: sent,
     };
   } catch (error) {
-    const uncertain = uncertainCodes.has(String(error?.code || ""));
+    const uncertain =
+      error?.deliveryUncertain === true ||
+      uncertainCodes.has(String(error?.code || ""));
     await Message.findByIdAndUpdate(claimed._id, {
       status: "failed",
       deliveryStatus: "failed",

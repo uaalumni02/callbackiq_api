@@ -1,3 +1,7 @@
+import {
+  startSmsDeliveryReconciliationWorker,
+  stopSmsDeliveryReconciliationWorker,
+} from "./workers/smsDeliveryReconciliation.worker.js";
 import { startSmsIngressReconciliationWorker, stopSmsIngressReconciliationWorker } from "./workers/smsIngressReconciliation.worker.js";
 import { assertTwilioProductionConfig } from "./config/twilio-production-config.js";
 import {
@@ -160,6 +164,7 @@ const shutdown = async (signal, exitCode = 0) => {
     stopAutomationWorker();
     stopSmsProcessingWorker();
     stopSmsIngressReconciliationWorker();
+    stopSmsDeliveryReconciliationWorker();
     stopConversationLifecycleWorker();
     stopVoiceUsageReconciliationWorker();
     await conversationRelayServer.close();
@@ -216,6 +221,7 @@ await connectDB();
   if (shouldRunEmbeddedWorkers()) {
     await startSmsProcessingWorker();
     await startSmsIngressReconciliationWorker();
+    await startSmsDeliveryReconciliationWorker();
     startConversationLifecycleWorker();
   }
   if (shouldRunEmbeddedWorkers()) {

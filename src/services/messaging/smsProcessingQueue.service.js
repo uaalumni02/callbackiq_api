@@ -1,6 +1,8 @@
 import crypto from "crypto";
 import SmsProcessingJob from "../../models/smsProcessingJob.js";
 import Message from "../../models/message.js";
+import AlertService from "../alert.service.js";
+import { logOperationalEvent } from "../../helpers/logging/safeLogger.js";
 
 const DEFAULT_LEASE_MS = 60_000;
 const DEFAULT_MAX_ATTEMPTS = 5;
@@ -207,7 +209,56 @@ export const reconcileOrphanedInboundSmsJobs = async ({
       );
       continue;
     }
-    if (!message.business || !message.conversation || !message.lead) continue;
+    if (!message.business || !message.conversation || !message.lead) {
+      const missingFields = [
+        !message.business ? "business" : "",
+        !message.conversation ? "conversation" : "",
+        !message.lead ? "lead" : "",
+      ].filter(Boolean);
+      const failedAt = new Date();
+
+      await Message.updateOne(
+        { _id: message._id },
+        {
+          $set: {
+            "metadata.processingRequired": false,
+            "metadata.processingReconciliationState": "invalid_context",
+            "metadata.processingReconciliationError":
+              `missing_${missingFields.join("_")}`,
+            "metadata.processingReconciliationFailedAt": failedAt,
+          },
+        },
+      );
+
+      logOperationalEvent("sms.ingress_reconciliation_invalid_context", {
+        messageId: String(message._id),
+        businessId: message.business ? String(message.business) : "",
+        conversationId: message.conversation
+          ? String(message.conversation)
+          : "",
+        leadId: message.lead ? String(message.lead) : "",
+        providerMessageId: message.providerMessageId || "",
+        missingFields,
+      });
+
+      if (message.business) {
+        await AlertService.createSystemAlert({
+          businessId: message.business,
+          title: "Inbound SMS needs reconciliation",
+          message:
+            "A persisted customer SMS is missing required processing context and could not be queued automatically.",
+          priority: "critical",
+          metadata: {
+            inboundMessageId: String(message._id),
+            providerMessageId: message.providerMessageId || "",
+            missingFields,
+          },
+          dedupeKey: `sms_ingress_invalid_context:${message._id}`,
+        });
+      }
+
+      continue;
+    }
 
     await enqueueInboundSmsJob({
       businessId: message.business,

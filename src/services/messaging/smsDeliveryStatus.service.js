@@ -1,4 +1,8 @@
 import CallLog from "../../models/callLog.js";
+import {
+  enqueueSmsDeliveryReconciliationEvent,
+  markSmsDeliveryReconciliationApplied,
+} from "./smsDeliveryReconciliation.service.js";
 import Message from "../../models/message.js";
 import AlertService from "../alert.service.js";
 import SocketService from "../socket.service.js";
@@ -191,7 +195,11 @@ const updateCallLogSmsMonotonically = async ({
   );
 };
 
-export const processTwilioMessageStatus = async ({ businessId, payload = {} }) => {
+export const processTwilioMessageStatus = async ({
+  businessId,
+  payload = {},
+  skipReconciliationPersistence = false,
+}) => {
   const providerMessageId = String(payload.MessageSid || payload.SmsSid || "").trim();
   const providerStatus = normalizeStatus(payload.MessageStatus || payload.SmsStatus);
   if (!businessId || !providerMessageId || !providerStatus) return null;
@@ -200,6 +208,13 @@ export const processTwilioMessageStatus = async ({ businessId, payload = {} }) =
   const errorCode = String(payload.ErrorCode || "").trim();
   const errorMessage = String(payload.ErrorMessage || "").trim().slice(0, 1000);
   const now = new Date();
+  const reconciliationEvent = skipReconciliationPersistence
+    ? null
+    : await enqueueSmsDeliveryReconciliationEvent({
+        businessId,
+        payload,
+      });
+
   const [message, callLog] = await Promise.all([
     updateMessageMonotonically({
       businessId,
@@ -221,6 +236,17 @@ export const processTwilioMessageStatus = async ({ businessId, payload = {} }) =
     }),
   ]);
 
+  if (reconciliationEvent && (message || callLog)) {
+    await markSmsDeliveryReconciliationApplied(reconciliationEvent._id);
+  } else if (reconciliationEvent && !message && !callLog) {
+    logOperationalEvent("twilio.sms.delivery_status_pending_reconciliation", {
+      businessId,
+      providerMessageId,
+      deliveryStatus: providerStatus,
+      reconciliationEventId: reconciliationEvent._id,
+    });
+  }
+
   if (message) SocketService.emitMessageUpdated(businessId, message);
   if (callLog) SocketService.emitCallUpdated(businessId, callLog);
   if (message || callLog) {
@@ -235,7 +261,16 @@ export const processTwilioMessageStatus = async ({ businessId, payload = {} }) =
     });
     await detectFailureSpike({ businessId, now });
   }
-  return { message, callLog, deliveryStatus: providerStatus, canonicalStatus };
+  return {
+    message,
+    callLog,
+    deliveryStatus: providerStatus,
+    canonicalStatus,
+    reconciliationPending: Boolean(
+      reconciliationEvent && !message && !callLog,
+    ),
+    reconciliationEventId: reconciliationEvent?._id || null,
+  };
 };
 
 export default { processTwilioMessageStatus };

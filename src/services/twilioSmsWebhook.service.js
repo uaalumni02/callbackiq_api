@@ -14,6 +14,8 @@ import {
   claimTwilioWebhookEvent,
   completeTwilioWebhookEvent,
   failTwilioWebhookEvent,
+  heartbeatTwilioWebhookEvent,
+  waitForTwilioWebhookEventSettlement,
 } from "./webhooks/twilioWebhookEvent.service.js";
 import {
   classifyInboundSmsCommand,
@@ -57,6 +59,26 @@ const cached = (res, event) =>
     body: event?.responseBody || emptyTwiml(),
   });
 
+const startWebhookHeartbeat = ({ eventId, leaseToken, res }) => {
+  if (process.env.NODE_ENV === "test") return null;
+  if (!eventId || !leaseToken) return null;
+  const intervalMs = Math.max(
+    1_000,
+    Math.floor(Number(process.env.TWILIO_WEBHOOK_LEASE_MS || 5_000) / 3),
+  );
+  const timer = setInterval(() => {
+    void heartbeatTwilioWebhookEvent({ eventId, leaseToken }).catch((error) =>
+      logOperationalError("twilio.webhook.heartbeat_failed", error, {
+        webhookEventId: eventId,
+      }),
+    );
+  }, intervalMs);
+  timer.unref?.();
+  res.once("finish", () => clearInterval(timer));
+  res.once("close", () => clearInterval(timer));
+  return timer;
+};
+
 const saveOutbound = async ({ business, conversation, lead, from = "", to, body, sent, generatedBy, usageCategory, actorType, metadata }) => {
   const message = await Message.create({
     business: business._id,
@@ -92,11 +114,19 @@ const updateConversationLastMessage = async ({ businessId, conversation, body })
   return updated;
 };
 
-const failAndRespond = async ({ event, error, res, eventName, statusCode = 200 }) => {
+const failAndRespond = async ({
+  event,
+  leaseToken = "",
+  error,
+  res,
+  eventName,
+  statusCode = 200,
+}) => {
   logOperationalError(eventName, error, { businessId: event?.business });
   const responseBody = emptyTwiml();
   if (event?._id) {
     await Promise.resolve(failTwilioWebhookEvent(event._id, error, {
+      leaseToken,
       statusCode,
       contentType: "text/xml",
       responseBody,
@@ -111,6 +141,7 @@ const failAndRespond = async ({ event, error, res, eventName, statusCode = 200 }
 
 export const handleSmsRecoveryVoiceWebhook = async (req, res) => {
   let webhookEvent = null;
+  let webhookLeaseToken = "";
   try {
     const rawCustomerPhone = req.body.From || req.body.Caller || "";
     const twilioNumber = req.body.To || req.body.Called || "";
@@ -146,6 +177,12 @@ export const handleSmsRecoveryVoiceWebhook = async (req, res) => {
     });
     if (!claim.claimed) return cached(res, claim.event);
     webhookEvent = claim.event;
+    webhookLeaseToken = claim.leaseToken;
+    startWebhookHeartbeat({
+      eventId: webhookEvent._id,
+      leaseToken: webhookLeaseToken,
+      res,
+    });
 
     const callLog = await CallLog.findOneAndUpdate(
       { business: business._id, providerCallId: callSid },
@@ -314,18 +351,20 @@ export const handleSmsRecoveryVoiceWebhook = async (req, res) => {
     });
     const responseBody = xml(`\n<Response>\n  <Say>${voicePrompt}</Say>\n</Response>`);
     await completeTwilioWebhookEvent(webhookEvent._id, {
+      leaseToken: webhookLeaseToken,
       statusCode: 200,
       contentType: "text/xml",
       responseBody,
     });
     return sendXml(res, { body: responseBody });
   } catch (error) {
-    return failAndRespond({ event: webhookEvent, error, res, eventName: "twilio.voice.failed" });
+    return failAndRespond({ event: webhookEvent, leaseToken: webhookLeaseToken, error, res, eventName: "twilio.voice.failed" });
   }
 };
 
 export const handleTwilioStatusWebhook = async (req, res) => {
   let webhookEvent = null;
+  let webhookLeaseToken = "";
   try {
     // CALLBACKIQ_PRODUCTION_READINESS: provider record is authoritative.
     const business =
@@ -354,6 +393,12 @@ export const handleTwilioStatusWebhook = async (req, res) => {
     });
     if (!claim.claimed) return cached(res, claim.event);
     webhookEvent = claim.event;
+    webhookLeaseToken = claim.leaseToken;
+    startWebhookHeartbeat({
+      eventId: webhookEvent._id,
+      leaseToken: webhookLeaseToken,
+      res,
+    });
 
     if (eventType === "message_status") {
       await processTwilioMessageStatus({ businessId: business._id, payload: req.body });
@@ -363,13 +408,14 @@ export const handleTwilioStatusWebhook = async (req, res) => {
 
     const responseBody = emptyTwiml();
     await completeTwilioWebhookEvent(webhookEvent._id, {
+      leaseToken: webhookLeaseToken,
       statusCode: 200,
       contentType: "text/xml",
       responseBody,
     });
     return sendXml(res, { body: responseBody });
   } catch (error) {
-    return failAndRespond({ event: webhookEvent, error, res, eventName: "twilio.status.failed" });
+    return failAndRespond({ event: webhookEvent, leaseToken: webhookLeaseToken, error, res, eventName: "twilio.status.failed" });
   }
 };
 
@@ -411,6 +457,7 @@ const sendCommandReply = async ({ business, conversation, lead, to, commandResul
 
 export const handleInboundSmsWebhook = async (req, res) => {
   let webhookEvent = null;
+  let webhookLeaseToken = "";
   try {
     const rawFrom = req.body.From || "";
     const to = String(req.body.To || "").trim();
@@ -445,13 +492,40 @@ export const handleInboundSmsWebhook = async (req, res) => {
       return routingFailure(res, to, "inbound_sms");
     }
     const eventIdentity = buildTwilioEventIdentity("inbound_sms", req.body);
-    const claim = await claimTwilioWebhookEvent({
+    const claimInput = {
       businessId: business._id,
       ...eventIdentity,
       requestMetadata: { from, to, mediaCount: media.length },
-    });
-    if (!claim.claimed) return cached(res, claim.event);
+    };
+    let claim = await claimTwilioWebhookEvent(claimInput);
+
+    if (!claim.claimed) {
+      if (claim.event?.status === "completed") {
+        return cached(res, claim.event);
+      }
+
+      const settled = await waitForTwilioWebhookEventSettlement(
+        claim.event?._id,
+      );
+      if (settled?.status === "completed") {
+        return cached(res, settled);
+      }
+
+      // The original process may have died after claiming but before durable
+      // Message persistence. Re-claim only after its renewable lease expires.
+      claim = await claimTwilioWebhookEvent(claimInput);
+      if (!claim.claimed) {
+        res.set("Retry-After", "1");
+        return sendXml(res, { statusCode: 503 });
+      }
+    }
     webhookEvent = claim.event;
+    webhookLeaseToken = claim.leaseToken;
+    startWebhookHeartbeat({
+      eventId: webhookEvent._id,
+      leaseToken: webhookLeaseToken,
+      res,
+    });
 
     const { lead, conversation } = await getOrCreateSmsLeadAndConversation({
       business,
@@ -653,6 +727,7 @@ export const handleInboundSmsWebhook = async (req, res) => {
 
     const responseBody = emptyTwiml();
     await completeTwilioWebhookEvent(webhookEvent._id, {
+      leaseToken: webhookLeaseToken,
       statusCode: 200,
       contentType: "text/xml",
       responseBody,
@@ -661,6 +736,7 @@ export const handleInboundSmsWebhook = async (req, res) => {
   } catch (error) {
     return failAndRespond({
       event: webhookEvent,
+      leaseToken: webhookLeaseToken,
       error,
       res,
       eventName: "twilio.sms.failed",
