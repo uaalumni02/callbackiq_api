@@ -28,7 +28,6 @@ describe("SMS market-readiness turn policy", () => {
   });
 
   test.each([
-    "Tomorrow at 9am are you available for the service?",
     "Friday morning works",
     "Monday after 3",
     "day after tomorrow around 3ish",
@@ -114,38 +113,42 @@ describe("SMS market-readiness turn policy", () => {
     expect(policy.directResult).toBeNull();
   });
 
-  it("replaces the exact broken re-ask regression", () => {
-    // CALLBACKIQ_FIXED_SMS_REGRESSION_TIME
-    // Keep "tomorrow at 9am" deterministic instead of depending on CI date.
+  it("routes the exact broken re-ask regression to live availability instead of saving the question", () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date("2026-08-18T16:00:00.000Z"));
 
     const message = "Tomorrow at 9am are you available for the service?";
     const testBusiness = business();
+    const lead = {
+      serviceNeeded: "clogged toilet",
+      preferredAppointmentTime: "",
+    };
     const policy = evaluateSmsTurnPolicy({
       customerMessage: message,
       business: testBusiness,
-      lead: { serviceNeeded: "clogged toilet" },
+      lead,
     });
+
+    expect(policy.intent.availabilityInquiry).toBe(true);
+    expect(policy.intent.scheduling).toBe(true);
+    expect(policy.directResult).toBeNull();
 
     const result = applySmsTurnPolicy({
       business: testBusiness,
-      lead: { serviceNeeded: "clogged toilet" },
+      lead,
       policy,
       result: {
         decision: "send",
-        actionType: "collect_appointment_preference",
-        messageCategory: "appointment_preference",
-        reply:
-          "You can reply with the days and times that work best for you. The business will respond as soon as possible to confirm availability.",
+        actionType: "check_live_availability",
+        messageCategory: "availability_inquiry",
+        reply: "I checked the live calendar.",
+        preferredAppointmentTime: message,
       },
     });
 
-    expect(result.reply).toContain("I've noted");
-    expect(result.reply).toMatch(/Wednesday, Aug 19 at 9:00 AM/i);
-    expect(result.reply).not.toContain(message);
-    expect(result.reply).not.toMatch(/reply with the days and times/i);
-    expect(result.preferredAppointmentTime).toBe(message);
+    expect(result.reply).toBe("I checked the live calendar.");
+    expect(result.reply).not.toContain("I've noted");
+    expect(result.preferredAppointmentTime).toBe("");
   });
 
   it("prevents service statements from jumping directly to scheduling", () => {
@@ -192,19 +195,22 @@ describe("SMS market-readiness turn policy", () => {
     );
   });
 
-  it("handles pricing + scheduling in one turn without dropping either intent", () => {
+  it("routes pricing + availability through live scheduling without saving the question as a preference", () => {
     const policy = evaluateSmsTurnPolicy({
       customerMessage: "How much is it and can you come tomorrow at 9am?",
       business: business(),
-      lead: { serviceNeeded: "clogged toilet" },
+      lead: {
+        serviceNeeded: "clogged toilet",
+        preferredAppointmentTime: "",
+      },
       now: new Date("2026-08-17T20:00:00-05:00"),
     });
 
     expect(policy.intent.pricing).toBe(true);
+    expect(policy.intent.availabilityInquiry).toBe(true);
     expect(policy.intent.scheduling).toBe(true);
-    expect(policy.directResult.reply).toMatch(/pricing|cost/i);
-    expect(policy.directResult.reply).toMatch(/Tuesday, Aug 18 at 9:00 AM/i);
-    expect(policy.directResult.preferredAppointmentTime).toContain("tomorrow at 9am");
+    expect(policy.appointmentHint).toBe(true);
+    expect(policy.directResult).toBeNull();
   });
 
   it("does not mistake 'can someone come tomorrow' for a human-agent request", () => {
@@ -235,16 +241,20 @@ describe("SMS market-readiness turn policy", () => {
     expect(policy.directResult.shouldAlertOwner).toBe(true);
   });
 
-  it("captures multi-intent service + schedule without losing the known service", () => {
+  it("routes service + availability to the live calendar without converting the question into a selected preference", () => {
     const message = "My toilet is clogged. Can you come tomorrow at 9?";
     const policy = evaluateSmsTurnPolicy({
       customerMessage: message,
       business: business(),
-      lead: { serviceNeeded: "clogged toilet" },
+      lead: {
+        serviceNeeded: "clogged toilet",
+        preferredAppointmentTime: "",
+      },
     });
 
     expect(policy.intent.scheduling).toBe(true);
-    expect(policy.directResult.preferredAppointmentTime).toBe(message);
-    expect(policy.directResult.serviceNeeded).toBe("clogged toilet");
+    expect(policy.intent.availabilityInquiry).toBe(true);
+    expect(policy.intent.human).toBe(false);
+    expect(policy.directResult).toBeNull();
   });
 });

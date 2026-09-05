@@ -38,7 +38,7 @@ describe("appointment policy service", () => {
   test("returns defaults when no policy exists", async () => {
     SchedulingPolicy.findOne.mockReturnValue(leanResult(null));
     await expect(getSchedulingPolicy("b1")).resolves.toMatchObject({
-      minimumNoticeMinutes: 120,
+      minimumNoticeMinutes: 1440,
       maximumAdvanceDays: 60,
       slotIntervalMinutes: 30,
       defaultDurationMinutes: 90,

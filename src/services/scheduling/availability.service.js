@@ -1,10 +1,20 @@
-import { validateServiceArea } from "./appointmentPolicy.service.js";
+import ServiceOffering from "../../models/serviceOffering.js";
+import {
+  getSchedulingPolicy,
+  validateServiceArea,
+} from "./appointmentPolicy.service.js";
 import {
   businessCalendarProviderName,
   normalizeCalendarProviderName,
 } from "./calendarProviderName.service.js";
 import SchedulingProviderFactory from "./schedulingProviderFactory.js";
-import { formatZonedIso } from "./timezone.service.js";
+import { formatDateKey, formatZonedIso } from "./timezone.service.js";
+
+const finiteNonNegative = (value) => {
+  if (value == null || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : null;
+};
 
 class AvailabilityService {
   static async getAvailability({
@@ -18,10 +28,16 @@ class AvailabilityService {
     excludeExternalEventId = null,
   }) {
     const businessId = business._id || business.id;
-    const serviceArea = await validateServiceArea({
-      businessId,
-      postalCode,
-    });
+    const [serviceArea, policy, service] = await Promise.all([
+      validateServiceArea({ businessId, postalCode }),
+      getSchedulingPolicy(businessId),
+      ServiceOffering.findOne({
+        _id: serviceOfferingId,
+        business: businessId,
+        active: true,
+      }).lean(),
+    ]);
+
     const providerName = providerNameOverride
       ? normalizeCalendarProviderName(providerNameOverride)
       : businessCalendarProviderName(business);
@@ -35,6 +51,18 @@ class AvailabilityService {
       };
     }
 
+    const serviceNoticeOverride = finiteNonNegative(
+      service?.minimumNoticeMinutesOverride,
+    );
+    const minimumNoticeMinutes =
+      serviceNoticeOverride ??
+      finiteNonNegative(policy?.minimumNoticeMinutes) ??
+      1440;
+    const allowSameDayBooking =
+      service?.allowSameDayBookingOverride == null
+        ? policy?.allowSameDayBooking === true
+        : service.allowSameDayBookingOverride === true;
+
     const provider = SchedulingProviderFactory.getProvider(
       business,
       providerNameOverride,
@@ -45,18 +73,41 @@ class AvailabilityService {
       endDate,
       postalCode,
       excludeAppointmentId,
-      ...(excludeExternalEventId
-        ? { excludeExternalEventId }
-        : {}),
+      ...(excludeExternalEventId ? { excludeExternalEventId } : {}),
     };
     const slots = await provider.getAvailability(providerOptions);
     const timeZone = business.timezone || "America/New_York";
+    const now = new Date();
+    const earliestCustomerFacingStart = new Date(
+      now.getTime() + minimumNoticeMinutes * 60_000,
+    );
+    const todayKey = formatDateKey(now, timeZone);
+
+    const policySafeSlots = (Array.isArray(slots) ? slots : [])
+      .filter((slot) => {
+        const startAt = new Date(slot.startAt);
+        if (Number.isNaN(startAt.getTime())) return false;
+        if (startAt < earliestCustomerFacingStart) return false;
+        if (
+          !allowSameDayBooking &&
+          formatDateKey(startAt, timeZone) === todayKey
+        ) {
+          return false;
+        }
+        return true;
+      })
+      .sort(
+        (left, right) =>
+          new Date(left.startAt).getTime() - new Date(right.startAt).getTime(),
+      );
 
     return {
       supportedServiceArea: true,
       provider: providerName,
       serviceArea,
-      slots: slots.map((slot) => ({
+      minimumNoticeMinutes,
+      allowSameDayBooking,
+      slots: policySafeSlots.map((slot) => ({
         ...slot,
         startAt: formatZonedIso(slot.startAt, timeZone),
         endAt: formatZonedIso(slot.endAt, timeZone),

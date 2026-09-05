@@ -116,6 +116,16 @@ const ServiceOfferingSchema = new Schema(
       type: Boolean,
       default: false,
     },
+    minimumNoticeMinutesOverride: {
+      type: Number,
+      min: 0,
+      max: 43200,
+      default: null,
+    },
+    allowSameDayBookingOverride: {
+      type: Boolean,
+      default: null,
+    },
     keywords: {
       type: [String],
       default: [],

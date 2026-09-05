@@ -1,3 +1,4 @@
+import Appointment from "../../src/models/appointment.js";
 import Conversation from "../../src/models/conversation.js";
 import ServiceOffering from "../../src/models/serviceOffering.js";
 import AutomationTriggerService from "../../src/services/automation/automationTrigger.service.js";
@@ -27,6 +28,14 @@ jest.mock("../../src/services/businessReadiness.service.js", () => ({
 jest.mock("../../src/models/conversation.js", () => ({
   __esModule: true,
   default: { findOne: jest.fn() },
+}));
+jest.mock("../../src/models/appointment.js", () => ({
+  __esModule: true,
+  default: {
+    findOne: jest.fn(),
+    updateOne: jest.fn(),
+    findOneAndUpdate: jest.fn(),
+  },
 }));
 jest.mock("../../src/models/serviceOffering.js", () => ({
   __esModule: true,
@@ -152,13 +161,18 @@ describe("AI booking required conversation matrix", () => {
     searchServicesTool.mockResolvedValue([{ id: "s1", name: "HVAC diagnostic" }]);
     validateServiceAreaTool.mockResolvedValue({ supported: true });
     getAvailabilityTool.mockResolvedValue({ slots: [SLOT] });
-    createAppointmentTool.mockResolvedValue({
+    const heldAppointment = {
       _id: "a1",
-      status: "confirmed",
+      status: "held",
+      requiresBusinessApproval: true,
       startAt: SLOT.startAt,
       endAt: SLOT.endAt,
       timezone: "America/New_York",
-    });
+      heldExpiresAt: new Date("2026-07-27T12:30:00.000Z"),
+    };
+    createAppointmentTool.mockResolvedValue(heldAppointment);
+    Appointment.findOne.mockResolvedValue(heldAppointment);
+    Appointment.updateOne.mockResolvedValue({ acknowledged: true, modifiedCount: 1 });
   });
 
   afterEach(() => {
@@ -176,10 +190,11 @@ describe("AI booking required conversation matrix", () => {
 
     expect(first.handled).toBe(true);
     expect(conversation.bookingState).toMatchObject({
-      status: "booked",
+      status: "pending_business_confirmation",
       appointment: "a1",
     });
-    expect(second).toEqual({ handled: false });
+    expect(second.handled).toBe(true);
+    expect(second.result.reply).toMatch(/awaiting business approval/i);
     expect(createAppointmentTool).toHaveBeenCalledTimes(1);
     expect(createAppointmentTool).toHaveBeenCalledWith(
       expect.objectContaining({

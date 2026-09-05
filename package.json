@@ -122,7 +122,8 @@
     "test:prepilot-telecom-coverage": "jest --runInBand --no-cache tests/unit/twilioController.targetCoverage.test.js tests/unit/a2pCustomerOnboarding.lifecycle.targetCoverage.test.js tests/unit/communicationUsageReservation.targetCoverage.test.js",
     "verify:sms-conversation-hardening": "node scripts/verify-sms-conversation-hardening.mjs",
     "test:sms-conversation-hardening": "jest --runInBand --no-cache tests/unit/smsIntentClassifier.production.test.js tests/unit/smsConversationState.production.test.js tests/unit/smsTurnAggregation.production.test.js tests/unit/smsConversationLease.production.test.js tests/unit/smsLifecycleSchema.production.test.js tests/unit/smsConversationFuzz.production.test.js tests/unit/smsGoldenCorpus.production.test.js tests/unit/smsTurnPolicy.marketReadiness.test.js tests/integration/aiBookingConversationMatrix.completion.test.js tests/integration/smsRecovery.fullFlow.test.js tests/unit/smsProcessing.worker.hardening.test.js",
-    "test:sms-10of10": "jest tests/integration/sms10of10.adversarial.mongo.test.js --runInBand --no-cache"
+    "test:sms-10of10": "jest tests/integration/sms10of10.adversarial.mongo.test.js --runInBand --no-cache",
+    "test:scheduling-production-hardening": "jest --runInBand --no-cache tests/unit/customerSchedulingIntent.production.test.js tests/unit/availabilityLeadTime.production.test.js tests/unit/aiBookingApproval.production.test.js tests/unit/bookingStateMachine.productionScheduling.test.js tests/unit/smsIntentClassifier.production.test.js tests/unit/smsTurnPolicy.marketReadiness.test.js tests/unit/voiceAgent.service.test.js tests/unit/voiceBookingStateMachineReuse.test.js"
   },
   "keywords": [],
   "author": "",

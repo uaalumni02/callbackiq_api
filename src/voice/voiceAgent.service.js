@@ -29,6 +29,7 @@ import {
   isLikelyNonEnglish,
   isRepeatIntent,
   isServiceAreaQuestion,
+  isVoiceAvailabilityInquiry,
   isTransientDependencyError,
   toSpokenReply,
 } from "./voiceInput.service.js";
@@ -37,6 +38,7 @@ import {
   phoneNumbersEqual,
 } from "./voicePhone.service.js";
 import { assertVoiceTurnActive } from "../services/voiceTurnContext.service.js";
+import { classifyOperationalUrgency } from "../services/scheduling/customerSchedulingIntent.service.js";
 
 const DIAGNOSTIC_FEE =
   /\b(?:diagnostic|service call|trip)\b.{0,25}\b(?:fee|cost|charge)\b/i;
@@ -77,6 +79,21 @@ const MAX_UNMATCHED_TURNS_BEFORE_CALLBACK = 4;
 
 const normalizeId = (value) => value?._id || value?.id || value || null;
 const clean = (value, maximum = 2000) => cleanVoiceText(value, maximum);
+const VOICE_URGENCY_RANK = Object.freeze({
+  low: 0,
+  medium: 1,
+  high: 2,
+  emergency: 3,
+});
+const preserveVoiceUrgency = async (lead, candidate) => {
+  if (!lead || !candidate || !(candidate in VOICE_URGENCY_RANK)) return;
+  const current =
+    lead.urgency in VOICE_URGENCY_RANK ? lead.urgency : "medium";
+  if (VOICE_URGENCY_RANK[candidate] <= VOICE_URGENCY_RANK[current]) return;
+  lead.urgency = candidate;
+  assertVoiceTurnActive();
+  await lead.save();
+};
 const recordPilotMetric = (
   session,
   event,
@@ -317,6 +334,23 @@ class VoiceAgentService {
         signal,
       });
       assertVoiceTurnActive();
+      const deterministicUrgency = classifyOperationalUrgency(text);
+      const understoodUrgency = String(
+        understanding?.entities?.urgency || "",
+      ).toLowerCase();
+      const urgencyCandidate =
+        VOICE_URGENCY_RANK[deterministicUrgency] >=
+        VOICE_URGENCY_RANK[understoodUrgency]
+          ? deterministicUrgency
+          : understoodUrgency;
+      if (urgencyCandidate) {
+        understanding.entities = {
+          ...(understanding.entities || {}),
+          urgency: urgencyCandidate,
+        };
+        await preserveVoiceUrgency(lead, urgencyCandidate);
+      }
+
       session.metadata = { ...(session.metadata || {}), currentUnderstanding: understanding };
       safety = understanding.safety;
       if (understanding.usage) {
@@ -437,8 +471,9 @@ class VoiceAgentService {
 
     const bookingStatus = conversation?.bookingState?.status || "not_started";
     const bookingInProgress = ACTIVE_BOOKING_STATUSES.has(bookingStatus);
-    const bookingIntent = isBookingIntent(text);
-    const humanIntent = isHumanRequest(text);
+    const availabilityInquiry = isVoiceAvailabilityInquiry(text);
+    const bookingIntent = isBookingIntent(text) || availabilityInquiry;
+    const humanIntent = isHumanRequest(text) && !availabilityInquiry;
 
     // An explicit human request always wins. The caller should never have to
     // argue with automation, even when the same utterance also mentions booking.
@@ -597,7 +632,16 @@ class VoiceAgentService {
     }
 
     resetFallbackGuard(guard);
-    if (!business?.features?.aiBookingEnabled) {
+    const readOnlyAvailabilityInProgress =
+      bookingStatus === "offering_slots" &&
+      Array.isArray(conversation?.bookingState?.offeredSlots) &&
+      conversation.bookingState.offeredSlots.length > 0;
+
+    if (
+      !business?.features?.aiBookingEnabled &&
+      !availabilityInquiry &&
+      !readOnlyAvailabilityInProgress
+    ) {
       return captureCallback({
         session,
         customerMessage: text,

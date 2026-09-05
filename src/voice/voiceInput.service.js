@@ -3,6 +3,10 @@ import {
   normalizePhoneToE164,
   speakDigits,
 } from "./voicePhone.service.js";
+import {
+  isAvailabilityInquiryText,
+  isExplicitHumanRequestText,
+} from "../services/scheduling/customerSchedulingIntent.service.js";
 
 const WORD_DIGITS = Object.freeze({
   zero: "0",
@@ -66,8 +70,14 @@ export const isNo = (value) => NO_PATTERN.test(cleanVoiceText(value, 120));
 export const isCancelIntent = (value) => CANCEL_PATTERN.test(cleanVoiceText(value, 300));
 export const isSkipIntent = (value) => SKIP_PATTERN.test(cleanVoiceText(value, 300));
 export const isRepeatIntent = (value) => REPEAT_PATTERN.test(cleanVoiceText(value, 300));
-export const isHumanRequest = (value) => HUMAN_PATTERN.test(cleanVoiceText(value, 500));
-export const isBookingIntent = (value) => BOOKING_PATTERN.test(cleanVoiceText(value, 500));
+export const isHumanRequest = (value) =>
+  isExplicitHumanRequestText(cleanVoiceText(value, 500));
+export const isVoiceAvailabilityInquiry = (value) =>
+  isAvailabilityInquiryText(cleanVoiceText(value, 500));
+export const isBookingIntent = (value) => {
+  const text = cleanVoiceText(value, 500);
+  return BOOKING_PATTERN.test(text) || isAvailabilityInquiryText(text);
+};
 export const isCallbackRequest = (value) => {
   const text = cleanVoiceText(value, 500);
   return CALLBACK_FORWARD_PATTERN.test(text) && !CALLBACK_PAST_PATTERN.test(text);

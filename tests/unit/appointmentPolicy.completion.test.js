@@ -150,7 +150,7 @@ describe("appointment policy completion gates", () => {
     SchedulingPolicy.findOne.mockReturnValue(lean(null));
     await expect(getSchedulingPolicy("b1")).resolves.toMatchObject({
       allowSameDayBooking: false,
-      minimumNoticeMinutes: 120,
+      minimumNoticeMinutes: 1440,
     });
 
     ServiceOffering.findOne.mockReturnValue(

@@ -3,6 +3,10 @@ import {
   hasAppointmentPreferenceHint,
   parseTimePreference,
 } from "../booking/appointmentPreferenceParser.service.js";
+import {
+  classifyOperationalUrgency,
+  isAvailabilityInquiryText,
+} from "../scheduling/customerSchedulingIntent.service.js";
 
 const clean = (value) => String(value || "").replace(/\s+/g, " ").trim();
 const any = (patterns, text) => patterns.some((pattern) => pattern.test(text));
@@ -52,38 +56,12 @@ const NEW_SERVICE = [
 ];
 
 /*
- * Availability questions are not appointment preferences. A date window such
- * as “this week” tells us what calendar window to inspect; it does not mean the
- * customer selected that text as a preferred appointment time.
+ * Availability questions are not appointment preferences. Detection is shared
+ * with Voice so the same customer wording always reaches the calendar.
  */
-const AVAILABILITY_INQUIRY = [
-  /\bwhat(?:['’]s| is)?\s+(?:you(?:r)?|the(?: business)?|your team(?:['’]s)?)?\s*availability\b/i,
-  /\bwhat\s+availability\s+(?:do|does|can)\s+(?:you|the business|your team)\s+(?:have|offer)\b/i,
-  /\b(?:what|which)\s+(?:times?|slots?|openings?)\s+(?:do\s+you\s+have|are\s+available|are\s+open)\b/i,
-  /\bdo\s+you\s+have\s+(?:(?:any|anything|something)\s+)?(?:times?|slots?|openings?)?\s*(?:available|open)\b/i,
-  /\b(?:any|what)\s+(?:openings?|open\s+times?|available\s+times?|available\s+slots?)\b/i,
-  /\bwhat(?:['’]s| is)?\s+(?:your\s+)?(?:earliest|soonest|next)\s+(?:opening|availability|available\s+time|appointment|slot)\b/i,
-  /\bwhen(?:['’]s| is)?\s+(?:your\s+)?(?:next|earliest|soonest)\s+(?:available\s+)?(?:appointment|opening|time|slot)\b/i,
-  /^\s*when\s+can\s+(?:you|someone|a\s+tech(?:nician)?|the\s+tech(?:nician)?|your\s+team)\s+(?:come|come\s+out|be\s+here|visit)\b/i,
-  /^\s*are\s+you\s+available\b/i,
-];
 
 // CALLBACKIQ_BOOKING_RECOVERY_FIX_V2: compound turns keep urgency independent from booking intent.
-const EMERGENCY_URGENCY = [
-  /\b(?:gas smell|gas odor|odor of gas|smell(?:s|ing)? (?:like )?gas|fire|smoke|sparking|electrical fire|carbon monoxide|co alarm)\b/i,
-  /\b(?:burst pipe|gushing|major flood|flooding uncontrollably)\b/i,
-];
-
-const HIGH_URGENCY = [
-  /\b(?:loss of service|no service|without service|completely unusable)\b/i,
-  /\b(?:no heat|no ac|no a\/c|no power|sewage|overflow(?:ing)?|active leak|won't stop|will not stop|locked out)\b/i,
-];
-
-const extractUrgency = (text) => {
-  if (any(EMERGENCY_URGENCY, text)) return "emergency";
-  if (any(HIGH_URGENCY, text)) return "high";
-  return "";
-};
+const extractUrgency = (text) => classifyOperationalUrgency(text);
 
 const BOOKING_REQUEST = /\b(?:book|booking|schedule|scheduling|appointment|availability|available|set up (?:a )?(?:visit|appointment)|come out|service visit)\b/i;
 
@@ -126,7 +104,7 @@ export const classifySmsIntent = ({
   }
 
   const availabilityInquiry = Boolean(
-    text && any(AVAILABILITY_INQUIRY, text),
+    text && isAvailabilityInquiryText(text),
   );
 
   const scheduling = Boolean(

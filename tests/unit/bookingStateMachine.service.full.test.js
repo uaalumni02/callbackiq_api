@@ -157,7 +157,9 @@ describe("BookingStateMachineService complete behavior", () => {
     getAvailabilityTool.mockResolvedValue({ slots: [SLOT_1, SLOT_2, SLOT_3] });
     createAppointmentTool.mockResolvedValue({
       _id: "a1",
-      status: "confirmed",
+      status: "held",
+      requiresBusinessApproval: true,
+      approvalRequestedAt: new Date(),
       startAt: SLOT_1.startAt,
       endAt: SLOT_1.endAt,
       timezone: "America/New_York",
@@ -506,7 +508,7 @@ describe("BookingStateMachineService complete behavior", () => {
     expect(result.result.reply).toContain("reply YES");
   });
 
-  test("affirmative confirmation creates and confirms an appointment", async () => {
+  test("affirmative confirmation submits an appointment for business approval", async () => {
     const conversation = makeConversation({ bookingState: { status: "awaiting_confirmation", selectedSlot: SLOT_1 } });
     const lead = makeLead({ serviceNeeded: "HVAC diagnostic", address: "123 Main" });
     const result = await handle({ conversation, lead, message: "yes" });
@@ -520,8 +522,13 @@ describe("BookingStateMachineService complete behavior", () => {
         address: expect.objectContaining({ street: "123 Main", postalCode: "30318" }),
       }),
     }));
-    expect(conversation.bookingState).toMatchObject({ status: "booked", appointment: "a1", expiresAt: null, lastError: "" });
-    expect(result.result.reply).toContain("You’re booked");
+    expect(conversation.bookingState).toMatchObject({
+      status: "pending_business_confirmation",
+      appointment: "a1",
+      lastError: "",
+    });
+    expect(result.result.reply).toMatch(/pending business approval/i);
+    expect(result.result.reply).toMatch(/not confirmed/i);
   });
 
   test("uses conversation customer fallbacks without a lead", async () => {
@@ -532,7 +539,7 @@ describe("BookingStateMachineService complete behavior", () => {
     }));
   });
 
-  test("reschedules an existing appointment after explicit confirmation", async () => {
+  test("submits a reschedule for business approval without replacing the confirmed appointment", async () => {
     const conversation = makeConversation({
       bookingState: {
         status: "awaiting_confirmation",
@@ -541,19 +548,38 @@ describe("BookingStateMachineService complete behavior", () => {
         lastError: "reschedule_requested",
       },
     });
-    await handle({ conversation, message: "confirm" });
-    expect(rescheduleAppointmentTool).toHaveBeenCalledWith(expect.objectContaining({ appointmentId: "old-a1" }));
+    const result = await handle({ conversation, message: "confirm" });
+
+    expect(AlertService.createSystemAlert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Appointment reschedule approval required",
+        metadata: expect.objectContaining({
+          appointmentId: "old-a1",
+        }),
+      }),
+    );
+    expect(rescheduleAppointmentTool).not.toHaveBeenCalled();
     expect(createAppointmentTool).not.toHaveBeenCalled();
-    expect(conversation.bookingState.appointment).toBe("a2");
+    expect(conversation.bookingState).toMatchObject({
+      status: "booked",
+      appointment: "old-a1",
+      lastError: "reschedule_pending_business_approval",
+    });
+    expect(result.result.reply).toMatch(/existing appointment remains confirmed/i);
   });
 
-  test("fails safely when a provider does not confirm", async () => {
-    createAppointmentTool.mockResolvedValue({ _id: "a1", status: "held" });
+  test("fails safely when an AI appointment bypasses the required approval contract", async () => {
+    createAppointmentTool.mockResolvedValue({
+      _id: "a1",
+      status: "held",
+      requiresBusinessApproval: false,
+    });
     const conversation = makeConversation({ bookingState: { status: "awaiting_confirmation", selectedSlot: SLOT_1 } });
     const result = await handle({ conversation, message: "yes" });
+
     expect(conversation.bookingState.status).toBe("failed");
-    expect(conversation.bookingState.lastError).toContain("did not return");
-    expect(result.result.reply).toContain("trouble confirming");
+    expect(conversation.bookingState.lastError).toMatch(/business-approval hold/i);
+    expect(result.result.reply).toMatch(/team|confirm/i);
   });
 
   test("uses a provider-safe customer error message", async () => {
@@ -591,13 +617,15 @@ describe("BookingStateMachineService complete behavior", () => {
     expect(result.result.reply).toContain("new day");
   });
 
-  test("accepts conversational yes text", async () => {
+  test("accepts conversational yes text and submits for business approval", async () => {
     const conversation = makeConversation({
       bookingState: { status: "awaiting_confirmation", selectedSlot: SLOT_1 },
     });
     const result = await handle({ conversation, message: "Yes please, that works for me" });
     expect(createAppointmentTool).toHaveBeenCalled();
-    expect(result.result.reply).toContain("You’re booked");
+    expect(conversation.bookingState.status).toBe("pending_business_confirmation");
+    expect(result.result.reply).toMatch(/pending business approval/i);
+    expect(result.result.reply).toMatch(/not confirmed/i);
   });
 
   test("understands weekday abbreviations and tomorrow variants", async () => {

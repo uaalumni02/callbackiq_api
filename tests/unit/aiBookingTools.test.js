@@ -42,6 +42,13 @@ jest.mock("../../src/services/intervention.service.js", () => ({
   default: { create: jest.fn() },
 }));
 
+jest.mock("../../src/services/alert.service.js", () => ({
+  __esModule: true,
+  default: {
+    createSystemAlert: jest.fn(() => Promise.resolve({})),
+  },
+}));
+
 const leanResult = (value) => ({ lean: jest.fn().mockResolvedValue(value) });
 
 describe("AI booking tools", () => {
@@ -125,10 +132,11 @@ describe("AI booking tools", () => {
         serviceOfferingId: "s1",
         source: "sms",
         bookedBy: "ai",
-        requiresBusinessApproval: false,
+        requiresBusinessApproval: true,
+        holdMinutes: 30,
       }),
       idempotencyKey: "key",
-      confirm: true,
+      confirm: false,
     });
     await rescheduleAppointmentTool({ business, appointmentId: "a1", input: { startAt: "next" }, idempotencyKey: "key2" });
     expect(AppointmentService.reschedule).toHaveBeenCalledWith({

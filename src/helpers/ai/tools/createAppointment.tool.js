@@ -1,8 +1,10 @@
 import AppointmentService from "../../../services/scheduling/appointment.service.js";
+import AlertService from "../../../services/alert.service.js";
 import {
   getBookableService,
   getSchedulingPolicy,
 } from "../../../services/scheduling/appointmentPolicy.service.js";
+import { logOperationalError } from "../../logging/safeLogger.js";
 
 export const createAppointmentTool = async ({
   business,
@@ -16,26 +18,64 @@ export const createAppointmentTool = async ({
       serviceOfferingId: input?.serviceOfferingId || input?.serviceOffering,
     }),
   ]);
-  const requiresBusinessApproval =
-    service.requiresHumanReview === true ||
-    policy.aiBookingConfirmationMode === "manual";
 
-  return AppointmentService.create({
+  // Production invariant: AI may submit an appointment request, but only a
+  // business approval can create the final customer commitment.
+  const requiresBusinessApproval = true;
+  const holdMinutes = Number(policy.manualApprovalHoldMinutes || 30);
+
+  const appointment = await AppointmentService.create({
     business,
     input: {
       ...input,
-      // Preserve the channel supplied by the shared booking state machine.
-      // SMS remains the backward-compatible default for older callers.
       source: input?.source || "sms",
       bookedBy: "ai",
       requiresBusinessApproval,
-      holdMinutes: requiresBusinessApproval
-        ? Number(policy.manualApprovalHoldMinutes || 30)
-        : input?.holdMinutes,
+      holdMinutes,
+      notes: [
+        String(input?.notes || "").trim(),
+        service?.requiresHumanReview === true
+          ? "Service requires human review."
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n"),
     },
     idempotencyKey,
-    confirm: !requiresBusinessApproval,
+    confirm: false,
   });
+
+  if (
+    appointment?.status === "held" &&
+    appointment?.requiresBusinessApproval === true
+  ) {
+    await AlertService.createSystemAlert({
+      businessId: business._id,
+      title: "Appointment approval required",
+      message:
+        "A customer selected a real available time. Review and approve the held appointment before the customer is told it is confirmed.",
+      priority:
+        ["high", "emergency"].includes(String(input?.urgency || ""))
+          ? "high"
+          : "medium",
+      metadata: {
+        appointmentId: String(appointment._id),
+        leadId: input?.lead ? String(input.lead) : "",
+        conversationId: input?.conversation ? String(input.conversation) : "",
+        source: input?.source || "sms",
+        startAt: appointment.startAt || input?.startAt || null,
+        heldExpiresAt: appointment.heldExpiresAt || null,
+      },
+      dedupeKey: `appointment_approval_required:${appointment._id}`,
+    }).catch((error) => {
+      logOperationalError("booking.approval_alert_failed", error, {
+        businessId: business._id,
+        appointmentId: appointment?._id,
+      });
+    });
+  }
+
+  return appointment;
 };
 
 export default createAppointmentTool;

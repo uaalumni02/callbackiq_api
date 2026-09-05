@@ -11,7 +11,7 @@ const SchedulingPolicySchema = new Schema(
       unique: true,
       index: true,
     },
-    minimumNoticeMinutes: { type: Number, min: 0, max: 43200, default: 120 },
+    minimumNoticeMinutes: { type: Number, min: 0, max: 43200, default: 1440 },
     maximumAdvanceDays: { type: Number, min: 1, max: 730, default: 60 },
     slotIntervalMinutes: { type: Number, min: 5, max: 240, default: 30 },
     defaultDurationMinutes: { type: Number, min: 15, max: 1440, default: 90 },
@@ -22,7 +22,7 @@ const SchedulingPolicySchema = new Schema(
     aiBookingConfirmationMode: {
       type: String,
       enum: ["auto", "manual"],
-      default: "auto",
+      default: "manual",
     },
     manualApprovalHoldMinutes: {
       type: Number,

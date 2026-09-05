@@ -3,7 +3,7 @@
     "id": "golden-0001",
     "message": "Can someone come tomorrow at 9?",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -12,7 +12,7 @@
     "id": "golden-0002",
     "message": "Can someone come tomorrow at 9?.",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -21,7 +21,7 @@
     "id": "golden-0003",
     "message": "Can someone come tomorrow at 9?!",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -30,7 +30,7 @@
     "id": "golden-0004",
     "message": "Can someone come tomorrow at 9? please",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -39,7 +39,7 @@
     "id": "golden-0005",
     "message": "Can someone come tomorrow at 9? thanks",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -48,7 +48,7 @@
     "id": "golden-0006",
     "message": "Can someone come tomorrow at 9? right now",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -57,7 +57,7 @@
     "id": "golden-0007",
     "message": "Hi, Can someone come tomorrow at 9?",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -66,7 +66,7 @@
     "id": "golden-0008",
     "message": "Hi, Can someone come tomorrow at 9?.",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -75,7 +75,7 @@
     "id": "golden-0009",
     "message": "Hi, Can someone come tomorrow at 9?!",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -84,7 +84,7 @@
     "id": "golden-0010",
     "message": "Hi, Can someone come tomorrow at 9? please",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -93,7 +93,7 @@
     "id": "golden-0011",
     "message": "Hi, Can someone come tomorrow at 9? thanks",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -102,7 +102,7 @@
     "id": "golden-0012",
     "message": "Hi, Can someone come tomorrow at 9? right now",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -111,7 +111,7 @@
     "id": "golden-0013",
     "message": "Hey, Can someone come tomorrow at 9?",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -120,7 +120,7 @@
     "id": "golden-0014",
     "message": "Hey, Can someone come tomorrow at 9?.",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -129,7 +129,7 @@
     "id": "golden-0015",
     "message": "Hey, Can someone come tomorrow at 9?!",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -138,7 +138,7 @@
     "id": "golden-0016",
     "message": "Hey, Can someone come tomorrow at 9? please",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -147,7 +147,7 @@
     "id": "golden-0017",
     "message": "Hey, Can someone come tomorrow at 9? thanks",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -156,7 +156,7 @@
     "id": "golden-0018",
     "message": "Hey, Can someone come tomorrow at 9? right now",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -165,7 +165,7 @@
     "id": "golden-0019",
     "message": "Please, Can someone come tomorrow at 9?",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -174,7 +174,7 @@
     "id": "golden-0020",
     "message": "Please, Can someone come tomorrow at 9?.",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -183,7 +183,7 @@
     "id": "golden-0021",
     "message": "Please, Can someone come tomorrow at 9?!",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -192,7 +192,7 @@
     "id": "golden-0022",
     "message": "Please, Can someone come tomorrow at 9? please",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -201,7 +201,7 @@
     "id": "golden-0023",
     "message": "Please, Can someone come tomorrow at 9? thanks",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -210,7 +210,7 @@
     "id": "golden-0024",
     "message": "Please, Can someone come tomorrow at 9? right now",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -219,7 +219,7 @@
     "id": "golden-0025",
     "message": "Quick question: Can someone come tomorrow at 9?",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -228,7 +228,7 @@
     "id": "golden-0026",
     "message": "Quick question: Can someone come tomorrow at 9?.",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -237,7 +237,7 @@
     "id": "golden-0027",
     "message": "Quick question: Can someone come tomorrow at 9?!",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -246,7 +246,7 @@
     "id": "golden-0028",
     "message": "Quick question: Can someone come tomorrow at 9? please",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -255,7 +255,7 @@
     "id": "golden-0029",
     "message": "Quick question: Can someone come tomorrow at 9? thanks",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -264,7 +264,7 @@
     "id": "golden-0030",
     "message": "Quick question: Can someone come tomorrow at 9? right now",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -543,7 +543,7 @@
     "id": "golden-0061",
     "message": "Can you come after work tomorrow?",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -552,7 +552,7 @@
     "id": "golden-0062",
     "message": "Can you come after work tomorrow?.",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -561,7 +561,7 @@
     "id": "golden-0063",
     "message": "Can you come after work tomorrow?!",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -570,7 +570,7 @@
     "id": "golden-0064",
     "message": "Can you come after work tomorrow? please",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -579,7 +579,7 @@
     "id": "golden-0065",
     "message": "Can you come after work tomorrow? thanks",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -588,7 +588,7 @@
     "id": "golden-0066",
     "message": "Can you come after work tomorrow? right now",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -597,7 +597,7 @@
     "id": "golden-0067",
     "message": "Hi, Can you come after work tomorrow?",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -606,7 +606,7 @@
     "id": "golden-0068",
     "message": "Hi, Can you come after work tomorrow?.",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -615,7 +615,7 @@
     "id": "golden-0069",
     "message": "Hi, Can you come after work tomorrow?!",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -624,7 +624,7 @@
     "id": "golden-0070",
     "message": "Hi, Can you come after work tomorrow? please",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -633,7 +633,7 @@
     "id": "golden-0071",
     "message": "Hi, Can you come after work tomorrow? thanks",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -642,7 +642,7 @@
     "id": "golden-0072",
     "message": "Hi, Can you come after work tomorrow? right now",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -651,7 +651,7 @@
     "id": "golden-0073",
     "message": "Hey, Can you come after work tomorrow?",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -660,7 +660,7 @@
     "id": "golden-0074",
     "message": "Hey, Can you come after work tomorrow?.",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -669,7 +669,7 @@
     "id": "golden-0075",
     "message": "Hey, Can you come after work tomorrow?!",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -678,7 +678,7 @@
     "id": "golden-0076",
     "message": "Hey, Can you come after work tomorrow? please",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -687,7 +687,7 @@
     "id": "golden-0077",
     "message": "Hey, Can you come after work tomorrow? thanks",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -696,7 +696,7 @@
     "id": "golden-0078",
     "message": "Hey, Can you come after work tomorrow? right now",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -705,7 +705,7 @@
     "id": "golden-0079",
     "message": "Please, Can you come after work tomorrow?",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -714,7 +714,7 @@
     "id": "golden-0080",
     "message": "Please, Can you come after work tomorrow?.",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -723,7 +723,7 @@
     "id": "golden-0081",
     "message": "Please, Can you come after work tomorrow?!",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -732,7 +732,7 @@
     "id": "golden-0082",
     "message": "Please, Can you come after work tomorrow? please",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -741,7 +741,7 @@
     "id": "golden-0083",
     "message": "Please, Can you come after work tomorrow? thanks",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -750,7 +750,7 @@
     "id": "golden-0084",
     "message": "Please, Can you come after work tomorrow? right now",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -759,7 +759,7 @@
     "id": "golden-0085",
     "message": "Quick question: Can you come after work tomorrow?",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -768,7 +768,7 @@
     "id": "golden-0086",
     "message": "Quick question: Can you come after work tomorrow?.",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -777,7 +777,7 @@
     "id": "golden-0087",
     "message": "Quick question: Can you come after work tomorrow?!",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -786,7 +786,7 @@
     "id": "golden-0088",
     "message": "Quick question: Can you come after work tomorrow? please",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -795,7 +795,7 @@
     "id": "golden-0089",
     "message": "Quick question: Can you come after work tomorrow? thanks",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -804,7 +804,7 @@
     "id": "golden-0090",
     "message": "Quick question: Can you come after work tomorrow? right now",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -1353,7 +1353,7 @@
     "id": "golden-0151",
     "message": "Could someone be here Tuesday morning?",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -1362,7 +1362,7 @@
     "id": "golden-0152",
     "message": "Could someone be here Tuesday morning?.",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -1371,7 +1371,7 @@
     "id": "golden-0153",
     "message": "Could someone be here Tuesday morning?!",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -1380,7 +1380,7 @@
     "id": "golden-0154",
     "message": "Could someone be here Tuesday morning? please",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -1389,7 +1389,7 @@
     "id": "golden-0155",
     "message": "Could someone be here Tuesday morning? thanks",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -1398,7 +1398,7 @@
     "id": "golden-0156",
     "message": "Could someone be here Tuesday morning? right now",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -1407,7 +1407,7 @@
     "id": "golden-0157",
     "message": "Hi, Could someone be here Tuesday morning?",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -1416,7 +1416,7 @@
     "id": "golden-0158",
     "message": "Hi, Could someone be here Tuesday morning?.",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -1425,7 +1425,7 @@
     "id": "golden-0159",
     "message": "Hi, Could someone be here Tuesday morning?!",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -1434,7 +1434,7 @@
     "id": "golden-0160",
     "message": "Hi, Could someone be here Tuesday morning? please",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -1443,7 +1443,7 @@
     "id": "golden-0161",
     "message": "Hi, Could someone be here Tuesday morning? thanks",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -1452,7 +1452,7 @@
     "id": "golden-0162",
     "message": "Hi, Could someone be here Tuesday morning? right now",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -1461,7 +1461,7 @@
     "id": "golden-0163",
     "message": "Hey, Could someone be here Tuesday morning?",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -1470,7 +1470,7 @@
     "id": "golden-0164",
     "message": "Hey, Could someone be here Tuesday morning?.",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -1479,7 +1479,7 @@
     "id": "golden-0165",
     "message": "Hey, Could someone be here Tuesday morning?!",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -1488,7 +1488,7 @@
     "id": "golden-0166",
     "message": "Hey, Could someone be here Tuesday morning? please",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -1497,7 +1497,7 @@
     "id": "golden-0167",
     "message": "Hey, Could someone be here Tuesday morning? thanks",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -1506,7 +1506,7 @@
     "id": "golden-0168",
     "message": "Hey, Could someone be here Tuesday morning? right now",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -1515,7 +1515,7 @@
     "id": "golden-0169",
     "message": "Please, Could someone be here Tuesday morning?",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -1524,7 +1524,7 @@
     "id": "golden-0170",
     "message": "Please, Could someone be here Tuesday morning?.",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -1533,7 +1533,7 @@
     "id": "golden-0171",
     "message": "Please, Could someone be here Tuesday morning?!",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -1542,7 +1542,7 @@
     "id": "golden-0172",
     "message": "Please, Could someone be here Tuesday morning? please",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -1551,7 +1551,7 @@
     "id": "golden-0173",
     "message": "Please, Could someone be here Tuesday morning? thanks",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -1560,7 +1560,7 @@
     "id": "golden-0174",
     "message": "Please, Could someone be here Tuesday morning? right now",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -1569,7 +1569,7 @@
     "id": "golden-0175",
     "message": "Quick question: Could someone be here Tuesday morning?",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -1578,7 +1578,7 @@
     "id": "golden-0176",
     "message": "Quick question: Could someone be here Tuesday morning?.",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -1587,7 +1587,7 @@
     "id": "golden-0177",
     "message": "Quick question: Could someone be here Tuesday morning?!",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -1596,7 +1596,7 @@
     "id": "golden-0178",
     "message": "Quick question: Could someone be here Tuesday morning? please",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -1605,7 +1605,7 @@
     "id": "golden-0179",
     "message": "Quick question: Could someone be here Tuesday morning? thanks",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }
@@ -1614,7 +1614,7 @@
     "id": "golden-0180",
     "message": "Quick question: Could someone be here Tuesday morning? right now",
     "expected": {
-      "primaryIntent": "scheduling",
+      "primaryIntent": "availability_inquiry",
       "human": false,
       "scheduling": true
     }

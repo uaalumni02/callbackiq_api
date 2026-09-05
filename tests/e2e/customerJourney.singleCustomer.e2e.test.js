@@ -41,7 +41,7 @@ jest.mock("../../src/services/alert.service.js", () => ({
     createCustomerReplyAlert: jest.fn(),
     createAIReviewAlert: jest.fn(),
     createBookedJobAlert: jest.fn(),
-    createSystemAlert: jest.fn(),
+    createSystemAlert: jest.fn(() => Promise.resolve({})),
   },
 }));
 

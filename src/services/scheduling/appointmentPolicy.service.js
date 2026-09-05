@@ -19,7 +19,7 @@ export const getSchedulingPolicy = async (businessId) => {
   const policy = await SchedulingPolicy.findOne({ business: businessId }).lean();
 
   return {
-    minimumNoticeMinutes: 120,
+    minimumNoticeMinutes: 1440,
     maximumAdvanceDays: 60,
     slotIntervalMinutes: 30,
     defaultDurationMinutes: 90,
@@ -27,6 +27,8 @@ export const getSchedulingPolicy = async (businessId) => {
     requireServiceBeforeBooking: true,
     allowSameDayBooking: false,
     allowAfterHoursBooking: false,
+    aiBookingConfirmationMode: "manual",
+    manualApprovalHoldMinutes: 30,
     customerCancellationAllowed: true,
     cancellationNoticeMinutes: 1440,
     ...(policy || {}),

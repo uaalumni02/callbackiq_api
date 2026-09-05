@@ -237,7 +237,12 @@ describe("Phase 9 completion gate using production voice orchestration", () => {
     ]);
     validateServiceAreaTool.mockResolvedValue({ supported: true });
     getAvailabilityTool.mockResolvedValue({ slots: [slot] });
-    createAppointmentTool.mockResolvedValue(appointment);
+    createAppointmentTool.mockResolvedValue({
+      ...appointment,
+      status: "held",
+      requiresBusinessApproval: true,
+      approvalRequestedAt: new Date(),
+    });
     Appointment.findById.mockResolvedValue(appointment);
     sendConfirmationSmsTool.mockResolvedValue({ sent: true });
     Alert.findOneAndUpdate.mockResolvedValue({ _id: "alert-1" });
@@ -305,27 +310,24 @@ describe("Phase 9 completion gate using production voice orchestration", () => {
       customerMessage: "first",
     });
 
-    expect(selectionReply.reply).toMatch(/say yes to confirm/i);
+    expect(selectionReply.reply).toMatch(/say yes to submit/i);
 
     const bookingReply = await VoiceAgentService.handlePrompt({
       session,
       customerMessage: "yes",
     });
 
-    expect(bookingReply.reply).toMatch(/booked/i);
+    expect(bookingReply.reply).toMatch(/pending business approval|not confirmed/i);
     expect(createAppointmentTool).toHaveBeenCalledWith(
       expect.objectContaining({
         input: expect.objectContaining({ source: "voice" }),
       }),
     );
-    expect(session.appointment).toBe("appointment-1");
-    expect(session.lead.recoveredBy).toBe("voice_ai");
-    expect(sendConfirmationSmsTool).toHaveBeenCalledWith(
-      expect.objectContaining({
-        appointmentId: "appointment-1",
-        voiceSessionId: "voice-session-1",
-      }),
-    );
+    expect(session.conversation.bookingState).toMatchObject({
+      status: "pending_business_confirmation",
+      appointment: "appointment-1",
+    });
+    expect(sendConfirmationSmsTool).not.toHaveBeenCalled();
   });
 
   test("gate 7: transfers only when the caller explicitly asks and live transfer is enabled", async () => {
