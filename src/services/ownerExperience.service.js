@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Alert from "../models/alert.js";
 import Appointment from "../models/appointment.js";
 import Conversation from "../models/conversation.js";
@@ -9,7 +10,6 @@ const OWNER_INTERVENTION_TYPES = [
   "safety_emergency",
   "human_requested",
   "angry_customer",
-  "high_value_lead",
   "low_ai_confidence",
   "booking_conflict",
   "integration_failure",
@@ -130,6 +130,7 @@ const serializeAppointment = (appointment) => {
       null,
     estimatedValue: Number(appointment.estimatedValue || 0),
     actualRevenue: Number(appointment.actualRevenue || 0),
+    requiresBusinessApproval: Boolean(appointment.requiresBusinessApproval),
     failureReason: appointment.failureReason || "",
   };
 };
@@ -144,6 +145,26 @@ const bookingEvidence = ({ lead, conversation, appointment }) => {
     ? state.offeredSlots.map(serializeSlot).filter(Boolean)
     : [];
   const selectedSlot = serializeSlot(state.selectedSlot);
+  const serviceNeeded = String(
+    lead?.serviceNeeded || conversation?.conversationMemory?.serviceNeeded || "",
+  ).trim();
+  const rawAddress = String(
+    state.streetAddress ||
+      conversation?.conversationMemory?.address ||
+      lead?.address ||
+      "",
+  ).trim();
+  const postalCode = String(
+    state.postalCode || rawAddress.match(/\b\d{5}(?:-\d{4})?\b/)?.[0] || "",
+  ).trim();
+  const urgency = String(
+    conversation?.conversationMemory?.urgency || lead?.urgency || "",
+  ).trim();
+  const serviceCaptured = Boolean(serviceNeeded && serviceNeeded !== "Unknown");
+  const addressCaptured = Boolean(rawAddress);
+  const urgencyCaptured = Boolean(
+    conversation?.conversationMemory?.urgency || lead?.qualifiedAt,
+  );
 
   return {
     stage: status,
@@ -151,6 +172,14 @@ const bookingEvidence = ({ lead, conversation, appointment }) => {
     stageDescription: stage.description,
     customerPreference: preference,
     customerAvailabilityCaptured: Boolean(preference),
+    serviceOfferingId: state.serviceOffering ? String(state.serviceOffering) : null,
+    serviceCaptured,
+    addressCaptured,
+    urgencyCaptured,
+    detailsCaptured: serviceCaptured && addressCaptured,
+    streetAddress: rawAddress,
+    postalCode,
+    urgency,
     availabilityCheckedAt:
       state.lastAvailabilityCheckedAt?.toISOString?.() ||
       state.lastAvailabilityCheckedAt ||
@@ -171,83 +200,179 @@ const bookingEvidence = ({ lead, conversation, appointment }) => {
   };
 };
 
-const nextActionFor = ({ lead, conversation, appointment, evidence, hasOpenIntervention = false }) => {
+// CALLBACKIQ_AUTHORITATIVE_OWNER_JOURNEY_V1
+const nextActionFor = ({
+  business,
+  lead,
+  conversation,
+  appointment,
+  evidence,
+  hasOpenIntervention = false,
+}) => {
+  const autoBookingEnabled = Boolean(business?.features?.aiBookingEnabled);
+  const appointmentStatus = String(appointment?.status || "");
+
+  // Needs Attention is exception-only. A customer ready for ordinary staff
+  // scheduling belongs in the normal Appointments workflow.
   if (hasOpenIntervention) {
     return {
+      kind: "exception",
       label: "Staff action required",
-      detail: "There is an open Needs Attention item for this customer. Review it before the opportunity goes cold.",
+      detail:
+        "CallBackIQ hit an exception that automation cannot safely finish. Review the required action.",
       requiresOwner: true,
+      actionRequired: true,
     };
   }
 
   if (evidence.humanTakeover || evidence.stage === "human_takeover") {
     return {
+      kind: "exception",
       label: "Staff follow-up required",
-      detail: "Automation is paused. Review the conversation and contact the customer.",
+      detail:
+        "Automation is paused for this customer. Review the conversation and take over.",
       requiresOwner: true,
+      actionRequired: true,
     };
   }
 
-  if (evidence.stage === "failed" || appointment?.status === "failed") {
+  if (evidence.stage === "failed" || appointmentStatus === "failed") {
     return {
+      kind: "exception",
       label: "Scheduling needs attention",
-      detail: evidence.lastError || appointment?.failureReason || "Review the scheduling failure and contact the customer if needed.",
+      detail:
+        evidence.lastError ||
+        appointment?.failureReason ||
+        "Review the scheduling failure and contact the customer if needed.",
       requiresOwner: true,
+      actionRequired: true,
     };
   }
 
-  if (["confirmed", "completed", "no_show"].includes(appointment?.status)) {
+  if (
+    appointmentStatus === "held" &&
+    appointment?.requiresBusinessApproval === true
+  ) {
     return {
-      label: appointment.status === "confirmed" ? "Appointment confirmed" : "Appointment complete",
-      detail: "No scheduling action is required.",
+      kind: "approval",
+      label: "Appointment approval ready",
+      detail:
+        "CallBackIQ held a real slot. Review the request and accept or decline it from Appointments.",
       requiresOwner: false,
+      actionRequired: true,
+    };
+  }
+
+  if (appointmentStatus === "confirmed") {
+    return {
+      kind: "appointment",
+      label: "Appointment confirmed",
+      detail:
+        "The customer and calendar are confirmed. Manage the visit from Appointments.",
+      requiresOwner: false,
+      actionRequired: false,
+    };
+  }
+
+  if (["completed", "no_show"].includes(appointmentStatus)) {
+    return {
+      kind: "complete",
+      label:
+        appointmentStatus === "completed" ? "Job completed" : "No-show recorded",
+      detail:
+        appointmentStatus === "completed"
+          ? "The service outcome is recorded and available in revenue and attribution reporting."
+          : "The no-show outcome is recorded on the appointment.",
+      requiresOwner: false,
+      actionRequired: false,
+    };
+  }
+
+  const readyForStaffScheduling =
+    !autoBookingEnabled &&
+    !appointment &&
+    evidence.customerAvailabilityCaptured &&
+    evidence.serviceCaptured &&
+    evidence.addressCaptured;
+
+  if (readyForStaffScheduling) {
+    return {
+      kind: "schedule",
+      label: "Ready to schedule",
+      detail:
+        "CallBackIQ collected the service, address, urgency context, and customer preference. Check real availability and choose a time.",
+      requiresOwner: false,
+      actionRequired: true,
     };
   }
 
   if (evidence.stage === "offering_slots") {
     return {
+      kind: "customer",
       label: "Waiting for customer",
-      detail: "Open times were sent. CallBackIQ is waiting for the customer to choose one.",
+      detail:
+        "Open times were sent. CallBackIQ is waiting for the customer to choose one.",
       requiresOwner: false,
+      actionRequired: false,
     };
   }
 
   if (evidence.stage === "awaiting_confirmation") {
     return {
+      kind: "customer",
       label: "Waiting for confirmation",
-      detail: "The customer selected a time. CallBackIQ is waiting for their final confirmation.",
+      detail:
+        "The customer selected a time. CallBackIQ is waiting for their final confirmation.",
       requiresOwner: false,
+      actionRequired: false,
     };
   }
 
   if (evidence.stage === "booking") {
     return {
+      kind: "automation",
       label: "Booking in progress",
-      detail: "CallBackIQ is performing the final availability and booking checks.",
+      detail:
+        "CallBackIQ is performing the final availability and booking checks.",
       requiresOwner: false,
+      actionRequired: false,
     };
   }
 
-  if (["collecting_service", "collecting_location", "collecting_street_address", "collecting_postal_code", "collecting_preference"].includes(evidence.stage)) {
+  if (
+    [
+      "collecting_service",
+      "collecting_location",
+      "collecting_street_address",
+      "collecting_postal_code",
+      "collecting_preference",
+    ].includes(evidence.stage)
+  ) {
     return {
+      kind: "automation",
       label: "CallBackIQ is working",
       detail: stageDetail(evidence.stage),
       requiresOwner: false,
+      actionRequired: false,
     };
   }
 
   if (lead?.status === "new") {
     return {
+      kind: "automation",
       label: "New customer request",
       detail: "CallBackIQ is beginning recovery and qualification.",
       requiresOwner: false,
+      actionRequired: false,
     };
   }
 
   return {
+    kind: "automation",
     label: "Recovery in progress",
     detail: "CallBackIQ is continuing the customer conversation.",
     requiresOwner: false,
+    actionRequired: false,
   };
 };
 
@@ -255,6 +380,7 @@ const stageDetail = (stage) =>
   BOOKING_STAGE[stage]?.description || "CallBackIQ is continuing the recovery workflow.";
 
 const serializeOpportunity = ({
+  business,
   lead,
   conversation,
   appointment,
@@ -262,6 +388,7 @@ const serializeOpportunity = ({
 }) => {
   const evidence = bookingEvidence({ lead, conversation, appointment });
   const nextAction = nextActionFor({
+    business,
     lead,
     conversation,
     appointment,
@@ -275,12 +402,34 @@ const serializeOpportunity = ({
     id: String(lead._id),
     customerName: lead.customerName || conversation?.customerName || "Customer",
     phone: lead.phone || conversation?.customerPhone || "",
+    email: lead.email || "",
+    address:
+      lead.address || conversation?.conversationMemory?.address || evidence.streetAddress || "",
     serviceNeeded: lead.serviceNeeded || conversation?.conversationMemory?.serviceNeeded || "",
     urgency: lead.urgency || conversation?.conversationMemory?.urgency || "medium",
     estimatedValue: Number(lead.estimatedValue || 0),
     actualRevenue: Number(lead.actualRevenue || 0),
     status: lead.status,
     source: lead.source,
+    attribution: {
+      sourceName:
+        lead.latestAttribution?.sourceName ||
+        lead.firstAttribution?.sourceName ||
+        "",
+      channel:
+        lead.latestAttribution?.channel ||
+        lead.firstAttribution?.channel ||
+        "",
+      campaign:
+        lead.latestAttribution?.campaign ||
+        lead.firstAttribution?.campaign ||
+        "",
+      trackingNumber:
+        lead.latestAttribution?.trackingNumber ||
+        lead.firstAttribution?.trackingNumber ||
+        "",
+      acquisitionSourceName: lead.firstAttribution?.sourceName || "",
+    },
     summary,
     recovered: Boolean(lead.recovered),
     recoveredBy: lead.recoveredBy || null,
@@ -509,6 +658,49 @@ class OwnerExperienceService {
     };
   }
 
+  static async opportunity({ business, leadId }) {
+    if (!mongoose.isValidObjectId(leadId)) return null;
+
+    const lead = await Lead.findOne({
+      _id: leadId,
+      business: business._id,
+    }).lean();
+    if (!lead) return null;
+
+    const [conversation, appointment, openIntervention] = await Promise.all([
+      Conversation.findOne({
+        business: business._id,
+        lead: lead._id,
+      })
+        .select(
+          "lead customerName customerPhone status humanTakeover bookingState conversationMemory lastMessage lastMessageAt createdAt updatedAt",
+        )
+        .sort({ lastMessageAt: -1, updatedAt: -1 })
+        .lean(),
+      Appointment.findOne({
+        business: business._id,
+        lead: lead._id,
+      })
+        .select(
+          "lead status startAt endAt timezone source bookedBy provider confirmedAt customerConfirmedAt estimatedValue actualRevenue requiresBusinessApproval failureReason createdAt",
+        )
+        .sort({ createdAt: -1 })
+        .lean(),
+      Alert.exists({
+        ...ownerInterventionFilter(business._id),
+        lead: lead._id,
+      }),
+    ]);
+
+    return serializeOpportunity({
+      business,
+      lead,
+      conversation,
+      appointment,
+      hasOpenIntervention: Boolean(openIntervention),
+    });
+  }
+
   static async opportunities({
     business,
     view = "active",
@@ -518,6 +710,7 @@ class OwnerExperienceService {
   }) {
     const allowedViews = new Set([
       "active",
+      "ready",
       "needs_me",
       "waiting",
       "booked",
@@ -559,9 +752,31 @@ class OwnerExperienceService {
       ).values(),
     ];
 
+    const autoBookingEnabled = Boolean(business?.features?.aiBookingEnabled);
+    const activeAppointmentLeadIds = await Appointment.distinct("lead", {
+      business: business._id,
+      lead: { $ne: null },
+      status: { $in: ["held", "confirmed"] },
+    });
+    const readyToScheduleLeadIds = autoBookingEnabled
+      ? []
+      : await Lead.distinct("_id", {
+          business: business._id,
+          status: { $in: ["new", "contacted"] },
+          serviceNeeded: { $nin: ["", "Unknown"] },
+          address: { $nin: ["", null] },
+          preferredAppointmentTime: { $nin: ["", null] },
+          _id: {
+            $nin: [...needsMeLeadIds, ...activeAppointmentLeadIds],
+          },
+        });
+
     const filter = { business: business._id };
     if (normalizedView === "active") {
       filter.status = { $in: ["new", "contacted"] };
+    } else if (normalizedView === "ready") {
+      filter.status = { $in: ["new", "contacted"] };
+      filter._id = { $in: readyToScheduleLeadIds };
     } else if (normalizedView === "needs_me") {
       filter.status = { $in: ["new", "contacted"] };
       filter._id = { $in: needsMeLeadIds };
@@ -602,6 +817,15 @@ class OwnerExperienceService {
             { $match: { status: { $in: ["new", "contacted"] } } },
             { $count: "value" },
           ],
+          ready: [
+            {
+              $match: {
+                status: { $in: ["new", "contacted"] },
+                _id: { $in: readyToScheduleLeadIds },
+              },
+            },
+            { $count: "value" },
+          ],
           booked: [
             { $match: { status: "booked" } },
             { $count: "value" },
@@ -633,6 +857,7 @@ class OwnerExperienceService {
     const total = count("total");
     const activeCount = count("active");
     const bookedCount = count("booked");
+    const readyToScheduleCount = count("ready");
     const waitingCount = count("waiting");
     const needsMeCount = count("needsMe");
 
@@ -641,6 +866,7 @@ class OwnerExperienceService {
         items: [],
         stats: {
           active: activeCount,
+          readyToSchedule: readyToScheduleCount,
           needsMe: needsMeCount,
           waiting: waitingCount,
           booked: bookedCount,
@@ -664,7 +890,7 @@ class OwnerExperienceService {
         .lean(),
       Appointment.find({ business: business._id, lead: { $in: leadIds } })
         .select(
-          "lead status startAt endAt timezone source bookedBy provider confirmedAt customerConfirmedAt estimatedValue actualRevenue failureReason createdAt",
+          "lead status startAt endAt timezone source bookedBy provider confirmedAt customerConfirmedAt estimatedValue actualRevenue requiresBusinessApproval failureReason createdAt",
         )
         .sort({ createdAt: -1 })
         .lean(),
@@ -680,6 +906,7 @@ class OwnerExperienceService {
     const items = leads
       .map((lead) =>
         serializeOpportunity({
+          business,
           lead,
           conversation: conversationByLead.get(String(lead._id)) || null,
           appointment: appointmentByLead.get(String(lead._id)) || null,
@@ -687,9 +914,19 @@ class OwnerExperienceService {
         }),
       )
       .sort((a, b) => {
-        if (a.nextAction.requiresOwner !== b.nextAction.requiresOwner) {
-          return a.nextAction.requiresOwner ? -1 : 1;
-        }
+        const actionRank = {
+          exception: 6,
+          schedule: 5,
+          approval: 5,
+          customer: 4,
+          automation: 3,
+          appointment: 2,
+          complete: 1,
+        };
+        const actionDifference =
+          (actionRank[b.nextAction?.kind] || 0) -
+          (actionRank[a.nextAction?.kind] || 0);
+        if (actionDifference) return actionDifference;
         const urgency = (URGENCY_RANK[b.urgency] || 0) - (URGENCY_RANK[a.urgency] || 0);
         if (urgency) return urgency;
         return new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime();
@@ -699,6 +936,7 @@ class OwnerExperienceService {
       items,
       stats: {
         active: activeCount,
+        readyToSchedule: readyToScheduleCount,
         needsMe: needsMeCount,
         waiting: waitingCount,
         booked: bookedCount,
@@ -717,6 +955,9 @@ export {
   BOOKING_STAGE,
   OWNER_INTERVENTION_TYPES,
   ownerInterventionFilter,
+  nextActionFor,
+  bookingEvidence,
+  serializeOpportunity,
   resolveOwnerPeriod,
 };
 export default OwnerExperienceService;

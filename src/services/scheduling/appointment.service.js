@@ -348,7 +348,7 @@ const populateAppointment = (query) =>
     .populate("serviceOffering", "name category durationMinutes estimatedValue")
     .populate(
       "lead",
-      "customerName phone serviceNeeded urgency status source recovered recoveredBy summary preferredAppointmentTime qualifiedAt firstRespondedAt bookedAt estimatedValue actualRevenue",
+      "customerName phone email address serviceNeeded urgency status source recovered recoveredBy summary preferredAppointmentTime qualifiedAt firstRespondedAt bookedAt estimatedValue actualRevenue firstAttribution latestAttribution",
     )
     .populate(
       "conversation",
@@ -1039,6 +1039,22 @@ class AppointmentService {
         task: () => schedulePostAppointmentFollowUp({ appointment }),
       });
     }
+
+
+    // CALLBACKIQ_AUTHORITATIVE_OWNER_OUTCOME_V1
+    SocketService.emitToBusiness(
+      businessId,
+      "appointment:updated",
+      appointment,
+    );
+    SocketService.emitDashboardRefresh(
+      businessId,
+      appointment.status === "completed"
+        ? "appointment_completed"
+        : appointment.status === "no_show"
+          ? "appointment_no_show"
+          : "appointment_updated",
+    );
 
     return appointment;
   }
