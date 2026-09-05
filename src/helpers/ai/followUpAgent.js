@@ -382,6 +382,7 @@ const normalizeModelResult = ({
   };
 };
 
+// CALLBACKIQ_SMS_RECOVERY_JOURNEY_INNER_GUARDRAILS_V4
 const runFollowUpAgent = async ({
   business,
   businessName,
@@ -390,10 +391,12 @@ const runFollowUpAgent = async ({
   lead = {},
   recentMessages = [],
   inboundAssessment = null,
+  activityWindowStartAt = null,
 }) => {
   const deterministicGuardrail = evaluateDeterministicInboundGuardrails({
     customerMessage,
     recentMessages,
+    activityWindowStartAt,
   });
 
   if (deterministicGuardrail.handled) {

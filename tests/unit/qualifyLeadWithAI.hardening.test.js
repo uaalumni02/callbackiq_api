@@ -163,4 +163,29 @@ describe("qualifyLeadWithAI hardening", () => {
     const serialized = JSON.stringify(mockResponsesCreate.mock.calls[0][0]);
     expect(serialized).not.toContain("4111 1111 1111 1111");
   });
+  test("V4 recovery boundary reaches qualification guardrail", async () => {
+    const activityWindowStartAt = new Date("2026-09-05T13:48:10.583Z");
+    mockResponsesCreate.mockResolvedValueOnce(output(modelResult()));
+
+    await qualifyLeadWithAI({
+      messageBody: "My sink is clogged",
+      business: { businessName: "Test Plumbing" },
+      recentMessages: [
+        {
+          direction: "inbound",
+          body: "My sink is clogged",
+          createdAt: new Date("2026-09-04T12:00:00.000Z"),
+        },
+      ],
+      activityWindowStartAt,
+    });
+
+    expect(mockEvaluateDeterministicInboundGuardrails).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customerMessage: "My sink is clogged",
+        activityWindowStartAt,
+      }),
+    );
+  });
+
 });

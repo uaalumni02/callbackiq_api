@@ -202,4 +202,29 @@ describe("followUpAgent hardening", () => {
         /2\s*PM/i.test(result.reply),
     ).toBe(false);
   });
+  test("V4 recovery boundary reaches follow-up guardrail", async () => {
+    const activityWindowStartAt = new Date("2026-09-05T13:48:10.583Z");
+    mockResponsesCreate.mockResolvedValueOnce(output(modelResult()));
+
+    await runFollowUpAgent({
+      businessName: "Test Plumbing",
+      customerMessage: "My sink is clogged",
+      recentMessages: [
+        {
+          direction: "inbound",
+          body: "My sink is clogged",
+          createdAt: new Date("2026-09-04T12:00:00.000Z"),
+        },
+      ],
+      activityWindowStartAt,
+    });
+
+    expect(mockEvaluateDeterministicInboundGuardrails).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customerMessage: "My sink is clogged",
+        activityWindowStartAt,
+      }),
+    );
+  });
+
 });

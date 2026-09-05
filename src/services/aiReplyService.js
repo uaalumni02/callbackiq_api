@@ -233,6 +233,9 @@ export const generateAIReplyResult = async ({
         business,
         businessType: business?.businessType || "other",
         recentMessages: messages,
+        ...(recoveryJourneyStartedAt
+          ? { activityWindowStartAt: recoveryJourneyStartedAt }
+          : {}),
       }),
       buildAIConfigurationContext(business),
     ]);
@@ -245,6 +248,9 @@ export const generateAIReplyResult = async ({
       recentMessages: messages,
       inboundAssessment,
       businessConfiguration,
+      ...(recoveryJourneyStartedAt
+        ? { activityWindowStartAt: recoveryJourneyStartedAt }
+        : {}),
     });
 
     const policyResult = applySmsTurnPolicy({
