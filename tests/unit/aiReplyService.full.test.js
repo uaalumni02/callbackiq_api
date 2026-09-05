@@ -292,4 +292,44 @@ describe("aiReplyService complete behavior", () => {
     expect(cleanText).toHaveBeenCalledWith(" message ");
     expect(cleanText).toHaveBeenCalledWith("failure", "Unknown AI error");
   });
+  test("V4 threads recovery boundary through every AI guardrail layer", async () => {
+    const recoveryJourneyStartedAt = new Date("2026-09-05T13:48:10.583Z");
+    const conversation = {
+      _id: "c-recovery",
+      bookingState: { status: "not_started" },
+      orchestration: { recoveryJourneyStartedAt },
+    };
+    const messages = [
+      {
+        direction: "inbound",
+        body: "My sink is clogged",
+        createdAt: new Date("2026-09-05T13:48:30.471Z"),
+      },
+    ];
+
+    await generateAIReplyResult({
+      business,
+      lead,
+      conversation,
+      messages,
+      customerMessage: "My sink is clogged",
+    });
+
+    expect(evaluateDeterministicInboundGuardrails).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activityWindowStartAt: recoveryJourneyStartedAt,
+      }),
+    );
+    expect(qualifyLeadWithAI).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activityWindowStartAt: recoveryJourneyStartedAt,
+      }),
+    );
+    expect(runFollowUpAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activityWindowStartAt: recoveryJourneyStartedAt,
+      }),
+    );
+  });
+
 });
