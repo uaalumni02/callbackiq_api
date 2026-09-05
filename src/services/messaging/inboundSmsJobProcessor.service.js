@@ -442,6 +442,8 @@ export const processInboundSmsJob = async (job) => {
   const deterministicAssessment = evaluateDeterministicInboundGuardrails({
     customerMessage: customerTurn.customerMessage,
     recentMessages: messages,
+    activityWindowStartAt:
+      conversation?.orchestration?.recoveryJourneyStartedAt || null,
   });
   const aiQualificationEnabled = isBusinessFeatureEnabled(
     business,

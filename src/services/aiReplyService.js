@@ -155,9 +155,14 @@ export const generateAIReplyResult = async ({
      * safety, hazardous-DIY, sensitive-data, abuse, STOP, or HELP message can
      * never execute a booking tool, including midway through an active flow.
      */
+    const recoveryJourneyStartedAt =
+      conversation?.orchestration?.recoveryJourneyStartedAt || null;
     const deterministicAssessment = evaluateDeterministicInboundGuardrails({
       customerMessage: latestCustomerMessage,
       recentMessages: messages,
+      ...(recoveryJourneyStartedAt
+        ? { activityWindowStartAt: recoveryJourneyStartedAt }
+        : {}),
     });
 
     // CALLBACKIQ_BOOKING_RECOVERY_FIX_V2: urgency is extracted before the booking branch can short-circuit AI qualification.
