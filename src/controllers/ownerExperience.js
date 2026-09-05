@@ -47,6 +47,28 @@ class OwnerExperienceController {
     }
   }
 
+  static async opportunity(req, res, next) {
+    try {
+      const business = await getOwnedBusiness({
+        user: req.user,
+        requestedBusinessId: req.query.businessId,
+      });
+      const data = await OwnerExperienceService.opportunity({
+        business,
+        leadId: req.params.leadId,
+      });
+      if (!data) {
+        return res.status(404).json({
+          success: false,
+          message: "Customer opportunity not found.",
+        });
+      }
+      return res.status(200).json({ success: true, data });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
   static async opportunities(req, res, next) {
     try {
       const business = await getOwnedBusiness({

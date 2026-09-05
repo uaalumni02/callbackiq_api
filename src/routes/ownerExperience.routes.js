@@ -11,6 +11,10 @@ const router = express.Router();
 router.use(checkAuth, checkActiveBusiness, checkSubscription);
 router.get("/dashboard", OwnerExperienceController.dashboard);
 router.get("/opportunities", OwnerExperienceController.opportunities);
+router.get(
+  "/opportunities/:leadId",
+  OwnerExperienceController.opportunity,
+);
 router.post(
   "/opportunities/:leadId/call-sessions",
   OwnerBrowserCallController.createSession,

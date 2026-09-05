@@ -6,7 +6,6 @@ const INTERVENTION_TYPES = [
   "safety_emergency",
   "human_requested",
   "angry_customer",
-  "high_value_lead",
   "low_ai_confidence",
   "booking_conflict",
   "integration_failure",
