@@ -1,6 +1,8 @@
 import AlertService from "../services/alert.service.js";
 import VoiceSession from "../models/voiceSession.js";
+import Conversation from "../models/conversation.js";
 import VoiceSessionService from "./voiceSession.service.js";
+import SocketService from "../services/socket.service.js";
 import { logOperationalError } from "../helpers/logging/safeLogger.js";
 
 export const VOICE_OUTCOMES = Object.freeze([
@@ -70,6 +72,7 @@ export const commitVoiceOutcome = async ({
   };
   if (status) set.status = status;
   if (status === "completed") set.endedAt = now;
+  if (outcome === "transfer_accepted") set.transferredToHuman = true;
 
   const session = await VoiceSession.findOneAndUpdate(
     {
@@ -84,6 +87,36 @@ export const commitVoiceOutcome = async ({
     { $set: set },
     { returnDocument: "after" },
   );
+
+  if (session && outcome === "transfer_accepted" && session.conversation) {
+    const conversationId = normalizeId(session.conversation);
+    const claimedConversation = await Conversation.findByIdAndUpdate(
+      conversationId,
+      {
+        $set: {
+          aiEnabled: false,
+          humanTakeover: true,
+          humanTakeoverAt: now,
+          humanTakeoverBy: null,
+          "bookingState.status": "human_takeover",
+          "orchestration.phase": "human_takeover",
+          "orchestration.handoffStatus": "acknowledged",
+          "orchestration.handoffAcknowledgedAt": now,
+        },
+      },
+      { returnDocument: "after" },
+    );
+    if (
+      claimedConversation &&
+      typeof SocketService.emitConversationUpdated === "function"
+    ) {
+      SocketService.emitConversationUpdated(
+        normalizeId(session.business),
+        claimedConversation,
+      );
+    }
+  }
+
   return { committed: Boolean(session), session };
 };
 

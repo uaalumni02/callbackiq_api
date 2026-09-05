@@ -420,7 +420,7 @@ class VoiceAgentService {
       if (strikes >= 2) {
         return captureCallback({ session, customerMessage: text, reason: "repeated_directed_abuse", alertType: "angry_customer", priority: "high", seedServiceFromMessage: true, openingPrompt: "I hear that you’re upset. I’ll save this for a team member to handle directly." });
       }
-      return { reply: "I hear that you’re upset. Tell me the service issue, or say callback and a person will handle it." };
+      return { reply: "I hear that you’re upset. Tell me the service issue, or say callback and I’ll save it for team review." };
     }
 
     if (understanding?.language === "es" || guard.nonEnglishTurnCount >= 1) {
@@ -431,7 +431,7 @@ class VoiceAgentService {
         alertType: "human_requested", priority: "high",
         seed: { language: "es", serviceNeeded: entities.service || "Solicitud en español", customerName: entities.name, location: entities.location || entities.city || entities.postalCode, urgency: entities.urgency, preferredTime: entities.preference },
         seedServiceFromMessage: !entities.service,
-        openingPrompt: "Entiendo. Guardaré su solicitud para que el equipo le devuelva la llamada. ¿Qué nombre debo poner en la solicitud?",
+        openingPrompt: "Entiendo. Guardaré su solicitud para que el equipo la revise. No puedo garantizar cuándo habrá alguien disponible para llamar. ¿Qué nombre debo poner en la solicitud?",
       });
     }
 
@@ -504,7 +504,7 @@ class VoiceAgentService {
     if (!bookingInProgress && EXISTING_JOB.test(text)) {
       resetFallbackGuard(guard);
       const status = await VoiceExistingJobStatusService.lookupExistingVoiceAppointment({ businessId: business._id, callerPhone: session.from || lead?.phone });
-      return captureCallback({ session, customerMessage: text, reason: "existing_job_status", alertType: "human_requested", priority: "high", seed: { serviceNeeded: "Existing job or technician status", customerName: understanding?.entities?.name, location: understanding?.entities?.location || understanding?.entities?.city || understanding?.entities?.postalCode, urgency: understanding?.entities?.urgency, preferredTime: understanding?.entities?.preference }, openingPrompt: status.reply || "I can’t verify the technician’s live status, so I’ll flag this for an immediate team callback rather than guess." });
+      return captureCallback({ session, customerMessage: text, reason: "existing_job_status", alertType: "human_requested", priority: "high", seed: { serviceNeeded: "Existing job or technician status", customerName: understanding?.entities?.name, location: understanding?.entities?.location || understanding?.entities?.city || understanding?.entities?.postalCode, urgency: understanding?.entities?.urgency, preferredTime: understanding?.entities?.preference }, openingPrompt: status.reply || "I can’t verify the technician’s live status, so I’ll flag this for priority team review rather than guess. I can’t guarantee a callback time." });
     }
     if (!bookingInProgress && (WARRANTY.test(text) || COMMERCIAL.test(text))) {
       resetFallbackGuard(guard);
@@ -552,7 +552,7 @@ class VoiceAgentService {
       const entities = understanding?.entities || {};
       const area = await VoiceServiceAreaService.checkVoiceServiceArea({ business, location: entities.location || text, city: entities.city, postalCode: entities.postalCode || extractPostalCode(text) });
       if (area.supported === true) return { reply: `Yes, ${area.postalCode || area.city || "that location"} is in the verified service area. Would you like to schedule a visit or create a callback request?`, outcome: "direct_answer_resolved" };
-      return captureCallback({ session, customerMessage: text, reason: "unverified_service_area", alertType: "low_ai_confidence", priority: "medium", seed: { location: entities.location || entities.city || entities.postalCode || text }, openingPrompt: "I can’t verify that location automatically, but I’ll have the team review it and call you." });
+      return captureCallback({ session, customerMessage: text, reason: "unverified_service_area", alertType: "low_ai_confidence", priority: "medium", seed: { location: entities.location || entities.city || entities.postalCode || text }, openingPrompt: "I can’t verify that location automatically, but I’ll flag it for team review. I can’t guarantee when someone will be available to call." });
     }
 
     if (!bookingInProgress && DIAGNOSTIC_FEE.test(text)) {

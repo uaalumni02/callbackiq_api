@@ -340,7 +340,7 @@ describe("Twilio SMS opt-out handling", () => {
     expect(callLog.missedCallTextSent).toBe(true);
   });
 
-  test("an emergency bypasses ordinary AI and enables human takeover", async () => {
+  test("an emergency bypasses ordinary AI and creates a critical pending handoff", async () => {
     const business = await createBusiness();
 
     /*
@@ -387,8 +387,9 @@ describe("Twilio SMS opt-out handling", () => {
       customerPhone: "4045559999",
     });
 
-    expect(conversation.humanTakeover).toBe(true);
-    expect(conversation.aiEnabled).toBe(false);
+    expect(conversation.humanTakeover).toBe(false);
+    expect(conversation.aiEnabled).toBe(true);
+    expect(conversation.orchestration?.phase).toBe("handoff_pending");
 
     const criticalAlert = await Alert.findOne({
       business: business._id,

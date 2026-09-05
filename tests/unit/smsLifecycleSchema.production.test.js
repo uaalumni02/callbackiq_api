@@ -10,6 +10,18 @@ describe("mature SMS conversation persistence contract", () => {
     expect(conversation.validateSync()?.errors?.["bookingState.status"]).toBeUndefined();
   });
 
+
+  test("handoff_pending is persistable without claiming human ownership", () => {
+    const conversation = new Conversation({
+      business: "507f1f77bcf86cd799439011",
+      customerPhone: "+14045550123",
+      aiEnabled: true,
+      humanTakeover: false,
+      orchestration: { phase: "handoff_pending", handoffStatus: "acknowledged" },
+    });
+    expect(conversation.validateSync()).toBeUndefined();
+  });
+
   test("orchestration phase and lifecycle state are persistable", () => {
     const conversation = new Conversation({
       business: "507f1f77bcf86cd799439011",

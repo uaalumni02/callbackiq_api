@@ -381,12 +381,12 @@ describe("Voice Concurrency Certification", () => {
     const bySid = new Map(stored.map((session) => [session.providerCallSid, session]));
     expect(bySid.get(calls[0].callSid)).toMatchObject({
       status: "transferring",
-      transferredToHuman: true,
+      transferredToHuman: false,
       transferReason: "concurrency_transfer_alpha",
     });
     expect(bySid.get(calls[1].callSid)).toMatchObject({
       status: "transferring",
-      transferredToHuman: true,
+      transferredToHuman: false,
       transferReason: "concurrency_transfer_bravo",
     });
 

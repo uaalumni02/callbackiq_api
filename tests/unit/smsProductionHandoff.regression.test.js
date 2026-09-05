@@ -6,8 +6,10 @@ import {
   buildHumanHandoffStatusResult,
   buildPendingHumanHandoffUpdate,
   ensureHumanHandoffResult,
+  ensureUrgentOperationalResult,
   isHumanHandoffSource,
   isHumanHandoffStatusQuestion,
+  isUrgentOperationalResult,
   requiresHumanHandoff,
   shouldSendHumanHandoffStatusAcknowledgement,
 } from "../../src/services/messaging/smsHandoff.service.js";
@@ -37,7 +39,8 @@ const lead = {
 describe("production SMS handoff", () => {
   test.each([
     [{ messageCategory: "human_requested" }, true],
-    [{ messageCategory: "emergency" }, true],
+    [{ messageCategory: "emergency" }, false],
+    [{ messageCategory: "emergency", riskFlags: ["safety_hazard"] }, true],
     [{ riskFlags: ["safety_hazard"] }, true],
     [{ messageCategory: "appointment_preference" }, false],
   ])("detects whether a result requires handoff", (result, expected) => {
@@ -61,12 +64,70 @@ describe("production SMS handoff", () => {
     });
 
     expect(result.decision).toBe("send_fixed_response");
-    expect(result.reply).toMatch(/call the number you're texting from/i);
+    expect(result.reply).toMatch(/flagged|callback request/i);
+    expect(result.reply).toMatch(/can't guarantee/i);
     expect(result.reply).toMatch(/correct shutoff/i);
     expect(result.reply).toMatch(/electrical equipment/i);
     expect(result.shouldAlertOwner).toBe(true);
     expect(result.guardrail.skipAI).toBe(true);
     expect(result.handoff.acknowledgementRequired).toBe(true);
+  });
+
+
+  it("keeps a high-priority water leak in automation while alerting the owner", () => {
+    const baseResult = {
+      messageCategory: "emergency",
+      urgency: "high",
+      serviceNeeded: "water heater leak",
+      reply: "The team will contact you shortly.",
+    };
+
+    expect(requiresHumanHandoff(baseResult)).toBe(false);
+    expect(isUrgentOperationalResult(baseResult)).toBe(true);
+
+    const result = ensureUrgentOperationalResult({
+      result: baseResult,
+      business,
+      lead: { ...lead, address: "" },
+      customerMessage: "My hot water heater is leaking.",
+    });
+
+    expect(result.shouldAlertOwner).toBe(true);
+    expect(result.alertPriority).toBe("high");
+    expect(result.reply).toMatch(/flagged this as urgent/i);
+    expect(result.reply).toMatch(/service address/i);
+    expect(result.reply).not.toMatch(/will contact you shortly/i);
+  });
+
+  it("preserves a safe requested rough estimate during an urgent water response", () => {
+    const baseResult = {
+      messageCategory: "emergency",
+      urgency: "high",
+      serviceNeeded: "leaking pipe",
+      address: "123 Peachtree Street, Atlanta GA 30318",
+      preferredAppointmentTime: "tomorrow",
+      reply:
+        "A rough estimate is $250. Final price can vary after an onsite assessment. I can also help with available appointment times.",
+    };
+
+    const result = ensureUrgentOperationalResult({
+      result: baseResult,
+      business,
+      lead: {
+        ...lead,
+        address: "123 Peachtree Street, Atlanta GA 30318",
+        preferredAppointmentTime: "tomorrow",
+      },
+      customerMessage:
+        "I have a leaking pipe. It is urgent. What might it cost, and can I book someone?",
+    });
+
+    expect(result.reply).toMatch(/flagged this as urgent/i);
+    expect(result.reply).toMatch(/rough estimate/i);
+    expect(result.reply).toMatch(/final price can vary/i);
+    expect(result.reply).toMatch(/appointment/i);
+    expect(result.reply).not.toMatch(/team will call/i);
+    expect(result.reply).not.toMatch(/contact you shortly/i);
   });
 
   it("records pending state without muting the conversation", () => {
@@ -81,13 +142,14 @@ describe("production SMS handoff", () => {
       now: new Date("2026-09-03T00:00:10.000Z"),
     });
 
+    expect(update["orchestration.phase"]).toBe("handoff_pending");
     expect(update["orchestration.handoffStatus"]).toBe("pending_ack");
     expect(update["orchestration.handoffRequestedAt"]).toBe(requestedAt);
     expect(update.aiEnabled).toBeUndefined();
     expect(update.humanTakeover).toBeUndefined();
   });
 
-  it("mutes AI only after the acknowledgement receives a durable outcome", () => {
+  it("keeps AI ownership unchanged after the acknowledgement receives a durable outcome", () => {
     const update = buildFinalizedHumanHandoffUpdate({
       inboundMessageId: "message-1",
       outboundMessageId: "message-2",
@@ -102,8 +164,9 @@ describe("production SMS handoff", () => {
       now: new Date("2026-09-03T00:00:05.000Z"),
     });
 
-    expect(update.aiEnabled).toBe(false);
-    expect(update.humanTakeover).toBe(true);
+    expect(update.aiEnabled).toBeUndefined();
+    expect(update.humanTakeover).toBeUndefined();
+    expect(update["orchestration.phase"]).toBeUndefined();
     expect(update["orchestration.handoffStatus"]).toBe("acknowledged");
     expect(update["orchestration.handoffOutboundMessage"]).toBe("message-2");
   });
@@ -193,7 +256,8 @@ describe("production SMS handoff", () => {
         "The puddle is spreading. Is it safe to leave it running? Please call me.",
     });
 
-    expect(reply).toMatch(/call the number you're texting from/i);
+    expect(reply).toMatch(/flagged this as urgent/i);
+    expect(reply).toMatch(/can't guarantee a callback time/i);
     expect(reply).toMatch(/correct shutoff/i);
     expect(reply).toMatch(/sparks, smoke, fire, or immediate danger/i);
     expect(reply.length).toBeLessThanOrEqual(320);

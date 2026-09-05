@@ -1,15 +1,26 @@
 // CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1
 // Delivery-safe human handoff helpers for production SMS conversations.
+import {
+  hasUnverifiedStaffCommitment,
+  sanitizeUnverifiedStaffCommitments,
+} from "../customerCommitmentSafety.service.js";
 
 const clean = (value) => String(value || "").replace(/\s+/g, " ").trim();
 
 const HANDOFF_CATEGORIES = new Set([
-  "emergency",
   "hazardous_diy_request",
   "human_requested",
 ]);
 
-const SAFETY_CATEGORIES = new Set(["emergency", "hazardous_diy_request"]);
+// A high-priority service request is not automatically a 911-level emergency.
+// Automation stops only for an explicit human request or a concrete safety flag.
+const SAFETY_CATEGORIES = new Set(["hazardous_diy_request"]);
+const IMMEDIATE_SAFETY_FLAGS = new Set([
+  "safety_hazard",
+  "hazardous_diy_request",
+  "immediate_danger",
+  "emergency_services",
+]);
 
 const EXPLICIT_CALLBACK_PATTERN =
   /\b(?:call me|call us|have (?:someone|a person|the team) call|can (?:someone|a person|the team) call|please call|phone me|ring me)\b/i;
@@ -51,8 +62,7 @@ const hasSafetyRisk = (result) => {
   const riskFlags = Array.isArray(result?.riskFlags) ? result.riskFlags : [];
   return (
     SAFETY_CATEGORIES.has(category) ||
-    riskFlags.includes("safety_hazard") ||
-    riskFlags.includes("hazardous_diy_request")
+    riskFlags.some((flag) => IMMEDIATE_SAFETY_FLAGS.has(String(flag || "")))
   );
 };
 
@@ -93,9 +103,78 @@ export const requiresHumanHandoff = (result) => {
   const riskFlags = Array.isArray(result?.riskFlags) ? result.riskFlags : [];
   return (
     HANDOFF_CATEGORIES.has(category) ||
-    riskFlags.includes("safety_hazard") ||
-    riskFlags.includes("hazardous_diy_request")
+    riskFlags.some((flag) => IMMEDIATE_SAFETY_FLAGS.has(String(flag || "")))
   );
+};
+
+export const isUrgentOperationalResult = (result = {}) => {
+  if (requiresHumanHandoff(result)) return false;
+  const category = clean(result?.messageCategory).toLowerCase();
+  const urgency = clean(result?.urgency).toLowerCase();
+  return category === "emergency" || ["high", "emergency"].includes(urgency);
+};
+
+export const ensureUrgentOperationalResult = ({
+  result = {},
+  business,
+  lead = {},
+  customerMessage = "",
+}) => {
+  const name = businessName(business);
+  const rawReply = clean(result?.reply);
+  const replyHadUnsafeCommitment =
+    hasUnverifiedStaffCommitment(rawReply);
+
+  let reply = sanitizeUnverifiedStaffCommitments(rawReply, {
+    channel: "sms",
+  });
+
+  if (!reply) {
+    reply = `I've flagged this as urgent for ${name}. I can keep helping here with the details and available options.`;
+  }
+
+  if (shouldIncludeWaterSafety({ business, lead, customerMessage, result })) {
+    const addressCaptured = Boolean(clean(result?.address || lead?.address));
+    const preferenceCaptured = Boolean(
+      clean(
+        result?.preferredAppointmentTime ||
+          lead?.preferredAppointmentTime,
+      ),
+    );
+
+    const nextStep = !addressCaptured
+      ? " What is the service address?"
+      : !preferenceCaptured
+        ? " What day or time works best for you?"
+        : " I can keep helping with available service options here.";
+
+    const waterSafety =
+      `I've flagged this as urgent for ${name}. ` +
+      "If water is actively leaking and you can safely identify and reach " +
+      "the correct shutoff, turn it off. Avoid standing water near " +
+      "electrical equipment.";
+
+    /*
+     * Preserve useful policy-screened content such as a requested rough
+     * estimate, disclaimer, or booking guidance. If the original response
+     * contained an unverified staff/callback promise, discard that response
+     * and use the deterministic safe next step instead.
+     */
+    reply =
+      rawReply && !replyHadUnsafeCommitment && reply
+        ? `${waterSafety} ${reply}`
+        : `${waterSafety}${nextStep}`;
+  }
+
+  return {
+    ...result,
+    reply,
+    shouldAlertOwner: true,
+    alertPriority: "high",
+    alertTitle: "Urgent customer request",
+    alertMessage:
+      "Review the latest SMS. CallBackIQ is continuing the customer conversation unless a person explicitly takes over.",
+  };
 };
 
 export const isHumanHandoffSource = ({ conversation, inboundMessageId }) => {
@@ -142,24 +221,19 @@ export const buildHumanHandoffAcknowledgement = ({
       ? ` I've shared the ${service.slice(0, 80)} details and urgency you provided.`
       : " I've shared the details and urgency you provided.";
 
-  /*
-   * Keep the urgent plumbing acknowledgement compact enough for normal SMS
-   * delivery while preserving the callback promise and the highest-value
-   * safety guidance. Do not provide repair instructions or imply diagnosis.
-   */
   if (shouldIncludeWaterSafety({ business, lead, customerMessage, result })) {
-    return `I've asked ${name} to call the number you're texting from and shared your details. Avoid using the fixture. Don't touch electrical equipment or stand in water. If you can safely identify and reach the correct shutoff, turn it off. For sparks, smoke, fire, or immediate danger, leave and call 911.`;
+    return `I've flagged this as urgent for ${name}. Avoid using the fixture. Don't touch electrical equipment or stand in water. If you can safely identify and reach the correct shutoff, turn it off. For sparks, smoke, fire, or immediate danger, leave and call 911. I can't guarantee a callback time.`;
   }
 
   if (hasSafetyRisk(result)) {
-    return `I've alerted ${name} and asked a team member to call the number you're texting from. Avoid the affected area. For immediate danger, leave and call 911.`;
+    return `I've flagged this for immediate review by ${name}. Avoid the affected area. For immediate danger, leave and call 911. Do not wait for a callback or rely on this service for emergency response.`;
   }
 
   const opening = explicitCallback
-    ? `Absolutely. I've asked ${name} to call you at the number you're texting from.`
-    : `I've alerted ${name} and asked a team member to follow up at the number you're texting from.`;
+    ? `I've sent your callback request to ${name} at the number you're texting from.`
+    : `I've flagged your request for ${name}.`;
 
-  return `${opening}${details} A team member will follow up as soon as possible.`;
+  return `${opening}${details} I can't guarantee when someone will be available. I can keep helping here until a person takes over.`;
 };
 
 export const ensureHumanHandoffResult = ({
@@ -173,18 +247,24 @@ export const ensureHumanHandoffResult = ({
   const explicitCallback =
     clean(result?.messageCategory).toLowerCase() === "human_requested" ||
     EXPLICIT_CALLBACK_PATTERN.test(clean(customerMessage));
-  const needsCombinedReply =
-    explicitCallback || !originalReply || result?.decision === "no_reply";
-  const reply = needsCombinedReply
-    ? buildHumanHandoffAcknowledgement({
-        business,
-        lead,
-        conversation,
-        result,
-        customerMessage,
-      })
-    : originalReply;
   const safety = hasSafetyRisk(result);
+  const needsCombinedReply =
+    safety ||
+    explicitCallback ||
+    !originalReply ||
+    result?.decision === "no_reply";
+  const reply = sanitizeUnverifiedStaffCommitments(
+    needsCombinedReply
+      ? buildHumanHandoffAcknowledgement({
+          business,
+          lead,
+          conversation,
+          result,
+          customerMessage,
+        })
+      : originalReply,
+    { channel: "sms" },
+  );
   const reason = handoffReason(result);
 
   return {
@@ -197,9 +277,9 @@ export const ensureHumanHandoffResult = ({
     shouldAlertOwner: true,
     alertPriority: safety ? "critical" : "high",
     alertTitle:
-      safety ? "Urgent callback required" : "Customer requested a callback",
+      safety ? "Urgent review required" : "Customer requested human follow-up",
     alertMessage:
-      "Review the latest SMS and call the customer at the texting number.",
+      "Review the latest SMS and take ownership if available. CallBackIQ remains active until a person explicitly takes over.",
     guardrail: {
       ...(result?.guardrail || {}),
       skipAI: true,
@@ -243,6 +323,7 @@ export const buildPendingHumanHandoffUpdate = ({
   result,
   now = new Date(),
 }) => ({
+  "orchestration.phase": "handoff_pending",
   "orchestration.handoffStatus": "pending_ack",
   "orchestration.handoffReason": handoffReason(result),
   "orchestration.handoffRequestedAt":
@@ -280,13 +361,11 @@ export const buildFinalizedHumanHandoffUpdate = ({
   deliveryStatus = "acknowledged",
   now = new Date(),
 }) => ({
-  aiEnabled: false,
-  humanTakeover: true,
-  humanTakeoverAt: now,
-  humanTakeoverBy: null,
-  "bookingState.status": "human_takeover",
+  // Delivery of an acknowledgement is not proof that a staff member accepted
+  // ownership. Keep automation eligible until a real staff action occurs.
+  // The pending phase was recorded before delivery; do not overwrite a
+  // concurrent real staff takeover that may happen while sending.
   "bookingState.escalatedAt": now,
-  "orchestration.phase": "human_takeover",
   "orchestration.lastOutcome": handoffReason(result),
   "orchestration.lastStateTransitionAt": now,
   "orchestration.lastEscalatedAt": now,
@@ -313,12 +392,14 @@ export const buildFinalizedHumanHandoffUpdate = ({
 });
 
 export const buildHumanHandoffStatusAcknowledgement = ({ business }) =>
-  `Yes—your message was received and your callback request is still with ${businessName(
+  `Yes—your request was received and is flagged for ${businessName(
     business,
-  )}. A team member will contact you at the number you're texting from. Any requested appointment time remains unconfirmed until the team confirms it.`;
+  )}. I can't guarantee when someone will be available to call. I can continue helping here. Any requested appointment time remains unconfirmed until the business confirms it.`;
 
 export default {
   requiresHumanHandoff,
+  isUrgentOperationalResult,
+  ensureUrgentOperationalResult,
   isHumanHandoffSource,
   isHumanHandoffStatusQuestion,
   shouldSendHumanHandoffStatusAcknowledgement,

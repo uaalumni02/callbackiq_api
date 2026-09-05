@@ -137,10 +137,11 @@ expect(result.callbackCaptured).toBe(true);
       status: "new",
     });
     expect(session.conversation).toMatchObject({
-      humanTakeover: true,
-      aiEnabled: false,
+      humanTakeover: false,
+      aiEnabled: true,
     });
-    expect(session.conversation.bookingState.status).toBe("human_takeover");
+    expect(session.conversation.bookingState.status).toBe("not_started");
+    expect(session.conversation.orchestration.phase).toBe("handoff_pending");
     expect(Alert.findOneAndUpdate).toHaveBeenCalledWith(
       expect.any(Object),
       expect.objectContaining({
@@ -158,6 +159,10 @@ expect(result.callbackCaptured).toBe(true);
       }),
     );
     expect(Message.create).toHaveBeenCalled();
+
+    const outboundBody = sendSms.mock.calls.at(-1)?.[0]?.body || "";
+    expect(outboundBody).toMatch(/callback time is not guaranteed/i);
+    expect(outboundBody).not.toMatch(/team will follow up/i);
     expect(SocketService.emitDashboardRefresh).toHaveBeenCalledWith(
       "business-1",
       "voice_callback_captured",

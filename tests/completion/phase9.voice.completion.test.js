@@ -339,7 +339,7 @@ describe("Phase 9 completion gate using production voice orchestration", () => {
 
     expect(result.handoff).toEqual(expect.objectContaining({ type: "end" }));
     expect(session.status).toBe("transferring");
-    expect(session.transferredToHuman).toBe(true);
+    expect(session.transferredToHuman).toBe(false);
     expect(session.transferReason).toBe("customer_requested_human");
     expect(Alert.findOneAndUpdate).toHaveBeenCalledWith(
       expect.objectContaining({

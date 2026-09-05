@@ -189,6 +189,7 @@ const persistAcceptedOperation = async ({ operation, business, conversation, lea
         humanTakeover: true,
         humanTakeoverAt: new Date(),
         humanTakeoverBy: actorId,
+        "orchestration.phase": "human_takeover",
         lastMessage: operation.body,
         lastMessageAt: new Date(),
       },

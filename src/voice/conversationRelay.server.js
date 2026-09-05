@@ -29,6 +29,7 @@ import VoiceFraudDetectionService from "../services/voiceFraudDetection.service.
 import VoiceConnectionLeaseService from "../services/voiceConnectionLease.service.js";
 import { resolveTrustedRemoteAddress } from "../services/trustedProxyAddress.service.js";
 import { runWithVoiceTurnContext } from "../services/voiceTurnContext.service.js";
+import { sanitizeUnverifiedStaffCommitments } from "../services/customerCommitmentSafety.service.js";
 import {
   logOperationalError,
   logOperationalWarning,
@@ -800,7 +801,9 @@ export const initializeConversationRelayServer = (
       }
 
       consecutiveTurnFailures = 0;
-      const reply = String(result?.reply || "").trim();
+      const reply = sanitizeUnverifiedStaffCommitments(result?.reply, {
+        channel: "voice",
+      });
       if (reply) await sendAssistantText(reply);
       if (result?.outcome) {
         await voiceOutcomeService.commitVoiceOutcome({ sessionId: session._id, outcome: result.outcome, metadata: { source: "voice_agent_result" } });

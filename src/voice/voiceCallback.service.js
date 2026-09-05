@@ -10,6 +10,7 @@ import {
 import validateServiceAreaTool from "../helpers/ai/tools/validateServiceArea.tool.js";
 import SocketService from "../services/socket.service.js";
 import { sendSms } from "../services/twilioSmsService.js";
+import { sanitizeUnverifiedStaffCommitments } from "../services/customerCommitmentSafety.service.js";
 import VoiceAvailabilityService from "./voiceAvailability.service.js";
 import {
   cleanVoiceText,
@@ -363,22 +364,30 @@ const updateConversation = async ({ session, state, canceled = false }) => {
   if (state.customerName && !skippedValue(state.customerName)) {
     conversation.customerName = state.customerName;
   }
-  conversation.humanTakeover = !canceled;
-  if (!canceled) {
-    conversation.aiEnabled = false;
 
-    if (typeof conversation.set === "function") {
-      conversation.set("bookingState.status", "human_takeover");
-    } else {
-      conversation.bookingState = {
-        ...(conversation.bookingState || {}),
-        status: "human_takeover",
-      };
+  if (!canceled) {
+    // A captured request means the team was alerted; it does not mean a person
+    // accepted ownership. Preserve AI/SMS eligibility until a real staff action.
+    if (conversation.humanTakeover !== true) {
+      setLocalPath(conversation, "orchestration.phase", "handoff_pending");
     }
+    setLocalPath(conversation, "orchestration.handoffStatus", "acknowledged");
+    setLocalPath(conversation, "orchestration.handoffReason", state.reason);
+    setLocalPath(
+      conversation,
+      "orchestration.handoffRequestedAt",
+      conversation?.orchestration?.handoffRequestedAt || new Date(),
+    );
+    setLocalPath(conversation, "orchestration.handoffAcknowledgedAt", new Date());
+    setLocalPath(
+      conversation,
+      "orchestration.handoffCallbackPhone",
+      state.phone && isUsableCallerId(state.phone) ? state.phone : "",
+    );
   }
   conversation.lastMessage = canceled
     ? "Caller canceled voice callback capture. Partial details were preserved."
-    : "CallBackIQ captured and confirmed a voice callback request.";
+    : "CallBackIQ captured and flagged a voice callback request for team review.";
   conversation.lastMessageAt = new Date();
   await conversation.save();
   emit("emitConversationUpdated", normalizeId(session.business), conversation);
@@ -464,8 +473,8 @@ const callbackConfirmationBody = ({ business, state }) => {
     state.preferredTime && !skippedValue(state.preferredTime)
       ? ` Your preferred timing is ${state.preferredTime}.`
       : "";
-  const english = `Hi${state.customerName && !skippedValue(state.customerName) ? ` ${state.customerName}` : ""}, this is ${businessName}. CallBackIQ received your callback request${service}.${preference} The team will follow up at the confirmed number. Reply STOP to opt out.`;
-  const spanish = `Hola. ${businessName} recibió su solicitud de devolución de llamada. El equipo se comunicará al número confirmado. Responda STOP para no recibir mensajes.`;
+  const english = `Hi${state.customerName && !skippedValue(state.customerName) ? ` ${state.customerName}` : ""}, this is ${businessName}. CallBackIQ received your callback request${service}.${preference} The request has been flagged for the team. A callback time is not guaranteed. Reply STOP to opt out.`;
+  const spanish = `Hola. ${businessName} recibió su solicitud de devolución de llamada. La solicitud fue enviada al equipo. No se garantiza una hora de devolución de llamada. Responda STOP para no recibir mensajes.`;
   return clean(state.language === "es" ? `${spanish} / ${english}` : english, 1600);
 };
 
@@ -670,12 +679,15 @@ const complete = async ({
           ? " This number appears to be a landline, so I did not promise a text confirmation."
           : "";
   const noPhone = !state.phone || !isUsableCallerId(state.phone);
-  return {
-    reply:
-      reply ||
+  const safeReply = sanitizeUnverifiedStaffCommitments(
+    reply ||
       (noPhone
         ? "I saved the information for review, but I cannot promise a callback because no usable phone number was confirmed."
-        : `Thank you. I created a priority callback request.${confirmationMessage} The team will follow up at the confirmed number.`),
+        : `Thank you. I created a priority callback request.${confirmationMessage} I can't guarantee when someone will be available to call, but your confirmed details are preserved for the team.`),
+    { channel: "voice" },
+  );
+  return {
+    reply: safeReply,
     handoff: endPacket("callback-captured", state.reason),
     callbackCaptured: true,
     outcome: state.priority === "critical" ? "safety_escalated" : "callback_saved",

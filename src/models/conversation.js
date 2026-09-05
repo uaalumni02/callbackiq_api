@@ -146,6 +146,7 @@ const conversationSchema = new Schema(
           "awaiting_business_approval",
           "confirmed",
           "post_booking",
+          "handoff_pending",
           "human_takeover",
           "closed",
         ],

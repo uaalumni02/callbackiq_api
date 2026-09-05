@@ -20,11 +20,14 @@ import {
   buildHumanHandoffStatusResult,
   buildPendingHumanHandoffUpdate,
   ensureHumanHandoffResult,
+  ensureUrgentOperationalResult,
   isHumanHandoffSource,
   isHumanHandoffStatusQuestion,
+  isUrgentOperationalResult,
   requiresHumanHandoff,
   shouldSendHumanHandoffStatusAcknowledgement,
 } from "./smsHandoff.service.js";
+import { sanitizeUnverifiedStaffCommitments } from "../customerCommitmentSafety.service.js";
 
 const VALID_URGENCIES = new Set(["low", "medium", "high", "emergency"]);
 const SMS_URGENCY_RANK = Object.freeze({
@@ -92,7 +95,9 @@ const persistOutboundReply = async ({
   inboundMessage,
   result,
 }) => {
-  const reply = String(result?.reply || "").trim();
+  const reply = sanitizeUnverifiedStaffCommitments(result?.reply, {
+    channel: "sms",
+  });
   if (!reply || result?.decision === "no_reply") return { sent: false, reason: "no_reply" };
 
   const isAiGenerated = result?.guardrail?.skipAI !== true;
@@ -336,7 +341,7 @@ export const processInboundSmsJob = async (job) => {
    * the queue job complete. Treat the durable outbound record as authoritative
    * and complete the retry without generating or sending a duplicate message.
    */
-  if (conversation.humanTakeover === true && handoffSource) {
+  if (handoffSource) {
     const existingHandoffReply = await Message.findOne({
       business: business._id,
       inReplyToMessage: inboundMessage._id,
@@ -370,8 +375,12 @@ export const processInboundSmsJob = async (job) => {
    * It may send one deterministic, throttled status acknowledgement when the
    * customer asks whether the callback request was received.
    */
+  const handoffLifecycleActive =
+    conversation.humanTakeover === true ||
+    conversation?.orchestration?.phase === "handoff_pending" ||
+    Boolean(conversation?.orchestration?.handoffStatus);
   const handoffStatusQuestion =
-    conversation.humanTakeover === true &&
+    handoffLifecycleActive &&
     isHumanHandoffStatusQuestion(customerTurn.customerMessage);
 
   if (handoffStatusQuestion) {
@@ -449,16 +458,13 @@ export const processInboundSmsJob = async (job) => {
     business,
     "aiQualificationEnabled",
   );
-  const pendingHandoff =
-    conversation?.orchestration?.handoffStatus === "pending_ack";
-  const retryingSameHandoff = pendingHandoff && handoffSource;
   const automationEligible =
     conversation.aiEnabled !== false &&
     conversation.humanTakeover !== true &&
     conversation.status !== "closed" &&
     conversation.status !== "archived";
   const mayProcessAI =
-    ((!pendingHandoff && automationEligible) || retryingSameHandoff) &&
+    automationEligible &&
     (deterministicAssessment.handled || aiQualificationEnabled);
 
   if (!mayProcessAI) {
@@ -490,6 +496,7 @@ export const processInboundSmsJob = async (job) => {
   });
   let result = orchestration.result || {};
   const handoffRequired = requiresHumanHandoff(result);
+  const urgentOperational = isUrgentOperationalResult(result);
 
   if (handoffRequired) {
     result = ensureHumanHandoffResult({
@@ -497,6 +504,13 @@ export const processInboundSmsJob = async (job) => {
       business,
       lead,
       conversation,
+      customerMessage: customerTurn.customerMessage,
+    });
+  } else if (urgentOperational) {
+    result = ensureUrgentOperationalResult({
+      result,
+      business,
+      lead,
       customerMessage: customerTurn.customerMessage,
     });
   }
@@ -641,8 +655,8 @@ export const processInboundSmsJob = async (job) => {
       { returnDocument: "after", runValidators: true },
     );
     SocketService.emitConversationUpdated(business._id, updatedConversation);
-    SocketService.emitDashboardRefresh(business._id, "sms_human_handoff_ready");
-    logOperationalEvent("twilio.sms.human_handoff_finalized", {
+    SocketService.emitDashboardRefresh(business._id, "sms_handoff_pending");
+    logOperationalEvent("twilio.sms.handoff_pending", {
       businessId: business._id,
       conversationId: updatedConversation._id,
       inboundMessageId: inboundMessage._id,
