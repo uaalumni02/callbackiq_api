@@ -733,9 +733,22 @@ export const evaluateConversationAbuse = ({
   customerMessage,
   recentMessages = [],
   now = new Date(),
+  activityWindowStartAt = null,
 }) => {
   const normalizedCurrent = cleanText(customerMessage).toLowerCase();
   const nowMs = now instanceof Date ? now.getTime() : new Date(now).getTime();
+
+  // CALLBACKIQ_SMS_RECOVERY_JOURNEY_SPAM_SCOPE_V1
+  // Preserve full history for continuity, but scope abuse counters to the
+  // current missed-call recovery journey.
+  const activityWindowStartMs = activityWindowStartAt
+    ? new Date(activityWindowStartAt).getTime()
+    : Number.NaN;
+  const abuseMessages = Number.isFinite(activityWindowStartMs)
+    ? recentMessages.filter(
+        (message) => getMessageTimestamp(message) >= activityWindowStartMs,
+      )
+    : recentMessages;
 
   const maxInboundPerMinute = toBoundedInteger(
     process.env.AI_MAX_INBOUND_MESSAGES_PER_MINUTE,
@@ -765,7 +778,7 @@ export const evaluateConversationAbuse = ({
     10,
   );
 
-  const inboundLastMinute = recentMessages.filter((message) => {
+  const inboundLastMinute = abuseMessages.filter((message) => {
     return (
       isInboundMessage(message) &&
       nowMs - getMessageTimestamp(message) >= 0 &&
@@ -781,7 +794,7 @@ export const evaluateConversationAbuse = ({
     };
   }
 
-  const aiRepliesLastHour = recentMessages.filter((message) => {
+  const aiRepliesLastHour = abuseMessages.filter((message) => {
     return (
       isAIOutboundMessage(message) &&
       nowMs - getMessageTimestamp(message) >= 0 &&
@@ -797,7 +810,7 @@ export const evaluateConversationAbuse = ({
     };
   }
 
-  const totalAIReplies = recentMessages.filter(isAIOutboundMessage).length;
+  const totalAIReplies = abuseMessages.filter(isAIOutboundMessage).length;
 
   if (totalAIReplies >= maxAITurnsPerConversation) {
     return {
@@ -807,7 +820,7 @@ export const evaluateConversationAbuse = ({
     };
   }
 
-  const duplicateCount = recentMessages
+  const duplicateCount = abuseMessages
     .filter(isInboundMessage)
     .slice(-10)
     .map(getMessageBody)
@@ -832,6 +845,7 @@ export const evaluateConversationAbuse = ({
 export const evaluateDeterministicInboundGuardrails = ({
   customerMessage,
   recentMessages = [],
+  activityWindowStartAt = null,
 }) => {
   const message = cleanText(customerMessage);
 
@@ -909,6 +923,7 @@ export const evaluateDeterministicInboundGuardrails = ({
   const abuseCheck = evaluateConversationAbuse({
     customerMessage: message,
     recentMessages,
+    activityWindowStartAt,
   });
 
   if (abuseCheck.blocked) {
