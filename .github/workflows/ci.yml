@@ -51,6 +51,8 @@ jobs:
         run: npm ci
 
       - name: Run complete deterministic release certification
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
         run: npm run release:certify:ci
 
       - name: Upload coverage artifact
