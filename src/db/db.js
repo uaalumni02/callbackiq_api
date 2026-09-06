@@ -133,7 +133,7 @@ class Db {
           resetToken,
           resetTokenExpiresAt: { $gt: new Date() },
         })
-        .select("+password +resetToken +resetTokenExpiresAt");
+        .select("+password +resetToken +resetTokenExpiresAt +sessionVersion");
     } catch (error) {
       console.error("Error finding password reset token:", error);
       throw error;
@@ -145,17 +145,21 @@ class Db {
       return await model.findByIdAndUpdate(
         userId,
         {
-          password,
-          resetToken: null,
-          resetTokenExpiresAt: null,
-
-          failedLoginAttempts: 0,
-          lastFailedLoginAt: null,
-          loginBlockedUntil: null,
-          loginLockoutLevel: 0,
-          lastLoginLockoutAt: null,
-          securityChallengeRequired: false,
-          securityChallengeRequiredAt: null,
+          $set: {
+            password,
+            resetToken: null,
+            resetTokenExpiresAt: null,
+            failedLoginAttempts: 0,
+            lastFailedLoginAt: null,
+            loginBlockedUntil: null,
+            loginLockoutLevel: 0,
+            lastLoginLockoutAt: null,
+            securityChallengeRequired: false,
+            securityChallengeRequiredAt: null,
+          },
+          $inc: {
+            sessionVersion: 1,
+          },
         },
         {
           returnDocument: "after",
@@ -180,6 +184,7 @@ class Db {
         .select(
           [
             "+password",
+            "+sessionVersion",
             "+failedLoginAttempts",
             "+lastFailedLoginAt",
             "+loginBlockedUntil",

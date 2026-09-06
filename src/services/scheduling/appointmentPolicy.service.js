@@ -50,12 +50,50 @@ export const getBookableService = async ({ businessId, serviceOfferingId }) => {
     throw serviceError("The requested service offering was not found.", 404);
   }
 
-  if (!service.aiCanBook && service.aiCanDiscuss === false) {
-    throw serviceError(
+  if (
+    service.aiCanDiscuss === false &&
+    service.aiCanBook !== true
+  ) {
+    const error = new Error(
       "The requested service is not available for booking.",
-      409,
-      "SERVICE_NOT_BOOKABLE",
     );
+    error.statusCode = 409;
+    error.code = "SERVICE_NOT_BOOKABLE";
+    throw error;
+  }
+
+  return service;
+};
+
+export const getAiBookableService = async ({
+  businessId,
+  serviceOfferingId,
+}) => {
+  let service;
+  try {
+    service = await getBookableService({
+    businessId,
+    serviceOfferingId,
+  });
+  } catch (error) {
+    if (error?.code === "SERVICE_NOT_BOOKABLE") {
+      const aiError = new Error(
+        "The requested service is not available for AI booking.",
+      );
+      aiError.statusCode = 409;
+      aiError.code = "SERVICE_NOT_AI_BOOKABLE";
+      throw aiError;
+    }
+    throw error;
+  }
+
+  if (service.aiCanBook !== true) {
+    const error = new Error(
+      "The requested service is not approved for AI booking.",
+    );
+    error.statusCode = 409;
+    error.code = "SERVICE_NOT_AI_BOOKABLE";
+    throw error;
   }
 
   return service;

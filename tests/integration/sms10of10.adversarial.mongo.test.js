@@ -66,7 +66,7 @@ jest.mock("twilio", () => {
 beforeAll(async () => {
   process.env.NODE_ENV = "test";
   process.env.TWILIO_ACCOUNT_SID = "AC_SMS_10OF10";
-  process.env.TWILIO_AUTH_TOKEN = "AUTH_SMS_10OF10";
+  process.env.TWILIO_AUTH_TOKEN = "test-auth-sms-10of10";
   await connectTestDB();
 
   await Promise.all([

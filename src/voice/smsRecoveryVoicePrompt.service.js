@@ -1,3 +1,4 @@
+import { sanitizeUnverifiedStaffCommitments } from "../services/customerCommitmentSafety.service.js";
 const escapeXml = (value = "") =>
   String(value)
     .replaceAll("&", "&amp;")
@@ -48,7 +49,32 @@ export const buildSmsRecoveryVoicePrompt = ({
       "The team has been notified and will follow up as soon as possible.";
   }
 
-  return escapeXml(message);
+  const safeMessage = sanitizeUnverifiedStaffCommitments(
+    String(message ?? ""),
+    { channel: "voice" },
+  )
+    .replace(
+      /\b(?:the\s+)?team\s+has\s+been\s+notified\s+and\s+will\s+follow\s+up(?:\s+as\s+soon\s+as\s+possible)?\b/gi,
+      "your missed call has been recorded for the business; staff response timing is not guaranteed",
+    )
+    .replace(
+      /\band\s+(?:the\s+)?team\s+will\s+follow\s+up(?:\s+as\s+soon\s+as\s+possible)?\b/gi,
+      "and staff response timing is not guaranteed",
+    )
+    .replace(
+      /\b(?:the\s+)?team\s+will\s+follow\s+up(?:\s+as\s+soon\s+as\s+possible)?\b/gi,
+      "staff response timing is not guaranteed",
+    )
+    .replace(
+      /\bwill\s+follow\s+up(?:\s+as\s+soon\s+as\s+possible)?\b/gi,
+      "staff response timing is not guaranteed",
+    )
+    .replace(
+      /\bwill\s+(?:call|contact)\b/gi,
+      "may respond when staff are available",
+    );
+
+  return escapeXml(safeMessage);
 };
 
 export default buildSmsRecoveryVoicePrompt;

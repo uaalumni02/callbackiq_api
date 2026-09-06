@@ -76,7 +76,12 @@ describe("POST /api/twilio/voice SMS failure isolation", () => {
     expect(response.status).toBe(200);
     expect(response.headers["content-type"]).toContain("text/xml");
     expect(response.text).toContain("<Say>");
-    expect(response.text).toMatch(/team has been notified/i);
+    expect(response.text).toMatch(
+      /staff response timing is not guaranteed/i,
+    );
+    expect(response.text).not.toMatch(
+      /will follow up|will call|will contact/i,
+    );
     expect(response.text).not.toContain("<Response></Response>");
 
     expect(sendSms).toHaveBeenCalledWith(

@@ -25,6 +25,7 @@ import {
 import { captureSignupSecurity } from "../services/trialRisk.service.js";
 
 import sendPasswordResetEmail from "../helpers/email/mailer.js";
+import { getTrustedRequestIp } from "../helpers/security/trustedRequestIp.js";
 
 import mongoose from "mongoose";
 import { runRegistrationTransaction } from "../services/registrationTransaction.service.js";
@@ -89,19 +90,19 @@ const trialEligibilityMessage = (eligibility) => {
   return "Account created successfully. This customer or business identity has already used its lifetime free trial, so choose a paid plan to activate CallBackIQ.";
 };
 
-const getConsentIp = (req) => {
-  const forwardedFor = req.headers["x-forwarded-for"];
+const getConsentIp = (req) => getTrustedRequestIp(req);
 
-  if (Array.isArray(forwardedFor)) {
-    return forwardedFor[0] || req.ip || "";
-  }
 
-  if (typeof forwardedFor === "string" && forwardedFor.trim()) {
-    return forwardedFor.split(",")[0].trim();
-  }
-
-  return req.ip || "";
-};
+const buildAuthToken = (user, fallbackSessionVersion = 0) =>
+  Token.sign({
+    userId: user._id,
+    userName: user.userName,
+    email: user.email,
+    role: user.role,
+    sessionVersion: Number(
+      user.sessionVersion ?? fallbackSessionVersion ?? 0,
+    ),
+  });
 
 class AuthController {
   static async register(req, res) {
@@ -299,12 +300,7 @@ if (securityGateEnabled("TRIAL_REQUIRE_EMAIL_VERIFICATION")) {
       }
     
 
-      const token = Token.sign({
-        userId: savedUser._id,
-        userName: savedUser.userName,
-        email: savedUser.email,
-        role: savedUser.role,
-      });
+      const token = buildAuthToken(savedUser);
 
       res.cookie("token", token, cookieOptions);
 
@@ -442,12 +438,7 @@ if (securityGateEnabled("TRIAL_REQUIRE_EMAIL_VERIFICATION")) {
       const authenticatedUser =
         (await Db.clearLoginSecurityState(User, user._id)) || user;
 
-      const token = Token.sign({
-        userId: authenticatedUser._id,
-        userName: authenticatedUser.userName,
-        email: authenticatedUser.email,
-        role: authenticatedUser.role,
-      });
+      const token = buildAuthToken(authenticatedUser, user.sessionVersion);
 
       res.cookie("token", token, cookieOptions);
 

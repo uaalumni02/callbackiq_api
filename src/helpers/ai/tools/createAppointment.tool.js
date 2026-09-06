@@ -1,7 +1,7 @@
 import AppointmentService from "../../../services/scheduling/appointment.service.js";
 import AlertService from "../../../services/alert.service.js";
 import {
-  getBookableService,
+  getAiBookableService,
   getSchedulingPolicy,
 } from "../../../services/scheduling/appointmentPolicy.service.js";
 import { logOperationalError } from "../../logging/safeLogger.js";
@@ -13,7 +13,7 @@ export const createAppointmentTool = async ({
 }) => {
   const [policy, service] = await Promise.all([
     getSchedulingPolicy(business._id),
-    getBookableService({
+    getAiBookableService({
       businessId: business._id,
       serviceOfferingId: input?.serviceOfferingId || input?.serviceOffering,
     }),

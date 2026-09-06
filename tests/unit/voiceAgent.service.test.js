@@ -9,6 +9,10 @@ import VoiceHandoffService from "../../src/voice/voiceHandoff.service.js";
 import VoiceAvailabilityService from "../../src/voice/voiceAvailability.service.js";
 import VoiceUnderstandingService from "../../src/voice/voiceUnderstanding.service.js";
 
+import {
+  classifyOperationalUrgency,
+} from "../../src/services/scheduling/customerSchedulingIntent.service.js";
+
 jest.mock("../../src/models/appointment.js", () => ({
   __esModule: true,
   default: { findById: jest.fn() },
@@ -355,4 +359,148 @@ describe("VoiceAgentService callback-first recovery", () => {
     );
     expect(VoiceHandoffService.request).not.toHaveBeenCalled();
   });
+});
+
+
+describe("CALLBACKIQ_DIFF_COVERAGE_VOICE_RELEASE", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+
+    VoiceUnderstandingService
+      .classifyVoiceTurn
+      .mockResolvedValue({
+        safety: {
+          isEmergency: false,
+          shouldSendSafetyReply: false,
+        },
+        entities: {
+          urgency: "low",
+        },
+        intent: "other",
+      });
+
+    VoiceCallbackService.isActive
+      .mockReturnValue(false);
+
+    VoiceCallbackService.handle
+      .mockResolvedValue({
+        reply:
+          "Your request was recorded.",
+        callbackCaptured: true,
+      });
+
+    VoiceHandoffService.request
+      .mockResolvedValue({
+        type: "end",
+        handoffData: "{}",
+      });
+
+    searchServicesTool.mockResolvedValue(
+      [],
+    );
+
+    VoiceAvailabilityService.isBusinessOpen
+      .mockResolvedValue(true);
+
+    BookingStateMachineService.handle
+      .mockResolvedValue({
+        handled: true,
+        result: {
+          reply:
+            "I can continue with the scheduling request.",
+        },
+      });
+  });
+
+  test(
+    "preserves a higher deterministic operational urgency on the lead",
+    async () => {
+      const session = makeSession();
+
+      session.lead.urgency = "low";
+
+      const message = "This is urgent.";
+      const CALLBACKIQ_SELECTED_URGENCY_FIXTURE = true;
+
+      const expectedUrgency =
+        classifyOperationalUrgency(message);
+
+      expect(
+        ["medium", "high", "emergency"],
+      ).toContain(expectedUrgency);
+
+      await VoiceAgentService.handlePrompt({
+        session,
+        customerMessage: message,
+      });
+
+      expect(
+        session.lead.urgency,
+      ).toBe(expectedUrgency);
+
+      expect(
+        session.lead.save,
+      ).toHaveBeenCalled();
+    },
+  );
+
+  test(
+    "continues a read-only offered-slot flow even when AI booking is disabled",
+    async () => {
+      const session = makeSession();
+
+      session.business.features.aiBookingEnabled =
+        false;
+
+      session.conversation.bookingState = {
+        status: "offering_slots",
+        appointment: null,
+        offeredSlots: [
+          {
+            startAt:
+              "2026-09-08T14:00:00.000Z",
+            endAt:
+              "2026-09-08T15:00:00.000Z",
+          },
+        ],
+      };
+
+      VoiceUnderstandingService
+        .classifyVoiceTurn
+        .mockResolvedValue({
+          safety: {
+            isEmergency: false,
+            shouldSendSafetyReply: false,
+          },
+          entities: {},
+          intent: "other",
+        });
+
+      await VoiceAgentService.handlePrompt({
+        session,
+        customerMessage: "option 1",
+      });
+
+      expect(
+        BookingStateMachineService.handle,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          business: session.business,
+          lead: session.lead,
+          conversation:
+            session.conversation,
+          channel: "voice",
+        }),
+      );
+
+      expect(
+        VoiceCallbackService.handle,
+      ).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          reason:
+            "voice_booking_not_enabled",
+        }),
+      );
+    },
+  );
 });

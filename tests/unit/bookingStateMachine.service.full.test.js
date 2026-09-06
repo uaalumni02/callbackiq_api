@@ -809,3 +809,805 @@ describe("Booking production readiness/provider regressions", () => {
     expect(AlertService.createSystemAlert).not.toHaveBeenCalled();
   });
 });
+
+
+describe("CALLBACKIQ_DIFF_COVERAGE_BOOKING_RELEASE", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.useFakeTimers();
+    jest.setSystemTime(
+      new Date("2026-07-27T12:00:00.000Z"),
+    );
+
+    searchServicesTool.mockResolvedValue([
+      {
+        id: "s1",
+        name: "HVAC diagnostic",
+      },
+    ]);
+
+    validateServiceAreaTool.mockResolvedValue({
+      supported: true,
+    });
+
+    getAvailabilityTool.mockResolvedValue({
+      slots: [
+        SLOT_1,
+        SLOT_2,
+        SLOT_3,
+      ],
+    });
+
+    createAppointmentTool.mockResolvedValue({
+      _id: "held-appointment",
+      status: "held",
+      requiresBusinessApproval: true,
+      startAt: SLOT_1.startAt,
+      endAt: SLOT_1.endAt,
+      timezone: "America/New_York",
+      heldExpiresAt:
+        "2026-07-27T12:30:00.000Z",
+    });
+
+    AlertService.createSystemAlert.mockResolvedValue(
+      {},
+    );
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  test(
+    "preserves a read-only slot selection for manual confirmation",
+    async () => {
+      const conversation = makeConversation({
+        bookingState: {
+          status: "offering_slots",
+          serviceOffering: "s1",
+          postalCode: "30318",
+          offeredSlots: [
+            {
+              ...SLOT_1,
+              label: "Tuesday at 9:00 AM",
+            },
+            SLOT_2,
+          ],
+          availabilityInquiry: true,
+        },
+      });
+
+      const lead = makeLead({
+        serviceNeeded: "HVAC diagnostic",
+        urgency: "high",
+      });
+
+      const result = await handle({
+        conversation,
+        lead,
+        message: "option 1",
+        customBusiness: {
+          ...business,
+          businessName:
+            "Atlanta Pro Plumbing & Drain",
+          features: {
+            aiBookingEnabled: false,
+          },
+        },
+      });
+
+      expect(
+        AlertService.createSystemAlert,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title:
+            "Customer selected an appointment time",
+          priority: "high",
+          metadata: expect.objectContaining({
+            leadId: "l1",
+            conversationId: "c1",
+            selectedStartAt:
+              SLOT_1.startAt,
+          }),
+        }),
+      );
+
+      expect(
+        lead.preferredAppointmentTime,
+      ).toBeTruthy();
+
+      expect(lead.save).toHaveBeenCalled();
+
+      expect(
+        conversation.bookingState,
+      ).toMatchObject({
+        status: "human_takeover",
+        availabilityInquiry: false,
+        lastError:
+          "selected_slot_requires_manual_confirmation",
+      });
+
+      expect(result.result.reply).toMatch(
+        /not confirmed/i,
+      );
+
+      expect(
+        createAppointmentTool,
+      ).not.toHaveBeenCalled();
+    },
+  );
+
+  test(
+    "keeps the existing appointment confirmed while a reschedule awaits approval",
+    async () => {
+      const conversation = makeConversation({
+        bookingState: {
+          status: "awaiting_confirmation",
+          serviceOffering: "s1",
+          postalCode: "30318",
+          selectedSlot: SLOT_2,
+          appointment: "existing-appointment",
+          lastError: "reschedule_requested",
+        },
+      });
+
+      const lead = makeLead({
+        serviceNeeded: "HVAC diagnostic",
+        address: "125 Main Street",
+        urgency: "medium",
+      });
+
+      const result = await handle({
+        conversation,
+        lead,
+        message: "yes",
+      });
+
+      expect(
+        AlertService.createSystemAlert,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title:
+            "Appointment reschedule approval required",
+          priority: "medium",
+          metadata: expect.objectContaining({
+            appointmentId:
+              "existing-appointment",
+            conversationId: "c1",
+            requestedStartAt:
+              SLOT_2.startAt,
+          }),
+        }),
+      );
+
+      expect(
+        createAppointmentTool,
+      ).not.toHaveBeenCalled();
+
+      expect(
+        conversation.bookingState,
+      ).toMatchObject({
+        status: "booked",
+        selectedSlot: null,
+        offeredSlots: [],
+        expiresAt: null,
+        lastError:
+          "reschedule_pending_business_approval",
+      });
+
+      expect(result.result.reply).toMatch(
+        /existing appointment remains confirmed/i,
+      );
+    },
+  );
+
+  test(
+    "continues an availability inquiry automatically after location capture",
+    async () => {
+      const conversation = makeConversation({
+        bookingState: {
+          status: "collecting_street_address",
+          serviceOffering: "s1",
+          postalCode: "30318",
+          availabilityInquiry: true,
+        },
+      });
+
+      const lead = makeLead({
+        serviceNeeded: "HVAC diagnostic",
+        urgency: "emergency",
+      });
+
+      const result = await handle({
+        conversation,
+        lead,
+        message: "125 Main Street",
+      });
+
+      expect(
+        validateServiceAreaTool,
+      ).toHaveBeenCalled();
+
+      expect(
+        getAvailabilityTool,
+      ).toHaveBeenCalled();
+
+      expect(
+        conversation.bookingState.status,
+      ).toBe("offering_slots");
+
+      expect(
+        conversation.bookingState.offeredSlots.length,
+      ).toBeGreaterThan(0);
+
+      expect(result.result.reply).toMatch(
+        /which option/i,
+      );
+    },
+  );
+});
+
+
+describe("CALLBACKIQ_FINAL_BOOKING_BRANCH_TOP_OFF", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.useFakeTimers();
+
+    jest.setSystemTime(
+      new Date("2026-07-27T12:00:00.000Z"),
+    );
+
+    searchServicesTool.mockResolvedValue([
+      {
+        id: "s1",
+        name: "HVAC diagnostic",
+      },
+    ]);
+
+    validateServiceAreaTool.mockResolvedValue({
+      supported: true,
+    });
+
+    getAvailabilityTool.mockResolvedValue({
+      slots: [
+        SLOT_1,
+        SLOT_2,
+        SLOT_3,
+      ],
+    });
+
+    AlertService.createSystemAlert
+      .mockResolvedValue({});
+
+    createAppointmentTool.mockResolvedValue({
+      _id: "held-appointment",
+      status: "held",
+      requiresBusinessApproval: true,
+      startAt: SLOT_1.startAt,
+      endAt: SLOT_1.endAt,
+      timezone: "America/New_York",
+      heldExpiresAt:
+        "2026-07-27T12:30:00.000Z",
+    });
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  test(
+    "asks again when an offered-slot response does not select a real option",
+    async () => {
+      const conversation = makeConversation({
+        bookingState: {
+          status: "offering_slots",
+          serviceOffering: "s1",
+          offeredSlots: [
+            SLOT_1,
+            SLOT_2,
+          ],
+          availabilityInquiry: true,
+        },
+      });
+
+      const lead = makeLead({
+        serviceNeeded: "HVAC diagnostic",
+        urgency: "medium",
+      });
+
+      const customBusiness = {
+        ...business,
+        timezone: undefined,
+        features: {
+          aiBookingEnabled: false,
+        },
+      };
+
+      const result = await handle({
+        conversation,
+        lead,
+        message: "option 99",
+        customBusiness,
+      });
+
+      expect(result.handled).toBe(true);
+
+      expect(result.result.reply).toMatch(
+        /choose one of the available option numbers|check another day/i,
+      );
+
+      expect(
+        AlertService.createSystemAlert,
+      ).not.toHaveBeenCalled();
+    },
+  );
+
+  test(
+    "rechecks availability when the customer asks for another window instead of selecting",
+    async () => {
+      const conversation = makeConversation({
+        bookingState: {
+          status: "offering_slots",
+          serviceOffering: "s1",
+          offeredSlots: [
+            SLOT_1,
+            SLOT_2,
+          ],
+          availabilityInquiry: true,
+        },
+      });
+
+      const lead = makeLead({
+        serviceNeeded: "HVAC diagnostic",
+        urgency: "medium",
+      });
+
+      const result = await handle({
+        conversation,
+        lead,
+        message:
+          "what availability do you have tomorrow?",
+      });
+
+      expect(result.handled).toBe(true);
+
+      expect(
+        getAvailabilityTool,
+      ).toHaveBeenCalled();
+
+      expect(result.result).toBeTruthy();
+      expect(result.result.reply).toEqual(
+        expect.any(String),
+      );
+    },
+  );
+
+  test(
+    "handles a selected read-only slot without a lead or writable conversation state",
+    async () => {
+      const conversation = makeConversation({
+        bookingState: {
+          status: "offering_slots",
+          serviceOffering: "s1",
+          offeredSlots: [
+            SLOT_1,
+            SLOT_2,
+          ],
+          availabilityInquiry: true,
+        },
+      });
+
+      conversation.set = undefined;
+      conversation.save = undefined;
+
+      const customBusiness = {
+        ...business,
+        businessName: "",
+        timezone: undefined,
+        features: {
+          aiBookingEnabled: false,
+        },
+      };
+
+      const result = await handle({
+        conversation,
+        lead: null,
+        message: "option 1",
+        customBusiness,
+      });
+
+      expect(result.handled).toBe(true);
+
+      expect(result.result.reply).toMatch(
+        /not confirmed/i,
+      );
+
+      expect(
+        AlertService.createSystemAlert,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title:
+            "Customer selected an appointment time",
+          priority: "medium",
+          metadata: expect.objectContaining({
+            leadId: "",
+          }),
+        }),
+      );
+    },
+  );
+
+  test(
+    "uses the lead id when the read-only slot alert has no conversation id",
+    async () => {
+      const conversation = makeConversation({
+        bookingState: {
+          status: "offering_slots",
+          serviceOffering: "s1",
+          offeredSlots: [
+            SLOT_1,
+          ],
+          availabilityInquiry: true,
+        },
+      });
+
+      conversation._id = null;
+
+      const lead = makeLead({
+        serviceNeeded: "HVAC diagnostic",
+        urgency: "medium",
+      });
+
+      const result = await handle({
+        conversation,
+        lead,
+        message: "option 1",
+        customBusiness: {
+          ...business,
+          businessName: "",
+          features: {
+            aiBookingEnabled: false,
+          },
+        },
+      });
+
+      expect(result.handled).toBe(true);
+
+      const alert =
+        AlertService.createSystemAlert
+          .mock.calls[0][0];
+
+      expect(
+        alert.metadata.conversationId,
+      ).toBe("");
+
+      expect(alert.dedupeKey).toContain(
+        String(lead._id),
+      );
+    },
+  );
+
+  test(
+    "uses the final unknown dedupe fallback when neither conversation nor lead has an id",
+    async () => {
+      const conversation = makeConversation({
+        bookingState: {
+          status: "offering_slots",
+          serviceOffering: "s1",
+          offeredSlots: [
+            SLOT_1,
+          ],
+          availabilityInquiry: true,
+        },
+      });
+
+      conversation._id = null;
+
+      const lead = makeLead({
+        serviceNeeded: "HVAC diagnostic",
+        urgency: "medium",
+      });
+
+      lead._id = null;
+
+      const result = await handle({
+        conversation,
+        lead,
+        message: "option 1",
+        customBusiness: {
+          ...business,
+          features: {
+            aiBookingEnabled: false,
+          },
+        },
+      });
+
+      expect(result.handled).toBe(true);
+
+      const alert =
+        AlertService.createSystemAlert
+          .mock.calls[0][0];
+
+      expect(alert.dedupeKey).toContain(
+        ":unknown:",
+      );
+
+      expect(
+        alert.metadata.leadId,
+      ).toBe("");
+
+      expect(
+        alert.metadata.conversationId,
+      ).toBe("");
+    },
+  );
+});
+
+
+describe("CALLBACKIQ_FINAL_FULL_SUITE_BRANCH_TOP_OFF", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.useFakeTimers();
+
+    jest.setSystemTime(
+      new Date("2026-07-27T12:00:00.000Z"),
+    );
+
+    searchServicesTool.mockResolvedValue([
+      {
+        id: "s1",
+        name: "HVAC diagnostic",
+      },
+    ]);
+
+    validateServiceAreaTool.mockResolvedValue({
+      supported: true,
+    });
+
+    getAvailabilityTool.mockResolvedValue({
+      slots: [
+        SLOT_3,
+        SLOT_1,
+        SLOT_2,
+      ],
+    });
+
+    AlertService.createSystemAlert
+      .mockResolvedValue({});
+
+    createAppointmentTool.mockResolvedValue({
+      _id: "held-final",
+      status: "held",
+      requiresBusinessApproval: true,
+      startAt: SLOT_1.startAt,
+      endAt: SLOT_1.endAt,
+      timezone: "America/New_York",
+      heldExpiresAt:
+        "2026-07-27T12:30:00.000Z",
+    });
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  test(
+    "continues safely when a conversation has no booking state yet",
+    async () => {
+      const conversation = makeConversation({
+        bookingState: undefined,
+      });
+
+      conversation.bookingState = undefined;
+
+      const lead = makeLead({
+        serviceNeeded: "HVAC diagnostic",
+        urgency: "medium",
+      });
+
+      const result = await handle({
+        conversation,
+        lead,
+        message: "hello",
+      });
+
+      expect(result).toBeTruthy();
+
+      expect(
+        AlertService.createSystemAlert,
+      ).not.toHaveBeenCalled();
+    },
+  );
+
+  test(
+    "offers earliest chronological slots for emergency availability",
+    async () => {
+      const conversation = makeConversation({
+        bookingState: {
+          status: "not_started",
+        },
+      });
+
+      const lead = makeLead({
+        serviceNeeded: "HVAC diagnostic",
+        urgency: "emergency",
+      });
+
+      const result = await handle({
+        conversation,
+        lead,
+        message:
+          "what availability do you have tomorrow?",
+        customBusiness: {
+          ...business,
+          timezone: undefined,
+          features: {
+            aiBookingEnabled: false,
+          },
+        },
+      });
+
+      expect(result.handled).toBe(true);
+
+      expect(
+        getAvailabilityTool,
+      ).toHaveBeenCalled();
+
+      expect(
+        conversation.bookingState.status,
+      ).toBe("offering_slots");
+
+      expect(
+        conversation.bookingState.offeredSlots.length,
+      ).toBeGreaterThan(0);
+
+      const starts =
+        conversation.bookingState.offeredSlots.map(
+          slot =>
+            new Date(slot.startAt).getTime(),
+        );
+
+      expect(starts).toEqual(
+        [...starts].sort((a, b) => a - b),
+      );
+    },
+  );
+
+  test(
+    "uses emergency priority and safe metadata fallbacks for a reschedule approval request",
+    async () => {
+      const conversation = makeConversation({
+        bookingState: {
+          status:
+            "awaiting_confirmation",
+          serviceOffering: "s1",
+          postalCode: "30318",
+          selectedSlot: SLOT_2,
+          appointment:
+            "existing-appointment",
+          lastError:
+            "reschedule_requested",
+        },
+      });
+
+      const lead = makeLead({
+        serviceNeeded: "HVAC diagnostic",
+        address: "125 Main Street",
+        urgency: "emergency",
+      });
+
+      lead._id = null;
+
+      const result = await handle({
+        conversation,
+        lead,
+        message: "yes",
+        customBusiness: {
+          ...business,
+          timezone: undefined,
+        },
+      });
+
+      expect(result.handled).toBe(true);
+
+      expect(
+        AlertService.createSystemAlert,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title:
+            "Appointment reschedule approval required",
+          priority: "high",
+          metadata:
+            expect.objectContaining({
+              leadId: "",
+              appointmentId:
+                "existing-appointment",
+            }),
+        }),
+      );
+
+      expect(
+        createAppointmentTool,
+      ).not.toHaveBeenCalled();
+
+      expect(result.result.reply).toMatch(
+        /existing appointment remains confirmed/i,
+      );
+    },
+  );
+});
+
+
+describe("CALLBACKIQ_LAST_BOOKING_BRANCH", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+
+    AlertService.createSystemAlert
+      .mockResolvedValue({});
+
+    createAppointmentTool.mockResolvedValue({
+      _id: "held-last-branch",
+      status: "held",
+      requiresBusinessApproval: true,
+      startAt: SLOT_2.startAt,
+      endAt: SLOT_2.endAt,
+      timezone: "America/New_York",
+    });
+  });
+
+  test(
+    "uses medium reschedule priority when the lead has no urgency value",
+    async () => {
+      const conversation = makeConversation({
+        bookingState: {
+          status:
+            "awaiting_confirmation",
+          serviceOffering: "s1",
+          postalCode: "30318",
+          selectedSlot: SLOT_2,
+          appointment:
+            "existing-appointment",
+          lastError:
+            "reschedule_requested",
+        },
+      });
+
+      const lead = makeLead({
+        serviceNeeded: "HVAC diagnostic",
+        address: "125 Main Street",
+      });
+
+      delete lead.urgency;
+
+      const result = await handle({
+        conversation,
+        lead,
+        message: "yes",
+      });
+
+      expect(result.handled).toBe(true);
+
+      expect(
+        AlertService.createSystemAlert,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title:
+            "Appointment reschedule approval required",
+          priority: "medium",
+          metadata: expect.objectContaining({
+            appointmentId:
+              "existing-appointment",
+          }),
+        }),
+      );
+
+      expect(
+        createAppointmentTool,
+      ).not.toHaveBeenCalled();
+
+      expect(result.result.reply).toMatch(
+        /existing appointment remains confirmed/i,
+      );
+    },
+  );
+});

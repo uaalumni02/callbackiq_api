@@ -14,6 +14,7 @@ import InterventionService from "../intervention.service.js";
 import SocketService from "../socket.service.js";
 import AvailabilityService from "./availability.service.js";
 import {
+  getAiBookableService,
   getBookableService,
   getSlotCapacity,
 } from "./appointmentPolicy.service.js";
@@ -357,6 +358,68 @@ const populateAppointment = (query) =>
     .populate("rescheduledFrom", "startAt endAt status")
     .populate("rescheduledTo", "startAt endAt status");
 
+const ensureCancellationSideEffects = async ({
+  business,
+  appointment,
+  reason = "",
+}) => {
+  await runNonBlockingAppointmentSideEffect({
+    appointment,
+    businessId: business._id,
+    label: "cancellation conversion event",
+    task: () =>
+      ConversionEventService.record({
+        businessId: business._id,
+        leadId: appointment.lead,
+        conversationId: appointment.conversation,
+        appointmentId: appointment._id,
+        type: "appointment_canceled",
+        channel: appointment.source,
+        estimatedValue: appointment.estimatedValue,
+        idempotencyKey: `appointment_canceled:${appointment._id}`,
+        metadata: { reason },
+      }),
+  });
+
+  await runNonBlockingAppointmentSideEffect({
+    appointment,
+    businessId: business._id,
+    label: "cancellation intervention",
+    task: () =>
+      InterventionService.create({
+        businessId: business._id,
+        leadId: appointment.lead,
+        conversationId: appointment.conversation,
+        appointmentId: appointment._id,
+        type: "appointment_canceled",
+        title: "Appointment canceled",
+        message:
+          "A confirmed appointment was canceled and may need recovery follow-up.",
+        priority: "medium",
+        recommendedAction: "Offer the customer a new appointment time.",
+        dedupeKey: `appointment_canceled:${appointment._id}`,
+      }),
+  });
+
+  if (appointment.conversation) {
+    await runNonBlockingAppointmentSideEffect({
+      appointment,
+      businessId: business._id,
+      label: "canceled appointment recovery automation",
+      task: () =>
+        AutomationTriggerService.schedule({
+          businessId: business._id,
+          trigger: "canceled_appointment_recovery",
+          leadId: appointment.lead,
+          conversationId: appointment.conversation,
+          appointmentId: appointment._id,
+          triggerInstanceId: String(appointment._id),
+          occurredAt: appointment.canceledAt,
+        }),
+    });
+  }
+};
+
 class AppointmentService {
   static async releaseExpiredHolds(businessId = null) {
     const query = {
@@ -390,9 +453,31 @@ class AppointmentService {
       business: business._id,
       idempotencyKey: key,
     });
-    if (existing) return existing;
+    if (existing) {
+      if (existing.status === "confirmed") return existing;
 
-    const service = await getBookableService({
+      if (existing.status === "held") {
+        if (existing.requiresBusinessApproval === true || !confirm) {
+          return existing;
+        }
+        return this.confirm({
+          business,
+          appointmentId: existing._id,
+        });
+      }
+
+      const error = new Error(
+        `The prior appointment operation already finished in state "${existing.status}". Re-check availability before trying again.`,
+      );
+      error.statusCode = 409;
+      error.code = "APPOINTMENT_IDEMPOTENCY_REPLAY_FINAL_STATE";
+      error.existingStatus = existing.status;
+      throw error;
+    }
+
+    const serviceResolver =
+      input.bookedBy === "ai" ? getAiBookableService : getBookableService;
+    const service = await serviceResolver({
       businessId: business._id,
       serviceOfferingId: input.serviceOfferingId || input.serviceOffering,
     });
@@ -731,7 +816,29 @@ class AppointmentService {
       business._id,
       appointmentId,
     );
-    if (appointment.status === "canceled") return appointment;
+
+    // A retry after the durable local transition replays idempotent side
+    // effects instead of silently skipping anything that previously failed.
+    if (appointment.status === "canceled") {
+      await runNonBlockingAppointmentSideEffect({
+        appointment,
+        businessId: business._id,
+        label: "cancellation reminder cleanup",
+        task: () =>
+          cancelAppointmentNotifications({
+            businessId: business._id,
+            appointmentId: appointment._id,
+            reason: "Appointment canceled.",
+          }),
+      });
+      await ensureCancellationSideEffects({
+        business,
+        appointment,
+        reason,
+      });
+      return appointment;
+    }
+
     assertTransition(appointment.status, "canceled");
     const provider = SchedulingProviderFactory.getProvider(
       business,
@@ -739,6 +846,8 @@ class AppointmentService {
     );
 
     try {
+      // Provider cancellation is required to be idempotent. Google Calendar
+      // already treats a missing (404) event as canceled.
       await provider.cancelAppointment({ appointment, reason });
     } catch (error) {
       await InterventionService.integrationFailure({
@@ -753,7 +862,7 @@ class AppointmentService {
     }
 
     appointment.status = "canceled";
-    appointment.canceledAt = new Date();
+    appointment.canceledAt = appointment.canceledAt || new Date();
     appointment.activeSlotKey = null;
     appointment.slotClaimKeys = [];
     appointment.capacityLane = null;
@@ -763,7 +872,12 @@ class AppointmentService {
     ]
       .filter(Boolean)
       .join("\n");
+
+    // If this save fails after the provider delete, the appointment remains
+    // locally confirmed. Retrying the endpoint is safe because provider
+    // cancellation is idempotent and will reach this save again.
     await appointment.save();
+
     await runNonBlockingAppointmentSideEffect({
       appointment,
       businessId: business._id,
@@ -775,64 +889,113 @@ class AppointmentService {
           reason: "Appointment canceled.",
         }),
     });
-    await ConversionEventService.record({
-      businessId: business._id,
-      leadId: appointment.lead,
-      conversationId: appointment.conversation,
-      appointmentId: appointment._id,
-      type: "appointment_canceled",
-      channel: appointment.source,
-      estimatedValue: appointment.estimatedValue,
-      idempotencyKey: `appointment_canceled:${appointment._id}`,
-      metadata: { reason },
+
+    await ensureCancellationSideEffects({
+      business,
+      appointment,
+      reason,
     });
-    await InterventionService.create({
-      businessId: business._id,
-      leadId: appointment.lead,
-      conversationId: appointment.conversation,
-      appointmentId: appointment._id,
-      type: "appointment_canceled",
-      title: "Appointment canceled",
-      message:
-        "A confirmed appointment was canceled and may need recovery follow-up.",
-      priority: "medium",
-      recommendedAction: "Offer the customer a new appointment time.",
-      dedupeKey: `appointment_canceled:${appointment._id}`,
-    });
-    if (appointment.conversation) {
-      await AutomationTriggerService.schedule({
-        businessId: business._id,
-        trigger: "canceled_appointment_recovery",
-        leadId: appointment.lead,
-        conversationId: appointment.conversation,
-        appointmentId: appointment._id,
-        triggerInstanceId: String(appointment._id),
-        occurredAt: appointment.canceledAt,
-      });
-    }
+
     SocketService.emitToBusiness(
       business._id,
       "appointment:canceled",
       appointment,
     );
+    SocketService.emitDashboardRefresh(
+      business._id,
+      "appointment_canceled",
+    );
     return appointment;
   }
 
-  static async reschedule({ business, appointmentId, input, idempotencyKey }) {
+  static async reschedule({
+    business,
+    appointmentId,
+    input,
+    idempotencyKey,
+  }) {
     const original = await getAppointmentForBusiness(
       business._id,
       appointmentId,
     );
-    assertTransition(original.status, "rescheduled");
-    const service = await getBookableService({
-      businessId: business._id,
-      serviceOfferingId: original.serviceOffering,
-    });
     const key = String(
       idempotencyKey ||
         input.idempotencyKey ||
         `reschedule:${original._id}:${crypto.randomUUID()}`,
-    );
+    ).trim();
+
+    let replacement = await Appointment.findOne({
+      business: business._id,
+      idempotencyKey: key,
+    });
+
+    if (
+      replacement &&
+      replacement.rescheduledFrom &&
+      String(replacement.rescheduledFrom) !== String(original._id)
+    ) {
+      const error = new Error(
+        "The idempotency key belongs to a different reschedule operation.",
+      );
+      error.statusCode = 409;
+      error.code = "RESCHEDULE_IDEMPOTENCY_CONFLICT";
+      throw error;
+    }
+
+    if (replacement && !replacement.rescheduledFrom && replacement.status === "held") {
+      replacement.rescheduledFrom = original._id;
+      await replacement.save();
+    }
+
+    const reconcileOriginal = async () => {
+      if (original.status === "rescheduled") return;
+      assertTransition(original.status, "rescheduled");
+      original.status = "rescheduled";
+      original.rescheduledTo = replacement._id;
+      original.activeSlotKey = null;
+      original.slotClaimKeys = [];
+      original.capacityLane = null;
+      original.externalAppointmentId = null;
+      original.externalCalendarId = null;
+      await original.save();
+    };
+
+    if (replacement?.status === "confirmed") {
+      await reconcileOriginal();
+      return replacement;
+    }
+
+    if (replacement && replacement.status !== "held") {
+      const error = new Error(
+        `The prior reschedule operation cannot be replayed from state "${replacement.status}".`,
+      );
+      error.statusCode = 409;
+      error.code = "RESCHEDULE_IDEMPOTENCY_FINAL_STATE";
+      throw error;
+    }
+
+    if (original.status === "rescheduled") {
+      if (original.rescheduledTo) {
+        const existingReplacement = await Appointment.findOne({
+          _id: original.rescheduledTo,
+          business: business._id,
+        });
+        if (existingReplacement) return existingReplacement;
+      }
+      const error = new Error(
+        "The appointment was already rescheduled but its replacement could not be resolved.",
+      );
+      error.statusCode = 409;
+      error.code = "RESCHEDULE_REPLACEMENT_NOT_FOUND";
+      throw error;
+    }
+
+    assertTransition(original.status, "rescheduled");
+
+    const service = await getBookableService({
+      businessId: business._id,
+      serviceOfferingId: original.serviceOffering,
+    });
     const nextInput = {
       ...input,
       serviceOfferingId: service._id,
@@ -848,39 +1011,50 @@ class AppointmentService {
       estimatedValue: original.estimatedValue,
       notes: input.notes || original.notes,
     };
-    const available = await exactSlotAvailable({
-      business,
-      serviceOfferingId: service._id,
-      startAt: nextInput.startAt,
-      endAt:
-        nextInput.endAt ||
-        addMinutes(nextInput.startAt, service.durationMinutes),
-      postalCode: nextInput.address?.postalCode,
-      excludeAppointmentId: original._id,
-    });
 
-    if (!available) {
-      const error = new Error("The requested replacement time is unavailable.");
-      error.statusCode = 409;
-      error.code = "SLOT_UNAVAILABLE";
-      throw error;
+    if (!replacement) {
+      const available = await exactSlotAvailable({
+        business,
+        serviceOfferingId: service._id,
+        startAt: nextInput.startAt,
+        endAt:
+          nextInput.endAt ||
+          addMinutes(nextInput.startAt, service.durationMinutes),
+        postalCode: nextInput.address?.postalCode,
+        excludeAppointmentId: original._id,
+      });
+
+      if (!available) {
+        const error = new Error(
+          "The requested replacement time is unavailable.",
+        );
+        error.statusCode = 409;
+        error.code = "SLOT_UNAVAILABLE";
+        throw error;
+      }
+
+      replacement = await createHold({
+        business,
+        service,
+        input: nextInput,
+        idempotencyKey: key,
+        excludeAppointmentId: original._id,
+      });
+      replacement.rescheduledFrom = original._id;
+      await replacement.save();
     }
 
-    const replacement = await createHold({
-      business,
-      service,
-      input: nextInput,
-      idempotencyKey: key,
-      excludeAppointmentId: original._id,
-    });
-    replacement.rescheduledFrom = original._id;
-    await replacement.save();
+    const originalProviderName = original.provider || "internal";
     const provider = SchedulingProviderFactory.getProvider(
       business,
-      original.provider || "internal",
+      originalProviderName,
     );
+    let providerApplied = false;
 
     try {
+      // Provider PATCH is deliberately safe to replay with the same target
+      // time. This closes the "provider succeeded / HTTP response was lost"
+      // and "provider succeeded / Mongo write transiently failed" windows.
       const providerResult = await provider.updateAppointment({
         appointment: original,
         eventAppointment: replacement,
@@ -890,77 +1064,130 @@ class AppointmentService {
         },
         service,
       });
-      original.status = "rescheduled";
-      original.rescheduledTo = replacement._id;
-      original.activeSlotKey = null;
-      original.slotClaimKeys = [];
-      original.capacityLane = null;
-      original.externalAppointmentId = null;
-      original.externalCalendarId = null;
-      await original.save();
+      providerApplied = true;
 
+      // Persist the replacement FIRST. This preserves the provider event ID
+      // before the original record relinquishes its provider linkage.
       replacement.status = "confirmed";
-      replacement.confirmedAt = new Date();
+      replacement.confirmedAt = replacement.confirmedAt || new Date();
       replacement.heldExpiresAt = null;
       replacement.provider =
-        providerResult.provider || original.provider || "internal";
+        providerResult.provider || originalProviderName || "internal";
       replacement.externalAppointmentId =
-        providerResult.externalAppointmentId || null;
+        providerResult.externalAppointmentId ||
+        replacement.externalAppointmentId ||
+        original.externalAppointmentId ||
+        null;
       replacement.externalCalendarId =
-        providerResult.externalCalendarId || null;
+        providerResult.externalCalendarId ||
+        replacement.externalCalendarId ||
+        original.externalCalendarId ||
+        null;
+      replacement.failureReason = "";
       await replacement.save();
-      await runNonBlockingAppointmentSideEffect({
-        appointment: original,
-        businessId: business._id,
-        label: "reschedule reminder cleanup",
-        task: () =>
-          cancelAppointmentNotifications({
-            businessId: business._id,
-            appointmentId: original._id,
-            reason: "Appointment rescheduled.",
-          }),
-      });
-      await runNonBlockingAppointmentSideEffect({
-        appointment: replacement,
-        businessId: business._id,
-        label: "rescheduled appointment reminder scheduling",
-        task: () => scheduleAppointmentReminders({ appointment: replacement }),
-      });
 
-      if (replacement.lead) {
-        await Lead.updateOne(
-          { _id: replacement.lead, business: business._id },
-          {
-            $set: {
-              appointment: replacement._id,
-              bookedAt: replacement.confirmedAt,
-            },
-          },
-        );
-      }
-      SocketService.emitToBusiness(
-        business._id,
-        "appointment:rescheduled",
-        { original, replacement },
-      );
-      return replacement;
+      await reconcileOriginal();
     } catch (error) {
-      replacement.status = "failed";
-      replacement.activeSlotKey = null;
-      replacement.slotClaimKeys = [];
-      replacement.capacityLane = null;
-      replacement.failureReason = error.message;
-      await replacement.save();
+      // A provider PATCH can time out after the provider accepted it. Treat
+      // *every* failed/uncertain reschedule attempt conservatively: retain the
+      // replacement slot claim and allow only a same-key replay. A definitive
+      // provider rejection will simply leave the short-lived hold in place
+      // until retry/expiry; an uncertain provider outcome cannot create a
+      // second booking because the slot remains claimed.
+      replacement.failureReason = providerApplied
+        ? `Provider update applied; local reconciliation required: ${error.message}`
+        : `Provider update failed or outcome is uncertain; same-key retry required: ${error.message}`;
+      await replacement.save().catch(() => {});
+
+      await InterventionService.create({
+        businessId: business._id,
+        leadId: replacement.lead,
+        conversationId: replacement.conversation,
+        appointmentId: replacement._id,
+        type: "integration_failure",
+        title: "Appointment reschedule requires reconciliation",
+        message: providerApplied
+          ? "The calendar provider accepted the new appointment time, but CallBackIQ could not finish all local reschedule writes."
+          : "CallBackIQ could not conclusively determine the calendar provider outcome. The replacement slot remains held to prevent a conflicting booking.",
+        priority: "high",
+        reason: error.message,
+        recommendedAction:
+          "Retry the exact same reschedule operation before making another calendar change.",
+        metadata: {
+          provider: originalProviderName,
+          providerApplied,
+          originalAppointmentId: String(original._id),
+          replacementAppointmentId: String(replacement._id),
+          idempotencyKey: key,
+        },
+        dedupeKey: `reschedule_reconciliation:${original._id}:${key}`,
+      }).catch(() => {});
+
+      error.statusCode = error.statusCode || 503;
+      error.code = providerApplied
+        ? "RESCHEDULE_RECONCILIATION_REQUIRED"
+        : "RESCHEDULE_PROVIDER_OUTCOME_UNCERTAIN";
+      error.safeCustomerMessage =
+        "I couldn't safely finalize that calendar change. The requested replacement time is being protected while CallBackIQ reconciles the provider outcome.";
+
       await InterventionService.integrationFailure({
         businessId: business._id,
         leadId: replacement.lead,
         conversationId: replacement.conversation,
         appointmentId: replacement._id,
-        provider: original.provider || "internal",
+        provider: originalProviderName,
         error,
-      });
+      }).catch(() => {});
       throw error;
     }
+
+    await runNonBlockingAppointmentSideEffect({
+      appointment: original,
+      businessId: business._id,
+      label: "reschedule reminder cleanup",
+      task: () =>
+        cancelAppointmentNotifications({
+          businessId: business._id,
+          appointmentId: original._id,
+          reason: "Appointment rescheduled.",
+        }),
+    });
+
+    await runNonBlockingAppointmentSideEffect({
+      appointment: replacement,
+      businessId: business._id,
+      label: "rescheduled appointment reminder scheduling",
+      task: () => scheduleAppointmentReminders({ appointment: replacement }),
+    });
+
+    if (replacement.lead) {
+      await runNonBlockingAppointmentSideEffect({
+        appointment: replacement,
+        businessId: business._id,
+        label: "rescheduled lead linkage",
+        task: () =>
+          Lead.updateOne(
+            { _id: replacement.lead, business: business._id },
+            {
+              $set: {
+                appointment: replacement._id,
+                bookedAt: replacement.confirmedAt,
+              },
+            },
+          ),
+      });
+    }
+
+    SocketService.emitToBusiness(
+      business._id,
+      "appointment:rescheduled",
+      { original, replacement },
+    );
+    SocketService.emitDashboardRefresh(
+      business._id,
+      "appointment_rescheduled",
+    );
+    return replacement;
   }
 
   static async update({ businessId, appointmentId, changes }) {

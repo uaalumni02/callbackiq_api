@@ -497,7 +497,9 @@ describe("AppointmentService", () => {
 
   test("rejects unavailable replacement slots", async () => {
     const original = appointmentDoc({ status: "confirmed" });
-    Appointment.findOne.mockResolvedValue(original);
+    Appointment.findOne
+      .mockResolvedValueOnce(original)
+      .mockResolvedValueOnce(null);
     AvailabilityService.getAvailability.mockResolvedValue({ slots: [] });
     await expect(
       AppointmentService.reschedule({
@@ -518,7 +520,9 @@ describe("AppointmentService", () => {
       externalAppointmentId: null,
       externalCalendarId: null,
     });
-    Appointment.findOne.mockResolvedValue(original);
+    Appointment.findOne
+      .mockResolvedValueOnce(original)
+      .mockResolvedValueOnce(null);
     AvailabilityService.getAvailability.mockResolvedValue({
       slots: [{ startAt: "2026-07-28T17:00:00Z", endAt: "2026-07-28T18:30:00Z" }],
     });
@@ -550,7 +554,9 @@ describe("AppointmentService", () => {
   test("uses original defaults, a generated key, and skips lead update", async () => {
     const original = appointmentDoc({ status: "confirmed", lead: null, provider: "" });
     const replacement = appointmentDoc({ _id: "a2", lead: null, status: "held" });
-    Appointment.findOne.mockResolvedValue(original);
+    Appointment.findOne
+      .mockResolvedValueOnce(original)
+      .mockResolvedValueOnce(null);
     AvailabilityService.getAvailability.mockResolvedValue({ slots: matchingSlots });
     Appointment.create.mockResolvedValue(replacement);
     provider.updateAppointment.mockResolvedValue({});
@@ -567,7 +573,9 @@ describe("AppointmentService", () => {
   test("marks replacement failed when provider update fails", async () => {
     const original = appointmentDoc({ status: "confirmed" });
     const replacement = appointmentDoc({ _id: "a2", status: "held" });
-    Appointment.findOne.mockResolvedValue(original);
+    Appointment.findOne
+      .mockResolvedValueOnce(original)
+      .mockResolvedValueOnce(null);
     AvailabilityService.getAvailability.mockResolvedValue({ slots: matchingSlots });
     Appointment.create.mockResolvedValue(replacement);
     const error = new Error("update failed");
@@ -579,7 +587,13 @@ describe("AppointmentService", () => {
         input: { startAt: matchingSlots[0].startAt, endAt: matchingSlots[0].endAt },
       }),
     ).rejects.toBe(error);
-    expect(replacement).toMatchObject({ status: "failed", activeSlotKey: null, failureReason: "update failed" });
+    expect(replacement).toMatchObject({
+      status: "held",
+      activeSlotKey: "slot",
+      failureReason: expect.stringContaining(
+        "Provider update failed or outcome is uncertain; same-key retry required",
+      ),
+    });
     expect(InterventionService.integrationFailure).toHaveBeenCalledWith(expect.objectContaining({ appointmentId: "a2", error }));
   });
 

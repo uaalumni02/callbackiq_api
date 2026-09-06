@@ -19,6 +19,14 @@ jest.mock("../../src/services/scheduling/appointmentPolicy.service.js", () => ({
   }),
 }));
 
+const appointmentPolicyMockForCreateAppointmentRelease =
+  jest.requireMock(
+    "../../src/services/scheduling/appointmentPolicy.service.js",
+  );
+
+appointmentPolicyMockForCreateAppointmentRelease.getAiBookableService =
+  appointmentPolicyMockForCreateAppointmentRelease.getBookableService;
+
 describe("createAppointmentTool source attribution", () => {
   beforeEach(() => jest.clearAllMocks());
 

@@ -126,7 +126,7 @@ const socketAuth = async (socket, next) => {
      * full Mongoose document for every new Socket.IO connection.
      */
     const user = await User.findById(userId)
-      .select("_id userName email role businessName")
+      .select("_id userName email role businessName +sessionVersion")
       .lean();
 
     if (!user) {
@@ -134,6 +134,22 @@ const socketAuth = async (socket, next) => {
         createSocketError(
           "The authenticated user no longer exists.",
           "SOCKET_USER_NOT_FOUND",
+        ),
+      );
+    }
+
+    const tokenSessionVersion = Number(decoded?.sessionVersion ?? 0);
+    const currentSessionVersion = Number(user.sessionVersion ?? 0);
+
+    if (
+      !Number.isInteger(tokenSessionVersion) ||
+      tokenSessionVersion < 0 ||
+      tokenSessionVersion !== currentSessionVersion
+    ) {
+      return next(
+        createSocketError(
+          "The authentication session has been revoked.",
+          "SOCKET_SESSION_REVOKED",
         ),
       );
     }

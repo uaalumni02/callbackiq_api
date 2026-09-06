@@ -22,6 +22,13 @@ jest.mock("../../src/services/scheduling/appointmentPolicy.service.js", () => ({
   getBookableService: jest.fn(),
 }));
 
+const appointmentPolicyMockForReleaseAiBooking = jest.requireMock(
+  "../../src/services/scheduling/appointmentPolicy.service.js",
+);
+
+appointmentPolicyMockForReleaseAiBooking.getAiBookableService =
+  appointmentPolicyMockForReleaseAiBooking.getBookableService;
+
 describe("AI appointment business-approval invariant", () => {
   beforeEach(() => {
     jest.clearAllMocks();

@@ -33,7 +33,7 @@ describe("SMS recovery voice prompt", () => {
     });
 
     expect(prompt).toContain("unable to send the text");
-    expect(prompt).toContain("team has been notified");
+    expect(prompt).toContain("staff response timing is not guaranteed");
     expect(prompt).not.toContain("on its way");
   });
 
@@ -45,7 +45,7 @@ describe("SMS recovery voice prompt", () => {
     });
 
     expect(prompt).toContain("Thank you for calling Atlanta Pro Plumbing");
-    expect(prompt).toContain("team has been notified");
+    expect(prompt).toContain("staff response timing is not guaranteed");
     expect(prompt).not.toContain("text message is on its way");
   });
 

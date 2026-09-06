@@ -22,7 +22,7 @@ const inertProviderEnvironment = () => ({
   TWILIO_MESSAGING_SERVICE_SID: "MG00000000000000000000000000000000",
   STRIPE_SECRET_KEY: "sk_test_callbackiq_certification_only",
   STRIPE_WEBHOOK_SECRET: "whsec_callbackiq_certification_only",
-  OPENAI_API_KEY: "sk-test-callbackiq-certification-only",
+  OPENAI_API_KEY: "inert-openai-test-certification-only",
   GOOGLE_CLIENT_ID: "callbackiq-certification.apps.googleusercontent.com",
   GOOGLE_CLIENT_SECRET: "callbackiq-certification-secret",
 });

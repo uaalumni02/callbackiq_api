@@ -51,6 +51,14 @@ jest.mock("../../src/services/alert.service.js", () => ({
 
 const leanResult = (value) => ({ lean: jest.fn().mockResolvedValue(value) });
 
+const appointmentPolicyMockForAiBookingToolsRelease =
+  jest.requireMock(
+    "../../src/services/scheduling/appointmentPolicy.service.js",
+  );
+
+appointmentPolicyMockForAiBookingToolsRelease.getAiBookableService =
+  appointmentPolicyMockForAiBookingToolsRelease.getBookableService;
+
 describe("AI booking tools", () => {
   beforeEach(() => {
     jest.clearAllMocks();

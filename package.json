@@ -83,7 +83,7 @@
     "perf:webhook": "node perf/webhook-burst.mjs",
     "perf:socket": "node perf/socket-fanout.mjs",
     "test:ci": "npm run test:ci:core && npm run test:replica-set && npm run test:production-certification && npm run test:voice-concurrency",
-    "verify:diff-coverage": "node scripts/verify-diff-coverage.mjs",
+    "verify:diff-coverage": "node scripts/run-deterministic-diff-coverage.mjs",
     "coverage:risk-report": "node scripts/report-coverage-risk.mjs",
     "coverage:ratchet:rebaseline": "node scripts/verify-coverage-ratchet.mjs --rebaseline",
     "cleanup:tracked-artifacts": "node scripts/cleanup-tracked-artifacts.mjs",
@@ -123,7 +123,9 @@
     "verify:sms-conversation-hardening": "node scripts/verify-sms-conversation-hardening.mjs",
     "test:sms-conversation-hardening": "jest --runInBand --no-cache tests/unit/smsIntentClassifier.production.test.js tests/unit/smsConversationState.production.test.js tests/unit/smsTurnAggregation.production.test.js tests/unit/smsConversationLease.production.test.js tests/unit/smsLifecycleSchema.production.test.js tests/unit/smsConversationFuzz.production.test.js tests/unit/smsGoldenCorpus.production.test.js tests/unit/smsTurnPolicy.marketReadiness.test.js tests/integration/aiBookingConversationMatrix.completion.test.js tests/integration/smsRecovery.fullFlow.test.js tests/unit/smsProcessing.worker.hardening.test.js",
     "test:sms-10of10": "jest tests/integration/sms10of10.adversarial.mongo.test.js --runInBand --no-cache",
-    "test:scheduling-production-hardening": "jest --runInBand --no-cache tests/unit/customerSchedulingIntent.production.test.js tests/unit/availabilityLeadTime.production.test.js tests/unit/aiBookingApproval.production.test.js tests/unit/bookingStateMachine.productionScheduling.test.js tests/unit/smsIntentClassifier.production.test.js tests/unit/smsTurnPolicy.marketReadiness.test.js tests/unit/voiceAgent.service.test.js tests/unit/voiceBookingStateMachineReuse.test.js"
+    "test:scheduling-production-hardening": "jest --runInBand --no-cache tests/unit/customerSchedulingIntent.production.test.js tests/unit/availabilityLeadTime.production.test.js tests/unit/aiBookingApproval.production.test.js tests/unit/bookingStateMachine.productionScheduling.test.js tests/unit/smsIntentClassifier.production.test.js tests/unit/smsTurnPolicy.marketReadiness.test.js tests/unit/voiceAgent.service.test.js tests/unit/voiceBookingStateMachineReuse.test.js",
+    "test:release-hardening": "jest --runInBand --no-cache tests/unit/releaseCommitmentSafety.test.js tests/unit/aiBookingPermission.release.test.js tests/unit/sessionRevocation.release.test.js tests/unit/trustedRequestIp.release.test.js tests/unit/appointmentReplay.release.test.js tests/unit/rescheduleReconciliation.release.test.js",
+    "audit:runtime-security": "npm audit --omit=dev --audit-level=high"
   },
   "keywords": [],
   "author": "",

@@ -16,7 +16,15 @@ const warnings = [];
 normalizeRuntimeEnvironment();
 
 try {
-  validateEnvironment({ throwOnError: true });
+  const releaseEnvironment = {
+    ...process.env,
+    MONGODB_URI:
+      process.env.MONGODB_URI ||
+      process.env.MONGO_URL ||
+      process.env.MONGO_URI,
+  };
+
+  validateEnvironment(releaseEnvironment, { throwOnError: true });
 } catch (error) {
   failures.push(error?.message || String(error));
 }

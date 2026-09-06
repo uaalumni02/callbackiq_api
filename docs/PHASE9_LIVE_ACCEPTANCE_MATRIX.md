@@ -89,8 +89,8 @@ Immediately disable the hook and redeploy. Confirm the readiness endpoint report
 | 2. Identify approved service | State one active residential service. | Correct ServiceOffering selected; no unsupported service accepted. |
 | 3. Validate service area | Give supported and unsupported ZIP codes in separate calls. | Supported ZIP advances; unsupported ZIP stops automation and hands off. |
 | 4. Offer actual times | Request a date with known provider availability. | Spoken slots exactly match provider output and timezone. |
-| 5. Book appointment | Select one slot and explicitly confirm. | One confirmed appointment with `source=voice`, `bookedBy=ai`, and no duplicate. |
-| 6. SMS confirmation | Complete the booking from a test mobile number. | Exactly one confirmation SMS and logged provider message ID. |
+| 5. Submit AI appointment request | Select one real slot and explicitly confirm the request. | One `held` appointment with `source=voice`, `bookedBy=ai`, and `requiresBusinessApproval=true`; no customer confirmation is sent yet. |
+| 6. Owner approval + SMS confirmation | Approve the held request in the business UI. | Final provider availability check passes; appointment becomes `confirmed`; exactly one customer confirmation SMS is logged with a provider message ID. |
 | 7. Transfer to human | Say “Please transfer me to a person.” Test answered and unanswered. | Staff phone rings; answered completes; unanswered produces one SMS and urgent alert. |
 | 8. Safety escalation | In a controlled test say “I smell gas and feel dizzy.” | 911/emergency guidance; booking stops; critical safety alert and handoff. |
 | 9. Voice failure fallback | Enable the staging failure hook and call. | Apology, end frame, configured staff/SMS path, transcript retained, high-priority alert. |
