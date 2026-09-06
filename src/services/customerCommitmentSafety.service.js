@@ -16,6 +16,8 @@ const ENGLISH_PROMISE_PATTERNS = [
   /\bexpect\s+(?:a |the )?(?:call|callback|contact|response|follow[- ]?up)\b[^.!?]*(?:[.!?]|$)/gi,
   /\b(?:call|contact|follow up|reach out|get back to)\s+(?:you|the number|at the confirmed number)\s+(?:shortly|soon|as soon as possible)\b[^.!?]*(?:[.!?]|$)/gi,
   /\bI(?:'ve| have) asked [^.!?]{0,80}\b(?:to call|to contact|to follow up|to reach out)\b[^.!?]*(?:[.!?]|$)/gi,
+  /\b(?:the team|staff|we|they|[a-z0-9&' -]{2,80})\s+(?:will|'ll)\s+confirm\s+(?:availability|pricing|the cost|cost|the update|appointment details?)\b[^.!?]*(?:[.!?]|$)/gi,
+  /\b(?:availability|pricing|the cost|cost|the update|appointment details?)\s+(?:will be|is going to be)\s+confirmed\b[^.!?]*(?:[.!?]|$)/gi,
 ];
 
 const SPANISH_PROMISE_PATTERNS = [

@@ -108,7 +108,7 @@ export const isAvailabilityInquiryText = (value) => {
   return AVAILABILITY_PATTERNS.some((pattern) => pattern.test(text));
 };
 
-export const isExplicitHumanRequestText = (value) => {
+const isExplicitHumanRequestTextBase = (value) => {
   const text = clean(value);
   if (!text) return false;
   return EXPLICIT_HUMAN_PATTERNS.some((pattern) => pattern.test(text));
@@ -124,6 +124,49 @@ export const classifyOperationalUrgency = (value) => {
   if (HIGH_URGENCY.some((pattern) => pattern.test(text))) return "high";
   return "";
 };
+
+
+// CALLBACKIQ_EXPLICIT_HUMAN_ROUTING_FINAL
+//
+// Explicit requests for HUMAN OWNERSHIP must win even when the same
+// sentence also contains booking/scheduling language.
+//
+// Requests for a PERSON/TECHNICIAN TO PHYSICALLY ARRIVE remain scheduling,
+// not human-transfer intent.
+
+const EXPLICIT_HUMAN_ROLE_REQUEST =
+  /\b(?:i\s+)?(?:want|need|prefer|would\s+like|request|requesting)\s+(?:to\s+)?(?:(?:talk|speak)\s+(?:to|with)\s+)?(?:(?:a|an|the)\s+)?(?:human|person|representative|agent|operator|owner|manager|dispatcher|staff(?:\s+member)?)\b/i;
+
+const EXPLICIT_HUMAN_COMMUNICATION_REQUEST =
+  /\b(?:talk|speak)\s+(?:to|with)\s+(?:(?:a|an|the)\s+)?(?:human|person|representative|agent|operator|owner|manager|dispatcher|staff(?:\s+member)?|someone|somebody)\b|\b(?:transfer|connect|put)\s+me(?:\s+through)?(?:\s+to)?\s+(?:(?:a|an|the)\s+)?(?:human|person|representative|agent|operator|owner|manager|dispatcher|staff(?:\s+member)?)\b/i;
+
+const FIELD_SERVICE_ARRIVAL_REQUEST =
+  /\b(?:can|could|will|would)\s+(?:someone|somebody|(?:(?:a|the)\s+)?(?:person|human|tech|technician)|your\s+team)\s+(?:come|come\s+out|arrive|be\s+there|visit)\b|\b(?:want|need|would\s+like)\s+(?:(?:a|the)\s+)?(?:person|human|someone|somebody|tech|technician)\s+to\s+(?:come|come\s+out|arrive|be\s+there|visit)\b/i;
+
+export const isExplicitHumanRequestText = (value) => {
+  const text = String(value || "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!text) return false;
+
+  // "Can someone come tomorrow?" = service arrival, not takeover.
+  if (FIELD_SERVICE_ARRIVAL_REQUEST.test(text)) {
+    return false;
+  }
+
+  // "I want a person to book the appointment." = explicit human ownership.
+  if (EXPLICIT_HUMAN_ROLE_REQUEST.test(text)) {
+    return true;
+  }
+
+  if (EXPLICIT_HUMAN_COMMUNICATION_REQUEST.test(text)) {
+    return true;
+  }
+
+  return isExplicitHumanRequestTextBase(text);
+};
+
 
 export default {
   isAvailabilityInquiryText,

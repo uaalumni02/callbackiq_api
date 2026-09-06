@@ -10,6 +10,9 @@ describe("customer commitment safety parity", () => {
     "Someone will call you soon.",
     "Expect a callback shortly.",
     "I've asked Atlanta Pro Plumbing to call the number you're texting from.",
+    "Atlanta Pro Plumbing will confirm availability as soon as possible.",
+    "The team will confirm the update directly.",
+    "Pricing will be confirmed after assessment.",
   ])("detects unverified English staff promises: %s", (text) => {
     expect(hasUnverifiedStaffCommitment(text)).toBe(true);
   });
@@ -23,6 +26,17 @@ describe("customer commitment safety parity", () => {
     expect(result).toMatch(/saved your water-heater leak details/i);
     expect(result).toMatch(/can't guarantee when someone will be available/i);
     expect(result).toMatch(/what is the service address/i);
+    expect(hasUnverifiedStaffCommitment(result)).toBe(false);
+  });
+
+  test("removes future confirmation promises while preserving useful context", () => {
+    const result = sanitizeUnverifiedStaffCommitments(
+      "I saved Tuesday morning as your preference. The team will confirm availability as soon as possible.",
+      { channel: "sms" },
+    );
+
+    expect(result).toMatch(/saved Tuesday morning/i);
+    expect(result).toMatch(/can't guarantee when someone will be available/i);
     expect(hasUnverifiedStaffCommitment(result)).toBe(false);
   });
 

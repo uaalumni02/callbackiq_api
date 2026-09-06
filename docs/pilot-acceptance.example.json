@@ -1,0 +1,89 @@
+{
+  "releaseShaApi": "REPLACE_WITH_API_SHA",
+  "releaseShaFrontend": "REPLACE_WITH_FRONTEND_SHA",
+  "realInboundCall": {
+    "passed": false,
+    "observedAt": "",
+    "evidence": ""
+  },
+  "voiceAiOrMissedCallRouting": {
+    "passed": false,
+    "observedAt": "",
+    "evidence": ""
+  },
+  "smsDelivered": {
+    "passed": false,
+    "observedAt": "",
+    "evidence": ""
+  },
+  "qualificationPersisted": {
+    "passed": false,
+    "observedAt": "",
+    "evidence": ""
+  },
+  "urgentSafetyPath": {
+    "passed": false,
+    "observedAt": "",
+    "evidence": ""
+  },
+  "appointmentRequested": {
+    "passed": false,
+    "observedAt": "",
+    "evidence": ""
+  },
+  "appointmentApproved": {
+    "passed": false,
+    "observedAt": "",
+    "evidence": ""
+  },
+  "appointmentConfirmed": {
+    "passed": false,
+    "observedAt": "",
+    "evidence": ""
+  },
+  "calendarEventCreated": {
+    "passed": false,
+    "observedAt": "",
+    "evidence": ""
+  },
+  "cancelOrReschedule": {
+    "passed": false,
+    "observedAt": "",
+    "evidence": ""
+  },
+  "humanRequested": {
+    "passed": false,
+    "observedAt": "",
+    "evidence": ""
+  },
+  "staffTakeover": {
+    "passed": false,
+    "observedAt": "",
+    "evidence": ""
+  },
+  "stripeAccessState": {
+    "passed": false,
+    "observedAt": "",
+    "evidence": ""
+  },
+  "standaloneWorkerBoot": {
+    "passed": false,
+    "observedAt": "",
+    "evidence": ""
+  },
+  "apiReadiness": {
+    "passed": false,
+    "observedAt": "",
+    "evidence": ""
+  },
+  "operationalAlertObserved": {
+    "passed": false,
+    "observedAt": "",
+    "evidence": ""
+  },
+  "isolatedRestoreRehearsal": {
+    "passed": false,
+    "observedAt": "",
+    "evidence": ""
+  }
+}

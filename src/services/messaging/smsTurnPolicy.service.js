@@ -208,56 +208,44 @@ const buildPreferenceLabel = ({ text, range, timePreference }) => {
     .slice(0, 100);
 };
 
-const safePreferenceAcknowledgement = ({
+export const safePreferenceAcknowledgement = ({
   business,
   preferenceLabel,
   serviceNeeded = "",
 }) => {
   const service = clean(serviceNeeded);
   const servicePhrase = service ? ` for ${service}` : "";
-  return `I've noted ${preferenceLabel}${servicePhrase} as your preferred time. This is a request, not a confirmed appointment. ${getBusinessName(
-    business,
-  )} will confirm availability as soon as possible.`;
+  return `I've noted ${preferenceLabel}${servicePhrase} as your preferred time. This is a request, not a confirmed appointment. I can keep helping with the details while the request is reviewed.`;
 };
 
-const pricingAndSchedulingReply = ({
+export const pricingAndSchedulingReply = ({
   business,
   preferenceLabel,
   serviceNeeded = "",
 }) => {
   const service = clean(serviceNeeded);
   const servicePhrase = service ? ` for ${service}` : "";
-  return `Final pricing depends on the diagnosis, so ${getBusinessName(
-    business,
-  )} will confirm the cost. I've also noted ${preferenceLabel}${servicePhrase} as your preferred time. This is a request, not a confirmed appointment. The team will confirm availability directly.`;
+  return `Final pricing depends on the diagnosis and is not confirmed yet. I've also noted ${preferenceLabel}${servicePhrase} as your preferred time. This is a request, not a confirmed appointment. I can keep helping with the details and available options here.`;
 };
 
-const pricingReply = ({ lead, business }) => {
+export const pricingReply = ({ lead, business }) => {
   const service = clean(lead?.serviceNeeded);
 
   if (!service || service === "Unknown") {
-    return `The exact cost depends on the issue, so ${getBusinessName(
-      business,
-    )} will confirm pricing after assessing it. What service do you need help with?`;
+    return "The exact cost depends on the issue and is not confirmed yet. What service do you need help with?";
   }
 
   const urgency = clean(lead?.urgency).toLowerCase();
 
   if (!urgency || urgency === "medium") {
-    return `The exact cost depends on what is causing the issue, so ${getBusinessName(
-      business,
-    )} will confirm pricing after assessment. Is it causing an active leak, overflow, loss of service, or safety concern?`;
+    return "The exact cost depends on what is causing the issue and is not confirmed yet. Is it causing an active leak, overflow, loss of service, or safety concern?";
   }
 
   if (!clean(lead?.address)) {
-    return `The exact cost depends on the diagnosis, so ${getBusinessName(
-      business,
-    )} will confirm pricing before work begins. What is the service address?`;
+    return "The exact cost depends on the diagnosis and is not confirmed yet. What is the service address?";
   }
 
-  return `The exact cost depends on the diagnosis, so ${getBusinessName(
-    business,
-  )} will confirm pricing before work begins. I've kept the details you've already provided.`;
+  return "The exact cost depends on the diagnosis and is not confirmed yet. I've kept the details you've already provided.";
 };
 
 export const evaluateSmsTurnPolicy = ({
@@ -336,9 +324,9 @@ export const evaluateSmsTurnPolicy = ({
    */
   if (!autoBookingEnabled && intent.human) {
     directResult = fixedResult({
-      reply: `Absolutely. I've asked ${getBusinessName(
+      reply: `I've flagged your request for ${getBusinessName(
         business,
-      )} to call you at the number you're texting from. A team member will follow up as soon as possible.`,
+      )} and saved the number you're texting from. I can't guarantee when someone will be available. I can keep helping here until a person takes over.`,
       category: "human_requested",
       shouldAlertOwner: true,
       alertPriority: "high",
@@ -354,9 +342,9 @@ export const evaluateSmsTurnPolicy = ({
         : "check";
 
     directResult = fixedResult({
-      reply: `I've sent your request to ${getBusinessName(
+      reply: `I've saved your request for ${getBusinessName(
         business,
-      )} to ${action} the appointment details. The team will confirm the update directly.`,
+      )} to review and ${action} the appointment details. The update is not confirmed yet.`,
       category: intent.cancel
         ? "appointment_cancellation"
         : intent.reschedule

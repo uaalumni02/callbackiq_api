@@ -33,7 +33,7 @@ describe("SMS recovery voice prompt", () => {
     });
 
     expect(prompt).toContain("unable to send the text");
-    expect(prompt).toContain("staff response timing is not guaranteed");
+    expect(prompt).toContain("response timing is not guaranteed");
     expect(prompt).not.toContain("on its way");
   });
 
@@ -45,8 +45,53 @@ describe("SMS recovery voice prompt", () => {
     });
 
     expect(prompt).toContain("Thank you for calling Atlanta Pro Plumbing");
-    expect(prompt).toContain("staff response timing is not guaranteed");
+    expect(prompt).toContain("response timing is not guaranteed");
     expect(prompt).not.toContain("text message is on its way");
+  });
+
+  test.each([
+    ["sent", true],
+    ["suppressed", true],
+    ["failed", true],
+    ["disabled", false],
+  ])(
+    "never makes an unverified staff-response promise for %s recovery",
+    (smsStatus, smsEnabled) => {
+      const prompt = buildSmsRecoveryVoicePrompt({
+        businessName: "Atlanta Pro Plumbing",
+        smsEnabled,
+        smsStatus,
+      });
+
+      expect(prompt).toContain("response timing is not guaranteed");
+      expect(prompt).not.toMatch(
+        /will follow up|as soon as possible|will contact|will call/i,
+      );
+    },
+  );
+
+  test("covers missing optional metadata without creating a commitment", () => {
+    const prompt = buildSmsRecoveryVoicePrompt({
+      businessName: "",
+      smsEnabled: false,
+      smsStatus: null,
+    });
+
+    expect(prompt).toContain("Thank you for calling the business");
+    expect(prompt).toContain("response timing is not guaranteed");
+    expect(prompt).not.toMatch(
+      /will follow up|as soon as possible|will contact|will call/i,
+    );
+  });
+
+  test("covers default arguments safely", () => {
+    const prompt = buildSmsRecoveryVoicePrompt();
+
+    expect(prompt).toContain("Thank you for calling the business");
+    expect(prompt).toContain("response timing is not guaranteed");
+    expect(prompt).not.toMatch(
+      /will follow up|as soon as possible|will contact|will call/i,
+    );
   });
 
   test("escapes business names before inserting them into TwiML", () => {

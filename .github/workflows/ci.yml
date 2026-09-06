@@ -2,7 +2,9 @@ name: API CI
 
 on:
   push:
+    branches: [main, development]
   pull_request:
+    branches: [main, development]
 
 permissions:
   contents: read
@@ -12,19 +14,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: Test, coverage, build
+  release:
+    name: Release certification
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
 
     env:
       NODE_ENV: test
-      JWT_SECRET: ci-only-jwt-secret-not-for-production
+      MONGO_URL: mongodb://127.0.0.1:27017/callbackiq_ci
+      MONGODB_URI: mongodb://127.0.0.1:27017/callbackiq_ci
+      JWT_SECRET: ci-only-jwt-secret-not-for-production-1234567890
       STRIPE_SECRET_KEY: sk_test_ci_placeholder
       STRIPE_WEBHOOK_SECRET: whsec_ci_placeholder
       TWILIO_ACCOUNT_SID: AC00000000000000000000000000000000
       TWILIO_AUTH_TOKEN: ci-placeholder-token
-      TWILIO_WEBHOOK_BASE_URL: https://api.example.test
+      TWILIO_WEBHOOK_BASE_URL: https://ci-api.callbackiq.com
+      PUBLIC_API_URL: https://ci-api.callbackiq.com
       CLIENT_URL: http://localhost:3001
       A2P_EVENT_STREAM_USERNAME: ci-a2p-user
       A2P_EVENT_STREAM_PASSWORD: ci-a2p-pass
@@ -45,8 +50,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run core CI suite
-        run: npm run test:ci:core
+      - name: Run complete deterministic release certification
+        run: npm run release:certify:ci
 
       - name: Upload coverage artifact
         if: always()
@@ -64,12 +69,13 @@ jobs:
 
     env:
       NODE_ENV: test
-      JWT_SECRET: ci-only-jwt-secret-not-for-production
+      JWT_SECRET: ci-only-jwt-secret-not-for-production-1234567890
       STRIPE_SECRET_KEY: sk_test_ci_placeholder
       STRIPE_WEBHOOK_SECRET: whsec_ci_placeholder
       TWILIO_ACCOUNT_SID: AC00000000000000000000000000000000
       TWILIO_AUTH_TOKEN: ci-placeholder-token
-      TWILIO_WEBHOOK_BASE_URL: https://api.example.test
+      TWILIO_WEBHOOK_BASE_URL: https://ci-api.callbackiq.com
+      PUBLIC_API_URL: https://ci-api.callbackiq.com
       CLIENT_URL: http://localhost:3001
       A2P_EVENT_STREAM_USERNAME: ci-a2p-user
       A2P_EVENT_STREAM_PASSWORD: ci-a2p-pass

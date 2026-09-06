@@ -125,7 +125,9 @@
     "test:sms-10of10": "jest tests/integration/sms10of10.adversarial.mongo.test.js --runInBand --no-cache",
     "test:scheduling-production-hardening": "jest --runInBand --no-cache tests/unit/customerSchedulingIntent.production.test.js tests/unit/availabilityLeadTime.production.test.js tests/unit/aiBookingApproval.production.test.js tests/unit/bookingStateMachine.productionScheduling.test.js tests/unit/smsIntentClassifier.production.test.js tests/unit/smsTurnPolicy.marketReadiness.test.js tests/unit/voiceAgent.service.test.js tests/unit/voiceBookingStateMachineReuse.test.js",
     "test:release-hardening": "jest --runInBand --no-cache tests/unit/releaseCommitmentSafety.test.js tests/unit/aiBookingPermission.release.test.js tests/unit/sessionRevocation.release.test.js tests/unit/trustedRequestIp.release.test.js tests/unit/appointmentReplay.release.test.js tests/unit/rescheduleReconciliation.release.test.js",
-    "audit:runtime-security": "npm audit --omit=dev --audit-level=high"
+    "audit:runtime-security": "npm audit --omit=dev --audit-level=high",
+    "release:certify:ci": "npm run release:gate && npm run test:production-hardening-v1 && npm run test:ci && npm run build",
+    "verify:pilot-evidence": "node scripts/verify-pilot-acceptance-evidence.mjs"
   },
   "keywords": [],
   "author": "",

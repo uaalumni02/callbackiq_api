@@ -31,22 +31,23 @@ export const buildSmsRecoveryVoicePrompt = ({
   if (status === "sent") {
     message =
       `Thank you for calling ${name}. We're sorry we missed you. ` +
-      "A text message is on its way now. Please reply with the service you need, " +
-      "and the team will follow up.";
+      "A text message is on its way now. Please reply with the service you need. " +
+      "A team member may respond when available, but response timing is not guaranteed.";
   } else if (status === "suppressed") {
     message =
       `Thank you for calling ${name}. We're sorry we missed you. ` +
-      "We were unable to send a text to this number, but the team has been notified " +
-      "and will follow up as soon as possible.";
+      "We were unable to send a text to this number. " +
+      "A team member may respond when available, but response timing is not guaranteed.";
   } else if (smsEnabled) {
     message =
       `Thank you for calling ${name}. We're sorry we missed you. ` +
-      "We were unable to send the text, but the team has been notified and will " +
-      "follow up as soon as possible.";
+      "We were unable to send the text. " +
+      "A team member may respond when available, but response timing is not guaranteed.";
   } else {
     message =
       `Thank you for calling ${name}. We're sorry we missed you. ` +
-      "The team has been notified and will follow up as soon as possible.";
+      "Text recovery is not available for this call. " +
+      "A team member may respond when available, but response timing is not guaranteed.";
   }
 
   const safeMessage = sanitizeUnverifiedStaffCommitments(

@@ -41,8 +41,12 @@ import {
   startTrialLifecycleWorker,
   stopTrialLifecycleWorker,
 } from "./workers/trialLifecycle.worker.js";
+import {
+  startVoiceUsageReconciliationWorker,
+  stopVoiceUsageReconciliationWorker,
+} from "./workers/voiceUsageReconciliation.worker.js";
 
-const roleMap = {
+export const roleMap = {
   worker: [
     ["a2p", startA2pReconciliationWorker, stopA2pReconciliationWorker],
     [
@@ -56,6 +60,11 @@ const roleMap = {
     ["sms-ingress", startSmsIngressReconciliationWorker, stopSmsIngressReconciliationWorker],
     ["sms-delivery", startSmsDeliveryReconciliationWorker, stopSmsDeliveryReconciliationWorker],
     ["sms-lifecycle", startConversationLifecycleWorker, stopConversationLifecycleWorker],
+    [
+      "voice-usage",
+      startVoiceUsageReconciliationWorker,
+      stopVoiceUsageReconciliationWorker,
+    ],
   ],
   "worker-sms": [
     ["sms", startSmsProcessingWorker, stopSmsProcessingWorker],
@@ -119,20 +128,23 @@ const shutdown = async (signal, exitCode = 0) => {
   process.exitCode = exitCode;
 };
 
-const startWorkerProcess = async () => {
+export const startWorkerProcess = async ({
+  connect = connectDB,
+  workerRoles = roleMap,
+} = {}) => {
   normalizeRuntimeEnvironment();
-  validateEnvironment({ throwOnError: true });
+  validateEnvironment(process.env, { throwOnError: true });
   assertRealtimeScalingConfig();
 
   const role = assertValidProcessRole();
-  if (!roleMap[role]) {
+  if (!workerRoles[role]) {
     throw new Error(
       `PROCESS_ROLE=${role} is not a worker role. Use worker, worker-sms, worker-automation, worker-lifecycle, worker-a2p, or worker-maintenance.`,
     );
   }
 
-  await connectDB();
-  activeStops = roleMap[role].map(([name, start, stop]) => {
+  await connect();
+  activeStops = workerRoles[role].map(([name, start, stop]) => {
     start();
     console.log(`Started ${name} worker`);
     return [name, stop];
@@ -141,19 +153,24 @@ const startWorkerProcess = async () => {
   console.log(`CallBackIQ worker process ready (${getProcessRole()})`);
 };
 
-process.once("SIGTERM", () => void shutdown("SIGTERM"));
-process.once("SIGINT", () => void shutdown("SIGINT"));
+const workerBootTestMode =
+  String(process.env.CALLBACKIQ_WORKER_BOOT_TEST || "").toLowerCase() === "true";
 
-process.on("unhandledRejection", (error) => {
-  console.error("Unhandled worker rejection:", error);
-  void shutdown("unhandledRejection", 1);
-});
-process.on("uncaughtException", (error) => {
-  console.error("Uncaught worker exception:", error);
-  void shutdown("uncaughtException", 1);
-});
+if (!workerBootTestMode) {
+  process.once("SIGTERM", () => void shutdown("SIGTERM"));
+  process.once("SIGINT", () => void shutdown("SIGINT"));
 
-void startWorkerProcess().catch((error) => {
-  console.error("Worker startup failed:", error);
-  void shutdown("startupFailure", 1);
-});
+  process.on("unhandledRejection", (error) => {
+    console.error("Unhandled worker rejection:", error);
+    void shutdown("unhandledRejection", 1);
+  });
+  process.on("uncaughtException", (error) => {
+    console.error("Uncaught worker exception:", error);
+    void shutdown("uncaughtException", 1);
+  });
+
+  void startWorkerProcess().catch((error) => {
+    console.error("Worker startup failed:", error);
+    void shutdown("startupFailure", 1);
+  });
+}
