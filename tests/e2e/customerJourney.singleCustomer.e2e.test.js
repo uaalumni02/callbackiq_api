@@ -71,8 +71,8 @@ jest.mock("../../src/services/socket.service.js", () => ({
 jest.mock("../../src/services/intervention.service.js", () => ({
   __esModule: true,
   default: {
-    create: jest.fn(),
-    integrationFailure: jest.fn(),
+    create: jest.fn().mockResolvedValue(null),
+    integrationFailure: jest.fn().mockResolvedValue(null),
   },
 }));
 
@@ -1032,6 +1032,30 @@ describe("CallBackIQ single-customer complete lifecycle", () => {
 
       expect(oldAppointment.status)
         .toBe("rescheduled");
+
+      // A reschedule updates the existing provider event. The replacement
+      // becomes the sole active owner of that provider event ID.
+      expect(
+        replacement.externalAppointmentId
+      ).toBe(
+        confirmed.externalAppointmentId
+      );
+
+      expect(
+        replacement.pendingRescheduleExternalAppointmentId
+      ).toBeNull();
+
+      expect(
+        replacement.pendingRescheduleExternalCalendarId
+      ).toBeNull();
+
+      expect(
+        oldAppointment.externalAppointmentId
+      ).toBeNull();
+
+      expect(
+        oldAppointment.externalCalendarId
+      ).toBeNull();
 
       expect(
         String(

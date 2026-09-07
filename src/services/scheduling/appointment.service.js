@@ -1049,79 +1049,204 @@ class AppointmentService {
       business,
       originalProviderName,
     );
-    let providerApplied = false;
+
+    /*
+     * Provider-event ownership handoff
+     * --------------------------------
+     * A provider reschedule normally updates the SAME external calendar
+     * event. The Appointment collection enforces a unique
+     * (provider, externalAppointmentId) constraint, so the replacement
+     * cannot claim that event while the original still owns it.
+     *
+     * The handoff is therefore staged durably:
+     *
+     *   1. Provider update succeeds.
+     *   2. Provider IDs are persisted on non-unique pending fields.
+     *   3. Original releases its unique provider linkage.
+     *   4. Replacement claims the provider linkage and is confirmed.
+     *   5. Original is finalized as rescheduled.
+     *
+     * If the process dies after step 3, a same-key replay recognizes the
+     * staged provider ID and resumes locally without issuing a second
+     * provider mutation.
+     */
+    const resumeProviderHandoff =
+      replacement.status === "held" &&
+      !original.externalAppointmentId &&
+      Boolean(replacement.pendingRescheduleExternalAppointmentId);
+
+    const replacementStateBeforeProvider = {
+      status: replacement.status,
+      confirmedAt: replacement.confirmedAt,
+      heldExpiresAt: replacement.heldExpiresAt,
+      externalAppointmentId: replacement.externalAppointmentId,
+      externalCalendarId: replacement.externalCalendarId,
+    };
+
+    let stagedExternalAppointmentId =
+      replacement.pendingRescheduleExternalAppointmentId || null;
+    let stagedExternalCalendarId =
+      replacement.pendingRescheduleExternalCalendarId || null;
+    let providerApplied = resumeProviderHandoff;
 
     try {
-      // Provider PATCH is deliberately safe to replay with the same target
-      // time. This closes the "provider succeeded / HTTP response was lost"
-      // and "provider succeeded / Mongo write transiently failed" windows.
-      const providerResult = await provider.updateAppointment({
-        appointment: original,
-        eventAppointment: replacement,
-        changes: {
-          startAt: replacement.startAt,
-          endAt: replacement.endAt,
-        },
-        service,
-      });
-      providerApplied = true;
+      let providerResult;
 
-      // Persist the replacement FIRST. This preserves the provider event ID
-      // before the original record relinquishes its provider linkage.
+      if (resumeProviderHandoff) {
+        providerResult = {
+          provider:
+            replacement.provider || originalProviderName || "internal",
+          externalAppointmentId: stagedExternalAppointmentId,
+          externalCalendarId: stagedExternalCalendarId,
+        };
+      } else {
+        // Provider PATCH is deliberately safe to replay with the same target
+        // time. This closes the "provider succeeded / HTTP response was lost"
+        // window.
+        providerResult = await provider.updateAppointment({
+          appointment: original,
+          eventAppointment: replacement,
+          changes: {
+            startAt: replacement.startAt,
+            endAt: replacement.endAt,
+          },
+          service,
+        });
+        providerApplied = true;
+
+        stagedExternalAppointmentId =
+          providerResult?.externalAppointmentId ||
+          stagedExternalAppointmentId ||
+          replacement.externalAppointmentId ||
+          original.externalAppointmentId ||
+          null;
+
+        stagedExternalCalendarId =
+          providerResult?.externalCalendarId ||
+          stagedExternalCalendarId ||
+          replacement.externalCalendarId ||
+          original.externalCalendarId ||
+          null;
+
+        replacement.provider =
+          providerResult?.provider ||
+          replacement.provider ||
+          originalProviderName ||
+          "internal";
+
+        /*
+         * Persist the provider identity BEFORE releasing the original's
+         * unique provider linkage. This is the durable recovery marker.
+         */
+        replacement.pendingRescheduleExternalAppointmentId =
+          stagedExternalAppointmentId;
+        replacement.pendingRescheduleExternalCalendarId =
+          stagedExternalCalendarId;
+        replacement.failureReason = "";
+        await replacement.save();
+
+        /*
+         * Release only the provider-event uniqueness here. Keep the original
+         * confirmed and keep its slot lineage intact until the replacement
+         * has successfully claimed the provider event.
+         *
+         * If execution stops here, the staged replacement has enough durable
+         * state for an idempotent same-key retry to finish the handoff.
+         */
+        original.externalAppointmentId = null;
+        original.externalCalendarId = null;
+        await original.save();
+      }
+
       replacement.status = "confirmed";
       replacement.confirmedAt = replacement.confirmedAt || new Date();
       replacement.heldExpiresAt = null;
       replacement.provider =
-        providerResult.provider || originalProviderName || "internal";
+        providerResult?.provider ||
+        replacement.provider ||
+        originalProviderName ||
+        "internal";
       replacement.externalAppointmentId =
-        providerResult.externalAppointmentId ||
+        providerResult?.externalAppointmentId ||
+        stagedExternalAppointmentId ||
         replacement.externalAppointmentId ||
-        original.externalAppointmentId ||
         null;
       replacement.externalCalendarId =
-        providerResult.externalCalendarId ||
+        providerResult?.externalCalendarId ||
+        stagedExternalCalendarId ||
         replacement.externalCalendarId ||
-        original.externalCalendarId ||
         null;
+      replacement.pendingRescheduleExternalAppointmentId = null;
+      replacement.pendingRescheduleExternalCalendarId = null;
       replacement.failureReason = "";
+
+      // The original has already released the unique event ID, so this claim
+      // cannot collide with the original appointment.
       await replacement.save();
 
+      // Complete lineage and release the original slot only after the
+      // replacement durably owns the provider event.
       await reconcileOriginal();
     } catch (error) {
-      // A provider PATCH can time out after the provider accepted it. Treat
-      // *every* failed/uncertain reschedule attempt conservatively: retain the
-      // replacement slot claim and allow only a same-key replay. A definitive
-      // provider rejection will simply leave the short-lived hold in place
-      // until retry/expiry; an uncertain provider outcome cannot create a
-      // second booking because the slot remains claimed.
+      /*
+       * Restore the replacement to a retryable held state in memory before
+       * attempting the reconciliation write. This prevents an error after a
+       * provider update from accidentally persisting a half-confirmed local
+       * appointment.
+       */
+      replacement.status = replacementStateBeforeProvider.status;
+      replacement.confirmedAt = replacementStateBeforeProvider.confirmedAt;
+      replacement.heldExpiresAt = replacementStateBeforeProvider.heldExpiresAt;
+      replacement.externalAppointmentId =
+        replacementStateBeforeProvider.externalAppointmentId || null;
+      replacement.externalCalendarId =
+        replacementStateBeforeProvider.externalCalendarId || null;
+
+      if (providerApplied) {
+        replacement.pendingRescheduleExternalAppointmentId =
+          stagedExternalAppointmentId;
+        replacement.pendingRescheduleExternalCalendarId =
+          stagedExternalCalendarId;
+      }
+
       replacement.failureReason = providerApplied
         ? `Provider update applied; local reconciliation required: ${error.message}`
         : `Provider update failed or outcome is uncertain; same-key retry required: ${error.message}`;
-      await replacement.save().catch(() => {});
 
-      await InterventionService.create({
-        businessId: business._id,
-        leadId: replacement.lead,
-        conversationId: replacement.conversation,
-        appointmentId: replacement._id,
-        type: "integration_failure",
-        title: "Appointment reschedule requires reconciliation",
-        message: providerApplied
-          ? "The calendar provider accepted the new appointment time, but CallBackIQ could not finish all local reschedule writes."
-          : "CallBackIQ could not conclusively determine the calendar provider outcome. The replacement slot remains held to prevent a conflicting booking.",
-        priority: "high",
-        reason: error.message,
-        recommendedAction:
-          "Retry the exact same reschedule operation before making another calendar change.",
-        metadata: {
-          provider: originalProviderName,
-          providerApplied,
-          originalAppointmentId: String(original._id),
-          replacementAppointmentId: String(replacement._id),
-          idempotencyKey: key,
-        },
-        dedupeKey: `reschedule_reconciliation:${original._id}:${key}`,
-      }).catch(() => {});
+      try {
+        await replacement.save();
+      } catch {
+        // Operational intervention below remains the final fallback.
+      }
+
+      try {
+        await InterventionService.create({
+          businessId: business._id,
+          leadId: replacement.lead,
+          conversationId: replacement.conversation,
+          appointmentId: replacement._id,
+          type: "integration_failure",
+          title: "Appointment reschedule requires reconciliation",
+          message: providerApplied
+            ? "The calendar provider accepted the new appointment time, but CallBackIQ could not finish all local reschedule writes."
+            : "CallBackIQ could not conclusively determine the calendar provider outcome. The replacement slot remains held to prevent a conflicting booking.",
+          priority: "high",
+          reason: error.message,
+          recommendedAction:
+            "Retry the exact same reschedule operation before making another calendar change.",
+          metadata: {
+            provider: originalProviderName,
+            providerApplied,
+            providerHandoffStaged: Boolean(stagedExternalAppointmentId),
+            originalAppointmentId: String(original._id),
+            replacementAppointmentId: String(replacement._id),
+            idempotencyKey: key,
+          },
+          dedupeKey: `reschedule_reconciliation:${original._id}:${key}`,
+        });
+      } catch {
+        // The original error remains authoritative.
+      }
 
       error.statusCode = error.statusCode || 503;
       error.code = providerApplied
@@ -1130,14 +1255,19 @@ class AppointmentService {
       error.safeCustomerMessage =
         "I couldn't safely finalize that calendar change. The requested replacement time is being protected while CallBackIQ reconciles the provider outcome.";
 
-      await InterventionService.integrationFailure({
-        businessId: business._id,
-        leadId: replacement.lead,
-        conversationId: replacement.conversation,
-        appointmentId: replacement._id,
-        provider: originalProviderName,
-        error,
-      }).catch(() => {});
+      try {
+        await InterventionService.integrationFailure({
+          businessId: business._id,
+          leadId: replacement.lead,
+          conversationId: replacement.conversation,
+          appointmentId: replacement._id,
+          provider: originalProviderName,
+          error,
+        });
+      } catch {
+        // Never mask the reschedule failure with an alerting failure.
+      }
+
       throw error;
     }
 

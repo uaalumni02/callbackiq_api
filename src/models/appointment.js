@@ -119,6 +119,16 @@ const AppointmentSchema = new Schema(
     provider: { type: String, trim: true, default: "internal" },
     externalAppointmentId: { type: String, trim: true, default: null },
     externalCalendarId: { type: String, trim: true, default: null },
+    pendingRescheduleExternalAppointmentId: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+    pendingRescheduleExternalCalendarId: {
+      type: String,
+      trim: true,
+      default: null,
+    },
 
     estimatedValue: { type: Number, min: 0, default: 0 },
     actualRevenue: { type: Number, min: 0, default: 0 },

@@ -19,6 +19,14 @@ describe("MongoDB connection configuration", () => {
       NODE_ENV: "test",
       MONGO_URL: "mongodb://localhost/callbackiq-test",
     };
+
+    // This suite owns its Mongo URL. CI may provide alternate aliases
+    // globally, so remove them to keep getMongoUrl() deterministic.
+    delete process.env.MONGODB_URI;
+    delete process.env.MONGO_URI;
+    delete process.env.MONGODB_URL;
+    delete process.env.MONGO_CONNECTION_STRING;
+    delete process.env.MONGODB_CONNECTION_STRING;
     jest.spyOn(console, "log").mockImplementation(() => {});
     jest.spyOn(console, "error").mockImplementation(() => {});
     jest.spyOn(process, "exit").mockImplementation(() => undefined);
@@ -73,6 +81,9 @@ describe("MongoDB connection configuration", () => {
     delete process.env.MONGODB_URI;
     delete process.env.MONGO_URL;
     delete process.env.MONGO_URI;
+    delete process.env.MONGODB_URL;
+    delete process.env.MONGO_CONNECTION_STRING;
+    delete process.env.MONGODB_CONNECTION_STRING;
     await expect(connectDB()).resolves.toBeUndefined();
     expect(mongoose.connect).not.toHaveBeenCalled();
     expect(console.error).toHaveBeenCalledWith(

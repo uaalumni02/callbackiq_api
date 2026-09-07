@@ -142,6 +142,84 @@ describe("release invariant: reschedule retries converge without duplicate provi
     expect(SchedulingProviderFactory.getProvider).not.toHaveBeenCalled();
   });
 
+  test("same-key retry resumes a staged provider-event handoff without mutating the provider twice", async () => {
+    const original = originalAppointment();
+
+    // Simulate a process failure after the original released its unique
+    // provider linkage but before the replacement was promoted.
+    original.externalAppointmentId = null;
+    original.externalCalendarId = null;
+
+    const replacement = {
+      _id: "replacement-staged-handoff",
+      business: "b1",
+      status: "held",
+      rescheduledFrom: original._id,
+      startAt,
+      endAt,
+      address: { postalCode: "30303" },
+      activeSlotKey: "new-slot",
+      slotClaimKeys: ["new-claim"],
+      capacityLane: 1,
+      heldExpiresAt: new Date("2026-09-10T13:30:00.000Z"),
+      provider: "google_calendar",
+      externalAppointmentId: null,
+      externalCalendarId: null,
+      pendingRescheduleExternalAppointmentId: "google-event-1",
+      pendingRescheduleExternalCalendarId: "calendar-1",
+      save: jest.fn().mockResolvedValue(undefined),
+    };
+
+    Appointment.findOne
+      .mockResolvedValueOnce(original)
+      .mockResolvedValueOnce(replacement);
+
+    const provider = {
+      updateAppointment: jest.fn(),
+    };
+    SchedulingProviderFactory.getProvider.mockReturnValue(provider);
+
+    const result = await AppointmentService.reschedule({
+      business: {
+        _id: "b1",
+        timezone: "America/New_York",
+      },
+      appointmentId: original._id,
+      input: {
+        startAt,
+        endAt,
+        address: { postalCode: "30303" },
+      },
+      idempotencyKey: "reschedule-staged-handoff",
+    });
+
+    expect(result).toBe(replacement);
+
+    // The external calendar was already updated before the simulated crash.
+    // Recovery must finish only the local handoff.
+    expect(provider.updateAppointment).not.toHaveBeenCalled();
+
+    expect(replacement.status).toBe("confirmed");
+    expect(replacement.externalAppointmentId).toBe("google-event-1");
+    expect(replacement.externalCalendarId).toBe("calendar-1");
+    expect(
+      replacement.pendingRescheduleExternalAppointmentId
+    ).toBeNull();
+    expect(
+      replacement.pendingRescheduleExternalCalendarId
+    ).toBeNull();
+
+    expect(original.status).toBe("rescheduled");
+    expect(original.rescheduledTo).toBe(replacement._id);
+    expect(original.activeSlotKey).toBeNull();
+    expect(original.slotClaimKeys).toEqual([]);
+    expect(original.externalAppointmentId).toBeNull();
+
+    expect(replacement.save).toHaveBeenCalledTimes(1);
+    expect(original.save).toHaveBeenCalledTimes(1);
+    expect(InterventionService.create).not.toHaveBeenCalled();
+  });
+
   test("uncertain provider outcome retains the replacement slot claim for same-key retry", async () => {
     const original = originalAppointment();
     const replacement = {
