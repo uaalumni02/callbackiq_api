@@ -1,3 +1,4 @@
+import { withDeadline } from "../services/boundedRedis.service.js";
 import { withDistributedLease } from "../services/distributedLease.service.js";
 // CALLBACKIQ_SCALE_HARDENING_V1
 import {
@@ -20,6 +21,7 @@ const DEFAULT_CONCURRENCY = 5;
 
 let timer = null;
 let running = false;
+let stopGeneration = 0;
 
 const intervalMs = () => {
   const value = Number(process.env.SMS_PROCESSING_INTERVAL_MS);
@@ -134,6 +136,7 @@ export const drainSmsProcessingQueueOnce = async () => {
   if (running) return { processed: 0, skipped: true };
   running = true;
 
+  const generation = stopGeneration;
   const maxJobs = batchSize();
   const laneCount = Math.min(concurrency(), maxJobs);
   let nextSlot = 0;
@@ -143,7 +146,7 @@ export const drainSmsProcessingQueueOnce = async () => {
     while (true) {
       const slot = nextSlot;
       nextSlot += 1;
-      if (slot >= maxJobs) return;
+      if (slot >= maxJobs || generation !== stopGeneration) return;
 
       const job = await claimNextInboundSmsJob();
       if (!job) return;
@@ -206,15 +209,21 @@ export const startSmsProcessingWorker = async () => {
     concurrency: concurrency(),
   });
 
+  const generation = stopGeneration;
   const initial = await drainSmsProcessingQueueOnce();
+  if (generation !== stopGeneration) return;
   scheduleNext(
     initial.processed >= batchSize() ? busyDelayMs() : intervalMs(),
   );
 };
 
-export const stopSmsProcessingWorker = () => {
+export const stopSmsProcessingWorker = async () => {
+  stopGeneration++;
   if (timer) clearTimeout(timer);
   timer = null;
+  await withDeadline((async () => {
+    while (running) await new Promise(resolve => setTimeout(resolve, 25));
+  })(), Number(process.env.WORKER_DRAIN_TIMEOUT_MS) || 120000, "SMS_WORKER_DRAIN_TIMEOUT");
   logOperationalEvent("sms.processing_worker.stopped");
 };
 

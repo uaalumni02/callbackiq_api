@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import mongoose from "mongoose";
 
 import DemoRequest from "../models/demoRequest.js";
@@ -74,7 +75,7 @@ class DemoBrowserCallController {
         return res.status(503).json({ success: false, message: error.message });
       }
 
-      console.error("Error creating demo browser call session:", error);
+      safeConsole.error("Error creating demo browser call session:", error);
       return Response.responseServerError(res);
     }
   }
@@ -101,7 +102,7 @@ class DemoBrowserCallController {
 
       return res.type("text/xml").status(200).send(twiml);
     } catch (error) {
-      console.error("Error building demo browser call TwiML:", error);
+      safeConsole.error("Error building demo browser call TwiML:", error);
       return res.type("text/xml").status(200).send(buildFailureTwiml());
     }
   }
@@ -126,7 +127,7 @@ class DemoBrowserCallController {
       if (demo) emitAdminRefresh("demo_browser_call_status_changed", demo);
       return res.status(204).send();
     } catch (error) {
-      console.error("Error handling demo browser call status:", error);
+      safeConsole.error("Error handling demo browser call status:", error);
       return res.status(204).send();
     }
   }
@@ -163,7 +164,7 @@ class DemoBrowserCallController {
       emitAdminRefresh("demo_browser_client_status_changed", demo);
       return Response.responseOk(res, demo, "Browser call status updated.");
     } catch (error) {
-      console.error("Error updating demo browser call client status:", error);
+      safeConsole.error("Error updating demo browser call client status:", error);
       return Response.responseServerError(res);
     }
   }

@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 // CALLBACKIQ_SCALE_HARDENING_V1
 import mongoose from "mongoose";
 
@@ -73,17 +74,17 @@ const connectDB = async () => {
       ),
     });
 
-    console.log("Connected to MongoDB");
-    console.log(
+    safeConsole.log("Connected to MongoDB");
+    safeConsole.log(
       `Automatic index creation is ${productionLike ? "disabled" : "enabled"}`,
     );
-    console.log(
+    safeConsole.log(
       `MongoDB connection pool configured: min=${minPoolSize}, max=${maxPoolSize}, maxConnecting=${maxConnecting}`,
     );
 
     return mongoose.connection;
   } catch (error) {
-    console.error("MongoDB connection failed:", error.message);
+    safeConsole.error("MongoDB connection failed:", error.message);
     process.exit(1);
   }
 };

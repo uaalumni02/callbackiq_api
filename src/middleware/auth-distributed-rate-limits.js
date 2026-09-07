@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 // CALLBACKIQ_PRODUCTION_HARDENING_V1
 import crypto from "crypto";
 import RequestRateLimitBucket from "../models/requestRateLimitBucket.js";
@@ -65,7 +66,7 @@ export const createDistributedAuthRateLimit = ({
         message: "Too many requests. Please try again later.",
       });
     } catch (error) {
-      console.error("Distributed auth rate limiter failed:", {
+      safeConsole.error("Distributed auth rate limiter failed:", {
         scope,
         error: error?.message || String(error),
       });

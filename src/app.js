@@ -53,6 +53,12 @@ app.disable("x-powered-by");
 app.set("trust proxy", resolveTrustProxy());
 app.use(requestMetricsMiddleware);
 app.use(requestContext);
+app.use((req, res, next) => {
+  if (process.env.PROCESS_ROLE === "voice" && !/^\/api\/(health(?:\/|$)|twilio\/(?:voice|tracking-call-complete))/.test(req.path)) {
+    return res.status(404).json({ success: false, message: "Not found" });
+  }
+  return next();
+});
 app.use(securityHeaders);
 app.use(securityResponseMonitor);
 

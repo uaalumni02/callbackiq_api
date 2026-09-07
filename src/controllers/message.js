@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import { handleConversationManualMessage } from "../services/messaging/manualConversationMessage.service.js";
 import mongoose from "mongoose";
 
@@ -98,7 +99,7 @@ class MessageController {
       setPaginationHeaders(res, page);
       return Response.responseOk(res, page.items, "Messages fetched");
     } catch (error) {
-      console.error("Error in getMessagesByConversation:", error);
+      safeConsole.error("Error in getMessagesByConversation:", error);
       return Response.responseServerError(res);
     }
   }
@@ -134,7 +135,7 @@ class MessageController {
 
       return Response.responseOk(res, message, "Message fetched");
     } catch (error) {
-      console.error("Error in getMessageById:", error);
+      safeConsole.error("Error in getMessageById:", error);
       return Response.responseServerError(res);
     }
   }
@@ -186,7 +187,7 @@ class MessageController {
         message: "Message deleted successfully",
       });
     } catch (error) {
-      console.error("Error in deleteMessage:", error);
+      safeConsole.error("Error in deleteMessage:", error);
       return Response.responseServerError(res);
     }
   }

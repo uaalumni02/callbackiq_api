@@ -56,7 +56,7 @@ const getMessagesForReply = async (conversationId) =>
     : Db.getMessagesByConversation(Message, conversationId);
 
 const buildLeadUpdates = (lead, result) => {
-  const updates = {};
+  const updates = { aiExtraction: { source: "customer_sms", observedAt: new Date(), verified: false } };
   const serviceNeeded = String(result?.serviceNeeded || "").trim();
   if (serviceNeeded && serviceNeeded !== "Unknown") updates.serviceNeeded = serviceNeeded;
 

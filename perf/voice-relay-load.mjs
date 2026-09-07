@@ -41,6 +41,8 @@ const signatureWsUrl = env(
 const authToken = env("TWILIO_AUTH_TOKEN");
 const accountSid = env("TWILIO_ACCOUNT_SID", "AC00000000000000000000000000000000");
 const to = env("VOICE_LOAD_TO", "+12025550123");
+const tenants = env("VOICE_LOAD_TENANTS_FILE") ? JSON.parse(await fs.readFile(env("VOICE_LOAD_TENANTS_FILE"), "utf8")) : [{ to }];
+if (!Array.isArray(tenants) || !tenants.length || tenants.some(t => !t.to)) throw new Error("Tenant manifest must contain destination numbers");
 const fromBase = env("VOICE_LOAD_FROM_BASE", "+14045550000");
 const runId = env("VOICE_LOAD_RUN_ID", new Date().toISOString());
 const clientsWanted = int("VOICE_RELAY_CLIENTS", aiMode ? 5 : 50, 1000);
@@ -49,7 +51,7 @@ const connectConcurrency = Math.min(
   int("VOICE_RELAY_CONNECT_CONCURRENCY", 5, 50),
 );
 const setupSettleMs = int("VOICE_RELAY_SETUP_SETTLE_MS", 1100, 10000);
-const holdMs = int("VOICE_RELAY_HOLD_MS", 1500, 60000);
+const holdMs = int("VOICE_RELAY_HOLD_MS", 1500, 600000);
 const turnTimeoutMs = int("VOICE_RELAY_TURN_TIMEOUT_MS", 20000, 120000);
 const turns = aiMode ? int("VOICE_RELAY_TURNS", 2, 10) : 0;
 const expectedAccepted = int(
@@ -110,13 +112,14 @@ const parseParameters = (twiml) => {
 const createVoiceSession = async (index) => {
   const callSid = sidFor("call", index);
   const from = callerFor(index);
+  const destination = tenants[index % tenants.length].to;
   const params = {
     AccountSid: accountSid,
     CallSid: callSid,
     From: from,
-    To: to,
+    To: destination,
     Caller: from,
-    Called: to,
+    Called: destination,
     Direction: "inbound",
     CallStatus: "ringing",
     ApiVersion: "2010-04-01",
@@ -147,6 +150,7 @@ const createVoiceSession = async (index) => {
     index,
     callSid,
     from,
+    to: destination,
     customParameters,
     bootstrapLatencyMs: performance.now() - started,
   };
@@ -189,7 +193,7 @@ const openRelay = async (bootstrap) => {
       sessionId,
       accountSid,
       from: bootstrap.from,
-      to,
+      to: bootstrap.to,
       direction: "inbound",
       callType: "PSTN",
       customParameters: bootstrap.customParameters,
@@ -347,6 +351,7 @@ const runStarted = performance.now();
 await Promise.all(Array.from({ length: connectConcurrency }, worker));
 const acceptedRelays = relays.filter((relay) => relay.accepted);
 const rejectedRelays = relays.filter((relay) => !relay.accepted);
+const activeAtTurnStart = acceptedRelays.filter(r => r.socket.readyState === WebSocket.OPEN).length;
 const turnLatencies = [];
 const turnFailures = [];
 
@@ -358,6 +363,7 @@ if (aiMode) {
           const result = await waitForAgentReply(relay, prompts[turn % prompts.length]);
           turnLatencies.push(result.latencyMs);
           if (result.ended) break;
+          if (env("VOICE_RELAY_TURN_INTERVAL_MS")) await new Promise(resolve => setTimeout(resolve, Number(env("VOICE_RELAY_TURN_INTERVAL_MS"))));
         } catch (error) {
           turnFailures.push({ relay: relay.index, turn: turn + 1, error: error.message });
           break;
@@ -409,6 +415,8 @@ const report = {
   signatureVoiceUrl,
   signatureWsUrl,
   requestedClients: clientsWanted,
+  tenantCount: tenants.length,
+  activeAtTurnStart,
   connectConcurrency,
   accepted: acceptedRelays.length,
   expectedAccepted,
@@ -454,6 +462,7 @@ console.log(`Report: ${outputPath}`);
 
 if (
   acceptedRelays.length !== expectedAccepted ||
+  activeAtTurnStart < expectedAccepted ||
   failures.length > 0 ||
   (aiMode && turnFailures.length > 0)
 ) {

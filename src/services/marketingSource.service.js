@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 // CALLBACKIQ_MARKETING_ATTRIBUTION_V1
 import Business from "../models/business.js";
 import MarketingSource, {
@@ -404,7 +405,7 @@ export const provisionMarketingTrackingNumber = async ({
         await getTwilioClient().incomingPhoneNumbers(purchasedSid).remove();
       } catch (cleanupError) {
         if (Number(cleanupError?.status || cleanupError?.statusCode || 0) !== 404) {
-          console.error("[marketing-attribution] orphan number cleanup failed", {
+          safeConsole.error("[marketing-attribution] orphan number cleanup failed", {
             businessId: String(businessId),
             sourceId: String(sourceId),
             providerSid: purchasedSid,

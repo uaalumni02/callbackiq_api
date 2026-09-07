@@ -1,12 +1,9 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 // CALLBACKIQ_SCALE_HARDENING_V1
-import { createClient } from "redis";
+import { createBoundedRedis } from "./boundedRedis.service.js";
 
 const memory = new Map();
 const inflight = new Map();
-
-let redisClient = null;
-let redisConnectPromise = null;
-let redisDisabled = false;
 
 const bool = (value, fallback = false) => {
   if (value == null || String(value).trim() === "") return fallback;
@@ -82,38 +79,12 @@ const getMemory = (key) => {
   return envelope;
 };
 
-const connectRedis = async () => {
-  if (redisDisabled) return null;
-  const url = cacheRedisUrl();
-  if (!url) return null;
-
-  if (redisClient?.isOpen) return redisClient;
-  if (redisConnectPromise) return redisConnectPromise;
-
-  redisConnectPromise = (async () => {
-    try {
-      if (!redisClient) {
-        redisClient = createClient({ url });
-        redisClient.on("error", (error) => {
-          console.error("Scale cache Redis error:", error?.message || error);
-        });
-      }
-      if (!redisClient.isOpen) await redisClient.connect();
-      return redisClient;
-    } catch (error) {
-      redisDisabled = true;
-      console.error(
-        "Scale cache Redis unavailable; continuing with per-process memory cache:",
-        error?.message || error,
-      );
-      return null;
-    } finally {
-      redisConnectPromise = null;
-    }
-  })();
-
-  return redisConnectPromise;
-};
+const redis = createBoundedRedis({ url: cacheRedisUrl, name: "cache" });
+const connectRedis = async () => cacheRedisUrl() ? {
+  get: key => redis.execute(client => client.get(key)),
+  set: (key, value, options) => redis.execute(client => client.set(key, value, options)),
+  del: key => redis.execute(client => client.del(key)),
+} : null;
 
 const fullKey = (key) => `${cacheNamespace()}:${String(key)}`;
 
@@ -124,7 +95,7 @@ const readRedis = async (key) => {
     const raw = await client.get(fullKey(key));
     return parseEnvelope(raw);
   } catch (error) {
-    console.error("Scale cache Redis read failed:", error?.message || error);
+    safeConsole.error("Scale cache Redis read failed:", error?.message || error);
     return null;
   }
 };
@@ -136,7 +107,7 @@ const writeRedis = async (key, envelope, staleMs) => {
     const ttlSeconds = Math.max(1, Math.ceil(staleMs / 1000));
     await client.set(fullKey(key), serialize(envelope), { EX: ttlSeconds });
   } catch (error) {
-    console.error("Scale cache Redis write failed:", error?.message || error);
+    safeConsole.error("Scale cache Redis write failed:", error?.message || error);
   }
 };
 
@@ -166,7 +137,7 @@ const loadFresh = async ({ key, loader, ttlMs, staleMs }) => {
 
 const refreshInBackground = (options) => {
   void loadFresh(options).catch((error) => {
-    console.error("Scale cache background refresh failed:", error?.message || error);
+    safeConsole.error("Scale cache background refresh failed:", error?.message || error);
   });
 };
 
@@ -235,7 +206,7 @@ export const deleteScaleCacheKey = async (key) => {
   try {
     await client.del(fullKey(normalizedKey));
   } catch (error) {
-    console.error("Scale cache Redis delete failed:", error?.message || error);
+    safeConsole.error("Scale cache Redis delete failed:", error?.message || error);
   }
 };
 
@@ -246,17 +217,7 @@ export const clearLocalScaleCache = () => {
 
 export const closeScaleCache = async () => {
   clearLocalScaleCache();
-  const client = redisClient;
-  redisClient = null;
-  redisConnectPromise = null;
-  redisDisabled = false;
-
-  if (!client?.isOpen) return;
-  try {
-    await client.quit();
-  } catch (error) {
-    console.error("Scale cache Redis shutdown failed:", error?.message || error);
-  }
+  redis.close();
 };
 
 export default {

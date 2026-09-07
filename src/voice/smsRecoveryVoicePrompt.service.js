@@ -33,6 +33,10 @@ export const buildSmsRecoveryVoicePrompt = ({
       `Thank you for calling ${name}. We're sorry we missed you. ` +
       "A text message is on its way now. Please reply with the service you need. " +
       "A team member may respond when available, but response timing is not guaranteed.";
+  } else if (status === "queued") {
+    message = `Thank you for calling ${name}. We’re sorry we missed you. ` +
+      "Your missed call has been recorded. If a recovery text reaches you, please reply with the service you need. " +
+      "Staff response timing is not guaranteed.";
   } else if (status === "suppressed") {
     message =
       `Thank you for calling ${name}. We're sorry we missed you. ` +

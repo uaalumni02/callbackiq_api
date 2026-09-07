@@ -1,3 +1,4 @@
+import { safeConsole } from "../../helpers/logging/safeLogger.js";
 import Lead from "../../models/lead.js";
 import ServiceOffering from "../../models/serviceOffering.js";
 import { resolveOpportunityValue, ownerEstimate, unknownEstimate } from "./opportunityValue.js";
@@ -42,9 +43,9 @@ export async function updateOwnerLead({ lead, businessId, changes, actorId }) {
 // Valuation is ancillary: a valuation failure must never block a safety reply or SMS delivery.
 export async function beginValuation(lead, businessId) {
   try { return await reserveValuation(lead, businessId); }
-  catch (error) { console.error("opportunity.valuation_reservation_failed", { code: error.code || error.name }); return null; }
+  catch (error) { safeConsole.error("opportunity.valuation_reservation_failed", { code: error.code || error.name }); return null; }
 }
 export async function finishValuation(ticket, context) {
   try { return await commitValuation(ticket, context); }
-  catch (error) { console.error("opportunity.valuation_update_failed", { code: error.code || error.name }); return null; }
+  catch (error) { safeConsole.error("opportunity.valuation_update_failed", { code: error.code || error.name }); return null; }
 }

@@ -304,6 +304,7 @@ describe("Phase 2-8 controllers", () => {
           input: req.body,
           idempotencyKey: "header-key",
           confirm: status === "confirmed",
+          ownerValuationAuthorized: true,
         });
         expect(res.status).toHaveBeenCalledWith(httpStatus);
         expect(res.json).toHaveBeenCalledWith({
@@ -421,6 +422,7 @@ describe("Phase 2-8 controllers", () => {
         appointmentId: "a1",
         input: base.body,
         idempotencyKey: "reschedule-key",
+        ownerValuationAuthorized: true,
       });
     });
 

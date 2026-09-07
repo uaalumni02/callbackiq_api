@@ -1,3 +1,8 @@
+import { logOperationalEvent } from "../helpers/logging/safeLogger.js";
+import { getVoiceSnapshot } from "./runtimeState.service.js";
+import { monitorEventLoopDelay } from "node:perf_hooks";
+const eventLoopDelay = monitorEventLoopDelay({ resolution: 20 });
+eventLoopDelay.enable();
 // CALLBACKIQ_PRODUCTION_HARDENING_V1
 const MAX_SAMPLES = 5000;
 const durationsMs = [];
@@ -47,6 +52,8 @@ export const snapshotRuntimeMetrics = () => {
 
   return {
     timestamp: new Date().toISOString(),
+    voice: getVoiceSnapshot(),
+    eventLoop: { p95Ms: eventLoopDelay.percentile(95) / 1e6, p99Ms: eventLoopDelay.percentile(99) / 1e6 },
     process: {
       pid: process.pid,
       uptimeSeconds: Math.round(process.uptime()),
@@ -83,12 +90,7 @@ export const startRuntimeMetricsLogging = () => {
   );
 
   interval = setInterval(() => {
-    console.log(
-      JSON.stringify({
-        event: "callbackiq.runtime_metrics",
-        ...snapshotRuntimeMetrics(),
-      }),
-    );
+    logOperationalEvent("callbackiq.runtime_metrics", snapshotRuntimeMetrics());
   }, intervalMs);
   interval.unref?.();
 };

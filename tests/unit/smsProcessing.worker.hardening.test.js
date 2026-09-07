@@ -2,6 +2,7 @@ const mockClaimNextInboundSmsJob = jest.fn();
 const mockCompleteInboundSmsJob = jest.fn();
 const mockFailInboundSmsJob = jest.fn();
 const mockHeartbeatInboundSmsJob = jest.fn();
+const mockDeferInboundSmsJob = jest.fn();
 const mockSafelyProcessInboundSmsJob = jest.fn();
 const mockWithDistributedLease = jest.fn();
 const mockCreateSystemAlert = jest.fn();
@@ -15,6 +16,7 @@ jest.mock(
     completeInboundSmsJob: mockCompleteInboundSmsJob,
     failInboundSmsJob: mockFailInboundSmsJob,
     heartbeatInboundSmsJob: mockHeartbeatInboundSmsJob,
+    deferInboundSmsJob: mockDeferInboundSmsJob,
   }),
 );
 
@@ -71,7 +73,7 @@ describe("smsProcessing.worker hardening", () => {
 
   beforeEach(() => {
     jest.useRealTimers();
-    jest.clearAllMocks();
+    jest.resetAllMocks();
     mockWithDistributedLease.mockImplementation(async (_key, operation) => ({
       acquired: true,
       skipped: false,
@@ -81,13 +83,15 @@ describe("smsProcessing.worker hardening", () => {
     process.env.SMS_PROCESSING_LEASE_MS = "60000";
     process.env.SMS_PROCESSING_WORKER_ENABLED = "true";
     mockHeartbeatInboundSmsJob.mockResolvedValue(true);
+    mockDeferInboundSmsJob.mockResolvedValue(true);
     mockCompleteInboundSmsJob.mockResolvedValue(true);
     mockFailInboundSmsJob.mockResolvedValue({ status: "queued", attemptCount: 1 });
     mockCreateSystemAlert.mockResolvedValue({});
   });
 
-  afterEach(() => {
-    stopSmsProcessingWorker();
+  afterEach(async () => {
+    await stopSmsProcessingWorker();
+    jest.useRealTimers();
     process.env = { ...originalEnv };
   });
 
@@ -208,6 +212,96 @@ describe("smsProcessing.worker hardening", () => {
 
     gate.resolve({ ok: true });
     await draining;
+  });
+
+  test("shutdown waits for in-flight work, stops new claims, and cannot restart the startup timer", async () => {
+    jest.useFakeTimers();
+    const gate = deferred();
+    mockClaimNextInboundSmsJob.mockResolvedValue(job());
+    mockSafelyProcessInboundSmsJob.mockReturnValueOnce(gate.promise);
+    const starting = startSmsProcessingWorker();
+    await jest.advanceTimersByTimeAsync(0);
+    expect(mockSafelyProcessInboundSmsJob).toHaveBeenCalledTimes(1);
+    let stopped = false;
+    const stopping = stopSmsProcessingWorker().then(() => { stopped = true; });
+    await jest.advanceTimersByTimeAsync(50);
+    expect(stopped).toBe(false);
+    expect(mockCompleteInboundSmsJob).not.toHaveBeenCalled();
+    gate.resolve({ replySent: true });
+    await starting;
+    await jest.advanceTimersByTimeAsync(25);
+    await stopping;
+    expect(mockCompleteInboundSmsJob).toHaveBeenCalledWith(expect.objectContaining({ jobId: "job-1", leaseToken: "lease-1" }));
+    await jest.advanceTimersByTimeAsync(60000);
+    expect(mockClaimNextInboundSmsJob).toHaveBeenCalledTimes(1);
+    expect(mockHeartbeatInboundSmsJob).not.toHaveBeenCalled();
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  test("scheduled polling recovers after a claim failure and stops rescheduling on shutdown", async () => {
+    jest.useFakeTimers();
+    process.env.SMS_PROCESSING_INTERVAL_MS = "100";
+    const error = new Error("temporary queue outage");
+    mockClaimNextInboundSmsJob.mockResolvedValueOnce(null).mockRejectedValueOnce(error).mockResolvedValue(null);
+    await startSmsProcessingWorker();
+    await startSmsProcessingWorker(); // Starting twice must not create a second poller.
+    expect(mockClaimNextInboundSmsJob).toHaveBeenCalledTimes(1);
+    await jest.advanceTimersByTimeAsync(100);
+    expect(mockLogOperationalError).toHaveBeenCalledWith("sms.processing_worker.failed", error);
+    await jest.advanceTimersByTimeAsync(100);
+    expect(mockClaimNextInboundSmsJob).toHaveBeenCalledTimes(3);
+    await stopSmsProcessingWorker();
+    await jest.advanceTimersByTimeAsync(1000);
+    expect(mockClaimNextInboundSmsJob).toHaveBeenCalledTimes(3);
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  test("saturated scheduled batches use the busy delay and then return to idle polling", async () => {
+    jest.useFakeTimers();
+    process.env.SMS_PROCESSING_BATCH_SIZE = "1";
+    process.env.SMS_PROCESSING_BUSY_DELAY_MS = "25";
+    process.env.SMS_PROCESSING_INTERVAL_MS = "1000";
+    mockClaimNextInboundSmsJob.mockResolvedValueOnce(job()).mockResolvedValueOnce(job({ _id: "job-2" })).mockResolvedValue(null);
+    mockSafelyProcessInboundSmsJob.mockResolvedValue({ replySent: true });
+    await startSmsProcessingWorker();
+    expect(mockClaimNextInboundSmsJob).toHaveBeenCalledTimes(1);
+    await jest.advanceTimersByTimeAsync(25);
+    expect(mockCompleteInboundSmsJob).toHaveBeenCalledTimes(2);
+    expect(mockLogOperationalEvent).toHaveBeenCalledWith("sms.processing_worker.batch", expect.objectContaining({ processed: 1, saturated: true }));
+    await jest.advanceTimersByTimeAsync(25);
+    expect(mockClaimNextInboundSmsJob).toHaveBeenCalledTimes(3);
+    await jest.advanceTimersByTimeAsync(999);
+    expect(mockClaimNextInboundSmsJob).toHaveBeenCalledTimes(3);
+    await jest.advanceTimersByTimeAsync(1);
+    expect(mockClaimNextInboundSmsJob).toHaveBeenCalledTimes(4);
+  });
+
+  test("heartbeat failure is observable without duplicating work, and the timer clears after completion", async () => {
+    jest.useFakeTimers();
+    process.env.SMS_PROCESSING_LEASE_MS = "15000";
+    const gate = deferred();
+    const error = new Error("heartbeat unavailable");
+    mockClaimNextInboundSmsJob.mockResolvedValueOnce(job()).mockResolvedValue(null);
+    mockSafelyProcessInboundSmsJob.mockReturnValueOnce(gate.promise);
+    mockHeartbeatInboundSmsJob.mockRejectedValueOnce(error);
+    const drain = drainSmsProcessingQueueOnce();
+    await jest.advanceTimersByTimeAsync(5000);
+    expect(mockLogOperationalError).toHaveBeenCalledWith("sms.processing_worker.heartbeat_failed", error, { jobId: "job-1", businessId: "business-1" });
+    expect(mockSafelyProcessInboundSmsJob).toHaveBeenCalledTimes(1);
+    gate.resolve({ replySent: true }); await drain;
+    await jest.advanceTimersByTimeAsync(15000);
+    expect(mockHeartbeatInboundSmsJob).toHaveBeenCalledTimes(1);
+    expect(mockCompleteInboundSmsJob).toHaveBeenCalledTimes(1);
+  });
+
+  test("a busy conversation defers the claimed job without sending or completing it", async () => {
+    mockClaimNextInboundSmsJob.mockResolvedValueOnce(job()).mockResolvedValue(null);
+    mockWithDistributedLease.mockResolvedValueOnce({ acquired: false });
+    await drainSmsProcessingQueueOnce();
+    expect(mockDeferInboundSmsJob).toHaveBeenCalledWith({ jobId: "job-1", leaseToken: "lease-1", delayMs: 500, reason: "conversation_lease_busy" });
+    expect(mockSafelyProcessInboundSmsJob).not.toHaveBeenCalled();
+    expect(mockCompleteInboundSmsJob).not.toHaveBeenCalled();
+    expect(mockFailInboundSmsJob).not.toHaveBeenCalled();
   });
 
   test("does not start when explicitly disabled", async () => {

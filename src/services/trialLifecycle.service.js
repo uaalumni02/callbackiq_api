@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import mongoose from "mongoose";
 
 import Business from "../models/business.js";
@@ -133,7 +134,7 @@ const safeProvisionNumber = async (businessId) => {
   } catch (error) {
     // Billing entitlement must not be rolled back because a carrier inventory
     // request failed. trackingNumberProvisioning records the error for setup UI.
-    console.error("Trial tracking-number provisioning failed:", {
+    safeConsole.error("Trial tracking-number provisioning failed:", {
       businessId: String(businessId),
       code: error?.code,
       message: error?.message,
@@ -437,7 +438,7 @@ const denyDuplicateStripeTrial = async ({
         await stripe.subscriptions.del(stripeSubscriptionId);
       }
     } catch (error) {
-      console.error("Unable to cancel duplicate Stripe trial:", error);
+      safeConsole.error("Unable to cancel duplicate Stripe trial:", error);
     }
   }
 
@@ -771,7 +772,7 @@ export const syncStripeSubscription = async ({
       await setBusinessAccessState(businessId, subscription);
       await safeProvisionNumber(businessId);
       await sendTrialLifecycleMessage(subscription, "welcome").catch((error) => {
-        console.error("Trial welcome email failed:", error);
+        safeConsole.error("Trial welcome email failed:", error);
       });
       return subscription;
     } catch (error) {
@@ -855,7 +856,7 @@ export const syncStripeSubscription = async ({
     await safeProvisionNumber(businessId);
   } else if (terminalTrialStatus && subscription?.trialUsedAt) {
     await sendTrialLifecycleMessage(subscription, "expired").catch((error) => {
-      console.error("Trial expired email failed:", error);
+      safeConsole.error("Trial expired email failed:", error);
     });
   }
 
@@ -978,11 +979,11 @@ export const processTrialLifecycle = async (now = new Date()) => {
 
       if (remainingMs > 0 && remainingMs <= DAY_MS) {
         await sendTrialLifecycleMessage(subscription, "one_day").catch(
-          (error) => console.error("Trial 1-day reminder failed:", error),
+          (error) => safeConsole.error("Trial 1-day reminder failed:", error),
         );
       } else if (remainingMs > DAY_MS && remainingMs <= 3 * DAY_MS) {
         await sendTrialLifecycleMessage(subscription, "three_day").catch(
-          (error) => console.error("Trial 3-day reminder failed:", error),
+          (error) => safeConsole.error("Trial 3-day reminder failed:", error),
         );
       }
 
@@ -1048,7 +1049,7 @@ export const processTrialLifecycle = async (now = new Date()) => {
           });
           refreshed = await Subscription.findById(refreshed._id);
         } catch (error) {
-          console.error("Trial number release reconciliation failed:", error);
+          safeConsole.error("Trial number release reconciliation failed:", error);
           await Subscription.updateOne(
             { _id: refreshed._id },
             { $set: { trialNumberReleaseAt: new Date(now.getTime() + DAY_MS) } },
@@ -1063,7 +1064,7 @@ export const processTrialLifecycle = async (now = new Date()) => {
 
       const released = await releaseTrackingNumber(refreshed.business).catch(
         (error) => {
-          console.error("Trial number release failed:", error);
+          safeConsole.error("Trial number release failed:", error);
           return null;
         },
       );

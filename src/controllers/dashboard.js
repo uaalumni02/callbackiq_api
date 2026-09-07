@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 // CALLBACKIQ_SCALE_HARDENING_V1
 import Db from "../db/db.js";
 import Business from "../models/business.js";
@@ -57,7 +58,7 @@ class DashboardController {
         "Dashboard metrics fetched successfully",
       );
     } catch (error) {
-      console.error("Error in getDashboardMetrics:", error);
+      safeConsole.error("Error in getDashboardMetrics:", error);
       return Response.responseServerError(res);
     }
   }

@@ -50,6 +50,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify scale indexes and focused regressions
+        run: npm run verify:index-manifest && npm run test:scale-readiness && npm run test:durable-persistence
+
       - name: Run complete deterministic release certification
         env:
           NODE_OPTIONS: --max-old-space-size=4096

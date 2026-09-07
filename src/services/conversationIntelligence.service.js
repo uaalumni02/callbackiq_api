@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import ServiceOffering from "../models/serviceOffering.js";
 import { resolveOpportunityValue } from "./valuation/opportunityValue.js";
 import OpenAI from "openai";
@@ -1075,7 +1076,7 @@ NEXT BEST ACTION RULES:
     const outputText = response.output_text?.trim();
 
     if (!outputText) {
-      console.error("OpenAI conversation analysis returned no output text", {
+      safeConsole.error("OpenAI conversation analysis returned no output text", {
         responseId: response.id,
 
         conversationId: conversation._id.toString(),
@@ -1089,7 +1090,7 @@ NEXT BEST ACTION RULES:
     try {
       parsedAnalysis = JSON.parse(outputText);
     } catch (error) {
-      console.error("Unable to parse conversation intelligence JSON", {
+      safeConsole.error("Unable to parse conversation intelligence JSON", {
         responseId: response.id,
 
         conversationId: conversation._id.toString(),

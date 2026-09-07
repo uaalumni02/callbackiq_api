@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import mongoose from "mongoose";
 
 import Db from "../db/db.js";
@@ -70,7 +71,7 @@ class AlertController {
         return Response.responseInvalidInput(res, error.message);
       }
 
-      console.error("Error in createAlert:", error);
+      safeConsole.error("Error in createAlert:", error);
       return Response.responseServerError(res);
     }
   }
@@ -97,7 +98,7 @@ class AlertController {
 
       return Response.responseOk(res, alerts, "Alerts fetched");
     } catch (error) {
-      console.error("Error in getMyAlerts:", error);
+      safeConsole.error("Error in getMyAlerts:", error);
       return Response.responseServerError(res);
     }
   }
@@ -129,7 +130,7 @@ class AlertController {
 
       return Response.responseOk(res, alert, "Alert fetched");
     } catch (error) {
-      console.error("Error in getAlertById:", error);
+      safeConsole.error("Error in getAlertById:", error);
       return Response.responseServerError(res);
     }
   }
@@ -191,7 +192,7 @@ class AlertController {
         return Response.responseInvalidInput(res, error.message);
       }
 
-      console.error("Error in updateAlert:", error);
+      safeConsole.error("Error in updateAlert:", error);
       return Response.responseServerError(res);
     }
   }
@@ -229,7 +230,7 @@ class AlertController {
 
       return Response.responseOk(res, updatedAlert, "Alert marked as read");
     } catch (error) {
-      console.error("Error in markAlertRead:", error);
+      safeConsole.error("Error in markAlertRead:", error);
       return Response.responseServerError(res);
     }
   }
@@ -259,7 +260,7 @@ class AlertController {
 
       return Response.responseOk(res, result, "All alerts marked as read");
     } catch (error) {
-      console.error("Error in markAllAlertsRead:", error);
+      safeConsole.error("Error in markAllAlertsRead:", error);
       return Response.responseServerError(res);
     }
   }
@@ -300,7 +301,7 @@ class AlertController {
         message: "Alert deleted successfully",
       });
     } catch (error) {
-      console.error("Error in deleteAlert:", error);
+      safeConsole.error("Error in deleteAlert:", error);
       return Response.responseServerError(res);
     }
   }

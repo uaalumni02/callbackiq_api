@@ -235,6 +235,12 @@ const selectOfferedSlot = (message, offeredSlots, timeZone) => {
     const index = { first: 0, one: 0, "1": 0, second: 1, two: 1, "2": 1, third: 2, three: 2, "3": 2 }[option[1]];
     return offeredSlots[index] || null;
   }
+  // Accept the exact offered label with a small acknowledgement suffix.
+  // Substring matching can select negated labels or the wrong clock time.
+  const normalizeLabel = value => String(value || "").trim().toLowerCase().replace(/\s+/g, " ").replace(/[.! ]+$/, "");
+  const labelReply = normalizeLabel(text).replace(/\s+(?:works(?: for me)?|please)$/, "");
+  const labels = offeredSlots.filter(slot => normalizeLabel(slot.label) && normalizeLabel(slot.label) === labelReply);
+  if (labels.length) return labels.length === 1 ? labels[0] : null;
   const clock = parseTimePreference(text, timeZone);
   const minutes = clock?.exactMinutes;
   if (!Number.isFinite(minutes)) return null;

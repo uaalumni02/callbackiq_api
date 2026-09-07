@@ -1,3 +1,7 @@
+import { safeConsole } from "./helpers/logging/safeLogger.js";
+import { startWebhookWorkWorker, stopWebhookWorkWorker } from "./workers/webhookWork.worker.js";
+import { beginDrain } from "./services/runtimeState.service.js";
+import { enforceSocketExpiry, startSocketSessionMaintenance } from "./services/socketSession.service.js";
 import {
   startSmsDeliveryReconciliationWorker,
   stopSmsDeliveryReconciliationWorker,
@@ -93,14 +97,17 @@ const io = new Server(httpServer, {
 });
 
 SocketService.initialize(io);
-const conversationRelayServer = initializeConversationRelayServer(httpServer);
+const relayEnabled = process.env.VOICE_RELAY_ENABLED !== "false";
+const conversationRelayServer = relayEnabled ? initializeConversationRelayServer(httpServer) : { close: async () => {}, beginDrain: () => {} };
+const stopSocketSessions = startSocketSessionMaintenance(io);
 io.use(socketAuth);
 
 io.on("connection", (socket) => {
+  enforceSocketExpiry(socket);
   const user = socket.data.user;
   const business = socket.data.business;
 
-  console.log(
+  safeConsole.log(
     `Socket connected | User: ${user?.userName} | Business: ${
       business?.businessName || "Admin"
     } | Socket: ${socket.id}`,
@@ -121,13 +128,13 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", (reason) => {
-    console.log(
+    safeConsole.log(
       `Socket disconnected | User: ${user?.userName} | Reason: ${reason}`,
     );
   });
 
   socket.on("error", (error) => {
-    console.error("Socket error:", error);
+    safeConsole.error("Socket error:", error);
   });
 });
 
@@ -150,11 +157,13 @@ const closeHttpServer = async () => {
 const shutdown = async (signal, exitCode = 0) => {
   if (isShuttingDown) return;
   isShuttingDown = true;
-  console.log(`${signal} received. Shutting down CallBackIQ API...`);
+  beginDrain();
+  conversationRelayServer.beginDrain();
+  safeConsole.log(`${signal} received. Shutting down CallBackIQ API...`);
   const forcedExitTimer = setTimeout(() => {
-    console.error("Graceful shutdown timed out. Forcing process exit.");
+    safeConsole.error("Graceful shutdown timed out. Forcing process exit.");
     process.exit(1);
-  }, shutdownTimeoutMs);
+  }, shutdownTimeoutMs + Math.max(0, Number(process.env.VOICE_DRAIN_TIMEOUT_MS) || 610000));
   forcedExitTimer.unref();
 
   try {
@@ -162,12 +171,14 @@ const shutdown = async (signal, exitCode = 0) => {
     stopTrialLifecycleWorker();
     stopAppointmentMaintenanceWorker();
     stopAutomationWorker();
-    stopSmsProcessingWorker();
+    await stopSmsProcessingWorker();
+    await stopWebhookWorkWorker();
     stopSmsIngressReconciliationWorker();
     stopSmsDeliveryReconciliationWorker();
     stopConversationLifecycleWorker();
     stopVoiceUsageReconciliationWorker();
-    await conversationRelayServer.close();
+    await conversationRelayServer.close({ drainMs: Math.max(0, Number(process.env.VOICE_DRAIN_TIMEOUT_MS) || 610000) });
+    stopSocketSessions();
     await closeSocketServer();
     await closeSocketRedisAdapter();
     await closeScaleCache();
@@ -176,11 +187,11 @@ const shutdown = async (signal, exitCode = 0) => {
       await mongoose.connection.close();
     }
     clearTimeout(forcedExitTimer);
-    console.log("CallBackIQ API shut down cleanly.");
+    safeConsole.log("CallBackIQ API shut down cleanly.");
     process.exit(exitCode);
   } catch (error) {
     clearTimeout(forcedExitTimer);
-    console.error("Error during graceful shutdown:", error);
+    safeConsole.error("Error during graceful shutdown:", error);
     process.exit(1);
   }
 };
@@ -188,11 +199,11 @@ const shutdown = async (signal, exitCode = 0) => {
 process.on("SIGTERM", () => void shutdown("SIGTERM"));
 process.on("SIGINT", () => void shutdown("SIGINT"));
 process.on("unhandledRejection", (error) => {
-  console.error("Unhandled promise rejection:", error);
+  safeConsole.error("Unhandled promise rejection:", error);
   void shutdown("unhandledRejection", 1);
 });
 process.on("uncaughtException", (error) => {
-  console.error("Uncaught exception:", error);
+  safeConsole.error("Uncaught exception:", error);
   void shutdown("uncaughtException", 1);
 });
 
@@ -220,6 +231,7 @@ await connectDB();
   }
   if (shouldRunEmbeddedWorkers()) {
     await startSmsProcessingWorker();
+    await startWebhookWorkWorker();
     await startSmsIngressReconciliationWorker();
     await startSmsDeliveryReconciliationWorker();
     startConversationLifecycleWorker();
@@ -228,13 +240,13 @@ await connectDB();
     startVoiceUsageReconciliationWorker();
   }
   httpServer.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}`);
-    console.log("Socket.IO server initialized");
+    safeConsole.log(`Server running on http://localhost:${port}`);
+    safeConsole.log("Socket.IO server initialized");
   });
 };
 
 httpServer.on("error", (error) => {
-  console.error("HTTP server error:", error);
+  safeConsole.error("HTTP server error:", error);
   void shutdown("httpServerError", 1);
 });
 

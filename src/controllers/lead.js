@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import { updateOwnerLead, ownerEstimate, unknownEstimate } from "../services/valuation/opportunityValuation.service.js";
 import mongoose from "mongoose";
 
@@ -122,7 +123,7 @@ class LeadController {
         data: lead,
       });
     } catch (error) {
-      console.error("Error in createLead:", error);
+      safeConsole.error("Error in createLead:", error);
 
       if (error.isJoi) {
         return Response.responseInvalidInput(res, error.message);
@@ -166,7 +167,7 @@ class LeadController {
       setPaginationHeaders(res, page);
       return Response.responseOk(res, page.items, "Leads fetched");
     } catch (error) {
-      console.error("Error in getMyLeads:", error);
+      safeConsole.error("Error in getMyLeads:", error);
       return Response.responseServerError(res);
     }
   }
@@ -186,7 +187,7 @@ class LeadController {
       const data = await getLeadsOverview(business._id, req.query);
       return Response.responseOk(res, data, "Lead page fetched");
     } catch (error) {
-      console.error("Error in getMyLeadsOverview:", error);
+      safeConsole.error("Error in getMyLeadsOverview:", error);
       if (error?.code === "INVALID_CURSOR") {
         return Response.responseInvalidInput(res, "Invalid pagination cursor");
       }
@@ -257,7 +258,7 @@ class LeadController {
 
       return Response.responseOk(res, payload, "Lead fetched");
     } catch (error) {
-      console.error("Error in getLeadById:", error);
+      safeConsole.error("Error in getLeadById:", error);
       return Response.responseServerError(res);
     }
   }
@@ -322,7 +323,7 @@ class LeadController {
 
       return Response.responseOk(res, updatedLead, "Lead updated successfully");
     } catch (error) {
-      console.error("Error in updateLead:", error);
+      safeConsole.error("Error in updateLead:", error);
 
       if (error.isJoi) {
         return Response.responseInvalidInput(res, error.message);
@@ -400,7 +401,7 @@ class LeadController {
         "Lead status updated successfully",
       );
     } catch (error) {
-      console.error("Error in updateLeadStatus:", error);
+      safeConsole.error("Error in updateLeadStatus:", error);
       return Response.responseServerError(res);
     }
   }
@@ -448,7 +449,7 @@ class LeadController {
         message: "Lead deleted successfully",
       });
     } catch (error) {
-      console.error("Error in deleteLead:", error);
+      safeConsole.error("Error in deleteLead:", error);
       return Response.responseServerError(res);
     }
   }

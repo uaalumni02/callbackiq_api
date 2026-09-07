@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import Db from "../db/db.js";
 import User from "../models/user.js";
 import Business from "../models/business.js";
@@ -29,7 +30,8 @@ import { getTrustedRequestIp } from "../helpers/security/trustedRequestIp.js";
 
 import mongoose from "mongoose";
 import { runRegistrationTransaction } from "../services/registrationTransaction.service.js";
-const isProduction = process.env.NODE_ENV === "production";
+const isProduction = ["production", "staging"].includes(process.env.NODE_ENV);
+const cookieSameSite = ["lax", "strict", "none"].includes(process.env.AUTH_COOKIE_SAME_SITE) ? process.env.AUTH_COOKIE_SAME_SITE : (isProduction ? "none" : "lax");
 const shouldExposeAuthToken = !isProduction &&
   process.env.AUTH_RESPONSE_TOKEN_ENABLED !== "false";
 
@@ -39,7 +41,7 @@ const hashPasswordResetToken = (token) =>
 const cookieOptions = {
   httpOnly: true,
   secure: isProduction,
-  sameSite: isProduction ? "none" : "lax",
+  sameSite: cookieSameSite,
   maxAge: 7 * 24 * 60 * 60 * 1000,
   path: "/",
 };
@@ -47,7 +49,7 @@ const cookieOptions = {
 const clearCookieOptions = {
   httpOnly: true,
   secure: isProduction,
-  sameSite: isProduction ? "none" : "lax",
+  sameSite: cookieSameSite,
   path: "/",
 };
 
@@ -292,7 +294,7 @@ if (securityGateEnabled("TRIAL_REQUIRE_EMAIL_VERIFICATION")) {
           const verification = await issueEmailVerification({ user: savedUser });
           emailVerificationSent = verification?.sent === true;
         } catch (verificationError) {
-          console.error("Unable to send signup email verification:", {
+          safeConsole.error("Unable to send signup email verification:", {
             code: verificationError?.code,
             message: verificationError?.message,
           });
@@ -348,7 +350,7 @@ if (securityGateEnabled("TRIAL_REQUIRE_EMAIL_VERIFICATION")) {
         );
       }
 
-      console.error("Register error:", error);
+      safeConsole.error("Register error:", error);
       return Response.responseServerError(res);
     }
   }
@@ -471,7 +473,7 @@ if (securityGateEnabled("TRIAL_REQUIRE_EMAIL_VERIFICATION")) {
         return Response.responseInvalidInput(res, error.message);
       }
 
-      console.error("Login error:", error);
+      safeConsole.error("Login error:", error);
       return Response.responseServerError(res);
     }
   }
@@ -492,7 +494,7 @@ if (securityGateEnabled("TRIAL_REQUIRE_EMAIL_VERIFICATION")) {
 
       return Response.responseOk(res, user, "Current user fetched");
     } catch (error) {
-      console.error("Me error:", error);
+      safeConsole.error("Me error:", error);
       return Response.responseServerError(res);
     }
   }
@@ -528,7 +530,7 @@ if (securityGateEnabled("TRIAL_REQUIRE_EMAIL_VERIFICATION")) {
       try {
         await sendPasswordResetEmail(user.email, resetToken);
       } catch (emailError) {
-        console.error("Password reset email error:", emailError);
+        safeConsole.error("Password reset email error:", emailError);
         return Response.responseServerError(
           res,
           "Unable to send password reset email",
@@ -545,7 +547,7 @@ if (securityGateEnabled("TRIAL_REQUIRE_EMAIL_VERIFICATION")) {
         return Response.responseInvalidInput(res, error.message);
       }
 
-      console.error("Request password reset error:", error);
+      safeConsole.error("Request password reset error:", error);
       return Response.responseServerError(res);
     }
   }
@@ -585,7 +587,7 @@ if (securityGateEnabled("TRIAL_REQUIRE_EMAIL_VERIFICATION")) {
         return Response.responseInvalidInput(res, error.message);
       }
 
-      console.error("Reset password error:", error);
+      safeConsole.error("Reset password error:", error);
       return Response.responseServerError(res);
     }
   }
@@ -599,7 +601,7 @@ if (securityGateEnabled("TRIAL_REQUIRE_EMAIL_VERIFICATION")) {
         message: "Logout successful",
       });
     } catch (error) {
-      console.error("Logout error:", error);
+      safeConsole.error("Logout error:", error);
       return Response.responseServerError(res);
     }
   }

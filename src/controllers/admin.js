@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import Db from "../db/db.js";
 import User from "../models/user.js";
 import Business from "../models/business.js";
@@ -52,7 +53,7 @@ class AdminController {
         "Admin dashboard fetched successfully",
       );
     } catch (error) {
-      console.error("Admin dashboard error:", error);
+      safeConsole.error("Admin dashboard error:", error);
       return Response.responseServerError(res);
     }
   }
@@ -101,7 +102,7 @@ class AdminController {
         return Response.responseInvalidInput(res, error.message);
       }
 
-      console.error("Admin customer details error:", error);
+      safeConsole.error("Admin customer details error:", error);
       return Response.responseServerError(res);
     }
   }
@@ -140,7 +141,7 @@ class AdminController {
         return Response.responseInvalidInput(res, error.message);
       }
 
-      console.error("Admin subscription update error:", error);
+      safeConsole.error("Admin subscription update error:", error);
       return Response.responseServerError(res);
     }
   }
@@ -183,7 +184,7 @@ class AdminController {
         return Response.responseInvalidInput(res, error.message);
       }
 
-      console.error("Admin business update error:", error);
+      safeConsole.error("Admin business update error:", error);
       return Response.responseServerError(res);
     }
   }

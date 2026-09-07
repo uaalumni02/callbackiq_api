@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 let ioInstance = null;
 let uninitializedWarningShown = false;
 
@@ -69,7 +70,7 @@ const requireIo = () => {
     if (!uninitializedWarningShown) {
       uninitializedWarningShown = true;
 
-      console.warn(
+      safeConsole.warn(
         "Socket service attempted to emit before Socket.IO was initialized.",
       );
     }

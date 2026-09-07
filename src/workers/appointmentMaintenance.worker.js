@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import AppointmentService from "../services/scheduling/appointment.service.js";
 
 let timer = null;
@@ -28,12 +29,12 @@ export const startAppointmentMaintenanceWorker = () => {
   if (timer) return timer;
 
   void runAppointmentMaintenanceOnce().catch((error) => {
-    console.error("Appointment maintenance failed:", error);
+    safeConsole.error("Appointment maintenance failed:", error);
   });
 
   timer = setInterval(() => {
     void runAppointmentMaintenanceOnce().catch((error) => {
-      console.error("Appointment maintenance failed:", error);
+      safeConsole.error("Appointment maintenance failed:", error);
     });
   }, intervalMs());
   timer.unref?.();

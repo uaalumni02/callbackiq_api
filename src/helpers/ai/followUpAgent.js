@@ -1,3 +1,5 @@
+import { safeConsole } from "../logging/safeLogger.js";
+import { parseAiOutput } from "./validateAiOutput.js";
 import OpenAI from "openai";
 
 import {
@@ -539,9 +541,9 @@ LEAD DATA RULES:
   let parsedResult;
 
   try {
-    parsedResult = JSON.parse(outputText);
+    parsedResult = parseAiOutput(outputText);
   } catch (error) {
-    console.error("Unable to parse AI follow-up JSON", {
+    safeConsole.error("Unable to parse AI follow-up JSON", {
       responseId: response.id,
       parseError: error.message,
     });

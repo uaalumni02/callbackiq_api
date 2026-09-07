@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import mongoose from "mongoose";
 
 import Db from "../db/db.js";
@@ -67,7 +68,7 @@ class CallLogController {
         return Response.responseInvalidInput(res, error.message);
       }
 
-      console.error("Error in createCallLog:", error);
+      safeConsole.error("Error in createCallLog:", error);
       return Response.responseServerError(res);
     }
   }
@@ -90,7 +91,7 @@ class CallLogController {
       setPaginationHeaders(res, page);
       return Response.responseOk(res, page.items, "Call logs fetched");
     } catch (error) {
-      console.error("Error in getMyCallLogs:", error);
+      safeConsole.error("Error in getMyCallLogs:", error);
       return Response.responseServerError(res);
     }
   }
@@ -110,7 +111,7 @@ class CallLogController {
       const data = await getCallLogsOverview(business._id, req.query);
       return Response.responseOk(res, data, "Call log page fetched");
     } catch (error) {
-      console.error("Error in getMyCallLogsOverview:", error);
+      safeConsole.error("Error in getMyCallLogsOverview:", error);
       if (error?.code === "INVALID_CURSOR") {
         return Response.responseInvalidInput(res, "Invalid pagination cursor");
       }
@@ -149,7 +150,7 @@ class CallLogController {
 
       return Response.responseOk(res, callLog, "Call log fetched");
     } catch (error) {
-      console.error("Error in getCallLogById:", error);
+      safeConsole.error("Error in getCallLogById:", error);
       return Response.responseServerError(res);
     }
   }
@@ -201,7 +202,7 @@ class CallLogController {
         return Response.responseInvalidInput(res, error.message);
       }
 
-      console.error("Error in updateCallLog:", error);
+      safeConsole.error("Error in updateCallLog:", error);
       return Response.responseServerError(res);
     }
   }
@@ -264,7 +265,7 @@ class CallLogController {
         message: "Call log hidden successfully",
       });
     } catch (error) {
-      console.error("Error in deleteCallLog:", error);
+      safeConsole.error("Error in deleteCallLog:", error);
       return Response.responseServerError(res);
     }
   }

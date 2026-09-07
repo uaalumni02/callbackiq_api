@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import AvailabilityException from "../models/availabilityException.js";
 import AvailabilityRule from "../models/availabilityRule.js";
 import BusinessOperationsSettings from "../models/businessOperationsSettings.js";
@@ -239,7 +240,7 @@ export const buildAIConfigurationContext = async (business) => {
       },
     };
   } catch (error) {
-    console.error("Unable to build business configuration context:", {
+    safeConsole.error("Unable to build business configuration context:", {
       businessId: String(business._id),
       message: error.message,
     });

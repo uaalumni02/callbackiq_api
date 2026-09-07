@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import { verifiedAmountExpression, estimateCoverageGroup } from "../services/valuation/opportunityValue.js";
 import { formatCustomerRow } from "../helpers/model/admin.js";
 
@@ -85,7 +86,7 @@ class Db {
       const user = new model(userData);
       return await user.save(session ? { session } : undefined);
     } catch (error) {
-      console.error("Actual Mongoose Save Error:", error);
+      safeConsole.error("Actual Mongoose Save Error:", error);
       throw error;
     }
   }
@@ -104,7 +105,7 @@ class Db {
     try {
       return await model.findOne({ email });
     } catch (error) {
-      console.error("Error finding user by email:", error);
+      safeConsole.error("Error finding user by email:", error);
       throw error;
     }
   }
@@ -123,7 +124,7 @@ class Db {
         },
       );
     } catch (error) {
-      console.error("Error saving password reset token:", error);
+      safeConsole.error("Error saving password reset token:", error);
       throw error;
     }
   }
@@ -137,7 +138,7 @@ class Db {
         })
         .select("+password +resetToken +resetTokenExpiresAt +sessionVersion");
     } catch (error) {
-      console.error("Error finding password reset token:", error);
+      safeConsole.error("Error finding password reset token:", error);
       throw error;
     }
   }
@@ -169,7 +170,7 @@ class Db {
         },
       );
     } catch (error) {
-      console.error("Error saving reset password:", error);
+      safeConsole.error("Error saving reset password:", error);
       throw error;
     }
   }
@@ -197,7 +198,7 @@ class Db {
           ].join(" "),
         );
     } catch (error) {
-      console.error("Error finding user by login:", error);
+      safeConsole.error("Error finding user by login:", error);
       throw new Error("Database error while finding user");
     }
   }
@@ -428,7 +429,7 @@ class Db {
           ].join(" "),
         );
     } catch (error) {
-      console.error("Error recording failed login:", error);
+      safeConsole.error("Error recording failed login:", error);
       throw error;
     }
   }
@@ -454,7 +455,7 @@ class Db {
         },
       );
     } catch (error) {
-      console.error("Error clearing login security state:", error);
+      safeConsole.error("Error clearing login security state:", error);
       throw error;
     }
   }
@@ -487,7 +488,7 @@ class Db {
         },
       );
     } catch (error) {
-      console.error("Error decaying login security state:", error);
+      safeConsole.error("Error decaying login security state:", error);
       throw error;
     }
   }
@@ -499,7 +500,7 @@ class Db {
       const business = new model(data);
       return await business.save(session ? { session } : undefined);
     } catch (error) {
-      console.error("Error saving business:", error);
+      safeConsole.error("Error saving business:", error);
       throw error;
     }
   }
@@ -510,7 +511,7 @@ class Db {
         .findOne({ owner: ownerId })
         .populate("owner", "userName email role");
     } catch (error) {
-      console.error("Error fetching business by owner:", error);
+      safeConsole.error("Error fetching business by owner:", error);
       throw error;
     }
   }
@@ -527,7 +528,7 @@ class Db {
         .select(BUSINESS_SCOPE_FIELDS)
         .lean();
     } catch (error) {
-      console.error("Error fetching business scope by owner:", error);
+      safeConsole.error("Error fetching business scope by owner:", error);
       throw error;
     }
   }
@@ -535,7 +536,7 @@ class Db {
     try {
       return await model.findById(id).populate("owner", "userName email role");
     } catch (error) {
-      console.error("Error fetching business by ID:", error);
+      safeConsole.error("Error fetching business by ID:", error);
       throw error;
     }
   }
@@ -547,7 +548,7 @@ class Db {
         .sort({ createdAt: -1 })
         .populate("owner", "userName email role");
     } catch (error) {
-      console.error("Error fetching businesses:", error);
+      safeConsole.error("Error fetching businesses:", error);
       throw error;
     }
   }
@@ -561,7 +562,7 @@ class Db {
         })
         .populate("owner", "userName email role");
     } catch (error) {
-      console.error("Error updating business:", error);
+      safeConsole.error("Error updating business:", error);
       throw error;
     }
   }
@@ -581,7 +582,7 @@ class Db {
         )
         .populate("owner", "userName email role");
     } catch (error) {
-      console.error("Error updating business by owner:", error);
+      safeConsole.error("Error updating business by owner:", error);
       throw error;
     }
   }
@@ -593,7 +594,7 @@ class Db {
       );
       return await deleteBusinessSafely({ ownerId });
     } catch (error) {
-      console.error("Error deleting business by owner:", error);
+      safeConsole.error("Error deleting business by owner:", error);
       throw error;
     }
   }
@@ -605,7 +606,7 @@ class Db {
       );
       return await deleteBusinessSafely({ businessId: id });
     } catch (error) {
-      console.error("Error deleting business:", error);
+      safeConsole.error("Error deleting business:", error);
       throw error;
     }
   }
@@ -616,7 +617,7 @@ class Db {
       const lead = new model(data);
       return await lead.save();
     } catch (error) {
-      console.error("Error saving lead:", error);
+      safeConsole.error("Error saving lead:", error);
       throw error;
     }
   }
@@ -629,7 +630,7 @@ class Db {
         .populate("business", "businessName businessType phone")
         .lean();
     } catch (error) {
-      console.error("Error fetching leads by business:", error);
+      safeConsole.error("Error fetching leads by business:", error);
       throw error;
     }
   }
@@ -657,7 +658,7 @@ class Db {
 
       return await query;
     } catch (error) {
-      console.error("Error fetching lead by ID:", error);
+      safeConsole.error("Error fetching lead by ID:", error);
       throw error;
     }
   }
@@ -670,7 +671,7 @@ class Db {
         })
         .populate("business", "businessName businessType phone");
     } catch (error) {
-      console.error("Error updating lead:", error);
+      safeConsole.error("Error updating lead:", error);
       throw error;
     }
   }
@@ -691,7 +692,7 @@ class Db {
         )
         .populate("business", "businessName businessType phone");
     } catch (error) {
-      console.error("Error updating lead for business:", error);
+      safeConsole.error("Error updating lead for business:", error);
       throw error;
     }
   }
@@ -700,7 +701,7 @@ class Db {
     try {
       return await model.findByIdAndDelete(id);
     } catch (error) {
-      console.error("Error deleting lead:", error);
+      safeConsole.error("Error deleting lead:", error);
       throw error;
     }
   }
@@ -712,7 +713,7 @@ class Db {
         business: businessId,
       });
     } catch (error) {
-      console.error("Error deleting lead for business:", error);
+      safeConsole.error("Error deleting lead for business:", error);
       throw error;
     }
   }
@@ -723,7 +724,7 @@ class Db {
       const conversation = new model(data);
       return await conversation.save();
     } catch (error) {
-      console.error("Error saving conversation:", error);
+      safeConsole.error("Error saving conversation:", error);
       throw error;
     }
   }
@@ -738,7 +739,7 @@ class Db {
         .populate("archivedBy", "userName email role")
         .lean();
     } catch (error) {
-      console.error("Error fetching conversations:", error);
+      safeConsole.error("Error fetching conversations:", error);
       throw error;
     }
   }
@@ -787,7 +788,7 @@ class Db {
 
       return await query;
     } catch (error) {
-      console.error("Error fetching conversation:", error);
+      safeConsole.error("Error fetching conversation:", error);
       throw error;
     }
   }
@@ -803,7 +804,7 @@ class Db {
         .populate("archivedBy", "userName email role")
         .lean();
     } catch (error) {
-      console.error("Error fetching conversation for business:", error);
+      safeConsole.error("Error fetching conversation for business:", error);
       throw error;
     }
   }
@@ -818,7 +819,7 @@ class Db {
         .populate("lead", "customerName phone serviceNeeded urgency status")
         .populate("archivedBy", "userName email role");
     } catch (error) {
-      console.error("Error updating conversation:", error);
+      safeConsole.error("Error updating conversation:", error);
       throw error;
     }
   }
@@ -827,7 +828,7 @@ class Db {
     try {
       return await model.findByIdAndDelete(id);
     } catch (error) {
-      console.error("Error deleting conversation:", error);
+      safeConsole.error("Error deleting conversation:", error);
       throw error;
     }
   }
@@ -839,7 +840,7 @@ class Db {
       const message = new model(data);
       return await message.save();
     } catch (error) {
-      console.error("Error saving message:", error);
+      safeConsole.error("Error saving message:", error);
       throw error;
     }
   }
@@ -853,7 +854,7 @@ class Db {
         .populate("conversation", "customerPhone customerName status")
         .lean();
     } catch (error) {
-      console.error("Error fetching messages:", error);
+      safeConsole.error("Error fetching messages:", error);
       throw error;
     }
   }
@@ -863,17 +864,11 @@ class Db {
    * keeps inbound-SMS and conversation-analysis requests lightweight.
    */
   static async getMessagesForAI(model, conversationId) {
-    try {
-      return await model
-        .find({ conversation: conversationId })
-        .select(
-          "_id business conversation lead direction from to body provider providerMessageId status isAiGenerated generatedBy usageCategory actorType actorId metadata createdAt updatedAt",
-        )
-        .sort({ createdAt: 1 });
-    } catch (error) {
-      console.error("Error fetching messages for AI:", error);
-      throw error;
-    }
+    const limit = Math.max(20, Math.min(500, Number(process.env.AI_ANALYSIS_HISTORY_LIMIT) || 200));
+    const messages = await model.find({ conversation: conversationId })
+      .select("_id business conversation lead direction from to body provider providerMessageId status isAiGenerated generatedBy usageCategory actorType actorId metadata createdAt updatedAt")
+      .sort({ createdAt: -1, _id: -1 }).limit(limit);
+    return messages.reverse();
   }
   static async getMessageById(model, id) {
     try {
@@ -882,7 +877,7 @@ class Db {
         .populate("lead", "customerName phone serviceNeeded")
         .populate("conversation", "customerPhone customerName status");
     } catch (error) {
-      console.error("Error fetching message:", error);
+      safeConsole.error("Error fetching message:", error);
       throw error;
     }
   }
@@ -897,7 +892,7 @@ class Db {
         .populate("conversation", "customerPhone customerName status")
         .lean();
     } catch (error) {
-      console.error("Error fetching message for business:", error);
+      safeConsole.error("Error fetching message for business:", error);
       throw error;
     }
   }
@@ -905,7 +900,7 @@ class Db {
     try {
       return await model.findByIdAndDelete(id);
     } catch (error) {
-      console.error("Error deleting message:", error);
+      safeConsole.error("Error deleting message:", error);
       throw error;
     }
   }
@@ -917,7 +912,7 @@ class Db {
         business: businessId,
       });
     } catch (error) {
-      console.error("Error deleting message for business:", error);
+      safeConsole.error("Error deleting message for business:", error);
       throw error;
     }
   }
@@ -928,7 +923,7 @@ class Db {
       const callLog = new model(data);
       return await callLog.save();
     } catch (error) {
-      console.error("Error saving call log:", error);
+      safeConsole.error("Error saving call log:", error);
       throw error;
     }
   }
@@ -946,7 +941,7 @@ class Db {
         .populate("conversation", "customerPhone customerName status")
         .lean();
     } catch (error) {
-      console.error("Error fetching call logs:", error);
+      safeConsole.error("Error fetching call logs:", error);
       throw error;
     }
   }
@@ -961,7 +956,7 @@ class Db {
         .populate("lead", "customerName phone serviceNeeded urgency status")
         .populate("conversation", "customerPhone customerName status");
     } catch (error) {
-      console.error("Error fetching call log:", error);
+      safeConsole.error("Error fetching call log:", error);
       throw error;
     }
   }
@@ -980,7 +975,7 @@ class Db {
         .populate("conversation", "customerPhone customerName status")
         .lean();
     } catch (error) {
-      console.error("Error fetching call log for business:", error);
+      safeConsole.error("Error fetching call log for business:", error);
       throw error;
     }
   }
@@ -998,7 +993,7 @@ class Db {
         .populate("lead", "customerName phone serviceNeeded urgency status")
         .populate("conversation", "customerPhone customerName status");
     } catch (error) {
-      console.error("Error updating call log:", error);
+      safeConsole.error("Error updating call log:", error);
       throw error;
     }
   }
@@ -1024,7 +1019,7 @@ class Db {
         .populate("lead", "customerName phone serviceNeeded urgency status")
         .populate("conversation", "customerPhone customerName status");
     } catch (error) {
-      console.error("Error updating call log for business:", error);
+      safeConsole.error("Error updating call log for business:", error);
       throw error;
     }
   }
@@ -1033,7 +1028,7 @@ class Db {
     try {
       return await model.findByIdAndDelete(id);
     } catch (error) {
-      console.error("Error deleting call log:", error);
+      safeConsole.error("Error deleting call log:", error);
       throw error;
     }
   }
@@ -1045,7 +1040,7 @@ class Db {
         business: businessId,
       });
     } catch (error) {
-      console.error("Error deleting call log for business:", error);
+      safeConsole.error("Error deleting call log for business:", error);
       throw error;
     }
   }
@@ -1061,7 +1056,7 @@ class Db {
         ],
       });
     } catch (error) {
-      console.error("Error fetching business by phone:", error);
+      safeConsole.error("Error fetching business by phone:", error);
       throw error;
     }
   }
@@ -1076,7 +1071,7 @@ class Db {
         })
         .select(BUSINESS_SCOPE_FIELDS);
     } catch (error) {
-      console.error("Error fetching webhook business by phone:", error);
+      safeConsole.error("Error fetching webhook business by phone:", error);
       throw error;
     }
   }
@@ -1084,7 +1079,7 @@ class Db {
     try {
       return await model.findOne({}).sort({ createdAt: 1 });
     } catch (error) {
-      console.error("Error fetching first business:", error);
+      safeConsole.error("Error fetching first business:", error);
       throw error;
     }
   }
@@ -1098,7 +1093,7 @@ class Db {
         })
         .sort({ createdAt: -1 });
     } catch (error) {
-      console.error("Error fetching lead by business and phone:", error);
+      safeConsole.error("Error fetching lead by business and phone:", error);
       throw error;
     }
   }
@@ -1111,7 +1106,7 @@ class Db {
         })
         .sort({ lastMessageAt: -1, createdAt: -1 });
     } catch (error) {
-      console.error(
+      safeConsole.error(
         "Error fetching conversation by business and phone:",
         error,
       );
@@ -1132,7 +1127,7 @@ class Db {
         .populate("lead", "customerName phone serviceNeeded urgency status")
         .populate("conversation", "customerPhone customerName status");
     } catch (error) {
-      console.error("Error updating call log by providerCallId:", error);
+      safeConsole.error("Error updating call log by providerCallId:", error);
       throw error;
     }
   }
@@ -1449,7 +1444,7 @@ class Db {
         },
       };
     } catch (error) {
-      console.error("Error getting dashboard metrics:", error);
+      safeConsole.error("Error getting dashboard metrics:", error);
       throw error;
     }
   }
@@ -1460,7 +1455,7 @@ class Db {
         business: businessId,
       });
     } catch (error) {
-      console.error("Error fetching lead for business:", error);
+      safeConsole.error("Error fetching lead for business:", error);
       throw error;
     }
   }
@@ -1476,7 +1471,7 @@ class Db {
           "businessName businessType phone estimatedJobValue",
         );
     } catch (error) {
-      console.error("Error qualifying lead:", error);
+      safeConsole.error("Error qualifying lead:", error);
       throw error;
     }
   }
@@ -1487,7 +1482,7 @@ class Db {
       const alert = new model(data);
       return await alert.save();
     } catch (error) {
-      console.error("Error saving alert:", error);
+      safeConsole.error("Error saving alert:", error);
       throw error;
     }
   }
@@ -1501,7 +1496,7 @@ class Db {
         .populate("lead", "customerName phone serviceNeeded urgency status")
         .lean();
     } catch (error) {
-      console.error("Error fetching alerts by business:", error);
+      safeConsole.error("Error fetching alerts by business:", error);
       throw error;
     }
   }
@@ -1517,7 +1512,7 @@ class Db {
         .populate("lead", "customerName phone serviceNeeded urgency status")
         .lean();
     } catch (error) {
-      console.error("Error fetching unread alerts:", error);
+      safeConsole.error("Error fetching unread alerts:", error);
       throw error;
     }
   }
@@ -1528,7 +1523,7 @@ class Db {
         .populate("business", "businessName businessType phone")
         .populate("lead", "customerName phone serviceNeeded urgency status");
     } catch (error) {
-      console.error("Error fetching alert by ID:", error);
+      safeConsole.error("Error fetching alert by ID:", error);
       throw error;
     }
   }
@@ -1542,7 +1537,7 @@ class Db {
         .populate("business", "businessName businessType phone")
         .populate("lead", "customerName phone serviceNeeded urgency status");
     } catch (error) {
-      console.error("Error fetching alert for business:", error);
+      safeConsole.error("Error fetching alert for business:", error);
       throw error;
     }
   }
@@ -1556,7 +1551,7 @@ class Db {
         .populate("business", "businessName businessType phone")
         .populate("lead", "customerName phone serviceNeeded urgency status");
     } catch (error) {
-      console.error("Error updating alert:", error);
+      safeConsole.error("Error updating alert:", error);
       throw error;
     }
   }
@@ -1578,7 +1573,7 @@ class Db {
         .populate("business", "businessName businessType phone")
         .populate("lead", "customerName phone serviceNeeded urgency status");
     } catch (error) {
-      console.error("Error updating alert for business:", error);
+      safeConsole.error("Error updating alert for business:", error);
       throw error;
     }
   }
@@ -1602,7 +1597,7 @@ class Db {
         .populate("business", "businessName businessType phone")
         .populate("lead", "customerName phone serviceNeeded urgency status");
     } catch (error) {
-      console.error("Error marking alert as read:", error);
+      safeConsole.error("Error marking alert as read:", error);
       throw error;
     }
   }
@@ -1629,7 +1624,7 @@ class Db {
         .populate("business", "businessName businessType phone")
         .populate("lead", "customerName phone serviceNeeded urgency status");
     } catch (error) {
-      console.error("Error marking business alert as read:", error);
+      safeConsole.error("Error marking business alert as read:", error);
       throw error;
     }
   }
@@ -1649,7 +1644,7 @@ class Db {
         },
       );
     } catch (error) {
-      console.error("Error marking all alerts as read:", error);
+      safeConsole.error("Error marking all alerts as read:", error);
       throw error;
     }
   }
@@ -1658,7 +1653,7 @@ class Db {
     try {
       return await model.findByIdAndDelete(id);
     } catch (error) {
-      console.error("Error deleting alert:", error);
+      safeConsole.error("Error deleting alert:", error);
       throw error;
     }
   }
@@ -1670,7 +1665,7 @@ class Db {
         business: businessId,
       });
     } catch (error) {
-      console.error("Error deleting alert for business:", error);
+      safeConsole.error("Error deleting alert for business:", error);
       throw error;
     }
   }
@@ -1682,7 +1677,7 @@ class Db {
         .findOne({ business: businessId })
         .populate("business", "businessName businessType phone email");
     } catch (error) {
-      console.error("Error fetching subscription by business:", error);
+      safeConsole.error("Error fetching subscription by business:", error);
       throw error;
     }
   }
@@ -1693,7 +1688,7 @@ class Db {
         .findOne({ stripeCustomerId })
         .populate("business", "businessName businessType phone email");
     } catch (error) {
-      console.error("Error fetching subscription by Stripe customer:", error);
+      safeConsole.error("Error fetching subscription by Stripe customer:", error);
       throw error;
     }
   }
@@ -1707,7 +1702,7 @@ class Db {
         .findOne({ stripeSubscriptionId })
         .populate("business", "businessName businessType phone email");
     } catch (error) {
-      console.error(
+      safeConsole.error(
         "Error fetching subscription by Stripe subscription:",
         error,
       );
@@ -1733,7 +1728,7 @@ class Db {
         )
         .populate("business", "businessName businessType phone email");
     } catch (error) {
-      console.error("Error upserting subscription:", error);
+      safeConsole.error("Error upserting subscription:", error);
       throw error;
     }
   }
@@ -1751,7 +1746,7 @@ class Db {
         })
         .populate("business", "businessName businessType phone email");
     } catch (error) {
-      console.error(
+      safeConsole.error(
         "Error updating subscription by Stripe subscription:",
         error,
       );
@@ -1766,7 +1761,7 @@ class Db {
       const ticket = new model(data);
       return await ticket.save();
     } catch (error) {
-      console.error("Error saving support ticket:", error);
+      safeConsole.error("Error saving support ticket:", error);
       throw error;
     }
   }
@@ -1778,7 +1773,7 @@ class Db {
         .sort({ createdAt: -1 })
         .lean();
     } catch (error) {
-      console.error("Error fetching support tickets:", error);
+      safeConsole.error("Error fetching support tickets:", error);
       throw error;
     }
   }
@@ -1787,7 +1782,7 @@ class Db {
     try {
       return await model.findOne({ _id: ticketId, business: businessId });
     } catch (error) {
-      console.error("Error fetching support ticket:", error);
+      safeConsole.error("Error fetching support ticket:", error);
       throw error;
     }
   }
@@ -1808,7 +1803,7 @@ class Db {
         },
       );
     } catch (error) {
-      console.error("Error updating support ticket:", error);
+      safeConsole.error("Error updating support ticket:", error);
       throw error;
     }
   }
@@ -1827,7 +1822,7 @@ class Db {
         },
       );
     } catch (error) {
-      console.error("Error closing support ticket:", error);
+      safeConsole.error("Error closing support ticket:", error);
       throw error;
     }
   }
@@ -1843,7 +1838,7 @@ class Db {
         .sort({ createdAt: -1 })
         .lean();
     } catch (error) {
-      console.error("Error fetching admin support tickets:", error);
+      safeConsole.error("Error fetching admin support tickets:", error);
       throw error;
     }
   }
@@ -1860,7 +1855,7 @@ class Db {
         .populate("lastUpdatedBy", "userName email role")
         .populate("ticketHistory.admin", "userName email role");
     } catch (error) {
-      console.error("Error updating support ticket as admin:", error);
+      safeConsole.error("Error updating support ticket as admin:", error);
       throw error;
     }
   }
@@ -2010,7 +2005,7 @@ class Db {
         subscriptions,
       };
     } catch (error) {
-      console.error("Error getting admin dashboard data:", error);
+      safeConsole.error("Error getting admin dashboard data:", error);
       throw error;
     }
   }
@@ -2153,7 +2148,7 @@ class Db {
         messages,
       };
     } catch (error) {
-      console.error("Error getting admin customer details:", error);
+      safeConsole.error("Error getting admin customer details:", error);
       throw error;
     }
   }
@@ -2174,7 +2169,7 @@ class Db {
         },
       ).populate("business", "businessName businessType phone email");
     } catch (error) {
-      console.error("Error updating subscription status as admin:", error);
+      safeConsole.error("Error updating subscription status as admin:", error);
       throw error;
     }
   }
@@ -2190,7 +2185,7 @@ class Db {
         },
       ).populate("owner", "userName email role");
     } catch (error) {
-      console.error("Error updating business status as admin:", error);
+      safeConsole.error("Error updating business status as admin:", error);
       throw error;
     }
   }
@@ -2200,7 +2195,7 @@ class Db {
       const log = new AdminActionLog(payload);
       return await log.save();
     } catch (error) {
-      console.error("Error creating admin action log:", error);
+      safeConsole.error("Error creating admin action log:", error);
       throw error;
     }
   }
@@ -2219,7 +2214,7 @@ class Db {
 
       return await model.findOne({ $or: conditions }).lean();
     } catch (error) {
-      console.error("Error finding trial redemption:", error);
+      safeConsole.error("Error finding trial redemption:", error);
       throw error;
     }
   }
@@ -2234,7 +2229,7 @@ class Db {
         error.isDuplicateTrial = true;
       }
 
-      console.error("Error creating trial redemption:", error);
+      safeConsole.error("Error creating trial redemption:", error);
       throw error;
     }
   }
@@ -2243,7 +2238,7 @@ class Db {
     try {
       return await model.deleteMany({ business: businessId });
     } catch (error) {
-      console.error("Error deleting trial redemptions:", error);
+      safeConsole.error("Error deleting trial redemptions:", error);
       throw error;
     }
   }
@@ -2255,7 +2250,7 @@ class Db {
       const demoRequest = new model(data);
       return await demoRequest.save();
     } catch (error) {
-      console.error("Error saving demo request:", error);
+      safeConsole.error("Error saving demo request:", error);
       throw error;
     }
   }
@@ -2264,7 +2259,7 @@ class Db {
     try {
       return await model.find(filter).sort({ createdAt: -1 }).lean();
     } catch (error) {
-      console.error("Error fetching demo requests:", error);
+      safeConsole.error("Error fetching demo requests:", error);
       throw error;
     }
   }
@@ -2273,7 +2268,7 @@ class Db {
     try {
       return await model.findById(id).lean();
     } catch (error) {
-      console.error("Error fetching demo request:", error);
+      safeConsole.error("Error fetching demo request:", error);
       throw error;
     }
   }
@@ -2285,7 +2280,7 @@ class Db {
         runValidators: true,
       });
     } catch (error) {
-      console.error("Error updating demo request:", error);
+      safeConsole.error("Error updating demo request:", error);
       throw error;
     }
   }
@@ -2294,7 +2289,7 @@ class Db {
     try {
       return await model.findByIdAndDelete(id);
     } catch (error) {
-      console.error("Error deleting demo request:", error);
+      safeConsole.error("Error deleting demo request:", error);
       throw error;
     }
   }

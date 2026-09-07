@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import twilio from "twilio";
 
 import Business from "../models/business.js";
@@ -452,7 +453,7 @@ export const assignTrackingNumber = async (businessOrId) => {
           cleanupError?.status || cleanupError?.statusCode || 0,
         );
         if (status !== 404) {
-          console.error("[tracking-number] orphan cleanup failed", {
+          safeConsole.error("[tracking-number] orphan cleanup failed", {
             businessId: String(initialBusiness._id),
             providerSid: purchasedProviderSid,
             code: cleanupError?.code || status || "unknown",

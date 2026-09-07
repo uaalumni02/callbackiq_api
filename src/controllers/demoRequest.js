@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import mongoose from "mongoose";
 
 import Db from "../db/db.js";
@@ -148,7 +149,7 @@ class DemoRequestController {
         return Response.responseInvalidInput(res, error.message);
       }
 
-      console.error("Error in createDemoRequest:", error);
+      safeConsole.error("Error in createDemoRequest:", error);
       return Response.responseServerError(res);
     }
   }
@@ -209,7 +210,7 @@ class DemoRequestController {
       const handled = bookingError(res, error);
       if (handled) return handled;
 
-      console.error("Error in bookDemoRequest:", error);
+      safeConsole.error("Error in bookDemoRequest:", error);
       return Response.responseServerError(res);
     }
   }
@@ -223,7 +224,7 @@ class DemoRequestController {
         "Demo availability fetched successfully.",
       );
     } catch (error) {
-      console.error("Error in getDemoAvailability:", error);
+      safeConsole.error("Error in getDemoAvailability:", error);
       return Response.responseServerError(res);
     }
   }
@@ -253,7 +254,7 @@ class DemoRequestController {
         return Response.responseInvalidInput(res, error.message);
       }
 
-      console.error("Error in getPublicDemoRequest:", error);
+      safeConsole.error("Error in getPublicDemoRequest:", error);
       return Response.responseServerError(res);
     }
   }
@@ -312,7 +313,7 @@ class DemoRequestController {
       const handled = bookingError(res, error);
       if (handled) return handled;
 
-      console.error("Error in scheduleDemoRequest:", error);
+      safeConsole.error("Error in scheduleDemoRequest:", error);
       return Response.responseServerError(res);
     }
   }
@@ -371,7 +372,7 @@ class DemoRequestController {
       const handled = bookingError(res, error);
       if (handled) return handled;
 
-      console.error("Error in rescheduleDemoRequest:", error);
+      safeConsole.error("Error in rescheduleDemoRequest:", error);
       return Response.responseServerError(res);
     }
   }
@@ -424,7 +425,7 @@ class DemoRequestController {
         return Response.responseInvalidInput(res, error.message);
       }
 
-      console.error("Error in cancelDemoRequest:", error);
+      safeConsole.error("Error in cancelDemoRequest:", error);
       return Response.responseServerError(res);
     }
   }
@@ -483,7 +484,7 @@ class DemoRequestController {
         return Response.responseInvalidInput(res, error.message);
       }
 
-      console.error("Error in getCalendarFile:", error);
+      safeConsole.error("Error in getCalendarFile:", error);
       return Response.responseServerError(res);
     }
   }
@@ -504,7 +505,7 @@ class DemoRequestController {
         "Demo requests fetched successfully.",
       );
     } catch (error) {
-      console.error("Error in getDemoRequests:", error);
+      safeConsole.error("Error in getDemoRequests:", error);
       return Response.responseServerError(res);
     }
   }
@@ -532,7 +533,7 @@ class DemoRequestController {
         "Demo request fetched successfully.",
       );
     } catch (error) {
-      console.error("Error in getDemoRequestById:", error);
+      safeConsole.error("Error in getDemoRequestById:", error);
       return Response.responseServerError(res);
     }
   }
@@ -691,7 +692,7 @@ class DemoRequestController {
       const handled = bookingError(res, error);
       if (handled) return handled;
 
-      console.error("Error in updateDemoRequest:", error);
+      safeConsole.error("Error in updateDemoRequest:", error);
       return Response.responseServerError(res);
     }
   }
@@ -720,7 +721,7 @@ class DemoRequestController {
         message: "Demo request deleted successfully.",
       });
     } catch (error) {
-      console.error("Error in deleteDemoRequest:", error);
+      safeConsole.error("Error in deleteDemoRequest:", error);
       return Response.responseServerError(res);
     }
   }

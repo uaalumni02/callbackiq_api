@@ -1,7 +1,7 @@
 import crypto from "crypto";
 
 const isProduction = () =>
-  String(process.env.NODE_ENV || "development").toLowerCase() === "production";
+  String(process.env.NODE_ENV || "development").toLowerCase() === "production" || String(process.env.NODE_ENV).toLowerCase() === "staging";
 
 const shortHash = (value) => {
   const text = String(value || "").trim();
@@ -23,6 +23,7 @@ export const redactProviderId = (value) => {
 
 const sanitizeScalar = (key, value) => {
   const normalizedKey = String(key || "").toLowerCase();
+  if (/secret|password|token|authorization|cookie|credential|api.?key/.test(normalizedKey)) return "[redacted]";
   if (/^(from|to|caller|called|phone|customerphone|transferphone)$/.test(normalizedKey)) {
     return redactPhone(value);
   }
@@ -39,10 +40,11 @@ const sanitizeScalar = (key, value) => {
   return String(value);
 };
 
-export const sanitizeLogDetails = (details = {}) => {
+export const sanitizeLogDetails = (details = {}, depth = 0) => {
+  if (depth > 4) return "[depth-limit]";
   if (!details || typeof details !== "object" || Array.isArray(details)) return {};
   return Object.fromEntries(
-    Object.entries(details).map(([key, value]) => [key, sanitizeScalar(key, value)]),
+    Object.entries(details).slice(0, 100).map(([key, value]) => [key, value && typeof value === "object" && !(value instanceof Date) && !/secret|token|password|auth|cookie|body|message|transcript|prompt|address|email|name/i.test(key) ? (Array.isArray(value) ? value.slice(0, 20).map(item => typeof item === "object" ? sanitizeLogDetails(item, depth + 1) : sanitizeScalar(key, item)) : sanitizeLogDetails(value, depth + 1)) : sanitizeScalar(key, value)]),
   );
 };
 
@@ -82,3 +84,19 @@ export default {
   logOperationalWarning,
   logOperationalError,
 };
+
+// Compatibility adapter for legacy call sites. Production free-form strings
+// may contain interpolated customer details, so only structured numeric data
+// and sanitized errors survive. New call sites should use named events above.
+const sanitizeLoose = (value, depth = 0) => {
+  if (depth > 5) return "[depth-limit]";
+  if (value instanceof Error) return sanitizeError(value);
+  if (typeof value === "string") return `[redacted:${shortHash(value)}]`;
+  if (Array.isArray(value)) return value.slice(0, 20).map(item => sanitizeLoose(item, depth + 1));
+  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).slice(0, 50).map(([key, item]) => [key, /secret|token|password|authorization|cookie|credential/i.test(key) ? "[redacted]" : sanitizeLoose(item, depth + 1)]));
+  return value;
+};
+export const safeConsole = Object.fromEntries(["log", "info", "warn", "error", "debug", "trace"].map(method => [method, (...args) => {
+  if (!isProduction()) return console[method](...args);
+  return console[method]({ event: `legacy.${method}`, details: args.map(arg => sanitizeLoose(arg)) });
+}]));

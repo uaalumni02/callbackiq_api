@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import Subscription from "../models/subscription.js";
 import BillingAnomaly from "../models/billingAnomaly.js";
 import { getStripeClient } from "../helpers/stripe/stripeClient.js";
@@ -92,7 +93,7 @@ export const recordBillingAnomaly = async ({
       },
     );
 
-    console.error("[billing-anomaly]", {
+    safeConsole.error("[billing-anomaly]", {
       type,
       severity,
       businessId: businessId ? String(businessId) : "",
@@ -107,7 +108,7 @@ export const recordBillingAnomaly = async ({
     return anomaly;
   } catch (error) {
     // Billing protection must fail closed even if anomaly persistence itself fails.
-    console.error("Failed to persist billing anomaly:", error);
+    safeConsole.error("Failed to persist billing anomaly:", error);
     return null;
   }
 };
@@ -529,7 +530,7 @@ export const reconcileStripeSubscriptionIntegrity = async ({
       summary.clean += 1;
     } catch (error) {
       summary.errors += 1;
-      console.error("Stripe subscription integrity reconciliation failed:", {
+      safeConsole.error("Stripe subscription integrity reconciliation failed:", {
         businessId: String(subscription.business || ""),
         stripeCustomerId: subscription.stripeCustomerId,
         error: error?.message || error,

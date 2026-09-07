@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import User from "../models/user.js";
 
 const requireAdmin = async (req, res, next) => {
@@ -23,7 +24,7 @@ const requireAdmin = async (req, res, next) => {
     req.user.role = "admin";
     return next();
   } catch (error) {
-    console.error("Admin authorization check failed:", error);
+    safeConsole.error("Admin authorization check failed:", error);
     return res.status(500).json({
       success: false,
       message: "Unable to verify admin access",

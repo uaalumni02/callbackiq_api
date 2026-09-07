@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import "dotenv/config";
 import mongoose from "mongoose";
 
@@ -65,7 +66,7 @@ const canonicalizeExisting = async (
       // Another permanent lock already owns the canonical identity. Keep both
       // historical audit rows; future canonical lookups remain blocked.
       stats.conflicts += 1;
-      console.warn("Canonicalization conflict (kept both locks):", {
+      safeConsole.warn("Canonicalization conflict (kept both locks):", {
         redemptionId: String(redemption._id),
         businessId: String(business._id),
       });
@@ -92,7 +93,7 @@ const run = async () => {
       );
     } catch (error) {
       stats.errors += 1;
-      console.error("Unable to canonicalize redemption:", {
+      safeConsole.error("Unable to canonicalize redemption:", {
         redemptionId: String(redemption._id),
         message: error.message,
       });
@@ -121,7 +122,7 @@ const run = async () => {
       const identity = buildTrialIdentity(business, ownerId);
       if (!identity.emailKey) {
         stats.errors += 1;
-        console.warn("Historical trial has no usable email identity:", {
+        safeConsole.warn("Historical trial has no usable email identity:", {
           businessId: String(business._id),
         });
         continue;
@@ -165,7 +166,7 @@ const run = async () => {
       }
     } catch (error) {
       stats.errors += 1;
-      console.error("Unable to backfill historical trial:", {
+      safeConsole.error("Unable to backfill historical trial:", {
         subscriptionId: String(subscription._id),
         businessId: String(subscription.business),
         message: error.message,
@@ -173,7 +174,7 @@ const run = async () => {
     }
   }
 
-  console.log(
+  safeConsole.log(
     JSON.stringify({ mode: APPLY ? "apply" : "dry-run", ...stats }, null, 2),
   );
 
@@ -182,7 +183,7 @@ const run = async () => {
 
 run()
   .catch((error) => {
-    console.error(error);
+    safeConsole.error(error);
     process.exitCode = 1;
   })
   .finally(async () => {

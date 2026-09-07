@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import { beginValuation, finishValuation } from "../services/valuation/opportunityValuation.service.js";
 import mongoose from "mongoose";
 
@@ -73,9 +74,14 @@ class AiController {
       const aiResult = await qualifyLeadWithAI({
         messageBody,
         businessType: business.businessType,
+        business,
       });
 
+      if (["prompt_injection", "off_topic", "possible_spam"].includes(aiResult.messageCategory)) {
+        return Response.responseOk(res, { lead, aiResult: { messageCategory: aiResult.messageCategory } }, "Message was not eligible for lead qualification");
+      }
       const updateData = {
+        aiExtraction: { source: "owner_qualification", observedAt: new Date(), verified: false },
         serviceNeeded:
           aiResult.serviceNeeded || lead.serviceNeeded || "Unknown service",
         urgency: sanitizeUrgency(aiResult.urgency),
@@ -121,7 +127,7 @@ class AiController {
         return Response.responseInvalidInput(res, error.message);
       }
 
-      console.error("Error in qualifyLead:", error);
+      safeConsole.error("Error in qualifyLead:", error);
       return Response.responseServerError(res);
     }
   }

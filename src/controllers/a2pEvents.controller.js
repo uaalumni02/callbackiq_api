@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import crypto from "crypto";
 import { markComplianceEvent } from "../services/a2pCustomerOnboarding.service.js";
 
@@ -62,7 +63,7 @@ export const receiveA2pComplianceEvents = async (req, res) => {
     }
     return res.status(204).send();
   } catch (error) {
-    console.error("[a2p-events] compliance event failed", error);
+    safeConsole.error("[a2p-events] compliance event failed", error);
     return res.status(500).json({ success: false, message: "Compliance event processing failed." });
   }
 };

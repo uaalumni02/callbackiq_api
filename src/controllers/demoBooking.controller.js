@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import Joi from "joi";
 
 import Db from "../db/db.js";
@@ -129,7 +130,7 @@ class DemoBookingController {
       const handled = bookingError(res, error);
       if (handled) return handled;
 
-      console.error("Error in bookDemoRequest:", error);
+      safeConsole.error("Error in bookDemoRequest:", error);
       return Response.responseServerError(res);
     }
   }

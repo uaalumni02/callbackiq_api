@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import Business from "../models/business.js";
 import AvailabilityException from "../models/availabilityException.js";
 import AvailabilityRule from "../models/availabilityRule.js";
@@ -50,7 +51,7 @@ const respondError = (res, error) => {
     });
   }
 
-  console.error("Business configuration error:", error);
+  safeConsole.error("Business configuration error:", error);
   return res.status(500).json({
     success: false,
     message: "Unable to process business configuration",

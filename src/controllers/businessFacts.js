@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import Business from "../models/business.js";
 import Db from "../db/db.js";
 import * as Response from "../helpers/response/response.js";
@@ -42,7 +43,7 @@ class BusinessFactsController {
         "Verified business facts fetched successfully",
       );
     } catch (error) {
-      console.error("Error fetching business facts:", error);
+      safeConsole.error("Error fetching business facts:", error);
       return Response.responseServerError(res);
     }
   }
@@ -107,7 +108,7 @@ class BusinessFactsController {
         return Response.responseInvalidInput(res, error.message);
       }
 
-      console.error("Error updating business facts:", error);
+      safeConsole.error("Error updating business facts:", error);
       return Response.responseServerError(res);
     }
   }

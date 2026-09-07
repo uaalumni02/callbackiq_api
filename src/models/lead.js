@@ -8,6 +8,7 @@ import * as validate from "../helpers/model/lead.js";
 
 const LeadSchema = new Schema(
   {
+    aiExtraction: { source: String, observedAt: Date, verified: { type: Boolean, default: false } },
     business: {
       type: Schema.Types.ObjectId,
       ref: "Business",

@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import { processTrialLifecycle } from "../services/trialLifecycle.service.js";
 import { reconcileStripeSubscriptionIntegrity } from "../services/subscriptionIntegrity.service.js";
 
@@ -42,10 +43,10 @@ export const startTrialLifecycleWorker = async () => {
   if (process.env.NODE_ENV === "test" || timer) return;
 
   await runTrialLifecycleOnce().catch((error) => {
-    console.error("Initial trial lifecycle run failed:", error);
+    safeConsole.error("Initial trial lifecycle run failed:", error);
   });
   await runSubscriptionIntegrityOnce({ force: true }).catch((error) => {
-    console.error("Initial Stripe billing integrity run failed:", error);
+    safeConsole.error("Initial Stripe billing integrity run failed:", error);
   });
 
   const intervalMs =
@@ -55,10 +56,10 @@ export const startTrialLifecycleWorker = async () => {
 
   timer = setInterval(() => {
     void runTrialLifecycleOnce().catch((error) => {
-      console.error("Trial lifecycle worker failed:", error);
+      safeConsole.error("Trial lifecycle worker failed:", error);
     });
     void runSubscriptionIntegrityOnce().catch((error) => {
-      console.error("Stripe billing integrity worker failed:", error);
+      safeConsole.error("Stripe billing integrity worker failed:", error);
     });
   }, intervalMs);
 

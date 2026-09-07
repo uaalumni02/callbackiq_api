@@ -69,10 +69,10 @@ describe("security hardening middleware", () => {
     expect(res.body.code).toBe("CSRF_ORIGIN_REJECTED");
   });
 
-  test("CSRF guard does not interfere with bearer-authenticated requests", () => {
+  test("CSRF guard does not interfere with bearer-only requests", () => {
     const req = {
       method: "POST",
-      cookies: { token: "cookie-token" },
+      cookies: {},
       headers: { authorization: "Bearer explicit-token" },
       get(name) {
         return this.headers[String(name).toLowerCase()] || "";
@@ -85,4 +85,11 @@ describe("security hardening middleware", () => {
 
     expect(next).toHaveBeenCalledTimes(1);
   });
+  test("an arbitrary bearer header cannot bypass cookie CSRF validation", () => {
+    const req = { method: "POST", cookies: { token: "cookie-token" }, headers: { authorization: "Bearer arbitrary" }, get(name) { return this.headers[name] || ""; } };
+    const res = createResponse(); const next = jest.fn();
+    csrfOriginGuard(req, res, next);
+    expect(next).not.toHaveBeenCalled(); expect(res.status).toHaveBeenCalledWith(403);
+  });
+
 });

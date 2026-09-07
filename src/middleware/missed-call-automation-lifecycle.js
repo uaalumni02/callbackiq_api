@@ -1,3 +1,5 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
+import { durableWebhookWorkEnabled } from "../services/webhooks/webhookWork.service.js";
 import Business from "../models/business.js";
 import Conversation from "../models/conversation.js";
 import AutomationTriggerService from "../services/automation/automationTrigger.service.js";
@@ -10,14 +12,14 @@ const MISSED_CALL_STATUSES = new Set([
   "canceled",
 ]);
 
-const scheduleMissedCallFollowUp = async ({ body }) => {
+export const scheduleMissedCallFollowUp = async ({ body, businessId, retryMissingConversation = false }) => {
   const businessPhone = String(body?.To || "").trim();
   const customerPhone = String(body?.From || "").trim();
   const providerCallId = String(body?.CallSid || body?.ParentCallSid || "").trim();
 
   if (!businessPhone || !customerPhone || !providerCallId) return;
 
-  const business = await Business.findOne({ phone: businessPhone })
+  const business = await Business.findOne(businessId ? { _id: businessId } : { phone: businessPhone })
     .select("_id features.automatedFollowUpEnabled")
     .lean();
   if (!business?.features?.automatedFollowUpEnabled) return;
@@ -30,7 +32,10 @@ const scheduleMissedCallFollowUp = async ({ body }) => {
     .sort({ lastMessageAt: -1, createdAt: -1 })
     .select("_id lead")
     .lean();
-  if (!conversation) return;
+  if (!conversation) {
+    if (retryMissingConversation) throw Object.assign(new Error("Conversation not yet available"), { code: "FOLLOWUP_CONVERSATION_PENDING" });
+    return;
+  }
 
   await AutomationTriggerService.schedule({
     businessId: business._id,
@@ -49,6 +54,7 @@ const scheduleMissedCallFollowUp = async ({ body }) => {
  * just committed. Trigger idempotency prevents duplicate jobs on webhook retry.
  */
 const missedCallAutomationLifecycle = (req, res, next) => {
+  if (durableWebhookWorkEnabled()) return next();
   const callStatus = String(req.body?.CallStatus || "")
     .trim()
     .toLowerCase();
@@ -59,7 +65,7 @@ const missedCallAutomationLifecycle = (req, res, next) => {
   res.once("finish", () => {
     if (res.statusCode < 200 || res.statusCode >= 300) return;
     void scheduleMissedCallFollowUp({ body }).catch((error) => {
-      console.error("Missed-call automation lifecycle failed:", error);
+      safeConsole.error("Missed-call automation lifecycle failed:", error);
     });
   });
 

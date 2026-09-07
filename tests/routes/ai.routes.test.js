@@ -281,7 +281,8 @@ describe("Agent Routes", () => {
     expect(updatedLead.serviceNeeded).toBe("Water heater repair");
     expect(updatedLead.urgency).toBe("emergency");
     expect(updatedLead.leadQualityScore).toBe(95);
-    expect(updatedLead.estimatedValue).toBe(1200);
+    // An unconstrained model estimate is not verified opportunity value.
+    expect(updatedLead.estimatedValue).toBeNull();
     expect(updatedLead.status).toBe("contacted");
 
     const messages = await Message.find({
@@ -378,7 +379,8 @@ describe("Agent Routes", () => {
 
     expect(updatedLead.urgency).toBe("medium");
     expect(updatedLead.leadQualityScore).toBe(100);
-    expect(updatedLead.estimatedValue).toBe(0);
+    // Unknown value remains unknown, rather than becoming a fabricated zero.
+    expect(updatedLead.estimatedValue).toBeNull();
   });
 
   test("does not create alert when lead is not hot", async () => {

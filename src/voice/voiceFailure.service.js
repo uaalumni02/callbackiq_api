@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import Alert from "../models/alert.js";
 import VoiceSession from "../models/voiceSession.js";
 import SocketService from "../services/socket.service.js";
@@ -12,7 +13,7 @@ const emit = (method, ...args) => {
       SocketService[method](...args);
     }
   } catch (error) {
-    console.warn(`Voice failure socket event ${method} failed:`, error.message);
+    safeConsole.warn(`Voice failure socket event ${method} failed:`, error.message);
   }
 };
 
@@ -83,7 +84,7 @@ class VoiceFailureService {
     try {
       await VoiceTranscriptService.finalize(session._id);
     } catch (error) {
-      console.error("Voice failure transcript finalization failed:", error);
+      safeConsole.error("Voice failure transcript finalization failed:", error);
     }
 
     return session;

@@ -1,3 +1,4 @@
+import { safeConsole } from "../../logging/safeLogger.js";
 import Appointment from "../../../models/appointment.js";
 import Message from "../../../models/message.js";
 import VoiceSession from "../../../models/voiceSession.js";
@@ -113,7 +114,7 @@ const sendConfirmationSmsTool = async ({
       });
     }
   } catch (error) {
-    console.error("Voice confirmation SMS preference check failed:", error);
+    safeConsole.error("Voice confirmation SMS preference check failed:", error);
     return suppressDelivery({
       voiceSessionId,
       reason:
@@ -165,7 +166,7 @@ const sendConfirmationSmsTool = async ({
   } catch (error) {
     // The provider accepted the SMS. Keep the session marked sent so a database
     // logging failure cannot cause a duplicate customer message on retry.
-    console.error("Voice confirmation SMS was sent but could not be logged:", error);
+    safeConsole.error("Voice confirmation SMS was sent but could not be logged:", error);
   }
 
   if (message && typeof SocketService.emitMessageCreated === "function") {

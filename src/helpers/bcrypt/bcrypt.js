@@ -1,4 +1,4 @@
-import bcryptjs from "bcryptjs";
+import bcryptjs from "bcrypt";
 
 class bcrypt {
   static async hashPassword(password, saltRounds = 10) {

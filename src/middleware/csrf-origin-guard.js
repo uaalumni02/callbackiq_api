@@ -12,7 +12,7 @@ const isEnabled = () => {
     return true;
   }
 
-  return process.env.NODE_ENV === "production";
+  return ["production", "staging"].includes(process.env.NODE_ENV);
 };
 
 const getBearerToken = (authorizationHeader) => {
@@ -49,7 +49,7 @@ const csrfOriginGuard = (req, res, next) => {
    * cross-site form cannot manufacture.
    */
   const cookieToken = req.cookies?.token || "";
-  if (!cookieToken || getBearerToken(req.get("authorization"))) {
+  if (!cookieToken) {
     return next();
   }
 

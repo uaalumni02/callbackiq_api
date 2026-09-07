@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 // CALLBACKIQ_PRODUCTION_HARDENING_V1
 import crypto from "crypto";
 import ProductionOperationLease from "../models/productionOperationLease.js";
@@ -90,7 +91,7 @@ export const withDistributedLease = async (
     heartbeatTimer = setInterval(() => {
       void renewDistributedLease(key, lease.ownerToken, { ttlMs }).catch(
         (error) => {
-          console.error("Distributed lease heartbeat failed:", {
+          safeConsole.error("Distributed lease heartbeat failed:", {
             key,
             error: error?.message || String(error),
           });
@@ -109,7 +110,7 @@ export const withDistributedLease = async (
   } finally {
     if (heartbeatTimer) clearInterval(heartbeatTimer);
     await releaseDistributedLease(key, lease.ownerToken).catch((error) => {
-      console.error("Distributed lease release failed:", {
+      safeConsole.error("Distributed lease release failed:", {
         key,
         error: error?.message || String(error),
       });

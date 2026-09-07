@@ -122,10 +122,11 @@ describe("Twilio signature middleware", () => {
       jest.fn(),
     );
     expect(res.status).toHaveBeenCalledWith(403);
-    expect(console.warn).toHaveBeenCalledWith(
-      "Rejected Twilio webhook with an invalid signature",
-      { path: "/api/twilio/sms" },
-    );
+    expect(console.warn).toHaveBeenCalledWith({
+      event: "legacy.warn",
+      details: [expect.stringMatching(/^\[redacted:[a-f0-9]+\]$/), { path: expect.stringMatching(/^\[redacted:[a-f0-9]+\]$/) }],
+    });
+    expect(JSON.stringify(console.warn.mock.calls)).not.toContain("bad-signature");
   });
 
   test("uses a configured webhook base URL and removes trailing slashes", () => {

@@ -1,3 +1,9 @@
+import { safeConsole } from "./helpers/logging/safeLogger.js";
+import { startWebhookWorkWorker, stopWebhookWorkWorker } from "./workers/webhookWork.worker.js";
+import { Server } from "socket.io";
+import SocketService from "./services/socket.service.js";
+import { initializeSocketRedisAdapter, closeSocketRedisAdapter } from "./services/socketRedisAdapter.service.js";
+import { closeScaleCache } from "./services/scaleCache.service.js";
 import {
   startConversationLifecycleWorker,
   stopConversationLifecycleWorker,
@@ -57,6 +63,7 @@ export const roleMap = {
     ["automation", startAutomationWorker, stopAutomationWorker],
     ["lifecycle", startTrialLifecycleWorker, stopTrialLifecycleWorker],
     ["sms", startSmsProcessingWorker, stopSmsProcessingWorker],
+    ["webhook-work", startWebhookWorkWorker, stopWebhookWorkWorker],
     ["sms-ingress", startSmsIngressReconciliationWorker, stopSmsIngressReconciliationWorker],
     ["sms-delivery", startSmsDeliveryReconciliationWorker, stopSmsDeliveryReconciliationWorker],
     ["sms-lifecycle", startConversationLifecycleWorker, stopConversationLifecycleWorker],
@@ -68,6 +75,7 @@ export const roleMap = {
   ],
   "worker-sms": [
     ["sms", startSmsProcessingWorker, stopSmsProcessingWorker],
+    ["webhook-work", startWebhookWorkWorker, stopWebhookWorkWorker],
     ["sms-ingress", startSmsIngressReconciliationWorker, stopSmsIngressReconciliationWorker],
     ["sms-delivery", startSmsDeliveryReconciliationWorker, stopSmsDeliveryReconciliationWorker],
     ["sms-lifecycle", startConversationLifecycleWorker, stopConversationLifecycleWorker],
@@ -81,6 +89,7 @@ export const roleMap = {
   "worker-a2p": [
     ["a2p", startA2pReconciliationWorker, stopA2pReconciliationWorker],
   ],
+  "worker-voice-usage": [["voice-usage", startVoiceUsageReconciliationWorker, stopVoiceUsageReconciliationWorker]],
   "worker-maintenance": [
     [
       "maintenance",
@@ -90,6 +99,7 @@ export const roleMap = {
   ],
 };
 
+let workerIo = null;
 let stopping = false;
 let activeStops = [];
 
@@ -98,13 +108,13 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const shutdown = async (signal, exitCode = 0) => {
   if (stopping) return;
   stopping = true;
-  console.log(`Worker shutdown requested (${signal})`);
+  safeConsole.log(`Worker shutdown requested (${signal})`);
 
   for (const [name, stop] of activeStops.reverse()) {
     try {
       await Promise.resolve(stop());
     } catch (error) {
-      console.error(`Failed stopping ${name} worker:`, error);
+      safeConsole.error(`Failed stopping ${name} worker:`, error);
       exitCode = 1;
     }
   }
@@ -120,8 +130,11 @@ const shutdown = async (signal, exitCode = 0) => {
   );
   if (graceMs) await delay(graceMs);
 
+  if (workerIo) await new Promise(resolve => workerIo.close(resolve));
+  await closeSocketRedisAdapter();
+  await closeScaleCache();
   await mongoose.connection.close().catch((error) => {
-    console.error("MongoDB close failed:", error);
+    safeConsole.error("MongoDB close failed:", error);
     exitCode = 1;
   });
 
@@ -131,6 +144,11 @@ const shutdown = async (signal, exitCode = 0) => {
 export const startWorkerProcess = async ({
   connect = connectDB,
   workerRoles = roleMap,
+  initializeRealtime = async () => {
+    workerIo = new Server({ serveClient: false });
+    await initializeSocketRedisAdapter(workerIo);
+    SocketService.initialize(workerIo);
+  },
 } = {}) => {
   normalizeRuntimeEnvironment();
   validateEnvironment(process.env, { throwOnError: true });
@@ -144,13 +162,15 @@ export const startWorkerProcess = async ({
   }
 
   await connect();
-  activeStops = workerRoles[role].map(([name, start, stop]) => {
-    start();
-    console.log(`Started ${name} worker`);
-    return [name, stop];
-  });
+  if (workerRoles === roleMap || process.env.SOCKET_REDIS_URL || process.env.REDIS_URL) await initializeRealtime();
+  activeStops = [];
+  for (const [name, start, stop] of workerRoles[role]) {
+    activeStops.push([name, stop]);
+    await start();
+    safeConsole.log(`Started ${name} worker`);
+  }
 
-  console.log(`CallBackIQ worker process ready (${getProcessRole()})`);
+  safeConsole.log(`CallBackIQ worker process ready (${getProcessRole()})`);
 };
 
 const workerBootTestMode =
@@ -161,16 +181,16 @@ if (!workerBootTestMode) {
   process.once("SIGINT", () => void shutdown("SIGINT"));
 
   process.on("unhandledRejection", (error) => {
-    console.error("Unhandled worker rejection:", error);
+    safeConsole.error("Unhandled worker rejection:", error);
     void shutdown("unhandledRejection", 1);
   });
   process.on("uncaughtException", (error) => {
-    console.error("Uncaught worker exception:", error);
+    safeConsole.error("Uncaught worker exception:", error);
     void shutdown("uncaughtException", 1);
   });
 
   void startWorkerProcess().catch((error) => {
-    console.error("Worker startup failed:", error);
+    safeConsole.error("Worker startup failed:", error);
     void shutdown("startupFailure", 1);
   });
 }

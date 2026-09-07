@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import AutomationJob from "../models/automationJob.js";
 import AppointmentService from "../services/scheduling/appointment.service.js";
 import AutomationService from "../services/automation/automation.service.js";
@@ -72,7 +73,7 @@ export const processNextAutomationJob = async () => {
   try {
     return await AutomationService.execute(job);
   } catch (error) {
-    console.error("Automation job execution failed:", {
+    safeConsole.error("Automation job execution failed:", {
       jobId: String(job._id),
       error: error.message,
     });
@@ -90,20 +91,20 @@ const maintainGoogleWatches = async () => {
       const results = await renewExpiringGoogleWatches();
       const failures = results.filter((result) => !result.renewed);
       if (failures.length) {
-        console.error("Google Calendar watch renewal failures:", failures);
+        safeConsole.error("Google Calendar watch renewal failures:", failures);
       }
     } catch (error) {
-      console.error("Google Calendar watch maintenance failed:", error);
+      safeConsole.error("Google Calendar watch maintenance failed:", error);
     }
   }
   try {
     const results = await sweepOrphanedGoogleEvents();
     const failures = results.filter((result) => result.error);
     if (failures.length) {
-      console.error("Google Calendar orphan sweep failures:", failures);
+      safeConsole.error("Google Calendar orphan sweep failures:", failures);
     }
   } catch (error) {
-    console.error("Google Calendar orphan sweep failed:", error);
+    safeConsole.error("Google Calendar orphan sweep failed:", error);
   }
 };
 
@@ -125,7 +126,7 @@ const tick = async ({ includeIntegrationMaintenance = true } = {}) => {
       processed += 1;
     }
   } catch (error) {
-    console.error("Automation worker tick failed:", error);
+    safeConsole.error("Automation worker tick failed:", error);
   } finally {
     running = false;
   }
@@ -141,7 +142,7 @@ export const startAutomationWorker = async () => {
   await tick({ includeIntegrationMaintenance: false });
   timer = setInterval(() => void tick(), POLL_INTERVAL_MS);
   timer.unref?.();
-  console.log(`Automation worker started as ${instanceId}.`);
+  safeConsole.log(`Automation worker started as ${instanceId}.`);
 };
 
 export const stopAutomationWorker = () => {

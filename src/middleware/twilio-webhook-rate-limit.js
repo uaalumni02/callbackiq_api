@@ -1,7 +1,12 @@
+import { createBoundedRedis } from "../services/boundedRedis.service.js";
 import crypto from "crypto";
 
 import CommunicationRouteRateLimit from "../models/communicationRouteRateLimit.js";
 import { logOperationalError } from "../helpers/logging/safeLogger.js";
+
+const distributedRedis = createBoundedRedis({ url: () => process.env.RATE_LIMIT_REDIS_URL || process.env.REDIS_URL || process.env.SOCKET_REDIS_URL, name: "webhook-rate-limit" });
+const useRedis = () => Boolean(process.env.RATE_LIMIT_REDIS_URL || process.env.REDIS_URL || process.env.SOCKET_REDIS_URL);
+const COUNTER = `local n = redis.call('INCR', KEYS[1]); if n == 1 then redis.call('PEXPIRE', KEYS[1], ARGV[1]) end; return n`;
 
 const stores = new Set();
 
@@ -22,6 +27,13 @@ const getWindowStart = (now, windowMs) =>
 
 const reserveDistributed = async ({ keyHash, name, max, windowMs, now }) => {
   const windowStart = getWindowStart(now, windowMs);
+  if (useRedis()) {
+    const key = `${process.env.SCALE_CACHE_NAMESPACE || "callbackiq:scale:v1"}:rate:${name}:${keyHash}:${windowStart.getTime()}`;
+    // Do not switch to a second distributed counter mid-window on failure.
+    // The configured fail-closed policy below decides the degraded behavior.
+    const count = await distributedRedis.execute(client => client.eval(COUNTER, { keys: [key], arguments: [String(windowMs * 3)] }));
+    return count <= max;
+  }
   const identity = { keyHash, name, windowStart };
 
   try {
@@ -100,6 +112,7 @@ export const createCommunicationRouteRateLimit = ({
       for (const [entryKey, value] of entries.entries()) {
         if (value.resetAt <= now) entries.delete(entryKey);
       }
+      while (entries.size > 10000) entries.delete(entries.keys().next().value);
     }
 
     if (current.count > max) {
@@ -107,7 +120,7 @@ export const createCommunicationRouteRateLimit = ({
     }
 
     if (
-      CommunicationRouteRateLimit.db &&
+      !useRedis() && CommunicationRouteRateLimit.db &&
       CommunicationRouteRateLimit.db.readyState !== 1
     ) {
       if (shouldFailClosed()) {

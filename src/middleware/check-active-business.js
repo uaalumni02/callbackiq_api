@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import Db from "../db/db.js";
 import Business from "../models/business.js";
 import * as Response from "../helpers/response/response.js";
@@ -52,7 +53,7 @@ const checkActiveBusiness = async (req, res, next) => {
 
     return next();
   } catch (error) {
-    console.error("Error in checkActiveBusiness:", error);
+    safeConsole.error("Error in checkActiveBusiness:", error);
     return Response.responseServerError(res);
   }
 };

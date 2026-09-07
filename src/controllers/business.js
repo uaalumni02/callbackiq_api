@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 
 import mongoose from "mongoose";
 
@@ -89,7 +90,7 @@ class BusinessController {
         return Response.responseInvalidInput(res, error.message);
       }
 
-      console.error("Error in createBusiness:", error);
+      safeConsole.error("Error in createBusiness:", error);
       return Response.responseServerError(res);
     }
   }
@@ -110,7 +111,7 @@ class BusinessController {
 
       return Response.responseOk(res, business, "Business fetched");
     } catch (error) {
-      console.error("Error in getMyBusiness:", error);
+      safeConsole.error("Error in getMyBusiness:", error);
       return Response.responseServerError(res);
     }
   }
@@ -143,7 +144,7 @@ class BusinessController {
 
       return Response.responseOk(res, business, "Business fetched");
     } catch (error) {
-      console.error("Error in getBusinessById:", error);
+      safeConsole.error("Error in getBusinessById:", error);
       return Response.responseServerError(res);
     }
   }
@@ -274,7 +275,7 @@ class BusinessController {
         });
       }
 
-      console.error("Error in updateMyBusiness:", error);
+      safeConsole.error("Error in updateMyBusiness:", error);
       return Response.responseServerError(res);
     }
   }
@@ -298,7 +299,7 @@ class BusinessController {
         message: "Business deleted successfully",
       });
     } catch (error) {
-      console.error("Error in deleteMyBusiness:", error);
+      safeConsole.error("Error in deleteMyBusiness:", error);
       return Response.responseServerError(res);
     }
   }

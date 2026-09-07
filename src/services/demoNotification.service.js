@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import nodemailer from "nodemailer";
 
 const clean = (value) => String(value || "").trim();
@@ -78,7 +79,7 @@ class DemoNotificationService {
       return true;
     } catch (error) {
       // Demo booking must remain available even if email delivery is degraded.
-      console.error("Demo notification email failed:", error);
+      safeConsole.error("Demo notification email failed:", error);
       return false;
     }
   }

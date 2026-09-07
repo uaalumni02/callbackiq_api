@@ -1,3 +1,4 @@
+import { safeConsole } from "../../helpers/logging/safeLogger.js";
 import { resolveOpportunityValue, ownerEstimate, moneyAmount } from "../valuation/opportunityValue.js";
 import crypto from "crypto";
 
@@ -121,7 +122,7 @@ const runNonBlockingAppointmentSideEffect = async ({
   try {
     return await task();
   } catch (error) {
-    console.error(`Appointment ${label} side effect failed:`, {
+    safeConsole.error(`Appointment ${label} side effect failed:`, {
       appointmentId: String(appointment?._id || ""),
       businessId: String(businessId || appointment?.business || ""),
       error: error.message,
@@ -728,7 +729,7 @@ class AppointmentService {
         });
       }
     } catch (error) {
-      console.error("Appointment confirmation side effect failed:", {
+      safeConsole.error("Appointment confirmation side effect failed:", {
         appointmentId: String(appointment._id),
         error: error.message,
       });

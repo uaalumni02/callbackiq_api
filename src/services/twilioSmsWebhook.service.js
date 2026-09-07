@@ -1,3 +1,6 @@
+import Business from "../models/business.js";
+import Lead from "../models/lead.js";
+import { durableWebhookWorkEnabled, enqueueWebhookWork } from "./webhooks/webhookWork.service.js";
 import { claimRecoveryIntroduction } from "./messaging/recoveryIntroduction.service.js";
 // CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1: webhook
 import { processInboundSmsJob } from "./messaging/inboundSmsJobProcessor.service.js";
@@ -81,7 +84,7 @@ const startWebhookHeartbeat = ({ eventId, leaseToken, res }) => {
 };
 
 const saveOutbound = async ({ business, conversation, lead, from = "", to, body, sent, generatedBy, usageCategory, actorType, metadata }) => {
-  const message = await Message.create({
+  const fields = {
     business: business._id,
     conversation: conversation._id,
     lead: lead?._id || conversation.lead || null,
@@ -100,7 +103,10 @@ const saveOutbound = async ({ business, conversation, lead, from = "", to, body,
     usageCategory,
     actorType,
     metadata,
-  });
+  };
+  const message = durableWebhookWorkEnabled() && sent?.sid
+    ? await Message.findOneAndUpdate({ business: business._id, providerMessageId: sent.sid }, { $setOnInsert: fields }, { upsert: true, returnDocument: "after", setDefaultsOnInsert: true })
+    : await Message.create(fields);
   SocketService.emitMessageCreated(business._id, message);
   return message;
 };
@@ -138,6 +144,119 @@ const failAndRespond = async ({
     );
   }
   return sendXml(res, { statusCode, body: responseBody });
+};
+
+export const deliverRecoveryIntroduction = async ({ business, conversation, lead, numberContext, callLog, callSid, customerPhone, starterText, smsEnabled, smsStatus, strict = false }) => {
+    let sentResult = null;
+
+    if (smsEnabled) {
+      try {
+        const introClaimed = await claimRecoveryIntroduction({ businessId: business._id, conversationId: conversation._id, operationKey: strict ? callSid : "" });
+        if (!introClaimed) {
+          sentResult = { suppressed: true, reason: "recent_recovery_introduction" };
+        } else {
+          sentResult = await sendSms({
+            business,
+            businessId: business._id,
+            from: numberContext?.trackingNumber?.phoneNumber || business.phone,
+            to: customerPhone,
+            body: starterText,
+            actorType: "webhook",
+            source: "missed_call_recovery",
+            usageCategory: "missed_call_recovery",
+            conversationId: conversation._id,
+            leadId: lead._id,
+            directResponse: true,
+            requireOptOutDisclosure: true,
+            metadata: { providerCallSid: callSid, idempotencyKey: `missed-call-recovery:${business._id}:${callSid}` },
+          });
+        }
+        smsStatus = sentResult?.suppressed ? "suppressed" : "sent";
+
+        if (!sentResult?.suppressed && (!sentResult?.replayed || strict)) {
+          await saveOutbound({
+            business,
+            conversation,
+            lead,
+            from: numberContext?.trackingNumber?.phoneNumber || business.phone,
+            to: customerPhone,
+            body: starterText,
+            sent: sentResult,
+            generatedBy: "automation",
+            usageCategory: "missed_call_recovery",
+            actorType: "automation",
+            metadata: { source: "missed_call_recovery", providerCallSid: callSid },
+          });
+          await updateConversationLastMessage({
+            businessId: business._id,
+            conversation,
+            body: starterText,
+          });
+          logOperationalEvent("twilio.voice.sms_sent", {
+            businessId: business._id,
+            providerMessageId: sentResult?.sid || "",
+          });
+        } else {
+          logOperationalEvent("twilio.voice.sms_suppressed", {
+            businessId: business._id,
+            reason: sentResult.reason || "customer_opted_out",
+            providerCode: sentResult.providerCode || null,
+          });
+        }
+      } catch (smsError) {
+        if (strict) throw smsError;
+        logOperationalError("twilio.voice.sms_failed", smsError, {
+          businessId: business._id,
+          providerCallSid: callSid,
+          errorCode: smsError?.code || "error",
+        });
+      }
+    }
+
+    const callUpdate = {
+        missedCallTextSent: Boolean(sentResult && !sentResult.suppressed),
+        missedCallTextDelivered: false,
+        smsProviderMessageId: sentResult?.sid || "",
+        smsDeliveryStatus: sentResult?.suppressed
+          ? "suppressed"
+          : sentResult?.status || smsStatus,
+        smsSegmentCount: sentResult?.segmentCount || 0,
+        recovered: false,
+      };
+    let updatedCallLog;
+    if (strict) {
+      // Provider callbacks and customer replies can arrive before this job finishes.
+      delete callUpdate.missedCallTextDelivered;
+      delete callUpdate.recovered;
+      updatedCallLog = await CallLog.findOneAndUpdate({ _id: callLog._id,
+        smsDeliveryStatus: { $nin: ["delivered", "undelivered", "failed"] } },
+        { $set: callUpdate }, { returnDocument: "after" });
+      if (!updatedCallLog) updatedCallLog = await CallLog.findById(callLog._id);
+    } else updatedCallLog = await CallLog.findByIdAndUpdate(callLog._id, callUpdate, { returnDocument: "after" });
+    SocketService.emitCallUpdated(business._id, updatedCallLog);
+    SocketService.emitDashboardRefresh(
+      business._id,
+      sentResult && !sentResult.suppressed
+        ? "missed_call_sms_accepted"
+        : "missed_call_recorded",
+    );
+
+  return smsStatus;
+};
+
+export const processRecoveryIntroductionJob = async (payload) => {
+  const [business, conversation, lead, callLog] = await Promise.all([
+    Business.findById(payload.businessId),
+    Conversation.findOne({ _id: payload.conversationId, business: payload.businessId }),
+    Lead.findOne({ _id: payload.leadId, business: payload.businessId }),
+    CallLog.findOne({ _id: payload.callLogId, business: payload.businessId }),
+  ]);
+  if (!business || !conversation || !lead || !callLog) throw Object.assign(new Error("Recovery records unavailable"), { code: "RECOVERY_RECORD_MISSING" });
+  if (callLog.missedCallTextSent && callLog.smsProviderMessageId) return;
+  if (!business.isActive || !isBusinessFeatureEnabled(business, "missedCallSmsEnabled") || conversation.humanTakeover || conversation.aiEnabled === false || ["closed", "archived"].includes(conversation.status)) return;
+  return deliverRecoveryIntroduction({ business, conversation, lead, callLog, callSid: payload.callSid,
+    customerPhone: conversation.customerPhone, starterText: buildMissedCallRecoveryText({ business }),
+    numberContext: { trackingNumber: { phoneNumber: payload.from } }, smsEnabled: true, smsStatus: "queued", strict: true });
 };
 
 export const handleSmsRecoveryVoiceWebhook = async (req, res) => {
@@ -265,92 +384,14 @@ export const handleSmsRecoveryVoiceWebhook = async (req, res) => {
         conversationStatus: conversation.status,
       });
     }
-    let sentResult = null;
-
-    if (smsEnabled) {
-      try {
-        const introClaimed = await claimRecoveryIntroduction({ businessId: business._id, conversationId: conversation._id });
-        if (!introClaimed) {
-          sentResult = { suppressed: true, reason: "recent_recovery_introduction" };
-        } else {
-          sentResult = await sendSms({
-            business,
-            businessId: business._id,
-            from: numberContext?.trackingNumber?.phoneNumber || business.phone,
-            to: customerPhone,
-            body: starterText,
-            actorType: "webhook",
-            source: "missed_call_recovery",
-            usageCategory: "missed_call_recovery",
-            conversationId: conversation._id,
-            leadId: lead._id,
-            directResponse: true,
-            requireOptOutDisclosure: true,
-            metadata: { providerCallSid: callSid, idempotencyKey: `missed-call-recovery:${business._id}:${callSid}` },
-          });
-        }
-        smsStatus = sentResult?.suppressed ? "suppressed" : "sent";
-
-        if (!sentResult?.suppressed && !sentResult?.replayed) {
-          await saveOutbound({
-            business,
-            conversation,
-            lead,
-            from: numberContext?.trackingNumber?.phoneNumber || business.phone,
-            to: customerPhone,
-            body: starterText,
-            sent: sentResult,
-            generatedBy: "automation",
-            usageCategory: "missed_call_recovery",
-            actorType: "automation",
-            metadata: { source: "missed_call_recovery", providerCallSid: callSid },
-          });
-          await updateConversationLastMessage({
-            businessId: business._id,
-            conversation,
-            body: starterText,
-          });
-          logOperationalEvent("twilio.voice.sms_sent", {
-            businessId: business._id,
-            providerMessageId: sentResult?.sid || "",
-          });
-        } else {
-          logOperationalEvent("twilio.voice.sms_suppressed", {
-            businessId: business._id,
-            reason: sentResult.reason || "customer_opted_out",
-            providerCode: sentResult.providerCode || null,
-          });
-        }
-      } catch (smsError) {
-        logOperationalError("twilio.voice.sms_failed", smsError, {
-          businessId: business._id,
-          providerCallSid: callSid,
-          errorCode: smsError?.code || "error",
-        });
-      }
+    if (durableWebhookWorkEnabled() && smsEnabled) {
+      await enqueueWebhookWork({ kind: "recovery_sms", businessId: business._id, eventId: callSid,
+        payload: { businessId: String(business._id), conversationId: String(conversation._id), leadId: String(lead._id),
+          callLogId: String(callLog._id), callSid, from: numberContext?.trackingNumber?.phoneNumber || business.phone } });
+      smsStatus = "queued";
+    } else if (!durableWebhookWorkEnabled()) {
+      smsStatus = await deliverRecoveryIntroduction({ business, conversation, lead, numberContext, callLog, callSid, customerPhone, starterText, smsEnabled, smsStatus });
     }
-
-    const updatedCallLog = await CallLog.findByIdAndUpdate(
-      callLog._id,
-      {
-        missedCallTextSent: Boolean(sentResult && !sentResult.suppressed),
-        missedCallTextDelivered: false,
-        smsProviderMessageId: sentResult?.sid || "",
-        smsDeliveryStatus: sentResult?.suppressed
-          ? "suppressed"
-          : sentResult?.status || smsStatus,
-        smsSegmentCount: sentResult?.segmentCount || 0,
-        recovered: false,
-      },
-      { returnDocument: "after" },
-    );
-    SocketService.emitCallUpdated(business._id, updatedCallLog);
-    SocketService.emitDashboardRefresh(
-      business._id,
-      sentResult && !sentResult.suppressed
-        ? "missed_call_sms_accepted"
-        : "missed_call_recorded",
-    );
 
     const voicePrompt = buildSmsRecoveryVoicePrompt({
       businessName: business.businessName,
@@ -366,7 +407,7 @@ export const handleSmsRecoveryVoiceWebhook = async (req, res) => {
     });
     return sendXml(res, { body: responseBody });
   } catch (error) {
-    return failAndRespond({ event: webhookEvent, leaseToken: webhookLeaseToken, error, res, eventName: "twilio.voice.failed" });
+    return failAndRespond({ event: webhookEvent, leaseToken: webhookLeaseToken, error, res, eventName: "twilio.voice.failed", statusCode: durableWebhookWorkEnabled() ? 503 : 200 });
   }
 };
 
@@ -414,6 +455,10 @@ export const handleTwilioStatusWebhook = async (req, res) => {
       await processTwilioCallStatus({ businessId: business._id, payload: req.body });
     }
 
+    if (durableWebhookWorkEnabled() && req.body.CallSid && ["busy", "failed", "no-answer", "no_answer", "canceled"].includes(String(req.body.CallStatus || "").toLowerCase())) {
+      await enqueueWebhookWork({ kind: "missed_followup", businessId: business._id, eventId: req.body.CallSid,
+        payload: { From: req.body.From, To: req.body.To, CallSid: req.body.CallSid } });
+    }
     const responseBody = emptyTwiml();
     await completeTwilioWebhookEvent(webhookEvent._id, {
       leaseToken: webhookLeaseToken,
@@ -423,7 +468,7 @@ export const handleTwilioStatusWebhook = async (req, res) => {
     });
     return sendXml(res, { body: responseBody });
   } catch (error) {
-    return failAndRespond({ event: webhookEvent, leaseToken: webhookLeaseToken, error, res, eventName: "twilio.status.failed" });
+    return failAndRespond({ event: webhookEvent, leaseToken: webhookLeaseToken, error, res, eventName: "twilio.status.failed", statusCode: durableWebhookWorkEnabled() ? 503 : 200 });
   }
 };
 

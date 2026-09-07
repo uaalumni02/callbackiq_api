@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import IntegrationConnection from "../models/integrationConnection.js";
 import { getJobberSettings } from "../services/integrations/integrationSettings.service.js";
 import { renewExpiringGoogleWatches } from "../services/integrations/googleCalendarSync.service.js";
@@ -49,11 +50,11 @@ export const runIntegrationMaintenance = async () => {
 export const startIntegrationMaintenanceWorker = async () => {
   if (process.env.INTEGRATION_WORKER_ENABLED === "false" || timer) return;
   await runIntegrationMaintenance().catch((error) => {
-    console.error("Integration maintenance startup failed:", error.message);
+    safeConsole.error("Integration maintenance startup failed:", error.message);
   });
   timer = setInterval(() => {
     void runIntegrationMaintenance().catch((error) => {
-      console.error("Integration maintenance failed:", error.message);
+      safeConsole.error("Integration maintenance failed:", error.message);
     });
   }, intervalMs);
   timer.unref?.();

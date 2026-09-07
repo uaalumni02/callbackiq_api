@@ -6,14 +6,15 @@ export const hasRecentRecoveryIntroduction = (conversation, now = new Date()) =>
 };
 // Per customer conversation, not per CallSid: simultaneous repeat calls share one
 // opening. Keep the claim on ambiguous provider failures; never blindly resend.
-export const claimRecoveryIntroduction = async ({ businessId, conversationId, now = new Date() }) => {
+export const claimRecoveryIntroduction = async ({ businessId, conversationId, operationKey = "", now = new Date() }) => {
   const cutoff = new Date(now.getTime() - RECOVERY_INTRO_COOLDOWN_MS);
   return Boolean(await Conversation.findOneAndUpdate({
     _id: conversationId, business: businessId,
     status: 'open', humanTakeover: { $ne: true }, aiEnabled: { $ne: false },
     $or: [
+      ...(operationKey ? [{ "orchestration.recoveryIntroOperationKey": operationKey }] : []),
       { 'orchestration.recoveryIntroClaimedAt': null },
       { 'orchestration.recoveryIntroClaimedAt': { $lte: cutoff } },
     ],
-  }, { $set: { 'orchestration.recoveryIntroClaimedAt': now } }, { returnDocument: 'after' }));
+  }, { $set: { 'orchestration.recoveryIntroClaimedAt': now, ...(operationKey ? { 'orchestration.recoveryIntroOperationKey': operationKey } : {}) } }, { returnDocument: 'after' }));
 };

@@ -58,11 +58,13 @@ export const resolveTrustProxy = (value = process.env.TRUST_PROXY, fallback = 1)
 const VALID_PROCESS_ROLES = new Set([
   "all",
   "api",
+  "voice",
   "worker",
   "worker-sms",
   "worker-automation",
   "worker-a2p",
   "worker-maintenance",
+  "worker-voice-usage",
   "worker-lifecycle",
 ]);
 
@@ -83,7 +85,7 @@ export const assertValidProcessRole = (env = process.env) => {
 
 export const assertServerProcessRole = (env = process.env) => {
   const role = assertValidProcessRole(env);
-  if (!["all", "api"].includes(role)) {
+  if (!["all", "api", "voice"].includes(role)) {
     throw new Error(
       `PROCESS_ROLE=${role} is a worker-only role. Start build/worker.js instead of build/server.js.`,
     );
@@ -108,7 +110,7 @@ const readInstanceCount = (env = process.env) => {
 export const assertRealtimeScalingConfig = (env = process.env) => {
   const required =
     String(env.SOCKET_REDIS_REQUIRED || "").toLowerCase() === "true" ||
-    (isProductionLike(env) && readInstanceCount(env) > 1);
+    (isProductionLike(env) && (readInstanceCount(env) > 1 || getProcessRole(env).startsWith("worker")));
 
   if (required && !firstNonBlank(env.SOCKET_REDIS_URL, env.REDIS_URL)) {
     throw new Error(

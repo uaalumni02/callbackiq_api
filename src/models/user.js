@@ -1,3 +1,4 @@
+import { installAccessRevocation } from "../helpers/model/accessRevocation.js";
 import mongoose from "mongoose";
 
 const { Schema } = mongoose;
@@ -248,6 +249,8 @@ UserSchema.methods.toJSON = function () {
 
   return obj;
 };
+
+installAccessRevocation(UserSchema, "user");
 
 const User = mongoose.models.User || mongoose.model("User", UserSchema);
 

@@ -106,6 +106,8 @@ const connectionLatencies = [];
 const turnLatencies = [];
 const failures = [];
 let next = 0;
+let active = 0;
+let peakActive = 0;
 
 const runClient = async (index) => {
   const socket = new WebSocket(wsUrl);
@@ -120,6 +122,8 @@ const runClient = async (index) => {
     socket.once("error", reject);
   });
 
+  active++; peakActive = Math.max(peakActive, active);
+  socket.once("close", () => { active--; });
   socket.send(
     JSON.stringify({
       type: "setup",
@@ -192,6 +196,8 @@ try {
     mode: "in-process-conversation-relay-transport-load",
     clients: clientsWanted,
     concurrency,
+    peakActive,
+    limits: relayServer.snapshot(),
     turnsPerClient: turns,
     expectedTurns: clientsWanted * turns,
     completedTurns: turnLatencies.length,

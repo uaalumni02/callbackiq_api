@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import Db from "../db/db.js";
 import Business from "../models/business.js";
 import Subscription from "../models/subscription.js";
@@ -529,7 +530,7 @@ class BillingController {
           message: error.message,
         });
       }
-      console.error("Error in startFreeTrial:", error);
+      safeConsole.error("Error in startFreeTrial:", error);
       return Response.responseServerError(res);
     }
   }
@@ -573,7 +574,7 @@ class BillingController {
           message: error.message,
         });
       }
-      console.error("Error in createCheckoutSession:", error);
+      safeConsole.error("Error in createCheckoutSession:", error);
       return Response.responseServerError(res);
     }
   }
@@ -733,7 +734,7 @@ class BillingController {
         });
       }
 
-      console.error("Error in confirmCheckoutSession:", error);
+      safeConsole.error("Error in confirmCheckoutSession:", error);
       return res.status(500).json({
         success: false,
         code: "CHECKOUT_CONFIRMATION_FAILED",
@@ -761,7 +762,7 @@ class BillingController {
           message: error.message,
         });
       }
-      console.error("Error in createTrialPaymentMethodSession:", error);
+      safeConsole.error("Error in createTrialPaymentMethodSession:", error);
       return Response.responseServerError(res);
     }
   }
@@ -782,7 +783,7 @@ class BillingController {
           message: error.message,
         });
       }
-      console.error("Error in resumeSubscription:", error);
+      safeConsole.error("Error in resumeSubscription:", error);
       return Response.responseServerError(res);
     }
   }
@@ -824,7 +825,7 @@ class BillingController {
         "Subscription access fetched successfully",
       );
     } catch (error) {
-      console.error("Error in getMySubscriptionAccess:", error);
+      safeConsole.error("Error in getMySubscriptionAccess:", error);
       return Response.responseServerError(res);
     }
   }
@@ -923,7 +924,7 @@ class BillingController {
         "Subscription fetched successfully",
       );
     } catch (error) {
-      console.error("Error in getMySubscription:", error);
+      safeConsole.error("Error in getMySubscription:", error);
       return Response.responseServerError(res);
     }
   }
@@ -965,7 +966,7 @@ class BillingController {
         "Billing history fetched successfully",
       );
     } catch (error) {
-      console.error("Error in getBillingHistory:", error);
+      safeConsole.error("Error in getBillingHistory:", error);
       return Response.responseServerError(res);
     }
   }
@@ -1040,7 +1041,7 @@ class BillingController {
           message: error.message,
         });
       }
-      console.error("Error in createBillingPortalSession:", error);
+      safeConsole.error("Error in createBillingPortalSession:", error);
       return Response.responseServerError(res);
     }
   }
@@ -1100,7 +1101,7 @@ class BillingController {
         "Subscription cancellation scheduled",
       );
     } catch (error) {
-      console.error("Error in cancelSubscription:", error);
+      safeConsole.error("Error in cancelSubscription:", error);
       return Response.responseServerError(res);
     }
   }
@@ -1108,7 +1109,7 @@ class BillingController {
   static async handleStripeWebhook(req, res) {
     const webhookSecret = String(process.env.STRIPE_WEBHOOK_SECRET || "").trim();
     if (!webhookSecret) {
-      console.error("Stripe webhook rejected: STRIPE_WEBHOOK_SECRET is not configured");
+      safeConsole.error("Stripe webhook rejected: STRIPE_WEBHOOK_SECRET is not configured");
       return res.status(503).json({
         success: false,
         message: "Stripe webhook verification is not configured",
@@ -1170,7 +1171,7 @@ class BillingController {
         duplicate: Boolean(processingResult?.duplicate),
       });
     } catch (error) {
-      console.error("Stripe webhook error:", error.message);
+      safeConsole.error("Stripe webhook error:", error.message);
       return res.status(400).json({
         success: false,
         message: `Webhook Error: ${error.message}`,
@@ -1282,7 +1283,7 @@ class BillingController {
           message: error.message,
         });
       }
-      console.error("Error in adminGrantTrialOverride:", error);
+      safeConsole.error("Error in adminGrantTrialOverride:", error);
       return Response.responseServerError(res);
     }
   }
@@ -1352,7 +1353,7 @@ class BillingController {
           : "Customer account deactivated successfully",
       );
     } catch (error) {
-      console.error("Error in updateAdminCustomerAccountStatus:", error);
+      safeConsole.error("Error in updateAdminCustomerAccountStatus:", error);
       return Response.responseServerError(res);
     }
   }

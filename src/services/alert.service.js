@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import { moneyAmount } from "./valuation/opportunityValue.js";
 // CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1: alerts
 import Alert from "../models/alert.js";
@@ -143,7 +144,7 @@ class AlertService {
     try {
       return await this.create(payload);
     } catch (error) {
-      console.error("Automatic alert creation failed:", {
+      safeConsole.error("Automatic alert creation failed:", {
         type: payload?.type,
         businessId: String(payload?.businessId || ""),
         dedupeKey: payload?.dedupeKey || null,

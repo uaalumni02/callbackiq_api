@@ -1,3 +1,5 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
+import { redisOptions, withDeadline } from "./boundedRedis.service.js";
 let pubClient = null;
 let subClient = null;
 
@@ -20,7 +22,7 @@ export const initializeSocketRedisAdapter = async (io) => {
         "SOCKET_REDIS_REQUIRED=true but SOCKET_REDIS_URL/REDIS_URL is not configured.",
       );
     }
-    console.log(
+    safeConsole.log(
       "Socket.IO Redis adapter disabled; using single-instance realtime mode.",
     );
     return { enabled: false };
@@ -31,18 +33,22 @@ export const initializeSocketRedisAdapter = async (io) => {
     import("redis"),
   ]);
 
-  pubClient = createClient({ url });
+  pubClient = createClient(redisOptions(url));
   subClient = pubClient.duplicate();
 
   const report = (label) => (error) =>
-    console.error(`Socket Redis ${label} error:`, error);
+    safeConsole.error(`Socket Redis ${label} error:`, error);
   pubClient.on("error", report("publisher"));
   subClient.on("error", report("subscriber"));
 
-  await Promise.all([pubClient.connect(), subClient.connect()]);
-  io.adapter(createAdapter(pubClient, subClient));
+  try {
+    await withDeadline(Promise.all([pubClient.connect(), subClient.connect()]), 3000, "SOCKET_REDIS_STARTUP_TIMEOUT");
+  } catch (error) {
+    pubClient.destroy(); subClient.destroy(); throw error;
+  }
+  io.adapter(createAdapter(pubClient, subClient, { key: process.env.SOCKET_REDIS_CHANNEL_PREFIX || "socket.io" }));
 
-  console.log("Socket.IO Redis adapter enabled.");
+  safeConsole.log("Socket.IO Redis adapter enabled.");
   return { enabled: true };
 };
 
@@ -53,9 +59,10 @@ export const closeSocketRedisAdapter = async () => {
   await Promise.all(
     clients.map(async (client) => {
       try {
-        if (client.isOpen) await client.quit();
+        if (client.isOpen) await withDeadline(client.quit(), 1000);
       } catch (error) {
-        console.error("Socket Redis shutdown error:", error);
+        try { client.destroy(); } catch {}
+        safeConsole.error("Socket Redis shutdown error:", error);
       }
     }),
   );
@@ -65,3 +72,5 @@ export default {
   initializeSocketRedisAdapter,
   closeSocketRedisAdapter,
 };
+
+export const socketRedisReady = () => !redisRequired() || Boolean(pubClient?.isReady && subClient?.isReady);

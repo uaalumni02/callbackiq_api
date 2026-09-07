@@ -1,4 +1,8 @@
-#!/usr/bin/env node
+import { createRequire } from "node:module";
+import fs from "node:fs/promises";
+import crypto from "node:crypto";
+const require = createRequire(import.meta.url);
+const { getExpectedTwilioSignature } = require("twilio/lib/webhooks/webhooks");
 import { performance } from "node:perf_hooks";
 
 const target =
@@ -37,6 +41,9 @@ const extraHeaders = process.env.PERF_HEADERS_JSON
   ? JSON.parse(process.env.PERF_HEADERS_JSON)
   : {};
 
+const tenants = process.env.PERF_TENANTS_FILE ? JSON.parse(await fs.readFile(process.env.PERF_TENANTS_FILE, "utf8")) : [];
+const targetRps = Math.max(0, Number(process.env.PERF_TARGET_RPS) || 0);
+const runId = crypto.randomUUID();
 const results = [];
 let next = 0;
 
@@ -47,20 +54,28 @@ const percentile = (values, p) => {
 };
 
 const one = async (index) => {
+    if (targetRps) {
+      const delay = runStarted + index * 1000 / targetRps - performance.now();
+      if (delay > 0) await new Promise(resolve => setTimeout(resolve, delay));
+    }
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   const started = performance.now();
   try {
+    const params = Object.fromEntries(new URLSearchParams(body));
+    const sid = `SM${crypto.createHash("sha256").update(`${runId}:${index}`).digest("hex").slice(0,32)}`;
+    params.MessageSid = sid; params.SmsSid = sid;
+    if (tenants.length) { params.To = tenants[index % tenants.length].to; params.From = tenants[index % tenants.length].from || params.From; }
+    const signatureHeaders = process.env.TWILIO_AUTH_TOKEN ? { "x-twilio-signature": getExpectedTwilioSignature(process.env.TWILIO_AUTH_TOKEN, process.env.PERF_SIGNATURE_URL || target, params) } : {};
     const response = await fetch(target, {
       method: process.env.PERF_METHOD || "POST",
       headers: {
         "content-type": "application/x-www-form-urlencoded",
         ...extraHeaders,
+        ...signatureHeaders,
       },
-      body: body.replace(
-        /SM_PERF_PLACEHOLDER/g,
-        `SM${String(index).padStart(32, "0").slice(-32)}`,
-      ),
+      body: new URLSearchParams(params),
       signal: controller.signal,
     });
     await response.arrayBuffer();
@@ -89,7 +104,8 @@ const worker = async () => {
   }
 };
 
-const started = performance.now();
+const runStarted = performance.now();
+const started = runStarted;
 await Promise.all(Array.from({ length: concurrency }, worker));
 const elapsedMs = performance.now() - started;
 
@@ -106,6 +122,9 @@ console.log(
   JSON.stringify(
     {
       target,
+      configuredRequestsPerSecond: targetRps,
+      tenantCount: tenants.length || 1,
+      signed: Boolean(process.env.TWILIO_AUTH_TOKEN),
       requests: total,
       concurrency,
       success,

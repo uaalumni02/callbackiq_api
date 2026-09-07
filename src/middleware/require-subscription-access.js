@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import Subscription from "../models/subscription.js";
 import Business from "../models/business.js";
 import Db from "../db/db.js";
@@ -86,7 +87,7 @@ const requireSubscriptionAccess =
 
       return next();
     } catch (error) {
-      console.error("Subscription access middleware error:", error);
+      safeConsole.error("Subscription access middleware error:", error);
 
       return res.status(500).json({
         success: false,

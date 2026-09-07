@@ -153,6 +153,13 @@ export const validateEnvironment = (
     }
   }
 
+  if (["staging", "production"].includes(appEnv)) {
+    if (!["staging", "production"].includes(String(source.NODE_ENV || "").toLowerCase())) errors.push("Production-like APP_ENV requires production-like NODE_ENV.");
+    if (source.CSRF_ALLOW_MISSING_ORIGIN === "true" || source.CSRF_ORIGIN_GUARD_ENABLED === "false") errors.push("Production requires the CSRF origin guard and verified origins.");
+    if (source.DISABLE_TWILIO_SIGNATURE_VALIDATION === "true") errors.push("Production cannot disable Twilio signature validation.");
+    if (source.RECOVERY_SMS_ASYNC_ENABLED === "false") errors.push("Production requires durable recovery SMS jobs.");
+  }
+
   const allowedOrigins = parseCsv(
     source.ALLOWED_ORIGINS || source.CLIENT_URL || "",
   );

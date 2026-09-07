@@ -1,3 +1,6 @@
+import { withDeadline } from "../services/boundedRedis.service.js";
+import { createVoiceAdmission, acquireFleetVoiceSlot } from "../services/voiceAdmission.service.js";
+import { registerVoiceSnapshot } from "../services/runtimeState.service.js";
 import {
   validateTwilioRequestWithRotation,
 } from "../services/twilioSignatureRotation.service.js";
@@ -165,6 +168,7 @@ const extractRelayErrorCode = (message) =>
 export const initializeConversationRelayServer = (
   httpServer,
   {
+    admissionController = createVoiceAdmission(),
     voiceAgentService = VoiceAgentService,
     voiceSessionService = VoiceSessionService,
     voiceTranscriptService = VoiceTranscriptService,
@@ -194,6 +198,8 @@ export const initializeConversationRelayServer = (
     forceFailureAfterSetup = isPhase9ForcedRelayFailureEnabled(),
   } = {},
 ) => {
+  const cleanupTasks = new Set();
+  registerVoiceSnapshot(admissionController.snapshot);
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_FRAME_BYTES });
   // CALLBACKIQ_PRODUCTION_READINESS: distributed expiring admission leases.
   const upgradeHandler = async (request, socket, head) => {
@@ -220,9 +226,15 @@ export const initializeConversationRelayServer = (
       return;
     }
 
+    const localLease = admissionController.acquireConnection();
+    if (!localLease) { rejectUpgrade(socket, 503, "Service Unavailable"); return; }
+    let releaseFleet = async () => {};
+    socket.once("close", () => { localLease.release(); void releaseFleet(); });
     const ip = resolveTrustedRemoteAddress(request);
     let admission;
     try {
+      releaseFleet = await acquireFleetVoiceSlot();
+      if (socket.destroyed) { await releaseFleet(); localLease.release(); return; }
       admission = await voiceConnectionLeaseService.acquireVoiceConnectionLease({
         remoteAddress: ip,
         limit: maxPendingConnectionsPerIp,
@@ -242,7 +254,7 @@ export const initializeConversationRelayServer = (
 
     try {
       wss.handleUpgrade(request, socket, head, (webSocket) => {
-        wss.emit("connection", webSocket, request, { ip, lease: admission.lease });
+        wss.emit("connection", webSocket, request, { ip, lease: admission.lease, localLease });
       });
     } catch (error) {
       await voiceConnectionLeaseService.releaseVoiceConnectionLease(admission.lease).catch(() => {});
@@ -703,7 +715,7 @@ export const initializeConversationRelayServer = (
             reject(timeoutError);
           }, hardTurnTimeoutMs);
         });
-        const agentPromise = runWithVoiceTurnContext(
+        const agentPromise = admissionController.runTurn(() => runWithVoiceTurnContext(
           {
             sessionId: String(session?._id || ""),
             turnId,
@@ -711,7 +723,7 @@ export const initializeConversationRelayServer = (
             isActive: () => !intentionalEnd && !failureStarted && turnId === currentTurn,
           },
           () => voiceAgentService.handlePrompt({ session, customerMessage, signal: abortController.signal, turnId }),
-        );
+        ));
         const result = await Promise.race([agentPromise, timeoutPromise]);
         settled = true;
         if (turnId !== currentTurn || abortController.signal.aborted) {
@@ -778,6 +790,7 @@ export const initializeConversationRelayServer = (
           }
         }
         if (!result) {
+          if (error?.code === "VOICE_ADMISSION_FULL") { await failGracefully(error); return; }
           consecutiveTurnFailures += 1;
           logOperationalError("conversation_relay.turn_failed", error, {
             businessId: session.business?._id || session.business,
@@ -892,6 +905,7 @@ export const initializeConversationRelayServer = (
       assertSetupTransportOpen();
 
       setupReceived = true;
+      connectionMeta.localLease?.activate();
 
       /*
        * Wait until the distributed pending-IP admission lease is actually
@@ -1288,6 +1302,8 @@ export const initializeConversationRelayServer = (
 
         );
 
+      cleanupTasks.add(messageChain);
+      void messageChain.finally(() => cleanupTasks.delete(messageChain));
     });
 
     socket.on("error", (error) => {
@@ -1303,10 +1319,18 @@ export const initializeConversationRelayServer = (
   });
 
   return {
-    async close() {
+    snapshot: admissionController.snapshot,
+    beginDrain: () => admissionController.drain(),
+    async close({ drainMs = 0 } = {}) {
+      admissionController.drain();
+      const deadline = Date.now() + drainMs;
+      while (wss.clients.size && Date.now() < deadline) {
+        await new Promise(resolve => setTimeout(resolve, Math.min(100, deadline - Date.now())));
+      }
       httpServer.off("upgrade", upgradeHandler);
       for (const client of wss.clients) client.terminate();
       await new Promise((resolve) => wss.close(() => resolve()));
+      await withDeadline(Promise.allSettled([...cleanupTasks]), 5000, "VOICE_CLEANUP_TIMEOUT").catch(error => logOperationalWarning("voice.drain_cleanup_timeout", { code: error.code }));
     },
   };
 };

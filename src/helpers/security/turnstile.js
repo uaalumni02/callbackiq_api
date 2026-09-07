@@ -1,3 +1,4 @@
+import { safeConsole } from "../logging/safeLogger.js";
 const TURNSTILE_VERIFY_URL =
   "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
@@ -25,7 +26,7 @@ const verifyTurnstileToken = async (token, req, options = {}) => {
   const secretKey = String(process.env.TURNSTILE_SECRET_KEY || "").trim();
 
   if (!secretKey) {
-    console.error(
+    safeConsole.error(
       "TURNSTILE_SECRET_KEY is not configured. Security challenge cannot be verified.",
     );
 
@@ -74,7 +75,7 @@ const verifyTurnstileToken = async (token, req, options = {}) => {
     });
 
     if (!response.ok) {
-      console.error(
+      safeConsole.error(
         `Turnstile verification failed with status ${response.status}`,
       );
 
@@ -109,7 +110,7 @@ const verifyTurnstileToken = async (token, req, options = {}) => {
       errors: Array.isArray(result["error-codes"]) ? result["error-codes"] : [],
     };
   } catch (error) {
-    console.error("Turnstile verification error:", {
+    safeConsole.error("Turnstile verification error:", {
       message: error?.message || "Unknown Turnstile error",
       name: error?.name || null,
     });

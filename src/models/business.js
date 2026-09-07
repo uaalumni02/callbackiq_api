@@ -1,3 +1,4 @@
+import { installAccessRevocation } from "../helpers/model/accessRevocation.js";
 import { normalizePhoneToE164 as normalizeVoicePhone } from "../voice/voicePhone.service.js";
 import mongoose from "mongoose";
 const { Schema } = mongoose;
@@ -714,6 +715,8 @@ const normalizeBusinessPhoneUpdate = function normalizeBusinessPhoneUpdate() {
 
 BusinessSchema.pre("findOneAndUpdate", normalizeBusinessPhoneUpdate);
 BusinessSchema.pre("updateOne", normalizeBusinessPhoneUpdate);
+
+installAccessRevocation(BusinessSchema, "business");
 
 const Business =
   mongoose.models.Business || mongoose.model("Business", BusinessSchema);

@@ -110,7 +110,7 @@ describe("deterministic SMS commitment safety", () => {
 
     const expectedPricingReplies = new Set([
       "The exact cost depends on the issue and is not confirmed yet. What service do you need help with?",
-      "The exact cost depends on what is causing the issue and is not confirmed yet. Is it causing an active leak, overflow, loss of service, or safety concern?",
+      "The exact cost depends on what is causing the issue and is not confirmed yet. Is anything actively leaking or overflowing, or is only the affected fixture unusable?",
       "The exact cost depends on the diagnosis and is not confirmed yet. What is the service address?",
       "The exact cost depends on the diagnosis and is not confirmed yet. I've kept the details you've already provided.",
     ]);
@@ -170,6 +170,7 @@ describe("deterministic SMS commitment safety", () => {
         hasUnverifiedStaffCommitment(reply),
       ).toBe(false);
 
+      expect(expectedPricingReplies.has(reply)).toBe(true);
       if (expectedPricingReplies.has(reply)) {
         observedPricingReplies.add(reply);
       }

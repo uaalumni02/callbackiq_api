@@ -1,3 +1,4 @@
+import { safeConsole } from "../../helpers/logging/safeLogger.js";
 import Appointment from "../../models/appointment.js";
 import AppointmentNotificationJob from "../../models/appointmentNotificationJob.js";
 import Conversation from "../../models/conversation.js";
@@ -152,7 +153,7 @@ export const refreshUpcomingAppointmentNotifications = async ({
       refreshed += 1;
     } catch (error) {
       failed += 1;
-      console.error("[appointment.notifications.refresh_failed]", {
+      safeConsole.error("[appointment.notifications.refresh_failed]", {
         businessId: String(businessId),
         appointmentId: String(appointment._id),
         error: error.message,

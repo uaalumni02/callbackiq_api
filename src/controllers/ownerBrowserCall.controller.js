@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import mongoose from "mongoose";
 
 import getOwnedBusiness from "../services/businessScope.service.js";
@@ -92,7 +93,7 @@ class OwnerBrowserCallController {
 
       return res.type("text/xml").status(200).send(twiml);
     } catch (error) {
-      console.error("Error building owner browser call TwiML:", error);
+      safeConsole.error("Error building owner browser call TwiML:", error);
       return res.type("text/xml").status(200).send(buildFailureTwiml());
     }
   }
@@ -106,7 +107,7 @@ class OwnerBrowserCallController {
     } catch (error) {
       // Provider callbacks are intentionally acknowledged even when a local
       // audit update fails; Twilio retry storms must not interrupt calls.
-      console.error("Error handling owner browser call status:", error);
+      safeConsole.error("Error handling owner browser call status:", error);
     }
 
     return res.status(204).send();

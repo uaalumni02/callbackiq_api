@@ -1,4 +1,5 @@
 import request from "supertest";
+import ScaleCache from "../../src/services/scaleCache.service.js";
 
 import app from "../../src/app.js";
 
@@ -111,6 +112,7 @@ describe("Dashboard Routes", () => {
       serviceNeeded: "Water heater repair",
       urgency: "high",
       estimatedValue: 1200,
+      valuation: { source: "owner", minimum: 1200, maximum: 1200, basis: "Explicit owner estimate" },
       status: "booked",
       source: "missed_call",
     });
@@ -233,6 +235,14 @@ describe("Dashboard Routes", () => {
     expect(res.body.data.messages.smsReceived).toBe(1);
     expect(res.body.data.revenue.bookedRevenue).toBe(1200);
     expect(res.body.data.revenue.recoveredRevenue).toBe(1200);
+
+    // A raw legacy number must not silently count as verified value.
+    await Lead.updateOne({ _id: lead1._id }, { $unset: { valuation: 1 } });
+    await ScaleCache.delete(`legacy-dashboard:${String(business.owner?._id || business.owner)}:mine`);
+    const unverified = await request(app).get("/api/dashboard").set("Authorization", `Bearer ${token}`);
+    expect(unverified.status).toBe(200);
+    expect(unverified.body.data.revenue.bookedRevenue).toBe(0);
+    expect(unverified.body.data.revenue.recoveredRevenue).toBe(0);
   });
 
   test("GET /api/dashboard fails if business does not exist", async () => {

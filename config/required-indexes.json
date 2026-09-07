@@ -1,0 +1,2405 @@
+[
+  {
+    "collection": "a2pcustomerregistrations",
+    "key": {
+      "business": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "a2pcustomerregistrations",
+    "key": {
+      "status": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "a2pcustomerregistrations",
+    "key": {
+      "brandSid": 1
+    },
+    "options": {
+      "sparse": true
+    }
+  },
+  {
+    "collection": "a2pcustomerregistrations",
+    "key": {
+      "campaignSid": 1
+    },
+    "options": {
+      "sparse": true
+    }
+  },
+  {
+    "collection": "a2pcustomerregistrations",
+    "key": {
+      "messagingServiceSid": 1
+    },
+    "options": {
+      "sparse": true
+    }
+  },
+  {
+    "collection": "adminactionlogs",
+    "key": {
+      "admin": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "adminactionlogs",
+    "key": {
+      "targetBusiness": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "adminactionlogs",
+    "key": {
+      "action": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "alerts",
+    "key": {
+      "customerLifecycleStatus": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "alerts",
+    "key": {
+      "business": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "alerts",
+    "key": {
+      "business": 1,
+      "readAt": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "alerts",
+    "key": {
+      "business": 1,
+      "status": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "alerts",
+    "key": {
+      "business": 1,
+      "actionRequired": 1,
+      "priority": 1,
+      "resolvedAt": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "alerts",
+    "key": {
+      "business": 1,
+      "assignedTo": 1,
+      "resolvedAt": 1,
+      "dueAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "alerts",
+    "key": {
+      "business": 1,
+      "dedupeKey": 1
+    },
+    "options": {
+      "unique": true,
+      "partialFilterExpression": {
+        "dedupeKey": {
+          "$type": "string"
+        }
+      }
+    }
+  },
+  {
+    "collection": "appointments",
+    "key": {
+      "customerLifecycleStatus": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "appointments",
+    "key": {
+      "marketingSource": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "appointments",
+    "key": {
+      "requiresBusinessApproval": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "appointments",
+    "key": {
+      "business": 1,
+      "startAt": 1,
+      "status": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "appointments",
+    "key": {
+      "business": 1,
+      "idempotencyKey": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "appointments",
+    "key": {
+      "provider": 1,
+      "externalAppointmentId": 1
+    },
+    "options": {
+      "unique": true,
+      "partialFilterExpression": {
+        "externalAppointmentId": {
+          "$type": "string"
+        }
+      }
+    }
+  },
+  {
+    "collection": "appointments",
+    "key": {
+      "business": 1,
+      "activeSlotKey": 1
+    },
+    "options": {
+      "unique": true,
+      "partialFilterExpression": {
+        "activeSlotKey": {
+          "$type": "string"
+        }
+      }
+    }
+  },
+  {
+    "collection": "appointments",
+    "key": {
+      "business": 1,
+      "slotClaimKeys": 1
+    },
+    "options": {
+      "unique": true,
+      "partialFilterExpression": {
+        "slotClaimKeys.0": {
+          "$exists": true
+        }
+      }
+    }
+  },
+  {
+    "collection": "appointments",
+    "key": {
+      "business": 1,
+      "heldExpiresAt": 1,
+      "status": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "appointments",
+    "key": {
+      "business": 1,
+      "requiresBusinessApproval": 1,
+      "status": 1,
+      "startAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "appointments",
+    "key": {
+      "business": 1,
+      "pendingProviderChange.status": 1,
+      "updatedAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "appointments",
+    "key": {
+      "business": 1,
+      "lead": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "appointments",
+    "key": {
+      "business": 1,
+      "conversation": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "appointmentnotificationjobs",
+    "key": {
+      "business": 1,
+      "appointment": 1,
+      "key": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "appointmentnotificationjobs",
+    "key": {
+      "status": 1,
+      "scheduledFor": 1,
+      "lockedAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "attributiontouches",
+    "key": {
+      "business": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "attributiontouches",
+    "key": {
+      "lead": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "attributiontouches",
+    "key": {
+      "callLog": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "attributiontouches",
+    "key": {
+      "marketingSource": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "attributiontouches",
+    "key": {
+      "occurredAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "attributiontouches",
+    "key": {
+      "business": 1,
+      "lead": 1,
+      "occurredAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "attributiontouches",
+    "key": {
+      "business": 1,
+      "marketingSource": 1,
+      "occurredAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "automationjobs",
+    "key": {
+      "business": 1,
+      "idempotencyKey": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "automationjobs",
+    "key": {
+      "status": 1,
+      "executeAt": 1,
+      "lockedAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "automationjobs",
+    "key": {
+      "business": 1,
+      "conversation": 1,
+      "status": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "automationjobs",
+    "key": {
+      "business": 1,
+      "lead": 1,
+      "status": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "automationworkflows",
+    "key": {
+      "business": 1,
+      "trigger": 1,
+      "enabled": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "automationworkflows",
+    "key": {
+      "business": 1,
+      "name": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "availabilityexceptions",
+    "key": {
+      "business": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "availabilityexceptions",
+    "key": {
+      "date": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "availabilityexceptions",
+    "key": {
+      "business": 1,
+      "date": 1,
+      "active": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "availabilityrules",
+    "key": {
+      "business": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "availabilityrules",
+    "key": {
+      "business": 1,
+      "dayOfWeek": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "billinganomalies",
+    "key": {
+      "business": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "billinganomalies",
+    "key": {
+      "type": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "billinganomalies",
+    "key": {
+      "severity": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "billinganomalies",
+    "key": {
+      "status": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "billinganomalies",
+    "key": {
+      "stripeCustomerId": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "billinganomalies",
+    "key": {
+      "canonicalSubscriptionId": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "billinganomalies",
+    "key": {
+      "observedSubscriptionId": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "billinganomalies",
+    "key": {
+      "invoiceId": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "billinganomalies",
+    "key": {
+      "dedupeKey": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "billinganomalies",
+    "key": {
+      "lastSeenAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "billinganomalies",
+    "key": {
+      "status": 1,
+      "severity": 1,
+      "lastSeenAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "billinganomalies",
+    "key": {
+      "stripeCustomerId": 1,
+      "status": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "billingevents",
+    "key": {
+      "eventType": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "billingevents",
+    "key": {
+      "status": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "billingevents",
+    "key": {
+      "business": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "billingevents",
+    "key": {
+      "provider": 1,
+      "providerEventId": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "billingevents",
+    "key": {
+      "business": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "billingevents",
+    "key": {
+      "status": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "businesses",
+    "key": {
+      "owner": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "businesses",
+    "key": {
+      "trackingNumber.status": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "businesses",
+    "key": {
+      "isActive": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "businesses",
+    "key": {
+      "owner": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "businesses",
+    "key": {
+      "phone": 1
+    },
+    "options": {
+      "unique": true,
+      "sparse": true
+    }
+  },
+  {
+    "collection": "businesses",
+    "key": {
+      "phoneLookup": 1
+    },
+    "options": {
+      "unique": true,
+      "sparse": true
+    }
+  },
+  {
+    "collection": "businessoperationssettings",
+    "key": {
+      "business": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "calllogs",
+    "key": {
+      "marketingSource": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "calllogs",
+    "key": {
+      "trackingNumber": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "calllogs",
+    "key": {
+      "disposition": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "calllogs",
+    "key": {
+      "deletedAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "calllogs",
+    "key": {
+      "business": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "calllogs",
+    "key": {
+      "business": 1,
+      "deletedAt": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "calllogs",
+    "key": {
+      "business": 1,
+      "status": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "calllogs",
+    "key": {
+      "business": 1,
+      "marketingSource": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "calllogs",
+    "key": {
+      "business": 1,
+      "from": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "calllogs",
+    "key": {
+      "business": 1,
+      "providerCallId": 1
+    },
+    "options": {
+      "unique": true,
+      "partialFilterExpression": {
+        "providerCallId": {
+          "$gt": ""
+        }
+      }
+    }
+  },
+  {
+    "collection": "calllogs",
+    "key": {
+      "business": 1,
+      "smsProviderMessageId": 1
+    },
+    "options": {
+      "partialFilterExpression": {
+        "smsProviderMessageId": {
+          "$gt": ""
+        }
+      }
+    }
+  },
+  {
+    "collection": "communicationrouteratelimits",
+    "key": {
+      "keyHash": 1,
+      "name": 1,
+      "windowStart": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "communicationrouteratelimits",
+    "key": {
+      "expiresAt": 1
+    },
+    "options": {
+      "expireAfterSeconds": 0
+    }
+  },
+  {
+    "collection": "communicationusages",
+    "key": {
+      "business": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "communicationusages",
+    "key": {
+      "business": 1,
+      "scope": 1,
+      "scopeKey": 1,
+      "metric": 1,
+      "window": 1,
+      "windowStart": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "communicationusages",
+    "key": {
+      "expiresAt": 1
+    },
+    "options": {
+      "expireAfterSeconds": 0
+    }
+  },
+  {
+    "collection": "communicationusagereservations",
+    "key": {
+      "business": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "communicationusagereservations",
+    "key": {
+      "operationKey": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "communicationusagereservations",
+    "key": {
+      "state": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "communicationusagereservations",
+    "key": {
+      "leaseExpiresAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "communicationusagereservations",
+    "key": {
+      "state": 1,
+      "leaseExpiresAt": 1
+    },
+    "options": {
+      "name": "communication_usage_reservation_recovery"
+    }
+  },
+  {
+    "collection": "communicationusagereservations",
+    "key": {
+      "purgeAt": 1
+    },
+    "options": {
+      "expireAfterSeconds": 0
+    }
+  },
+  {
+    "collection": "contactpreferences",
+    "key": {
+      "business": 1,
+      "phone": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "conversations",
+    "key": {
+      "customerLifecycleStatus": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "conversations",
+    "key": {
+      "orchestration.phase": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "conversations",
+    "key": {
+      "business": 1,
+      "status": 1,
+      "lastMessageAt": -1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "conversations",
+    "key": {
+      "business": 1,
+      "lastMessageAt": -1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "conversations",
+    "key": {
+      "business": 1,
+      "customerPhone": 1,
+      "status": 1,
+      "lastMessageAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "conversations",
+    "key": {
+      "business": 1,
+      "lead": 1,
+      "lastMessageAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "conversations",
+    "key": {
+      "business": 1,
+      "bookingState.status": 1,
+      "bookingState.expiresAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "conversations",
+    "key": {
+      "status": 1,
+      "orchestration.phase": 1,
+      "lastMessageAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "conversations",
+    "key": {
+      "orchestration.handoffStatus": 1,
+      "orchestration.handoffRequestedAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "conversations",
+    "key": {
+      "status": 1,
+      "lifecycle.nextRecoveryNudgeAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "conversations",
+    "key": {
+      "business": 1,
+      "customerPhoneLookup": 1,
+      "activeRecord": 1
+    },
+    "options": {
+      "unique": true,
+      "partialFilterExpression": {
+        "customerPhoneLookup": {
+          "$gt": ""
+        },
+        "activeRecord": true
+      }
+    }
+  },
+  {
+    "collection": "conversationintelligences",
+    "key": {
+      "conversation": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "conversationintelligences",
+    "key": {
+      "business": 1,
+      "buyingLikelihood.score": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "conversationintelligences",
+    "key": {
+      "business": 1,
+      "urgency.score": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "conversationintelligences",
+    "key": {
+      "business": 1,
+      "estimatedRevenue.likely": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "conversationintelligences",
+    "key": {
+      "business": 1,
+      "status": 1,
+      "updatedAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "conversationintelligences",
+    "key": {
+      "business": 1,
+      "updatedAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "conversationintelligences",
+    "key": {
+      "business": 1,
+      "lead": 1,
+      "updatedAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "conversationintelligences",
+    "key": {
+      "business": 1,
+      "nextBestAction.completed": 1,
+      "urgency.score": -1,
+      "buyingLikelihood.score": -1,
+      "estimatedRevenue.likely": -1,
+      "updatedAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "conversionevents",
+    "key": {
+      "marketingSource": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "conversionevents",
+    "key": {
+      "business": 1,
+      "occurredAt": -1,
+      "type": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "conversionevents",
+    "key": {
+      "business": 1,
+      "type": 1,
+      "occurredAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "conversionevents",
+    "key": {
+      "business": 1,
+      "marketingSource": 1,
+      "type": 1,
+      "occurredAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "conversionevents",
+    "key": {
+      "business": 1,
+      "lead": 1,
+      "occurredAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "conversionevents",
+    "key": {
+      "business": 1,
+      "appointment": 1,
+      "occurredAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "conversionevents",
+    "key": {
+      "business": 1,
+      "idempotencyKey": 1
+    },
+    "options": {
+      "unique": true,
+      "partialFilterExpression": {
+        "idempotencyKey": {
+          "$type": "string"
+        }
+      }
+    }
+  },
+  {
+    "collection": "demorequests",
+    "key": {
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "demorequests",
+    "key": {
+      "status": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "demorequests",
+    "key": {
+      "status": 1,
+      "scheduledAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "demorequests",
+    "key": {
+      "email": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "demorequests",
+    "key": {
+      "slotKey": 1
+    },
+    "options": {
+      "unique": true,
+      "partialFilterExpression": {
+        "slotKey": {
+          "$type": "string"
+        }
+      }
+    }
+  },
+  {
+    "collection": "externalrecordmappings",
+    "key": {
+      "business": 1,
+      "provider": 1,
+      "localModel": 1,
+      "localId": 1,
+      "externalType": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "externalrecordmappings",
+    "key": {
+      "business": 1,
+      "provider": 1,
+      "externalType": 1,
+      "externalId": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "integrationconnections",
+    "key": {
+      "business": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "integrationconnections",
+    "key": {
+      "business": 1,
+      "provider": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "integrationconnections",
+    "key": {
+      "provider": 1,
+      "status": 1,
+      "updatedAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "integrationconnections",
+    "key": {
+      "provider": 1,
+      "watchExpiresAt": 1,
+      "status": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "integrationwebhookevents",
+    "key": {
+      "provider": 1,
+      "eventKey": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "integrationwebhookevents",
+    "key": {
+      "status": 1,
+      "createdAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "integrationwebhookevents",
+    "key": {
+      "business": 1,
+      "provider": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "leads",
+    "key": {
+      "customerLifecycleStatus": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "leads",
+    "key": {
+      "business": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "leads",
+    "key": {
+      "business": 1,
+      "status": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "leads",
+    "key": {
+      "business": 1,
+      "phone": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "leads",
+    "key": {
+      "business": 1,
+      "urgency": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "leads",
+    "key": {
+      "business": 1,
+      "leadQualityScore": -1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "leads",
+    "key": {
+      "business": 1,
+      "recovered": 1,
+      "bookedAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "leads",
+    "key": {
+      "business": 1,
+      "appointment": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "leads",
+    "key": {
+      "business": 1,
+      "firstRespondedAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "leads",
+    "key": {
+      "business": 1,
+      "qualifiedAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "leads",
+    "key": {
+      "business": 1,
+      "firstMarketingSource": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "leads",
+    "key": {
+      "business": 1,
+      "latestMarketingSource": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "leads",
+    "key": {
+      "business": 1,
+      "phoneLookup": 1
+    },
+    "options": {
+      "unique": true,
+      "partialFilterExpression": {
+        "phoneLookup": {
+          "$gt": ""
+        }
+      }
+    }
+  },
+  {
+    "collection": "manualsmsoperations",
+    "key": {
+      "business": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "manualsmsoperations",
+    "key": {
+      "conversation": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "manualsmsoperations",
+    "key": {
+      "state": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "manualsmsoperations",
+    "key": {
+      "business": 1,
+      "operationId": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "manualsmsoperations",
+    "key": {
+      "state": 1,
+      "updatedAt": 1
+    },
+    "options": {
+      "name": "manual_sms_reconciliation_queue"
+    }
+  },
+  {
+    "collection": "manualsmsoperations",
+    "key": {
+      "purgeAt": 1
+    },
+    "options": {
+      "expireAfterSeconds": 0
+    }
+  },
+  {
+    "collection": "marketingsources",
+    "key": {
+      "business": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "marketingsources",
+    "key": {
+      "status": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "marketingsources",
+    "key": {
+      "business": 1,
+      "nameKey": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "marketingsources",
+    "key": {
+      "business": 1,
+      "status": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "messages",
+    "key": {
+      "conversation": 1,
+      "createdAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "messages",
+    "key": {
+      "business": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "messages",
+    "key": {
+      "business": 1,
+      "isAiGenerated": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "messages",
+    "key": {
+      "business": 1,
+      "providerMessageId": 1
+    },
+    "options": {
+      "unique": true,
+      "partialFilterExpression": {
+        "providerMessageId": {
+          "$gt": ""
+        }
+      }
+    }
+  },
+  {
+    "collection": "messages",
+    "key": {
+      "business": 1,
+      "clientOperationId": 1
+    },
+    "options": {
+      "unique": true,
+      "partialFilterExpression": {
+        "clientOperationId": {
+          "$gt": ""
+        }
+      },
+      "name": "message_business_client_operation_unique"
+    }
+  },
+  {
+    "collection": "messages",
+    "key": {
+      "business": 1,
+      "inReplyToMessage": 1
+    },
+    "options": {
+      "unique": true,
+      "partialFilterExpression": {
+        "inReplyToMessage": {
+          "$type": "objectId"
+        }
+      }
+    }
+  },
+  {
+    "collection": "messages",
+    "key": {
+      "business": 1,
+      "deliveryStatus": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "operationleases",
+    "key": {
+      "expiresAt": 1
+    },
+    "options": {
+      "expireAfterSeconds": 0
+    }
+  },
+  {
+    "collection": "outboundsmsaudits",
+    "key": {
+      "business": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "outboundsmsaudits",
+    "key": {
+      "business": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "outboundsmsaudits",
+    "key": {
+      "business": 1,
+      "actor": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "outboundsmsaudits",
+    "key": {
+      "business": 1,
+      "to": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "outboundsmsaudits",
+    "key": {
+      "business": 1,
+      "providerMessageId": 1
+    },
+    "options": {
+      "unique": true,
+      "partialFilterExpression": {
+        "providerMessageId": {
+          "$gt": ""
+        }
+      }
+    }
+  },
+  {
+    "collection": "production_operation_leases",
+    "key": {
+      "ownerToken": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "production_operation_leases",
+    "key": {
+      "expiresAt": 1
+    },
+    "options": {
+      "expireAfterSeconds": 0,
+      "name": "expires_at_ttl"
+    }
+  },
+  {
+    "collection": "request_rate_limit_buckets",
+    "key": {
+      "expiresAt": 1
+    },
+    "options": {
+      "expireAfterSeconds": 0,
+      "name": "expires_at_ttl"
+    }
+  },
+  {
+    "collection": "safetyevents",
+    "key": {
+      "business": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "safetyevents",
+    "key": {
+      "conversation": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "safetyevents",
+    "key": {
+      "outboundProviderMessageId": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "safetyevents",
+    "key": {
+      "hazardType": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "safetyevents",
+    "key": {
+      "status": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "safetyevents",
+    "key": {
+      "business": 1,
+      "providerMessageId": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "safetyevents",
+    "key": {
+      "business": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "safetyevents",
+    "key": {
+      "business": 1,
+      "status": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "schedulingpolicies",
+    "key": {
+      "business": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "serviceareas",
+    "key": {
+      "business": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "serviceofferings",
+    "key": {
+      "business": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "serviceofferings",
+    "key": {
+      "active": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "serviceofferings",
+    "key": {
+      "business": 1,
+      "nameKey": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "serviceofferings",
+    "key": {
+      "business": 1,
+      "active": 1,
+      "category": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "smscontactdisclosures",
+    "key": {
+      "business": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "smscontactdisclosures",
+    "key": {
+      "state": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "smscontactdisclosures",
+    "key": {
+      "leaseExpiresAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "smscontactdisclosures",
+    "key": {
+      "business": 1,
+      "phone": 1
+    },
+    "options": {
+      "unique": true,
+      "name": "sms_contact_disclosure_identity"
+    }
+  },
+  {
+    "collection": "smscontactdisclosures",
+    "key": {
+      "purgeAt": 1
+    },
+    "options": {
+      "expireAfterSeconds": 0
+    }
+  },
+  {
+    "collection": "smsdeliveryreconciliationevents",
+    "key": {
+      "business": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "smsdeliveryreconciliationevents",
+    "key": {
+      "business": 1,
+      "eventKey": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "smsdeliveryreconciliationevents",
+    "key": {
+      "status": 1,
+      "availableAt": 1,
+      "leaseExpiresAt": 1,
+      "createdAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "smsprocessingjobs",
+    "key": {
+      "business": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "smsprocessingjobs",
+    "key": {
+      "inboundMessage": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "smsprocessingjobs",
+    "key": {
+      "status": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "smsprocessingjobs",
+    "key": {
+      "availableAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "smsprocessingjobs",
+    "key": {
+      "leaseExpiresAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "smsprocessingjobs",
+    "key": {
+      "coalescedInto": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "smsprocessingjobs",
+    "key": {
+      "status": 1,
+      "availableAt": 1,
+      "priority": -1,
+      "createdAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "smsprocessingjobs",
+    "key": {
+      "status": 1,
+      "leaseExpiresAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "subscriptions",
+    "key": {
+      "business": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "subscriptions",
+    "key": {
+      "stripeCustomerId": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "subscriptions",
+    "key": {
+      "stripeSubscriptionId": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "subscriptions",
+    "key": {
+      "stripePriceId": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "subscriptions",
+    "key": {
+      "status": 1,
+      "trialEndsAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "subscriptions",
+    "key": {
+      "status": 1,
+      "currentPeriodEnd": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "supporttickets",
+    "key": {
+      "business": 1,
+      "status": 1,
+      "updatedAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "supporttickets",
+    "key": {
+      "user": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "supporttickets",
+    "key": {
+      "status": 1,
+      "priority": 1,
+      "updatedAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "trackingnumbers",
+    "key": {
+      "business": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "trackingnumbers",
+    "key": {
+      "marketingSource": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "trackingnumbers",
+    "key": {
+      "isPrimary": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "trackingnumbers",
+    "key": {
+      "status": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "trackingnumbers",
+    "key": {
+      "callHandlingMode": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "trackingnumbers",
+    "key": {
+      "phoneLookup": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "trackingnumbers",
+    "key": {
+      "providerSid": 1
+    },
+    "options": {
+      "unique": true,
+      "partialFilterExpression": {
+        "providerSid": {
+          "$gt": ""
+        }
+      }
+    }
+  },
+  {
+    "collection": "trackingnumbers",
+    "key": {
+      "business": 1,
+      "marketingSource": 1,
+      "status": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "trackingnumbers",
+    "key": {
+      "business": 1,
+      "isPrimary": 1,
+      "status": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "trialextensiongrants",
+    "key": {
+      "business": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "trialextensiongrants",
+    "key": {
+      "business": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "trialredemptions",
+    "key": {
+      "owner": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "trialredemptions",
+    "key": {
+      "emailKey": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "trialredemptions",
+    "key": {
+      "phoneKey": 1
+    },
+    "options": {
+      "unique": true,
+      "partialFilterExpression": {
+        "phoneKey": {
+          "$gt": ""
+        }
+      }
+    }
+  },
+  {
+    "collection": "trialredemptions",
+    "key": {
+      "business": 1,
+      "redeemedAt": -1
+    },
+    "options": {
+      "name": "trial_redemption_business_recent"
+    }
+  },
+  {
+    "collection": "users",
+    "key": {
+      "userName": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "users",
+    "key": {
+      "email": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "users",
+    "key": {
+      "resetToken": 1,
+      "resetTokenExpiresAt": 1
+    },
+    "options": {
+      "partialFilterExpression": {
+        "resetToken": {
+          "$type": "string"
+        }
+      }
+    }
+  },
+  {
+    "collection": "voiceabusesignals",
+    "key": {
+      "business": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "voiceabusesignals",
+    "key": {
+      "callerHash": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "voiceabusesignals",
+    "key": {
+      "occurredAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "voiceabusesignals",
+    "key": {
+      "expiresAt": 1
+    },
+    "options": {
+      "expireAfterSeconds": 0
+    }
+  },
+  {
+    "collection": "voiceabusesignals",
+    "key": {
+      "business": 1,
+      "callerHash": 1,
+      "occurredAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "voicecapacities",
+    "key": {
+      "business": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "voiceconnectionbuckets",
+    "key": {
+      "ipHash": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "voiceconnectionbuckets",
+    "key": {
+      "purgeAt": 1
+    },
+    "options": {
+      "expireAfterSeconds": 0
+    }
+  },
+  {
+    "collection": "voicesessions",
+    "key": {
+      "business": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "voicesessions",
+    "key": {
+      "customerLifecycleStatus": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "voicesessions",
+    "key": {
+      "status": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "voicesessions",
+    "key": {
+      "outcome": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "voicesessions",
+    "key": {
+      "business": 1,
+      "providerCallSid": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "voicesessions",
+    "key": {
+      "providerSessionId": 1
+    },
+    "options": {
+      "unique": true,
+      "partialFilterExpression": {
+        "providerSessionId": {
+          "$gt": ""
+        }
+      }
+    }
+  },
+  {
+    "collection": "voicesessions",
+    "key": {
+      "business": 1,
+      "status": 1,
+      "startedAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "voicesessions",
+    "key": {
+      "business": 1,
+      "conversation": 1,
+      "startedAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "voicesessions",
+    "key": {
+      "status": 1,
+      "lastActivityAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "voicesettingsversions",
+    "key": {
+      "business": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "voicesettingsversions",
+    "key": {
+      "business": 1,
+      "version": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "voicesettingsversions",
+    "key": {
+      "business": 1,
+      "publishedAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "voiceusageledgers",
+    "key": {
+      "business": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "voiceusageledgers",
+    "key": {
+      "business": 1,
+      "periodType": 1,
+      "periodKey": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "voiceusagereconciliations",
+    "key": {
+      "business": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "voiceusagereconciliations",
+    "key": {
+      "session": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "voiceusagereconciliations",
+    "key": {
+      "state": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "voiceusagereconciliations",
+    "key": {
+      "leaseExpiresAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "voiceusagereconciliations",
+    "key": {
+      "state": 1,
+      "leaseExpiresAt": 1
+    },
+    "options": {
+      "name": "voice_usage_reconciliation_recovery"
+    }
+  },
+  {
+    "collection": "voiceusagereconciliations",
+    "key": {
+      "purgeAt": 1
+    },
+    "options": {
+      "expireAfterSeconds": 0
+    }
+  },
+  {
+    "collection": "voiceusagereservations",
+    "key": {
+      "business": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "voiceusagereservations",
+    "key": {
+      "session": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "voiceusagereservations",
+    "key": {
+      "reservationKey": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "voiceusagereservations",
+    "key": {
+      "state": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "voiceusagereservations",
+    "key": {
+      "leaseExpiresAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "voiceusagereservations",
+    "key": {
+      "state": 1,
+      "leaseExpiresAt": 1
+    },
+    "options": {
+      "name": "voice_usage_reservation_recovery"
+    }
+  },
+  {
+    "collection": "voiceusagereservations",
+    "key": {
+      "purgeAt": 1
+    },
+    "options": {
+      "expireAfterSeconds": 0
+    }
+  },
+  {
+    "collection": "webhookevents",
+    "key": {
+      "business": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "webhookevents",
+    "key": {
+      "business": 1,
+      "provider": 1,
+      "eventType": 1,
+      "eventKey": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "webhookevents",
+    "key": {
+      "status": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "webhookevents",
+    "key": {
+      "status": 1,
+      "leaseExpiresAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "webhookworks",
+    "key": {
+      "status": 1,
+      "availableAt": 1,
+      "createdAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "webhookworks",
+    "key": {
+      "status": 1,
+      "leaseUntil": 1
+    },
+    "options": {}
+  }
+]

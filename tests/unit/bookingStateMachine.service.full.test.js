@@ -472,6 +472,18 @@ describe("BookingStateMachineService complete behavior", () => {
     expect(conversation.bookingState.selectedSlot).toEqual(labeled);
   });
 
+  test.each(["Special visit does not work", "not Special visit", "Special visit or another time"])("does not select a label from ambiguous or negative text: %s", async message => {
+    const conversation = makeConversation({ bookingState: { status: "offering_slots", offeredSlots: [{ ...SLOT_1, label: "Special visit" }] } });
+    await handle({ conversation, message });
+    expect(conversation.bookingState.selectedSlot).toBeFalsy();
+  });
+
+  test("does not choose between duplicate offered labels", async () => {
+    const conversation = makeConversation({ bookingState: { status: "offering_slots", offeredSlots: [{ ...SLOT_1, label: "Special visit" }, { ...SLOT_1, label: "Special visit", startAt: "2026-07-28T15:00:00.000Z" }] } });
+    await handle({ conversation, message: "Special visit works" });
+    expect(conversation.bookingState.selectedSlot).toBeFalsy();
+  });
+
   test("selects a slot using its local time", async () => {
     const conversation = makeConversation({ bookingState: { status: "offering_slots", offeredSlots: [SLOT_1] } });
     await handle({ conversation, message: "9:00 am works" });
@@ -535,7 +547,7 @@ describe("BookingStateMachineService complete behavior", () => {
     const conversation = makeConversation({ bookingState: { status: "awaiting_confirmation", selectedSlot: SLOT_1 } });
     await handle({ conversation, lead: null, message: "okay" });
     expect(createAppointmentTool).toHaveBeenCalledWith(expect.objectContaining({
-      input: expect.objectContaining({ customerName: "Jane", customerPhone: "+14045550100", estimatedValue: 0 }),
+      input: expect.objectContaining({ customerName: "Jane", customerPhone: "+14045550100", estimatedValue: null }),
     }));
   });
 

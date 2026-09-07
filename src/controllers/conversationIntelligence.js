@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import { randomUUID } from "node:crypto";
 import { beginValuation, finishValuation } from "../services/valuation/opportunityValuation.service.js";
 import mongoose from "mongoose";
@@ -174,7 +175,7 @@ class ConversationIntelligenceController {
         throw analysisError;
       }
     } catch (error) {
-      console.error("Error in analyzeConversation:", error);
+      safeConsole.error("Error in analyzeConversation:", error);
 
       if (error.isJoi) {
         return Response.responseInvalidInput(res, error.message);
@@ -214,7 +215,7 @@ class ConversationIntelligenceController {
         "Conversation intelligence fetched",
       );
     } catch (error) {
-      console.error("Error in getMyConversationIntelligence:", error);
+      safeConsole.error("Error in getMyConversationIntelligence:", error);
 
       if (error.isJoi) {
         return Response.responseInvalidInput(res, error.message);
@@ -268,7 +269,7 @@ class ConversationIntelligenceController {
         "Conversation intelligence fetched",
       );
     } catch (error) {
-      console.error("Error in getConversationIntelligence:", error);
+      safeConsole.error("Error in getConversationIntelligence:", error);
 
       return Response.responseServerError(res);
     }
@@ -310,7 +311,7 @@ class ConversationIntelligenceController {
 
       return Response.responseOk(res, result, "AI opportunities fetched");
     } catch (error) {
-      console.error("Error in getOpportunities:", error);
+      safeConsole.error("Error in getOpportunities:", error);
 
       if (error.isJoi) {
         return Response.responseInvalidInput(res, error.message);
@@ -345,7 +346,7 @@ class ConversationIntelligenceController {
         "Conversation intelligence dashboard fetched",
       );
     } catch (error) {
-      console.error("Error in getDashboard:", error);
+      safeConsole.error("Error in getDashboard:", error);
 
       return Response.responseServerError(res);
     }
@@ -415,7 +416,7 @@ class ConversationIntelligenceController {
         "Conversation intelligence feedback updated",
       );
     } catch (error) {
-      console.error("Error in updateFeedback:", error);
+      safeConsole.error("Error in updateFeedback:", error);
 
       if (error.isJoi) {
         return Response.responseInvalidInput(res, error.message);
@@ -490,7 +491,7 @@ class ConversationIntelligenceController {
 
       return Response.responseOk(res, updated, "Recommended action updated");
     } catch (error) {
-      console.error("Error in updateRecommendedAction:", error);
+      safeConsole.error("Error in updateRecommendedAction:", error);
 
       if (error.isJoi) {
         return Response.responseInvalidInput(res, error.message);
@@ -562,7 +563,7 @@ class ConversationIntelligenceController {
         message: "Conversation intelligence deleted successfully",
       });
     } catch (error) {
-      console.error("Error in deleteConversationIntelligence:", error);
+      safeConsole.error("Error in deleteConversationIntelligence:", error);
 
       return Response.responseServerError(res);
     }

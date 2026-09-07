@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import mongoose from "mongoose";
 
 import Db from "../db/db.js";
@@ -283,7 +284,7 @@ class ConversationController {
         return Response.responseInvalidInput(res, error.message);
       }
 
-      console.error("Error in createConversation:", error);
+      safeConsole.error("Error in createConversation:", error);
       return Response.responseServerError(res);
     }
   }
@@ -313,7 +314,7 @@ class ConversationController {
 
       return Response.responseOk(res, payload, "Conversations fetched");
     } catch (error) {
-      console.error("Error in getMyConversations:", error);
+      safeConsole.error("Error in getMyConversations:", error);
       return Response.responseServerError(res);
     }
   }
@@ -335,7 +336,7 @@ class ConversationController {
         "Conversation fetched",
       );
     } catch (error) {
-      console.error("Error in getConversationById:", error);
+      safeConsole.error("Error in getConversationById:", error);
       return Response.responseServerError(res);
     }
   }
@@ -403,7 +404,7 @@ class ConversationController {
         "Conversation updated successfully",
       );
     } catch (error) {
-      console.error("Error in updateConversation:", error);
+      safeConsole.error("Error in updateConversation:", error);
       return Response.responseServerError(res);
     }
   }
@@ -460,7 +461,7 @@ class ConversationController {
         "Conversation archived successfully",
       );
     } catch (error) {
-      console.error("Error in archiveConversation:", error);
+      safeConsole.error("Error in archiveConversation:", error);
       return Response.responseServerError(res);
     }
   }
@@ -518,7 +519,7 @@ class ConversationController {
         "Conversation restored successfully",
       );
     } catch (error) {
-      console.error("Error in restoreConversation:", error);
+      safeConsole.error("Error in restoreConversation:", error);
       return Response.responseServerError(res);
     }
   }
@@ -563,7 +564,7 @@ class ConversationController {
         message: "Conversation deleted successfully",
       });
     } catch (error) {
-      console.error("Error in deleteConversation:", error);
+      safeConsole.error("Error in deleteConversation:", error);
       return Response.responseServerError(res);
     }
   }

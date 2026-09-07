@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import { resolveBusinessByTwilioNumber } from "../services/twilioBusinessResolver.service.js";
 import Business from "../models/business.js";
 import Conversation from "../models/conversation.js";
@@ -111,14 +112,14 @@ const inboundSmsLifecycle = async (req, res, next) => {
             occurredAt: new Date(),
           });
         })().catch((error) => {
-          console.error("Incomplete-qualification automation lifecycle failed:", error);
+          safeConsole.error("Incomplete-qualification automation lifecycle failed:", error);
         });
       });
     }
 
     return next();
   } catch (error) {
-    console.error("Inbound SMS lifecycle middleware failed:", error);
+    safeConsole.error("Inbound SMS lifecycle middleware failed:", error);
     return next();
   }
 };

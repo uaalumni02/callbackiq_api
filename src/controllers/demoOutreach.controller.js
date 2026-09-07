@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import mongoose from "mongoose";
 
 import DemoRequest from "../models/demoRequest.js";
@@ -71,7 +72,7 @@ class DemoOutreachController {
         return Response.responseInvalidInput(res, error.message);
       }
 
-      console.error("Error in createDemoContactAttempt:", error);
+      safeConsole.error("Error in createDemoContactAttempt:", error);
       return Response.responseServerError(res);
     }
   }
@@ -121,7 +122,7 @@ class DemoOutreachController {
         });
       }
 
-      console.error("Error in sendDemoOutreachEmail:", error);
+      safeConsole.error("Error in sendDemoOutreachEmail:", error);
       return Response.responseServerError(res);
     }
   }

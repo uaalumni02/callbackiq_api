@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import { verifiedAmount } from "../services/valuation/opportunityValue.js";
 import mongoose from "mongoose";
 
@@ -185,7 +186,7 @@ class CustomerRecoveryController {
         },
       });
     } catch (error) {
-      console.error("Customer recovery detail error:", error);
+      safeConsole.error("Customer recovery detail error:", error);
       return res.status(500).json({
         success: false,
         message: "Unable to load customer recovery details.",

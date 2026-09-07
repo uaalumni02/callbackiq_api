@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 const SECRET_KEY_PATTERN =
   /(authorization|cookie|token|secret|password|passcode|api[-_]?key|auth[-_]?token|private[-_]?key|signature)/i;
 
@@ -63,11 +64,11 @@ const emit = (level, event, metadata = {}) => {
   const line = JSON.stringify(record);
 
   if (level === "error" || level === "fatal") {
-    console.error(line);
+    safeConsole.error(line);
   } else if (level === "warn") {
-    console.warn(line);
+    safeConsole.warn(line);
   } else {
-    console.log(line);
+    safeConsole.log(line);
   }
 
   return record;

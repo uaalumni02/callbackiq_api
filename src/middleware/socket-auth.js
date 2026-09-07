@@ -1,3 +1,4 @@
+import { safeConsole } from "../helpers/logging/safeLogger.js";
 import Token from "../helpers/jwt/token.js";
 import User from "../models/user.js";
 import Business from "../models/business.js";
@@ -159,6 +160,9 @@ const socketAuth = async (socket, next) => {
       .toLowerCase();
     const normalizedUserId = String(user._id);
 
+    socket.data.sessionVersion = currentSessionVersion;
+    socket.data.tokenExpiresAt = Number(decoded.exp) * 1000;
+
     socket.data.user = {
       userId: normalizedUserId,
       userName: user.userName,
@@ -244,7 +248,7 @@ const socketAuth = async (socket, next) => {
       );
     }
 
-    console.error("Socket authentication error:", error);
+    safeConsole.error("Socket authentication error:", error);
 
     return next(
       createSocketError(
