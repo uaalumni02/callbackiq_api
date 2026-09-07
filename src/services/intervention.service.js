@@ -103,7 +103,7 @@ class InterventionService {
       const populated = await Alert.findById(alert._id)
         .populate(
           "lead",
-          "customerName phone serviceNeeded urgency estimatedValue status",
+          "customerName phone serviceNeeded urgency estimatedValue valuation status",
         )
         .populate(
           "conversation",

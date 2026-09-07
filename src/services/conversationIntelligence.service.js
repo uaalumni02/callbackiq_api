@@ -1,3 +1,5 @@
+import ServiceOffering from "../models/serviceOffering.js";
+import { resolveOpportunityValue } from "./valuation/opportunityValue.js";
 import OpenAI from "openai";
 
 import {
@@ -371,7 +373,7 @@ const buildBusinessContext = (business) => {
 
     state: cleanString(business?.state),
 
-    estimatedJobValue: clamp(business?.estimatedJobValue, 0, 1000000),
+
 
     capabilities: buildBusinessCapabilities(business),
 
@@ -393,7 +395,7 @@ const buildLeadContext = (lead) => {
 
     preferredAppointmentTime: cleanString(lead.preferredAppointmentTime),
 
-    estimatedValue: clamp(lead.estimatedValue, 0, 1000000),
+
 
     status: cleanString(lead.status),
 
@@ -704,43 +706,6 @@ const normalizeAnalysis = (analysis, business) => {
 
   const actionType = normalizeActionType(analysis?.nextBestAction?.actionType);
 
-  let minimumRevenue = clamp(analysis?.estimatedRevenue?.minimum, 0, 1000000);
-
-  let maximumRevenue = clamp(analysis?.estimatedRevenue?.maximum, 0, 1000000);
-
-  let likelyRevenue = clamp(analysis?.estimatedRevenue?.likely, 0, 1000000);
-
-  const defaultJobValue = clamp(business?.estimatedJobValue, 0, 1000000);
-
-  /*
-   * Use the business's configured estimated job value when the AI
-   * identifies a meaningful opportunity but cannot determine a
-   * reliable service-specific value.
-   */
-  if (likelyRevenue === 0 && defaultJobValue > 0 && buyingScore >= 25) {
-    likelyRevenue = defaultJobValue;
-
-    minimumRevenue = Math.round(defaultJobValue * 0.75);
-
-    maximumRevenue = Math.round(defaultJobValue * 1.25);
-  }
-
-  if (maximumRevenue > 0 && minimumRevenue > maximumRevenue) {
-    [minimumRevenue, maximumRevenue] = [maximumRevenue, minimumRevenue];
-  }
-
-  if (likelyRevenue > 0 && minimumRevenue === 0) {
-    minimumRevenue = likelyRevenue;
-  }
-
-  if (likelyRevenue > maximumRevenue) {
-    maximumRevenue = likelyRevenue;
-  }
-
-  if (likelyRevenue < minimumRevenue) {
-    likelyRevenue = minimumRevenue;
-  }
-
   const capabilities = buildBusinessCapabilities(business);
 
   const sanitizedSuggestedMessage = sanitizeOutboundReply({
@@ -831,21 +796,7 @@ const normalizeAnalysis = (analysis, business) => {
       reason: cleanString(analysis?.urgency?.reason),
     },
 
-    estimatedRevenue: {
-      minimum: Math.round(minimumRevenue),
-
-      maximum: Math.round(maximumRevenue),
-
-      likely: Math.round(likelyRevenue),
-
-      currency: "USD",
-
-      confidence: normalizePercentageScore(
-        analysis?.estimatedRevenue?.confidence,
-      ),
-
-      basis: cleanString(analysis?.estimatedRevenue?.basis),
-    },
+    estimatedRevenue: { minimum: null, maximum: null, likely: null, currency: "USD", confidence: 0, basis: "Not estimated" },
 
     nextBestAction: {
       action: buildReadableAction(analysis?.nextBestAction?.action, actionType),
@@ -975,6 +926,8 @@ class ConversationIntelligenceService {
     }
 
     const businessContext = buildBusinessContext(business);
+    const services = await ServiceOffering.find({ business: business._id, active: true }).lean();
+    businessContext.services = services.map(service => ({ name: service.name, category: service.category, keywords: service.keywords }));
 
     const leadContext = buildLeadContext(lead);
 
@@ -1013,8 +966,9 @@ Rules:
 - Base every conclusion only on the supplied conversation and business context.
 - Do not invent customer details.
 - Do not treat estimated revenue as guaranteed revenue.
-- Use the business's configured average job value when there is not enough
-  information for a service-specific estimate.
+- Identify the applicable service by its supplied catalog name, or leave serviceType empty when ambiguous.
+- Do not infer replacement from a symptom such as a leak.
+- Return zero for all estimatedRevenue numeric fields; the server resolves internal values from approved data. Never invent job values.
 - Use "unknown" when intent, sentiment, or urgency cannot reasonably be determined.
 - Buying likelihood and appointment probability must be separate assessments.
 - A customer can have high urgency but low buying likelihood.
@@ -1148,6 +1102,13 @@ NEXT BEST ACTION RULES:
 
     const normalizedAnalysis = normalizeAnalysis(parsedAnalysis, business);
 
+    const valuation = resolveOpportunityValue({ businessId: business._id, current: lead, services,
+      evidence: messages.filter(message => message.direction === "inbound").map(message => message.body).join("\n"),
+      proposedService: normalizedAnalysis.customerIntent.serviceType });
+    const supported = ["owner", "service_catalog", "historical"].includes(valuation.valuation.source);
+    normalizedAnalysis.estimatedRevenue = { minimum: supported ? valuation.valuation.minimum : null,
+      maximum: supported ? valuation.valuation.maximum : null, likely: supported ? valuation.estimatedValue : null,
+      currency: "USD", confidence: 0, basis: valuation.valuation.basis, source: valuation.valuation.source };
     validateMeaningfulAnalysis(normalizedAnalysis);
 
     return normalizedAnalysis;

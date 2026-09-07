@@ -16,11 +16,11 @@ describe("marketing attribution 10/10 hardening contract", () => {
     expect(service).toContain("latestMarketingSource");
   });
 
-  test("booking synchronizes the authoritative estimate back to the Lead", () => {
+  test("booking retains source-tagged event snapshots without copying dollars over owner edits", () => {
     const source = read("src/services/conversionEvent.service.js");
-    expect(source).toMatch(
-      /estimatedValue:\s*Number\(appointment\.estimatedValue\s*\|\|\s*0\)/,
-    );
+    const update = source.slice(source.indexOf("await Lead.updateOne("), source.indexOf("if (recovered)"));
+    expect(update).not.toContain("estimatedValue:");
+    expect(source).toContain("valuation: appointment.valuation");
   });
 
   test("revenue trends return the exact daily frontend contract", () => {

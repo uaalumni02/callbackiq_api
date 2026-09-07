@@ -1,3 +1,4 @@
+import { updateOwnerLead, ownerEstimate, unknownEstimate } from "../services/valuation/opportunityValuation.service.js";
 import mongoose from "mongoose";
 
 import Db from "../db/db.js";
@@ -84,6 +85,7 @@ class LeadController {
 
       const lead = await Db.saveLead(Lead, {
         ...req.body,
+        ...(Object.prototype.hasOwnProperty.call(req.body, "estimatedValue") ? ownerEstimate(req.body.estimatedValue, ownerId) : unknownEstimate()),
         business: business._id,
       });
 
@@ -292,11 +294,7 @@ class LeadController {
       }
 
       const previousStatus = lead.status;
-      const updatedLead = await updateLeadForBusiness(
-        id,
-        business._id,
-        req.body,
-      );
+      const updatedLead = await updateOwnerLead({ lead, businessId: business._id, changes: req.body, actorId: ownerId });
 
       if (!updatedLead) {
         return Response.responseInvalidInput(res, "Lead not found");

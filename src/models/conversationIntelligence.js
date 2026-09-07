@@ -25,6 +25,7 @@ const ConversationIntelligenceSchema = new Schema(
       default: null,
     },
 
+    analysisRequestId: { type: String, default: null },
     status: {
       type: String,
       enum: ["pending", "processing", "completed", "failed"],
@@ -166,22 +167,23 @@ const ConversationIntelligenceSchema = new Schema(
     },
 
     estimatedRevenue: {
+      source: { type: String, default: "legacy_unverified" },
       minimum: {
         type: Number,
         min: 0,
-        default: 0,
+        default: null,
       },
 
       maximum: {
         type: Number,
         min: 0,
-        default: 0,
+        default: null,
       },
 
       likely: {
         type: Number,
         min: 0,
-        default: 0,
+        default: null,
       },
 
       currency: {

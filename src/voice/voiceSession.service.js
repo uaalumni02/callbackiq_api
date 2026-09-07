@@ -184,7 +184,9 @@ class VoiceSessionService {
           urgency: "medium",
           source: "voice",
           status: "new",
-          estimatedValue: business.estimatedJobValue || 0,
+          estimatedValue: null,
+          valuation: { source: "unknown", basis: "Not estimated" },
+          valuationVersion: 0,
           notes: usableCaller
             ? "Lead created automatically from a CallBackIQ voice session."
             : "Lead created from a blocked or unavailable caller ID. Obtain and confirm a callback number before promising follow-up.",
@@ -284,7 +286,8 @@ class VoiceSessionService {
           lead: lead._id,
           conversation: conversation._id,
           callLog: callLog?._id || null,
-          estimatedValue: lead.estimatedValue || 0,
+          estimatedValue: lead.estimatedValue ?? null,
+          valuation: lead.valuation,
           lastActivityAt: new Date(),
           "metadata.callerIdUsable": usableCaller,
         },

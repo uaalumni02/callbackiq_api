@@ -1,3 +1,5 @@
+import mongoose from "mongoose";
+import { canonicalLeadValueStages } from "./valuation/valuationReport.js";
 import CallLog from "../models/callLog.js";
 import Lead from "../models/lead.js";
 import MarketingSource from "../models/marketingSource.js";
@@ -38,10 +40,10 @@ export const getAttributionReport = async ({
   ];
 
   const leads = leadIds.length
-    ? await Lead.find({
-        _id: { $in: leadIds },
-        business: businessId,
-      }).lean()
+    ? await Lead.aggregate([
+        { $match: { _id: { $in: leadIds.map(id => new mongoose.Types.ObjectId(id)) }, business: new mongoose.Types.ObjectId(String(businessId)) } },
+        ...canonicalLeadValueStages(),
+      ])
     : [];
 
   const leadMap = new Map(
@@ -75,7 +77,7 @@ export const getAttributionReport = async ({
 
     const estimatedRevenue = bookedJobs.reduce(
       (total, lead) =>
-        total + (Number(lead.estimatedValue) || 0),
+        total + (lead._verifiedValue ?? 0),
       0,
     );
 
@@ -125,7 +127,7 @@ export const getAttributionReport = async ({
           : null,
       roas:
         spend > 0
-          ? (actualRevenue || estimatedRevenue) / spend
+          ? actualRevenue / spend
           : null,
     };
   });

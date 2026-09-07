@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import { beginValuation, finishValuation } from "../services/valuation/opportunityValuation.service.js";
 import mongoose from "mongoose";
 
 import Db from "../db/db.js";
@@ -92,7 +94,9 @@ class ConversationIntelligenceController {
         );
       }
 
+      const analysisRequestId = randomUUID();
       await Db.saveConversationIntelligence(ConversationIntelligence, {
+        analysisRequestId,
         business: business._id,
         conversation: conversation._id,
         lead: lead?._id || null,
@@ -101,6 +105,7 @@ class ConversationIntelligenceController {
       });
 
       try {
+        const valuationTicket = await beginValuation(lead, business._id);
         const analysis = await ConversationIntelligenceService.analyze({
           business,
           conversation,
@@ -108,9 +113,9 @@ class ConversationIntelligenceController {
           messages,
         });
 
-        const intelligence = await Db.saveConversationIntelligence(
-          ConversationIntelligence,
-          {
+        const intelligence = await ConversationIntelligence.findOneAndUpdate(
+          { conversation: conversation._id, business: business._id, analysisRequestId },
+          { $set: {
             ...analysis,
             business: business._id,
             conversation: conversation._id,
@@ -120,14 +125,14 @@ class ConversationIntelligenceController {
             lastMessageAnalyzedAt:
               messages[messages.length - 1]?.createdAt || new Date(),
             errorMessage: "",
-          },
+          } }, { returnDocument: "after", runValidators: true },
         );
+        if (!intelligence) return Response.responseOk(res, null, "A newer analysis superseded this result");
 
         if (lead) {
           await Db.updateLead(Lead, lead._id, {
             summary: intelligence.summary,
             leadQualityScore: intelligence.buyingLikelihood.score,
-            estimatedValue: intelligence.estimatedRevenue.likely,
             urgency:
               intelligence.urgency.level === "normal"
                 ? "medium"
@@ -136,6 +141,10 @@ class ConversationIntelligenceController {
                   : intelligence.urgency.level,
           });
         }
+
+        await finishValuation(valuationTicket, { businessId: business._id,
+          evidence: messages.filter(message => message.direction === "inbound").map(message => message.body).join("\n"),
+          proposedService: analysis.customerIntent.serviceType });
 
         SocketService.emitToBusiness(
           business._id,
@@ -154,9 +163,8 @@ class ConversationIntelligenceController {
           "Conversation analyzed successfully",
         );
       } catch (analysisError) {
-        await Db.updateConversationIntelligence(
-          ConversationIntelligence,
-          conversationId,
+        await ConversationIntelligence.findOneAndUpdate(
+          { conversation: conversationId, business: business._id, analysisRequestId },
           {
             status: "failed",
             errorMessage: "Unable to analyze conversation",

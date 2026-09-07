@@ -1,3 +1,4 @@
+import { moneyAmount } from "./valuation/opportunityValue.js";
 // CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1: alerts
 import Alert from "../models/alert.js";
 import SocketService from "./socket.service.js";
@@ -424,7 +425,7 @@ class AlertService {
         leadScore: Number(score) || 0,
         urgency: urgency || null,
         serviceNeeded: serviceNeeded || null,
-        estimatedValue: Number(estimatedValue) || 0,
+        estimatedValue: moneyAmount(estimatedValue),
       },
       dedupeKey: `hot_lead:${leadId}`,
     });
@@ -463,7 +464,7 @@ class AlertService {
       priority: "medium",
       metadata: {
         serviceNeeded: serviceNeeded || null,
-        estimatedValue: Number(estimatedValue) || 0,
+        estimatedValue: moneyAmount(estimatedValue),
       },
       dedupeKey: `booked_job:${leadId}`,
     });

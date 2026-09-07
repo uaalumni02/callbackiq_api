@@ -1,3 +1,4 @@
+import { verifiedAmount } from "../services/valuation/opportunityValue.js";
 import mongoose from "mongoose";
 
 import Alert from "../models/alert.js";
@@ -129,17 +130,12 @@ class CustomerRecoveryController {
         null;
       const latestIntelligence = intelligence[0] || null;
 
-      const actualRevenue = maxMoney(
-        lead.actualRevenue,
-        appointments.map((item) => item.actualRevenue),
-        conversionEvents.map((item) => item.actualRevenue),
-      );
-      const estimatedRevenue = maxMoney(
-        lead.estimatedValue,
-        appointments.map((item) => item.estimatedValue),
-        conversionEvents.map((item) => item.estimatedValue),
-        latestIntelligence?.estimatedRevenue?.likely,
-      );
+      const actualRevenue = appointments.length
+        ? appointments.filter(item => item.status === "completed").reduce((total, item) => total + maxMoney(item.actualRevenue), 0)
+        : maxMoney(lead.actualRevenue);
+      const openAppointments = appointments.filter(item => item.status === "confirmed");
+      const amounts = openAppointments.length ? openAppointments.map(verifiedAmount).filter(value => value !== null) : [verifiedAmount(lead)].filter(value => value !== null);
+      const estimatedRevenue = amounts.length ? amounts.reduce((sum, value) => sum + value, 0) : null;
       const recovered = Boolean(
         lead.recovered ||
           customerLifecycleStatus === "recovered" ||

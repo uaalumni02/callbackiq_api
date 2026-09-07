@@ -1,0 +1,11 @@
+import OpenAI from 'openai';
+import ServiceOffering from '../../src/models/serviceOffering.js';
+import ConversationIntelligenceService from '../../src/services/conversationIntelligence.service.js';
+jest.mock('openai',()=>({__esModule:true,default:jest.fn()}));
+jest.mock('../../src/models/serviceOffering.js',()=>({__esModule:true,default:{find:jest.fn()}}));
+const create=jest.fn();
+beforeAll(()=>{process.env.OPENAI_API_KEY='test-key';OpenAI.mockImplementation(()=>({responses:{create}}));});
+beforeEach(()=>{ServiceOffering.find.mockReturnValue({lean:async()=>[{_id:'svc',business:'b',active:true,name:'Drain cleaning',estimatedValue:225}]});create.mockResolvedValue({output_text:JSON.stringify({summary:'Customer requests service.',customerIntent:{primary:'Service request',category:'repair',serviceType:'Drain cleaning'},nextBestAction:{action:'Review request',actionType:'call_soon'},overallConfidence:80,buyingLikelihood:{score:90},estimatedRevenue:{likely:999999,minimum:900000,maximum:1000000,confidence:99,basis:'Invented'}})});});
+const analyze=body=>ConversationIntelligenceService.analyze({business:{_id:'b',estimatedJobValue:1200},conversation:{_id:'c'},lead:{estimatedValue:null,valuation:{source:'unknown'}},messages:[{direction:'inbound',body}]});
+test('model dollars are discarded and catalog determines amount',async()=>{const result=await analyze('Drain cleaning');expect(result.estimatedRevenue).toMatchObject({likely:225,source:'service_catalog',minimum:225,maximum:225});const input=JSON.parse(create.mock.calls.at(-1)[0].input);expect(input.business.estimatedJobValue).toBeUndefined();expect(input.lead.estimatedValue).toBeUndefined();});
+test('unsupported service remains null even with high buying score and AI confidence',async()=>{const result=await analyze('my water heater is leaking');expect(result.estimatedRevenue.likely).toBeNull();expect(result.estimatedRevenue.source).toBe('unknown');});

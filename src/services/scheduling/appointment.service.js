@@ -1,3 +1,4 @@
+import { resolveOpportunityValue, ownerEstimate, moneyAmount } from "../valuation/opportunityValue.js";
 import crypto from "crypto";
 
 import mongoose from "mongoose";
@@ -245,6 +246,8 @@ const createHold = async ({
   idempotencyKey,
   excludeAppointmentId = null,
   checkExternalAvailability = true,
+  ownerValuationAuthorized = false,
+  preservedValuation = null,
 }) => {
   const businessId = business._id;
   const startAt = new Date(input.startAt);
@@ -279,6 +282,12 @@ const createHold = async ({
     startAt,
     timeZone,
   });
+  const valuationLead = input.lead ? await Lead.findOne({ _id: input.lead, business: businessId }).lean() : null;
+  const appointmentValue = preservedValuation || (ownerValuationAuthorized === true && Object.prototype.hasOwnProperty.call(input, "estimatedValue")
+    ? ownerEstimate(input.estimatedValue)
+    : resolveOpportunityValue({ businessId, current: valuationLead, services: [service],
+        selectedServiceId: ownerValuationAuthorized === true ? service._id : null,
+        evidence: valuationLead?.serviceNeeded || "" }));
   const baseDocument = {
     business: businessId,
     lead: input.lead || null,
@@ -300,8 +309,7 @@ const createHold = async ({
     trackingNumber: appointmentAttribution.trackingNumber,
     attribution: appointmentAttribution.attribution,
     provider: businessCalendarProviderName(business),
-    estimatedValue:
-      input.estimatedValue ?? service.estimatedValue ?? business.estimatedJobValue ?? 0,
+    ...appointmentValue,
     actualRevenue: input.actualRevenue || 0,
     idempotencyKey,
     heldExpiresAt: addMinutes(new Date(), Number(input.holdMinutes || 5)),
@@ -349,7 +357,7 @@ const populateAppointment = (query) =>
     .populate("serviceOffering", "name category durationMinutes estimatedValue")
     .populate(
       "lead",
-      "customerName phone email address serviceNeeded urgency status source recovered recoveredBy summary preferredAppointmentTime qualifiedAt firstRespondedAt bookedAt estimatedValue actualRevenue firstAttribution latestAttribution",
+      "customerName phone email address serviceNeeded urgency status source recovered recoveredBy summary preferredAppointmentTime qualifiedAt firstRespondedAt bookedAt estimatedValue valuation actualRevenue firstAttribution latestAttribution",
     )
     .populate(
       "conversation",
@@ -439,7 +447,10 @@ class AppointmentService {
     });
   }
 
-  static async create({ business, input, idempotencyKey, confirm = true }) {
+  static async create({ business, input, idempotencyKey, confirm = true, ownerValuationAuthorized = false }) {
+    if (ownerValuationAuthorized && Object.prototype.hasOwnProperty.call(input, "estimatedValue") && input.estimatedValue !== null && moneyAmount(input.estimatedValue) === null) {
+      const error = new Error("Estimated value must be null or a non-negative number."); error.statusCode = 400; throw error;
+    }
     if (!input.customerPhone) {
       const error = new Error("customerPhone is required.");
       error.statusCode = 400;
@@ -485,6 +496,7 @@ class AppointmentService {
       business,
       service,
       input,
+      ownerValuationAuthorized,
       idempotencyKey: key,
       // Immediate Google confirmations perform one external availability check
       // at confirm time. The internal claim index still protects the hold.
@@ -1037,6 +1049,7 @@ class AppointmentService {
         business,
         service,
         input: nextInput,
+        preservedValuation: { estimatedValue: original.estimatedValue, valuation: original.valuation || { source: "legacy_unverified" } },
         idempotencyKey: key,
         excludeAppointmentId: original._id,
       });
@@ -1325,13 +1338,26 @@ class AppointmentService {
       businessId,
       appointmentId,
     );
+    if (Object.prototype.hasOwnProperty.call(changes, "estimatedValue") && changes.estimatedValue !== null && moneyAmount(changes.estimatedValue) === null) {
+      const error = new Error("Estimated value must be null or a non-negative number."); error.statusCode = 400; throw error;
+    }
+    if (changes.valuationAction && changes.valuationAction !== "automatic") {
+      const error = new Error("Invalid valuation action."); error.statusCode = 400; throw error;
+    }
+    if (changes.valuationAction === "automatic") {
+      const services = await ServiceOffering.find({ business: businessId, active: true, _id: appointment.serviceOffering?._id || appointment.serviceOffering }).lean();
+      Object.assign(appointment, resolveOpportunityValue({ businessId, services, selectedServiceId: appointment.serviceOffering?._id || appointment.serviceOffering }));
+      appointment.valuationVersion = (appointment.valuationVersion || 0) + 1;
+    } else if (Object.prototype.hasOwnProperty.call(changes, "estimatedValue")) {
+      Object.assign(appointment, ownerEstimate(changes.estimatedValue));
+      appointment.valuationVersion = (appointment.valuationVersion || 0) + 1;
+    }
     const allowed = [
       "customerName",
       "customerPhone",
       "customerEmail",
       "address",
       "notes",
-      "estimatedValue",
       "actualRevenue",
     ];
 

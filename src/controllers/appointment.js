@@ -15,6 +15,7 @@ class AppointmentController {
       const appointment = await AppointmentService.create({
         business,
         input: req.body,
+        ownerValuationAuthorized: true,
         idempotencyKey: getIdempotencyKey(req),
         confirm: req.body.confirm !== false,
       });
@@ -120,6 +121,7 @@ class AppointmentController {
         business,
         appointmentId: req.params.id,
         input: req.body,
+        ownerValuationAuthorized: true,
         idempotencyKey: getIdempotencyKey(req),
       });
       return res.status(200).json({ success: true, data: appointment });

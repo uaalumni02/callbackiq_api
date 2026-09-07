@@ -41,7 +41,7 @@ describe("Lead Validator", () => {
 
     expect(result.urgency).toBe("medium");
     expect(result.leadQualityScore).toBe(50);
-    expect(result.estimatedValue).toBe(0);
+    expect(result.estimatedValue).toBeUndefined();
     expect(result.status).toBe("new");
     expect(result.source).toBe("manual");
   });

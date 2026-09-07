@@ -130,7 +130,9 @@ const AppointmentSchema = new Schema(
       default: null,
     },
 
-    estimatedValue: { type: Number, min: 0, default: 0 },
+    estimatedValue: { type: Number, min: 0, default: null },
+    valuation: { type: Schema.Types.Mixed, default: undefined },
+    valuationVersion: { type: Number, min: 0, default: 0 },
     actualRevenue: { type: Number, min: 0, default: 0 },
 
     idempotencyKey: { type: String, trim: true, required: true },

@@ -240,7 +240,7 @@ const buildDeterministicResult = ({ guardrail, lead = {} }) => {
     address: cleanText(lead.address),
     preferredAppointmentTime: cleanText(lead.preferredAppointmentTime),
     leadQualityScore: Math.round(clamp(lead.leadQualityScore, 0, 100)),
-    estimatedValue: Math.round(clamp(lead.estimatedValue, 0, 1000000)),
+    estimatedValue: null,
     summary: guardrail.reason || "Handled by deterministic AI guardrail.",
     shouldAlertOwner: Boolean(guardrail.shouldAlertOwner),
     alertPriority: enumValue(
@@ -508,7 +508,7 @@ LEAD DATA RULES:
           address: cleanText(lead.address),
           preferredAppointmentTime: cleanText(lead.preferredAppointmentTime),
           leadQualityScore: Math.round(clamp(lead.leadQualityScore, 0, 100)),
-          estimatedValue: Math.round(clamp(lead.estimatedValue, 0, 1000000)),
+          estimatedValue: null,
           status: cleanText(lead.status),
         },
         inboundAssessment,

@@ -199,7 +199,6 @@ export const buildAIConfigurationContext = async (business) => {
           durationMinutes: service.durationMinutes,
           bufferBeforeMinutes: service.bufferBeforeMinutes,
           bufferAfterMinutes: service.bufferAfterMinutes,
-          estimatedValue: service.estimatedValue,
           diagnosticFee:
             service.discloseDiagnosticFee === true
               ? service.diagnosticFee

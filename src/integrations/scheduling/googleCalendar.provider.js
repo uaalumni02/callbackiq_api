@@ -163,7 +163,7 @@ export const buildGoogleEvent = ({
     `Service: ${service?.name || "Service requested"}`,
     `Address: ${addressText(appointment)}`,
     settings.includeEstimatedValue === true
-      ? `Estimated value: $${Number(appointment.estimatedValue || 0).toLocaleString("en-US")}`
+      ? (appointment.estimatedValue == null ? "Not estimated" : `Internal estimated job value: $${Number(appointment.estimatedValue).toLocaleString("en-US")}`)
       : "",
     appointment.notes ? `Notes: ${appointment.notes}` : "",
   ]

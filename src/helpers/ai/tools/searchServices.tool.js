@@ -34,7 +34,6 @@ export const searchServicesTool = async ({ businessId, query }) => {
     name: service.name,
     category: service.category,
     durationMinutes: service.durationMinutes,
-    estimatedValue: service.estimatedValue,
     priceEstimateMin: service.priceEstimateMin,
     priceEstimateMax: service.priceEstimateMax,
     disclosePriceEstimate: service.disclosePriceEstimate,

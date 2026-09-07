@@ -1,3 +1,4 @@
+import { beginValuation, finishValuation } from "../services/valuation/opportunityValuation.service.js";
 import mongoose from "mongoose";
 
 import Db from "../db/db.js";
@@ -131,6 +132,7 @@ class AgentController {
         metadata: { source: "agent_reply_endpoint" },
       });
 
+      const valuationTicket = await beginValuation(lead, business._id);
       const agentResult = await runFollowUpAgent({
         business,
         businessName: business.businessName,
@@ -158,11 +160,11 @@ class AgentController {
             lead.preferredAppointmentTime ||
             "",
           leadQualityScore: sanitizeScore(agentResult.leadQualityScore),
-          estimatedValue: sanitizeEstimatedValue(agentResult.estimatedValue),
-          summary: agentResult.summary || lead.summary || "",
+            summary: agentResult.summary || lead.summary || "",
           status: lead.status === "booked" ? "booked" : "contacted",
         };
         updatedLead = await Db.qualifyLead(Lead, lead._id, updateData);
+        updatedLead = await finishValuation(valuationTicket, { businessId: business._id, evidence: [...recentMessages.filter(message => message.direction === "inbound").map(message => message.body), customerMessage].join("\n"), proposedService: agentResult.serviceNeeded }) || updatedLead;
       }
 
       let smsSent = false;

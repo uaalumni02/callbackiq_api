@@ -128,7 +128,8 @@ const serializeAppointment = (appointment) => {
       appointment.customerConfirmedAt?.toISOString?.() ||
       appointment.customerConfirmedAt ||
       null,
-    estimatedValue: Number(appointment.estimatedValue || 0),
+    estimatedValue: appointment.estimatedValue ?? null,
+    valuation: appointment.valuation,
     actualRevenue: Number(appointment.actualRevenue || 0),
     requiresBusinessApproval: Boolean(appointment.requiresBusinessApproval),
     failureReason: appointment.failureReason || "",
@@ -407,7 +408,8 @@ const serializeOpportunity = ({
       lead.address || conversation?.conversationMemory?.address || evidence.streetAddress || "",
     serviceNeeded: lead.serviceNeeded || conversation?.conversationMemory?.serviceNeeded || "",
     urgency: lead.urgency || conversation?.conversationMemory?.urgency || "medium",
-    estimatedValue: Number(lead.estimatedValue || 0),
+    estimatedValue: lead.estimatedValue ?? null,
+    valuation: lead.valuation,
     actualRevenue: Number(lead.actualRevenue || 0),
     status: lead.status,
     source: lead.source,
@@ -469,7 +471,7 @@ const latestByLead = (documents) => {
 
 const attentionPreview = async (businessId, limit = 5) => {
   const alerts = await Alert.find(ownerInterventionFilter(businessId))
-    .populate("lead", "customerName phone serviceNeeded urgency estimatedValue status summary")
+    .populate("lead", "customerName phone serviceNeeded urgency estimatedValue valuation status summary")
     .populate("conversation", "customerName customerPhone lastMessage lastMessageAt status")
     .populate("appointment", "startAt endAt timezone status provider")
     .sort({ dueAt: 1, createdAt: -1 })
@@ -494,7 +496,8 @@ const attentionPreview = async (businessId, limit = 5) => {
       item.lead?.customerName || item.conversation?.customerName || "Customer",
     phone: item.lead?.phone || item.conversation?.customerPhone || "",
     serviceNeeded: item.lead?.serviceNeeded || "",
-    estimatedValue: Number(item.lead?.estimatedValue || 0),
+    estimatedValue: item.lead?.estimatedValue ?? null,
+    valuation: item.lead?.valuation,
     reason: item.reason || item.message || "",
     recommendedAction: item.recommendedAction || "Review and contact the customer.",
     conversationId: item.conversation?._id ? String(item.conversation._id) : null,
@@ -632,6 +635,8 @@ class OwnerExperienceService {
         estimatedJobValue: Number(business.estimatedJobValue || 0),
       },
       outcomes: {
+        estimateCoverage: revenue.estimateCoverage,
+        bookedEstimateCoverage: revenue.bookedEstimateCoverage,
         missedCalls: revenue.missedCalls,
         customersReached: revenue.customersReached,
         qualifiedLeads: revenue.qualifiedLeads,
@@ -682,7 +687,7 @@ class OwnerExperienceService {
         lead: lead._id,
       })
         .select(
-          "lead status startAt endAt timezone source bookedBy provider confirmedAt customerConfirmedAt estimatedValue actualRevenue requiresBusinessApproval failureReason createdAt",
+          "lead status startAt endAt timezone source bookedBy provider confirmedAt customerConfirmedAt estimatedValue valuation actualRevenue requiresBusinessApproval failureReason createdAt",
         )
         .sort({ createdAt: -1 })
         .lean(),
@@ -890,7 +895,7 @@ class OwnerExperienceService {
         .lean(),
       Appointment.find({ business: business._id, lead: { $in: leadIds } })
         .select(
-          "lead status startAt endAt timezone source bookedBy provider confirmedAt customerConfirmedAt estimatedValue actualRevenue requiresBusinessApproval failureReason createdAt",
+          "lead status startAt endAt timezone source bookedBy provider confirmedAt customerConfirmedAt estimatedValue valuation actualRevenue requiresBusinessApproval failureReason createdAt",
         )
         .sort({ createdAt: -1 })
         .lean(),

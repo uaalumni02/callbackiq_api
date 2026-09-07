@@ -1,3 +1,6 @@
+import mongoose from "mongoose";
+import { canonicalLeadValueStages, canonicalAppointmentValueStages, reportValueExpression, reportCoverageGroup } from "../valuation/valuationReport.js";
+import { verifiedAmount } from "../valuation/opportunityValue.js";
 import Appointment from "../../models/appointment.js";
 import CallLog from "../../models/callLog.js";
 import ConversionEvent from "../../models/conversionEvent.js";
@@ -57,13 +60,15 @@ class RevenueRecoveryService {
             confirmedAt: dateFilter,
           },
         },
+        ...canonicalAppointmentValueStages(),
         {
           $group: {
             _id: null,
             count: { $sum: 1 },
+            ...reportCoverageGroup,
             estimated: {
               $sum: {
-                $cond: [{ $eq: ["$status", "confirmed"] }, "$estimatedValue", 0],
+                $cond: [{ $eq: ["$status", "confirmed"] }, reportValueExpression, 0],
               },
             },
             actual: {
@@ -81,7 +86,7 @@ class RevenueRecoveryService {
                     },
                     {
                       case: { $eq: ["$status", "confirmed"] },
-                      then: "$estimatedValue",
+                      then: reportValueExpression,
                     },
                   ],
                   default: 0,
@@ -93,29 +98,27 @@ class RevenueRecoveryService {
       ]),
       Lead.aggregate([
         { $match: { business: businessId, recovered: true, bookedAt: dateFilter } },
+        ...canonicalLeadValueStages(),
         {
           $group: {
             _id: null,
             count: { $sum: 1 },
             // Open pipeline only: once actual revenue exists, do not also count
             // the estimate for the same recovered job.
+            ...reportCoverageGroup,
             estimated: {
               $sum: {
                 $cond: [
                   { $ne: ["$completedAt", null] },
                   0,
-                  "$estimatedValue",
+                  reportValueExpression,
                 ],
               },
             },
             actual: { $sum: "$actualRevenue" },
             attributable: {
               $sum: {
-                $cond: [
-                  { $ne: ["$completedAt", null] },
-                  "$actualRevenue",
-                  "$estimatedValue",
-                ],
+                $add: [{ $ifNull: ["$actualRevenue", 0] }, { $ifNull: [reportValueExpression, 0] }],
               },
             },
           },
@@ -148,6 +151,8 @@ class RevenueRecoveryService {
     };
 
     return {
+      estimateCoverage: { estimatedCount: recoveredSummary.estimatedCount || 0, unestimatedCount: recoveredSummary.unestimatedCount || 0 },
+      bookedEstimateCoverage: { estimatedCount: appointmentSummary.estimatedCount || 0, unestimatedCount: appointmentSummary.unestimatedCount || 0 },
       missedCalls,
       customersReached,
       qualifiedLeads,
@@ -240,6 +245,7 @@ class RevenueRecoveryService {
               bookedAt: dateFilter,
             },
           },
+        ...canonicalLeadValueStages(),
           {
             $group: {
               _id: dayGroup("$bookedAt"),
@@ -249,7 +255,7 @@ class RevenueRecoveryService {
                   $cond: [
                     { $ne: ["$completedAt", null] },
                     0,
-                    "$estimatedValue",
+                    reportValueExpression,
                   ],
                 },
               },
@@ -297,12 +303,13 @@ class RevenueRecoveryService {
     const { start, end } = getRange({ startDate, endDate });
     return Lead.aggregate([
       { $match: { business: businessId, createdAt: { $gte: start, $lte: end } } },
+        ...canonicalLeadValueStages(),
       {
         $group: {
           _id: "$source",
           leads: { $sum: 1 },
           recovered: { $sum: { $cond: ["$recovered", 1, 0] } },
-          estimatedRevenue: { $sum: { $cond: ["$recovered", "$estimatedValue", 0] } },
+          estimatedRevenue: { $sum: { $cond: ["$recovered", reportValueExpression, 0] } },
           actualRevenue: { $sum: { $cond: ["$recovered", "$actualRevenue", 0] } },
         },
       },
@@ -348,6 +355,7 @@ class RevenueRecoveryService {
               confirmedAt: dateFilter,
             },
           },
+        ...canonicalAppointmentValueStages(),
           { $sort: { confirmedAt: -1 } },
           {
             $group: {
@@ -360,7 +368,7 @@ class RevenueRecoveryService {
               },
               estimatedBookedRevenue: {
                 $sum: {
-                  $cond: [{ $eq: ["$status", "confirmed"] }, "$estimatedValue", 0],
+                  $cond: [{ $eq: ["$status", "confirmed"] }, reportValueExpression, 0],
                 },
               },
               totalBookedAttributableValue: {
@@ -368,7 +376,7 @@ class RevenueRecoveryService {
                   $switch: {
                     branches: [
                       { case: { $eq: ["$status", "completed"] }, then: "$actualRevenue" },
-                      { case: { $eq: ["$status", "confirmed"] }, then: "$estimatedValue" },
+                      { case: { $eq: ["$status", "confirmed"] }, then: reportValueExpression },
                     ],
                     default: 0,
                   },
@@ -386,7 +394,7 @@ class RevenueRecoveryService {
           occurredAt: dateFilter,
           "metadata.recovered": true,
         })
-          .select("appointment marketingSource attribution estimatedValue occurredAt")
+          .select("appointment marketingSource attribution estimatedValue valuation occurredAt")
           .sort({ occurredAt: 1 })
           .lean(),
       ]);
@@ -412,12 +420,11 @@ class RevenueRecoveryService {
             .select("appointment actualRevenue occurredAt attribution marketingSource")
             .sort({ occurredAt: 1 })
             .lean(),
-          Appointment.find({
-            business: businessId,
-            _id: { $in: recoveredAppointmentIds },
-          })
-            .select("status actualRevenue")
-            .lean(),
+          Appointment.aggregate([
+            { $match: { business: businessId, _id: { $in: recoveredAppointmentIds.map(id => new mongoose.Types.ObjectId(id)) } } },
+            ...canonicalAppointmentValueStages(),
+            { $project: { status: 1, actualRevenue: 1, _verifiedValue: 1 } },
+          ]),
         ])
       : [[], []];
 
@@ -430,7 +437,12 @@ class RevenueRecoveryService {
     );
 
     const recoveredRows = new Map();
+    const countedAppointments = new Set();
     for (const event of recoveredBookingEvents) {
+      if (!event.appointment || countedAppointments.has(String(event.appointment))) continue;
+      const currentAppointment = appointmentById.get(String(event.appointment));
+      if (currentAppointment && !["confirmed", "completed"].includes(currentAppointment.status)) continue;
+      countedAppointments.add(String(event.appointment));
       const sourceKey = event.marketingSource ? String(event.marketingSource) : "unattributed";
       if (!recoveredRows.has(sourceKey)) {
         recoveredRows.set(sourceKey, {
@@ -463,7 +475,7 @@ class RevenueRecoveryService {
         row.actualRecoveredRevenue += Number.isFinite(actual) ? actual : 0;
         row.totalRecoveredAttributableValue += Number.isFinite(actual) ? actual : 0;
       } else {
-        const estimate = Number(event.estimatedValue || 0);
+        const estimate = appointment ? (appointment._verifiedValue ?? 0) : (verifiedAmount(event) ?? 0);
         row.estimatedRecoveredRevenue += Number.isFinite(estimate) ? estimate : 0;
         row.totalRecoveredAttributableValue += Number.isFinite(estimate) ? estimate : 0;
       }

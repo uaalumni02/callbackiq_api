@@ -21,7 +21,8 @@ const leadSchema = Joi.object({
 
   leadQualityScore: Joi.number().min(0).max(100).default(50),
 
-  estimatedValue: Joi.number().min(0).default(0),
+  estimatedValue: Joi.number().min(0).allow(null).optional(),
+  valuationAction: Joi.string().valid("automatic").optional(),
 
   status: Joi.string()
     .valid("new", "contacted", "booked", "lost", "spam")

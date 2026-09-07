@@ -1,3 +1,4 @@
+import { beginValuation, finishValuation } from "../services/valuation/opportunityValuation.service.js";
 import Appointment from "../models/appointment.js";
 import CallLog from "../models/callLog.js";
 import ServiceOffering from "../models/serviceOffering.js";
@@ -260,7 +261,8 @@ const recordConfirmedAppointment = async ({
 }) => {
   assertVoiceTurnActive();
   session.appointment = appointment._id;
-  session.estimatedValue = appointment.estimatedValue || lead?.estimatedValue || 0;
+  session.estimatedValue = appointment.estimatedValue ?? null;
+  session.valuation = appointment.valuation;
   assertVoiceTurnActive();
   await session.save();
 
@@ -318,6 +320,8 @@ class VoiceAgentService {
     }
     if (!text) return { reply: GENERAL_HELP_REPLY };
 
+    const valuationTicket = await beginValuation(lead, business._id);
+    await finishValuation(valuationTicket, { businessId: business._id, evidence: [...(session.transcript || []).filter(entry => entry.role === "customer").slice(-20).map(entry => entry.text), text].join("\n") });
     const guard = updateTurnGuards(session, text);
     const recentMessages = (session.transcript || []).slice(-10).map((entry) => ({
       direction: entry.role === "customer" ? "inbound" : "outbound",

@@ -1,3 +1,4 @@
+import { beginValuation, finishValuation } from "../services/valuation/opportunityValuation.service.js";
 import mongoose from "mongoose";
 
 import Db from "../db/db.js";
@@ -68,6 +69,7 @@ class AiController {
 
       const wasHotLead = isHotLead(lead);
 
+      const valuationTicket = await beginValuation(lead, business._id);
       const aiResult = await qualifyLeadWithAI({
         messageBody,
         businessType: business.businessType,
@@ -83,12 +85,12 @@ class AiController {
           lead.preferredAppointmentTime ||
           "",
         leadQualityScore: sanitizeScore(aiResult.leadQualityScore),
-        estimatedValue: sanitizeEstimatedValue(aiResult.estimatedValue),
         summary: aiResult.summary || lead.summary || "",
         status: lead.status === "booked" ? "booked" : "contacted",
       };
 
-      const qualifiedLead = await Db.qualifyLead(Lead, leadId, updateData);
+      let qualifiedLead = await Db.qualifyLead(Lead, leadId, updateData);
+      qualifiedLead = await finishValuation(valuationTicket, { businessId: business._id, evidence: messageBody, proposedService: aiResult.serviceNeeded }) || qualifiedLead;
 
       SocketService.emitLeadUpdated(business._id, qualifiedLead);
       SocketService.emitDashboardRefresh(business._id, "lead_qualified");

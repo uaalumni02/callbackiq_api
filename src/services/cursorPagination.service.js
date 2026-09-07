@@ -1,3 +1,4 @@
+import { verifiedAmountExpression, estimateCoverageGroup } from "./valuation/opportunityValue.js";
 // CALLBACKIQ_PRODUCTION_HARDENING_V1
 import mongoose from "mongoose";
 import Lead from "../models/lead.js";
@@ -152,7 +153,8 @@ export const getLeadsOverview = async (businessId, query = {}) => {
           booked: { $sum: { $cond: [{ $eq: ["$status", "booked"] }, 1, 0] } },
           lost: { $sum: { $cond: [{ $eq: ["$status", "lost"] }, 1, 0] } },
           spam: { $sum: { $cond: [{ $eq: ["$status", "spam"] }, 1, 0] } },
-          estimatedValue: { $sum: "$estimatedValue" },
+          ...estimateCoverageGroup,
+          estimatedValue: { $sum: verifiedAmountExpression },
           actualRevenue: { $sum: "$actualRevenue" },
         },
       },
@@ -231,7 +233,7 @@ export const getCallLogsPage = async (businessId, query = {}) => {
     .limit(limit + 1)
     .populate(
       "lead",
-      "customerName phone estimatedValue actualRevenue firstAttribution latestAttribution source",
+      "customerName phone estimatedValue valuation actualRevenue firstAttribution latestAttribution source",
     )
     .populate("conversation", "customerName customerPhone status")
     .lean();

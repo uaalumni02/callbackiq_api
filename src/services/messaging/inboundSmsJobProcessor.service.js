@@ -1,3 +1,4 @@
+import { beginValuation, finishValuation } from "../valuation/opportunityValuation.service.js";
 // CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1: processor
 import { classifySmsIntent } from "./smsIntentClassifier.service.js";
 import { buildSmsStatePatch } from "./smsConversationState.service.js";
@@ -82,8 +83,6 @@ const buildLeadUpdates = (lead, result) => {
 
   const score = Number(result?.leadQualityScore ?? result?.score);
   if (Number.isFinite(score)) updates.leadQualityScore = Math.min(100, Math.max(0, score));
-  const estimatedValue = Number(result?.estimatedValue);
-  if (Number.isFinite(estimatedValue) && estimatedValue > 0) updates.estimatedValue = estimatedValue;
   if (!lead.firstRespondedAt) updates.firstRespondedAt = new Date();
   return updates;
 };
@@ -487,6 +486,7 @@ export const processInboundSmsJob = async (job) => {
     return { decision: "skipped", reason: "ai_ineligible" };
   }
 
+  const valuationTicket = await beginValuation(lead, business._id);
   const orchestration = await ConversationOrchestratorService.process({
     business,
     lead,
@@ -523,6 +523,7 @@ export const processInboundSmsJob = async (job) => {
       returnDocument: "after",
       runValidators: true,
     });
+    updatedLead = await finishValuation(valuationTicket, { businessId: business._id, evidence: [...messages.filter(message => message.direction === "inbound").map(message => message.body), customerTurn.customerMessage].join("\n"), proposedService: result.serviceNeeded }) || updatedLead;
     SocketService.emitLeadUpdated(business._id, updatedLead);
   }
 

@@ -1,3 +1,4 @@
+import { verifiedAmountExpression, estimateCoverageGroup } from "../services/valuation/opportunityValue.js";
 import { formatCustomerRow } from "../helpers/model/admin.js";
 
 const BUSINESS_SCOPE_FIELDS = [
@@ -58,6 +59,7 @@ const CONVERSATION_INTELLIGENCE_LEAD_FIELDS = [
   "preferredAppointmentTime",
   "leadQualityScore",
   "estimatedValue",
+  "valuation",
   "status",
   "source",
   "summary",
@@ -1233,7 +1235,7 @@ class Db {
                   $sum: {
                     $cond: [
                       { $eq: ["$status", "booked"] },
-                      { $ifNull: ["$estimatedValue", 0] },
+                      { $ifNull: [verifiedAmountExpression, 0] },
                       0,
                     ],
                   },
@@ -1247,7 +1249,7 @@ class Db {
                           { $in: ["$source", ["missed_call", "sms"]] },
                         ],
                       },
-                      { $ifNull: ["$estimatedValue", 0] },
+                      { $ifNull: [verifiedAmountExpression, 0] },
                       0,
                     ],
                   },

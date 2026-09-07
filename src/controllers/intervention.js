@@ -29,7 +29,7 @@ const populate = (query) =>
   query
     .populate(
       "lead",
-      "customerName phone serviceNeeded urgency estimatedValue status summary",
+      "customerName phone serviceNeeded urgency estimatedValue valuation status summary",
     )
     .populate(
       "conversation",

@@ -1334,7 +1334,7 @@ class BookingStateMachineService {
           startAt: selectedSlot.startAt,
           endAt: selectedSlot.endAt,
           timezone: business.timezone || "America/New_York",
-          estimatedValue: lead?.estimatedValue || 0,
+          estimatedValue: lead?.estimatedValue ?? null,
           source: bookingChannel,
           bookedBy: "ai",
           urgency: lead?.urgency || "medium",

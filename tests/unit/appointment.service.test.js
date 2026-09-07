@@ -24,7 +24,7 @@ jest.mock("../../src/models/appointment.js", () => ({
 }));
 jest.mock("../../src/models/lead.js", () => ({
   __esModule: true,
-  default: { findById: jest.fn(), updateOne: jest.fn() },
+  default: { findById: jest.fn(), findOne: jest.fn(() => ({ lean: async () => null })), updateOne: jest.fn() },
 }));
 jest.mock("../../src/models/serviceOffering.js", () => ({
   __esModule: true,
@@ -222,7 +222,7 @@ describe("AppointmentService", () => {
         address: { street: "123 Main", city: "Atlanta", state: "GA", postalCode: "30318" },
         endAt: new Date("2026-07-27T18:30:00.000Z"),
         provider: "google_calendar",
-        estimatedValue: 300,
+        estimatedValue: null,
         actualRevenue: 0,
         capacityLane: 1,
         activeSlotKey: "2026-07-27T17:00:00.000Z|2026-07-27T18:30:00.000Z|lane:1",
@@ -234,7 +234,7 @@ describe("AppointmentService", () => {
     expect(claims.at(-1)).toBe("2026-07-27T18:44:00.000Z|lane:1");
   });
 
-  test("uses input, service, business, and neutral fallbacks", async () => {
+  test("ignores untrusted input amounts and business averages", async () => {
     Appointment.findOne.mockResolvedValue(null);
     getBookableService.mockResolvedValue({ _id: "s1", durationMinutes: 0, estimatedValue: 0 });
     AvailabilityService.getAvailability.mockResolvedValue({
@@ -262,7 +262,7 @@ describe("AppointmentService", () => {
         source: "web",
         bookedBy: "customer",
         provider: "internal",
-        estimatedValue: 500,
+        estimatedValue: null,
         actualRevenue: 25,
         notes: "note",
       }),

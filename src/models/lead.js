@@ -44,7 +44,9 @@ const LeadSchema = new Schema(
     address: { type: String, trim: true, default: "" },
     preferredAppointmentTime: { type: String, trim: true, default: "" },
     leadQualityScore: { type: Number, min: 0, max: 100, default: 50 },
-    estimatedValue: { type: Number, min: 0, default: 0 },
+    estimatedValue: { type: Number, min: 0, default: null },
+    valuation: { type: Schema.Types.Mixed, default: undefined },
+    valuationVersion: { type: Number, min: 0, default: 0 },
     actualRevenue: { type: Number, min: 0, default: 0 },
     status: {
       type: String,

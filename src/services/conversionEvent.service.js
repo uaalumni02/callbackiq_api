@@ -1,3 +1,4 @@
+import { moneyAmount } from "./valuation/opportunityValue.js";
 import CallLog from "../models/callLog.js";
 import ConversionEvent from "../models/conversionEvent.js";
 import Lead from "../models/lead.js";
@@ -16,7 +17,8 @@ class ConversionEventService {
     type,
     channel = "manual",
     source = "",
-    estimatedValue = 0,
+    estimatedValue = null,
+    valuation = undefined,
     actualRevenue = 0,
     occurredAt = new Date(),
     idempotencyKey = null,
@@ -35,7 +37,8 @@ class ConversionEventService {
         type,
         channel,
         source,
-        estimatedValue: Number(estimatedValue || 0),
+        estimatedValue: moneyAmount(estimatedValue),
+        valuation,
         actualRevenue: Number(actualRevenue || 0),
         occurredAt,
         idempotencyKey,
@@ -77,7 +80,7 @@ class ConversionEventService {
             recoveredBy,
             // CALLBACKIQ_ATTRIBUTION_10OF10_FULL_V2:
             // the booked service/appointment is the authoritative open value.
-            estimatedValue: Number(appointment.estimatedValue || 0),
+
           },
         },
       );
@@ -106,6 +109,7 @@ class ConversionEventService {
       channel,
       source: recovered ? "missed_call_recovery" : "direct_booking",
       estimatedValue: appointment.estimatedValue,
+      valuation: appointment.valuation,
       actualRevenue: appointment.actualRevenue,
       idempotencyKey: `appointment_booked:${appointment._id}`,
       metadata: { recovered, recoveredBy, provider: appointment.provider },

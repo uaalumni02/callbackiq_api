@@ -67,7 +67,9 @@ const VoiceSessionSchema = new Schema(
       ref: "Appointment",
       default: null,
     },
-    estimatedValue: { type: Number, min: 0, default: 0 },
+    estimatedValue: { type: Number, min: 0, default: null },
+    valuation: { type: Schema.Types.Mixed, default: undefined },
+    valuationVersion: { type: Number, min: 0, default: 0 },
 
     openAiUsage: {
       inputTokens: {
