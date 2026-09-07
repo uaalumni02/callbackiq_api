@@ -1,3 +1,4 @@
+import { bookingQuestionReply } from "./conversationQuestions.service.js";
 import { classifySmsIntent } from "../messaging/smsIntentClassifier.service.js";
 import Appointment from "../../models/appointment.js";
 import Conversation from "../../models/conversation.js";
@@ -228,37 +229,25 @@ const selectSlotOptions = (slots, urgency = "medium", maximum = 3) => {
 
 const selectOfferedSlot = (message, offeredSlots, timeZone) => {
   const text = String(message || "").trim().toLowerCase();
-  const explicitSelections = new Set();
-
-  if (/\b(first|1|one)\b/.test(text)) explicitSelections.add(0);
-  if (/\b(second|2|two)\b/.test(text)) explicitSelections.add(1);
-  if (/\b(third|3|three)\b/.test(text)) explicitSelections.add(2);
-
-  // A reply that names more than one option is ambiguous. Never choose one
-  // appointment silently or advance to confirmation.
-  if (explicitSelections.size > 1) return null;
-
-  if (explicitSelections.size === 1) {
-    const [selectedIndex] = explicitSelections;
-    return offeredSlots[selectedIndex] || null;
+  // Option numbers are whole selections, never digits embedded in a clock time.
+  const option = text.match(/^(?:(?:option|number|the)\s+)?(first|second|third|one|two|three|1|2|3)(?:\s+(?:one|option))?(?:\s+(?:please|works(?: for me)?))?[.! ]*$/);
+  if (option) {
+    const index = { first: 0, one: 0, "1": 0, second: 1, two: 1, "2": 1, third: 2, three: 2, "3": 2 }[option[1]];
+    return offeredSlots[index] || null;
   }
-
-  return (
-    offeredSlots.find((slot) => {
-      const label = String(
-        slot.label || formatSlot(slot, timeZone),
-      ).toLowerCase();
-      const localTime = new Intl.DateTimeFormat("en-US", {
-        timeZone,
-        hour: "numeric",
-        minute: "2-digit",
-      })
-        .format(new Date(slot.startAt))
-        .toLowerCase();
-
-      return text.includes(label) || text.includes(localTime);
-    }) || null
-  );
+  const clock = parseTimePreference(text, timeZone);
+  const minutes = clock?.exactMinutes;
+  if (!Number.isFinite(minutes)) return null;
+  const range = findDateRange(text, timeZone, new Date());
+  const matches = offeredSlots.filter((slot) => {
+    const date = new Date(slot.startAt);
+    const parts = new Intl.DateTimeFormat("en-US", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(date);
+    const fields = Object.fromEntries(parts.map(({type, value}) => [type, value]));
+    const key = `${fields.year}-${fields.month}-${fields.day}`;
+    return Number(fields.hour) * 60 + Number(fields.minute) === minutes &&
+      (!range || (key >= range.startDate && key <= range.endDate));
+  });
+  return matches.length === 1 ? matches[0] : null;
 };
 
 const handleReadOnlyAvailabilityInquiry = async ({
@@ -566,6 +555,9 @@ class BookingStateMachineService {
     const enabled = Boolean(business?.features?.aiBookingEnabled);
     const text = String(customerMessage || "").trim();
 
+    const questionReply = bookingQuestionReply({ customerMessage: text, conversation });
+    if (questionReply) return { handled: true, result: fixedResult({ reply: questionReply, category: "appointment_status" }) };
+
     if (!enabled) {
       const smsIntent = classifySmsIntent({
         customerMessage: text,
@@ -636,6 +628,7 @@ class BookingStateMachineService {
             selectedSlot: selected,
             availabilityInquiry: false,
             escalatedAt: new Date(),
+            offeredSlots: [],
             expiresAt: null,
             lastError: "selected_slot_requires_manual_confirmation",
           });
@@ -1473,7 +1466,7 @@ class BookingStateMachineService {
           handled: true,
           result: fixedResult({
             reply:
-              "Your requested appointment is still awaiting business approval. The team will text you as soon as it is accepted.",
+              "Your requested appointment is still awaiting business approval. It is not confirmed yet. I can’t guarantee a confirmation call or a response time.",
           }),
         };
       }

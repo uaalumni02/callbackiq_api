@@ -141,6 +141,15 @@ describe("VoiceAgentService callback-first recovery", () => {
     Appointment.findById.mockResolvedValue(null);
   });
 
+  test("manual scheduling follow-up answers confirmation without starting callback capture", async () => {
+    const session = makeSession();
+    session.business.features.aiBookingEnabled = false;
+    session.conversation.bookingState = { status: "human_takeover", lastError: "selected_slot_requires_manual_confirmation" };
+    const result = await VoiceAgentService.handlePrompt({ session, customerMessage: "Will someone call to confirm?" });
+    expect(result.reply).toMatch(/can't guarantee a confirmation call/);
+    expect(VoiceCallbackService.handle).not.toHaveBeenCalled();
+  });
+
   test("creates an urgent alert flow instead of blindly transferring safety calls", async () => {
     const session = makeSession();
     assessInboundSafety.mockResolvedValue({

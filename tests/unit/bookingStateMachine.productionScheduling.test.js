@@ -222,3 +222,46 @@ describe("production scheduling regression: exact urgent availability journey", 
     expect(result.result.reply).not.toMatch(/you're booked/i);
   });
 });
+
+describe.each(['sms', 'voice'])('reported read-only journey (%s)', (channel) => {
+  beforeEach(() => { jest.useFakeTimers().setSystemTime(new Date('2026-09-07T15:15:00Z')); });
+  afterEach(() => jest.useRealTimers());
+  const business = { _id: 'business-1', businessName: 'Atlanta Pro Plumbing', timezone: 'America/New_York', features: { aiBookingEnabled: false } };
+  const offered = () => {
+    const c = makeConversation();
+    Object.assign(c.bookingState, { status: 'offering_slots', expiresAt: new Date('2026-09-07T15:45:00Z'), offeredSlots: [
+      { startAt: new Date('2026-09-07T17:00:00Z'), endAt: new Date('2026-09-07T17:30:00Z') },
+      { startAt: new Date('2026-09-07T17:30:00Z'), endAt: new Date('2026-09-07T18:00:00Z') },
+      { startAt: new Date('2026-09-07T18:00:00Z'), endAt: new Date('2026-09-07T18:30:00Z') },
+    ] });
+    return c;
+  };
+  test('natural time selects the matching slot, persists review and answers confirmation without restarting', async () => {
+    const conversation = offered();
+    const lead = { _id: 'lead-1', save: jest.fn() };
+    const result = await BookingStateMachineService.handle({ business, lead, conversation, channel, customerMessage: 'Today at 1:30pm' });
+    expect(result.result.reply).toMatch(/1:30 PM/);
+    expect(conversation.bookingState.selectedSlot.startAt.toISOString()).toBe('2026-09-07T17:30:00.000Z');
+    expect(conversation.bookingState.status).toBe('human_takeover');
+    expect(conversation.bookingState.expiresAt).toBeNull();
+    expect(conversation.bookingState.offeredSlots).toEqual([]);
+    const followup = await BookingStateMachineService.handle({ business, lead, conversation, channel, customerMessage: 'Will someone call to confirm?' });
+    expect(followup.result.reply).toMatch(/can't guarantee a confirmation call/);
+    expect(followup.result.reply).not.toMatch(/choose|option numbers/);
+    expect(conversation.bookingState.status).toBe('human_takeover');
+  });
+  test.each(['Tomorrow at 1:30pm', '1 or 2', '1:45pm'])('does not silently select an unsupported time: %s', async customerMessage => {
+    const conversation = offered();
+    await BookingStateMachineService.handle({ business, conversation, channel, customerMessage });
+    expect(conversation.bookingState.selectedSlot).toBeUndefined();
+    expect(conversation.bookingState.status).toBe('offering_slots');
+  });
+  test('confirmation question is not consent to submit', async () => {
+    const conversation = offered();
+    conversation.bookingState.status = 'awaiting_confirmation';
+    createAppointmentTool.mockClear();
+    const result = await BookingStateMachineService.handle({ business: { ...business, features: { aiBookingEnabled: true } }, conversation, channel, customerMessage: 'Can you confirm it?' });
+    expect(result.result.reply).toMatch(/not been submitted/);
+    expect(createAppointmentTool).not.toHaveBeenCalled();
+  });
+});

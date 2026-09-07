@@ -283,11 +283,11 @@ const SAFE_REPLIES = Object.freeze({
   fallback:
     "Thanks for reaching out. I can collect the details for the team, and they will follow up to confirm next steps.",
   appointment:
-    "You can reply with the days and times that work best for you. The business will respond as soon as possible to confirm availability.",
+    "You can reply with the days and times that work best for you. The team must confirm availability before a visit is scheduled; I can’t guarantee a response time.",
   pricing:
     "I can collect the service details, but the team will need to confirm pricing before any work is approved.",
   availability:
-    "Please leave the days and times that work best for you. The business will respond as soon as possible to confirm availability.",
+    "Please leave the days and times that work best for you. The team must confirm availability before a visit is scheduled; I can’t guarantee a response time.",
   dispatch:
     "I have recorded the urgency. The team will follow up with any confirmed dispatch or arrival information.",
   serviceArea:

@@ -115,7 +115,7 @@ const releaseStaleHumanTakeover = async (conversation, now) => {
   return true;
 };
 
-const expireBookingOffer = async (conversation, now) => {
+export const expireBookingOffer = async (conversation, now) => {
   const status = String(conversation.bookingState?.status || "");
   if (!["offering_slots", "awaiting_confirmation"].includes(status)) return false;
   const expiresAt = conversation.bookingState?.expiresAt && new Date(conversation.bookingState.expiresAt);
@@ -125,7 +125,10 @@ const expireBookingOffer = async (conversation, now) => {
     {
       _id: conversation._id,
       "bookingState.status": status,
-      "bookingState.expiresAt": { $lte: now },
+      "bookingState.expiresAt": expiresAt,
+      status: "open",
+      humanTakeover: { $ne: true },
+      aiEnabled: { $ne: false },
     },
     {
       $set: {
@@ -142,12 +145,8 @@ const expireBookingOffer = async (conversation, now) => {
   );
   if (!claimed) return false;
 
-  await sendLifecycleSms({
-    conversation: claimed,
-    body: "That time is no longer held. Send another day that works and I’ll find the closest opening.",
-    event: "booking_offer_expired",
-    idempotencySuffix: expiresAt.toISOString(),
-  });
+  // No slot was held. Refresh availability on the next customer scheduling turn.
+
   return true;
 };
 

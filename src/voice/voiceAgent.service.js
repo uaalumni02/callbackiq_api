@@ -5,6 +5,7 @@ import ServiceOffering from "../models/serviceOffering.js";
 import searchServicesTool from "../helpers/ai/tools/searchServices.tool.js";
 import validateServiceAreaTool from "../helpers/ai/tools/validateServiceArea.tool.js";
 import sendConfirmationSmsTool from "../helpers/ai/tools/sendConfirmationSms.tool.js";
+import { bookingQuestionReply, isAmbiguousServiceLoss, serviceLossQuestion } from "../services/booking/conversationQuestions.service.js";
 import BookingStateMachineService from "../services/booking/bookingStateMachine.service.js";
 import { assessInboundSafety } from "../services/safetyAssessmentService.js";
 import {
@@ -408,6 +409,10 @@ class VoiceAgentService {
           "If anyone is in immediate danger, hang up and call 911 now. CallBackIQ flagged this for urgent review, but do not wait for a callback or use this service instead of emergency services.",
       });
     }
+
+    const questionReply = bookingQuestionReply({ customerMessage: text, conversation });
+    if (questionReply) return { reply: questionReply };
+    if (isAmbiguousServiceLoss(text)) return { reply: serviceLossQuestion };
 
     if (VoiceCallbackService.isActive(session)) {
       resetFallbackGuard(guard);

@@ -1,3 +1,4 @@
+import { hasRecentRecoveryIntroduction } from "./recoveryIntroduction.service.js";
 // CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1: conversation-service
 import Lead from "../../models/lead.js";
 import Conversation from "../../models/conversation.js";
@@ -232,6 +233,7 @@ const upsertConversation = async ({
     conversation?.orchestration?.recoveryJourneyKey || "",
   ).trim();
   const freshMissedCallRecovery =
+    !hasRecentRecoveryIntroduction(conversation, now) &&
     reopenEligible &&
     source === "missed_call" &&
     conversation.humanTakeover !== true &&

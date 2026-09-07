@@ -133,6 +133,7 @@ const conversationSchema = new Schema(
       lastUpdatedAt: { type: Date, default: null },
     },
     orchestration: {
+      recoveryIntroClaimedAt: { type: Date, default: null },
       // CALLBACKIQ_BOOKING_RECOVERY_FIX_V2: separates historical conversation context from the active missed-call journey.
       recoveryJourneyKey: { type: String, trim: true, maxlength: 160, default: "" },
       recoveryJourneyStartedAt: { type: Date, default: null },

@@ -1,3 +1,4 @@
+import { claimRecoveryIntroduction } from "./messaging/recoveryIntroduction.service.js";
 // CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1: webhook
 import { processInboundSmsJob } from "./messaging/inboundSmsJobProcessor.service.js";
 import CallLog from "../models/callLog.js";
@@ -268,24 +269,29 @@ export const handleSmsRecoveryVoiceWebhook = async (req, res) => {
 
     if (smsEnabled) {
       try {
-        sentResult = await sendSms({
-          business,
-          businessId: business._id,
-          from: numberContext?.trackingNumber?.phoneNumber || business.phone,
-          to: customerPhone,
-          body: starterText,
-          actorType: "webhook",
-          source: "missed_call_recovery",
-          usageCategory: "missed_call_recovery",
-          conversationId: conversation._id,
-          leadId: lead._id,
-          directResponse: true,
-          requireOptOutDisclosure: true,
-          metadata: { providerCallSid: callSid },
-        });
+        const introClaimed = await claimRecoveryIntroduction({ businessId: business._id, conversationId: conversation._id });
+        if (!introClaimed) {
+          sentResult = { suppressed: true, reason: "recent_recovery_introduction" };
+        } else {
+          sentResult = await sendSms({
+            business,
+            businessId: business._id,
+            from: numberContext?.trackingNumber?.phoneNumber || business.phone,
+            to: customerPhone,
+            body: starterText,
+            actorType: "webhook",
+            source: "missed_call_recovery",
+            usageCategory: "missed_call_recovery",
+            conversationId: conversation._id,
+            leadId: lead._id,
+            directResponse: true,
+            requireOptOutDisclosure: true,
+            metadata: { providerCallSid: callSid, idempotencyKey: `missed-call-recovery:${business._id}:${callSid}` },
+          });
+        }
         smsStatus = sentResult?.suppressed ? "suppressed" : "sent";
 
-        if (!sentResult?.suppressed) {
+        if (!sentResult?.suppressed && !sentResult?.replayed) {
           await saveOutbound({
             business,
             conversation,

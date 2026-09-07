@@ -1,4 +1,5 @@
 // CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1: policy
+import { bookingQuestionReply, isAmbiguousServiceLoss, serviceLossQuestion } from "../booking/conversationQuestions.service.js";
 import { classifySmsIntent } from "./smsIntentClassifier.service.js";
 import {
   findDateRange,
@@ -238,7 +239,7 @@ export const pricingReply = ({ lead, business }) => {
   const urgency = clean(lead?.urgency).toLowerCase();
 
   if (!urgency || urgency === "medium") {
-    return "The exact cost depends on what is causing the issue and is not confirmed yet. Is it causing an active leak, overflow, loss of service, or safety concern?";
+    return "The exact cost depends on what is causing the issue and is not confirmed yet. Is anything actively leaking or overflowing, or is only the affected fixture unusable?";
   }
 
   if (!clean(lead?.address)) {
@@ -397,6 +398,16 @@ export const evaluateSmsTurnPolicy = ({
     });
   }
 
+  // A live offer belongs to the booking state machine even with auto-booking off.
+  // Human requests, pricing and appointment changes retain their own handlers.
+  if (conversation?.bookingState?.status === "offering_slots" &&
+      !intent.human && !intent.pricing && !intent.cancel && !intent.reschedule) {
+    directResult = null;
+  }
+  const questionReply = bookingQuestionReply({ customerMessage: text, conversation });
+  if (questionReply) directResult = fixedResult({ reply: questionReply, category: "appointment_status" });
+  if (isAmbiguousServiceLoss(text)) directResult = fixedResult({ reply: serviceLossQuestion, category: "service_request", serviceNeeded: knownService, urgency: clean(lead?.urgency) || "medium" });
+
   return {
     text,
     timeZone,
@@ -412,7 +423,7 @@ export const evaluateSmsTurnPolicy = ({
 };
 
 const triageQuestion = ({ service }) =>
-  `I can help${service ? ` with ${service}` : ""}. Is this causing an active leak, overflow, loss of service, or another urgent safety issue?`;
+  `I can help with that. Is anything actively leaking or overflowing, or is the fixture blocked without a leak?`;
 
 export const applySmsTurnPolicy = ({
   result,
