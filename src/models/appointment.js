@@ -241,6 +241,9 @@ AppointmentSchema.index({
 AppointmentSchema.index({ business: 1, lead: 1, createdAt: -1 });
 AppointmentSchema.index({ business: 1, conversation: 1, createdAt: -1 });
 
+AppointmentSchema.index({ business: 1, confirmedAt: -1 });
+AppointmentSchema.index({ business: 1, completedAt: -1 });
+
 const Appointment =
   mongoose.models.Appointment || mongoose.model("Appointment", AppointmentSchema);
 

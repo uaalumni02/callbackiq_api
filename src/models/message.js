@@ -205,6 +205,8 @@ MessageSchema.index(
 );
 MessageSchema.index({ business: 1, deliveryStatus: 1, createdAt: -1 });
 
+MessageSchema.index({ business: 1, lead: 1, direction: 1, createdAt: -1 });
+
 const Message =
   mongoose.models.Message || mongoose.model("Message", MessageSchema);
 

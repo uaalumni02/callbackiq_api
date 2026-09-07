@@ -67,6 +67,122 @@
     "options": {}
   },
   {
+    "collection": "adminbillingfacts",
+    "key": {
+      "invoiceId": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "adminbillingfacts",
+    "key": {
+      "business": 1,
+      "paidAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "adminbillingfacts",
+    "key": {
+      "business": 1,
+      "created": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "adminbusinessreports",
+    "key": {
+      "business": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "adminbusinessreports",
+    "key": {
+      "nextRefreshAt": 1,
+      "leaseUntil": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "adminbusinessreports",
+    "key": {
+      "excluded": 1,
+      "name": 1,
+      "business": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "admincompanyexpenses",
+    "key": {
+      "provider": 1,
+      "period": 1,
+      "entrySource": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "admincompanyexpenses",
+    "key": {
+      "period": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "admincostrecords",
+    "key": {
+      "business": 1,
+      "period": 1,
+      "category": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "adminexpenserules",
+    "key": {
+      "provider": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "adminreportingprofiles",
+    "key": {
+      "business": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "adminrevenuesnapshots",
+    "key": {
+      "business": 1,
+      "day": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "adminrevenuesnapshots",
+    "key": {
+      "day": 1,
+      "business": 1
+    },
+    "options": {}
+  },
+  {
     "collection": "alerts",
     "key": {
       "customerLifecycleStatus": 1
@@ -263,6 +379,22 @@
       "business": 1,
       "conversation": 1,
       "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "appointments",
+    "key": {
+      "business": 1,
+      "confirmedAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "appointments",
+    "key": {
+      "business": 1,
+      "completedAt": -1
     },
     "options": {}
   },
@@ -1489,6 +1621,16 @@
     "key": {
       "business": 1,
       "deliveryStatus": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "messages",
+    "key": {
+      "business": 1,
+      "lead": 1,
+      "direction": 1,
       "createdAt": -1
     },
     "options": {}

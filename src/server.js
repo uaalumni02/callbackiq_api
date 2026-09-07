@@ -1,3 +1,4 @@
+import { startAdminReportingWorker, stopAdminReportingWorker } from "./workers/adminReporting.worker.js";
 import { safeConsole } from "./helpers/logging/safeLogger.js";
 import { startWebhookWorkWorker, stopWebhookWorkWorker } from "./workers/webhookWork.worker.js";
 import { beginDrain } from "./services/runtimeState.service.js";
@@ -167,6 +168,7 @@ const shutdown = async (signal, exitCode = 0) => {
   forcedExitTimer.unref();
 
   try {
+    const reportingStopped = stopAdminReportingWorker();
     stopA2pReconciliationWorker();
     stopTrialLifecycleWorker();
     stopAppointmentMaintenanceWorker();
@@ -181,6 +183,7 @@ const shutdown = async (signal, exitCode = 0) => {
     stopSocketSessions();
     await closeSocketServer();
     await closeSocketRedisAdapter();
+    await reportingStopped;
     await closeScaleCache();
     await closeHttpServer();
     if (mongoose.connection.readyState !== 0) {
@@ -218,6 +221,7 @@ const startServer = async () => {
 await connectDB();
   await initializeSocketRedisAdapter(io);
   if (shouldRunEmbeddedWorkers()) {
+    startAdminReportingWorker();
     startA2pReconciliationWorker();
   }
   if (shouldRunEmbeddedWorkers()) {

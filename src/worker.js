@@ -1,3 +1,4 @@
+import { startAdminReportingWorker, stopAdminReportingWorker } from "./workers/adminReporting.worker.js";
 import { safeConsole } from "./helpers/logging/safeLogger.js";
 import { startWebhookWorkWorker, stopWebhookWorkWorker } from "./workers/webhookWork.worker.js";
 import { Server } from "socket.io";
@@ -54,6 +55,7 @@ import {
 
 export const roleMap = {
   worker: [
+    ["admin-reporting", startAdminReportingWorker, stopAdminReportingWorker],
     ["a2p", startA2pReconciliationWorker, stopA2pReconciliationWorker],
     [
       "maintenance",
@@ -84,6 +86,7 @@ export const roleMap = {
     ["automation", startAutomationWorker, stopAutomationWorker],
   ],
   "worker-lifecycle": [
+    ["admin-reporting", startAdminReportingWorker, stopAdminReportingWorker],
     ["lifecycle", startTrialLifecycleWorker, stopTrialLifecycleWorker],
   ],
   "worker-a2p": [
