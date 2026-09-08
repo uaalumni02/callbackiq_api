@@ -137,6 +137,7 @@ describe("AutomationService", () => {
     ["conversation_not_open", { conversation: null }],
     ["conversation_not_open", { conversation: { status: "closed" } }],
     ["human_takeover", { conversation: { status: "open", humanTakeover: true } }],
+    ["intake_awaiting_team", { conversation: { status: "open", orchestration: { handoffReason: "intake_complete" } } }],
     ["lead_booked", { lead: { status: "booked" } }],
     ["lead_lost", { lead: { status: "lost" } }],
     ["lead_spam", { lead: { status: "spam" } }],

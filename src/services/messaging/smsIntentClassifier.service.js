@@ -6,6 +6,8 @@ import {
 import {
   classifyOperationalUrgency,
   isAvailabilityInquiryText,
+  isWaitlistInquiryText,
+  isEmergencyAvailabilityText,
 } from "../scheduling/customerSchedulingIntent.service.js";
 
 const clean = (value) => String(value || "").replace(/\s+/g, " ").trim();
@@ -76,7 +78,11 @@ const AFFIRMATIVE_SCHEDULING = /\b(?:yes|yeah|sure|correct|that works|works for 
 const SERVICE_PREFIX = /\b(?:i have|i've got|we have|we've got|need help with|help with|problem is|issue is)\s+(.{3,160})/i;
 const SERVICE_TAIL = /\s*(?:[,.;!?]|\band\b|\bbut\b)\s*(?:can|could|will|would|are|is|do)\s+you\b[\s\S]*$/i;
 
-const extractService = (text) => {
+export const extractService = (text) => {
+  text = clean(text).split(/(?:[.!?]\s*|\s+)(?=(?:when|how soon|what time)\b)/i)[0];
+  const problem = text.match(/\b(?:my|our)\s+.{1,110}\b(?:clogged|blocked|leak(?:ing|s)?|broken|not working|won['’]t|no heat|no power)\b[^.!?]*/i) ||
+    text.match(/\b(?:kitchen sink|sink|dish\s*washer|toilet|drain|water heater|furnace|air conditioner|garage door|roof)\b.{0,60}\b(?:clogged|blocked|leak(?:ing|s)?|broken|not working)\b[^.!?]*/i);
+  if (problem) return clean(problem[0]).slice(0, 160);
   const match = text.match(SERVICE_PREFIX);
   if (!match?.[1]) return "";
   const candidate = clean(match[1].replace(SERVICE_TAIL, "").replace(/[?.!]+$/, ""));
@@ -103,8 +109,10 @@ export const classifySmsIntent = ({
     timePreference = null;
   }
 
+  const waitlist = isWaitlistInquiryText(text);
+  const emergencyAvailability = isEmergencyAvailabilityText(text);
   const availabilityInquiry = Boolean(
-    text && isAvailabilityInquiryText(text),
+    text && (isAvailabilityInquiryText(text) || waitlist || emergencyAvailability),
   );
 
   const scheduling = Boolean(
@@ -113,8 +121,8 @@ export const classifySmsIntent = ({
       BOOKING_REQUEST.test(text) ||
       hasAppointmentPreferenceHint(text, timeZone) ||
       range ||
-      timePreference?.targetMinutes !== null ||
-      timePreference?.exactMinutes !== null ||
+      timePreference?.targetMinutes != null ||
+      timePreference?.exactMinutes != null ||
       timePreference?.timeOfDay
     ),
   );
@@ -127,6 +135,8 @@ export const classifySmsIntent = ({
     cancel: any(CANCEL, text),
     reschedule: any(RESCHEDULE, text),
     availabilityInquiry,
+    waitlist,
+    emergencyAvailability,
     scheduling,
     service: Boolean(extractService(text)),
     correction: any(CORRECTION, text),

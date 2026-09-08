@@ -1,3 +1,4 @@
+import { providerBalanceSummary } from "./providerBalances.service.js";
 import twilio from "twilio";
 import Stripe from "stripe";
 import OpenAI from "openai";
@@ -350,6 +351,7 @@ export const companyExpenseSummary = async (now = new Date()) => {
     period,
     previousPeriod,
     providers,
+    balances: await providerBalanceSummary(now),
     complete,
     knownCents,
     totalCents: complete ? knownCents : null,

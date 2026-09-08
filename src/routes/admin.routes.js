@@ -1,3 +1,8 @@
+import {
+  saveProviderBalance,
+  removeProviderBalance,
+  refreshProviderBalances,
+} from "../controllers/adminReporting.js";
 import express from "express";
 import AdminController from "../controllers/admin.js";
 import SupportController from "../controllers/support.js";
@@ -16,6 +21,20 @@ import {
 } from "../controllers/adminReporting.js";
 import rateLimit from "express-rate-limit";
 const router = express.Router();
+router.put("/balances", checkAuth, requireAdmin, saveProviderBalance);
+router.delete(
+  "/balances/:provider/manual",
+  checkAuth,
+  requireAdmin,
+  removeProviderBalance,
+);
+router.post(
+  "/balances/refresh",
+  checkAuth,
+  requireAdmin,
+  rateLimit({ windowMs: 60000, limit: 3 }),
+  refreshProviderBalances,
+);
 router.put("/expenses", checkAuth, requireAdmin, saveCompanyExpense);
 router.delete(
   "/expenses/:provider/:period/manual",

@@ -300,6 +300,7 @@ class AlertService {
   }) {
     const customer = getCustomerLabel({ customerName, customerPhone });
     const category = String(result?.messageCategory || "human_requested");
+    const intake = ["intake_complete", "intake_follow_up"].includes(result?.handoff?.reason);
     const riskFlags = Array.isArray(result?.riskFlags) ? result.riskFlags : [];
     const urgency = String(result?.urgency || lead?.urgency || "")
       .trim()
@@ -349,17 +350,21 @@ class AlertService {
       leadId,
       conversationId,
       type: isEmergency ? "safety_emergency" : "human_requested",
-      title: isUrgent
+      title: intake
+        ? "Service request ready for team review"
+        : isUrgent
         ? "Urgent customer callback required"
         : "Customer requested a callback",
-      message: `${customer} requested human follow-up at ${customerPhone || "the texting number"}.${
+      message: `${customer} ${intake ? "has a service request awaiting review" : `requested human follow-up at ${customerPhone || "the texting number"}`}.${
         detailParts.length ? ` ${detailParts.join("; ")}.` : ""
       }`,
       priority: isEmergency ? "critical" : "high",
       actionRequired: true,
       dueAt,
       reason: category,
-      recommendedAction: `Call ${customerPhone || "the customer"} and review the full SMS conversation before responding.`,
+      recommendedAction: intake
+        ? "Review the service, urgency, address, preferred time, and latest customer questions. Confirm availability with the customer before a visit."
+        : `Call ${customerPhone || "the customer"} and review the full SMS conversation before responding.`,
       aiSummary: String(result?.summary || lead?.summary || ""),
       lastCustomerMessage: customerMessage,
       metadata: {

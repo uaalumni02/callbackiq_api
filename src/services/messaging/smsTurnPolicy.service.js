@@ -1,6 +1,6 @@
 // CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1: policy
 import { bookingQuestionReply, isAmbiguousServiceLoss, serviceLossQuestion } from "../booking/conversationQuestions.service.js";
-import { classifySmsIntent } from "./smsIntentClassifier.service.js";
+import { classifySmsIntent, extractService } from "./smsIntentClassifier.service.js";
 import {
   findDateRange,
   hasAppointmentPreferenceHint,
@@ -62,6 +62,8 @@ const normalizeExtractedService = (value) => {
 
 export const extractServiceNeed = (message) => {
   const text = clean(message);
+  const extracted = extractService(text);
+  if (extracted) return extracted.replace(/^(?:my|our)\s+/i, "");
 
   for (const pattern of SERVICE_PATTERNS) {
     const match = text.match(pattern);
@@ -216,7 +218,7 @@ export const safePreferenceAcknowledgement = ({
 }) => {
   const service = clean(serviceNeeded);
   const servicePhrase = service ? ` for ${service}` : "";
-  return `I've noted ${preferenceLabel}${servicePhrase} as your preferred time. This is a request, not a confirmed appointment. I can keep helping with the details while the request is reviewed.`;
+  return `I've noted ${preferenceLabel}${servicePhrase} as your preferred time. This is a request, not a confirmed appointment. Your preference is recorded; availability still needs to be checked.`;
 };
 
 export const pricingAndSchedulingReply = ({

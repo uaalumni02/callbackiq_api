@@ -29,13 +29,13 @@ const SPANISH_PROMISE_PATTERNS = [
 
 const SAFE_ENGLISH = Object.freeze({
   sms:
-    "I've flagged your request for the team, but I can't guarantee when someone will be available. I can keep helping here with the details and available options.",
+    "I can't guarantee when someone will be available. I can keep helping here with the details and available options.",
   voice:
-    "I've flagged your request for the team, but I can't guarantee when someone will be available. I can keep helping with the details and available options on this call.",
+    "I can't guarantee when someone will be available. I can keep helping with the details and available options on this call.",
 });
 
 const SAFE_SPANISH =
-  "He enviado su solicitud al equipo, pero no puedo garantizar cuándo habrá alguien disponible para llamar. Puedo seguir ayudando con los detalles.";
+  "No puedo garantizar cuándo habrá alguien disponible para llamar. Puedo seguir ayudando con los detalles.";
 
 const MARKER_EN = "__CALLBACKIQ_SAFE_STAFF_COMMITMENT_EN__";
 const MARKER_ES = "__CALLBACKIQ_SAFE_STAFF_COMMITMENT_ES__";

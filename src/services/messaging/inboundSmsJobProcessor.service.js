@@ -16,6 +16,8 @@ import { logOperationalEvent, logOperationalError } from "../../helpers/logging/
 import { evaluateDeterministicInboundGuardrails } from "../../helpers/ai/aiGuardrails.js";
 import { isBusinessFeatureEnabled } from "../../helpers/businessFeatures.js";
 import {
+  buildCompletedIntakeResult,
+  shouldCompleteManualIntake,
   buildFailedHumanHandoffUpdate,
   buildFinalizedHumanHandoffUpdate,
   buildHumanHandoffStatusResult,
@@ -374,6 +376,17 @@ export const processInboundSmsJob = async (job) => {
    * It may send one deterministic, throttled status acknowledgement when the
    * customer asks whether the callback request was received.
    */
+  const classification = classifySmsIntent({
+    customerMessage: customerTurn.customerMessage,
+    business,
+    conversation,
+  });
+  const deterministicAssessment = evaluateDeterministicInboundGuardrails({
+    customerMessage: customerTurn.customerMessage,
+    recentMessages: messages,
+    activityWindowStartAt:
+      conversation?.orchestration?.recoveryJourneyStartedAt || null,
+  });
   const handoffLifecycleActive =
     conversation.humanTakeover === true ||
     conversation?.orchestration?.phase === "handoff_pending" ||
@@ -382,7 +395,7 @@ export const processInboundSmsJob = async (job) => {
     handoffLifecycleActive &&
     isHumanHandoffStatusQuestion(customerTurn.customerMessage);
 
-  if (handoffStatusQuestion) {
+  if (handoffStatusQuestion && !deterministicAssessment.handled) {
     if (!shouldSendHumanHandoffStatusAcknowledgement({ conversation })) {
       await completeCoalescedJobs({
         conversationId: conversation._id,
@@ -396,7 +409,7 @@ export const processInboundSmsJob = async (job) => {
       };
     }
 
-    const statusResult = buildHumanHandoffStatusResult({ business });
+    const statusResult = buildHumanHandoffStatusResult({ business, conversation });
     const delivery = await persistOutboundReply({
       business,
       lead,
@@ -442,17 +455,34 @@ export const processInboundSmsJob = async (job) => {
     };
   }
 
-  const classification = classifySmsIntent({
-    customerMessage: customerTurn.customerMessage,
-    business,
-    conversation,
-  });
-  const deterministicAssessment = evaluateDeterministicInboundGuardrails({
-    customerMessage: customerTurn.customerMessage,
-    recentMessages: messages,
-    activityWindowStartAt:
-      conversation?.orchestration?.recoveryJourneyStartedAt || null,
-  });
+  // Completed manual intake stays in the staff queue. New messages are already
+  // durable; attach an action-required alert instead of restarting AI intake.
+  if (conversation?.orchestration?.handoffReason === "intake_complete" && !handoffSource) {
+    const safety = deterministicAssessment.handled &&
+      ["emergency", "hazardous_diy_request"].includes(deterministicAssessment.category);
+    await AlertService.createHumanHandoffAlert({
+      businessId: business._id, leadId: lead._id, conversationId: conversation._id,
+      messageId: inboundMessage._id, providerMessageId: inboundMessage.providerMessageId,
+      customerName: lead.customerName, customerPhone: conversation.customerPhone,
+      customerMessage: customerTurn.customerMessage, lead,
+      result: {
+        messageCategory: safety ? "emergency" : "service_request",
+        urgency: safety ? "emergency" : classification.entities.urgency || lead.urgency,
+        summary: "Additional customer message after completed intake; review the full conversation.",
+        handoff: { reason: "intake_follow_up", callbackRequested: false },
+        riskFlags: safety ? ["safety_hazard"] : [],
+      },
+    });
+    let delivery = { sent: false };
+    if (safety && conversation.humanTakeover !== true && !["closed", "archived"].includes(conversation.status)) {
+      delivery = await persistOutboundReply({ business, lead, conversation, inboundMessage,
+        result: { decision: "send_fixed_response", actionType: "send_fixed_response", messageCategory: "emergency", reply: deterministicAssessment.reply, guardrail: { skipAI: true } },
+      });
+    }
+    await completeCoalescedJobs({ conversationId: conversation._id, primaryJobId: job._id, primaryMessageId: inboundMessage._id, turnMessageIds: customerTurn.turnMessageIds });
+    return { decision: "queued_for_team", reason: "intake_complete", sent: delivery.sent === true, outboundMessageId: delivery.message?._id || null };
+  }
+
   const aiQualificationEnabled = isBusinessFeatureEnabled(
     business,
     "aiQualificationEnabled",
@@ -487,15 +517,14 @@ export const processInboundSmsJob = async (job) => {
   }
 
   const valuationTicket = await beginValuation(lead, business._id);
-  const orchestration = await ConversationOrchestratorService.process({
-    business,
-    lead,
-    conversation,
-    messages,
-    inboundMessage: effectiveInboundMessage,
-  });
+  const retryingCompletedIntake = handoffSource && conversation?.orchestration?.handoffReason === "intake_complete";
+  const orchestration = retryingCompletedIntake
+    ? { result: buildCompletedIntakeResult({ business, result: { messageCategory: "service_request", serviceNeeded: lead.serviceNeeded, urgency: lead.urgency, address: lead.address, preferredAppointmentTime: lead.preferredAppointmentTime, summary: lead.summary } }), outcome: { intent: "service_request", outcome: "reply_ready" } }
+    : await ConversationOrchestratorService.process({
+        business, lead, conversation, messages, inboundMessage: effectiveInboundMessage,
+      });
   let result = orchestration.result || {};
-  const handoffRequired = requiresHumanHandoff(result);
+  let handoffRequired = requiresHumanHandoff(result);
   const urgentOperational = isUrgentOperationalResult(result);
 
   if (handoffRequired) {
@@ -525,6 +554,15 @@ export const processInboundSmsJob = async (job) => {
     });
     updatedLead = await finishValuation(valuationTicket, { businessId: business._id, evidence: [...messages.filter(message => message.direction === "inbound").map(message => message.body), customerTurn.customerMessage].join("\n"), proposedService: result.serviceNeeded }) || updatedLead;
     SocketService.emitLeadUpdated(business._id, updatedLead);
+  }
+
+  if (!handoffRequired && shouldCompleteManualIntake({ business, lead: updatedLead, conversation: updatedConversation, result })) {
+    result = ensureHumanHandoffResult({
+      result: buildCompletedIntakeResult({ result, business }),
+      business, lead: updatedLead, conversation: updatedConversation,
+      customerMessage: customerTurn.customerMessage,
+    });
+    handoffRequired = true;
   }
 
   const statePatch = buildSmsStatePatch({

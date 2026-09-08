@@ -47,6 +47,7 @@ describe("customer commitment safety parity", () => {
     );
 
     expect(result).toMatch(/on this call/i);
+    expect(result).not.toMatch(/flagged|alerted|submitted|sent/i);
     expect(hasUnverifiedStaffCommitment(result)).toBe(false);
   });
 

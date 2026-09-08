@@ -141,6 +141,23 @@ describe("VoiceAgentService callback-first recovery", () => {
     Appointment.findById.mockResolvedValue(null);
   });
 
+  test.each([false, true])("answers waitlist and emergency questions even during callback intake (%s)", async active => {
+    const session = makeSession();
+    session.lead.serviceNeeded = "Kitchen sink clog and dishwasher leak";
+    session.lead.preferredAppointmentTime = "Wednesday at 9 AM";
+    session.business.aiKnowledge = { verifiedFacts: { emergencyServiceAvailable: { verified: true, value: true } } };
+    VoiceCallbackService.isActive.mockReturnValue(active);
+    const waitlist = await VoiceAgentService.handlePrompt({ session, customerMessage: "Can I be added to a wait list?" });
+    expect(waitlist.reply).toMatch(/can’t enroll.*waitlist/);
+    const emergency = await VoiceAgentService.handlePrompt({ session, customerMessage: "Is there an emergency time?" });
+    expect(emergency.reply).toMatch(/offers emergency service/);
+    expect(emergency.reply).toMatch(/can’t confirm an emergency opening/);
+    expect(emergency.reply).toMatch(/still leaking/);
+    expect(session.lead.preferredAppointmentTime).toBe("Wednesday at 9 AM");
+    expect(VoiceCallbackService.handle).not.toHaveBeenCalled();
+    expect(BookingStateMachineService.handle).not.toHaveBeenCalled();
+  });
+
   test("manual scheduling follow-up answers confirmation without starting callback capture", async () => {
     const session = makeSession();
     session.business.features.aiBookingEnabled = false;

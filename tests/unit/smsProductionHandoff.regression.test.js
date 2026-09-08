@@ -1,4 +1,5 @@
 import {
+  shouldCompleteManualIntake,
   buildFailedHumanHandoffUpdate,
   buildFinalizedHumanHandoffUpdate,
   buildHumanHandoffAcknowledgement,
@@ -261,5 +262,19 @@ describe("production SMS handoff", () => {
     expect(reply).toMatch(/correct shutoff/i);
     expect(reply).toMatch(/sparks, smoke, fire, or immediate danger/i);
     expect(reply.length).toBeLessThanOrEqual(320);
+  });
+});
+
+
+describe("manual intake completion boundaries", () => {
+  const ready = { serviceNeeded: "Sink clogged", urgency: "high", address: "123 Main Street", preferredAppointmentTime: "Wednesday at 9 AM" };
+  const result = { decision: "send_fixed_response", messageCategory: "appointment_preference", guardrail: { usedFallback: false } };
+  test.each(["serviceNeeded", "urgency", "address", "preferredAppointmentTime"])("waits for missing %s", field => {
+    expect(shouldCompleteManualIntake({ business, conversation, lead: { ...ready, [field]: "" }, result })).toBe(false);
+  });
+  test("does not interrupt an enabled booking workflow or an active slot offer", () => {
+    expect(shouldCompleteManualIntake({ business: { ...business, features: { aiBookingEnabled: true } }, conversation, lead: ready, result })).toBe(false);
+    expect(shouldCompleteManualIntake({ business, conversation: { ...conversation, bookingState: { status: "offering_slots" } }, lead: ready, result })).toBe(false);
+    expect(shouldCompleteManualIntake({ business, conversation, lead: ready, result })).toBe(true);
   });
 });

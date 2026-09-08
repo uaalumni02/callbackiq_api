@@ -1,3 +1,4 @@
+import { schedulingQuestionReply } from "../services/booking/schedulingQuestions.service.js";
 import { beginValuation, finishValuation } from "../services/valuation/opportunityValuation.service.js";
 import Appointment from "../models/appointment.js";
 import CallLog from "../models/callLog.js";
@@ -414,6 +415,12 @@ class VoiceAgentService {
     if (questionReply) return { reply: questionReply };
     if (isAmbiguousServiceLoss(text)) return { reply: serviceLossQuestion };
 
+    const schedulingReply = schedulingQuestionReply({ customerMessage: text, business, lead });
+    if (schedulingReply) {
+      resetFallbackGuard(guard);
+      return { reply: schedulingReply, outcome: "direct_answer_resolved" };
+    }
+
     if (VoiceCallbackService.isActive(session)) {
       resetFallbackGuard(guard);
       return captureCallback({ session, customerMessage: text });
@@ -729,6 +736,13 @@ class VoiceAgentService {
       });
     }
 
+    const capturedService = booking.result?.serviceNeeded;
+    if (capturedService && capturedService !== "Unknown" && capturedService !== lead?.serviceNeeded && lead?.save) {
+      assertVoiceTurnActive();
+      lead.serviceNeeded = capturedService;
+      await lead.save();
+      assertVoiceTurnActive();
+    }
     const bookingReply = clean(booking.result?.reply, 4000);
     const spokenBookingReply = toSpokenReply(bookingReply);
     const currentBookingStatus = conversation.bookingState?.status;

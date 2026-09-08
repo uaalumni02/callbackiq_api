@@ -106,6 +106,7 @@ jest.mock("../../src/services/alert.service.js", () => ({
   __esModule: true,
   default: {
     createCustomerReplyAlert: jest.fn(),
+    createHumanHandoffAlert: jest.fn(),
     createAIReviewAlert: jest.fn(),
     createSystemAlert: jest.fn(),
   },
@@ -360,4 +361,100 @@ test("the queued job generates and persists the AI reply exactly once", async ()
     "twilio.sms.reply_sent",
     expect.objectContaining({ providerMessageId: "SM_REPLY_1" }),
   );
+});
+
+
+describe("completed manual intake uses the durable staff handoff", () => {
+  let activeLead;
+  let activeConversation;
+  let activeInbound;
+  const job = { _id: "job-1", business: business._id, inboundMessage: "message-in-1", conversation: conversation._id, lead: lead._id };
+  beforeEach(() => {
+    activeLead = { ...lead, serviceNeeded: "Kitchen sink clog and dishwasher leak", urgency: "high", address: "123 Main St, Atlanta GA 30303", preferredAppointmentTime: "" };
+    activeConversation = { ...conversation, orchestration: {}, bookingState: { status: "not_started" } };
+    activeInbound = { ...inboundMessage, direction: "inbound", body: "Wednesday at 9 AM" };
+    Business.findById.mockResolvedValue(business);
+    Lead.findById.mockResolvedValue(activeLead);
+    Message.findById.mockResolvedValue(activeInbound);
+    Conversation.findById.mockImplementation(async () => activeConversation);
+    Conversation.findByIdAndUpdate.mockImplementation(async (_id, update) => {
+      for (const [key, value] of Object.entries(update?.$set || {})) {
+        const parts = key.split(".");
+        let cursor = activeConversation;
+        for (const part of parts.slice(0, -1)) cursor = cursor[part] ||= {};
+        cursor[parts.at(-1)] = value;
+      }
+      return activeConversation;
+    });
+    Lead.findByIdAndUpdate.mockImplementation(async (_id, updates) => Object.assign(activeLead, updates));
+    Db.getMessagesForAI.mockResolvedValue([activeInbound]);
+    Message.findOne.mockReset().mockReturnValueOnce(leanQuery(null)).mockResolvedValue(null);
+    Message.find.mockReset().mockReturnValueOnce(leanQuery([activeInbound])).mockReturnValue(leanQuery([]));
+    Message.updateMany.mockResolvedValue({ modifiedCount: 0 });
+    const outbound = { _id: "message-out-intake", business: business._id, inReplyToMessage: activeInbound._id, status: "queued", metadata: {} };
+    Message.create.mockResolvedValue(outbound);
+    Message.findOneAndUpdate.mockResolvedValue({ ...outbound, deliveryAttemptedAt: new Date() });
+    Message.findByIdAndUpdate.mockResolvedValue({ ...outbound, providerMessageId: "SM_INTAKE_ACK" });
+    sendSms.mockResolvedValue({ sid: "SM_INTAKE_ACK", status: "queued" });
+    AlertService.createHumanHandoffAlert.mockResolvedValue({ _id: "intake-alert" });
+    generateAIReplyResult.mockResolvedValue({ decision: "send_fixed_response", actionType: "send_fixed_response", messageCategory: "appointment_preference", reply: "I've noted Wednesday at 9 AM as your preference.", preferredAppointmentTime: "Wednesday at 9 AM", serviceNeeded: activeLead.serviceNeeded, urgency: "high", guardrail: { usedFallback: false } });
+  });
+
+  test("saves all details and the staff alert before acknowledging; does not pretend staff took over", async () => {
+    const result = await processInboundSmsJob(job);
+    expect(result.handoffStatus).toBe("acknowledged");
+    expect(activeConversation.orchestration.handoffReason).toBe("intake_complete");
+    expect(activeConversation.humanTakeover).toBe(false);
+    expect(activeLead.preferredAppointmentTime).toBe("Wednesday at 9 AM");
+    expect(AlertService.createHumanHandoffAlert).toHaveBeenCalledWith(expect.objectContaining({ lead: expect.objectContaining({ serviceNeeded: expect.stringMatching(/sink.*dishwasher/), address: expect.any(String), urgency: "high", preferredAppointmentTime: "Wednesday at 9 AM" }) }));
+    expect(Lead.findByIdAndUpdate.mock.invocationCallOrder[0]).toBeLessThan(AlertService.createHumanHandoffAlert.mock.invocationCallOrder[0]);
+    expect(AlertService.createHumanHandoffAlert.mock.invocationCallOrder[0]).toBeLessThan(sendSms.mock.invocationCallOrder[0]);
+    const sent = sendSms.mock.calls[0][0];
+    expect(sent.body).toMatch(/sent your service details/);
+    expect(sent.body).toMatch(/pause automated intake/);
+    expect(sent.body).not.toMatch(/they.ll text|will call|will confirm|will contact/i);
+  });
+
+  test("an alert write failure prevents a false acknowledgement and the retry reuses the handoff", async () => {
+    AlertService.createHumanHandoffAlert.mockRejectedValueOnce(new Error("alert storage unavailable"));
+    await expect(processInboundSmsJob(job)).rejects.toThrow("alert storage unavailable");
+    expect(sendSms).not.toHaveBeenCalled();
+    expect(activeConversation.orchestration.handoffStatus).toBe("pending_ack");
+    Message.findOne.mockReset().mockReturnValueOnce(leanQuery(null)).mockResolvedValue(null);
+    Message.find.mockReset().mockReturnValueOnce(leanQuery([activeInbound])).mockReturnValue(leanQuery([]));
+    const reply = await processInboundSmsJob(job);
+    expect(reply.sent).toBe(true);
+    expect(generateAIReplyResult).toHaveBeenCalledTimes(1);
+    expect(sendSms).toHaveBeenCalledTimes(1);
+  });
+
+  test("does not complete intake while the service address is missing", async () => {
+    activeLead.address = "";
+    await processInboundSmsJob(job);
+    expect(AlertService.createHumanHandoffAlert).not.toHaveBeenCalled();
+    expect(activeConversation.orchestration.handoffReason).not.toBe("intake_complete");
+  });
+
+  test.each(["Can I be added to a wait list?", "Is there an emergency time?"])("routes a follow-up to staff without restarting intake: %s", async text => {
+    activeConversation.orchestration = { handoffReason: "intake_complete", handoffStatus: "acknowledged", handoffInboundMessage: "earlier-message" };
+    activeLead.preferredAppointmentTime = "Wednesday at 9 AM";
+    activeInbound.body = text;
+    const result = await processInboundSmsJob(job);
+    expect(result.decision).toBe("queued_for_team");
+    expect(AlertService.createHumanHandoffAlert).toHaveBeenCalledWith(expect.objectContaining({ customerMessage: text }));
+    expect(generateAIReplyResult).not.toHaveBeenCalled();
+    expect(sendSms).not.toHaveBeenCalled();
+    expect(activeLead.preferredAppointmentTime).toBe("Wednesday at 9 AM");
+  });
+
+  test("immediate safety instructions still reach the customer after completed intake", async () => {
+    activeConversation.orchestration = { handoffReason: "intake_complete", handoffStatus: "acknowledged", handoffInboundMessage: "earlier-message" };
+    activeInbound.body = "I smell gas. When will someone call?";
+    evaluateDeterministicInboundGuardrails.mockReturnValue({ handled: true, category: "emergency", reply: "Leave the area and call emergency services.", riskFlags: ["safety_hazard"] });
+    const result = await processInboundSmsJob(job);
+    expect(result.sent).toBe(true);
+    expect(sendSms.mock.calls[0][0].body).toMatch(/Leave the area/);
+    expect(generateAIReplyResult).not.toHaveBeenCalled();
+    expect(AlertService.createHumanHandoffAlert).toHaveBeenCalledWith(expect.objectContaining({ result: expect.objectContaining({ urgency: "emergency" }) }));
+  });
 });

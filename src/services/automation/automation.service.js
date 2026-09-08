@@ -98,6 +98,7 @@ class AutomationService {
     if (!business.features?.automatedFollowUpEnabled) return "automation_disabled";
     if (!conversation || conversation.status !== "open") return "conversation_not_open";
     if (conversation.humanTakeover) return "human_takeover";
+    if (conversation.orchestration?.handoffReason === "intake_complete") return "intake_awaiting_team";
     if (lead && ["booked", "lost", "spam"].includes(lead.status)) return `lead_${lead.status}`;
     if (preference?.smsStatus === "opted_out") return "customer_opted_out";
     if (confirmedAppointment) return "appointment_confirmed";

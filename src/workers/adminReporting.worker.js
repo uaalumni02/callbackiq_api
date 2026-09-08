@@ -1,3 +1,4 @@
+import { runProviderBalanceSync } from "../services/admin/providerBalances.service.js";
 import { runCompanyExpenseSync } from "../services/admin/companyExpenses.service.js";
 import crypto from "node:crypto";
 import Business from "../models/business.js";
@@ -8,7 +9,9 @@ let timer = null,
   running = null,
   stopped = true,
   expenseTimer = null,
-  expenseRunning = null;
+  expenseRunning = null,
+  balanceTimer = null,
+  balanceRunning = null;
 let businessCursor = null;
 // Reporting has its own bounded, leased queue. Never run provider writes or
 // mutate operational collections. A failed report keeps the last good snapshot.
@@ -113,6 +116,20 @@ export const startAdminReportingWorker = () => {
         }
       });
   };
+  const balanceTick = () => {
+    if (stopped) return;
+    balanceRunning = runProviderBalanceSync()
+      .catch(() => safeConsole.error("Provider balance reporting unavailable"))
+      .finally(() => {
+        balanceRunning = null;
+        if (!stopped) {
+          balanceTimer = setTimeout(balanceTick, 30000);
+          balanceTimer.unref?.();
+        }
+      });
+  };
+  balanceTimer = setTimeout(balanceTick, 1000);
+  balanceTimer.unref?.();
   expenseTimer = setTimeout(expenseTick, 2000);
   expenseTimer.unref?.();
   timer = setTimeout(tick, 1000);
@@ -122,12 +139,15 @@ export const stopAdminReportingWorker = async () => {
   stopped = true;
   clearTimeout(timer);
   clearTimeout(expenseTimer);
+  clearTimeout(balanceTimer);
   // Do not delay core worker shutdown for provider pagination. Outstanding
   // reporting leases expire naturally if the process exits before completion.
   let timeout;
   try {
     await Promise.race([
-      Promise.allSettled([running, expenseRunning].filter(Boolean)),
+      Promise.allSettled(
+        [running, expenseRunning, balanceRunning].filter(Boolean),
+      ),
       new Promise((resolve) => {
         timeout = setTimeout(resolve, 5000);
       }),

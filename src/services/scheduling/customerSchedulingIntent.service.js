@@ -14,6 +14,7 @@ const ARRIVAL_VERB =
   String.raw`(?:come(?:\s+out)?|arrive|get\s+here|be\s+here|visit|show\s+up)`;
 
 const AVAILABILITY_PATTERNS = [
+  /\b(?:check|find|any|an?|something|anything)\b.{0,25}\bearlier\b(?:.{0,20}\b(?:appointment|opening|time|slot)\b)?/i,
   new RegExp(
     String.raw`\bwhen\s+(?:can|could|would|will|might)\s+${PERSON_OR_ROLE}\s+${ARRIVAL_VERB}\b`,
     "i",
@@ -82,6 +83,7 @@ const EMERGENCY_URGENCY = [
 ];
 
 const HIGH_URGENCY = [
+  /\bleaking\s+water\b|\bdish\s*washer\b.{0,25}\bleak(?:s|ing)?\b/i,
   /\b(?:active(?:ly)?\s+leak(?:ing)?|water\s+leak(?:ing)?|roof\s+(?:is\s+)?(?:active(?:ly)?\s+)?leak(?:ing)?|water\s+coming\s+in|water\s+intrusion)\b/i,
   /\b(?:water\s+heater|hot\s+water\s+heater).{0,30}\bleak(?:ing|s|ed)?\b/i,
   /\bleak(?:ing|s|ed)?\b.{0,40}\b(?:floor|ceiling|wall|cabinet|room)\b/i,
@@ -94,6 +96,12 @@ const HIGH_URGENCY = [
   /\b(?:won't\s+stop|will\s+not\s+stop|asap|as\s+soon\s+as\s+possible|urgent)\b/i,
 ];
 
+export const isWaitlistInquiryText = (value) =>
+  /\b(?:wait[ -]?list|cancellation list|standby list)\b/i.test(clean(value));
+
+export const isEmergencyAvailabilityText = (value) =>
+  /\b(?:emergency|urgent|after[ -]hours)\s+(?:time|slot|appointment|visit|service|availability|opening|call[ -]?out)s?\b|\b(?:do you|can you)\b.{0,30}\b(?:emergency|emergencies)\b/i.test(clean(value));
+
 export const isAvailabilityInquiryText = (value) => {
   const text = clean(value);
   if (!text) return false;
@@ -105,6 +113,7 @@ export const isAvailabilityInquiryText = (value) => {
     return false;
   }
 
+  if (isEmergencyAvailabilityText(text)) return true;
   return AVAILABILITY_PATTERNS.some((pattern) => pattern.test(text));
 };
 

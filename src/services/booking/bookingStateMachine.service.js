@@ -1,3 +1,4 @@
+import { schedulingQuestionReply } from "./schedulingQuestions.service.js";
 import { bookingQuestionReply } from "./conversationQuestions.service.js";
 import { classifySmsIntent } from "../messaging/smsIntentClassifier.service.js";
 import Appointment from "../../models/appointment.js";
@@ -267,7 +268,9 @@ const handleReadOnlyAvailabilityInquiry = async ({
   ).trim();
   const businessId = business?._id || business?.id;
   const timeZone = business?.timezone || "America/New_York";
-  const knownService = String(lead?.serviceNeeded || "").trim();
+  const currentService = classifySmsIntent({ customerMessage: text, business }).entities.serviceNeeded;
+  const storedService = String(lead?.serviceNeeded || "").trim();
+  const knownService = storedService && storedService !== "Unknown" ? storedService : currentService;
 
   if (!businessId || !knownService || knownService === "Unknown") {
     return {
@@ -299,7 +302,7 @@ const handleReadOnlyAvailabilityInquiry = async ({
       return {
         handled: true,
         result: fixedResult({
-          reply: `I can check live availability, but I need to match the job to the right service first. I found: ${choices}. Which service do you need?`,
+          reply: `I have ${knownService}. I found these booking options: ${choices}. Which should I check first?`,
           category: "availability_inquiry",
         }),
       };
@@ -308,7 +311,7 @@ const handleReadOnlyAvailabilityInquiry = async ({
     return {
       handled: true,
       result: fixedResult({
-        reply: `I can’t verify live availability for that service right now. Tell me the day and time you prefer, and ${businessName} can confirm it.`,
+        reply: `I have ${knownService}. I can’t verify live availability for this job right now. ${/\bleak(?:ing|s)?\b/i.test(knownService) ? "Is water still leaking or spreading?" : lead?.preferredAppointmentTime ? "Your preferred time still needs business confirmation." : "What day and time would you prefer?"}`,
         category: "availability_inquiry",
       }),
     };
@@ -545,7 +548,20 @@ class BookingStateMachineService {
     }).sort({ lastMessageAt: -1 });
   }
 
-  static async handle({
+  static async handle(parameters) {
+    const classification = classifySmsIntent(parameters);
+    const outcome = await this.handleTurn(parameters);
+    if (outcome.handled && outcome.result) {
+      const existing = String(parameters.lead?.serviceNeeded || "").trim();
+      const extracted = classification.entities.serviceNeeded;
+      outcome.result.serviceNeeded = (existing && existing !== "Unknown" ? existing : extracted) || outcome.result.serviceNeeded;
+      const ranks = { low: 0, medium: 1, high: 2, emergency: 3 };
+      if ((ranks[classification.entities.urgency] ?? -1) > (ranks[outcome.result.urgency] ?? -1)) outcome.result.urgency = classification.entities.urgency;
+    }
+    return outcome;
+  }
+
+  static async handleTurn({
     business,
     lead,
     conversation,
@@ -560,6 +576,9 @@ class BookingStateMachineService {
     const bookingEventPrefix = bookingChannel === "voice" ? "voice:" : "";
     const enabled = Boolean(business?.features?.aiBookingEnabled);
     const text = String(customerMessage || "").trim();
+
+    const schedulingReply = schedulingQuestionReply({ customerMessage: text, business, lead });
+    if (schedulingReply) return { handled: true, result: fixedResult({ reply: schedulingReply, category: "availability_inquiry" }) };
 
     const questionReply = bookingQuestionReply({ customerMessage: text, conversation });
     if (questionReply) return { handled: true, result: fixedResult({ reply: questionReply, category: "appointment_status" }) };
@@ -818,7 +837,9 @@ class BookingStateMachineService {
         return {
           handled: true,
           result: fixedResult({
-            reply: `What service would you like to schedule?${choices}`,
+            reply: smsIntent.entities.serviceNeeded || (lead?.serviceNeeded && lead.serviceNeeded !== "Unknown")
+            ? `I understand the reported issue, but need to match it to a bookable service.${choices} ${matches.length ? "Which listed service should I check first?" : "What type of equipment or fixture needs service?"}`
+            : `What service would you like to schedule?${choices}`,
           }),
         };
       }
@@ -840,7 +861,7 @@ class BookingStateMachineService {
       });
 
       if (lead && (!lead.serviceNeeded || lead.serviceNeeded === "Unknown")) {
-        lead.serviceNeeded = selectedService.name;
+        lead.serviceNeeded = smsIntent.entities.serviceNeeded || selectedService.name;
         await lead.save();
       }
 

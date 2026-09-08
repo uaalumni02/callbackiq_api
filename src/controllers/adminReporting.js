@@ -1,3 +1,7 @@
+import {
+  BALANCE_PROVIDERS,
+  queueBalanceSync,
+} from "../services/admin/providerBalances.service.js";
 import { EXPENSE_PROVIDERS } from "../services/admin/companyExpenses.service.js";
 import Joi from "joi";
 import Business from "../models/business.js";
@@ -261,6 +265,7 @@ export const saveCompanyExpense = wrap(async (req, res) => {
   ok(res, record);
 });
 export const refreshCompanyExpenses = wrap(async (req, res) => {
+  await queueBalanceSync();
   await AdminReportingState.updateOne(
     { _id: "company-cost-sync" },
     { $set: { "data.nextAt": new Date(0) } },
@@ -307,4 +312,92 @@ export const removeExpenseOverride = wrap(async (req, res) => {
     [7, 30, 90].map((days) => deleteScaleCacheKey(`admin:founder:v1:${days}`)),
   );
   ok(res, { removed: true });
+});
+
+const balanceSchema = Joi.object({
+  provider: Joi.string()
+    .valid(...BALANCE_PROVIDERS)
+    .required(),
+  kind: Joi.string().valid("prepaid", "amount_due", "payout").required(),
+  amountCents: Joi.number().integer().min(-100000000).max(100000000).required(),
+  pendingCents: Joi.number()
+    .integer()
+    .min(-100000000)
+    .max(100000000)
+    .allow(null)
+    .default(null),
+  asOf: Joi.date().iso().max("now").required(),
+  dueAt: Joi.date().iso().allow(null).default(null),
+  thresholdCents: Joi.number().integer().min(0).max(100000000).default(1000),
+  reference: Joi.string().trim().min(1).max(200).required(),
+});
+const clearBalanceCache = () =>
+  Promise.all(
+    [7, 30, 90].map((days) => deleteScaleCacheKey(`admin:founder:v1:${days}`)),
+  );
+export const saveProviderBalance = wrap(async (req, res) => {
+  const value = await balanceSchema.validateAsync(req.body);
+  const data = {
+    kind: value.kind,
+    amounts: [
+      {
+        currency: "usd",
+        amountCents: value.amountCents,
+        ...(value.kind === "payout"
+          ? { pendingCents: value.pendingCents }
+          : {}),
+      },
+    ],
+    asOf: value.asOf,
+    dueAt: value.kind === "amount_due" ? value.dueAt : null,
+    thresholdCents: value.thresholdCents,
+    reference: value.reference,
+    scope: "Manually verified USD balance",
+    updatedBy: req.user.userId,
+  };
+  const id = `provider-balance:${value.provider}:manual`;
+  const before = await AdminReportingState.findById(id).lean();
+  await AdminReportingState.updateOne(
+    { _id: id },
+    { $set: { data } },
+    { upsert: true },
+  );
+  await AdminActionLog.create({
+    admin: req.user.userId,
+    action: "update_provider_balance",
+    message: `Recorded ${value.provider} account balance`,
+    metadata: {
+      provider: value.provider,
+      before: before?.data || null,
+      after: data,
+    },
+  });
+  await clearBalanceCache();
+  ok(res, { saved: true });
+});
+export const removeProviderBalance = wrap(async (req, res) => {
+  const provider = await Joi.string()
+    .valid(...BALANCE_PROVIDERS)
+    .required()
+    .validateAsync(req.params.provider);
+  const before = await AdminReportingState.findOneAndDelete({
+    _id: `provider-balance:${provider}:manual`,
+  }).lean();
+  await AdminActionLog.create({
+    admin: req.user.userId,
+    action: "remove_provider_balance",
+    message: `Removed ${provider} manual balance`,
+    metadata: { provider, before: before?.data || null },
+  });
+  await clearBalanceCache();
+  ok(res, { removed: true });
+});
+export const refreshProviderBalances = wrap(async (req, res) => {
+  await queueBalanceSync();
+  await AdminActionLog.create({
+    admin: req.user.userId,
+    action: "refresh_provider_balances",
+    message: "Queued read-only balance refresh",
+  });
+  ok(res, { queued: true });
 });

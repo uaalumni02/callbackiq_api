@@ -90,7 +90,7 @@ describe("deterministic SMS commitment safety", () => {
 
     expect(preferenceReply).toEqual(expect.any(String));
     expect(preferenceReply).toContain(
-      "I can keep helping with the details while the request is reviewed.",
+      "Your preference is recorded; availability still needs to be checked.",
     );
     expect(
       hasUnverifiedStaffCommitment(preferenceReply),

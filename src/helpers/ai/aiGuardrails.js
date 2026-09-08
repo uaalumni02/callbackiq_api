@@ -1106,6 +1106,7 @@ export const validateOutboundReply = ({
   reply,
   actionType,
   capabilities = {},
+  actionEvidence,
 }) => {
   const normalizedReply = normalizeSmsReply(reply, "");
   const violations = [];
@@ -1121,6 +1122,26 @@ export const validateOutboundReply = ({
   if (normalizedReply.length > SMS_MAX_LENGTH) {
     violations.push("reply_too_long");
   }
+
+  if (actionEvidence && !actionEvidence.requestSubmitted) {
+    findMatchingPatterns(normalizedReply, [
+      /\b(?:i|we)(?:['’]ve| have)?\s+(?:sent|submitted|forwarded)\b.{0,60}\b(?:request|details|team)\b/i,
+      /\b(?:request|appointment)\s+(?:is|has been)\s+(?:under review|submitted|sent|being reviewed)\b/i,
+    ], "unverified_request_submission", violations);
+  }
+  if (actionEvidence && !actionEvidence.ownerAlertCreated) {
+    findMatchingPatterns(normalizedReply, [
+      /\b(?:i|we)(?:['’]ve| have)?\s+(?:alerted|notified)\s+(?:the |our )?(?:team|staff|owner|dispatcher)\b/i,
+      /\b(?:i|we)(?:['’]ve| have)?\s+flagged\b.{0,50}\b(?:team|staff|owner|review)\b/i,
+    ], "unverified_owner_alert", violations);
+  }
+
+  // The text-only agent has no waitlist mutation tool. Never invent enrollment.
+  findMatchingPatterns(normalizedReply, [
+    /\b(?:i|we)(?:['’]ve| have)?\s+(?:added|placed|put|enrolled)\s+you\b.{0,60}\b(?:wait[ -]?list|cancellation list|standby list)\b/i,
+    /\byou(?:['’]re| are)\s+(?:now\s+)?(?:on|in)\s+(?:the|our|a)\s+(?:wait[ -]?list|cancellation list|standby list)\b/i,
+    /\byou(?:['’]re| are)\s+next\b.{0,50}\b(?:cancel|opening)/i,
+  ], "unverified_waitlist_enrollment", violations);
 
   if (!capabilities.canConfirmAppointment) {
     findMatchingPatterns(
@@ -1231,6 +1252,14 @@ const chooseFallbackReply = ({
     return SAFE_REPLIES.payment;
   }
 
+  if (violations.some(value => ["unverified_request_submission", "unverified_owner_alert"].includes(value))) {
+    return "Your appointment still needs business confirmation. I can help collect the remaining service details here.";
+  }
+
+  if (violations.includes("unverified_waitlist_enrollment")) {
+    return "I can’t enroll you in a managed waitlist here. Would you like to check for an earlier appointment?";
+  }
+
   if (violations.includes("unverified_appointment_confirmation")) {
     return SAFE_REPLIES.appointment;
   }
@@ -1302,15 +1331,8 @@ export const sanitizeOutboundReply = ({
   hazardType = "",
   isFirstAIReply = false,
   addDisclosure = true,
+  actionEvidence,
 }) => {
-  /*
-   * Scheduling questions should collect the customer's preferred days and
-   * times without claiming that the business has confirmed availability.
-   */
-  const isSchedulingReply =
-    category === "appointment_preference" ||
-    actionType === "collect_appointment_preference";
-
   /*
    * The first abusive, inappropriate, or unrelated message receives a concise
    * professional redirect. Existing spam and automation-loop protections can
@@ -1319,11 +1341,7 @@ export const sanitizeOutboundReply = ({
   const isInappropriateReply =
     category === "abusive" || category === "off_topic";
 
-  const selectedReply = isSchedulingReply
-    ? SAFE_REPLIES.appointment
-    : isInappropriateReply
-      ? SAFE_REPLIES.offTopic
-      : reply;
+  const selectedReply = isInappropriateReply ? SAFE_REPLIES.offTopic : reply;
 
   const replyWithDisclosure = addAIDisclosureIfNeeded({
     reply: selectedReply,
@@ -1337,6 +1355,7 @@ export const sanitizeOutboundReply = ({
     reply: replyWithDisclosure,
     actionType,
     capabilities,
+    actionEvidence,
   });
 
   if (validation.allowed) {

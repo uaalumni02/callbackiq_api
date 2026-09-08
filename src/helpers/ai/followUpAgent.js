@@ -1,3 +1,4 @@
+import { classifySmsIntent } from "../../services/messaging/smsIntentClassifier.service.js";
 import { safeConsole } from "../logging/safeLogger.js";
 import { parseAiOutput } from "./validateAiOutput.js";
 import OpenAI from "openai";
@@ -295,9 +296,7 @@ const normalizeModelResult = ({
 
   const requiresControlledResponse =
     messageCategory === "abusive" ||
-    messageCategory === "off_topic" ||
-    messageCategory === "appointment_preference" ||
-    actionType === "collect_appointment_preference";
+    messageCategory === "off_topic";
 
   if (requiresControlledResponse) {
     decision = "send_fixed_response";
@@ -324,7 +323,8 @@ const normalizeModelResult = ({
     reply: result?.reply,
     actionType,
     category: messageCategory,
-    capabilities,
+    capabilities: { ...capabilities, canConfirmAppointment: false, canConfirmAvailability: false, canConfirmDispatch: false },
+    actionEvidence: {},
     businessName,
     isFirstAIReply: isFirstAIReply(recentMessages),
     addDisclosure: decision !== "no_reply",
@@ -424,7 +424,9 @@ const runFollowUpAgent = async ({
     "service business",
   );
 
-  const capabilities = buildBusinessCapabilities(resolvedBusiness);
+  // This agent produces text and proposed lead updates, not booking tool results.
+  const capabilities = { ...buildBusinessCapabilities(resolvedBusiness), canConfirmAppointment: false, canConfirmAvailability: false, canConfirmDispatch: false };
+  const currentTurn = classifySmsIntent({ customerMessage: redactSensitiveData(customerMessage), business: resolvedBusiness });
   const verifiedFacts = buildVerifiedBusinessFacts(resolvedBusiness);
 
   const model =
@@ -471,6 +473,8 @@ SAFETY RULES:
 REPLY RULES:
 - Write one concise professional SMS. Target 150 GSM-7 characters and never exceed 300 characters.
 - Act like a skilled dispatcher, not a chatbot. Acknowledge the customer's stated problem before any disclosure or question.
+- Answer the latest customer question before continuing intake. A waitlist question is not a new time preference. Emergency service capability does not establish a live opening.
+- No request submission, waitlist enrollment, dispatch, or staff alert has completed in this text-only step. Never describe those actions as completed or under review.
 - Ask at most one question, and ask zero questions when the customer already supplied enough information to advance.
 - Never ask for a field already present in the latest message, conversation history, or existing lead data.
 - Never restart the qualification script after the customer changes topics. Extract all useful facts from every turn, keep them, and ask only the single highest-value missing question.
@@ -481,8 +485,8 @@ REPLY RULES:
 - If this is the first automated reply, include a brief automation disclosure once, subordinate to helping rather than as the opening sentence.
 - Acknowledge first, then ask only for the next missing qualification detail.
 - When collecting time information, describe it only as a preference that the team must confirm.
-- For appointment or scheduling messages, NEVER ask the customer to repeat a day/time already present in the latest message, history, lead, or booking state. Acknowledge the exact preference and either let the deterministic booking flow check it or say the business will confirm availability.
-- When information is not verified, say the team will confirm it.
+- For appointment or scheduling messages, NEVER ask the customer to repeat a day/time already present in the latest message, history, lead, or booking state. Acknowledge the exact preference and either let the deterministic booking flow check it or explain that confirmation is still required.
+- When information is not verified, state the specific limitation and a useful next step; never promise that staff will respond.
 - Do not disparage competitors or argue with the customer.
 - For abusive, inappropriate, or off-topic messages, do not silently ignore the first message. Send one concise professional response explaining that you can help with service requests, service details, and scheduling preferences. Repeated messages may still be stopped by the spam and automation-loop guardrails.
 - If the customer requests a person, acknowledge the request and set shouldAlertOwner true. Do not claim that a person is currently available.
@@ -503,9 +507,16 @@ LEAD DATA RULES:
         },
         capabilities,
         verifiedFacts,
+        currentTurn,
+        operationalFacts: {
+          managedWaitlistAvailable: false,
+          completedActionsThisTurn: [],
+          recordedPreference: cleanText(lead.preferredAppointmentTime),
+          emergencyServiceAvailable: verifiedFacts.emergencyServiceAvailable ?? "unverified",
+        },
         existingLead: {
           customerName: cleanText(lead.customerName),
-          serviceNeeded: cleanText(lead.serviceNeeded),
+          serviceNeeded: cleanText(lead.serviceNeeded) && lead.serviceNeeded !== "Unknown" ? cleanText(lead.serviceNeeded) : currentTurn.entities.serviceNeeded,
           urgency: cleanText(lead.urgency),
           address: cleanText(lead.address),
           preferredAppointmentTime: cleanText(lead.preferredAppointmentTime),

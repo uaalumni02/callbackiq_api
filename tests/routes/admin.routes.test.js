@@ -632,3 +632,90 @@ test("missing tax-free invoice allocation cannot produce a margin", () => {
   expect(result.cashCents).toBe(1000);
   expect(result.allocatedCents).toBeNull();
 });
+
+test("manual provider balances are separate from expenses, replace safely and require admin access", async () => {
+  const expense = {
+    provider: "ngrok",
+    period: "2026-09",
+    amountCents: 2000,
+    basis: "estimated",
+    fixedMonthly: true,
+    recurring: true,
+    reference: "Monthly subscription",
+  };
+  expect(
+    (
+      await request(app)
+        .put("/admin/expenses")
+        .set("Authorization", `Bearer ${token}`)
+        .send(expense)
+    ).status,
+  ).toBe(200);
+  const payload = {
+    provider: "ngrok",
+    kind: "amount_due",
+    amountCents: 1500,
+    asOf: new Date(Date.now() - 60000).toISOString(),
+    dueAt: "2026-09-20T00:00:00Z",
+    reference: "Invoice N1",
+  };
+  expect(
+    (await request(app).put("/admin/balances").send(payload)).status,
+  ).toBeGreaterThanOrEqual(400);
+  for (const amountCents of [1500, 0])
+    expect(
+      (
+        await request(app)
+          .put("/admin/balances")
+          .set("Authorization", `Bearer ${token}`)
+          .send({ ...payload, amountCents })
+      ).status,
+    ).toBe(200);
+  expect(
+    await AdminReportingState.countDocuments({
+      _id: "provider-balance:ngrok:manual",
+    }),
+  ).toBe(1);
+  expect(
+    (await AdminReportingState.findById("provider-balance:ngrok:manual")).data
+      .amounts[0].amountCents,
+  ).toBe(0);
+  expect(
+    (
+      await AdminCompanyExpense.findOne({
+        provider: "ngrok",
+        entrySource: "manual",
+      })
+    ).amountCents,
+  ).toBe(2000);
+  const report = await request(app)
+    .get("/admin/dashboard")
+    .set("Authorization", `Bearer ${token}`);
+  const balance = report.body.data.founder.companyExpenses.balances.find(
+    (b) => b.provider === "ngrok",
+  );
+  expect(balance.amounts[0].amountCents).toBe(0);
+  expect(balance.source).toBe("manual");
+  expect(balance.updatedBy).toBeUndefined();
+  expect(
+    (
+      await request(app)
+        .delete("/admin/balances/ngrok/manual")
+        .set("Authorization", `Bearer ${token}`)
+    ).status,
+  ).toBe(200);
+  expect(
+    await AdminReportingState.findById("provider-balance:ngrok:manual"),
+  ).toBeNull();
+  expect(
+    await AdminActionLog.countDocuments({ action: "update_provider_balance" }),
+  ).toBe(2);
+  expect(
+    (
+      await request(app)
+        .put("/admin/balances")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ ...payload, asOf: "2099-01-01" })
+    ).status,
+  ).toBe(400);
+});
