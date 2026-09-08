@@ -410,8 +410,8 @@ describe("completed manual intake uses the durable staff handoff", () => {
     expect(Lead.findByIdAndUpdate.mock.invocationCallOrder[0]).toBeLessThan(AlertService.createHumanHandoffAlert.mock.invocationCallOrder[0]);
     expect(AlertService.createHumanHandoffAlert.mock.invocationCallOrder[0]).toBeLessThan(sendSms.mock.invocationCallOrder[0]);
     const sent = sendSms.mock.calls[0][0];
-    expect(sent.body).toMatch(/sent your service details/);
-    expect(sent.body).toMatch(/pause automated intake/);
+    expect(sent.body).toMatch(/service request is saved/);
+    expect(sent.body).not.toMatch(/pause automated intake/);
     expect(sent.body).not.toMatch(/they.ll text|will call|will confirm|will contact/i);
   });
 

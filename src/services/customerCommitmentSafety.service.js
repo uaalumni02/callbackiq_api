@@ -7,10 +7,12 @@
 
 const clean = (value) =>
   String(value || "")
+    .replace(/[’‘]/g, "'")
     .replace(/\s+/g, " ")
     .trim();
 
 const ENGLISH_PROMISE_PATTERNS = [
+  /\b(?:we|the team|our team|staff|they)\s*(?:will|'ll)\s+(?:review and )?(?:confirm|approve)\b[^.!?]*(?:[.!?]|$)/gi,
   /\b(?:a |the )?(?:team member|team|staff|someone|a person|technician|dispatcher)\s+(?:will|'ll|is going to)\s+(?:call|contact|follow up|follow-up|reach out|get back to|respond to)\b[^.!?]*(?:[.!?]|$)/gi,
   /\b(?:we|they|someone|the team|staff)\s*(?:will|'ll)\s+(?:call|contact|follow up|reach out|get back to|respond)\b[^.!?]*(?:[.!?]|$)/gi,
   /\bexpect\s+(?:a |the )?(?:call|callback|contact|response|follow[- ]?up)\b[^.!?]*(?:[.!?]|$)/gi,

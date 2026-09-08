@@ -163,7 +163,7 @@ describe("VoiceAgentService callback-first recovery", () => {
     session.business.features.aiBookingEnabled = false;
     session.conversation.bookingState = { status: "human_takeover", lastError: "selected_slot_requires_manual_confirmation" };
     const result = await VoiceAgentService.handlePrompt({ session, customerMessage: "Will someone call to confirm?" });
-    expect(result.reply).toMatch(/can't guarantee a confirmation call/);
+    expect(result.reply).toMatch(/don't have a confirmation timeframe/);
     expect(VoiceCallbackService.handle).not.toHaveBeenCalled();
   });
 

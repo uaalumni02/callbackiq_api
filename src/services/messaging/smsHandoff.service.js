@@ -67,7 +67,7 @@ const hasSafetyRisk = (result) => {
 };
 
 const handoffReason = (result) => {
-  if (result?.handoff?.reason === "intake_complete") return "intake_complete";
+  if (["intake_complete", "intake_unclear"].includes(result?.handoff?.reason)) return result.handoff.reason;
   const category = clean(result?.messageCategory).toLowerCase();
   if (category) return category;
   const riskFlags = Array.isArray(result?.riskFlags) ? result.riskFlags : [];
@@ -103,7 +103,7 @@ export const requiresHumanHandoff = (result) => {
   const category = clean(result?.messageCategory).toLowerCase();
   const riskFlags = Array.isArray(result?.riskFlags) ? result.riskFlags : [];
   return (
-    result?.handoff?.reason === "intake_complete" ||
+    ["intake_complete", "intake_unclear"].includes(result?.handoff?.reason) ||
     HANDOFF_CATEGORIES.has(category) ||
     riskFlags.some((flag) => IMMEDIATE_SAFETY_FLAGS.has(String(flag || "")))
   );
@@ -121,6 +121,7 @@ export const shouldCompleteManualIntake = ({ business, lead, conversation, resul
   !conversation?.orchestration?.handoffReason &&
   !["closed", "archived"].includes(conversation?.status) &&
   !["offering_slots", "awaiting_confirmation", "booking", "pending_business_confirmation", "booked"].includes(conversation?.bookingState?.status) &&
+  result?.intakeReady !== false &&
   result?.decision !== "no_reply" &&
   result?.guardrail?.usedFallback !== true &&
   !requiresHumanHandoff(result) &&
@@ -131,7 +132,7 @@ export const buildCompletedIntakeResult = ({ result, business }) => ({
   ...result,
   decision: "send_fixed_response",
   actionType: "human_handoff",
-  reply: `I've sent your service details and preferred time to ${businessName(business)} for review. Your appointment is not confirmed. I’ll pause automated intake here; confirmation is still needed before expecting a visit.`,
+  reply: result?.intakeCompletionReply || `Your service request is saved for ${businessName(business)} to review. The appointment needs business confirmation before a visit.`,
   handoff: { required: true, reason: "intake_complete", callbackRequested: false },
 });
 
@@ -330,7 +331,7 @@ export const buildHumanHandoffStatusResult = ({ business, conversation }) => ({
   actionType: "human_handoff_status",
   messageCategory: "human_handoff_status",
   reply: conversation?.orchestration?.handoffReason === "intake_complete"
-    ? "Your service request is queued for team review. Automated intake is paused. The appointment is not confirmed, and I can’t guarantee a response time."
+    ? "Your service request is saved for team review. The appointment is not confirmed, and I don’t have a confirmation timeframe."
     : buildHumanHandoffStatusAcknowledgement({ business }),
   shouldAlertOwner: false,
   alertPriority: "low",

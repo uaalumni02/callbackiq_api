@@ -1,3 +1,5 @@
+import { confirmationTimingReply } from "../booking/recoveryIntake.service.js";
+import { isConfirmationQuestion } from "../booking/conversationQuestions.service.js";
 import { beginValuation, finishValuation } from "../valuation/opportunityValuation.service.js";
 // CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1: processor
 import { classifySmsIntent } from "./smsIntentClassifier.service.js";
@@ -477,6 +479,11 @@ export const processInboundSmsJob = async (job) => {
     if (safety && conversation.humanTakeover !== true && !["closed", "archived"].includes(conversation.status)) {
       delivery = await persistOutboundReply({ business, lead, conversation, inboundMessage,
         result: { decision: "send_fixed_response", actionType: "send_fixed_response", messageCategory: "emergency", reply: deterministicAssessment.reply, guardrail: { skipAI: true } },
+      });
+    }
+    if (!safety && isConfirmationQuestion(customerTurn.customerMessage) && conversation.humanTakeover !== true && !["closed", "archived"].includes(conversation.status)) {
+      delivery = await persistOutboundReply({ business, lead, conversation, inboundMessage,
+        result: { decision: "send_fixed_response", actionType: "send_fixed_response", messageCategory: "appointment_status", reply: confirmationTimingReply({ lead }), guardrail: { skipAI: true } },
       });
     }
     await completeCoalescedJobs({ conversationId: conversation._id, primaryJobId: job._id, primaryMessageId: inboundMessage._id, turnMessageIds: customerTurn.turnMessageIds });

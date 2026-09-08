@@ -1,3 +1,5 @@
+import { constrainUncertainReply } from "./messaging/uncertainReply.service.js";
+import { handleRecoveryIntake } from "./booking/recoveryIntake.service.js";
 import {
   SAFE_REPLIES,
   cleanText,
@@ -186,6 +188,9 @@ export const generateAIReplyResult = async ({
       );
     }
 
+    const intake = await handleRecoveryIntake({ business, lead, conversation, customerMessage: latestCustomerMessage, turnId: messages.filter(message => message.direction === "inbound").at(-1)?._id || "" });
+    if (intake) return preserveTurnUrgency(intake, turnUrgency);
+
     /*
      * Deterministic market-readiness policy handles cases where asking the
      * customer to repeat information would be objectively wrong. Booking
@@ -260,7 +265,7 @@ export const generateAIReplyResult = async ({
       lead,
       conversation,
     });
-    return preserveTurnUrgency(policyResult, turnUrgency);
+    return preserveTurnUrgency(await constrainUncertainReply({ result: policyResult, lead, conversation, turnId: messages.filter(message => message.direction === "inbound").at(-1)?._id || "" }), turnUrgency);
   } catch (error) {
     logOperationalError("ai_reply.generation_failed", error, {
       businessId: business?._id || business?.id,

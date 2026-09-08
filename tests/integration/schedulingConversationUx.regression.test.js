@@ -116,3 +116,17 @@ test("a connected calendar does not authorize claims by the text-only model", as
   expect(input.capabilities.canConfirmAppointment).toBe(false);
   expect(input.operationalFacts.completedActionsThisTurn).toEqual([]);
 });
+
+test('toilet intake passes through the actual SMS reply pipeline with persistent context', async () => {
+  const lead = { _id: 'lead-1', serviceNeeded: 'Unknown', urgency: 'medium', save: jest.fn().mockResolvedValue(null) };
+  const conversation = { _id:'conversation-1', status:'open', bookingState:{status:'not_started'}, conversationMemory:{}, save:jest.fn().mockResolvedValue(null), set(path,value){this.conversationMemory[path.split('.')[1]]=value;} };
+  const messages=[];
+  const turn=async body=>{ messages.push({_id:String(messages.length),direction:'inbound',body}); return generateAIReplyResult({business,lead,conversation,messages,customerMessage:body}); };
+  searchServices.mockResolvedValue([{id:'service-1',name:'Toilet repair'}]);
+  // Area validation uses the provider boundary too; covered with configured-area cases in the shared suite.
+  const first=await turn('My toilet is stopped up and leaking around the seal'); expect(first.reply).toMatch(/right now/);
+  await turn('Only when the toilet is used'); await turn('Sep 8'); await turn('8 am');
+  const status=await turn('When will it be confirmed'); expect(status.reply).toMatch(/confirmation timeframe/);
+  expect(lead.preferredAppointmentTime).toBe('2026-09-08 at 8:00');
+  expect(create).not.toHaveBeenCalled(); expect(createAppointment).not.toHaveBeenCalled();
+});

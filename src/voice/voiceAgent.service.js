@@ -1,3 +1,5 @@
+import { handleVoiceExit } from "./voiceExit.service.js";
+import { handleRecoveryIntake } from "../services/booking/recoveryIntake.service.js";
 import { schedulingQuestionReply } from "../services/booking/schedulingQuestions.service.js";
 import { beginValuation, finishValuation } from "../services/valuation/opportunityValuation.service.js";
 import Appointment from "../models/appointment.js";
@@ -78,7 +80,7 @@ const MAX_REPEATED_INPUTS = 3;
 const MAX_ABUSIVE_TURNS = 2;
 // Preserve a natural multi-question conversation. Unsupported questions may
 // receive bounded guidance before callback recovery starts.
-const MAX_UNMATCHED_TURNS_BEFORE_CALLBACK = 4;
+const MAX_UNMATCHED_TURNS_BEFORE_CALLBACK = 2;
 
 const normalizeId = (value) => value?._id || value?.id || value || null;
 const clean = (value, maximum = 2000) => cleanVoiceText(value, maximum);
@@ -310,7 +312,7 @@ const recordConfirmedAppointment = async ({
 };
 
 class VoiceAgentService {
-  static async handlePrompt({ session, customerMessage, signal = null }) {
+  static async handlePrompt({ session, customerMessage, signal = null, turnId = "" }) {
     assertVoiceTurnActive();
     if (signal?.aborted) throw signal.reason || new Error("Voice turn aborted.");
     const text = clean(customerMessage, 4000);
@@ -321,6 +323,8 @@ class VoiceAgentService {
       throw new Error("Voice agent requires business and conversation context.");
     }
     if (!text) return { reply: GENERAL_HELP_REPLY };
+    const exit = await handleVoiceExit({ session, customerMessage: text });
+    if (exit) return exit;
 
     const valuationTicket = await beginValuation(lead, business._id);
     await finishValuation(valuationTicket, { businessId: business._id, evidence: [...(session.transcript || []).filter(entry => entry.role === "customer").slice(-20).map(entry => entry.text), text].join("\n") });
@@ -409,6 +413,15 @@ class VoiceAgentService {
           safety?.reply ||
           "If anyone is in immediate danger, hang up and call 911 now. CallBackIQ flagged this for urgent review, but do not wait for a callback or use this service instead of emergency services.",
       });
+    }
+
+    const intake = await handleRecoveryIntake({ business, lead, conversation, customerMessage: text, channel: "voice", session, turnId });
+    if (intake) { resetFallbackGuard(guard); return { reply: toSpokenReply(intake.reply), ...(intake.outcome ? { outcome: intake.outcome } : {}) }; }
+
+    if (understanding?.intent === "unknown" && !isHumanRequest(text) && !isCallbackRequest(text)) {
+      guard.fallbackTurnCount += 1;
+      if (guard.fallbackTurnCount >= 2) return captureCallback({ session, customerMessage: text, reason: "unrecognized_voice_turn", alertType: "low_ai_confidence", immediate: true, sendConfirmationSms: false, completionReply: "Your message is saved for team review. I don't have a response timeframe." });
+      return { reply: "I didn't catch that. Could you say the service you need or the detail you want to change?" };
     }
 
     const questionReply = bookingQuestionReply({ customerMessage: text, conversation });

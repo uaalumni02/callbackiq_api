@@ -300,7 +300,7 @@ class AlertService {
   }) {
     const customer = getCustomerLabel({ customerName, customerPhone });
     const category = String(result?.messageCategory || "human_requested");
-    const intake = ["intake_complete", "intake_follow_up"].includes(result?.handoff?.reason);
+    const intake = ["intake_complete", "intake_follow_up", "intake_unclear"].includes(result?.handoff?.reason);
     const riskFlags = Array.isArray(result?.riskFlags) ? result.riskFlags : [];
     const urgency = String(result?.urgency || lead?.urgency || "")
       .trim()

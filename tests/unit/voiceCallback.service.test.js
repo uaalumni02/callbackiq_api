@@ -266,3 +266,11 @@ expect(result.callbackCaptured).toBe(true);
     expect(sendSms).not.toHaveBeenCalled();
   });
 });
+
+test('failed callback alert does not persist completed callback state', async () => {
+ const session=makeSession();
+ Alert.findOneAndUpdate.mockRejectedValueOnce(new Error('alert write failed'));
+ await expect(VoiceCallbackService.handle({session,customerMessage:'unclear',reason:'unrecognized_voice_turn',immediate:true,sendConfirmationSms:false})).rejects.toThrow('alert write failed');
+ expect(session.metadata.callbackCapture?.completedAt).toBeFalsy();
+ expect(session.conversation.orchestration?.handoffStatus).not.toBe('acknowledged');
+});

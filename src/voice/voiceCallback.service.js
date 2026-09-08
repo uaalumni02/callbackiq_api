@@ -646,12 +646,14 @@ const complete = async ({
     };
   }
 
+  await updateLead({ session, state });
+  await createCallbackAlert({ session, state });
+  // Record completion only after the durable alert succeeds, so a failed write
+  // cannot make a retry skip the handoff or claim it was acknowledged.
+  await updateConversation({ session, state });
   state.status = "completed";
   state.currentField = "";
   state.completedAt = new Date().toISOString();
-  await updateLead({ session, state });
-  await updateConversation({ session, state });
-  await createCallbackAlert({ session, state });
   if (sendConfirmationSms) await sendCallbackConfirmation({ session, state });
 
   session.transferredToHuman = false;

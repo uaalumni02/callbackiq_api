@@ -15,6 +15,7 @@ import {
 } from "./voiceInput.service.js";
 
 const INTENTS = Object.freeze([
+  "unknown",
   "emergency",
   "human",
   "callback",
@@ -78,14 +79,15 @@ const deterministic = (text) => {
   else if (isServiceAreaQuestion(text)) intent = "service_area";
   else if (PRICING.test(text)) intent = "pricing";
   else if (isBookingIntent(text)) intent = "booking";
-  else if (text.length >= 8) intent = "service_request";
+  else if (/\b(?:leak(?:ing)?|clog(?:ged)?|broken|repair|install|replace|toilet|sink|heater|furnace|roof|drain|no heat|no cooling)\b/i.test(text)) intent = "service_request";
+  else intent = "unknown";
 
   const directedAbuse = DIRECTED_ABUSE.test(text);
   return {
     source: "deterministic",
     language,
     intent,
-    confidence: isEmergency ? 100 : 65,
+    confidence: isEmergency ? 100 : intent === "unknown" ? 0 : 65,
     safety: {
       isEmergency,
       shouldSendSafetyReply: isEmergency,
@@ -173,6 +175,25 @@ const schema = {
   ],
 };
 
+// Validate at runtime as well as requesting a strict provider schema. Model text is not an action.
+export const validateVoiceVerdict = (parsed, fallback) => {
+  const unknown = { ...fallback, intent: "unknown", confidence: 0, entities: {}, safety: fallback.safety };
+  if (!parsed || !INTENTS.includes(parsed.intent) || typeof parsed.confidence !== "number" ||
+      !Number.isFinite(parsed.confidence) || parsed.confidence < 0 || parsed.confidence > 100 ||
+      !["en", "es", "other"].includes(parsed.language) || !parsed.entities ||
+      Object.values(parsed.entities).some(value => typeof value !== "string") ||
+      !parsed.safety || typeof parsed.safety.isEmergency !== "boolean" ||
+      typeof parsed.safety.shouldSendSafetyReply !== "boolean") return unknown;
+  if (parsed.confidence < 60 && !parsed.safety.isEmergency && !parsed.safety.shouldSendSafetyReply) return unknown;
+  const hazard = parsed.safety.hazardType || "other";
+  const urgent = parsed.safety.isEmergency || parsed.safety.shouldSendSafetyReply;
+  return { ...fallback, language: parsed.language, intent: urgent ? "emergency" : parsed.intent,
+    confidence: parsed.confidence, directedAbuse: parsed.directedAbuse === true,
+    situationProfanity: parsed.situationProfanity === true,
+    entities: Object.fromEntries(Object.entries(parsed.entities).filter(([key]) => ["service", "name", "location", "city", "postalCode", "urgency", "preference"].includes(key)).map(([key, value]) => [key, clean(value, 500)])),
+    safety: urgent ? { isEmergency: true, shouldSendSafetyReply: true, hazardType: hazard, hazardTypes: [hazard], reply: getEmergencyReply(hazard) } : fallback.safety };
+};
+
 export const classifyVoiceTurn = async ({
   customerMessage,
   recentMessages = [],
@@ -183,7 +204,7 @@ export const classifyVoiceTurn = async ({
   const fallback = deterministic(text);
 
   // Deterministic safety is the hard fast-path. It never waits for a model.
-  if (fallback.safety.isEmergency) return fallback;
+  if (fallback.safety.isEmergency || ["human", "opt_out", "wrong_number"].includes(fallback.intent)) return fallback;
 
   const openai = getClient();
   if (!openai) return fallback;
@@ -224,10 +245,7 @@ export const classifyVoiceTurn = async ({
     if (signal?.aborted) throw signal.reason || new Error("Voice turn aborted.");
     const parsed = JSON.parse(response.output_text || "{}");
     return {
-      ...fallback,
-      ...parsed,
-      safety: { ...fallback.safety, ...(parsed.safety || {}) },
-      entities: { ...fallback.entities, ...(parsed.entities || {}) },
+      ...validateVoiceVerdict(parsed, fallback),
       source: "openai",
       usage: response.usage || null,
     };
