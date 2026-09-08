@@ -6,7 +6,7 @@ const mockHeartbeatInboundSmsJob = jest.fn();
 const mockClaimNextInboundSmsJob = jest.fn();
 const mockSafelyProcessInboundSmsJob = jest.fn();
 
-jest.mock("../../src/services/distributedLease.service.js", () => ({ withDistributedLease: mockWithDistributedLease }));
+jest.mock("../../src/services/distributedLease.service.js", () => ({ assertDistributedLeaseActive: jest.fn(), invalidateDistributedLease: jest.fn(), registerDistributedLeaseGuard: jest.fn(), withDistributedLease: mockWithDistributedLease }));
 jest.mock("../../src/services/messaging/smsProcessingQueue.service.js", () => ({
   claimNextInboundSmsJob: mockClaimNextInboundSmsJob,
   completeInboundSmsJob: mockCompleteInboundSmsJob,

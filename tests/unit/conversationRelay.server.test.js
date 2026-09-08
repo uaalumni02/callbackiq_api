@@ -285,3 +285,85 @@ describe("ConversationRelay configurable failure recovery", () => {
     }
   });
 });
+
+describe("ConversationRelay caller interruption fencing", () => {
+  test.each([
+    { type: "interrupt", utteranceUntilInterrupt: "One moment" },
+    { type: "prompt", voicePrompt: "Actually", last: false },
+    { type: "prompt", voicePrompt: "Use tomorrow instead", last: true },
+  ])("fences an unfinished turn immediately on $type (last=$last)", async (interruptFrame) => {
+    const previousLoadMode = process.env.VOICE_LOAD_TEST_MODE;
+    process.env.VOICE_LOAD_TEST_MODE = "true";
+    const { assertVoiceTurnActive } = await import("../../src/services/voiceTurnContext.service.js");
+    let resolveOld;
+    let signalStarted;
+    let signalAborted;
+    let signalFinished;
+    const started = new Promise((resolve) => { signalStarted = resolve; });
+    const aborted = new Promise((resolve) => { signalAborted = resolve; });
+    const finished = new Promise((resolve) => { signalFinished = resolve; });
+    const oldDependency = new Promise((resolve) => { resolveOld = resolve; });
+    const staleSideEffect = jest.fn();
+    const handlePrompt = jest.fn()
+      .mockImplementationOnce(async ({ signal }) => {
+        signal.addEventListener("abort", signalAborted, { once: true });
+        signalStarted();
+        await oldDependency;
+        try {
+          assertVoiceTurnActive();
+          staleSideEffect();
+          return { reply: "Obsolete booking response", outcome: "booking_confirmed" };
+        } finally { signalFinished(); }
+      })
+      .mockResolvedValue({ reply: "What time tomorrow works for you?" });
+    const session = { _id: "voice-barge-in", business: { _id: "business-1" }, status: "active" };
+    const commitVoiceOutcome = jest.fn().mockResolvedValue(undefined);
+    const server = await startServer({
+      signatureValidator: () => true,
+      voiceAgentService: { handlePrompt },
+      voiceSessionService: {
+        activateFromSetup: jest.fn().mockResolvedValue(session),
+        touchActivity: jest.fn().mockResolvedValue(undefined),
+        sendFallbackSms: jest.fn().mockResolvedValue(undefined),
+      },
+      voiceTranscriptService: {
+        append: jest.fn().mockResolvedValue(undefined),
+        markLastAssistantInterrupted: jest.fn().mockResolvedValue(undefined),
+        touch: jest.fn().mockResolvedValue(undefined),
+      },
+      voiceOutcomeService: { commitVoiceOutcome, inferVoiceOutcome: jest.fn().mockReturnValue(null), recoverAbandonedVoiceCall: jest.fn().mockResolvedValue(null) },
+      voiceMetricsService: { recordVoiceMetric: jest.fn().mockResolvedValue(undefined) },
+    });
+    const socket = new WebSocket(server.url);
+    const received = [];
+    socket.on("message", (raw) => received.push(JSON.parse(raw.toString())));
+    try {
+      await new Promise((resolve, reject) => { socket.once("open", resolve); socket.once("error", reject); });
+      const ready = collectUntil(socket, (message) => message.type === "callbackiq_setup_ready");
+      socket.send(JSON.stringify({ type: "setup", callSid: "CA-barge-in", sessionId: "relay-barge-in", customParameters: { voiceSessionId: "voice-barge-in" } }));
+      await ready;
+      socket.send(JSON.stringify({ type: "prompt", voicePrompt: "Book today", last: true }));
+      await started;
+      const corrected = collectUntil(socket, (message) => message.token === "What time tomorrow works for you?");
+      socket.send(JSON.stringify(interruptFrame));
+      // The aborted signal must arrive while the old dependency is still blocked.
+      await aborted;
+      if (interruptFrame.last !== true) {
+        socket.send(JSON.stringify({ type: "prompt", voicePrompt: "Use tomorrow instead", last: true }));
+      }
+      await corrected;
+      resolveOld();
+      await finished;
+      expect(staleSideEffect).not.toHaveBeenCalled();
+      expect(commitVoiceOutcome).not.toHaveBeenCalled();
+      expect(handlePrompt).toHaveBeenCalledTimes(2);
+      expect(received.some((message) => /Obsolete|could not complete|Please try once more/.test(message.token || ""))).toBe(false);
+    } finally {
+      resolveOld();
+      socket.terminate();
+      await server.close();
+      if (previousLoadMode === undefined) delete process.env.VOICE_LOAD_TEST_MODE;
+      else process.env.VOICE_LOAD_TEST_MODE = previousLoadMode;
+    }
+  });
+});

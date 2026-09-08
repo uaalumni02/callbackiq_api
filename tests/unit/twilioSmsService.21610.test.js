@@ -10,6 +10,9 @@ jest.mock("../../src/models/business.js", () => ({
     findOne: jest.fn(),
   },
 }));
+jest.mock("../../src/models/conversation.js", () => ({
+  __esModule: true, default: { findOne: jest.fn() },
+}));
 
 jest.mock("../../src/services/messaging/contactPreference.service.js", () => ({
   __esModule: true,
@@ -41,6 +44,7 @@ jest.mock("../../src/services/outboundSmsAudit.service.js", () => ({
 
 import twilio from "twilio";
 import Business from "../../src/models/business.js";
+import Conversation from "../../src/models/conversation.js";
 import {
   isSmsSuppressed,
   optOutSms,
@@ -59,6 +63,7 @@ import { recordOutboundSmsAudit } from "../../src/services/outboundSmsAudit.serv
 import {
   resetTwilioClient,
   sendSms,
+  setBeforeSmsProviderSendHookForTests,
 } from "../../src/services/twilioSmsService.js";
 
 const mockMessagesCreate = jest.fn();
@@ -163,5 +168,55 @@ describe("Twilio 21610 SMS suppression", () => {
         }),
       }),
     );
+  });
+
+  test.each([
+    [{ humanTakeover: true }, "human_takeover"],
+    [{ status: "closed" }, "conversation_inactive"],
+    [{ aiEnabled: false }, "conversation_ai_disabled"],
+  ])("blocks staff ownership changes at the provider boundary: %p", async (change, reason) => {
+    const current = { _id: "conversation-1", business: business._id, lead: "lead-1",
+      customerPhone: "+14045550101", aiEnabled: true, humanTakeover: false, status: "open" };
+    Conversation.findOne.mockImplementation(async () => current);
+    setBeforeSmsProviderSendHookForTests(async () => Object.assign(current, change));
+    const result = await sendSms({ business, to: current.customerPhone, body: "Prepared AI reply",
+      directResponse: true, conversationId: current._id, leadId: current.lead,
+      source: "inbound_sms_reply", actorType: "ai", metadata: { aiGenerated: true } });
+    expect(result).toMatchObject({ suppressed: true, reason });
+    expect(mockMessagesCreate).not.toHaveBeenCalled();
+    expect(releaseCommunicationUsageReservation).toHaveBeenCalledWith(expect.objectContaining({ reason }));
+    expect(releaseSmsContactDisclosure).toHaveBeenCalledWith({ claim: disclosureClaim });
+    expect(Conversation.findOne).toHaveBeenCalledWith({ _id: current._id, business: business._id });
+  });
+
+  test("fails closed when the conversation no longer belongs to the sending business", async () => {
+    Conversation.findOne.mockResolvedValue(null);
+    const result = await sendSms({ business, to: "+14045550101", body: "Prepared AI reply",
+      directResponse: true, conversationId: "other-tenant-conversation", source: "inbound_sms_reply" });
+    expect(result).toMatchObject({ suppressed: true, reason: "automation_context_missing" });
+    expect(mockMessagesCreate).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    [{ isActive: false }, {}, "business_inactive"],
+    [{ features: { aiQualificationEnabled: false } }, {}, "business_ai_disabled"],
+    [{}, { customerPhone: "+14045550199" }, "automation_context_changed"],
+    [{}, { lead: "different-lead" }, "automation_context_changed"],
+  ])("rechecks business settings and destination binding: %p %p", async (businessChange, conversationChange, reason) => {
+    Business.findById.mockResolvedValue({ ...business, ...businessChange });
+    Conversation.findOne.mockResolvedValue({ lead: "lead-1", customerPhone: "+14045550101", ...conversationChange });
+    const result = await sendSms({ business, to: "+14045550101", body: "Prepared reply",
+      directResponse: true, conversationId: "conversation-1", leadId: "lead-1", source: "inbound_sms_reply" });
+    expect(result).toMatchObject({ suppressed: true, reason });
+    expect(mockMessagesCreate).not.toHaveBeenCalled();
+  });
+
+  test("eligible automated reply still reaches the provider once", async () => {
+    Conversation.findOne.mockResolvedValue({ lead: "lead-1", customerPhone: "+14045550101", aiEnabled: true });
+    mockMessagesCreate.mockResolvedValueOnce({ sid: "SM_ELIGIBLE", status: "queued" });
+    const result = await sendSms({ business, to: "+14045550101", body: "Prepared reply",
+      directResponse: true, conversationId: "conversation-1", leadId: "lead-1", source: "inbound_sms_reply" });
+    expect(result).toMatchObject({ sid: "SM_ELIGIBLE" });
+    expect(mockMessagesCreate).toHaveBeenCalledTimes(1);
   });
 });

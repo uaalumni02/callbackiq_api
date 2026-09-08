@@ -1,0 +1,174 @@
+{
+  "baseline": "11dadbcbff2714e7e5fbb82597158133b1648fad",
+  "success": true,
+  "passedTests": 640,
+  "failedTests": 0,
+  "passedSuites": 33,
+  "suites": [
+    {
+      "path": "tests/unit/smsConversationFuzz.production.test.js",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "path": "tests/unit/aiReplyService.bathtubJourney.integration.test.js",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "path": "tests/unit/communicationSafety.voiceRelayLimits.test.js",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "path": "tests/unit/voiceAgent.service.test.js",
+      "status": "passed",
+      "tests": 27
+    },
+    {
+      "path": "tests/unit/recoveryIntake.shared.test.js",
+      "status": "passed",
+      "tests": 30
+    },
+    {
+      "path": "tests/unit/aiReplyService.semanticIntake.test.js",
+      "status": "passed",
+      "tests": 4
+    },
+    {
+      "path": "tests/unit/aiReplyService.full.test.js",
+      "status": "passed",
+      "tests": 19
+    },
+    {
+      "path": "tests/unit/conversationRelay.server.test.js",
+      "status": "passed",
+      "tests": 7
+    },
+    {
+      "path": "tests/unit/smsGoldenCorpus.production.test.js",
+      "status": "passed",
+      "tests": 321
+    },
+    {
+      "path": "tests/unit/smsHandoffProcessorOrdering.contract.test.js",
+      "status": "passed",
+      "tests": 6
+    },
+    {
+      "path": "tests/unit/aiBookingPermission.release.test.js",
+      "status": "passed",
+      "tests": 5
+    },
+    {
+      "path": "tests/integration/smsRecovery.fullFlow.test.js",
+      "status": "passed",
+      "tests": 17
+    },
+    {
+      "path": "tests/unit/releaseCommitmentSafety.test.js",
+      "status": "passed",
+      "tests": 4
+    },
+    {
+      "path": "tests/unit/voiceCallback.service.test.js",
+      "status": "passed",
+      "tests": 5
+    },
+    {
+      "path": "tests/unit/approvedServiceEstimate.service.test.js",
+      "status": "passed",
+      "tests": 28
+    },
+    {
+      "path": "tests/unit/voiceBookingStateMachineReuse.test.js",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "path": "tests/unit/smsProcessingQueue.reclaim.test.js",
+      "status": "passed",
+      "tests": 3
+    },
+    {
+      "path": "tests/unit/uncertainReply.semanticFacts.test.js",
+      "status": "passed",
+      "tests": 12
+    },
+    {
+      "path": "tests/unit/smsProcessing.worker.hardening.test.js",
+      "status": "passed",
+      "tests": 11
+    },
+    {
+      "path": "tests/unit/twilioSmsService.21610.test.js",
+      "status": "passed",
+      "tests": 10
+    },
+    {
+      "path": "tests/unit/voiceConversationExperience.regression.test.js",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "path": "tests/unit/smsProcessingQueue.orphanReconciliation.test.js",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "path": "tests/unit/voiceUnderstanding.service.test.js",
+      "status": "passed",
+      "tests": 8
+    },
+    {
+      "path": "tests/unit/smsIntentClassifier.production.test.js",
+      "status": "passed",
+      "tests": 37
+    },
+    {
+      "path": "tests/unit/smsConversationLease.production.test.js",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "path": "tests/unit/smsTurnPolicy.marketReadiness.test.js",
+      "status": "passed",
+      "tests": 22
+    },
+    {
+      "path": "tests/unit/smsTurnPolicy.commitmentSafety.production.test.js",
+      "status": "passed",
+      "tests": 7
+    },
+    {
+      "path": "tests/unit/recoveryVerdict.validation.test.js",
+      "status": "passed",
+      "tests": 7
+    },
+    {
+      "path": "tests/unit/smsServiceUnderstanding.production.test.js",
+      "status": "passed",
+      "tests": 21
+    },
+    {
+      "path": "tests/unit/productionHardening.distributedLease.test.js",
+      "status": "passed",
+      "tests": 7
+    },
+    {
+      "path": "tests/unit/distributedLease.loss.production.test.js",
+      "status": "passed",
+      "tests": 5
+    },
+    {
+      "path": "tests/unit/smsHandoffAlert.contract.test.js",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "path": "tests/unit/voiceTransferGuard.service.test.js",
+      "status": "passed",
+      "tests": 3
+    }
+  ]
+}

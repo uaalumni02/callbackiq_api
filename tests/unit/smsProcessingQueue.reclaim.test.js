@@ -2,12 +2,15 @@ import SmsProcessingJob from "../../src/models/smsProcessingJob.js";
 import {
   claimNextInboundSmsJob,
   failInboundSmsJob,
+  heartbeatInboundSmsJob,
+  completeInboundSmsJob,
 } from "../../src/services/messaging/smsProcessingQueue.service.js";
 
 jest.mock("../../src/models/smsProcessingJob.js", () => ({
   __esModule: true,
   default: {
     findOneAndUpdate: jest.fn(),
+    updateOne: jest.fn(),
   },
 }));
 
@@ -46,4 +49,14 @@ test("moves exhausted jobs to dead-letter state", async () => {
     expect.objectContaining({ $set: expect.objectContaining({ status: "dead" }) }),
     { returnDocument: "after" },
   );
+});
+
+
+test("expired job owner cannot renew or complete after its processing deadline", async () => {
+  const expiredAt = new Date(Date.now() - 1000);
+  const matchesActiveLease = filter => filter.leaseToken === "old-owner" && expiredAt > filter.leaseExpiresAt.$gt;
+  SmsProcessingJob.updateOne.mockImplementation(async filter => ({ matchedCount: matchesActiveLease(filter) ? 1 : 0 }));
+  SmsProcessingJob.findOneAndUpdate.mockImplementation(async filter => matchesActiveLease(filter) ? { status: "completed" } : null);
+  await expect(heartbeatInboundSmsJob({ jobId: "job-1", leaseToken: "old-owner" })).resolves.toEqual({ matchedCount: 0 });
+  await expect(completeInboundSmsJob({ jobId: "job-1", leaseToken: "old-owner", result: { replySent: true } })).resolves.toBeNull();
 });

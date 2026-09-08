@@ -95,7 +95,7 @@ export const claimNextInboundSmsJob = async ({ now = new Date() } = {}) => {
 
 export const completeInboundSmsJob = async ({ jobId, leaseToken, result = {} }) => {
   return SmsProcessingJob.findOneAndUpdate(
-    { _id: jobId, status: "processing", leaseToken },
+    { _id: jobId, status: "processing", leaseToken, leaseExpiresAt: { $gt: new Date() } },
     {
       $set: {
         status: "completed",
@@ -114,7 +114,7 @@ export const failInboundSmsJob = async ({ job, error, leaseToken }) => {
   const failure = error instanceof Error ? error.message : String(error || "Unknown error");
   const isDead = job.attemptCount >= job.maxAttempts;
   return SmsProcessingJob.findOneAndUpdate(
-    { _id: job._id, status: "processing", leaseToken },
+    { _id: job._id, status: "processing", leaseToken, leaseExpiresAt: { $gt: new Date() } },
     {
       $set: {
         status: isDead ? "dead" : "retry",
@@ -139,7 +139,7 @@ export const deferInboundSmsJob = async ({
 }) => {
   const safeDelay = Math.max(100, Math.min(5_000, Number(delayMs) || 500));
   return SmsProcessingJob.findOneAndUpdate(
-    { _id: jobId, status: "processing", leaseToken },
+    { _id: jobId, status: "processing", leaseToken, leaseExpiresAt: { $gt: new Date() } },
     {
       $set: {
         status: "queued",
@@ -157,7 +157,7 @@ export const deferInboundSmsJob = async ({
 
 export const heartbeatInboundSmsJob = async ({ jobId, leaseToken }) => {
   return SmsProcessingJob.updateOne(
-    { _id: jobId, status: "processing", leaseToken },
+    { _id: jobId, status: "processing", leaseToken, leaseExpiresAt: { $gt: new Date() } },
     { $set: { leaseExpiresAt: new Date(Date.now() + leaseMs()) } },
   );
 };

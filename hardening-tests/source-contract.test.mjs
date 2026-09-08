@@ -56,7 +56,7 @@ test("timeouts do not launch a concurrent duplicate agent turn", async () => {
 
 test("dialogue guards bound fallback loops, language barriers and abuse", async () => {
   const source = await read("src/voice/voiceAgent.service.js");
-  assert.match(source, /MAX_UNMATCHED_TURNS_BEFORE_CALLBACK\s*=\s*4/);
+  assert.match(source, /MAX_UNMATCHED_TURNS_BEFORE_CALLBACK\s*=\s*2/);
   assert.match(
     source,
     /fallbackTurnCount\s*>=\s*MAX_UNMATCHED_TURNS_BEFORE_CALLBACK/,

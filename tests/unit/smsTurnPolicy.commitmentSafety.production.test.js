@@ -109,10 +109,11 @@ describe("deterministic SMS commitment safety", () => {
     ).toBe(false);
 
     const expectedPricingReplies = new Set([
-      "The exact cost depends on the issue and is not confirmed yet. What service do you need help with?",
-      "The exact cost depends on what is causing the issue and is not confirmed yet. Is anything actively leaking or overflowing, or is only the affected fixture unusable?",
-      "The exact cost depends on the diagnosis and is not confirmed yet. What is the service address?",
-      "The exact cost depends on the diagnosis and is not confirmed yet. I've kept the details you've already provided.",
+      "I don't have a confirmed price yet. What service do you need help with?",
+      "For water heater repair, I don't have a confirmed price yet. Is it still usable, or is the problem preventing you from using it?",
+      "For water heater repair, I don't have a confirmed price yet. What is the service address?",
+      "For water heater repair, I don't have a confirmed price yet. What day or time would you prefer for service?",
+      "For water heater repair, I don't have a confirmed price yet. I have your service details and preferred time; an appointment is not confirmed by this price inquiry.",
     ]);
 
     const urgencyValues = [

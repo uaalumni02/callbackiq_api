@@ -234,21 +234,29 @@ const getDiagnosticFeeReply = async ({ business, text }) => {
   try {
     const matches =
       (await searchServicesTool({ businessId: business._id, query: text })) || [];
+    assertVoiceTurnActive();
+    // The search tool may return a sole unrelated offering with score zero.
+    // Only one positive match can authorize looking up its published fee.
+    const positiveMatches = matches.filter(match => Number.isFinite(match?.score) && match.score > 0);
     const service =
-      matches.length === 1
+      positiveMatches.length === 1
         ? await ServiceOffering.findOne({
-            _id: matches[0].id,
+            _id: positiveMatches[0].id,
             business: business._id,
             active: true,
+            aiCanDiscuss: true,
           })
         : null;
+    assertVoiceTurnActive();
     if (
-      service?.discloseDiagnosticFee &&
-      Number.isFinite(service.diagnosticFee)
+      service?.aiCanDiscuss === true &&
+      service.discloseDiagnosticFee === true &&
+      Number.isFinite(service.diagnosticFee) && service.diagnosticFee >= 0
     ) {
       return `The published diagnostic fee for ${service.name} is $${service.diagnosticFee}. Final scope and pricing still require technician evaluation.`;
     }
   } catch (error) {
+    if (error?.code === "VOICE_STALE_TURN") throw error;
     logOperationalError("voice.diagnostic_fee_lookup_failed", error, {
       businessId: business._id,
     });
@@ -415,15 +423,18 @@ class VoiceAgentService {
       });
     }
 
-    const intake = await handleRecoveryIntake({ business, lead, conversation, customerMessage: text, channel: "voice", session, turnId });
+    const semanticAssessment = Number.isFinite(understanding?.confidence) &&
+      understanding.confidence >= 60 &&
+      ["service_request", "booking", "pricing"].includes(understanding.intent) &&
+      typeof understanding.entities?.service === "string" && understanding.entities.service.trim()
+      ? { isInScope: true, confidence: understanding.confidence, serviceNeeded: understanding.entities.service }
+      : null;
+    const intake = await handleRecoveryIntake({ business, lead, conversation, customerMessage: text, channel: "voice", session, turnId, semanticAssessment });
     if (intake) { resetFallbackGuard(guard); return { reply: toSpokenReply(intake.reply), ...(intake.outcome ? { outcome: intake.outcome } : {}) }; }
 
-    if (understanding?.intent === "unknown" && !isHumanRequest(text) && !isCallbackRequest(text)) {
-      guard.fallbackTurnCount += 1;
-      if (guard.fallbackTurnCount >= 2) return captureCallback({ session, customerMessage: text, reason: "unrecognized_voice_turn", alertType: "low_ai_confidence", immediate: true, sendConfirmationSms: false, completionReply: "Your message is saved for team review. I don't have a response timeframe." });
-      return { reply: "I didn't catch that. Could you say the service you need or the detail you want to change?" };
-    }
-
+    // Classifier uncertainty is not a failed conversational turn. Short slot
+    // answers, repeat requests, and catalog matches must reach their owners.
+    // Only the final unmatched branch spends the bounded recovery budget.
     const questionReply = bookingQuestionReply({ customerMessage: text, conversation });
     if (questionReply) return { reply: questionReply };
     if (isAmbiguousServiceLoss(text)) return { reply: serviceLossQuestion };
@@ -631,7 +642,7 @@ class VoiceAgentService {
     const bookingRequested = bookingInProgress || bookingIntent || catalogServiceMatched;
 
     if (!bookingRequested) {
-      if (CONCRETE_SERVICE_REQUEST.test(text)) {
+      if (CONCRETE_SERVICE_REQUEST.test(text) || understanding?.entities?.service) {
         resetFallbackGuard(guard);
         return captureCallback({
           session,

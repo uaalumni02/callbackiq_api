@@ -28,7 +28,7 @@ jest.mock(
 );
 
 jest.mock("../../src/services/distributedLease.service.js", () => ({
-  withDistributedLease: mockWithDistributedLease,
+  assertDistributedLeaseActive: jest.fn(), invalidateDistributedLease: jest.fn(), registerDistributedLeaseGuard: jest.fn(), withDistributedLease: mockWithDistributedLease,
 }));
 
 jest.mock("../../src/services/alert.service.js", () => ({
@@ -276,7 +276,7 @@ describe("smsProcessing.worker hardening", () => {
     expect(mockClaimNextInboundSmsJob).toHaveBeenCalledTimes(4);
   });
 
-  test("heartbeat failure is observable without duplicating work, and the timer clears after completion", async () => {
+  test("heartbeat failure cancels completion and clears the timer", async () => {
     jest.useFakeTimers();
     process.env.SMS_PROCESSING_LEASE_MS = "15000";
     const gate = deferred();
@@ -291,7 +291,8 @@ describe("smsProcessing.worker hardening", () => {
     gate.resolve({ replySent: true }); await drain;
     await jest.advanceTimersByTimeAsync(15000);
     expect(mockHeartbeatInboundSmsJob).toHaveBeenCalledTimes(1);
-    expect(mockCompleteInboundSmsJob).toHaveBeenCalledTimes(1);
+    expect(mockCompleteInboundSmsJob).not.toHaveBeenCalled();
+    expect(mockFailInboundSmsJob).toHaveBeenCalledWith(expect.objectContaining({ error: expect.objectContaining({ code: "DISTRIBUTED_LEASE_LOST" }) }));
   });
 
   test("a busy conversation defers the claimed job without sending or completing it", async () => {

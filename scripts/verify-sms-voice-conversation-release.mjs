@@ -1,0 +1,41 @@
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+const root = fileURLToPath(new URL("../", import.meta.url));
+const suites = [
+  "tests/unit/aiReplyService.bathtubJourney.integration.test.js",
+  "tests/unit/approvedServiceEstimate.service.test.js",
+  "tests/unit/aiReplyService.full.test.js",
+  "tests/unit/aiReplyService.semanticIntake.test.js",
+  "tests/unit/uncertainReply.semanticFacts.test.js",
+  "tests/unit/recoveryIntake.shared.test.js",
+  "tests/unit/recoveryVerdict.validation.test.js",
+  "tests/unit/smsServiceUnderstanding.production.test.js",
+  "tests/unit/smsIntentClassifier.production.test.js",
+  "tests/unit/smsTurnPolicy.marketReadiness.test.js",
+  "tests/unit/smsTurnPolicy.commitmentSafety.production.test.js",
+  "tests/unit/smsConversationFuzz.production.test.js",
+  "tests/unit/smsGoldenCorpus.production.test.js",
+  "tests/unit/smsConversationLease.production.test.js",
+  "tests/unit/smsHandoffAlert.contract.test.js",
+  "tests/unit/smsHandoffProcessorOrdering.contract.test.js",
+  "tests/unit/twilioSmsService.21610.test.js",
+  "tests/unit/distributedLease.loss.production.test.js",
+  "tests/unit/productionHardening.distributedLease.test.js",
+  "tests/unit/smsProcessing.worker.hardening.test.js",
+  "tests/unit/smsProcessingQueue.reclaim.test.js",
+  "tests/unit/smsProcessingQueue.orphanReconciliation.test.js",
+  "tests/unit/voiceAgent.service.test.js",
+  "tests/unit/voiceUnderstanding.service.test.js",
+  "tests/unit/voiceConversationExperience.regression.test.js",
+  "tests/unit/conversationRelay.server.test.js",
+  "tests/unit/communicationSafety.voiceRelayLimits.test.js",
+  "tests/unit/voiceBookingStateMachineReuse.test.js",
+  "tests/unit/voiceCallback.service.test.js",
+  "tests/unit/voiceTransferGuard.service.test.js",
+  "tests/unit/aiBookingPermission.release.test.js",
+  "tests/unit/releaseCommitmentSafety.test.js",
+  "tests/integration/smsRecovery.fullFlow.test.js"
+];
+const result = spawnSync(process.execPath, ["node_modules/jest/bin/jest.js", "--runInBand", ...suites, ...process.argv.slice(2)], { cwd: root, stdio: "inherit", env: process.env });
+if (result.error) console.error(result.error.message);
+process.exitCode = result.status ?? 1;

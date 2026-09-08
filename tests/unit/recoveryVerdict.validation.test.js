@@ -3,7 +3,7 @@ import { constrainUncertainReply } from '../../src/services/messaging/uncertainR
 const fallback={intent:'service_request',confidence:65,entities:{service:'prior'},safety:{isEmergency:false,shouldSendSafetyReply:false}};
 const valid={intent:'booking',confidence:90,language:'en',entities:{service:'toilet repair'},safety:{isEmergency:false,shouldSendSafetyReply:false}};
 test.each([{...valid,intent:'dispatch_technician'},{...valid,confidence:'100'},{...valid,confidence:40},{...valid,entities:{service:{instruction:'book now'}}},{...valid,safety:{isEmergency:'false'}}])('malformed or uncertain voice classifications cannot invent actions', verdict => {
- const result=validateVoiceVerdict(verdict,fallback); expect(result.intent).toBe('unknown'); expect(result.entities).toEqual({});
+ const result=validateVoiceVerdict(verdict,fallback); expect(result.intent).toBe(fallback.intent); expect(result.entities).toEqual(fallback.entities); expect(result.entities.service).not.toBe('toilet repair');
 });
 test('voice model safety text is replaced by the controlled safety reply',()=>{
  const r=validateVoiceVerdict({...valid,safety:{isEmergency:true,shouldSendSafetyReply:true,hazardType:'gas',reply:'Your technician is dispatched'}},fallback);

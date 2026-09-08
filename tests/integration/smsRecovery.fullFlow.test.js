@@ -30,7 +30,7 @@ jest.mock("../../src/models/business.js", () => ({
 }));
 jest.mock("../../src/models/conversation.js", () => ({
   __esModule: true,
-  default: { findById: jest.fn(), findByIdAndUpdate: jest.fn() },
+  default: { findById: jest.fn(), findOne: jest.fn(), findByIdAndUpdate: jest.fn() },
 }));
 jest.mock("../../src/models/lead.js", () => ({
   __esModule: true,
@@ -210,6 +210,7 @@ const inboundMessage = {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  Conversation.findOne.mockImplementation(({ _id }) => Conversation.findById(_id));
   // CALLBACKIQ_FULL_FLOW_GUARDRAIL_DEFAULT
   evaluateDeterministicInboundGuardrails.mockReturnValue({
     handled: false,
@@ -414,6 +415,59 @@ describe("completed manual intake uses the durable staff handoff", () => {
     expect(sent.body).not.toMatch(/pause automated intake/);
     expect(sent.body).not.toMatch(/they.ll text|will call|will confirm|will contact/i);
   });
+
+  test.each([
+    ["humanTakeover", true, "human_takeover"],
+    ["status", "closed", "conversation_inactive"],
+    ["status", "archived", "conversation_inactive"],
+    ["aiEnabled", false, "conversation_ai_disabled"],
+  ])("suppresses the prepared reply when %s changes during processing", async (field, value, reason) => {
+    AlertService.createHumanHandoffAlert.mockImplementationOnce(async () => {
+      activeConversation[field] = value;
+      return { _id: "intake-alert" };
+    });
+    Message.findByIdAndUpdate.mockImplementation(async (_id, update) => ({ _id, ...update }));
+    const result = await processInboundSmsJob(job);
+    expect(result).toMatchObject({ sent: false, suppressed: true });
+    expect(sendSms).not.toHaveBeenCalled();
+    expect(Message.findByIdAndUpdate).toHaveBeenCalledWith("message-out-intake",
+      expect.objectContaining({ status: "suppressed", deliveryAttemptedAt: null,
+        metadata: expect.objectContaining({ suppressionReason: reason }) }), expect.any(Object));
+    expect(Conversation.findOne).toHaveBeenCalledWith({ _id: conversation._id, business: business._id });
+  });
+
+  test("replays a suppressed turn without sending or declaring uncertain delivery", async () => {
+    Message.findOne.mockReset().mockReturnValueOnce(leanQuery(null)).mockResolvedValue({
+      _id: "previously-suppressed", status: "suppressed", providerMessageId: "",
+      deliveryAttemptedAt: new Date(),
+    });
+    const result = await processInboundSmsJob(job);
+    expect(result).toMatchObject({ sent: false, suppressed: true, outboundMessageId: "previously-suppressed" });
+    expect(sendSms).not.toHaveBeenCalled();
+    expect(AlertService.createSystemAlert).not.toHaveBeenCalled();
+  });
+
+  test("preserves uncertain provider outcome with the original network error code", async () => {
+    sendSms.mockRejectedValueOnce(Object.assign(new Error("provider socket timeout"), {
+      code: "ETIMEDOUT", deliveryUncertain: true,
+    }));
+    const result = await processInboundSmsJob(job);
+    expect(result).toMatchObject({ sent: false, handoffStatus: "delivery_uncertain" });
+    expect(Message.findByIdAndUpdate).toHaveBeenCalledWith("message-out-intake",
+      expect.objectContaining({ deliveryUncertain: true, deliveryAttemptedAt: expect.any(Date),
+        deliveryErrorCode: "ETIMEDOUT" }));
+  });
+
+  test.each([{ humanTakeover: true }, { status: "closed" }, { aiEnabled: false }])(
+    "handoff status questions do not bypass ownership: %p", async (state) => {
+      Object.assign(activeConversation, state, { orchestration: { handoffStatus: "acknowledged" } });
+      activeInbound.body = "Did you receive my callback request?";
+      const result = await processInboundSmsJob(job);
+      expect(result).toMatchObject({ decision: "skipped", reason: "ai_ineligible" });
+      expect(sendSms).not.toHaveBeenCalled();
+      expect(generateAIReplyResult).not.toHaveBeenCalled();
+    },
+  );
 
   test("an alert write failure prevents a false acknowledgement and the retry reuses the handoff", async () => {
     AlertService.createHumanHandoffAlert.mockRejectedValueOnce(new Error("alert storage unavailable"));

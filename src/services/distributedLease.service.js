@@ -1,7 +1,30 @@
 import { safeConsole } from "../helpers/logging/safeLogger.js";
 // CALLBACKIQ_PRODUCTION_HARDENING_V1
 import crypto from "crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
 import ProductionOperationLease from "../models/productionOperationLease.js";
+
+const leaseScope = new AsyncLocalStorage();
+
+const leaseLostError = (reason) => Object.assign(new Error(`Distributed lease lost: ${reason}`), { code: "DISTRIBUTED_LEASE_LOST" });
+
+export const invalidateDistributedLease = (reason = "ownership could not be verified") => {
+  const scope = leaseScope.getStore();
+  if (scope && !scope.error) scope.error = leaseLostError(reason);
+};
+
+export const registerDistributedLeaseGuard = (guard) => {
+  const scope = leaseScope.getStore();
+  if (scope && typeof guard === "function") scope.guards.push(guard);
+};
+
+export const assertDistributedLeaseActive = () => {
+  for (let scope = leaseScope.getStore(); scope; scope = scope.parent) {
+    if (!scope.error && Date.now() >= scope.expiresAt) scope.error = leaseLostError("lease expired");
+    if (scope.error) throw scope.error;
+    for (const guard of scope.guards) guard();
+  }
+};
 
 const toPositiveInteger = (value, fallback) => {
   const parsed = Number.parseInt(value, 10);
@@ -52,11 +75,10 @@ export const renewDistributedLease = async (
   ownerToken,
   { ttlMs = 300000 } = {},
 ) => {
-  const expiresAt = new Date(
-    Date.now() + toPositiveInteger(ttlMs, 300000),
-  );
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + toPositiveInteger(ttlMs, 300000));
   const result = await ProductionOperationLease.updateOne(
-    { _id: String(key), ownerToken },
+    { _id: String(key), ownerToken, expiresAt: { $gt: now } },
     { $set: { expiresAt } },
   );
   return result.matchedCount === 1;
@@ -85,40 +107,58 @@ export const withDistributedLease = async (
     return { acquired: false, skipped: true, value: undefined };
   }
 
-  let heartbeatTimer = null;
-  if (heartbeat) {
-    const intervalMs = Math.max(1000, Math.floor(ttlMs / 3));
-    heartbeatTimer = setInterval(() => {
-      void renewDistributedLease(key, lease.ownerToken, { ttlMs }).catch(
-        (error) => {
-          safeConsole.error("Distributed lease heartbeat failed:", {
-            key,
-            error: error?.message || String(error),
-          });
-        },
-      );
-    }, intervalMs);
-    heartbeatTimer.unref?.();
-  }
-
-  try {
-    return {
-      acquired: true,
-      skipped: false,
-      value: await operation(),
-    };
-  } finally {
-    if (heartbeatTimer) clearInterval(heartbeatTimer);
-    await releaseDistributedLease(key, lease.ownerToken).catch((error) => {
-      safeConsole.error("Distributed lease release failed:", {
-        key,
-        error: error?.message || String(error),
+  const duration = toPositiveInteger(ttlMs, 300000);
+  const scope = { guards: [], expiresAt: lease.expiresAt.getTime(), error: null, parent: leaseScope.getStore() };
+  return leaseScope.run(scope, async () => {
+    let heartbeatTimer = null;
+    let renewing = false;
+    let finished = false;
+    let heartbeatInFlight = Promise.resolve();
+    if (heartbeat) {
+      heartbeatTimer = setInterval(() => {
+        if (renewing || finished || scope.error) return;
+        renewing = true;
+        heartbeatInFlight = leaseScope.run(scope, async () => {
+          const startedAt = Date.now();
+          try {
+            assertDistributedLeaseActive();
+            const renewed = await renewDistributedLease(key, lease.ownerToken, { ttlMs: duration });
+            // A late response must not restore permission to a stalled worker.
+            assertDistributedLeaseActive();
+            if (!renewed) invalidateDistributedLease("renewal no longer owns the lease");
+            else scope.expiresAt = startedAt + duration;
+          } catch (error) {
+            invalidateDistributedLease("renewal failed");
+            safeConsole.error("Distributed lease heartbeat failed:", { key, error: error?.message || String(error) });
+          } finally {
+            renewing = false;
+          }
+        });
+      }, Math.max(25, Math.floor(duration / 3)));
+      heartbeatTimer.unref?.();
+    }
+    try {
+      assertDistributedLeaseActive();
+      const value = await operation();
+      await heartbeatInFlight;
+      assertDistributedLeaseActive();
+      return { acquired: true, skipped: false, value };
+    } finally {
+      finished = true;
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
+      // Detached continuations must also fail their next assertion.
+      if (!scope.error) scope.error = leaseLostError("operation finished");
+      await releaseDistributedLease(key, lease.ownerToken).catch((error) => {
+        safeConsole.error("Distributed lease release failed:", { key, error: error?.message || String(error) });
       });
-    });
-  }
+    }
+  });
 };
 
 export default {
+  assertDistributedLeaseActive,
+  invalidateDistributedLease,
+  registerDistributedLeaseGuard,
   acquireDistributedLease,
   renewDistributedLease,
   releaseDistributedLease,

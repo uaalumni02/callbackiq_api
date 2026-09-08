@@ -1,5 +1,5 @@
 import { withDeadline } from "../services/boundedRedis.service.js";
-import { withDistributedLease } from "../services/distributedLease.service.js";
+import { withDistributedLease, assertDistributedLeaseActive, invalidateDistributedLease, registerDistributedLeaseGuard } from "../services/distributedLease.service.js";
 // CALLBACKIQ_SCALE_HARDENING_V1
 import {
   claimNextInboundSmsJob,
@@ -53,21 +53,42 @@ const processWithHeartbeat = async (job) => {
     5_000,
     Math.floor(Number(process.env.SMS_PROCESSING_LEASE_MS || 60_000) / 3),
   );
+  const configuredJobTtl = Number(process.env.SMS_PROCESSING_LEASE_MS);
+  const jobTtlMs = Number.isFinite(configuredJobTtl) && configuredJobTtl >= 10_000 ? configuredJobTtl : 60_000;
+  let jobExpiresAt = job.leaseExpiresAt ? new Date(job.leaseExpiresAt).getTime() : Date.now() + jobTtlMs;
+  let heartbeatError = null;
+  registerDistributedLeaseGuard(() => {
+    if (!Number.isFinite(jobExpiresAt) || Date.now() >= jobExpiresAt) throw Object.assign(new Error("SMS job lease expired"), { code: "DISTRIBUTED_LEASE_LOST" });
+    if (heartbeatError) throw heartbeatError;
+  });
+  let heartbeatPending = null;
   const heartbeat = setInterval(() => {
-    void heartbeatInboundSmsJob({
+    if (heartbeatPending || heartbeatError) return;
+    const startedAt = Date.now();
+    heartbeatPending = heartbeatInboundSmsJob({
       jobId: job._id,
       leaseToken: job.leaseToken,
-    }).catch((error) =>
+    }).then((result) => {
+      if (Date.now() >= jobExpiresAt || (result !== true && result?.matchedCount !== 1)) throw Object.assign(new Error("SMS job lease lost"), { code: "DISTRIBUTED_LEASE_LOST" });
+      jobExpiresAt = startedAt + jobTtlMs;
+    }).catch((error) => {
+      heartbeatError = Object.assign(new Error("SMS job lease could not be renewed"), { code: "DISTRIBUTED_LEASE_LOST", cause: error });
+      invalidateDistributedLease("SMS job lease could not be renewed");
       logOperationalError("sms.processing_worker.heartbeat_failed", error, {
         jobId: job._id,
         businessId: job.business,
-      }),
-    );
+      });
+    }).finally(() => { heartbeatPending = null; });
   }, heartbeatEveryMs);
   heartbeat.unref?.();
 
   try {
-    return await safelyProcessInboundSmsJob(job);
+    assertDistributedLeaseActive();
+    const result = await safelyProcessInboundSmsJob(job);
+    await heartbeatPending;
+    if (heartbeatError) throw heartbeatError;
+    assertDistributedLeaseActive();
+    return result;
   } finally {
     clearInterval(heartbeat);
   }
@@ -77,7 +98,13 @@ const processClaimedJob = async (job) => {
   try {
     const lease = await withDistributedLease(
       `sms-conversation:${job.conversation}`,
-      () => processWithHeartbeat(job),
+      async () => {
+        const result = await processWithHeartbeat(job);
+        assertDistributedLeaseActive();
+        const completed = await completeInboundSmsJob({ jobId: job._id, leaseToken: job.leaseToken, result });
+        if (!completed) throw Object.assign(new Error("SMS job completion lost its lease"), { code: "DISTRIBUTED_LEASE_LOST" });
+        return result;
+      },
       {
         ttlMs: Math.max(
           15_000,
@@ -101,12 +128,7 @@ const processClaimedJob = async (job) => {
       return;
     }
 
-    const result = lease.value;
-    await completeInboundSmsJob({
-      jobId: job._id,
-      leaseToken: job.leaseToken,
-      result,
-    });
+
   } catch (error) {
     const failed = await failInboundSmsJob({
       job,

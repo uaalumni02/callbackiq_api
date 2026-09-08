@@ -1,3 +1,6 @@
+import { getApprovedServiceEstimate } from './approvedServiceEstimate.service.js';
+import { logOperationalError } from '../../helpers/logging/safeLogger.js';
+import { pricingReply } from '../messaging/smsTurnPolicy.service.js';
 import { classifySmsIntent } from '../messaging/smsIntentClassifier.service.js';
 import { findDateRange, parseTimePreference, filterSlotsByTimePreference } from './appointmentPreferenceParser.service.js';
 import searchServices from '../../helpers/ai/tools/searchServices.tool.js';
@@ -5,14 +8,16 @@ import getAvailability from '../../helpers/ai/tools/getAvailability.tool.js';
 import validateServiceArea from '../../helpers/ai/tools/validateServiceArea.tool.js';
 import AlertService from '../alert.service.js';
 import { isConfirmationQuestion } from './conversationQuestions.service.js';
+import { assertDistributedLeaseActive } from '../distributedLease.service.js';
 import { assertVoiceTurnActive } from '../voiceTurnContext.service.js';
 
 const clean = value => String(value || '').replace(/\s+/g, ' ').trim();
 const known = value => clean(value) && !/^(unknown|not provided|n\/a)$/i.test(clean(value));
 const leak = /\b(?:leak(?:ing|s)?|overflow(?:ing)?|water spreading)\b/i;
 const active = /\b(?:(?:actively|still|currently) (?:leaking|overflowing)|(?:leaking|overflowing) right now|won't stop leaking|will not stop leaking|overflowing|spreading|gushing|flooding)\b/i;
-const stopped = /\b(?:not leaking|no (?:active )?leak|stopped leaking|leak(?:ing)? (?:has )?stopped|no longer leaking|only when|only (?:leaks|leaking))\b/i;
-const bypass = /\b(?:stop|unsubscribe|help|cancel|reschedule|call me|human|representative|speak to|talk to|gas|smoke|sparking|fire|injured|911|waitlist|wait list|emergency time|how much|price|pricing|cost|hours|open|close)\b/i;
+const stopped = /\b(?:(?:not|no longer|stopped) (?:leaking|overflowing|flooding|spreading|gushing)|no (?:active )?(?:leak|overflow|flooding)|(?:leak(?:ing)?|overflow(?:ing)?) (?:has )?stopped|only when|only (?:leaks|leaking|overflows|overflowing))\b/i;
+const controlMessage = /^(?:stop|unsubscribe|help|start|unstop)[.! ]*$/i;
+const businessHoursQuestion = /\b(?:what (?:are|time)|when (?:are|do|will)).{0,35}\b(?:hours|open|close)\b/i;
 const addressFrom = text => {
   const value = clean(text).replace(/^(?:my |the )?address is\s+/i, '').replace(/^(?:i am at|i'm at|we are at|we're at|at)\s+/i, '');
   return /^\d{1,7}[a-z]?\s+.+\b(?:st(?:reet)?|ave(?:nue)?|rd|road|dr(?:ive)?|ln|lane|ct|court|blvd|boulevard|way|pkwy|parkway|place|pl|circle|cir|trail|trl|terrace|ter|highway|hwy)\b/i.test(value) ? value.slice(0, 500) : '';
@@ -32,7 +37,7 @@ const slotLabel = (slot, timezone) => new Intl.DateTimeFormat('en-US', {
 
 // This layer captures facts and reads scheduling data. It never creates an appointment.
 // The existing booking engine still owns every automatically booked appointment.
-export const handleRecoveryIntake = async ({ business, lead, conversation, customerMessage, channel = 'sms', session = null, turnId = '', now = new Date() }) => {
+export const handleRecoveryIntake = async ({ business, lead, conversation, customerMessage, channel = 'sms', session = null, turnId = '', semanticAssessment = null, now = new Date() }) => {
   const text = clean(customerMessage);
   if (!text || !lead || !conversation || conversation.humanTakeover || ['closed', 'archived'].includes(conversation.status)) return null;
   if (isConfirmationQuestion(text) && !/\b(?:cancel|reschedule|call me|human)\b/i.test(text)) {
@@ -42,22 +47,30 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   }
   // Persistence is mandatory; callers without a durable context use the established flow.
   if (typeof lead.save !== 'function' || typeof conversation.save !== 'function') return null;
-  if (bypass.test(text) || conversation.orchestration?.handoffReason) return null;
+  const classification = classifySmsIntent({ business, lead, conversation, customerMessage: text, now });
+  if (controlMessage.test(text) || businessHoursQuestion.test(text) ||
+      ['human', 'callback', 'cancel', 'reschedule', 'status', 'availabilityInquiry'].some(intent => classification.intents?.[intent])) return null;
   if (channel === 'voice' && (session?.metadata?.callbackCapture?.status || session?.metadata?.currentUnderstanding?.language === 'es' || session?.metadata?.currentUnderstanding?.language === 'other')) return null;
   if (['offering_slots', 'awaiting_confirmation', 'booking', 'pending_business_confirmation', 'booked', 'human_takeover'].includes(conversation.bookingState?.status)) return null;
-  const checkActive = () => { if (channel === 'voice') assertVoiceTurnActive(); };
+  const checkActive = () => { assertDistributedLeaseActive(); if (channel === 'voice') assertVoiceTurnActive(); };
   const timezone = business.timezone || 'America/New_York';
   const journeyKey = conversation.orchestration?.recoveryJourneyKey || '';
   const oldState = conversation.conversationMemory?.recoveryIntake;
   const state = oldState?.journeyKey === journeyKey ? { ...oldState } : { journeyKey };
-  if (state.submitted) return fixed('Your service request is saved for team review. The appointment still needs business confirmation.', lead);
-  const classification = classifySmsIntent({ business, conversation, customerMessage: text, now });
-  const service = classification.entities?.serviceNeeded;
+  // Semantic evidence uses the existing metered, schema-validated qualification.
+  // It describes the request; it never authorizes a service, price or booking.
+  const semantic = semanticAssessment?.isInScope === true &&
+    Number.isFinite(semanticAssessment.confidence) && semanticAssessment.confidence >= 60 &&
+    !semanticAssessment.guardrail?.usedFallback && !(semanticAssessment.riskFlags?.length) &&
+    (!semanticAssessment.decision || ['send', 'send_ai_response', 'send_fixed_response'].includes(semanticAssessment.decision))
+    ? semanticAssessment : null;
+  const service = classification.entities?.serviceNeeded || (typeof semantic?.serviceNeeded === 'string' ? clean(semantic.serviceNeeded).slice(0, 160) : '');
   if (!state.started && !known(service) && !classification.intents?.scheduling && !addressFrom(text)) return null;
   state.started = true;
-  if (known(service) && (!known(lead.serviceNeeded) || classification.intents?.correction)) lead.serviceNeeded = service;
+  if (state.submitted && state.failures >= 2 && known(service)) { state.submitted = false; state.failures = 0; }
+  if (known(service) && (!known(lead.serviceNeeded) || classification.intents?.correction || classification.intents?.newService)) lead.serviceNeeded = service;
   if (!known(lead.serviceNeeded)) return null;
-  const address = addressFrom(text);
+  const address = addressFrom(text) || (typeof semantic?.address === 'string' ? addressFrom(semantic.address) : '');
   if (address) lead.address = address;
   if (!address && /^\d{5}(?:-\d{4})?$/.test(text) && known(lead.address) && !/\b\d{5}\b/.test(lead.address)) lead.address = `${lead.address}, ${text}`;
 
@@ -67,6 +80,21 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   if (incomingTime.targetMinutes !== null || incomingTime.timeOfDay) state.time = incomingTime.exactMinutes !== null ? `${Math.floor(incomingTime.exactMinutes / 60)}:${String(incomingTime.exactMinutes % 60).padStart(2, '0')}` : incomingTime.raw.slice(0, 300);
   if (state.date || state.time) lead.preferredAppointmentTime = [state.date, state.time].filter(Boolean).join(' at ');
 
+  // Keep new detail even if the canonical service remains unchanged. It is
+  // bounded, scoped to this recovery journey, and explicitly customer evidence.
+  if (known(service)) {
+    state.serviceDetail = service;
+    state.serviceSourceTurnId = String(turnId);
+  }
+  const wasTriageResolved = state.triageResolved;
+  if (active.test(text) && !stopped.test(text)) {
+    state.triageResolved = true;
+    state.triagePending = false;
+    if (lead.urgency !== 'emergency') lead.urgency = 'high';
+  } else if (state.triageResolved && /\b(?:now|again|started|worse)\b/i.test(text) && leak.test(text) && !stopped.test(text)) {
+    state.triageResolved = false;
+    state.triageAsked = false;
+  }
   const contextHasLeak = leak.test(`${lead.serviceNeeded} ${text}`);
   if (state.triagePending) {
     if (stopped.test(text) || /^(?:no|nope)[.! ]*$/i.test(text)) { state.triagePending = false; state.triageResolved = true; }
@@ -76,6 +104,22 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
     if (stopped.test(text) || active.test(text)) { state.triageResolved = true; if (!stopped.test(text) && lead.urgency !== 'emergency') lead.urgency = 'high'; }
     else state.triagePending = true;
   }
+  const understoodAnswer = Boolean(known(service) || address || incomingRange ||
+    incomingTime.targetMinutes !== null || incomingTime.timeOfDay ||
+    state.triageResolved !== wasTriageResolved || stopped.test(text) || active.test(text));
+  // An unanswered field is not proof the customer was unintelligible. Let the
+  // existing semantic pipeline answer off-script questions or interpret novel
+  // details before choosing a clarification. Do not consume retry budget here.
+  if (!understoodAnswer && !classification.intents?.pricing && !semanticAssessment &&
+      !(/^\d{5}(?:-\d{4})?$/.test(text) && known(lead.address))) return null;
+  let approvedEstimate = '';
+  if (classification.intents?.pricing) {
+    checkActive();
+    try { approvedEstimate = await getApprovedServiceEstimate({ businessId: business._id, serviceNeeded: lead.serviceNeeded, customerMessage: text }); }
+    catch (error) { logOperationalError('intake.price_lookup_failed', error, { businessId: business._id }); }
+    checkActive();
+  }
+  const pricingPrefix = classification.intents?.pricing ? `${approvedEstimate || "I don't have a confirmed price for that work."} ` : '';
   const persist = async () => {
     checkActive(); await lead.save(); checkActive();
     if (conversation.set) conversation.set('conversationMemory.recoveryIntake', state);
@@ -85,7 +129,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   };
   const ask = async (field, reply) => {
     const facts = JSON.stringify([lead.serviceNeeded, lead.address, lead.preferredAppointmentTime, state.triageResolved]);
-    if (!turnId || state.lastTurnId !== String(turnId)) state.failures = state.field === field && state.lastFacts === facts ? Math.min(2, (state.failures || 0) + 1) : 0;
+    if (!turnId || state.lastTurnId !== String(turnId)) state.failures = !understoodAnswer && state.field === field && state.lastFacts === facts ? Math.min(2, (state.failures || 0) + 1) : 0;
     state.lastTurnId = String(turnId);
     state.field = field; state.lastFacts = facts;
     await persist();
@@ -98,11 +142,22 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
       }
       return result;
     }
-    return fixed(reply, lead);
+    return fixed(`${pricingPrefix}${reply}`, lead);
   };
   if (state.triagePending && !state.triageAsked) {
     state.triageAsked = true; await persist();
     return ask('leak_activity', "Is water leaking or overflowing right now, or only when the toilet is used?".replace('the toilet', /toilet/i.test(lead.serviceNeeded) ? 'the toilet' : 'the fixture'));
+  }
+  if (state.submitted) {
+    await persist();
+    return fixed('Your additional details are saved with this conversation. The service request still needs team review.', lead);
+  }
+  // Pricing is a question within intake, not a reason to discard its facts.
+  if (classification.intents?.pricing) {
+    await persist();
+    const priceResponse = pricingReply({ business, lead, triageResolved: state.triageResolved === true });
+    const reply = approvedEstimate ? `${approvedEstimate} ${priceResponse.replace(`For ${clean(lead.serviceNeeded)}, I don't have a confirmed price yet.`, '').trim()}` : priceResponse;
+    return fixed(reply, lead, { messageCategory: 'pricing_request' });
   }
   if (business.features?.aiBookingEnabled === true) {
     if (state.triagePending) return ask('leak_activity', 'Is water leaking right now?');

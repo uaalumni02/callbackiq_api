@@ -21,3 +21,31 @@ test("detects Spanish and extracts a ZIP deterministically", async () => {
   expect(result.language).toBe("es");
   expect(result.entities.postalCode).toBe("30318");
 });
+
+
+test.each([
+  "My bathtub needs resealing. How much is the cost",
+  "Bathtub needs resealing",
+  "Seal around tub needs to be replaced",
+])("captures service evidence without requiring exact booking keywords: %s", async customerMessage => {
+  const { classifyVoiceTurn } = await import("../../src/voice/voiceUnderstanding.service.js");
+  const result = await classifyVoiceTurn({ customerMessage });
+  expect(result.intent).not.toBe("unknown");
+  expect(result.entities.service).toMatch(/seal|tub/i);
+});
+
+test("an invalid or low confidence model result preserves deterministic service evidence", async () => {
+  const { classifyVoiceTurn, validateVoiceVerdict } = await import("../../src/voice/voiceUnderstanding.service.js");
+  const fallback = await classifyVoiceTurn({ customerMessage: "My bathtub needs resealing" });
+  expect(validateVoiceVerdict({}, fallback)).toEqual(fallback);
+  expect(validateVoiceVerdict({ ...fallback, confidence: 12, intent: "unknown" }, fallback)).toEqual(fallback);
+});
+
+
+test("a confident unknown model verdict cannot erase a directly stated service", async () => {
+  const { classifyVoiceTurn, validateVoiceVerdict } = await import("../../src/voice/voiceUnderstanding.service.js");
+  const fallback = await classifyVoiceTurn({ customerMessage: "My bathtub needs resealing" });
+  const result = validateVoiceVerdict({ ...fallback, confidence: 90, intent: "unknown", entities: { ...fallback.entities, service: "" } }, fallback);
+  expect(result.intent).toBe("service_request");
+  expect(result.entities.service).toBe(fallback.entities.service);
+});

@@ -3,6 +3,8 @@ import twilio from "twilio";
 
 import Business from "../models/business.js";
 import TrackingNumber from "../models/trackingNumber.js"; // CALLBACKIQ_MARKETING_ATTRIBUTION_V1
+import { getSmsAutomationSuppressionReason } from "./messaging/smsAutomationDispatchPolicy.service.js";
+import { assertDistributedLeaseActive } from "./distributedLease.service.js";
 import normalizePhone from "../helpers/normalizePhone.js";
 import { isSmsSuppressed, optOutSms } from "./messaging/contactPreference.service.js";
 import { recordOutboundSmsAudit } from "./outboundSmsAudit.service.js";
@@ -416,6 +418,24 @@ export const sendSms = async ({
       }
     }
 
+    if (source === "inbound_sms_reply") {
+      const reason = await getSmsAutomationSuppressionReason({
+        businessId: resolvedBusinessId, conversationId, leadId, to: normalizedTo,
+        isAiGenerated: metadata.aiGenerated !== false,
+      });
+      if (reason) {
+        await releaseCommunicationUsageReservation({ reservation: lifecycle?.reservation, usage, reason });
+        await releaseSmsContactDisclosure({ claim: disclosure.claim });
+        await safeAudit({ businessId: resolvedBusinessId, actorId, actorType, source,
+          usageCategory, conversationId, leadId, from: configuredFrom, to: normalizedTo,
+          body: normalizedBody, status: "suppressed", reason,
+          metadata: { ...metadata, segment, sendWindow, operationKey } });
+        return { sid: "", status: "suppressed", suppressed: true, reason,
+          to: normalizedTo, from: configuredFrom, body: normalizedBody, usage, ...segment };
+      }
+    }
+
+    assertDistributedLeaseActive();
     const client = getTwilioClient();
     const configuredMessagingServiceSid = String(messagingServiceSid || "").trim();
     const statusCallback = getStatusCallback();

@@ -1,4 +1,4 @@
-import { constrainUncertainReply } from "./messaging/uncertainReply.service.js";
+import { constrainUncertainReply, qualifiedIntakeFacts } from "./messaging/uncertainReply.service.js";
 import { handleRecoveryIntake } from "./booking/recoveryIntake.service.js";
 import {
   SAFE_REPLIES,
@@ -172,6 +172,7 @@ export const generateAIReplyResult = async ({
       customerMessage: latestCustomerMessage,
       business,
       conversation,
+      lead,
     });
     turnUrgency = turnClassification?.entities?.urgency || "";
 
@@ -196,7 +197,10 @@ export const generateAIReplyResult = async ({
      * customer to repeat information would be objectively wrong. Booking
      * remains authoritative whenever aiBookingEnabled is on.
      */
-    if (smsTurnPolicy.directResult) {
+    const pricingNeedsUnderstanding = smsTurnPolicy.intent?.pricing &&
+      !smsTurnPolicy.serviceNeeded &&
+      (!cleanText(lead?.serviceNeeded) || /^(unknown|not provided|n\/a)$/i.test(cleanText(lead?.serviceNeeded)));
+    if (smsTurnPolicy.directResult && !pricingNeedsUnderstanding) {
       return preserveTurnUrgency(smsTurnPolicy.directResult, turnUrgency);
     }
 
@@ -244,12 +248,33 @@ export const generateAIReplyResult = async ({
       }),
       buildAIConfigurationContext(business),
     ]);
+    const qualifiedFacts = qualifiedIntakeFacts(inboundAssessment);
+    // Reuse the metered semantic extraction when deterministic language matching
+    // did not understand a service. The shared intake still owns persistence and
+    // the booking engine remains the only authority for appointment actions.
+    if (Object.keys(qualifiedFacts).length) {
+      const semanticIntake = await handleRecoveryIntake({
+        business, lead, conversation, customerMessage: latestCustomerMessage,
+        semanticAssessment: inboundAssessment,
+        turnId: messages.filter(message => message.direction === "inbound").at(-1)?._id || "",
+      });
+      if (semanticIntake) return preserveTurnUrgency(semanticIntake, turnUrgency);
+    }
+    const understoodLead = Object.keys(qualifiedFacts).length
+      ? { ...(typeof lead?.toObject === "function" ? lead.toObject() : lead), ...qualifiedFacts }
+      : lead;
+    const understoodPolicy = Object.keys(qualifiedFacts).length
+      ? evaluateSmsTurnPolicy({ customerMessage: latestCustomerMessage, business, lead: understoodLead, conversation })
+      : smsTurnPolicy;
+    if (pricingNeedsUnderstanding && understoodPolicy.directResult && qualifiedFacts.serviceNeeded) {
+      return preserveTurnUrgency({ ...understoodPolicy.directResult, ...qualifiedFacts }, turnUrgency);
+    }
     const agentResult = await runFollowUpAgent({
       business,
       businessName: business?.businessName,
       businessType: business?.businessType || "other",
       customerMessage: latestCustomerMessage,
-      lead,
+      lead: understoodLead,
       recentMessages: messages,
       inboundAssessment,
       businessConfiguration,
@@ -260,12 +285,12 @@ export const generateAIReplyResult = async ({
 
     const policyResult = applySmsTurnPolicy({
       result: agentResult,
-      policy: smsTurnPolicy,
+      policy: understoodPolicy,
       business,
       lead,
       conversation,
     });
-    return preserveTurnUrgency(await constrainUncertainReply({ result: policyResult, lead, conversation, turnId: messages.filter(message => message.direction === "inbound").at(-1)?._id || "" }), turnUrgency);
+    return preserveTurnUrgency(await constrainUncertainReply({ result: policyResult, lead, conversation, inboundAssessment, turnId: messages.filter(message => message.direction === "inbound").at(-1)?._id || "" }), turnUrgency);
   } catch (error) {
     logOperationalError("ai_reply.generation_failed", error, {
       businessId: business?._id || business?.id,

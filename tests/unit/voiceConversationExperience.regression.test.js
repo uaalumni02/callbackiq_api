@@ -40,11 +40,4 @@ describe("voice conversation experience regression", () => {
     expect(spokenReturns).not.toContain("America/New_York");
     expect(spokenReturns).not.toContain("${timeZone}");
   });
-  test("unmatched questions receive several guided turns before callback recovery", () => {
-    const source = read("src/voice/voiceAgent.service.js");
-    expect(source).toContain("MAX_UNMATCHED_TURNS_BEFORE_CALLBACK = 4");
-    expect(source).toContain(
-      "guard.fallbackTurnCount >= MAX_UNMATCHED_TURNS_BEFORE_CALLBACK",
-    );
-  });
 });

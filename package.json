@@ -134,7 +134,8 @@
     "test:scale-readiness": "jest tests/unit/scaleReadiness.hardening.test.js tests/unit/socketSession.hardening.test.js tests/unit/durableWebhookWork.hardening.test.js --runInBand",
     "perf:mixed-scale": "node perf/mixed-scale.mjs",
     "test:durable-persistence": "jest tests/integration/durableWebhookWork.persistence.test.js --runInBand",
-    "audit:history": "node scripts/audit-secret-history.mjs"
+    "audit:history": "node scripts/audit-secret-history.mjs",
+    "test:sms-voice-release": "node scripts/verify-sms-voice-conversation-release.mjs"
   },
   "keywords": [],
   "author": "",

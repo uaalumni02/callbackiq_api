@@ -1,3 +1,4 @@
+import ServiceOffering from "../../src/models/serviceOffering.js";
 import Appointment from "../../src/models/appointment.js";
 import searchServicesTool from "../../src/helpers/ai/tools/searchServices.tool.js";
 import sendConfirmationSmsTool from "../../src/helpers/ai/tools/sendConfirmationSms.tool.js";
@@ -139,6 +140,79 @@ describe("VoiceAgentService callback-first recovery", () => {
     searchServicesTool.mockResolvedValue([]);
     VoiceAvailabilityService.isBusinessOpen.mockResolvedValue(true);
     Appointment.findById.mockResolvedValue(null);
+  });
+
+  test("unknown classification cannot reject an active callback field answer", async () => {
+    const session = makeSession();
+    VoiceUnderstandingService.classifyVoiceTurn.mockResolvedValue({ intent: "unknown", safety: { isEmergency: false }, entities: {} });
+    VoiceCallbackService.isActive.mockReturnValue(true);
+    await VoiceAgentService.handlePrompt({ session, customerMessage: "Adam Beahan" });
+    await VoiceAgentService.handlePrompt({ session, customerMessage: "123 Peachtree Street" });
+    expect(VoiceCallbackService.handle).toHaveBeenCalledTimes(2);
+    expect(VoiceCallbackService.handle.mock.calls.every(([args]) => args.reason === undefined)).toBe(true);
+  });
+
+  test("unknown classification still permits repeating the previous question", async () => {
+    const session = makeSession();
+    session.transcript.push({ role: "assistant", text: "What is the service address?" });
+    VoiceUnderstandingService.classifyVoiceTurn.mockResolvedValue({ intent: "unknown", safety: { isEmergency: false }, entities: {} });
+    const result = await VoiceAgentService.handlePrompt({ session, customerMessage: "Could you repeat that?" });
+    expect(result.reply).toContain("What is the service address?");
+    expect(VoiceCallbackService.handle).not.toHaveBeenCalled();
+  });
+
+  test("unknown classification still routes an active booking slot answer", async () => {
+    const session = makeSession();
+    session.conversation.bookingState.status = "collecting_location";
+    VoiceUnderstandingService.classifyVoiceTurn.mockResolvedValue({ intent: "unknown", safety: { isEmergency: false }, entities: {} });
+    BookingStateMachineService.handle.mockResolvedValue({ handled: true, result: { reply: "What day works for you?" } });
+    const result = await VoiceAgentService.handlePrompt({ session, customerMessage: "123 Peachtree Street" });
+    expect(BookingStateMachineService.handle).toHaveBeenCalledWith(expect.objectContaining({ customerMessage: "123 Peachtree Street" }));
+    expect(result.reply).toContain("What day works for you?");
+  });
+
+  test("genuinely unmatched turns have bounded recovery after contextual routing", async () => {
+    const session = makeSession();
+    VoiceUnderstandingService.classifyVoiceTurn.mockResolvedValue({ intent: "unknown", safety: { isEmergency: false }, entities: {} });
+    const first = await VoiceAgentService.handlePrompt({ session, customerMessage: "Purple yesterday sideways" });
+    expect(first.reply).toContain("What do you need help with?");
+    expect(VoiceCallbackService.handle).not.toHaveBeenCalled();
+    await VoiceAgentService.handlePrompt({ session, customerMessage: "Triangle of Thursday" });
+    expect(VoiceCallbackService.handle).toHaveBeenCalledWith(expect.objectContaining({ reason: "low_ai_confidence" }));
+  });
+
+  test("does not quote a sole unrelated diagnostic offering", async () => {
+    searchServicesTool.mockResolvedValue([{ id: "service-1", name: "Water heater", score: 0 }]);
+    const result = await VoiceAgentService.handlePrompt({ session: makeSession(), customerMessage: "What is the bathtub diagnostic fee?" });
+    expect(result.reply).toContain("don’t have a verified diagnostic fee");
+    expect(ServiceOffering.findOne).not.toHaveBeenCalled();
+  });
+
+  test("quotes an explicitly approved diagnostic fee from one positive tenant match", async () => {
+    searchServicesTool.mockResolvedValue([{ id: "service-1", name: "Bathtub inspection", score: 2 }]);
+    ServiceOffering.findOne.mockResolvedValue({ name: "Bathtub inspection", aiCanDiscuss: true, discloseDiagnosticFee: true, diagnosticFee: 75 });
+    const result = await VoiceAgentService.handlePrompt({ session: makeSession(), customerMessage: "What is the bathtub diagnostic fee?" });
+    expect(result.reply).toContain("$75");
+    expect(ServiceOffering.findOne).toHaveBeenCalledWith({ _id: "service-1", business: "business-1", active: true, aiCanDiscuss: true });
+  });
+
+  test.each([
+    { aiCanDiscuss: false, discloseDiagnosticFee: true, diagnosticFee: 75 },
+    { aiCanDiscuss: true, discloseDiagnosticFee: "true", diagnosticFee: 75 },
+    { aiCanDiscuss: true, discloseDiagnosticFee: true, diagnosticFee: -10 },
+    { aiCanDiscuss: true, discloseDiagnosticFee: true, diagnosticFee: "75" },
+  ])("does not quote an unapproved or invalid diagnostic fee: %j", async fields => {
+    searchServicesTool.mockResolvedValue([{ id: "service-1", score: 1 }]);
+    ServiceOffering.findOne.mockResolvedValue({ name: "Bathtub inspection", ...fields });
+    const result = await VoiceAgentService.handlePrompt({ session: makeSession(), customerMessage: "What is the bathtub diagnostic fee?" });
+    expect(result.reply).toContain("don’t have a verified diagnostic fee");
+  });
+
+  test("does not quote an ambiguous diagnostic service match", async () => {
+    searchServicesTool.mockResolvedValue([{ id: "service-1", score: 2 }, { id: "service-2", score: 1 }]);
+    const result = await VoiceAgentService.handlePrompt({ session: makeSession(), customerMessage: "What is the bathtub diagnostic fee?" });
+    expect(result.reply).toContain("don’t have a verified diagnostic fee");
+    expect(ServiceOffering.findOne).not.toHaveBeenCalled();
   });
 
   test.each([false, true])("answers waitlist and emergency questions even during callback intake (%s)", async active => {

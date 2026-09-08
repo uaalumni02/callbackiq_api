@@ -33,6 +33,8 @@ import {
   shouldSendHumanHandoffStatusAcknowledgement,
 } from "./smsHandoff.service.js";
 import { sanitizeUnverifiedStaffCommitments } from "../customerCommitmentSafety.service.js";
+import { getSmsAutomationSuppressionReason } from "./smsAutomationDispatchPolicy.service.js";
+import { assertDistributedLeaseActive } from "../distributedLease.service.js";
 
 const VALID_URGENCIES = new Set(["low", "medium", "high", "emergency"]);
 const SMS_URGENCY_RANK = Object.freeze({
@@ -102,6 +104,7 @@ const persistOutboundReply = async ({
     channel: "sms",
   });
   if (!reply || result?.decision === "no_reply") return { sent: false, reason: "no_reply" };
+  assertDistributedLeaseActive();
 
   const isAiGenerated = result?.guardrail?.skipAI !== true;
   const usageCategory =
@@ -118,6 +121,12 @@ const persistOutboundReply = async ({
 
   if (outbound?.providerMessageId) {
     return { sent: true, duplicate: true, message: outbound };
+  }
+
+  // Suppression is a terminal outcome for this inbound turn, including replay
+  // after a worker restart. Never turn a blocked send into uncertain delivery.
+  if (outbound?.status === "suppressed") {
+    return { sent: false, suppressed: true, duplicate: true, message: outbound };
   }
 
   if (outbound?.deliveryAttemptedAt && !outbound.providerMessageId) {
@@ -185,6 +194,7 @@ const persistOutboundReply = async ({
     }
   }
 
+  assertDistributedLeaseActive();
   const claimed = await Message.findOneAndUpdate(
     {
       _id: outbound._id,
@@ -210,6 +220,21 @@ const persistOutboundReply = async ({
   }
 
   try {
+    assertDistributedLeaseActive();
+    const suppressionReason = await getSmsAutomationSuppressionReason({
+      businessId: business._id, conversationId: conversation._id,
+      leadId: lead._id, to: conversation.customerPhone, isAiGenerated,
+    });
+    if (suppressionReason) {
+      outbound = await Message.findByIdAndUpdate(claimed._id, {
+        status: "suppressed", deliveryStatus: "suppressed",
+        deliveryAttemptedAt: null, deliveryUncertain: false,
+        deliveryErrorMessage: suppressionReason,
+        metadata: { ...claimed.metadata, suppressionReason },
+      }, { returnDocument: "after", runValidators: true });
+      SocketService.emitMessageCreated(business._id, outbound);
+      return { sent: false, suppressed: true, reason: suppressionReason, message: outbound };
+    }
     const sent = await sendSms({
       business,
       businessId: business._id,
@@ -247,6 +272,7 @@ const persistOutboundReply = async ({
         body: sent?.body || reply,
         status,
         deliveryStatus: status,
+        ...(sent?.suppressed === true ? { deliveryAttemptedAt: null, deliveryUncertain: false } : {}),
         encoding: sent?.encoding || "",
         segmentCount: sent?.segmentCount || 1,
         deliveryErrorCode: sent?.providerCode ? String(sent.providerCode) : "",
@@ -283,7 +309,7 @@ const persistOutboundReply = async ({
     });
     return { sent: true, message: outbound };
   } catch (error) {
-    const uncertain = [
+    const uncertain = error?.deliveryUncertain === true || [
       "SMS_PROVIDER_OUTCOME_UNCERTAIN",
       "SMS_DELIVERY_RECONCILIATION_REQUIRED",
     ].includes(String(error?.code || ""));
@@ -396,6 +422,16 @@ export const processInboundSmsJob = async (job) => {
   const handoffStatusQuestion =
     handoffLifecycleActive &&
     isHumanHandoffStatusQuestion(customerTurn.customerMessage);
+
+  // A status question must not bypass explicit staff ownership or closure.
+  if (conversation.humanTakeover === true || conversation.aiEnabled === false ||
+      ["closed", "archived"].includes(conversation.status)) {
+    await completeCoalescedJobs({
+      conversationId: conversation._id, primaryJobId: job._id,
+      primaryMessageId: inboundMessage._id, turnMessageIds: customerTurn.turnMessageIds,
+    });
+    return { decision: "skipped", reason: "ai_ineligible" };
+  }
 
   if (handoffStatusQuestion && !deterministicAssessment.handled) {
     if (!shouldSendHumanHandoffStatusAcknowledgement({ conversation })) {
@@ -531,6 +567,7 @@ export const processInboundSmsJob = async (job) => {
         business, lead, conversation, messages, inboundMessage: effectiveInboundMessage,
       });
   let result = orchestration.result || {};
+  assertDistributedLeaseActive();
   let handoffRequired = requiresHumanHandoff(result);
   const urgentOperational = isUrgentOperationalResult(result);
 
@@ -587,6 +624,7 @@ export const processInboundSmsJob = async (job) => {
       })
     : {};
 
+  assertDistributedLeaseActive();
   updatedConversation = await Conversation.findByIdAndUpdate(
     updatedConversation._id,
     { $set: { ...statePatch, ...pendingHandoffPatch } },

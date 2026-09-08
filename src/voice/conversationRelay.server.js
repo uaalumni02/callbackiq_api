@@ -293,6 +293,16 @@ export const initializeConversationRelayServer = (
     let dtmfBuffer = "";
     let consecutiveTurnFailures = 0;
     let currentTurn = 0;
+    let activeTurnController = null;
+    let callerInputRevision = 0;
+
+    const invalidateActiveTurn = () => {
+      if (!activeTurnController || activeTurnController.signal.aborted) return;
+      currentTurn += 1;
+      const error = new Error("Caller input superseded the active voice turn.");
+      error.code = "VOICE_STALE_TURN";
+      activeTurnController.abort(error);
+    };
 
     const releasePending = () => {
       /*
@@ -703,11 +713,17 @@ export const initializeConversationRelayServer = (
       let settled = false;
       const turnId = ++currentTurn;
       const abortController = new AbortController();
+      activeTurnController = abortController;
       const softTimer = schedule(() => {
         if (!settled && turnId === currentTurn) void sendAssistantText("One moment.", { preemptible: true });
       }, softTurnTimeoutMs);
       let hardTimer;
+      let abortListener;
       try {
+        const cancellationPromise = new Promise((_, reject) => {
+          abortListener = () => reject(abortController.signal.reason);
+          abortController.signal.addEventListener("abort", abortListener, { once: true });
+        });
         const timeoutPromise = new Promise((_, reject) => {
           hardTimer = schedule(() => {
             const timeoutError = createTurnTimeoutError();
@@ -724,7 +740,7 @@ export const initializeConversationRelayServer = (
           },
           () => voiceAgentService.handlePrompt({ session, customerMessage, signal: abortController.signal, turnId }),
         ));
-        const result = await Promise.race([agentPromise, timeoutPromise]);
+        const result = await Promise.race([agentPromise, timeoutPromise, cancellationPromise]);
         settled = true;
         if (turnId !== currentTurn || abortController.signal.aborted) {
           const error = new Error("A newer voice turn superseded this result.");
@@ -732,11 +748,12 @@ export const initializeConversationRelayServer = (
           throw error;
         }
         if (session?._id) void voiceMetricsService.recordVoiceMetric({ sessionId: session._id, event: "full_turn_latency_ms", value: Date.now() - turnStartedAt });
-        return result || {};
+        return { result: result || {}, turnId };
       } finally {
         settled = true;
         clearTimer(softTimer);
         clearTimer(hardTimer);
+        abortController.signal.removeEventListener("abort", abortListener);
       }
     };
 
@@ -746,6 +763,7 @@ export const initializeConversationRelayServer = (
       // A finalized caller turn proves the caller is present. Do not let
       // no-input timers run while dependencies process the request.
       clearIdleTimers();
+      const inputRevision = callerInputRevision;
       const inputFinalizedAt = Date.now();
       session.metadata = { ...(session.metadata || {}), lastInputAtMs: inputFinalizedAt };
       await appendTranscriptSafely({ role: "customer", text });
@@ -772,10 +790,13 @@ export const initializeConversationRelayServer = (
         });
       }
 
-      let result;
+      if (inputRevision !== callerInputRevision) return;
+      let completedTurn;
       try {
-        result = await runAgentTurn(text);
+        completedTurn = await runAgentTurn(text);
       } catch (error) {
+        // Barge-in is normal conversation, not a dependency failure.
+        if (error?.code === "VOICE_STALE_TURN") return;
         // Do not start a second copy of a timed-out turn. Promise.race cannot
         // cancel an already-running dependency, and retrying it concurrently can
         // duplicate side effects even when downstream booking is idempotent.
@@ -784,12 +805,13 @@ export const initializeConversationRelayServer = (
           isTransientDependencyError(error)
         ) {
           try {
-            result = await runAgentTurn(text);
+            completedTurn = await runAgentTurn(text);
           } catch (retryError) {
             error = retryError;
           }
         }
-        if (!result) {
+        if (error?.code === "VOICE_STALE_TURN") return;
+        if (!completedTurn) {
           if (error?.code === "VOICE_ADMISSION_FULL") { await failGracefully(error); return; }
           consecutiveTurnFailures += 1;
           logOperationalError("conversation_relay.turn_failed", error, {
@@ -813,14 +835,18 @@ export const initializeConversationRelayServer = (
         }
       }
 
+      if (completedTurn.turnId !== currentTurn || intentionalEnd || failureStarted || transportClosed) return;
+      const result = completedTurn.result;
       consecutiveTurnFailures = 0;
       const reply = sanitizeUnverifiedStaffCommitments(result?.reply, {
         channel: "voice",
       });
       if (reply) await sendAssistantText(reply);
+      if (completedTurn.turnId !== currentTurn || intentionalEnd || failureStarted || transportClosed) return;
       if (result?.outcome) {
         await voiceOutcomeService.commitVoiceOutcome({ sessionId: session._id, outcome: result.outcome, metadata: { source: "voice_agent_result" } });
       }
+      if (completedTurn.turnId !== currentTurn || intentionalEnd || failureStarted || transportClosed) return;
       if (!result?.handoff) armIdleTimersAfterReply(reply);
       if (result?.handoff) {
         intentionalEnd = true;
@@ -1198,6 +1224,24 @@ export const initializeConversationRelayServer = (
     }, handshakeTimeoutMs);
 
     socket.on("message", (raw) => {
+      // Observe barge-in before queued dependency work settles. Keep frame
+      // processing serialized, but immediately fence obsolete turn side effects.
+      if (setupReceived && session && Buffer.byteLength(raw) <= MAX_FRAME_BYTES) {
+        try {
+          const frame = JSON.parse(raw.toString("utf8"));
+          if (frame && typeof frame === "object" && (
+            frame.type === "interrupt" ||
+            (frame.type === "prompt" && String(frame.voicePrompt || "").trim()) ||
+            (frame.type === "dtmf" && /^[0-9*#]$/.test(String(frame.digit || "")))
+          )) {
+            callerInputRevision += 1;
+            clearIdleTimers();
+            invalidateActiveTurn();
+          }
+        } catch {
+          // The normal frame handler records malformed input.
+        }
+      }
       messageChain = messageChain
         .then(() => handleRelayMessage(raw))
         .catch(async (error) => {

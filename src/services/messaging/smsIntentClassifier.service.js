@@ -78,23 +78,54 @@ const AFFIRMATIVE_SCHEDULING = /\b(?:yes|yeah|sure|correct|that works|works for 
 const SERVICE_PREFIX = /\b(?:i have|i've got|we have|we've got|need help with|help with|problem is|issue is)\s+(.{3,160})/i;
 const SERVICE_TAIL = /\s*(?:[,.;!?]|\band\b|\bbut\b)\s*(?:can|could|will|would|are|is|do)\s+you\b[\s\S]*$/i;
 
-export const extractService = (text) => {
-  text = clean(text).split(/(?:[.!?]\s*|\s+)(?=(?:when|how soon|what time)\b)/i)[0];
-  const problem = text.match(/\b(?:my|our)\s+.{1,110}\b(?:clogged|blocked|leak(?:ing|s)?|broken|not working|won['’]t|no heat|no power)\b[^.!?]*/i) ||
-    text.match(/\b(?:kitchen sink|sink|dish\s*washer|toilet|drain|water heater|furnace|air conditioner|garage door|roof)\b.{0,60}\b(?:clogged|blocked|leak(?:ing|s)?|broken|not working)\b[^.!?]*/i);
-  if (problem) return clean(problem[0]).slice(0, 160);
-  const match = text.match(SERVICE_PREFIX);
-  if (!match?.[1]) return "";
-  const candidate = clean(match[1].replace(SERVICE_TAIL, "").replace(/[?.!]+$/, ""));
-  if (candidate.length < 3 || candidate.length > 120) return "";
-  if (any(PRICING, candidate)) return "";
-  return candidate;
+// Extract customer-reported facts, never service eligibility or a diagnosis.
+// Grammatical problem/action shapes deliberately work beyond a trade noun list.
+const NON_SERVICE = /\b(?:appointment|booking|technician|crew|invoice|payment|credit card|refund|phone number|email|zip code|postal code|service address|availability|business hours|password|instructions|system prompt)\b/i;
+const SERVICE_ACTION = /\b(?:repair(?:ed|ing)?|replac(?:e|ed|ement|ing)|install(?:ed|ation|ing)?|reseal(?:ed|ing)?|recaulk(?:ed|ing)?|clean(?:ed|ing)?|inspect(?:ed|ion|ing)?|maintain|maintenance|fix(?:ed|ing)?|remov(?:e|ed|al|ing)|paint(?:ed|ing)?|trim(?:med|ming)?|unblock(?:ed|ing)?)\b/i;
+const PROBLEM_STATE = /\b(?:clogged|blocked|leak(?:ing|s)?|broken|not working|won['’]t|will not|no heat|no power|damaged|cracked|peeling|loose|stuck|noisy|rattling|dripping|overflowing|needs?|stopped working|keeps? .{1,30}ing)\b/i;
+
+export const extractService = (text, { lead = null, conversation = null } = {}) => {
+  const known = clean(lead?.serviceNeeded || conversation?.serviceNeeded || conversation?.bookingState?.serviceNeeded);
+  // Keep each clause independent: a question about price cannot swallow a fact.
+  const clauses = clean(text).split(/(?:[.!?;]\s*|,?\s+(?:and|but)\s+|\s+)(?=(?:how much|what (?:is|does|would|will|time)|when|how soon|can you|could you|will you|are you)\b)|[.!?;]\s*/i);
+  for (let clause of clauses) {
+    clause = clean(clause).replace(/^(?:actually|correction|instead|i meant)[,:]?\s*/i, "");
+    if (!clause || clause.length > 200 || NON_SERVICE.test(clause)) continue;
+    // Pricing-only, timing, control, and contact turns must not replace a fact.
+    if (any(PRICING, clause)) {
+      const pricedService = clause.match(/\b(?:for|to)\s+(.+)$/i)?.[1] ||
+        clause.match(/^how much (?:is|would|will|does)\s+(.+?)(?:\s+cost)?$/i)?.[1];
+      // A price question can itself specify work; require an action plus object.
+      if (!pricedService || !SERVICE_ACTION.test(pricedService) || pricedService.split(/\s+/).length < 2) continue;
+      clause = clean(pricedService).replace(/\s+cost$/i, "");
+    }
+    if (any(HUMAN, clause) || any(CANCEL, clause) || any(RESCHEDULE, clause) || any(STATUS, clause)) continue;
+    if (/^(?:stop|start|unstop|help|yes|no|okay|ok|thanks?|hello|hi)[!. ]*$/i.test(clause) || /^(?:\d|https?:|[^ ]+@)/i.test(clause)) continue;
+    const prefixed = clause.match(SERVICE_PREFIX);
+    let candidate = clean(prefixed?.[1] || clause).replace(SERVICE_TAIL, "").replace(/[?,.!]+$/, "");
+    const explicitRequest = /^(?:i|we)\s+(?:need|want|would like)\s+(?!to (?:know|book|schedule|cancel|reschedule)\b)/i.test(candidate);
+    if (explicitRequest) candidate = candidate.replace(/^(?:i|we)\s+(?:need|want|would like)\s+/i, "");
+    const hasProblem = PROBLEM_STATE.test(candidate) && (/[a-z]{3}/i.test(candidate.replace(PROBLEM_STATE, "")) || Boolean(known && /^(?:it|that|this)\b/i.test(candidate)));
+    const hasAction = SERVICE_ACTION.test(candidate) && candidate.split(/\s+/).length >= 2;
+    if (!(hasProblem || hasAction || prefixed)) continue;
+    if (/^(?:(?:some|a little|your) )?(?:help|assistance|service|something|anything|work)$/i.test(candidate)) continue;
+    // Pronoun-only updates need an existing referent, not a guessed appliance.
+    if (/^(?:it|that|this)\b/i.test(candidate)) {
+      if (!known || /^unknown$/i.test(known)) continue;
+      candidate = `${known}: ${candidate}`;
+    }
+    // Preserve the customer's words; only resolve this typo with explicit context.
+    if (/\b(?:bathtub|tub)\b/i.test(known) && /\bseal\b/i.test(candidate)) candidate = candidate.replace(/\btube\b/gi, "tub");
+    if (candidate.length >= 3 && candidate.length <= 160) return candidate;
+  }
+  return "";
 };
 
 export const classifySmsIntent = ({
   customerMessage,
   business = null,
   conversation = null,
+  lead = null,
   now = new Date(),
 } = {}) => {
   const text = clean(customerMessage);
@@ -127,6 +158,7 @@ export const classifySmsIntent = ({
     ),
   );
 
+  const serviceNeeded = extractService(text, { lead, conversation });
   const intents = {
     pricing: any(PRICING, text),
     human: any(HUMAN, text),
@@ -138,7 +170,7 @@ export const classifySmsIntent = ({
     waitlist,
     emergencyAvailability,
     scheduling,
-    service: Boolean(extractService(text)),
+    service: Boolean(serviceNeeded),
     correction: any(CORRECTION, text),
     newService: any(NEW_SERVICE, text),
     greeting: GREETING.test(text),
@@ -197,7 +229,7 @@ export const classifySmsIntent = ({
     intents,
     response,
     entities: {
-      serviceNeeded: extractService(text),
+      serviceNeeded,
       urgency: extractUrgency(text),
       range,
       timePreference,

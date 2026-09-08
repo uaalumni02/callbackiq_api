@@ -1,3 +1,4 @@
+import { getApprovedServiceEstimate } from '../../src/services/booking/approvedServiceEstimate.service.js';
 import { handleRecoveryIntake } from '../../src/services/booking/recoveryIntake.service.js';
 import searchServices from '../../src/helpers/ai/tools/searchServices.tool.js';
 import getAvailability from '../../src/helpers/ai/tools/getAvailability.tool.js';
@@ -5,6 +6,7 @@ import validateServiceArea from '../../src/helpers/ai/tools/validateServiceArea.
 import AlertService from '../../src/services/alert.service.js';
 import { buildCompletedIntakeResult, shouldCompleteManualIntake } from '../../src/services/messaging/smsHandoff.service.js';
 import { sanitizeUnverifiedStaffCommitments } from '../../src/services/customerCommitmentSafety.service.js';
+jest.mock('../../src/services/booking/approvedServiceEstimate.service.js', () => ({ getApprovedServiceEstimate: jest.fn().mockResolvedValue('') }));
 jest.mock('../../src/helpers/ai/tools/searchServices.tool.js', () => ({ __esModule: true, default: jest.fn() }));
 jest.mock('../../src/helpers/ai/tools/getAvailability.tool.js', () => ({ __esModule: true, default: jest.fn() }));
 jest.mock('../../src/helpers/ai/tools/validateServiceArea.tool.js', () => ({ __esModule: true, default: jest.fn() }));
@@ -19,7 +21,7 @@ function context(channel = 'sms') {
   ctx.turn = customerMessage => handleRecoveryIntake({ ...ctx, customerMessage });
   return ctx;
 }
-beforeEach(() => { jest.clearAllMocks(); validateServiceArea.mockResolvedValue({ supported: true }); searchServices.mockResolvedValue([{ id: 's1' }]); getAvailability.mockResolvedValue({ supportedServiceArea: true, slots: [slot] }); AlertService.createHumanHandoffAlert.mockResolvedValue({ _id: 'a1' }); });
+beforeEach(() => { jest.clearAllMocks(); getApprovedServiceEstimate.mockResolvedValue(''); validateServiceArea.mockResolvedValue({ supported: true }); searchServices.mockResolvedValue([{ id: 's1' }]); getAvailability.mockResolvedValue({ supportedServiceArea: true, slots: [slot] }); AlertService.createHumanHandoffAlert.mockResolvedValue({ _id: 'a1' }); });
 test.each(['sms', 'voice'])('%s captures the toilet transcript without reasking a supplied time', async channel => {
   const c = context(channel);
   expect((await c.turn('Hi my toilet is stopped up and leaking around the seal')).reply).toMatch(/right now/);
@@ -67,15 +69,96 @@ test('out of area does not become a ready appointment request', async () => {
 test.each(["We'll confirm availability soon.","Our team will review and confirm the appointment as soon as possible.","We’ll confirm it soon."] )('shared output guard removes unsupported promise: %s', reply => {
  const safe=sanitizeUnverifiedStaffCommitments(reply); expect(safe).not.toMatch(/soon|as soon as possible/); expect(safe).not.toMatch(/flagged|sent|submitted/);
 });
-test.each(['sms','voice'])('%s stops asking the same field after two unusable answers', async channel => {
+test.each(['sms','voice'])('%s defers unfamiliar answers and off-script questions to semantic understanding', async channel => {
  const c=context(channel); await c.turn('My toilet is clogged');
- expect((await c.turn('purple elephants')).handoff).toBeUndefined();
- const result=await c.turn('the moon tastes blue'); expect(result.handoff.reason).toBe('intake_unclear');
- expect(result.reply).not.toMatch(/service address\?/); if(channel==='voice') expect(AlertService.createHumanHandoffAlert).toHaveBeenCalled();
+ for (const text of ['purple elephants', 'the moon tastes blue', 'Is that work covered under warranty?']) {
+   expect(await c.turn(text)).toBeNull();
+ }
+ expect(c.conversation.conversationMemory.recoveryIntake.failures).toBe(0);
 });
-test('redelivery of a single inbound message does not exhaust clarification attempts', async () => {
- const c=context(); await c.turn('My toilet is clogged');
- const request={...c,customerMessage:'purple elephants',turnId:'same-inbound-message'};
- await handleRecoveryIntake(request); await handleRecoveryIntake(request);
- expect(c.conversation.conversationMemory.recoveryIntake.failures).toBe(1);
+
+test.each(['sms', 'voice'])('%s understands the exact bathtub sequence without losing pricing or service context', async channel => {
+ const c = context(channel);
+ const first = await c.turn('My bathtub needs resealing. How much is the cost');
+ expect(c.lead.serviceNeeded).toMatch(/bathtub.*resealing/i);
+ expect(first.reply).toMatch(/price/i);
+ expect(first.reply).not.toMatch(/what service|didn.t understand/i);
+ for (const text of ['Bathtub needs resealing', 'Seal around tube needs to be replaced']) {
+   const result = await c.turn(text);
+   expect(result.reply).not.toMatch(/what service|didn.t understand|response timeframe|saved for team review/i);
+   expect(result.handoff).toBeUndefined();
+ }
+ const leak = await c.turn('Bathtub is leaking');
+ expect(leak.reply).toMatch(/leaking.*right now/i);
+ expect(c.conversation.conversationMemory.recoveryIntake.serviceDetail).toMatch(/bathtub.*leaking/i);
+ expect(c.lead.urgency).not.toBe('emergency');
+});
+
+test.each(['sms', 'voice'])('%s accepts new understood facts after an unclear handoff', async channel => {
+ const c = context(channel);
+ await c.turn('My toilet is clogged');
+ c.conversation.conversationMemory.recoveryIntake = { ...c.conversation.conversationMemory.recoveryIntake, submitted: channel === 'voice', failures: 2 };
+ c.conversation.orchestration = { handoffReason: 'intake_unclear' };
+ const reply = await c.turn('My bathtub needs resealing');
+ expect(reply.handoff).toBeUndefined();
+ expect(reply.reply).not.toMatch(/response timeframe/);
+ expect(c.conversation.conversationMemory.recoveryIntake.serviceDetail).toMatch(/resealing/);
+});
+
+test('a semantic service can start shared intake without a deterministic keyword match', async () => {
+ const c = context();
+ const result = await handleRecoveryIntake({ ...c, customerMessage: 'The little whirly thing just gives a sad hum', semanticAssessment: { confidence: 88, isInScope: true, serviceNeeded: 'appliance making a humming sound' } });
+ expect(c.lead.serviceNeeded).toBe('appliance making a humming sound');
+ expect(result.reply).toMatch(/service address/);
+});
+
+test('low-confidence semantic guesses cannot populate intake', async () => {
+ const c = context();
+ const result = await handleRecoveryIntake({ ...c, customerMessage: 'purple elephants', semanticAssessment: { confidence: 30, isInScope: true, serviceNeeded: 'gas leak' } });
+ expect(result).toBeNull(); expect(c.lead.serviceNeeded).toBe('Unknown');
+});
+
+test('clear service phrased as help is captured', async () => {
+ const c = context();
+ const result = await c.turn('I need help with resealing my bathtub');
+ expect(result.reply).toMatch(/service address/);
+ expect(c.lead.serviceNeeded).toMatch(/resealing/);
+});
+
+test.each(['not overflowing', 'no longer overflowing', 'stopped overflowing'])('negated overflow does not become high urgency: %s', async text => {
+ const c = context(); await c.turn('My bathtub is leaking');
+ await c.turn(text);
+ expect(c.lead.urgency).toBe('medium');
+ expect(c.conversation.conversationMemory.recoveryIntake.triagePending).toBe(false);
+});
+
+test('pricing does not repeat resolved leak triage', async () => {
+ const c = context(); await c.turn('My bathtub is leaking'); await c.turn('Only when used');
+ const reply = await c.turn('How much is the cost?');
+ expect(reply.reply).toMatch(/price/); expect(reply.reply).toMatch(/service address/);
+ expect(reply.reply).not.toMatch(/leaking.*right now|active leak/);
+});
+
+test.each(['I need help', 'I need a pizza'])('vague or unsupported noun-only requests reach semantic understanding: %s', async text => {
+ const c = context();
+ expect(await c.turn(text)).toBeNull();
+ expect(c.lead.serviceNeeded).toBe('Unknown');
+ expect(c.lead.save).not.toHaveBeenCalled();
+});
+
+test.each(['sms','voice'])('%s discloses an approved estimate with scope and keeps intake moving', async channel => {
+ const c = context(channel);
+ getApprovedServiceEstimate.mockResolvedValue('The published rough estimate is $150–$250. Final pricing depends on scope and technician evaluation.');
+ const result = await c.turn('My bathtub needs resealing. How much is the cost');
+ expect(result.reply).toContain('$150–$250');
+ expect(result.reply).toMatch(/scope/);
+ expect(result.reply).not.toMatch(/don.t have a confirmed price/);
+ expect(getApprovedServiceEstimate).toHaveBeenCalledWith(expect.objectContaining({businessId:'b1',serviceNeeded:expect.stringMatching(/bathtub/)}));
+});
+
+test('price lookup failure cannot invent a price or lose service facts', async () => {
+ const c=context(); getApprovedServiceEstimate.mockRejectedValue(new Error('unavailable'));
+ const result=await c.turn('My bathtub needs resealing. How much is the cost');
+ expect(result.reply).toMatch(/don.t have a confirmed price/);
+ expect(c.lead.serviceNeeded).toMatch(/resealing/);
 });

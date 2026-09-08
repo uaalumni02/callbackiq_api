@@ -60,28 +60,8 @@ const normalizeExtractedService = (value) => {
   return service;
 };
 
-export const extractServiceNeed = (message) => {
-  const text = clean(message);
-  const extracted = extractService(text);
-  if (extracted) return extracted.replace(/^(?:my|our)\s+/i, "");
-
-  for (const pattern of SERVICE_PATTERNS) {
-    const match = text.match(pattern);
-    if (match?.[1]) return normalizeExtractedService(match[1]);
-  }
-
-  const possessive = text.match(
-    /\b(?:my|our)\s+([a-z][a-z0-9 '-]{1,50})\s+(?:is|are)\s+([a-z][a-z0-9 '-]{1,70})(?:[.!?]|$)/i,
-  );
-
-  if (possessive) {
-    return normalizeExtractedService(
-      `${possessive[1]} is ${possessive[2]}`,
-    );
-  }
-
-  return "";
-};
+export const extractServiceNeed = (message, context = {}) =>
+  extractService(clean(message), context).replace(/^(?:my|our)\s+/i, "");
 
 const hasPricingIntent = (text) =>
   PRICING_PATTERNS.some((pattern) => pattern.test(text));
@@ -231,24 +211,29 @@ export const pricingAndSchedulingReply = ({
   return `Final pricing depends on the diagnosis and is not confirmed yet. I've also noted ${preferenceLabel}${servicePhrase} as your preferred time. This is a request, not a confirmed appointment. I can keep helping with the details and available options here.`;
 };
 
-export const pricingReply = ({ lead, business }) => {
+const triageQuestion = ({ service = "" } = {}) => {
+  if (/\b(?:leak(?:ing|s)?|dripping)\b/i.test(service)) {
+    return "Does it leak only when you use it, or even when it is off?";
+  }
+  if (/\b(?:clogged|blocked|overflow|toilet|drain)\b/i.test(service)) {
+    return "Is there an active leak or overflow, or is it blocked without a leak?";
+  }
+  return "Is it still usable, or is the problem preventing you from using it?";
+};
+
+export const pricingReply = ({ lead = {}, business, triageResolved = false }) => {
   const service = clean(lead?.serviceNeeded);
-
-  if (!service || service === "Unknown") {
-    return "The exact cost depends on the issue and is not confirmed yet. What service do you need help with?";
+  if (!service || /^unknown$/i.test(service)) {
+    return "I don't have a confirmed price yet. What service do you need help with?";
   }
-
-  const urgency = clean(lead?.urgency).toLowerCase();
-
-  if (!urgency || urgency === "medium") {
-    return "The exact cost depends on what is causing the issue and is not confirmed yet. Is anything actively leaking or overflowing, or is only the affected fixture unusable?";
+  // Internal lead values and arbitrary pricing text are not approved quotes.
+  const opening = `For ${service}, I don't have a confirmed price yet.`;
+  if (!triageResolved && (!clean(lead?.urgency) || clean(lead?.urgency).toLowerCase() === "medium")) {
+    return `${opening} ${triageQuestion({ service })}`;
   }
-
-  if (!clean(lead?.address)) {
-    return "The exact cost depends on the diagnosis and is not confirmed yet. What is the service address?";
-  }
-
-  return "The exact cost depends on the diagnosis and is not confirmed yet. I've kept the details you've already provided.";
+  if (!clean(lead?.address)) return `${opening} What is the service address?`;
+  if (!clean(lead?.preferredAppointmentTime)) return `${opening} What day or time would you prefer for service?`;
+  return `${opening} I have your service details and preferred time; an appointment is not confirmed by this price inquiry.`;
 };
 
 export const evaluateSmsTurnPolicy = ({
@@ -260,19 +245,20 @@ export const evaluateSmsTurnPolicy = ({
 }) => {
   const text = clean(customerMessage);
   const timeZone = business?.timezone || "America/New_York";
-  const serviceNeeded = extractServiceNeed(text);
+  const serviceNeeded = extractServiceNeed(text, { lead, conversation });
   const range = findDateRange(text, timeZone, now);
   const timePreference = parseTimePreference(text, timeZone);
   const appointmentHint =
     hasAppointmentPreferenceHint(text, timeZone) ||
     Boolean(range) ||
-    timePreference?.targetMinutes !== null ||
+    timePreference?.targetMinutes != null ||
     Boolean(timePreference?.timeOfDay);
 
   const canonical = classifySmsIntent({
     customerMessage: text,
     business,
     conversation,
+    lead,
     now,
   });
   const intent = {
@@ -393,7 +379,7 @@ export const evaluateSmsTurnPolicy = ({
     });
   } else if (!autoBookingEnabled && intent.pricing) {
     directResult = fixedResult({
-      reply: pricingReply({ lead, business }),
+      reply: pricingReply({ lead: { ...lead, serviceNeeded: knownService }, business }),
       category: "pricing_request",
       serviceNeeded: knownService,
       urgency: intent.urgent ? "high" : clean(lead?.urgency) || "medium",
@@ -424,8 +410,6 @@ export const evaluateSmsTurnPolicy = ({
   };
 };
 
-const triageQuestion = ({ service }) =>
-  `I can help with that. Is anything actively leaking or overflowing, or is the fixture blocked without a leak?`;
 
 export const applySmsTurnPolicy = ({
   result,
