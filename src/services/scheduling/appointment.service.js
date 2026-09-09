@@ -59,6 +59,14 @@ const formatCustomerAppointmentTime = (appointment, business) =>
     minute: "2-digit",
   }).format(new Date(appointment.startAt));
 
+export const ensureBusinessApprovalNotice = async ({ appointment, business, service = null }) => {
+  if (appointment.status !== "confirmed" || !appointment.requiresBusinessApproval) return null;
+  const offering = service || await ServiceOffering.findById(appointment.serviceOffering);
+  return scheduleAppointmentChangeNotice({ appointment, key: "business_approval_confirmed",
+    body: `${business.businessName || "The service team"}: Confirmed — your ${offering?.name || "service"} appointment is scheduled for ${formatCustomerAppointmentTime(appointment, business)}. Reply here if you need to reschedule or cancel.`,
+  });
+};
+
 const getSlotKey = (startAt, endAt) =>
   `${new Date(startAt).toISOString()}|${new Date(endAt).toISOString()}`;
 
@@ -664,14 +672,7 @@ class AppointmentService {
         businessId: business._id,
         label: "business approval customer confirmation",
         task: async () => {
-          const serviceName = service?.name || "service";
-          const businessName = business.businessName || "The service team";
-          const when = formatCustomerAppointmentTime(appointment, business);
-          await scheduleAppointmentChangeNotice({
-            appointment,
-            key: "business_approval_confirmed",
-            body: `${businessName}: Confirmed — your ${serviceName} appointment is scheduled for ${when}. Reply here if you need to reschedule or cancel.`,
-          });
+          await ensureBusinessApprovalNotice({ appointment, business, service });
           if (appointment.conversation) {
             await Conversation.updateOne(
               { _id: appointment.conversation, business: business._id },

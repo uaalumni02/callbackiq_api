@@ -66,3 +66,10 @@ describe("Twilio opt-out ownership classification", () => {
     });
   });
 });
+
+test.each(['Please stop the water leak', 'Please stop my sink from overflowing', 'Please stop the AC from making that noise'])('service request is not an opt-out: %s', text => {
+ expect(classifyInboundSmsCommand(text).action).not.toBe('opt_out');
+});
+test.each(['Please stop', 'Please stop, thanks!', 'Please stop texting me robot', 'Please stop sending me texts', 'No more messages'])('explicit communication opt-out remains effective: %s', text => {
+ expect(classifyInboundSmsCommand(text)).toMatchObject({ handled: true, action: 'opt_out', providerManaged: false });
+});

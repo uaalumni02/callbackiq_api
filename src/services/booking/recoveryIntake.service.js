@@ -1,3 +1,4 @@
+import { recoveryLeakQuestion, recoveryCompletionReply } from './recoveryIntakePresentation.service.js';
 import { getApprovedServiceEstimate } from './approvedServiceEstimate.service.js';
 import { logOperationalError } from '../../helpers/logging/safeLogger.js';
 import { pricingReply } from '../messaging/smsTurnPolicy.service.js';
@@ -19,7 +20,10 @@ const stopped = /\b(?:(?:not|no longer|stopped) (?:leaking|overflowing|flooding|
 const controlMessage = /^(?:stop|unsubscribe|help|start|unstop)[.! ]*$/i;
 const businessHoursQuestion = /\b(?:what (?:are|time)|when (?:are|do|will)).{0,35}\b(?:hours|open|close)\b/i;
 const addressFrom = text => {
-  const value = clean(text).replace(/^(?:my |the )?address is\s+/i, '').replace(/^(?:i am at|i'm at|we are at|we're at|at)\s+/i, '');
+  let value = clean(text).replace(/^(?:my |the )?address is\s+/i, '').replace(/^(?:i am at|i'm at|we are at|we're at|at)\s+/i, '');
+  // A date/time after the ZIP is a separate fact, not part of the address.
+  const scheduledTail = value.match(/^(.*?\b\d{5}(?:-\d{4})?)(?:[,;.]?\s+)((?:on\s+)?(?:today|tomorrow|next|mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?|jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?|20\d{2}-\d{2}-\d{2}|at\s+\d)[\s\S]*)$/i);
+  if (scheduledTail) value = scheduledTail[1];
   return /^\d{1,7}[a-z]?\s+.+\b(?:st(?:reet)?|ave(?:nue)?|rd|road|dr(?:ive)?|ln|lane|ct|court|blvd|boulevard|way|pkwy|parkway|place|pl|circle|cir|trail|trl|terrace|ter|highway|hwy)\b/i.test(value) ? value.slice(0, 500) : '';
 };
 const fixed = (reply, lead, extra = {}) => ({
@@ -68,25 +72,38 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   if (!state.started && !known(service) && !classification.intents?.scheduling && !addressFrom(text)) return null;
   state.started = true;
   if (state.submitted && state.failures >= 2 && known(service)) { state.submitted = false; state.failures = 0; }
+  if (known(service) && known(lead.serviceNeeded) && clean(service).toLowerCase() !== clean(lead.serviceNeeded).toLowerCase() &&
+      (classification.intents?.correction || classification.intents?.newService)) {
+    state.triageResolved = false; state.triagePending = false; state.triageAsked = false;
+    delete state.triageAnswer; delete state.leakPattern;
+  }
   if (known(service) && (!known(lead.serviceNeeded) || classification.intents?.correction || classification.intents?.newService)) lead.serviceNeeded = service;
   if (!known(lead.serviceNeeded)) return null;
   const address = addressFrom(text) || (typeof semantic?.address === 'string' ? addressFrom(semantic.address) : '');
   if (address) lead.address = address;
   if (!address && /^\d{5}(?:-\d{4})?$/.test(text) && known(lead.address) && !/\b\d{5}\b/.test(lead.address)) lead.address = `${lead.address}, ${text}`;
 
-  const incomingRange = !address && !/^\d{5}(?:-\d{4})?$/.test(text) ? findDateRange(text, timezone, now) : null;
-  const incomingTime = parseTimePreference(address ? '' : text, timezone);
+  const schedulingText = address ? clean(text.replace(address, '')) : text;
+  const incomingRange = !/^\d{5}(?:-\d{4})?$/.test(schedulingText) ? findDateRange(schedulingText, timezone, now) : null;
+  const incomingTime = parseTimePreference(schedulingText, timezone);
   if (incomingRange) state.date = incomingRange.startDate === incomingRange.endDate ? incomingRange.startDate : `${incomingRange.startDate} through ${incomingRange.endDate}`;
   if (incomingTime.targetMinutes !== null || incomingTime.timeOfDay) state.time = incomingTime.exactMinutes !== null ? `${Math.floor(incomingTime.exactMinutes / 60)}:${String(incomingTime.exactMinutes % 60).padStart(2, '0')}` : incomingTime.raw.slice(0, 300);
   if (state.date || state.time) lead.preferredAppointmentTime = [state.date, state.time].filter(Boolean).join(' at ');
 
   // Keep new detail even if the canonical service remains unchanged. It is
   // bounded, scoped to this recovery journey, and explicitly customer evidence.
-  if (known(service)) {
+  const triageOnlyAnswer = state.triagePending && !classification.entities?.serviceNeeded &&
+    (stopped.test(text) || /^(?:yes|yeah|yep|no|nope)[.! ]*$/i.test(text));
+  if (known(service) && !triageOnlyAnswer) {
     state.serviceDetail = service;
     state.serviceSourceTurnId = String(turnId);
   }
   const wasTriageResolved = state.triageResolved;
+  const triageRelevant = state.triagePending || leak.test(`${lead.serviceNeeded} ${text}`);
+  if (triageRelevant && (stopped.test(text) || active.test(text) || /^(?:yes|yeah|yep|no|nope)[.! ]*$/i.test(text))) {
+    state.triageAnswer = text.slice(0, 250);
+    state.leakPattern = /\bonly (?:when|during)\b/i.test(text) ? 'during_use' : stopped.test(text) || /^(?:no|nope)[.! ]*$/i.test(text) ? 'not_active' : 'active';
+  }
   if (active.test(text) && !stopped.test(text)) {
     state.triageResolved = true;
     state.triagePending = false;
@@ -146,7 +163,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   };
   if (state.triagePending && !state.triageAsked) {
     state.triageAsked = true; await persist();
-    return ask('leak_activity', "Is water leaking or overflowing right now, or only when the toilet is used?".replace('the toilet', /toilet/i.test(lead.serviceNeeded) ? 'the toilet' : 'the fixture'));
+    return ask('leak_activity', recoveryLeakQuestion(state.serviceDetail || lead.serviceNeeded));
   }
   if (state.submitted) {
     await persist();
@@ -169,12 +186,13 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   const preference = clean(lead.preferredAppointmentTime);
   const range = findDateRange(preference, timezone, now);
   const time = parseTimePreference(preference, timezone);
-  if (!range) return ask('date', 'What day works best for you?');
+  if (!range) return ask('date', 'What day would you prefer? The business will need to approve the appointment.');
   if (time.targetMinutes === null && !time.timeOfDay) return ask('time', 'What time works best that day?');
   if (state.triagePending) return ask('leak_activity', 'Before I finish, is water leaking right now?');
 
   let availabilityNote = "I couldn't verify that time's availability; it needs team review.";
   let ready = true;
+  state.availability = { status: 'unknown', checkedAt: now.toISOString(), timezone };
   try {
     const postalCode = lead.address.match(/\b\d{5}\b/)[0];
     const area = await validateServiceArea({ businessId: business._id, postalCode }); checkActive();
@@ -182,13 +200,16 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
       ready = false; availabilityNote = 'That address is outside the configured service area. Is there another service address?';
     } else {
       const services = await searchServices({ businessId: business._id, query: lead.serviceNeeded }); checkActive();
-      if (services.length === 1) {
+      if (services.length === 1 && Number.isFinite(services[0].score) && services[0].score > 0) {
         const available = await getAvailability({ business, serviceOfferingId: services[0].id, startDate: range.startDate, endDate: range.endDate, postalCode }); checkActive();
         if (available.supportedServiceArea === false) { ready = false; availabilityNote = 'That address needs a service-area review before scheduling.'; }
         else if (Array.isArray(available.slots)) {
           const future = available.slots.filter(slot => new Date(slot.startAt) > now);
           const matches = filterSlotsByTimePreference(future, time, timezone);
-          if (matches.length) availabilityNote = `${slotLabel(matches[0], timezone)} is currently available, subject to business approval.`;
+          if (matches.length) {
+            availabilityNote = `${slotLabel(matches[0], timezone)} is currently available, subject to business approval.`;
+            state.availability = { status: 'available', checkedAt: now.toISOString(), serviceOfferingId: String(services[0].id), startAt: matches[0].startAt, endAt: matches[0].endAt, timezone, provider: available.provider || '' };
+          }
           else {
             ready = false;
             const alternatives = future.slice(0, 2).map(slot => slotLabel(slot, timezone));
@@ -198,11 +219,17 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
       }
     }
   } catch (error) {
-    if (error?.code === 'VOICE_STALE_TURN') throw error;
+    if (['VOICE_STALE_TURN', 'DISTRIBUTED_LEASE_LOST'].includes(error?.code)) throw error;
     // A provider failure is unknown availability, never an empty calendar or a confirmed slot.
   }
   if (!ready) return ask('available_preference', availabilityNote);
-  const result = fixed(availabilityNote, lead, { intakeReady: ready, messageCategory: 'appointment_preference', intakeCompletionReply: `Your service request is saved for team review. ${availabilityNote} The appointment is not confirmed.` });
+  state.reviewReady = true;
+  state.serviceNeeded = lead.serviceNeeded;
+  state.address = lead.address;
+  state.preferredAppointmentTime = lead.preferredAppointmentTime;
+  await persist();
+  const intakeReview = { reviewReady: true, journeyKey, serviceNeeded: state.serviceNeeded, serviceDetail: state.serviceDetail || '', address: state.address, preferredAppointmentTime: state.preferredAppointmentTime, triageAnswer: state.triageAnswer || '', availability: state.availability };
+  const result = fixed(availabilityNote, lead, { intakeReady: true, intakeReview, summary: `${state.serviceDetail || lead.serviceNeeded}; ${state.triageAnswer || ''}; ${lead.address}; requested ${lead.preferredAppointmentTime}`, messageCategory: 'appointment_preference', intakeCompletionReply: recoveryCompletionReply({ lead, state, channel }) });
   if (ready && channel === 'voice') {
     checkActive();
     await AlertService.createHumanHandoffAlert({ businessId: business._id, leadId: lead._id, conversationId: conversation._id, providerMessageId: `voice-intake:${session?._id || conversation._id}:${journeyKey}`, customerPhone: lead.phone || conversation.customerPhone, customerName: lead.customerName, customerMessage: text, lead, result: { ...result, handoff: { reason: 'intake_complete' } } });

@@ -1,3 +1,4 @@
+import { intakeReviewVersion, manualIntakeSubmitted } from "./booking/intakeReviewContext.service.js";
 import mongoose from "mongoose";
 import Alert from "../models/alert.js";
 import Appointment from "../models/appointment.js";
@@ -451,7 +452,12 @@ const serializeOpportunity = ({
           humanTakeover: Boolean(conversation.humanTakeover),
         }
       : null,
-    booking: evidence,
+    booking: { ...evidence,
+      manualIntakeSubmitted: manualIntakeSubmitted(conversation),
+      intakeReviewAppointmentId: conversation?.conversationMemory?.recoveryIntake?.reviewAppointmentId || null,
+      intakeApprovedAppointmentId: conversation?.conversationMemory?.recoveryIntake?.appointmentId || null,
+      intakeReviewVersion: conversation ? intakeReviewVersion(conversation, lead) : null,
+    },
     appointment: serializeAppointment(appointment),
     needsAttention: hasOpenIntervention,
     nextAction,

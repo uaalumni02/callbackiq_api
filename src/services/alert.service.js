@@ -373,6 +373,8 @@ class AlertService {
         providerMessageId: providerMessageId || null,
         customerPhone: customerPhone || null,
         callbackPhone: result?.handoff?.callbackPhone || customerPhone || null,
+        handoffReason: String(result?.handoff?.reason || ""),
+        intakeReview: intake ? result?.intakeReview || { serviceNeeded, address, preferredAppointmentTime } : null,
         callbackRequested: result?.handoff?.callbackRequested === true,
         messageCategory: category,
         riskFlags,

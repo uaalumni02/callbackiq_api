@@ -21,7 +21,7 @@ function context(channel = 'sms') {
   ctx.turn = customerMessage => handleRecoveryIntake({ ...ctx, customerMessage });
   return ctx;
 }
-beforeEach(() => { jest.clearAllMocks(); getApprovedServiceEstimate.mockResolvedValue(''); validateServiceArea.mockResolvedValue({ supported: true }); searchServices.mockResolvedValue([{ id: 's1' }]); getAvailability.mockResolvedValue({ supportedServiceArea: true, slots: [slot] }); AlertService.createHumanHandoffAlert.mockResolvedValue({ _id: 'a1' }); });
+beforeEach(() => { jest.clearAllMocks(); getApprovedServiceEstimate.mockResolvedValue(''); validateServiceArea.mockResolvedValue({ supported: true }); searchServices.mockResolvedValue([{ id: 's1', score: 1 }]); getAvailability.mockResolvedValue({ supportedServiceArea: true, slots: [slot] }); AlertService.createHumanHandoffAlert.mockResolvedValue({ _id: 'a1' }); });
 test.each(['sms', 'voice'])('%s captures the toilet transcript without reasking a supplied time', async channel => {
   const c = context(channel);
   expect((await c.turn('Hi my toilet is stopped up and leaking around the seal')).reply).toMatch(/right now/);
@@ -161,4 +161,45 @@ test('price lookup failure cannot invent a price or lose service facts', async (
  const result=await c.turn('My bathtub needs resealing. How much is the cost');
  expect(result.reply).toMatch(/don.t have a confirmed price/);
  expect(c.lead.serviceNeeded).toMatch(/resealing/);
+});
+
+test.each(['sms', 'voice'])('%s preserves the reported bathtub request in a truthful completion summary', async channel => {
+ const c = context(channel);
+ getAvailability.mockResolvedValue({ slots: [{ startAt: '2026-09-09T08:00:00-04:00', endAt: '2026-09-09T09:00:00-04:00' }] });
+ expect((await c.turn('Seal around my bathtub is leaking')).reply).toContain('bathtub leaking right now');
+ expect((await c.turn('Only when fixture is used')).reply).toMatch(/address/);
+ expect((await c.turn('970 Sidney Marcus Blvd NE Atlanta GA 30324')).reply).toMatch(/business will need to approve/);
+ await c.turn('Wed Sep 9');
+ const result = await c.turn('8 am');
+ const reply = channel === 'voice' ? result.reply : buildCompletedIntakeResult({ business, result }).reply;
+ expect(reply).toContain('970 Sidney Marcus Blvd NE Atlanta GA 30324');
+ expect(reply).toContain('Wed, Sep 9 at 8 AM');
+ expect(reply).toMatch(/bathtub/);
+ expect(reply).toContain('leaks during use');
+ expect(reply).toContain('not confirmed');
+ expect(reply).toContain('wait for confirmation');
+ expect(reply).not.toMatch(/confirmation text|shortly|right away/);
+ expect(result.intakeReview.triageAnswer).toBe('Only when fixture is used');
+ expect(result.intakeReview.availability.serviceOfferingId).toBe('s1');
+ if (channel === 'sms') expect(reply.length).toBeLessThanOrEqual(320);
+ else expect(AlertService.createHumanHandoffAlert).toHaveBeenCalledWith(expect.objectContaining({ providerMessageId: expect.stringMatching(/^voice-intake:/), result: expect.objectContaining({ handoff: { reason: 'intake_complete' } }) }));
+});
+
+test.each(['sms', 'voice'])('%s never calls an unrelated sole service available', async channel => {
+ const c = context(channel); c.lead.serviceNeeded = 'bathtub resealing'; c.lead.address = '87 Oak Lane Marietta GA 30060';
+ searchServices.mockResolvedValue([{ id: 'unrelated-service', score: 0 }]);
+ const result = await c.turn('Sep 8 at 8 am');
+ expect(getAvailability).not.toHaveBeenCalled();
+ expect(result.intakeReview.availability.status).toBe('unknown');
+ const reply = channel === 'voice' ? result.reply : buildCompletedIntakeResult({ business, result }).reply;
+ expect(reply).toContain('87 Oak Lane');
+ expect(reply).not.toContain('123 Main');
+ expect(reply).not.toMatch(/currently available|booked/);
+});
+
+test.each(['sms', 'voice'])('%s keeps the original service detail when semantic triage repeats a generic service', async channel => {
+ const c = context(channel); await c.turn('Seal around my bathtub is leaking');
+ await handleRecoveryIntake({ ...c, customerMessage: 'Only when fixture is used', semanticAssessment: { isInScope: true, confidence: 90, serviceNeeded: 'plumbing service' } });
+ expect(c.conversation.conversationMemory.recoveryIntake.serviceDetail).toBe('Seal around my bathtub is leaking');
+ expect(c.conversation.conversationMemory.recoveryIntake.triageAnswer).toBe('Only when fixture is used');
 });

@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { safeConsole } from "../../helpers/logging/safeLogger.js";
 import Appointment from "../../models/appointment.js";
 import AppointmentNotificationJob from "../../models/appointmentNotificationJob.js";
@@ -180,7 +181,7 @@ export const scheduleAppointmentChangeNotice = async ({
       key: `change_notice:${String(key || "provider_change").slice(0, 60)}`,
     },
     {
-      $set: {
+      [key === "business_approval_confirmed" ? "$setOnInsert" : "$set"]: {
         attempts: 0,
         lead: appointment.lead || null,
         conversation: appointment.conversation || null,
@@ -269,7 +270,8 @@ const storeOutboundMessage = async ({
   job,
 }) => {
   if (!appointment.conversation) return;
-  await Message.create({
+  if (!result.sid) throw new Error('Provider receipt is missing for appointment notification.');
+  await Message.findOneAndUpdate({ business: business._id, provider: 'twilio', providerMessageId: result.sid }, { $setOnInsert: {
     business: business._id,
     conversation: appointment.conversation,
     lead: appointment.lead || null,
@@ -295,7 +297,7 @@ const storeOutboundMessage = async ({
       appointmentId: String(appointment._id),
       appointmentNotificationKey: job.key,
     },
-  });
+  } }, { upsert: true, new: true });
   await Conversation.updateOne(
     { _id: appointment.conversation, business: business._id },
     { $set: { lastMessage: body, lastMessageAt: new Date() } },
@@ -356,7 +358,7 @@ export const processNextAppointmentNotification = async () => {
   const requiredStatus =
     job.type === "follow_up"
       ? "completed"
-      : job.type === "reminder"
+      : job.type === "reminder" || job.key === "change_notice:business_approval_confirmed"
         ? "confirmed"
         : null;
 
@@ -412,6 +414,10 @@ export const processNextAppointmentNotification = async () => {
       metadata: {
         appointmentId: String(appointment._id),
         appointmentNotificationKey: job.key,
+        // The provider may accept a text before job/message persistence fails.
+        // Replaying the same notice must recover its receipt, never resend it.
+        idempotencyKey: `appointment-notice:${business._id}:${job._id}:${crypto.createHash('sha256').update(body).digest('hex').slice(0, 32)}`,
+
       },
     });
 

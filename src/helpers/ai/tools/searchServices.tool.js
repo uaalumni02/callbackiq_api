@@ -16,7 +16,7 @@ export const searchServicesTool = async ({ businessId, query }) => {
         .map(normalize)
         .filter(Boolean);
       const excluded = (service.excludedKeywords || []).some((term) =>
-        text.includes(normalize(term)),
+        Boolean(normalize(term)) && text.includes(normalize(term)),
       );
       const score = excluded
         ? -1
@@ -27,7 +27,7 @@ export const searchServicesTool = async ({ businessId, query }) => {
     .sort((a, b) => b.score - a.score || a.service.name.localeCompare(b.service.name));
 
   const positive = scored.filter((item) => item.score > 0);
-  const matches = positive.length > 0 ? positive : services.length === 1 ? [{ service: services[0], score: 0 }] : [];
+  const matches = positive.length > 0 ? positive : services.length === 1 && scored.length === 1 ? scored : [];
 
   return matches.slice(0, 5).map(({ service, score }) => ({
     id: String(service._id),

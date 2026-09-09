@@ -2,6 +2,23 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 const root = fileURLToPath(new URL("../", import.meta.url));
 const suites = [
+  "tests/unit/searchServices.exclusions.test.js",
+  "tests/unit/appointmentNotification.deliveryReplay.test.js",
+  "tests/unit/customerScenarioMatrix.followthrough.test.js",
+  "tests/unit/contactPreference.twilioOwnership.test.js",
+  "tests/unit/customerSchedulingIntent.production.test.js",
+  "tests/unit/availabilityLeadTime.production.test.js",
+  "tests/unit/rescheduleReconciliation.release.test.js",
+  "tests/unit/safetyAssessmentService.voiceCompatibility.test.js",
+  "tests/unit/communicationSafety.smsPolicy.test.js",
+  "tests/unit/aiReplyBookingSafety.test.js",
+  "tests/unit/appointmentPolicy.service.test.js",
+  "tests/unit/intakeReview.service.test.js",
+  "tests/unit/intakeReview.controller.test.js",
+  "tests/unit/approvalNoticeReplay.test.js",
+  "tests/unit/appointment.service.test.js",
+  "tests/unit/ownerExperiencePeriod.service.test.js",
+  "tests/unit/recoveryIntakePresentation.test.js",
   "tests/unit/aiReplyService.bathtubJourney.integration.test.js",
   "tests/unit/approvedServiceEstimate.service.test.js",
   "tests/unit/aiReplyService.full.test.js",

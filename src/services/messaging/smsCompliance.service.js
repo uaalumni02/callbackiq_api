@@ -61,7 +61,8 @@ export const buildMissedCallRecoveryText = ({ business, template } = {}) => {
 };
 
 const SOFT_OPT_OUT_PATTERNS = [
-  /\bplease\s+stop(?:\s+(?:texting|messaging|contacting|sending\s+(?:me\s+)?messages?))?\b/i,
+  /^please\s+stop(?:[,!?.]?\s+(?:thanks|thank\s+you))?[.!?, ]*$/i,
+  /\bplease\s+stop\s+(?:texting|messaging|contacting|sending\s+(?:me\s+)?(?:messages?|texts?))\b/i,
   /\bstop\s+(?:texting|messaging|contacting)\s+(?:me|this\s+number)\b/i,
   /\bdo\s+not\s+(?:text|message|contact)\s+(?:me|this\s+number)(?:\s+again)?\b/i,
   /\bdon['’]?t\s+(?:text|message|contact)\s+(?:me|this\s+number)(?:\s+again)?\b/i,

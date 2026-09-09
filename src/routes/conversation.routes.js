@@ -1,3 +1,4 @@
+import IntakeReviewController from "../controllers/intakeReview.js";
 import express from "express";
 
 import checkAuth from "../middleware/check-auth.js";
@@ -63,5 +64,7 @@ router
     checkSubscriptionUnlessAdmin,
     ConversationController.deleteConversation,
   );
+
+router.post("/:id/approve-intake", checkAuth, checkSubscription, IntakeReviewController.approveIntake);
 
 export default router;
