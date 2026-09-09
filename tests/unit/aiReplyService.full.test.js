@@ -25,6 +25,7 @@ import { reserveAiUsage } from "../../src/services/communicationUsage.service.js
 import { logOperationalError } from "../../src/helpers/logging/safeLogger.js";
 
 jest.mock("../../src/helpers/ai/aiGuardrails.js", () => ({
+  ...jest.requireActual("../../src/helpers/ai/aiGuardrails.js"),
   __esModule: true,
   SAFE_REPLIES: { fallback: "Safe fallback reply." },
   cleanText: jest.fn((value, fallback = "") => {

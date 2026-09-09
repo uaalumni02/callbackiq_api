@@ -6,7 +6,15 @@ export * from "./opportunityValue.js";
 
 // Reserve BEFORE asynchronous analysis. A later request invalidates earlier work.
 async function reserveValuation(lead, businessId) {
-  if (!lead?._id || !["unknown", "service_catalog", "historical"].includes(lead.valuation?.source)) return null;
+  if (!lead?._id) return null;
+  if (!lead.valuation?.source && lead.estimatedValue == null) {
+    // Compare against the stored absence of provenance so a concurrent owner
+    // estimate cannot be converted into an automatic value.
+    return Lead.findOneAndUpdate({ _id: lead._id, business: businessId,
+      "valuation.source": { $exists: false }, estimatedValue: null,
+    }, { $set: { valuation: unknownEstimate().valuation }, $inc: { valuationVersion: 1 } }, { returnDocument: "after" }).lean();
+  }
+  if (!["unknown", "service_catalog", "historical"].includes(lead.valuation?.source)) return null;
   return Lead.findOneAndUpdate({ _id: lead._id, business: businessId,
     "valuation.source": { $in: ["unknown", "service_catalog", "historical"] },
   }, { $inc: { valuationVersion: 1 } }, { returnDocument: "after" }).lean();

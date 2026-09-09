@@ -38,14 +38,17 @@ describe("trial lifecycle runtime wiring", () => {
   test("dedicated worker-lifecycle role runs lifecycle rather than automation", () => {
     const source = read("src/worker.js");
 
-    expect(source).toMatch(
-      /"worker-lifecycle":\s*\[\s*\["lifecycle",\s*startTrialLifecycleWorker,\s*stopTrialLifecycleWorker\]\s*,?\s*\]/
+    // Reporting now shares this process. Inspect the complete role list,
+    // retaining the assertion that automation does not run in this role.
+    const lifecycleRole = source.match(
+      /"worker-lifecycle":\s*\[((?:\s*\[[^\]]+\],?)+)\s*\]/
+    )?.[1] || "";
+    expect(lifecycleRole).toMatch(
+      /\["lifecycle",\s*startTrialLifecycleWorker,\s*stopTrialLifecycleWorker\]/
     );
-
-    const lifecycleRole =
-      source.match(
-        /"worker-lifecycle":\s*\[([\s\S]*?)\]\s*,/
-      )?.[1] || "";
+    expect(lifecycleRole).toMatch(
+      /\["admin-reporting",\s*startAdminReportingWorker,\s*stopAdminReportingWorker\]/
+    );
 
     expect(lifecycleRole).not.toContain(
       "startAutomationWorker"

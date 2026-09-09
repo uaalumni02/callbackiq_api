@@ -1,3 +1,4 @@
+import { getApprovedServiceEstimate } from "../booking/approvedServiceEstimate.service.js";
 import { confirmationTimingReply } from "../booking/recoveryIntake.service.js";
 import { isConfirmationQuestion } from "../booking/conversationQuestions.service.js";
 import { beginValuation, finishValuation } from "../valuation/opportunityValuation.service.js";
@@ -423,9 +424,12 @@ export const processInboundSmsJob = async (job) => {
     handoffLifecycleActive &&
     isHumanHandoffStatusQuestion(customerTurn.customerMessage);
 
-  // A status question must not bypass explicit staff ownership or closure.
-  if (conversation.humanTakeover === true || conversation.aiEnabled === false ||
-      ["closed", "archived"].includes(conversation.status)) {
+  const safetyReviewRequired = deterministicAssessment.handled &&
+    ["emergency", "hazardous_diy_request"].includes(deterministicAssessment.category);
+  const automationPaused = conversation.humanTakeover === true || conversation.aiEnabled === false ||
+    ["closed", "archived"].includes(conversation.status);
+  // Safety evidence still updates the staff queue; it cannot resume automation.
+  if (automationPaused && !safetyReviewRequired) {
     await completeCoalescedJobs({
       conversationId: conversation._id, primaryJobId: job._id,
       primaryMessageId: inboundMessage._id, turnMessageIds: customerTurn.turnMessageIds,
@@ -495,9 +499,37 @@ export const processInboundSmsJob = async (job) => {
 
   // Completed manual intake stays in the staff queue. New messages are already
   // durable; attach an action-required alert instead of restarting AI intake.
-  if (conversation?.orchestration?.handoffReason === "intake_complete" && !handoffSource) {
+  if ((conversation?.orchestration?.handoffReason === "intake_complete" && !handoffSource) ||
+      (automationPaused && safetyReviewRequired)) {
     const safety = deterministicAssessment.handled &&
       ["emergency", "hazardous_diy_request"].includes(deterministicAssessment.category);
+    // This branch bypasses the ordinary AI result persistence. Preserve facts
+    // and raise urgency before creating the durable staff task or replying.
+    const urgency = preserveHigherUrgency(lead.urgency,
+      safety ? "emergency" : classification.entities?.urgency);
+    assertDistributedLeaseActive();
+    const followUpLead = await Lead.findByIdAndUpdate(lead._id,
+      { $set: { urgency } }, { returnDocument: "after", runValidators: true });
+    const intent = safety ? "emergency" : "intake_follow_up";
+    const followUpConversation = await Conversation.findByIdAndUpdate(conversation._id, {
+      $set: {
+        "conversationMemory.urgency": urgency,
+        "conversationMemory.lastIntent": intent,
+        "conversationMemory.lastUpdatedAt": new Date(),
+        "orchestration.lastIntent": intent,
+        "orchestration.lastOutcome": "queued_for_team",
+        "orchestration.lastInboundMessage": inboundMessage._id,
+        "orchestration.lastCustomerTurnAt": new Date(),
+      },
+    }, { returnDocument: "after", runValidators: true });
+    await Message.findByIdAndUpdate(inboundMessage._id, { $set: {
+      aiOutcome: { intent, urgency, serviceNeeded: lead.serviceNeeded || "",
+        address: lead.address || "", preferredAppointmentTime: lead.preferredAppointmentTime || "",
+        bookingState: conversation.bookingState?.status || "not_started",
+        outcome: "queued_for_team", confidence: safety ? 100 : 0 },
+    } });
+    SocketService.emitLeadUpdated(business._id, followUpLead);
+    SocketService.emitConversationUpdated(business._id, followUpConversation);
     await AlertService.createHumanHandoffAlert({
       businessId: business._id, leadId: lead._id, conversationId: conversation._id,
       messageId: inboundMessage._id, providerMessageId: inboundMessage.providerMessageId,
@@ -505,25 +537,39 @@ export const processInboundSmsJob = async (job) => {
       customerMessage: customerTurn.customerMessage, lead,
       result: {
         messageCategory: safety ? "emergency" : "service_request",
-        urgency: safety ? "emergency" : classification.entities.urgency || lead.urgency,
-        summary: "Additional customer message after completed intake; review the full conversation.",
-        handoff: { reason: "intake_follow_up", callbackRequested: false },
+        urgency,
+        summary: safety ? "New customer safety concern; review the full conversation." : "Additional customer message after completed intake; review the full conversation.",
+        handoff: { reason: automationPaused ? "staff_safety_review" : "intake_follow_up", callbackRequested: false },
         riskFlags: safety ? ["safety_hazard"] : [],
       },
     });
     let delivery = { sent: false };
-    if (safety && conversation.humanTakeover !== true && !["closed", "archived"].includes(conversation.status)) {
+    if (safety && !automationPaused) {
       delivery = await persistOutboundReply({ business, lead, conversation, inboundMessage,
         result: { decision: "send_fixed_response", actionType: "send_fixed_response", messageCategory: "emergency", reply: deterministicAssessment.reply, guardrail: { skipAI: true } },
       });
     }
-    if (!safety && isConfirmationQuestion(customerTurn.customerMessage) && conversation.humanTakeover !== true && !["closed", "archived"].includes(conversation.status)) {
+    if (!safety && classification.intents?.pricing && !automationPaused) {
+      let estimate = "";
+      const changedRequest = classification.intents?.correction || classification.intents?.newService ||
+        (classification.entities?.serviceNeeded && classification.entities.serviceNeeded !== lead.serviceNeeded);
+      try {
+        if (!changedRequest) estimate = await getApprovedServiceEstimate({ businessId: business._id,
+          serviceNeeded: lead.serviceNeeded, customerMessage: customerTurn.customerMessage });
+      } catch (error) { logOperationalError("sms.approved_price_lookup_failed", error, { businessId: business._id }); }
+      delivery = await persistOutboundReply({ business, lead, conversation, inboundMessage,
+        result: { decision: "send_fixed_response", actionType: "send_fixed_response", messageCategory: "pricing_request",
+          reply: estimate || "I don't have an approved estimate for that request. Your pricing question is saved for business review; the requested appointment remains unconfirmed.",
+          guardrail: { skipAI: true } },
+      });
+    }
+    if (!safety && !classification.intents?.pricing && isConfirmationQuestion(customerTurn.customerMessage) && !automationPaused) {
       delivery = await persistOutboundReply({ business, lead, conversation, inboundMessage,
         result: { decision: "send_fixed_response", actionType: "send_fixed_response", messageCategory: "appointment_status", reply: confirmationTimingReply({ lead }), guardrail: { skipAI: true } },
       });
     }
     await completeCoalescedJobs({ conversationId: conversation._id, primaryJobId: job._id, primaryMessageId: inboundMessage._id, turnMessageIds: customerTurn.turnMessageIds });
-    return { decision: "queued_for_team", reason: "intake_complete", sent: delivery.sent === true, outboundMessageId: delivery.message?._id || null };
+    return { decision: "queued_for_team", reason: automationPaused ? "staff_safety_review" : "intake_complete", sent: delivery.sent === true, outboundMessageId: delivery.message?._id || null };
   }
 
   const aiQualificationEnabled = isBusinessFeatureEnabled(

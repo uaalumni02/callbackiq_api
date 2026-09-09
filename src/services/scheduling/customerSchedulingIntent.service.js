@@ -1,3 +1,4 @@
+import { detectSafetyHazardType, patternHasAffirmedSafetyMatch } from "../../helpers/ai/aiGuardrails.js";
 // CallBackIQ production scheduling language policy.
 // Shared by SMS and Voice so customer wording cannot route differently by channel.
 
@@ -75,13 +76,6 @@ const EXPLICIT_HUMAN_PATTERNS = [
   /\b(?:not\s+a\s+bot|get\s+me\s+(?:a\s+)?(?:human|person)|stop\s+(?:the\s+)?automation)\b/i,
 ];
 
-const EMERGENCY_URGENCY = [
-  /\b(?:gas\s+(?:smell|odor)|smell(?:s|ing)?\s+(?:like\s+)?gas|carbon\s+monoxide|co\s+alarm)\b/i,
-  /\b(?:fire|smoke|electrical\s+fire|sparking|arcing|live\s+wire|downed\s+power\s+line)\b/i,
-  /\b(?:burst\s+pipe|pipe\s+(?:has\s+|is\s+)?burst|gushing\s+water|water\s+(?:is\s+)?gushing|uncontrolled\s+flood(?:ing)?|major\s+flood)\b/i,
-  /\b(?:structural\s+collapse|roof\s+collapse|tree\s+(?:fell|fallen)\s+on\s+(?:the\s+)?(?:house|home|building))\b/i,
-];
-
 const HIGH_URGENCY = [
   /\bleaking\s+water\b|\bdish\s*washer\b.{0,25}\bleak(?:s|ing)?\b/i,
   /\b(?:active(?:ly)?\s+leak(?:ing)?|water\s+leak(?:ing)?|roof\s+(?:is\s+)?(?:active(?:ly)?\s+)?leak(?:ing)?|water\s+coming\s+in|water\s+intrusion)\b/i,
@@ -129,8 +123,12 @@ export const isDispatchSchedulingQuestion = (value) =>
 export const classifyOperationalUrgency = (value) => {
   const text = clean(value);
   if (!text) return "";
-  if (EMERGENCY_URGENCY.some((pattern) => pattern.test(text))) return "emergency";
-  if (HIGH_URGENCY.some((pattern) => pattern.test(text))) return "high";
+  const hazard = detectSafetyHazardType(text);
+  // Sewage exposure warrants urgent service and safety guidance; the existing
+  // safety preflight separately handles any immediate danger to people.
+  if (hazard === "sewage") return "high";
+  if (hazard) return "emergency";
+  if (HIGH_URGENCY.some((pattern) => patternHasAffirmedSafetyMatch(pattern, text))) return "high";
   return "";
 };
 

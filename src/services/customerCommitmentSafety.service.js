@@ -12,6 +12,7 @@ const clean = (value) =>
     .trim();
 
 const ENGLISH_PROMISE_PATTERNS = [
+  /\b(?:the business|the company)\s+(?:has been alerted and\s+)?will\s+(?:call|contact|follow up|respond)\b[^.!?]*(?:[.!?]|$)/gi,
   /\b(?:we|the team|our team|staff|they)\s*(?:will|'ll)\s+(?:review and )?(?:confirm|approve)\b[^.!?]*(?:[.!?]|$)/gi,
   /\b(?:a |the )?(?:team member|team|staff|someone|a person|technician|dispatcher)\s+(?:will|'ll|is going to)\s+(?:call|contact|follow up|follow-up|reach out|get back to|respond to)\b[^.!?]*(?:[.!?]|$)/gi,
   /\b(?:we|they|someone|the team|staff)\s*(?:will|'ll)\s+(?:call|contact|follow up|reach out|get back to|respond)\b[^.!?]*(?:[.!?]|$)/gi,

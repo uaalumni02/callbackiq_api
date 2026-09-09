@@ -19,3 +19,13 @@ test('later ticket invalidates older result at the write filter',async()=>{const
 test('owner zero wins and no automatic write can change it',async()=>{const ticket=await beginValuation(row,'tenant');await updateOwnerLead({lead:row,businessId:'tenant',changes:{estimatedValue:0}});expect(await finishValuation(ticket,{businessId:'tenant',evidence:'Drain cleaning'})).toBeNull();expect(row.estimatedValue).toBe(0);expect(row.valuation.source).toBe('owner');});
 test('release re-enables catalog, unrelated edit does not claim value',async()=>{await updateOwnerLead({lead:row,businessId:'tenant',changes:{customerName:'New'}});expect(row.valuation.source).toBe('unknown');await updateOwnerLead({lead:row,businessId:'tenant',changes:{estimatedValue:999}});await updateOwnerLead({lead:row,businessId:'tenant',changes:{valuationAction:'automatic'}});expect(row.estimatedValue).toBe(225);expect(row.valuation.source).toBe('service_catalog');});
 test('wrong tenant never writes',async()=>{expect(await beginValuation(row,'other')).toBeNull();expect(row.estimatedValue).toBeNull();});
+
+test('unvalued legacy leads can enter automatic valuation without claiming an owner amount', async () => {
+ Lead.findOneAndUpdate.mockReturnValue({ lean: async () => ({ _id: 'legacy', valuation: { source: 'unknown' }, valuationVersion: 1 }) });
+ const ticket = await beginValuation({ _id: 'legacy', estimatedValue: null }, 'tenant');
+ expect(ticket.valuation.source).toBe('unknown');
+ expect(Lead.findOneAndUpdate).toHaveBeenCalledWith(expect.objectContaining({ business: 'tenant', estimatedValue: null, 'valuation.source': { $exists: false } }), expect.objectContaining({ $inc: { valuationVersion: 1 } }), expect.any(Object));
+ Lead.findOneAndUpdate.mockClear();
+ expect(await beginValuation({ _id: 'legacy', estimatedValue: 1200 }, 'tenant')).toBeNull();
+ expect(Lead.findOneAndUpdate).not.toHaveBeenCalled();
+});

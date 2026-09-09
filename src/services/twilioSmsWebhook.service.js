@@ -588,6 +588,13 @@ export const handleInboundSmsWebhook = async (req, res) => {
       reopenEligible: true,
     });
 
+    // Safety observations must still reach the durable worker during staff
+    // ownership. This does not authorize an automated reply or AI generation.
+    const inboundSafetyAssessment = body
+      ? evaluateDeterministicInboundGuardrails({ customerMessage: body, recentMessages: [] })
+      : null;
+    const safetyReviewRequired = inboundSafetyAssessment?.handled === true &&
+      ["emergency", "hazardous_diy_request"].includes(inboundSafetyAssessment.category);
     const postHandoffStatusEligible =
       conversation.humanTakeover === true &&
       isHumanHandoffStatusQuestion(body);
@@ -595,7 +602,7 @@ export const handleInboundSmsWebhook = async (req, res) => {
     const processingRequired =
       !commandClassification.handled &&
       !mediaOnly &&
-      (postHandoffStatusEligible ||
+      (safetyReviewRequired || postHandoffStatusEligible ||
         (conversation.aiEnabled !== false &&
           conversation.humanTakeover !== true &&
           conversation.status !== "closed" &&

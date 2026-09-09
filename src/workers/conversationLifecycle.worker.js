@@ -1,3 +1,5 @@
+import { recoverFailedSmsStaffReviews } from "../services/smsStaffReviewRecovery.service.js";
+import { escalateOverdueInterventions } from "../services/interventionEscalation.service.js";
 import Conversation from "../models/conversation.js";
 import Message from "../models/message.js";
 import AlertService from "../services/alert.service.js";
@@ -239,6 +241,8 @@ export const runConversationLifecycleOnce = async ({ now = new Date(), limit = 1
   if (running) return { skipped: true, processed: 0 };
   running = true;
   try {
+    await recoverFailedSmsStaffReviews({ now, limit });
+    await escalateOverdueInterventions({ now, limit });
     const conversations = await Conversation.find({
       status: "open",
       $or: [

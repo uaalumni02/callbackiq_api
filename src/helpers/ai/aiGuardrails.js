@@ -107,6 +107,7 @@ const SAFETY_HAZARD_PATTERN_GROUPS = [
       /\btree (?:fell|has fallen|came down|crashed|landed) (?:on|onto|into|through)\b/i,
       /\b(?:house|home|building|structure) (?:is )?(?:collapsing|unstable|shifting|caving)\b/i,
       /\bcaved? in\b/i,
+      /\b(?:structural|roof) collapse\b/i,
     ],
   },
   {
@@ -125,6 +126,7 @@ const SAFETY_HAZARD_PATTERN_GROUPS = [
        * Active flooding, stated directly.
        */
       /\bactive flooding\b/i,
+      /\bgushing water\b/i,
       /\bwater (?:is )?(?:pouring|gushing|flooding)\b/i,
       /\bflood(?:ing|ed)?\s+(?:my|our|the)\s+(?:house|home|basement|apartment|property|kitchen|bathroom|garage|floor)\b/i,
       /\b(?:house|home|basement|apartment|property|kitchen|bathroom|garage)\b[\s\S]*\b(?:is |are )?(?:flooding|flooded|under ?water)\b/i,
@@ -306,25 +308,25 @@ const SAFE_REPLIES = Object.freeze({
    * applies (for example: person trapped, dangerous no-heat situations).
    */
   emergency:
-    "This may be dangerous. Move to a safe location and call 911 if anyone is in immediate danger. The business has been alerted and will follow up as soon as possible.",
+    "This may be dangerous. Move to a safe location and call 911 if anyone is in immediate danger. Do not wait for a callback if there is immediate danger. A business response is not guaranteed.",
   medicalEmergency:
-    "If someone is injured, unconscious, or having trouble breathing, call 911 right away — do not wait for a text response. The business has been alerted and will follow up as soon as possible.",
+    "If someone is injured, unconscious, or having trouble breathing, call 911 right away — do not wait for a text response. Do not wait for a callback if there is immediate danger. A business response is not guaranteed.",
   structuralEmergency:
-    "Keep everyone away from the damaged area and leave the building if it feels unsafe. Call 911 if anyone is in immediate danger. The business has been alerted and will follow up as soon as possible.",
+    "Keep everyone away from the damaged area and leave the building if it feels unsafe. Call 911 if anyone is in immediate danger. Do not wait for a callback if there is immediate danger. A business response is not guaranteed.",
   trappedEmergency:
-    "Call 911 right away and do not attempt a rescue that could put you in danger. The business has been alerted and will follow up as soon as possible.",
+    "Call 911 right away and do not attempt a rescue that could put you in danger. Do not wait for a callback if there is immediate danger. A business response is not guaranteed.",
   temperatureEmergency:
-    "Extreme indoor heat or cold can be dangerous, especially for children, older adults, and anyone with medical needs. Move anyone at risk somewhere safer and call 911 if there are signs of a medical emergency. The business has been alerted.",
+    "Extreme indoor heat or cold can be dangerous, especially for children, older adults, and anyone with medical needs. Move anyone at risk somewhere safer and call 911 if there are signs of a medical emergency. A business response is not guaranteed.",
   gasEmergency:
-    "If you smell gas or suspect a leak, leave the building now, avoid flames and light switches, and call 911 or your gas utility's emergency line from a safe location. The business has been alerted.",
+    "If you smell gas or suspect a leak, leave the building now, avoid flames and light switches, and call 911 or your gas utility's emergency line from a safe location. A business response is not guaranteed.",
   fireEmergency:
-    "If there is fire or smoke, leave the building immediately and call 911. Do not try to handle it yourself. The business has been alerted.",
+    "If there is fire or smoke, leave the building immediately and call 911. Do not try to handle it yourself. A business response is not guaranteed.",
   electricalEmergency:
-    "Stay away from the affected outlet, wiring, or panel. If it is safe to do so, shut off power at the breaker. Call 911 if there is smoke, fire, or an injury. The business has been alerted.",
+    "Stay away from the affected outlet, wiring, or panel. If it is safe to do so, shut off power at the breaker. Call 911 if there is smoke, fire, or an injury. A business response is not guaranteed.",
   floodEmergency:
-    "That sounds urgent. If it is safe to do so, shut off the main water supply and stay away from standing water near outlets, cords, or electrical panels. Call 911 if anyone is in immediate danger. The business has been alerted and will follow up as soon as possible.",
+    "That sounds urgent. If it is safe to do so, shut off the main water supply and stay away from standing water near outlets, cords, or electrical panels. Call 911 if anyone is in immediate danger. Do not wait for a callback if there is immediate danger. A business response is not guaranteed.",
   sewageEmergency:
-    "Avoid contact with the backup and keep children and pets away from the area. Call 911 if anyone is in immediate danger. The business has been alerted and will follow up as soon as possible.",
+    "Avoid contact with the backup and keep children and pets away from the area. Call 911 if anyone is in immediate danger. Do not wait for a callback if there is immediate danger. A business response is not guaranteed.",
 
   hazardousDIY:
     "For safety, I cannot guide you through a hazardous repair. Avoid touching the affected equipment and contact emergency services if there is immediate danger. I have marked the request as urgent for the business.",
@@ -616,7 +618,7 @@ const isNegatedSafetyMatch = (clause, matchIndex) => {
   return SAFETY_NEGATION_PREFIX.test(prefix);
 };
 
-const patternHasAffirmedSafetyMatch = (pattern, text) => {
+export const patternHasAffirmedSafetyMatch = (pattern, text) => {
   for (const clause of splitSafetyClauses(text)) {
     /*
      * Clone the expression so global/sticky lastIndex state can never leak
@@ -662,9 +664,15 @@ export const detectSafetyHazardType = (value) => {
     return "";
   }
 
+  // A request to install safety equipment is not itself an active hazard.
+  // Mask only that equipment noun, keeping any subsequent hazard intact.
+  const hazardText = text.replace(
+    /\b((?:install|replace|test|inspect|service|repair)(?:ing|ment|ation)?\s+(?:(?:a|an|the|my|our|new|old|existing)\s+){0,3})(?:smoke|carbon monoxide|co|fire)\s+(?:detectors?|alarms?)\b(?![^.!?;]{0,35}\b(?:going off|triggered|sounding|beeping)\b)/gi,
+    "$1safety equipment",
+  );
   const matchedGroup = SAFETY_HAZARD_PATTERN_GROUPS.find((group) =>
     group.patterns.some((pattern) =>
-      patternHasAffirmedSafetyMatch(pattern, text),
+      patternHasAffirmedSafetyMatch(pattern, hazardText),
     ),
   );
 

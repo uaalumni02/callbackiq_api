@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Alert from "../models/alert.js";
 import getOwnedBusiness from "../services/businessScope.service.js";
 import SocketService from "../services/socket.service.js";
@@ -135,6 +136,14 @@ class InterventionController {
         ],
       };
 
+      // Scope before pagination so a linked customer is never hidden by other alerts.
+      for (const [parameter, field] of [["leadId", "lead"], ["conversationId", "conversation"]]) {
+        if (!req.query[parameter]) continue;
+        if (!mongoose.isObjectIdOrHexString(req.query[parameter])) {
+          return res.status(400).json({ success: false, message: `Invalid ${parameter}.` });
+        }
+        filter[field] = new mongoose.Types.ObjectId(req.query[parameter]);
+      }
       if (req.query.priority) filter.priority = req.query.priority;
 
       if (req.query.type && INTERVENTION_TYPES.includes(req.query.type)) {
@@ -271,10 +280,9 @@ class InterventionController {
       }
 
       const now = new Date();
-      const assignedTo = getDefaultAssignee({
-        requestedAssignee: req.body.assignedTo,
+      const assignedTo = resolveAssignableUserId({
         business,
-        user: req.user,
+        requestedAssignee: req.body.assignedTo || business.owner || req.user.userId,
       });
       const set = {
         status: "acknowledged",

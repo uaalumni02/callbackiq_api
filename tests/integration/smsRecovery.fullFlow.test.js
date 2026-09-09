@@ -1,3 +1,4 @@
+import { getApprovedServiceEstimate } from "../../src/services/booking/approvedServiceEstimate.service.js";
 import { handleInboundSmsWebhook } from "../../src/services/twilioSmsWebhook.service.js";
 import { processInboundSmsJob } from "../../src/services/messaging/inboundSmsJobProcessor.service.js";
 import Business from "../../src/models/business.js";
@@ -24,6 +25,7 @@ import AlertService from "../../src/services/alert.service.js";
 import SocketService from "../../src/services/socket.service.js";
 import { logOperationalEvent } from "../../src/helpers/logging/safeLogger.js";
 
+jest.mock("../../src/services/booking/approvedServiceEstimate.service.js", () => ({ getApprovedServiceEstimate: jest.fn().mockResolvedValue("") }));
 jest.mock("../../src/models/business.js", () => ({
   __esModule: true,
   default: { findById: jest.fn() },
@@ -34,7 +36,7 @@ jest.mock("../../src/models/conversation.js", () => ({
 }));
 jest.mock("../../src/models/lead.js", () => ({
   __esModule: true,
-  default: { findById: jest.fn(), findByIdAndUpdate: jest.fn() },
+  default: { findById: jest.fn(), findByIdAndUpdate: jest.fn(), findOneAndUpdate: jest.fn(() => ({ lean: async () => null })) },
 }));
 jest.mock("../../src/models/message.js", () => ({
   __esModule: true,
@@ -95,6 +97,7 @@ jest.mock("../../src/services/webhooks/twilioWebhookEvent.service.js", () => ({
   failTwilioWebhookEvent: jest.fn(),
 }));
 jest.mock("../../src/helpers/ai/aiGuardrails.js", () => ({
+  ...jest.requireActual("../../src/helpers/ai/aiGuardrails.js"),
   __esModule: true,
   evaluateDeterministicInboundGuardrails: jest.fn(),
 }));
@@ -125,6 +128,7 @@ jest.mock("../../src/helpers/logging/safeLogger.js", () => ({
   __esModule: true,
   logOperationalEvent: jest.fn(),
   logOperationalError: jest.fn(),
+  safeConsole: { error: jest.fn(), warn: jest.fn(), log: jest.fn() },
 }));
 jest.mock("../../src/services/messaging/smsMedia.service.js", () => ({
   __esModule: true,
@@ -210,6 +214,7 @@ const inboundMessage = {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  getApprovedServiceEstimate.mockResolvedValue("");
   Conversation.findOne.mockImplementation(({ _id }) => Conversation.findById(_id));
   // CALLBACKIQ_FULL_FLOW_GUARDRAIL_DEFAULT
   evaluateDeterministicInboundGuardrails.mockReturnValue({
@@ -387,7 +392,7 @@ describe("completed manual intake uses the durable staff handoff", () => {
       }
       return activeConversation;
     });
-    Lead.findByIdAndUpdate.mockImplementation(async (_id, updates) => Object.assign(activeLead, updates));
+    Lead.findByIdAndUpdate.mockImplementation(async (_id, updates) => Object.assign(activeLead, updates.$set || updates));
     Db.getMessagesForAI.mockResolvedValue([activeInbound]);
     Message.findOne.mockReset().mockReturnValueOnce(leanQuery(null)).mockResolvedValue(null);
     Message.find.mockReset().mockReturnValueOnce(leanQuery([activeInbound])).mockReturnValue(leanQuery([]));
@@ -501,6 +506,102 @@ describe("completed manual intake uses the durable staff handoff", () => {
     expect(activeLead.preferredAppointmentTime).toBe("Wednesday at 9 AM");
   });
 
+  test.each([
+    "I think my house is going to flood and I will have a catastrophe",
+    "There is smoke coming from the electrical panel",
+    "I smell gas in my house",
+  ])("persists post-intake safety urgency and retains captured facts: %s", async text => {
+    activeConversation.orchestration = { handoffReason: "intake_complete", handoffStatus: "acknowledged", handoffInboundMessage: "earlier-message" };
+    activeLead.urgency = "medium";
+    activeLead.preferredAppointmentTime = "2026-09-09 at 14:00";
+    activeInbound.body = text;
+    const realGuardrails = jest.requireActual("../../src/helpers/ai/aiGuardrails.js");
+    evaluateDeterministicInboundGuardrails.mockImplementation(realGuardrails.evaluateDeterministicInboundGuardrails);
+    const result = await processInboundSmsJob(job);
+    expect(result.sent).toBe(true);
+    expect(activeLead.urgency).toBe("emergency");
+    expect(activeConversation.conversationMemory.urgency).toBe("emergency");
+    expect(activeLead.serviceNeeded).toBe("Kitchen sink clog and dishwasher leak");
+    expect(activeLead.preferredAppointmentTime).toBe("2026-09-09 at 14:00");
+    expect(activeConversation.orchestration.lastIntent).toBe("emergency");
+    expect(Message.findByIdAndUpdate).toHaveBeenCalledWith(activeInbound._id, expect.objectContaining({ $set: expect.objectContaining({ aiOutcome: expect.objectContaining({ intent: "emergency", outcome: "queued_for_team" }) }) }));
+    expect(sendSms.mock.calls[0][0].body).not.toMatch(/has been alerted|will follow up|will call|will contact/i);
+    expect(AlertService.createHumanHandoffAlert.mock.invocationCallOrder[0]).toBeLessThan(sendSms.mock.invocationCallOrder[0]);
+    expect(generateAIReplyResult).not.toHaveBeenCalled();
+  });
+
+  test("post-intake alert failure remains retryable and prevents the safety reply", async () => {
+    activeConversation.orchestration = { handoffReason: "intake_complete", handoffInboundMessage: "earlier-message" };
+    activeInbound.body = "My house is flooding";
+    evaluateDeterministicInboundGuardrails.mockReturnValue({ handled: true, category: "emergency", reply: "Stay safe." });
+    AlertService.createHumanHandoffAlert.mockRejectedValueOnce(new Error("alert storage unavailable"));
+    await expect(processInboundSmsJob(job)).rejects.toThrow("alert storage unavailable");
+    expect(activeLead.urgency).toBe("emergency");
+    expect(sendSms).not.toHaveBeenCalled();
+  });
+
+
+  const tradeCases = [
+    ["plumbing", "Bathtub drain repair", "My house is flooding", "Can you also check the kitchen tap?"],
+    ["hvac", "AC repair", "No AC and dangerously hot with a newborn", "The AC is blowing warm air"],
+    ["electrical", "Outlet repair", "The electrical panel is sparking", "Please install a smoke detector"],
+    ["roofing", "Roof repair", "The roof is collapsing", "Several shingles are missing"],
+    ["restoration", "Water damage restoration", "Water is pouring through the ceiling", "Please send an estimate for the old water stain"],
+    ["garage_door", "Garage door repair", "Someone is trapped under the garage door", "The garage door will not open"],
+    ["locksmith", "Lock repair", "A child is locked inside", "I need the front door lock replaced"],
+    ["landscaping", "Tree trimming", "A tree fell onto my house", "Can you trim the hedges as well?"],
+  ];
+  test.each(tradeCases)("%s: distinguishes a routine follow-up from a safety escalation", async (trade, service, danger, routine) => {
+    Business.findById.mockResolvedValue({ ...business, businessType: trade });
+    activeLead.serviceNeeded = service; activeLead.urgency = "medium";
+    activeLead.preferredAppointmentTime = "2026-09-09 at 14:00";
+    activeConversation.orchestration = { handoffReason: "intake_complete", handoffInboundMessage: "previous" };
+    activeInbound.body = routine;
+    const real = jest.requireActual("../../src/helpers/ai/aiGuardrails.js");
+    evaluateDeterministicInboundGuardrails.mockImplementation(real.evaluateDeterministicInboundGuardrails);
+    await processInboundSmsJob(job);
+    expect(activeLead.urgency).not.toBe("emergency");
+    if (trade === "restoration") expect(sendSms).toHaveBeenCalledWith(expect.objectContaining({ body: expect.stringContaining("approved estimate") }));
+    else expect(sendSms).not.toHaveBeenCalled();
+    expect(AlertService.createHumanHandoffAlert).toHaveBeenCalledWith(expect.objectContaining({ customerMessage: routine }));
+    expect(activeLead.serviceNeeded).toBe(service);
+  });
+  test.each(tradeCases)("%s: urgent follow-up is retained during staff takeover with no AI reply", async (trade, service, danger) => {
+    Business.findById.mockResolvedValue({ ...business, businessType: trade });
+    activeLead.serviceNeeded = service; activeLead.urgency = "medium";
+    activeLead.preferredAppointmentTime = "2026-09-09 at 14:00";
+    activeConversation.humanTakeover = true;
+    activeInbound.body = danger;
+    evaluateDeterministicInboundGuardrails.mockImplementation(jest.requireActual("../../src/helpers/ai/aiGuardrails.js").evaluateDeterministicInboundGuardrails);
+    const result = await processInboundSmsJob(job);
+    expect(result.reason).toBe("staff_safety_review");
+    expect(activeLead.urgency).toBe("emergency");
+    expect(activeLead.serviceNeeded).toBe(service);
+    expect(activeLead.preferredAppointmentTime).toBe("2026-09-09 at 14:00");
+    expect(activeConversation.humanTakeover).toBe(true);
+    expect(AlertService.createHumanHandoffAlert).toHaveBeenCalledWith(expect.objectContaining({ result: expect.objectContaining({ urgency: "emergency" }) }));
+    expect(sendSms).not.toHaveBeenCalled(); expect(generateAIReplyResult).not.toHaveBeenCalled();
+  });
+  test.each(["Please cancel that request", "Actually I need Thursday instead", "The address is wrong", "I need a price", "Do you cover my area?", "What does that mean?", "Thank you"])("preserves post-intake follow-up for staff: %s", async text => {
+    activeConversation.orchestration = { handoffReason: "intake_complete", handoffInboundMessage: "previous" };
+    activeInbound.body = text; activeLead.preferredAppointmentTime = "2026-09-09 at 14:00";
+    await processInboundSmsJob(job);
+    expect(AlertService.createHumanHandoffAlert).toHaveBeenCalledWith(expect.objectContaining({ customerMessage: text }));
+    expect(activeLead.preferredAppointmentTime).toBe("2026-09-09 at 14:00");
+    expect(generateAIReplyResult).not.toHaveBeenCalled();
+  });
+
+  test("answers an approved price question after intake without making a booking", async () => {
+    activeConversation.orchestration = { handoffReason: "intake_complete", handoffInboundMessage: "previous" };
+    activeInbound.body = "How much will it cost?";
+    getApprovedServiceEstimate.mockResolvedValue("The rough estimate is $150-$250. Final pricing depends on technician evaluation.");
+    await processInboundSmsJob(job);
+    expect(sendSms.mock.calls[0][0].body).toContain("$150-$250");
+    expect(activeConversation.bookingState.status).toBe("not_started");
+    expect(AlertService.createHumanHandoffAlert).toHaveBeenCalled();
+    expect(generateAIReplyResult).not.toHaveBeenCalled();
+  });
+
   test("immediate safety instructions still reach the customer after completed intake", async () => {
     activeConversation.orchestration = { handoffReason: "intake_complete", handoffStatus: "acknowledged", handoffInboundMessage: "earlier-message" };
     activeInbound.body = "I smell gas. When will someone call?";
@@ -511,4 +612,15 @@ describe("completed manual intake uses the durable staff handoff", () => {
     expect(generateAIReplyResult).not.toHaveBeenCalled();
     expect(AlertService.createHumanHandoffAlert).toHaveBeenCalledWith(expect.objectContaining({ result: expect.objectContaining({ urgency: "emergency" }) }));
   });
+});
+
+
+test.each(["hvac", "electrical", "roofing", "restoration", "garage_door", "locksmith", "landscaping", "plumbing"])("%s webhook queues a safety observation despite staff takeover", async trade => {
+  resolveBusinessByTwilioNumber.mockResolvedValue({ ...business, businessType: trade });
+  getOrCreateSmsLeadAndConversation.mockResolvedValue({ lead, conversation: { ...conversation, humanTakeover: true, aiEnabled: false } });
+  evaluateDeterministicInboundGuardrails.mockReturnValue({ handled: true, category: "emergency", riskFlags: ["safety_hazard"] });
+  const req = { body: { From: lead.phone, To: business.phone, Body: "Someone is trapped", MessageSid: "SM_SAFETY", NumMedia: "0" } };
+  await handleInboundSmsWebhook(req, createResponse());
+  expect(enqueueInboundSmsJob).toHaveBeenCalled();
+  expect(sendSms).not.toHaveBeenCalled();
 });

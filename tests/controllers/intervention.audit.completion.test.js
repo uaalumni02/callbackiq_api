@@ -360,3 +360,27 @@ describe("Intervention Center completion audit", () => {
     );
   });
 });
+
+
+test("rejects acknowledgment assignment to a different business user", async () => {
+  Alert.findOne.mockResolvedValue({ _id: ALERT_ID });
+  const next = jest.fn();
+  await InterventionController.acknowledge(request({ body: { assignedTo: "507f1f77bcf86cd799439099" } }), response(), next);
+  expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 403 }));
+  expect(Alert.findOneAndUpdate).not.toHaveBeenCalled();
+});
+test("filters linked conversation before aggregation pagination", async () => {
+  Alert.aggregate.mockResolvedValue([]); Alert.countDocuments.mockResolvedValue(0);
+  const next = jest.fn();
+  await InterventionController.list(request({ query: { conversationId: ALERT_ID } }), response(), next);
+  expect(next).not.toHaveBeenCalled();
+  const match = Alert.aggregate.mock.calls[0][0][0].$match;
+  expect(String(match.conversation)).toBe(ALERT_ID);
+  expect(match.business).toBe(BUSINESS_ID);
+});
+test("rejects invalid linked lead identifiers", async () => {
+  const res = response();
+  await InterventionController.list(request({ query: { leadId: "invalid" } }), res, jest.fn());
+  expect(res.status).toHaveBeenCalledWith(400);
+  expect(Alert.aggregate).not.toHaveBeenCalled();
+});

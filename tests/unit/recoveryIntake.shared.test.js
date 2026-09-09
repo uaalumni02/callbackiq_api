@@ -203,3 +203,14 @@ test.each(['sms', 'voice'])('%s keeps the original service detail when semantic 
  expect(c.conversation.conversationMemory.recoveryIntake.serviceDetail).toBe('Seal around my bathtub is leaking');
  expect(c.conversation.conversationMemory.recoveryIntake.triageAnswer).toBe('Only when fixture is used');
 });
+
+ test.each(['sms', 'voice'])('%s answers approved pricing after submitted intake without promising a booking', async channel => {
+ const c=context(channel); c.lead.serviceNeeded='AC repair'; c.lead.address='970 Sidney Marcus Blvd NE Atlanta GA 30324';
+ await c.turn('Sep 8 at 8 am');
+ c.conversation.conversationMemory.recoveryIntake.submitted=true;
+ getApprovedServiceEstimate.mockResolvedValue('The rough estimate is $125-$250. Final pricing depends on technician evaluation.');
+ const result=await c.turn('How much will it cost?');
+ expect(result.reply).toContain('$125-$250');
+ expect(result.reply).not.toMatch(/appointment is confirmed|will call/);
+ expect(c.conversation.bookingState.status).toBe('not_started');
+ });

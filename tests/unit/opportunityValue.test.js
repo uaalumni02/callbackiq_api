@@ -11,3 +11,13 @@ describe('Evidence-based opportunity valuation', () => {
   test('range is grounded; no invented 25 percent spread', () => { expect(resolve().valuation).toMatchObject({minimum:225,maximum:225}); expect(resolve({services:[{...service,estimatedValue:null,priceEstimateMin:100,priceEstimateMax:300}]})).toMatchObject({estimatedValue:200,valuation:{minimum:100,maximum:300}}); });
   test('staff-selected catalog still checks business and active',()=>{expect(resolve({evidence:'',selectedServiceId:'svc'}).estimatedValue).toBe(225);expect(resolve({selectedServiceId:'svc',services:[{...service,business:'b'}]}).estimatedValue).toBeNull();});
 });
+
+test('customer wording and a configured keyword can agree without matching the catalog name', () => {
+ expect(resolve({ evidence: 'My drain is clogged', proposedService: 'clogged drain' }).estimatedValue).toBe(225);
+ expect(resolve({ evidence: 'My drain is clogged', proposedService: 'Roof replacement' }).estimatedValue).toBeNull();
+});
+test('explains missing catalog pricing and ambiguous matches', () => {
+ expect(resolve({ services: [] }).valuation.basis).toMatch(/No active service catalog/);
+ expect(resolve({ services: [{ ...service, estimatedValue: null }] }).valuation.basis).toMatch(/no valid internal value/);
+ expect(resolve({ services: [service, { ...service, _id: 'other' }] }).valuation.basis).toMatch(/Multiple catalog/);
+});

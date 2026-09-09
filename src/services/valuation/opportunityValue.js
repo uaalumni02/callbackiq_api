@@ -1,14 +1,13 @@
+import { normalizeServiceText as text, matchesServicePhrase as has } from '../catalog/servicePhrase.service.js';
 // Internal opportunity values are never customer quotes.
 export const moneyAmount = (value) =>
   value === null || value === undefined || value === "" || typeof value === "boolean"
     ? null
     : Number.isFinite(Number(value)) && Number(value) >= 0 ? Number(value) : null;
 const id = (value) => String(value?._id || value || "");
-const text = (value) => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-const has = (haystack, phrase) => phrase && (` ${haystack} `).includes(` ${text(phrase)} `);
-export const unknownEstimate = () => ({ estimatedValue: null, valuation: {
+export const unknownEstimate = (basis = "Insufficient service-specific evidence") => ({ estimatedValue: null, valuation: {
   source: "unknown", minimum: null, maximum: null, serviceOffering: null,
-  basis: "Insufficient service-specific evidence", updatedAt: new Date(),
+  basis, updatedAt: new Date(),
 } });
 export const ownerEstimate = (amount, actorId = null) => ({
   estimatedValue: moneyAmount(amount), valuation: {
@@ -49,14 +48,18 @@ export function resolveOpportunityValue({ businessId, current, services = [], ev
     if (/\b(no|not|dont|don t|without)\b.{0,25}\b(replace|replacement|install|repair)\b/.test(customerText)) return false;
     const matches = has(customerText, name) || (service.keywords || []).some(word => text(word).length >= 4 && has(customerText, word));
     if (!matches) return false;
-    return !proposedService || text(proposedService) === name || has(text(proposedService), name) || has(name, proposedService);
+    return !proposedService || text(proposedService) === name || has(text(proposedService), name) || has(name, proposedService) ||
+      (service.keywords || []).some(word => text(word).length >= 4 && has(text(proposedService), word));
   });
-  if (candidates.length !== 1) return unknownEstimate();
+  if (candidates.length !== 1) return unknownEstimate(candidates.length > 1
+    ? "Multiple catalog services match; review the service before estimating."
+    : services.length ? "No service-specific catalog match. Review the service scope and matching keywords."
+      : "No active service catalog prices are configured for this business.");
   const service = candidates[0];
   const amount = moneyAmount(service.estimatedValue);
   const low = moneyAmount(service.priceEstimateMin), high = moneyAmount(service.priceEstimateMax);
   const hasRange = low !== null && high !== null && low <= high;
-  if (amount === null && !hasRange) return unknownEstimate();
+  if (amount === null && !hasRange) return unknownEstimate("The matching catalog service has no valid internal value or price range.");
   return { estimatedValue: amount ?? Math.round((low + high) / 2 * 100) / 100,
     valuation: { source: "service_catalog", minimum: hasRange ? low : amount,
       maximum: hasRange ? high : amount, serviceOffering: service._id,

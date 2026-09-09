@@ -27,6 +27,7 @@ beforeEach(() => {
 const scenarios = [
  ['HVAC','My AC is blowing warm air. How much does a repair cost?','AC repair'],
  ['electrical','I need a ceiling fan installed. What is the cost?','ceiling fan installation'],
+ ['restoration','I need water damage restoration. How much will it cost?','water damage restoration'],
  ['roofing','Several shingles are missing. How much would replacement cost?','shingle replacement'],
  ['garage_door','My garage door will not open. How much does a repair cost?','garage door repair'],
  ['locksmith','I need my front door lock replaced. How much does it cost?','lock replacement'],
@@ -104,4 +105,31 @@ test.each(['sms','voice'])('%s captures a date/time appended to a street address
  expect(c.lead.address).toBe(address);
  expect(c.lead.preferredAppointmentTime).toBe('2026-09-09 at 8:00');
  expect(result.intakeReady).toBe(true);
+});
+
+
+describe.each(['sms', 'voice'])('%s complete trade intake', channel => {
+ test.each(scenarios)('%s retains service, location, and preference through staff review', async (trade, text, service) => {
+  const c = context(channel, trade);
+  await c.turn(`I need help with ${service}`, { isInScope: true, confidence: 95, serviceNeeded: service });
+  await c.turn(address);
+  const result = await c.turn('Wed Sep 9 at 8 am');
+  expect(c.lead.serviceNeeded).toBeTruthy();
+  expect(c.lead.address).toBe(address);
+  expect(c.lead.preferredAppointmentTime).toMatch(/2026-09-09.*8:00/);
+  expect(result.intakeReady).toBe(true);
+  expect(result.intakeCompletionReply).toMatch(/not confirmed/);
+  expect(validateServiceArea).toHaveBeenCalledWith({ businessId: 'b1', postalCode: '30060' });
+ });
+ test.each(scenarios)('%s provider outage does not become an availability or booking claim', async (trade, _text, service) => {
+  const c = context(channel, trade);
+  getAvailability.mockRejectedValue(new Error('calendar unavailable'));
+  await c.turn(`I need help with ${service}`, { isInScope: true, confidence: 95, serviceNeeded: service });
+  await c.turn(address);
+  const result = await c.turn('Wed Sep 9 at 8 am');
+  expect(result.intakeReady).toBe(true);
+  expect(c.conversation.conversationMemory.recoveryIntake.availability.status).toBe('unknown');
+  expect(result.intakeCompletionReply).toMatch(/not confirmed/);
+  expect(result.intakeCompletionReply).not.toMatch(/is available|you.re booked/);
+ });
 });

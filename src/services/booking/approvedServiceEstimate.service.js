@@ -1,12 +1,6 @@
 import ServiceOffering from '../../models/serviceOffering.js';
 
-const normalize = value => typeof value === 'string'
-  ? value.normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim()
-  : '';
-const containsPhrase = (text, phrase) => {
-  const term = normalize(phrase);
-  return Boolean(term) && ` ${text} `.includes(` ${term} `);
-};
+import { normalizeServiceText as normalize, matchesServicePhrase as containsPhrase } from '../catalog/servicePhrase.service.js';
 const validAmount = amount => typeof amount === 'number' && Number.isFinite(amount) && amount >= 0;
 const currency = amount => new Intl.NumberFormat('en-US', {
   style: 'currency', currency: 'USD', maximumFractionDigits: 2,
@@ -29,6 +23,12 @@ export const getApprovedServiceEstimate = async ({ businessId, serviceNeeded, cu
   });
   if (matches.length !== 1) return '';
   const service = matches[0];
+  const feeRequested = /\b(?:diagnostic|service[- ]?call|call[- ]?out|trip)\s*(?:fee|charge|cost)?\b/i.test(customerMessage);
+  if (feeRequested) {
+    return service.discloseDiagnosticFee === true && validAmount(service.diagnosticFee)
+      ? `The approved service-call fee is ${currency(service.diagnosticFee)}. This is not the total repair price; any additional work needs a separate estimate.`
+      : '';
+  }
   if (service.disclosePriceEstimate !== true || !validAmount(service.priceEstimateMin) ||
       !validAmount(service.priceEstimateMax) || service.priceEstimateMin > service.priceEstimateMax) return '';
   const range = service.priceEstimateMin === service.priceEstimateMax

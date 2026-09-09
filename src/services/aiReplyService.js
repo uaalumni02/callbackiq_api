@@ -1,3 +1,4 @@
+import { getApprovedServiceEstimate } from "./booking/approvedServiceEstimate.service.js";
 import { constrainUncertainReply, qualifiedIntakeFacts } from "./messaging/uncertainReply.service.js";
 import { handleRecoveryIntake } from "./booking/recoveryIntake.service.js";
 import {
@@ -201,6 +202,18 @@ export const generateAIReplyResult = async ({
       !smsTurnPolicy.serviceNeeded &&
       (!cleanText(lead?.serviceNeeded) || /^(unknown|not provided|n\/a)$/i.test(cleanText(lead?.serviceNeeded)));
     if (smsTurnPolicy.directResult && !pricingNeedsUnderstanding) {
+      if (smsTurnPolicy.intent?.pricing && ["pricing_request", "appointment_preference"].includes(smsTurnPolicy.directResult.messageCategory)) {
+        try {
+          const estimate = await getApprovedServiceEstimate({ businessId: business?._id,
+            serviceNeeded: smsTurnPolicy.directResult.serviceNeeded || lead?.serviceNeeded,
+            customerMessage: latestCustomerMessage });
+          if (estimate) {
+            const schedulingContext = smsTurnPolicy.directResult.messageCategory === "appointment_preference"
+              ? ` ${smsTurnPolicy.directResult.reply.replace(/^Final pricing depends on the diagnosis and is not confirmed yet\.\s*/, "")}` : "";
+            return preserveTurnUrgency({ ...smsTurnPolicy.directResult, reply: estimate + schedulingContext }, turnUrgency);
+          }
+        } catch (error) { logOperationalError("sms.approved_price_lookup_failed", error, { businessId: business?._id }); }
+      }
       return preserveTurnUrgency(smsTurnPolicy.directResult, turnUrgency);
     }
 

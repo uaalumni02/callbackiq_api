@@ -1,3 +1,5 @@
+import { getApprovedServiceEstimate } from '../../src/services/booking/approvedServiceEstimate.service.js';
+jest.mock('../../src/services/booking/approvedServiceEstimate.service.js', () => ({ getApprovedServiceEstimate: jest.fn().mockResolvedValue('') }));
 import {
   SAFE_REPLIES,
   cleanText,
@@ -25,6 +27,7 @@ import { reserveAiUsage } from "../../src/services/communicationUsage.service.js
 import { logOperationalError } from "../../src/helpers/logging/safeLogger.js";
 
 jest.mock("../../src/helpers/ai/aiGuardrails.js", () => ({
+  ...jest.requireActual("../../src/helpers/ai/aiGuardrails.js"),
   __esModule: true,
   SAFE_REPLIES: { fallback: "Safe fallback reply." },
   cleanText: jest.fn((value, fallback = "") => {
@@ -72,6 +75,7 @@ const assessment = { decision: 'send', messageCategory: 'pricing_request', isInS
 const genericPricing = { directResult: { reply: 'What service?', serviceNeeded: '' }, intent: { pricing: true }, serviceNeeded: '' };
 beforeEach(() => {
   jest.clearAllMocks();
+  getApprovedServiceEstimate.mockResolvedValue('');
   evaluateDeterministicInboundGuardrails.mockReturnValue({ handled: false });
   handleRecoveryIntake.mockResolvedValue(null);
   BookingStateMachineService.handle.mockResolvedValue({ handled: false });
@@ -114,4 +118,15 @@ test('low confidence qualification does not bootstrap service facts or overwrite
   await generateAIReplyResult({ business, lead: {}, customerMessage: 'Can you help with it? How much?' });
   expect(handleRecoveryIntake).toHaveBeenCalledTimes(1);
   expect(runFollowUpAgent).toHaveBeenCalledWith(expect.objectContaining({ lead: {} }));
+});
+
+test.each(['pricing_request', 'appointment_preference', 'human_requested', 'appointment_cancellation'])('approved prices preserve the %s action', async messageCategory => {
+ getApprovedServiceEstimate.mockResolvedValue('The rough estimate is $125-$250. Final pricing depends on technician evaluation.');
+ const reply='Your request is saved. This is not a confirmed appointment.';
+ evaluateSmsTurnPolicy.mockReturnValue({ intent: { pricing: true }, serviceNeeded: 'AC repair', directResult: { messageCategory, reply, serviceNeeded: 'AC repair' } });
+ const result=await generateAIReplyResult({ business, lead: { _id:'l1', serviceNeeded:'AC repair' }, conversation: { _id:'c1' }, messages: [{direction:'inbound',body:'How much for AC repair?'}] });
+ expect(result.messageCategory).toBe(messageCategory);
+ if (['pricing_request','appointment_preference'].includes(messageCategory)) expect(result.reply).toContain('$125-$250');
+ else { expect(result.reply).toBe(reply); expect(getApprovedServiceEstimate).not.toHaveBeenCalled(); }
+ if (messageCategory === 'appointment_preference') expect(result.reply).toContain('not a confirmed appointment');
 });

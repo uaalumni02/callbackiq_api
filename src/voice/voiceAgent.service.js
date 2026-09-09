@@ -411,7 +411,7 @@ class VoiceAgentService {
         alertType: "safety_emergency",
         priority: "critical",
         seed: {
-          serviceNeeded: `Potential ${safety?.hazardType || "safety"} emergency`,
+          serviceNeeded: lead?.serviceNeeded || `Potential ${safety?.hazardType || "safety"} emergency`,
           urgency: "emergency",
           urgencyDetail: text,
         },

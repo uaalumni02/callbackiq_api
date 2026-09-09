@@ -167,7 +167,10 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   }
   if (state.submitted) {
     await persist();
-    return fixed('Your additional details are saved with this conversation. The service request still needs team review.', lead);
+    const reply = classification.intents?.pricing
+      ? `${approvedEstimate || "I don't have an approved estimate for that request."} The service request still needs team review.`
+      : 'Your additional details are saved with this conversation. The service request still needs team review.';
+    return fixed(reply, lead);
   }
   // Pricing is a question within intake, not a reason to discard its facts.
   if (classification.intents?.pricing) {

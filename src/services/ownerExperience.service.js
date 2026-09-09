@@ -57,6 +57,10 @@ const BOOKING_STAGE = {
     label: "Confirming appointment",
     description: "CallBackIQ is performing the final booking step.",
   },
+  pending_business_confirmation: {
+    label: "Awaiting business confirmation",
+    description: "The business must approve this appointment before it is confirmed.",
+  },
   booked: {
     label: "Booked",
     description: "The appointment was confirmed.",
@@ -140,7 +144,11 @@ const serializeAppointment = (appointment) => {
 const bookingEvidence = ({ lead, conversation, appointment }) => {
   const state = conversation?.bookingState || {};
   const status = String(state.status || "not_started");
-  const stage = BOOKING_STAGE[status] || BOOKING_STAGE.not_started;
+  const awaitingReview = manualIntakeSubmitted(conversation) && !appointment &&
+    !["offering_slots", "awaiting_confirmation", "booking", "pending_business_confirmation", "booked"].includes(status);
+  const stage = awaitingReview
+    ? { label: "Awaiting business review", description: "The captured service request needs staff review. Check service coverage and availability before confirming an appointment." }
+    : BOOKING_STAGE[status] || BOOKING_STAGE.not_started;
   const preference =
     state.lastCustomerPreference || lead?.preferredAppointmentTime || "";
   const offeredSlots = Array.isArray(state.offeredSlots)
@@ -159,9 +167,9 @@ const bookingEvidence = ({ lead, conversation, appointment }) => {
   const postalCode = String(
     state.postalCode || rawAddress.match(/\b\d{5}(?:-\d{4})?\b/)?.[0] || "",
   ).trim();
-  const urgency = String(
-    conversation?.conversationMemory?.urgency || lead?.urgency || "",
-  ).trim();
+  const urgency = [lead?.urgency, conversation?.conversationMemory?.urgency]
+    .filter(value => value in URGENCY_RANK)
+    .sort((a, b) => URGENCY_RANK[b] - URGENCY_RANK[a])[0] || "";
   const serviceCaptured = Boolean(serviceNeeded && serviceNeeded !== "Unknown");
   const addressCaptured = Boolean(rawAddress);
   const urgencyCaptured = Boolean(

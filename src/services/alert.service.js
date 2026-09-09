@@ -350,7 +350,7 @@ class AlertService {
       leadId,
       conversationId,
       type: isEmergency ? "safety_emergency" : "human_requested",
-      title: intake
+      title: isEmergency ? "Urgent safety concern — staff review required" : intake
         ? "Service request ready for team review"
         : isUrgent
         ? "Urgent customer callback required"
@@ -362,7 +362,9 @@ class AlertService {
       actionRequired: true,
       dueAt,
       reason: category,
-      recommendedAction: intake
+      recommendedAction: isEmergency
+        ? "Review the latest safety concern and attempt to contact the customer to assess whether your team can assist. Do not treat the requested appointment as confirmed."
+        : intake
         ? "Review the service, urgency, address, preferred time, and latest customer questions. Confirm availability with the customer before a visit."
         : `Call ${customerPhone || "the customer"} and review the full SMS conversation before responding.`,
       aiSummary: String(result?.summary || lead?.summary || ""),

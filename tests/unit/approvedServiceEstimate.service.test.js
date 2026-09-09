@@ -79,3 +79,22 @@ test('database errors propagate for caller to degrade without inventing a quote'
   lean.mockRejectedValue(new Error('catalog unavailable'));
   await expect(getApprovedServiceEstimate(query)).rejects.toThrow('catalog unavailable');
 });
+
+test.each([
+ ['plumbing', 'Bathtub drain clearing', 'clogged bathtub', 'My bath tub is clogged'],
+ ['hvac', 'AC diagnostic', 'warm air', 'The air is warm'],
+ ['electrical', 'Outlet diagnostic', 'outlet repair', 'I need repair for the outlet'],
+ ['roofing', 'Roof inspection', 'missing shingles', 'The shingles are missing'],
+ ['restoration', 'Water damage inspection', 'water damage', 'I have water damage'],
+ ['garage_door', 'Garage door diagnostic', 'garage door', 'My garage door is stuck'],
+ ['locksmith', 'Door lock service', 'lock replacement', 'I need replacement of the lock'],
+ ['landscaping', 'Hedge trimming', 'hedge trimming', 'I need trimming for the hedge'],
+])('%s uses approved phrases despite natural customer word order', async (_trade, name, keyword, serviceNeeded) => {
+ lean.mockResolvedValue([offering({ name, keywords: [keyword] })]);
+ expect(await getApprovedServiceEstimate({ ...query, serviceNeeded })).toContain('$125-$250');
+});
+test('an explicitly disclosed diagnostic fee works without a repair-price range', async () => {
+ lean.mockResolvedValue([offering({ disclosePriceEstimate: false, priceEstimateMin: null, priceEstimateMax: null, diagnosticFee: 75, discloseDiagnosticFee: true })]);
+ const reply = await getApprovedServiceEstimate({ ...query, customerMessage: 'What is the service-call fee?' });
+ expect(reply).toContain('$75'); expect(reply).toContain('not the total repair price');
+});
