@@ -4,6 +4,7 @@ import crypto from "crypto";
 
 import mongoose from "mongoose";
 import Appointment from "../../models/appointment.js";
+import { assertAutomatedNotice } from './automatedSchedulingPolicy.service.js';
 import { normalizePhoneToE164 } from "../../voice/voicePhone.service.js";
 import CallLog from "../../models/callLog.js"; // CALLBACKIQ_MARKETING_ATTRIBUTION_V1
 import Conversation from "../../models/conversation.js";
@@ -260,6 +261,7 @@ const createHold = async ({
 }) => {
   const businessId = business._id;
   const startAt = new Date(input.startAt);
+  if (input.bookedBy === 'ai') assertAutomatedNotice(startAt);
   const endAt = input.endAt
     ? new Date(input.endAt)
     : addMinutes(startAt, Number(service.durationMinutes || 90));

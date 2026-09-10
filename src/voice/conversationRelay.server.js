@@ -1,4 +1,5 @@
 import { withDeadline } from "../services/boundedRedis.service.js";
+import { runVoiceConversationTurn } from '../services/voiceConversationTurn.service.js';
 import { createVoiceAdmission, acquireFleetVoiceSlot } from "../services/voiceAdmission.service.js";
 import { registerVoiceSnapshot } from "../services/runtimeState.service.js";
 import {
@@ -170,6 +171,7 @@ export const initializeConversationRelayServer = (
   {
     admissionController = createVoiceAdmission(),
     voiceAgentService = VoiceAgentService,
+    coordinateConversationTurn = runVoiceConversationTurn,
     voiceSessionService = VoiceSessionService,
     voiceTranscriptService = VoiceTranscriptService,
     voiceFailureService = VoiceFailureService,
@@ -738,7 +740,8 @@ export const initializeConversationRelayServer = (
             signal: abortController.signal,
             isActive: () => !intentionalEnd && !failureStarted && turnId === currentTurn,
           },
-          () => voiceAgentService.handlePrompt({ session, customerMessage, signal: abortController.signal, turnId }),
+          () => coordinateConversationTurn({ session, customerMessage,
+            operation: () => voiceAgentService.handlePrompt({ session, customerMessage, signal: abortController.signal, turnId }) }),
         ));
         const result = await Promise.race([agentPromise, timeoutPromise, cancellationPromise]);
         settled = true;

@@ -77,7 +77,9 @@ describe("production scheduling regression: exact urgent availability journey", 
     features: { aiBookingEnabled: true },
   };
 
+  afterEach(() => jest.useRealTimers());
   beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-09-05T12:00:00Z"));
     jest.clearAllMocks();
     getAvailabilityTool.mockResolvedValue({
       supportedServiceArea: true,
@@ -224,7 +226,7 @@ describe("production scheduling regression: exact urgent availability journey", 
 });
 
 describe.each(['sms', 'voice'])('reported read-only journey (%s)', (channel) => {
-  beforeEach(() => { jest.useFakeTimers().setSystemTime(new Date('2026-09-07T15:15:00Z')); });
+  beforeEach(() => { jest.useFakeTimers().setSystemTime(new Date('2026-09-06T10:00:00Z')); });
   afterEach(() => jest.useRealTimers());
   const business = { _id: 'business-1', businessName: 'Atlanta Pro Plumbing', timezone: 'America/New_York', features: { aiBookingEnabled: false } };
   const offered = () => {
@@ -239,7 +241,7 @@ describe.each(['sms', 'voice'])('reported read-only journey (%s)', (channel) => 
   test('natural time selects the matching slot, persists review and answers confirmation without restarting', async () => {
     const conversation = offered();
     const lead = { _id: 'lead-1', save: jest.fn() };
-    const result = await BookingStateMachineService.handle({ business, lead, conversation, channel, customerMessage: 'Today at 1:30pm' });
+    const result = await BookingStateMachineService.handle({ business, lead, conversation, channel, customerMessage: 'Tomorrow at 1:30pm' });
     expect(result.result.reply).toMatch(/1:30 PM/);
     expect(conversation.bookingState.selectedSlot.startAt.toISOString()).toBe('2026-09-07T17:30:00.000Z');
     expect(conversation.bookingState.status).toBe('human_takeover');
@@ -250,7 +252,7 @@ describe.each(['sms', 'voice'])('reported read-only journey (%s)', (channel) => 
     expect(followup.result.reply).not.toMatch(/choose|option numbers/);
     expect(conversation.bookingState.status).toBe('human_takeover');
   });
-  test.each(['Tomorrow at 1:30pm', '1 or 2', '1:45pm'])('does not silently select an unsupported time: %s', async customerMessage => {
+  test.each(['Today at 1:30pm', '1 or 2', '1:45pm'])('does not silently select an unsupported time: %s', async customerMessage => {
     const conversation = offered();
     await BookingStateMachineService.handle({ business, conversation, channel, customerMessage });
     expect(conversation.bookingState.selectedSlot).toBeUndefined();

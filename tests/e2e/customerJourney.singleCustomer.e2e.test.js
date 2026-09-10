@@ -39,6 +39,7 @@ jest.mock("../../src/services/alert.service.js", () => ({
   default: {
     createMissedCallAlert: jest.fn(),
     createCustomerReplyAlert: jest.fn(),
+    createHumanHandoffAlert: jest.fn().mockResolvedValue(null),
     createAIReviewAlert: jest.fn(),
     createBookedJobAlert: jest.fn(),
     createSystemAlert: jest.fn(() => Promise.resolve({})),
@@ -136,6 +137,7 @@ import {
 import {
   claimTwilioWebhookEvent,
   completeTwilioWebhookEvent,
+  failTwilioWebhookEvent,
 } from "../../src/services/webhooks/twilioWebhookEvent.service.js";
 
 import {
@@ -619,6 +621,10 @@ describe("CallBackIQ single-customer complete lifecycle", () => {
         inboundRes
       );
 
+      if (inboundRes.statusCode !== 200) {
+        const failure = failTwilioWebhookEvent.mock.calls.at(-1)?.[1];
+        throw failure || new Error(`Inbound SMS returned ${inboundRes.statusCode} without a captured webhook error.`);
+      }
       expect(inboundRes.statusCode)
         .toBe(200);
 
@@ -701,13 +707,11 @@ describe("CallBackIQ single-customer complete lifecycle", () => {
       expect(aiReply)
         .toBeTruthy();
 
-      expect(aiReply.body)
-        .toMatch(/rough estimate/i);
-
-      expect(aiReply.body)
-        .toMatch(
-          /final price can vary/i
-        );
+      // Internal value is not an approved customer-facing quote.
+      // Keep the separate $250 persisted-value assertion above.
+      expect(aiReply.body).toMatch(/service request is saved/i);
+      expect(aiReply.body).toMatch(/needs business confirmation/i);
+      expect(aiReply.body).not.toMatch(/\$\s*250\b|rough estimate/i);
 
       const future =
         addDays(new Date(), 7);

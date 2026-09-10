@@ -22,6 +22,13 @@ const setMemory = (conversation, field, value) => {
   else conversation.conversationMemory = { ...(conversation.conversationMemory || {}), [field]: value };
 };
 
+export const resetUncertainTurns = async conversation => {
+  if (!conversation?.conversationMemory?.uncertainTurns || typeof conversation.save !== 'function') return;
+  setMemory(conversation, 'uncertainTurns', 0);
+  setMemory(conversation, 'uncertainTurnId', '');
+  await conversation.save();
+};
+
 export const constrainUncertainReply = async ({ result, lead, conversation, turnId = '', inboundAssessment = null }) => {
   if (!result || result.decision === 'no_reply' || result.guardrail?.skipAI === true || result.guardrail?.usedFallback) return result;
   const extracted = qualifiedIntakeFacts(inboundAssessment);

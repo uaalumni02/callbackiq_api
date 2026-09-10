@@ -11,6 +11,9 @@ import AlertService from '../alert.service.js';
 import { isConfirmationQuestion } from './conversationQuestions.service.js';
 import { assertDistributedLeaseActive } from '../distributedLease.service.js';
 import { assertVoiceTurnActive } from '../voiceTurnContext.service.js';
+import { resetUncertainTurns } from '../messaging/uncertainReply.service.js';
+import { filterAutomatedSlots, automatedSchedulingNotice, AUTOMATED_NOTICE_MS } from '../scheduling/automatedSchedulingPolicy.service.js';
+import { formatDateKey } from '../scheduling/timezone.service.js';
 
 const clean = value => String(value || '').replace(/\s+/g, ' ').trim();
 const known = value => clean(value) && !/^(unknown|not provided|n\/a)$/i.test(clean(value));
@@ -18,6 +21,8 @@ const leak = /\b(?:leak(?:ing|s)?|overflow(?:ing)?|water spreading)\b/i;
 const active = /\b(?:(?:actively|still|currently) (?:leaking|overflowing)|(?:leaking|overflowing) right now|won't stop leaking|will not stop leaking|overflowing|spreading|gushing|flooding)\b/i;
 const stopped = /\b(?:(?:not|no longer|stopped) (?:leaking|overflowing|flooding|spreading|gushing)|no (?:active )?(?:leak|overflow|flooding)|(?:leak(?:ing)?|overflow(?:ing)?) (?:has )?stopped|only when|only (?:leaks|leaking|overflows|overflowing))\b/i;
 const controlMessage = /^(?:stop|unsubscribe|help|start|unstop)[.! ]*$/i;
+const clogQuestion = 'Is water overflowing or backing up into other fixtures?';
+const cloggedFixture = value => /\b(?:clogged|blocked|stopped up)\b/i.test(value) && /\b(?:toilet|sink|drain|tub|shower|sewer)\b/i.test(value);
 const businessHoursQuestion = /\b(?:what (?:are|time)|when (?:are|do|will)).{0,35}\b(?:hours|open|close)\b/i;
 const addressFrom = text => {
   let value = clean(text).replace(/^(?:my |the )?address is\s+/i, '').replace(/^(?:i am at|i'm at|we are at|we're at|at)\s+/i, '');
@@ -76,6 +81,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
       (classification.intents?.correction || classification.intents?.newService)) {
     state.triageResolved = false; state.triagePending = false; state.triageAsked = false;
     delete state.triageAnswer; delete state.leakPattern;
+    delete state.clogAsked; delete state.clogPending; delete state.clogResolved;
   }
   if (known(service) && (!known(lead.serviceNeeded) || classification.intents?.correction || classification.intents?.newService)) lead.serviceNeeded = service;
   if (!known(lead.serviceNeeded)) return null;
@@ -85,7 +91,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
 
   const schedulingText = address ? clean(text.replace(address, '')) : text;
   const incomingRange = !/^\d{5}(?:-\d{4})?$/.test(schedulingText) ? findDateRange(schedulingText, timezone, now) : null;
-  const incomingTime = parseTimePreference(schedulingText, timezone);
+  const incomingTime = parseTimePreference(schedulingText, timezone, now);
   if (incomingRange) state.date = incomingRange.startDate === incomingRange.endDate ? incomingRange.startDate : `${incomingRange.startDate} through ${incomingRange.endDate}`;
   if (incomingTime.targetMinutes !== null || incomingTime.timeOfDay) state.time = incomingTime.exactMinutes !== null ? `${Math.floor(incomingTime.exactMinutes / 60)}:${String(incomingTime.exactMinutes % 60).padStart(2, '0')}` : incomingTime.raw.slice(0, 300);
   if (state.date || state.time) lead.preferredAppointmentTime = [state.date, state.time].filter(Boolean).join(' at ');
@@ -99,6 +105,13 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
     state.serviceSourceTurnId = String(turnId);
   }
   const wasTriageResolved = state.triageResolved;
+  const wasClogResolved = state.clogResolved;
+  if (state.clogPending && /^(?:no|nope|yes|yeah|yep)\b|\b(?:only|just) (?:the |this |my )?(?:sink|toilet|drain|tub|shower)|\b(?:not overflowing|no backup|no other fixtures|other fixtures (?:are )?fine)\b/i.test(text)) {
+    state.clogPending = false; state.clogResolved = true;
+    state.triageAnswer = text.slice(0, 250);
+    if (/^(?:yes|yeah|yep)\b/i.test(text) && lead.urgency !== 'emergency') lead.urgency = 'high';
+  }
+  if (cloggedFixture(`${lead.serviceNeeded} ${text}`) && !state.clogAsked && !leak.test(`${lead.serviceNeeded} ${text}`)) state.clogPending = true;
   const triageRelevant = state.triagePending || leak.test(`${lead.serviceNeeded} ${text}`);
   if (triageRelevant && (stopped.test(text) || active.test(text) || /^(?:yes|yeah|yep|no|nope)[.! ]*$/i.test(text))) {
     state.triageAnswer = text.slice(0, 250);
@@ -123,7 +136,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   }
   const understoodAnswer = Boolean(known(service) || address || incomingRange ||
     incomingTime.targetMinutes !== null || incomingTime.timeOfDay ||
-    state.triageResolved !== wasTriageResolved || stopped.test(text) || active.test(text));
+    state.triageResolved !== wasTriageResolved || state.clogResolved !== wasClogResolved || stopped.test(text) || active.test(text));
   // An unanswered field is not proof the customer was unintelligible. Let the
   // existing semantic pipeline answer off-script questions or interpret novel
   // details before choosing a clarification. Do not consume retry budget here.
@@ -139,6 +152,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   const pricingPrefix = classification.intents?.pricing ? `${approvedEstimate || "I don't have a confirmed price for that work."} ` : '';
   const persist = async () => {
     checkActive(); await lead.save(); checkActive();
+    if (understoodAnswer) { await resetUncertainTurns(conversation); checkActive(); }
     if (conversation.set) conversation.set('conversationMemory.recoveryIntake', state);
     else conversation.conversationMemory = { ...(conversation.conversationMemory || {}), recoveryIntake: state };
     conversation.markModified?.('conversationMemory.recoveryIntake');
@@ -165,6 +179,10 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
     state.triageAsked = true; await persist();
     return ask('leak_activity', recoveryLeakQuestion(state.serviceDetail || lead.serviceNeeded));
   }
+  if (state.clogPending && !state.clogAsked) {
+    state.clogAsked = true;
+    return ask('clog_scope', clogQuestion);
+  }
   if (state.submitted) {
     await persist();
     const reply = classification.intents?.pricing
@@ -181,6 +199,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   }
   if (business.features?.aiBookingEnabled === true) {
     if (state.triagePending) return ask('leak_activity', 'Is water leaking right now?');
+    if (state.clogPending) return ask('clog_scope', clogQuestion);
     await persist(); return null;
   }
   await persist();
@@ -188,10 +207,14 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   if (!/\b\d{5}(?:-\d{4})?\b/.test(lead.address)) return ask('postal_code', 'What is the ZIP code for that address?');
   const preference = clean(lead.preferredAppointmentTime);
   const range = findDateRange(preference, timezone, now);
-  const time = parseTimePreference(preference, timezone);
+  const time = parseTimePreference(state.time || preference, timezone, now);
   if (!range) return ask('date', 'What day would you prefer? The business will need to approve the appointment.');
+  if (range.endDate < formatDateKey(new Date(+now + AUTOMATED_NOTICE_MS), timezone)) {
+    return ask('available_preference', `${automatedSchedulingNotice} Would you like the next available appointment options?`);
+  }
   if (time.targetMinutes === null && !time.timeOfDay) return ask('time', 'What time works best that day?');
   if (state.triagePending) return ask('leak_activity', 'Before I finish, is water leaking right now?');
+  if (state.clogPending) return ask('clog_scope', clogQuestion);
 
   let availabilityNote = "I couldn't verify that time's availability; it needs team review.";
   let ready = true;
@@ -207,7 +230,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
         const available = await getAvailability({ business, serviceOfferingId: services[0].id, startDate: range.startDate, endDate: range.endDate, postalCode }); checkActive();
         if (available.supportedServiceArea === false) { ready = false; availabilityNote = 'That address needs a service-area review before scheduling.'; }
         else if (Array.isArray(available.slots)) {
-          const future = available.slots.filter(slot => new Date(slot.startAt) > now);
+          const future = filterAutomatedSlots(available.slots, now);
           const matches = filterSlotsByTimePreference(future, time, timezone);
           if (matches.length) {
             availabilityNote = `${slotLabel(matches[0], timezone)} is currently available, subject to business approval.`;
@@ -216,7 +239,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
           else {
             ready = false;
             const alternatives = future.slice(0, 2).map(slot => slotLabel(slot, timezone));
-            availabilityNote = alternatives.length ? `That time isn't available. Current openings: ${alternatives.join(' or ')}. Which works for you?` : "There are no available openings in that window. What other day could work?";
+            availabilityNote = alternatives.length ? `That time isn't available. Current openings: ${alternatives.join(' or ')}. Which works for you?` : `${automatedSchedulingNotice} There are no eligible openings in that window. What later day could work?`;
           }
         }
       }

@@ -71,6 +71,8 @@ const BookingStateSchema = new Schema(
     negotiationAttempts: { type: Number, min: 0, default: 0 },
     lastCustomerPreference: { type: String, trim: true, maxlength: 500, default: "" },
     lastAvailabilityCheckedAt: { type: Date, default: null },
+    searchStartDate: { type: String, default: '' },
+    searchEndDate: { type: String, default: '' },
     availabilityInquiry: { type: Boolean, default: false },
     escalatedAt: { type: Date, default: null },
   },

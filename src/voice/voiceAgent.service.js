@@ -334,8 +334,6 @@ class VoiceAgentService {
     const exit = await handleVoiceExit({ session, customerMessage: text });
     if (exit) return exit;
 
-    const valuationTicket = await beginValuation(lead, business._id);
-    await finishValuation(valuationTicket, { businessId: business._id, evidence: [...(session.transcript || []).filter(entry => entry.role === "customer").slice(-20).map(entry => entry.text), text].join("\n") });
     const guard = updateTurnGuards(session, text);
     const recentMessages = (session.transcript || []).slice(-10).map((entry) => ({
       direction: entry.role === "customer" ? "inbound" : "outbound",
@@ -421,6 +419,19 @@ class VoiceAgentService {
           safety?.reply ||
           "If anyone is in immediate danger, hang up and call 911 now. CallBackIQ flagged this for urgent review, but do not wait for a callback or use this service instead of emergency services.",
       });
+    }
+
+    // Safety and opt-out handling must not wait on ancillary valuation reads.
+    assertVoiceTurnActive();
+    const valuationTicket = await beginValuation(lead, business._id);
+    const valuedLead = await finishValuation(valuationTicket, { businessId: business._id,
+      evidence: [...(session.transcript || []).filter(entry => entry.role === "customer").slice(-20).map(entry => entry.text), text].join("\n"),
+      proposedService: lead?.serviceNeeded === 'Unknown' ? '' : lead?.serviceNeeded || '' });
+    assertVoiceTurnActive();
+    if (valuedLead && lead) {
+      lead.estimatedValue = valuedLead.estimatedValue; lead.valuation = valuedLead.valuation;
+      lead.valuationVersion = valuedLead.valuationVersion;
+      for (const path of ['estimatedValue', 'valuation', 'valuationVersion']) lead.unmarkModified?.(path);
     }
 
     const semanticAssessment = Number.isFinite(understanding?.confidence) &&

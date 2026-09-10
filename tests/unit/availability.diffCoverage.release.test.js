@@ -88,9 +88,7 @@ describe(
         );
 
         provider.getAvailability.mockResolvedValue(
-          {
-            unexpected: true,
-          },
+          [],
         );
 
         const result =

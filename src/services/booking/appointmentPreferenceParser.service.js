@@ -46,6 +46,8 @@ const TODAY_PATTERN = /\b(?:today|2day|later today|sometime today|this morning|t
 const TOMORROW_PATTERN = /\b(?:tomorrow|tmrw|tmr|tmw|2moro|2morrow|tomo|tomm?orrow)\b/i;
 const DAY_AFTER_TOMORROW_PATTERN = /\b(?:day after tomorrow|day after tmrw|day after tmr|day after next|overmorrow|two days from now|2 days from now|in two days|in 2 days)\b/i;
 const ASAP_PATTERN = /\b(?:asap|a\.?s\.?a\.?p\.?|as soon as possible|soonest|earliest(?: available)?|first available|next available|whenever you can|whenever(?: is)? possible)\b/i;
+// Bare timing answers only: "not now" or "it leaks now" are not scheduling consent.
+export const isImmediatePreference = value => /^(?:(?:right\s+)?now|immediately|asap|as soon as possible|(?:the\s+)?(?:earliest|soonest|first|next)\s+available)(?:\s+please)?[.! ]*$/i.test(normalizeText(value));
 
 const normalizeText = (value) =>
   String(value || "")
@@ -62,6 +64,7 @@ const TIME_NUMBER_WORDS = {
 
 const normalizeTimeWords = (value) =>
   normalizeText(value)
+    .replace(/\b(\d{1,2})(:[0-5]\d)?\s*([ap])\b/gi, (_, hour, minutes, meridiem) => `${hour}${minutes || ''}${meridiem}m`)
     .replace(/\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b/gi,
       (word) => TIME_NUMBER_WORDS[word.toLowerCase()] || word)
     .replace(/\b(\d{1,2})\s+thirty\b/gi, "$1:30")
@@ -223,6 +226,9 @@ export const findDateRange = (message, timeZone = "America/New_York", now = new 
 
   if (explicitIsoRangeForBookingWindow) {
     const [, firstDate, secondDate] = explicitIsoRangeForBookingWindow;
+    const first = parseDateKey(firstDate), second = parseDateKey(secondDate);
+    if (!validDateParts(first.year, first.month, first.day) || !validDateParts(second.year, second.month, second.day) ||
+        firstDate > secondDate || new Date(secondDate) - new Date(firstDate) > 366 * DAY_MS) return null;
 
     return {
       startDate: firstDate,
@@ -234,6 +240,10 @@ export const findDateRange = (message, timeZone = "America/New_York", now = new 
   if (!text) return null;
 
   const todayKey = localDateKey(now, timeZone);
+
+  if (/^(?:right now|now|immediately)(?: please)?[.! ]*$/i.test(text)) {
+    return { startDate: todayKey, endDate: todayKey };
+  }
 
   // Check two-day phrases before "tomorrow" because they contain that word.
   if (DAY_AFTER_TOMORROW_PATTERN.test(text)) {
@@ -402,11 +412,13 @@ const clockPhraseMinutes = (text) => {
     return { minutes: nextHour === null ? null : (nextHour + 24 * 60 - 15) % (24 * 60), toleranceMinutes: 0 };
   }
 
-  match = text.match(/\b(\d{1,2})(?::([0-5]\d))?\s*(a\.?m\.?|p\.?m\.?)\b/i);
+  match = text.match(/\b(\d{1,2})(?::([0-5]\d))?\s*(a\.?m\.?|p\.?m\.?|a|p)\b/i);
   if (match) return { minutes: parseHourMinute(match[1], match[2], match[3], text), toleranceMinutes: 0 };
 
   match = text.match(/\b([01]?\d|2[0-3]):([0-5]\d)\b/);
-  if (match) return { minutes: parseHourMinute(match[1], match[2], null, text), toleranceMinutes: 0 };
+  if (match) return { minutes: /^0\d$/.test(match[1]) || Number(match[1]) > 12
+    ? Number(match[1]) * 60 + Number(match[2])
+    : parseHourMinute(match[1], match[2], null, text), toleranceMinutes: 0 };
 
   match = text.match(/\b(?:around|right around|about|roughly|approximately|approx\.?|close to|near|like|give or take)\s+(\d{1,2})(?::([0-5]\d))?\s*(?:ish)?\b/i);
   if (match) return { minutes: parseHourMinute(match[1], match[2], null, text), toleranceMinutes: 60 };
@@ -446,7 +458,8 @@ export const parseTimePreference = (
   now = new Date(),
 ) => {
   const text = normalizeText(message);
-  const timeText = normalizeTimeWords(text);
+  // Dates must not accidentally become clock ranges (2026-09-09 -> 09-09).
+  const timeText = normalizeTimeWords(text.replace(/\b20\d{2}-\d{1,2}-\d{1,2}\b/g, '').replace(/\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/g, ''));
   const lower = text.toLowerCase();
 
   let timeOfDay = "";
@@ -455,6 +468,11 @@ export const parseTimePreference = (
   let targetMinutes = null;
   let exactMinutes = null;
   let toleranceMinutes = 0;
+
+  if (isImmediatePreference(text)) {
+    return { timeOfDay: '', exactMinutes: null, targetMinutes: 0,
+      toleranceMinutes: 0, windowStartMinutes: null, windowEndMinutes: null, raw: lower };
+  }
 
   const setWindow = (start, end, dayPart = "") => {
     windowStartMinutes = start;
@@ -485,7 +503,7 @@ export const parseTimePreference = (
   const rangeMatch = timeText.match(/\b(?:between|from)\s+(\d{1,2})(?::([0-5]\d))?\s*(a\.?m\.?|p\.?m\.?)?\s+(?:and|to|until|til|till|-)\s+(\d{1,2})(?::([0-5]\d))?\s*(a\.?m\.?|p\.?m\.?)?\b/i) ||
     timeText.match(/\b(\d{1,2})(?::([0-5]\d))?\s*(a\.?m\.?|p\.?m\.?)?\s*-\s*(\d{1,2})(?::([0-5]\d))?\s*(a\.?m\.?|p\.?m\.?)?\b/i);
   if (rangeMatch) {
-    const start = parseHourMinute(rangeMatch[1], rangeMatch[2], rangeMatch[3], timeText);
+    const start = parseHourMinute(rangeMatch[1], rangeMatch[2], rangeMatch[3] || rangeMatch[6], timeText);
     const end = parseHourMinute(rangeMatch[4], rangeMatch[5], rangeMatch[6], timeText);
     if (start !== null && end !== null && end > start) {
       windowStartMinutes = start;
@@ -526,7 +544,7 @@ export const parseTimePreference = (
   }
 
   const clock = clockPhraseMinutes(timeText);
-  if (clock.minutes !== null) {
+  if (clock.minutes !== null && !rangeMatch) {
     targetMinutes = clock.minutes;
     toleranceMinutes = clock.toleranceMinutes;
     if (clock.toleranceMinutes === 0 && !afterMatch && !beforeMatch) {

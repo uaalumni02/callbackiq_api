@@ -76,6 +76,11 @@ class AvailabilityService {
       ...(excludeExternalEventId ? { excludeExternalEventId } : {}),
     };
     const slots = await provider.getAvailability(providerOptions);
+    if (!Array.isArray(slots)) {
+      const error = new Error('Scheduling provider returned an invalid slot list.');
+      error.code = 'INVALID_AVAILABILITY_RESPONSE';
+      throw error;
+    }
     const timeZone = business.timezone || "America/New_York";
     const now = new Date();
     const earliestCustomerFacingStart = new Date(
@@ -87,6 +92,8 @@ class AvailabilityService {
       .filter((slot) => {
         const startAt = new Date(slot.startAt);
         if (Number.isNaN(startAt.getTime())) return false;
+        const endAt = new Date(slot.endAt);
+        if (!Number.isFinite(endAt.getTime()) || endAt <= startAt) return false;
         if (startAt < earliestCustomerFacingStart) return false;
         if (
           !allowSameDayBooking &&

@@ -9,7 +9,7 @@ jest.mock('../../src/helpers/ai/tools/searchServices.tool.js', () => ({ __esModu
 jest.mock('../../src/helpers/ai/tools/getAvailability.tool.js', () => ({ __esModule: true, default: jest.fn() }));
 jest.mock('../../src/helpers/ai/tools/validateServiceArea.tool.js', () => ({ __esModule: true, default: jest.fn() }));
 jest.mock('../../src/services/alert.service.js', () => ({ __esModule: true, default: { createHumanHandoffAlert: jest.fn() } }));
-const now = new Date('2026-09-08T14:00:00Z');
+const now = new Date('2026-09-07T14:00:00Z');
 const address = '87 Oak Lane Marietta GA 30060';
 function context(channel = 'sms', trade = 'plumbing') {
  const lead = {_id:'l1',serviceNeeded:'Unknown',urgency:'medium',phone:'+14045550100',save:jest.fn().mockResolvedValue(null)};

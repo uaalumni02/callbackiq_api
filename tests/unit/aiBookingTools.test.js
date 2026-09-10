@@ -87,9 +87,9 @@ describe("AI booking tools", () => {
     expect(ServiceOffering.find).toHaveBeenCalledWith({ business: "b1", active: true, aiCanBook: true });
   });
 
-  test("returns a sole service when text has no positive match and none for ambiguity", async () => {
+  test("does not infer a service from an unrelated sole catalog entry or ambiguous catalog", async () => {
     ServiceOffering.find.mockReturnValueOnce(leanResult([{ _id: 1, name: "Only", keywords: [] }]));
-    await expect(searchServicesTool({ businessId: "b1", query: "unknown" })).resolves.toHaveLength(1);
+    await expect(searchServicesTool({ businessId: "b1", query: "unknown" })).resolves.toHaveLength(0);
     ServiceOffering.find.mockReturnValueOnce(
       leanResult([{ _id: 1, name: "A", keywords: [] }, { _id: 2, name: "B", keywords: [] }]),
     );

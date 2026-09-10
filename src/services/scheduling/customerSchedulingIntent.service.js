@@ -15,6 +15,8 @@ const ARRIVAL_VERB =
   String.raw`(?:come(?:\s+out)?|arrive|get\s+here|be\s+here|visit|show\s+up)`;
 
 const AVAILABILITY_PATTERNS = [
+  /\bwhat(?:['’]s| is)\s+(?:available|open|free)\b/i,
+  /\b(?:can|could|would)\s+you\s+(?:do|manage|make)\s+(?:today|tomorrow|tonight|this\s+(?:morning|afternoon|evening)|next\s+week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i,
   /\b(?:check|find|any|an?|something|anything)\b.{0,25}\bearlier\b(?:.{0,20}\b(?:appointment|opening|time|slot)\b)?/i,
   new RegExp(
     String.raw`\bwhen\s+(?:can|could|would|will|might)\s+${PERSON_OR_ROLE}\s+${ARRIVAL_VERB}\b`,

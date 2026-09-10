@@ -3,6 +3,8 @@ import Lead from "../../models/lead.js";
 import ServiceOffering from "../../models/serviceOffering.js";
 import { resolveOpportunityValue, ownerEstimate, unknownEstimate } from "./opportunityValue.js";
 export * from "./opportunityValue.js";
+import { assertVoiceTurnActive } from '../voiceTurnContext.service.js';
+import { assertDistributedLeaseActive } from '../distributedLease.service.js';
 
 // Reserve BEFORE asynchronous analysis. A later request invalidates earlier work.
 async function reserveValuation(lead, businessId) {
@@ -23,6 +25,7 @@ async function commitValuation(ticket, { businessId, evidence, proposedService =
   if (!ticket) return null;
   const services = await ServiceOffering.find({ business: businessId, active: true }).lean();
   const value = resolveOpportunityValue({ businessId, current: ticket, services, evidence, proposedService });
+  assertVoiceTurnActive(); assertDistributedLeaseActive();
   return Lead.findOneAndUpdate({ _id: ticket._id, business: businessId,
     valuationVersion: ticket.valuationVersion,
     "valuation.source": { $in: ["unknown", "service_catalog", "historical"] },
@@ -50,10 +53,14 @@ export async function updateOwnerLead({ lead, businessId, changes, actorId }) {
 
 // Valuation is ancillary: a valuation failure must never block a safety reply or SMS delivery.
 export async function beginValuation(lead, businessId) {
+  assertVoiceTurnActive(); assertDistributedLeaseActive();
   try { return await reserveValuation(lead, businessId); }
   catch (error) { safeConsole.error("opportunity.valuation_reservation_failed", { code: error.code || error.name }); return null; }
 }
 export async function finishValuation(ticket, context) {
   try { return await commitValuation(ticket, context); }
-  catch (error) { safeConsole.error("opportunity.valuation_update_failed", { code: error.code || error.name }); return null; }
+  catch (error) {
+    if (['VOICE_STALE_TURN', 'DISTRIBUTED_LEASE_LOST'].includes(error?.code)) throw error;
+    safeConsole.error("opportunity.valuation_update_failed", { code: error.code || error.name }); return null;
+  }
 }

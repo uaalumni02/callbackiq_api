@@ -479,7 +479,7 @@ describe("BookingStateMachineService complete behavior", () => {
   });
 
   test("does not choose between duplicate offered labels", async () => {
-    const conversation = makeConversation({ bookingState: { status: "offering_slots", offeredSlots: [{ ...SLOT_1, label: "Special visit" }, { ...SLOT_1, label: "Special visit", startAt: "2026-07-28T15:00:00.000Z" }] } });
+    const conversation = makeConversation({ bookingState: { status: "offering_slots", offeredSlots: [{ ...SLOT_1, label: "Special visit" }, { ...SLOT_1, label: "Special visit", startAt: "2026-07-28T15:00:00.000Z", endAt: "2026-07-28T16:00:00.000Z" }] } });
     await handle({ conversation, message: "Special visit works" });
     expect(conversation.bookingState.selectedSlot).toBeFalsy();
   });
@@ -497,12 +497,12 @@ describe("BookingStateMachineService complete behavior", () => {
     expect(result.result.reply).toContain("Which option");
   });
 
-  test("asks for an option number when no offered slot matches", async () => {
+  test("asks for a day when a new time has no stored date", async () => {
     const result = await handle({
       conversation: makeConversation({ bookingState: { status: "offering_slots", offeredSlots: [SLOT_1] } }),
       message: "late afternoon please",
     });
-    expect(result.result.reply).toContain("option number");
+    expect(result.result.reply).toContain("day and time");
   });
 
   test("negative confirmation returns to preference collection", async () => {
@@ -761,7 +761,7 @@ describe("Booking production readiness/provider regressions", () => {
 
     expect(result.handled).toBe(true);
     expect(result.result.messageCategory).toBe("human_requested");
-    expect(result.result.reply).toMatch(/alerted the team/i);
+    expect(result.result.reply).toMatch(/needs team review/i);
     expect(getAvailabilityTool).not.toHaveBeenCalled();
     expect(AlertService.createSystemAlert).toHaveBeenCalled();
   });

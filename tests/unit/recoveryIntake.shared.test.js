@@ -11,7 +11,7 @@ jest.mock('../../src/helpers/ai/tools/searchServices.tool.js', () => ({ __esModu
 jest.mock('../../src/helpers/ai/tools/getAvailability.tool.js', () => ({ __esModule: true, default: jest.fn() }));
 jest.mock('../../src/helpers/ai/tools/validateServiceArea.tool.js', () => ({ __esModule: true, default: jest.fn() }));
 jest.mock('../../src/services/alert.service.js', () => ({ __esModule: true, default: { createHumanHandoffAlert: jest.fn() } }));
-const now = new Date('2026-09-08T01:24:00Z');
+const now = new Date('2026-09-06T01:24:00Z');
 const business = { _id: 'b1', businessName: 'Atlanta Pro Plumbing & Drain', timezone: 'America/New_York', features: { aiBookingEnabled: false } };
 const slot = { startAt: '2026-09-08T08:00:00-04:00', endAt: '2026-09-08T09:00:00-04:00' };
 function context(channel = 'sms') {
@@ -49,7 +49,7 @@ test('an address or date cannot answer an unresolved leak question', async () =>
 });
 test.each(['sms','voice'])('%s blocks an unavailable requested time and offers alternatives', async channel => {
  const c=context(channel); c.lead.serviceNeeded='toilet repair'; c.lead.address='970 Sidney Marcus Blvd NE Atlanta GA 30324';
- getAvailability.mockResolvedValue({supportedServiceArea:true,slots:[{...slot,startAt:'2026-09-08T10:00:00-04:00'}]});
+ getAvailability.mockResolvedValue({supportedServiceArea:true,slots:[{...slot,startAt:'2026-09-08T10:00:00-04:00',endAt:'2026-09-08T11:00:00-04:00'}]});
  const r=await c.turn('Sep 8 at 8 am'); expect(r.intakeReady).toBe(false); expect(r.reply).toMatch(/10:00/); expect(r.reply).toMatch(/isn't available/); expect(AlertService.createHumanHandoffAlert).not.toHaveBeenCalled();
 });
 test('provider failure remains unknown and can be queued for manual review', async () => {

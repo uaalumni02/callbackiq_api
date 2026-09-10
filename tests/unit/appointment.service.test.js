@@ -8,6 +8,7 @@ import InterventionService from "../../src/services/intervention.service.js";
 import SocketService from "../../src/services/socket.service.js";
 import AvailabilityService from "../../src/services/scheduling/availability.service.js";
 import {
+  getAiBookableService,
   getBookableService,
   getSlotCapacity,
 } from "../../src/services/scheduling/appointmentPolicy.service.js";
@@ -56,6 +57,7 @@ jest.mock("../../src/services/scheduling/availability.service.js", () => ({
 }));
 jest.mock("../../src/services/scheduling/appointmentPolicy.service.js", () => ({
   __esModule: true,
+  getAiBookableService: jest.fn(),
   getBookableService: jest.fn(),
   getSchedulingPolicy: jest.fn(),
   getSlotCapacity: jest.fn(),
@@ -131,7 +133,7 @@ describe("AppointmentService", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    jest.useFakeTimers().setSystemTime(new Date("2026-07-27T12:00:00.000Z"));
+    jest.useFakeTimers().setSystemTime(new Date("2026-07-26T12:00:00.000Z"));
     provider = {
       createAppointment: jest.fn().mockResolvedValue({
         provider: "internal",
@@ -147,6 +149,7 @@ describe("AppointmentService", () => {
     };
     SchedulingProviderFactory.getProvider.mockReturnValue(provider);
     getBookableService.mockResolvedValue(service);
+    getAiBookableService.mockResolvedValue(service);
     getSlotCapacity.mockResolvedValue(1);
     AvailabilityService.getAvailability.mockResolvedValue({ slots: matchingSlots });
     ServiceOffering.findById.mockResolvedValue(service);
@@ -163,6 +166,14 @@ describe("AppointmentService", () => {
   afterEach(() => {
     jest.restoreAllMocks();
     jest.useRealTimers();
+  });
+
+  test('AI hold cannot bypass 24 hours even when lower scheduling layers offer the slot', async () => {
+    Appointment.findOne.mockResolvedValueOnce(null);
+    const startAt = new Date(Date.now() + 23 * 3600000);
+    await expect(AppointmentService.create({ business, input: { customerPhone: '+14045550100', serviceOfferingId: 's1', bookedBy: 'ai', startAt }, confirm: false })).rejects.toMatchObject({code:'MINIMUM_NOTICE_NOT_MET'});
+    expect(Appointment.create).not.toHaveBeenCalled();
+    expect(AvailabilityService.getAvailability).not.toHaveBeenCalled();
   });
 
   test("exports expected active statuses and transitions", () => {
@@ -226,7 +237,7 @@ describe("AppointmentService", () => {
         actualRevenue: 0,
         capacityLane: 1,
         activeSlotKey: "2026-07-27T17:00:00.000Z|2026-07-27T18:30:00.000Z|lane:1",
-        heldExpiresAt: new Date("2026-07-27T12:07:00.000Z"),
+        heldExpiresAt: new Date("2026-07-26T12:07:00.000Z"),
       }),
     );
     const claims = Appointment.create.mock.calls[0][0].slotClaimKeys;
@@ -382,7 +393,7 @@ describe("AppointmentService", () => {
   });
 
   test("fails an expired hold", async () => {
-    const appointment = appointmentDoc({ heldExpiresAt: new Date("2026-07-27T11:59:00Z") });
+    const appointment = appointmentDoc({ heldExpiresAt: new Date("2026-07-26T11:59:00Z") });
     Appointment.findOne.mockResolvedValue(appointment);
     await expect(AppointmentService.confirm({ business, appointmentId: "a1" })).rejects.toMatchObject({
       statusCode: 409,

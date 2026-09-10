@@ -642,9 +642,10 @@ export const processInboundSmsJob = async (job) => {
       returnDocument: "after",
       runValidators: true,
     });
-    updatedLead = await finishValuation(valuationTicket, { businessId: business._id, evidence: [...messages.filter(message => message.direction === "inbound").map(message => message.body), customerTurn.customerMessage].join("\n"), proposedService: result.serviceNeeded }) || updatedLead;
-    SocketService.emitLeadUpdated(business._id, updatedLead);
   }
+  // Shared intake may already have saved the facts. Valuation must still finish.
+  updatedLead = await finishValuation(valuationTicket, { businessId: business._id, evidence: [...messages.filter(message => message.direction === "inbound").map(message => message.body), customerTurn.customerMessage].join("\n"), proposedService: result.serviceNeeded || updatedLead.serviceNeeded }) || updatedLead;
+  SocketService.emitLeadUpdated(business._id, updatedLead);
 
   if (!handoffRequired && shouldCompleteManualIntake({ business, lead: updatedLead, conversation: updatedConversation, result })) {
     result = ensureHumanHandoffResult({

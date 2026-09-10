@@ -12,6 +12,8 @@ import { buildBusinessReadiness } from "../businessReadiness.service.js";
 import { logOperationalError, logOperationalEvent } from "../../helpers/logging/safeLogger.js";
 import { formatDateKey } from "../scheduling/timezone.service.js";
 import { assertVoiceTurnActive } from "../voiceTurnContext.service.js";
+import { assertDistributedLeaseActive } from "../distributedLease.service.js";
+import { filterAutomatedSlots, automatedSchedulingNotice } from '../scheduling/automatedSchedulingPolicy.service.js';
 import cancelAppointmentTool from "../../helpers/ai/tools/cancelAppointment.tool.js";
 import createAppointmentTool from "../../helpers/ai/tools/createAppointment.tool.js";
 import escalateToHumanTool from "../../helpers/ai/tools/escalateToHuman.tool.js";
@@ -142,6 +144,9 @@ const buildApprovedPriceEstimate = (service) => {
   const max =
     service.priceEstimateMax == null ? null : Number(service.priceEstimateMax);
   let range = "";
+  if ((min !== null && (!Number.isFinite(min) || min < 0)) ||
+      (max !== null && (!Number.isFinite(max) || max < 0)) ||
+      (min !== null && max !== null && min > max)) return '';
 
   if (Number.isFinite(min) && Number.isFinite(max)) {
     range =
@@ -230,6 +235,7 @@ const selectSlotOptions = (slots, urgency = "medium", maximum = 3) => {
 
 const selectOfferedSlot = (message, offeredSlots, timeZone) => {
   const text = String(message || "").trim().toLowerCase();
+  if (/\b(?:not|no|don't|do not|can't|cannot|cancel)\b/i.test(text)) return null;
   // Option numbers are whole selections, never digits embedded in a clock time.
   const option = text.match(/^(?:(?:option|number|the)\s+)?(first|second|third|one|two|three|1|2|3)(?:\s+(?:one|option))?(?:\s+(?:please|works(?: for me)?))?[.! ]*$/);
   if (option) {
@@ -289,11 +295,12 @@ const handleReadOnlyAvailabilityInquiry = async ({
       businessId,
       query: knownService,
     });
-  } catch {
-    matches = [];
+  } catch (error) {
+    return handleAvailabilityProviderFailure({ business, lead, conversation, error,
+      customerMessage: text, code: 'service_catalog_lookup_failed', category: 'availability_inquiry' });
   }
 
-  if (matches.length !== 1) {
+  if (matches.length !== 1 || matches[0]?.score === 0) {
     if (matches.length > 1) {
       const choices = matches
         .slice(0, 3)
@@ -326,12 +333,19 @@ const handleReadOnlyAvailabilityInquiry = async ({
   });
   const requestedRange = findDateRange(text, timeZone);
   const today = formatDateKey(new Date(), timeZone);
-  const range = requestedRange || {
+  const previousRange = conversation?.bookingState?.searchStartDate && conversation?.bookingState?.searchEndDate
+    ? { startDate: conversation.bookingState.searchStartDate, endDate: conversation.bookingState.searchEndDate }
+    : findDateRange(lead?.preferredAppointmentTime || '', timeZone);
+  const hasTime = hasAppointmentPreferenceHint(text, timeZone);
+  const range = requestedRange || (hasTime ? previousRange : null) || {
     startDate: today,
     endDate: formatDateKey(new Date(Date.now() + 6 * 86_400_000), timeZone),
   };
   const timePreference = parseTimePreference(text, timeZone);
   const postalCode = String(lead?.address || "").match(ZIP_PATTERN)?.[1] || "";
+  if (conversation?.set && typeof conversation.save === 'function') {
+    await updateState(conversation, { searchStartDate: range.startDate, searchEndDate: range.endDate });
+  }
 
   try {
     const availability = await getAvailabilityTool({
@@ -352,23 +366,27 @@ const handleReadOnlyAvailabilityInquiry = async ({
       };
     }
 
-    const rawSlots = Array.isArray(availability?.slots)
-      ? [...availability.slots].sort(
-          (left, right) =>
-            new Date(left.startAt).getTime() - new Date(right.startAt).getTime(),
-        )
-      : [];
+    if (!Array.isArray(availability?.slots)) throw new Error('Invalid availability response');
+    const rawSlots = filterAutomatedSlots(availability.slots);
     const matchingSlots = filterSlotsByTimePreference(
       rawSlots,
       timePreference,
       timeZone,
     );
-    const offeredSlots = selectSlotOptions(
+    let offeredSlots = selectSlotOptions(
       matchingSlots,
       lead?.urgency,
       3,
     );
 
+    let alternativeNote = '';
+    if (!offeredSlots.length) {
+      const expandedStart = range.startDate > today ? range.startDate : today;
+      const expanded = await getAvailabilityTool({ business, serviceOfferingId: service.id,
+        startDate: expandedStart, endDate: new Date(new Date(`${expandedStart}T12:00:00Z`).getTime() + 14 * 86_400_000).toISOString().slice(0, 10), postalCode });
+      if (expanded?.supportedServiceArea !== false) offeredSlots = filterAutomatedSlots(expanded?.slots).slice(0, 3);
+      if (offeredSlots.length) alternativeNote = 'That time is unavailable. At least 24 hours of notice is required. ';
+    }
     if (!offeredSlots.length) {
       const qualifier = timePreference?.timeOfDay
         ? ` ${timePreference.timeOfDay}`
@@ -376,12 +394,14 @@ const handleReadOnlyAvailabilityInquiry = async ({
       return {
         handled: true,
         result: fixedResult({
-          reply: `${pricingNote ? `${pricingNote} ` : ""}I checked the current calendar and don’t see an open${qualifier} time in that window for ${service.name}. Send another day or time and I can check that window.`,
+          reply: `${pricingNote ? `${pricingNote} ` : ""}${automatedSchedulingNotice} I don’t see an eligible${qualifier} opening for ${service.name}. What later day could work?`,
           category: "availability_inquiry",
         }),
       };
     }
 
+    // Keep the numbered options and approval caveat inside the SMS budget.
+    offeredSlots = offeredSlots.slice(0, pricingNote ? 1 : 2);
     if (conversation?.set && typeof conversation.save === "function") {
       await updateState(conversation, {
         status: "offering_slots",
@@ -406,7 +426,7 @@ const handleReadOnlyAvailabilityInquiry = async ({
     return {
       handled: true,
       result: fixedResult({
-        reply: `${pricingNote ? `${pricingNote} ` : ""}I found these current openings for ${service.name}: ${options}. Which option works best? This is availability only, not a confirmed appointment; the business must approve the request.`,
+        reply: `${alternativeNote}${pricingNote ? `${pricingNote} ` : ""}Current openings: ${options}. Which option works best? Business approval is required; this is not a confirmed appointment.`,
         category: "availability_inquiry",
       }),
     };
@@ -420,7 +440,7 @@ const handleReadOnlyAvailabilityInquiry = async ({
       code: "read_only_availability_provider_failed",
       category: "availability_inquiry",
     });
-    failure.result.reply = `${pricingNote ? `${pricingNote} ` : ""}I can’t verify live availability right now. I’ve alerted the team so they can review the scheduling request.`;
+    failure.result.reply = `${pricingNote ? `${pricingNote} ` : ""}I can’t verify live availability right now. Your scheduling request needs team review; no appointment is confirmed.`;
     return failure;
   }
 };
@@ -435,6 +455,8 @@ const handleAvailabilityProviderFailure = async ({
   code = "availability_provider_failed",
   category = "human_requested",
 }) => {
+  if (['VOICE_STALE_TURN', 'DISTRIBUTED_LEASE_LOST'].includes(error?.code)) throw error;
+  assertVoiceTurnActive(); assertDistributedLeaseActive();
   logOperationalError(`booking.${code}`, error, {
     businessId: business?._id || business?.id,
     leadId: lead?._id || null,
@@ -467,7 +489,7 @@ const handleAvailabilityProviderFailure = async ({
     handled: true,
     result: fixedResult({
       reply:
-        "I’m having trouble checking the live schedule right now. I’ve alerted the team so they can follow up with available times.",
+        "I’m having trouble checking the live schedule right now. Your scheduling request needs team review; no appointment is confirmed.",
       category,
     }),
   };
@@ -481,6 +503,8 @@ const handleBookingReadinessFailure = async ({
   error = null,
   customerMessage = "",
 }) => {
+  if (['VOICE_STALE_TURN', 'DISTRIBUTED_LEASE_LOST'].includes(error?.code)) throw error;
+  assertVoiceTurnActive(); assertDistributedLeaseActive();
   const missing = readiness?.missingRequirements?.booking || [];
   const firstMissing = missing[0] || null;
 
@@ -523,17 +547,21 @@ const handleBookingReadinessFailure = async ({
     handled: true,
     result: fixedResult({
       reply:
-        "The scheduling system isn’t available for automatic booking right now. I’ve alerted the team so they can follow up with you directly.",
+        "The scheduling system isn’t available for automatic booking right now. Your request needs team review; no appointment is confirmed.",
       category: "human_requested",
     }),
   };
 };
 
 const updateState = async (conversation, changes) => {
+  assertVoiceTurnActive();
+  assertDistributedLeaseActive();
   Object.entries(changes).forEach(([key, value]) => {
     conversation.set(`bookingState.${key}`, value);
   });
   await conversation.save();
+  assertVoiceTurnActive();
+  assertDistributedLeaseActive();
 };
 
 class BookingStateMachineService {
@@ -576,6 +604,7 @@ class BookingStateMachineService {
     const bookingEventPrefix = bookingChannel === "voice" ? "voice:" : "";
     const enabled = Boolean(business?.features?.aiBookingEnabled);
     const text = String(customerMessage || "").trim();
+    if (conversation?.humanTakeover || ['closed', 'archived'].includes(conversation?.status)) return { handled: false };
 
     const schedulingReply = schedulingQuestionReply({ customerMessage: text, business, lead });
     if (schedulingReply) return { handled: true, result: fixedResult({ reply: schedulingReply, category: "availability_inquiry" }) };
@@ -595,14 +624,21 @@ class BookingStateMachineService {
         conversation?.bookingState?.status === "offering_slots" &&
         readOnlySlots.length
       ) {
+        const expired = conversation.bookingState.expiresAt && new Date(conversation.bookingState.expiresAt) <= new Date();
+        if (expired) {
+          await updateState(conversation, { offeredSlots: [], selectedSlot: null, status: 'not_started', expiresAt: null });
+          const refreshed = await handleReadOnlyAvailabilityInquiry({ business, lead, conversation, text: 'What is available?' });
+          refreshed.result.reply = `The earlier options expired. ${refreshed.result.reply}`;
+          return refreshed;
+        }
         const selected = selectOfferedSlot(
           text,
-          readOnlySlots,
+          filterAutomatedSlots(readOnlySlots),
           business.timezone || "America/New_York",
         );
 
         if (!selected) {
-          if (smsIntent.intents.availabilityInquiry) {
+          if (smsIntent.intents.availabilityInquiry || smsIntent.intents.scheduling) {
             return handleReadOnlyAvailabilityInquiry({
               business,
               lead,
@@ -625,10 +661,12 @@ class BookingStateMachineService {
           business.timezone || "America/New_York",
         );
         if (lead) {
+          assertVoiceTurnActive(); assertDistributedLeaseActive();
           lead.preferredAppointmentTime = selectedLabel;
           await lead.save();
         }
 
+        assertVoiceTurnActive(); assertDistributedLeaseActive();
         await AlertService.createSystemAlert({
           businessId: business._id,
           title: "Customer selected an appointment time",
@@ -668,7 +706,7 @@ class BookingStateMachineService {
         };
       }
 
-      if (smsIntent.intents.availabilityInquiry) {
+      if (smsIntent.intents.availabilityInquiry || (smsIntent.intents.scheduling && conversation?.bookingState?.searchStartDate)) {
         return handleReadOnlyAvailabilityInquiry({
           business,
           lead,
@@ -1029,8 +1067,11 @@ class BookingStateMachineService {
       );
       const requestedRange = findDateRange(text, timeZone);
       const today = formatDateKey(new Date(), timeZone);
+      const previousRange = activeConversation.bookingState.searchStartDate && activeConversation.bookingState.searchEndDate
+        ? { startDate: activeConversation.bookingState.searchStartDate, endDate: activeConversation.bookingState.searchEndDate }
+        : findDateRange(lead?.preferredAppointmentTime || '', timeZone);
       const range =
-        requestedRange ||
+        requestedRange || previousRange ||
         (availabilityInquiry
           ? {
               startDate: today,
@@ -1053,6 +1094,8 @@ class BookingStateMachineService {
         };
       }
 
+      await updateState(activeConversation, { searchStartDate: range.startDate, searchEndDate: range.endDate });
+
       let availability;
       try {
         availability = await getAvailabilityTool({
@@ -1074,7 +1117,7 @@ class BookingStateMachineService {
         });
       }
       const matchingSlots = filterSlotsByTimePreference(
-        availability.slots,
+        filterAutomatedSlots(availability.slots),
         timePreference,
         timeZone,
       );
@@ -1099,7 +1142,7 @@ class BookingStateMachineService {
             endDate: expandedRange.endDate,
             postalCode: activeConversation.bookingState.postalCode,
           });
-          const expandedSlots = expanded.slots || [];
+          const expandedSlots = filterAutomatedSlots(expanded.slots);
           const expandedMatches = filterSlotsByTimePreference(
             expandedSlots,
             timePreference,
@@ -1249,12 +1292,12 @@ class BookingStateMachineService {
     if (status === "offering_slots") {
       const slot = selectOfferedSlot(
         text,
-        activeConversation.bookingState.offeredSlots || [],
+        filterAutomatedSlots(activeConversation.bookingState.offeredSlots || []),
         business.timezone || "America/New_York",
       );
 
       if (!slot) {
-        if (findDateRange(text, business.timezone || "America/New_York")) {
+        if (smsIntent.intents.availabilityInquiry || hasAppointmentPreferenceHint(text, business.timezone || "America/New_York")) {
           await updateState(activeConversation, {
             status: "collecting_preference",
           });

@@ -1,3 +1,4 @@
+jest.mock('../../src/services/voiceConversationTurn.service.js', () => ({ runVoiceConversationTurn: ({ operation }) => operation() }));
 import http from "http";
 import { WebSocket } from "ws";
 import initializeConversationRelayServer from "../../src/voice/conversationRelay.server.js";

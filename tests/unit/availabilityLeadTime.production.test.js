@@ -31,6 +31,10 @@ describe("customer-facing scheduling lead-time policy", () => {
     calendarProvider: "internal",
   };
 
+  test('malformed provider payload is unknown availability, never an empty calendar',async()=>{
+    SchedulingProviderFactory.getProvider.mockReturnValue({getAvailability:jest.fn().mockResolvedValue({})});
+    await expect(AvailabilityService.getAvailability({business,serviceOfferingId:'service-1',startDate:'2026-09-06',endDate:'2026-09-07',postalCode:'30324'})).rejects.toMatchObject({code:'INVALID_AVAILABILITY_RESPONSE'});
+  });
   beforeEach(() => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date("2026-09-05T16:00:00.000Z"));

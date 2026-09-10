@@ -1,6 +1,7 @@
 import ServiceOffering from "../../../models/serviceOffering.js";
+import { normalizeServiceText, matchesServicePhrase } from '../../../services/catalog/servicePhrase.service.js';
 
-const normalize = (value) => String(value || "").trim().toLowerCase();
+const normalize = normalizeServiceText;
 
 export const searchServicesTool = async ({ businessId, query }) => {
   const text = normalize(query);
@@ -16,18 +17,19 @@ export const searchServicesTool = async ({ businessId, query }) => {
         .map(normalize)
         .filter(Boolean);
       const excluded = (service.excludedKeywords || []).some((term) =>
-        Boolean(normalize(term)) && text.includes(normalize(term)),
+        Boolean(normalize(term)) && matchesServicePhrase(text, term),
       );
       const score = excluded
         ? -1
-        : terms.reduce((total, term) => total + (text.includes(term) ? 1 : 0), 0);
+        : terms.reduce((total, term) => total + (matchesServicePhrase(text, term) ? 1 : 0), 0);
       return { service, score };
     })
     .filter((item) => item.score >= 0)
     .sort((a, b) => b.score - a.score || a.service.name.localeCompare(b.service.name));
 
   const positive = scored.filter((item) => item.score > 0);
-  const matches = positive.length > 0 ? positive : services.length === 1 && scored.length === 1 ? scored : [];
+  // A sole catalog service is not evidence that it matches the customer's job.
+  const matches = positive;
 
   return matches.slice(0, 5).map(({ service, score }) => ({
     id: String(service._id),

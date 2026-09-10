@@ -212,6 +212,8 @@ describe("Phase 9 completion gate using production voice orchestration", () => {
   };
 
   beforeEach(() => {
+    jest.useFakeTimers({ doNotFake: ["nextTick", "setImmediate"] });
+    jest.setSystemTime(new Date("2026-08-01T12:00:00.000Z"));
     jest.clearAllMocks();
     assessInboundSafety.mockResolvedValue({ isEmergency: false });
     VoiceUnderstandingService.classifyVoiceTurn.mockImplementation(
@@ -247,6 +249,8 @@ describe("Phase 9 completion gate using production voice orchestration", () => {
     sendConfirmationSmsTool.mockResolvedValue({ sent: true });
     Alert.findOneAndUpdate.mockResolvedValue({ _id: "alert-1" });
   });
+
+  afterEach(() => jest.useRealTimers());
 
   test("gate 1: selects ConversationRelay for an after-hours AI route", () => {
     const route = determineInitialVoiceRoute({

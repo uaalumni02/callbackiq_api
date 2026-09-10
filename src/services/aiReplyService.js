@@ -1,5 +1,5 @@
 import { getApprovedServiceEstimate } from "./booking/approvedServiceEstimate.service.js";
-import { constrainUncertainReply, qualifiedIntakeFacts } from "./messaging/uncertainReply.service.js";
+import { constrainUncertainReply, qualifiedIntakeFacts, resetUncertainTurns } from "./messaging/uncertainReply.service.js";
 import { handleRecoveryIntake } from "./booking/recoveryIntake.service.js";
 import {
   SAFE_REPLIES,
@@ -228,6 +228,7 @@ export const generateAIReplyResult = async ({
       customerMessage: latestCustomerMessage,
     });
     if (booking.handled) {
+      await resetUncertainTurns(conversation);
       return preserveTurnUrgency(booking.result, turnUrgency);
     }
 

@@ -62,6 +62,8 @@ const resetActiveRecoveryJourney = ({ now, reason, recoveryJourneyKey }) => ({
   "bookingState.negotiationAttempts": 0,
   "bookingState.lastCustomerPreference": "",
   "bookingState.lastAvailabilityCheckedAt": null,
+  "bookingState.searchStartDate": "",
+  "bookingState.searchEndDate": "",
   "bookingState.escalatedAt": null,
 
   "orchestration.recoveryJourneyKey": recoveryJourneyKey,
