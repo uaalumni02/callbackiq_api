@@ -780,6 +780,9 @@ class VoiceAgentService {
     }
     const bookingReply = clean(booking.result?.reply, 4000);
     const spokenBookingReply = toSpokenReply(bookingReply);
+    if (booking.result?.handoff?.reason === "scheduling_review" && booking.result?.outcome === "callback_saved") {
+      return { reply: spokenBookingReply, outcome: "callback_saved" };
+    }
     const currentBookingStatus = conversation.bookingState?.status;
     const bookingUnavailable =
       currentBookingStatus === "human_takeover" ||

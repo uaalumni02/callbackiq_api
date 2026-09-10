@@ -214,3 +214,14 @@ test.each(['sms', 'voice'])('%s keeps the original service detail when semantic 
  expect(result.reply).not.toMatch(/appointment is confirmed|will call/);
  expect(c.conversation.bookingState.status).toBe('not_started');
  });
+
+test.each(['sms','voice'])('%s keeps a same-day request actionable when no slot is available', async channel => {
+ const c=context(channel); c.now=new Date('2026-09-06T14:00:00Z');
+ c.lead.serviceNeeded='HVAC repair'; c.lead.address='970 Sidney Marcus Blvd NE Atlanta GA 30324';
+ getAvailability.mockResolvedValue({supportedServiceArea:true,slots:[]});
+ const result=await c.turn('Today at 3 pm');
+ expect(result.handoff).toMatchObject({required:true,reason:'scheduling_review'});
+ expect(result.reply).toMatch(/not a confirmed appointment/);
+ expect(result.intakeReady).toBe(false);
+ if(channel==='voice') expect(AlertService.createHumanHandoffAlert).toHaveBeenCalledTimes(1);
+});

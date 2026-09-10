@@ -1,3 +1,4 @@
+import { BUSINESS_TYPES } from "../helpers/businessTypes.js";
 import { installAccessRevocation } from "../helpers/model/accessRevocation.js";
 import { normalizePhoneToE164 as normalizeVoicePhone } from "../voice/voicePhone.service.js";
 import mongoose from "mongoose";
@@ -443,14 +444,7 @@ const BusinessSchema = new Schema(
 
     businessType: {
       type: String,
-      enum: [
-        "hvac",
-        "plumbing",
-        "roofing",
-        "electrical",
-        "restoration",
-        "other",
-      ],
+      enum: BUSINESS_TYPES,
       default: "other",
       validate: [validate.isValidBusinessType, "Invalid business type"],
     },

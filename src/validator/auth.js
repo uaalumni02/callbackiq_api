@@ -1,3 +1,4 @@
+import { BUSINESS_TYPES } from "../helpers/businessTypes.js";
 import Joi from "joi";
 
 const registerSchema = Joi.object({
@@ -25,7 +26,7 @@ const registerSchema = Joi.object({
   forwardingPhone: Joi.string().min(7).max(30).optional(),
   businessPhone: Joi.string().min(7).max(30).optional(),
   businessType: Joi.string()
-    .valid("hvac", "plumbing", "roofing", "electrical", "restoration", "other")
+    .valid(...BUSINESS_TYPES)
     .default("other"),
 
   smsConsent: Joi.boolean().default(false),

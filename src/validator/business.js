@@ -1,3 +1,4 @@
+import { BUSINESS_TYPES } from "../helpers/businessTypes.js";
 import Joi from "joi";
 
 const phonePattern = /^[0-9+\-().\s]{7,20}$/;
@@ -11,14 +12,7 @@ const ownerEditableFeaturesSchema = Joi.object({
 const commonBusinessFields = {
   businessName: Joi.string().trim().min(2).max(100),
 
-  businessType: Joi.string().valid(
-    "hvac",
-    "plumbing",
-    "roofing",
-    "electrical",
-    "restoration",
-    "other",
-  ),
+  businessType: Joi.string().valid(...BUSINESS_TYPES),
 
   // Create-only compatibility alias. Controllers must never persist this
   // owner-entered value into Business.phone.

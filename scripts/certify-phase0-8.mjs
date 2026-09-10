@@ -20,8 +20,8 @@ const phaseGroups = {
     tests: [
       "tests/unit/businessFeatures.test.js",
       "tests/unit/twilioEventKey.test.js",
-      "tests/unit/contactPreference.service.test.js",
-      "tests/unit/twilioWebhookEvent.service.test.js",
+      "tests/integration/contactPreference.service.test.js",
+      "tests/integration/twilioWebhookEvent.service.test.js",
       "tests/integration/twilioWebhookIdempotency.test.js",
       "tests/integration/twilioOptOut.test.js",
       "tests/integration/businessFeatures.test.js",

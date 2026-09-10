@@ -1,3 +1,4 @@
+import { effectiveSchedulingPolicy } from "./effectiveSchedulingPolicy.service.js";
 import ServiceOffering from "../../models/serviceOffering.js";
 import {
   getSchedulingPolicy,
@@ -9,12 +10,6 @@ import {
 } from "./calendarProviderName.service.js";
 import SchedulingProviderFactory from "./schedulingProviderFactory.js";
 import { formatDateKey, formatZonedIso } from "./timezone.service.js";
-
-const finiteNonNegative = (value) => {
-  if (value == null || value === "") return null;
-  const number = Number(value);
-  return Number.isFinite(number) && number >= 0 ? number : null;
-};
 
 class AvailabilityService {
   static async getAvailability({
@@ -51,17 +46,7 @@ class AvailabilityService {
       };
     }
 
-    const serviceNoticeOverride = finiteNonNegative(
-      service?.minimumNoticeMinutesOverride,
-    );
-    const minimumNoticeMinutes =
-      serviceNoticeOverride ??
-      finiteNonNegative(policy?.minimumNoticeMinutes) ??
-      1440;
-    const allowSameDayBooking =
-      service?.allowSameDayBookingOverride == null
-        ? policy?.allowSameDayBooking === true
-        : service.allowSameDayBookingOverride === true;
+    const { minimumNoticeMinutes, allowSameDayBooking } = effectiveSchedulingPolicy(policy, service);
 
     const provider = SchedulingProviderFactory.getProvider(
       business,

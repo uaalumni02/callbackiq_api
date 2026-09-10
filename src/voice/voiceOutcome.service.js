@@ -1,3 +1,4 @@
+import { recordCallAnswer } from "../services/callAnswerEvidence.service.js";
 import AlertService from "../services/alert.service.js";
 import VoiceSession from "../models/voiceSession.js";
 import Conversation from "../models/conversation.js";
@@ -87,6 +88,10 @@ export const commitVoiceOutcome = async ({
     { $set: set },
     { returnDocument: "after" },
   );
+
+  if (session && outcome === "transfer_accepted") {
+    await recordCallAnswer({ businessId: normalizeId(session.business), callLogId: normalizeId(session.callLog), answeredBy: 'business', now });
+  }
 
   if (session && outcome === "transfer_accepted" && session.conversation) {
     const conversationId = normalizeId(session.conversation);

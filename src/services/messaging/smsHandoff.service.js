@@ -67,7 +67,7 @@ const hasSafetyRisk = (result) => {
 };
 
 const handoffReason = (result) => {
-  if (["intake_complete", "intake_unclear"].includes(result?.handoff?.reason)) return result.handoff.reason;
+  if (["intake_complete", "intake_unclear", "scheduling_review"].includes(result?.handoff?.reason)) return result.handoff.reason;
   const category = clean(result?.messageCategory).toLowerCase();
   if (category) return category;
   const riskFlags = Array.isArray(result?.riskFlags) ? result.riskFlags : [];
@@ -103,7 +103,7 @@ export const requiresHumanHandoff = (result) => {
   const category = clean(result?.messageCategory).toLowerCase();
   const riskFlags = Array.isArray(result?.riskFlags) ? result.riskFlags : [];
   return (
-    ["intake_complete", "intake_unclear"].includes(result?.handoff?.reason) ||
+    ["intake_complete", "intake_unclear", "scheduling_review"].includes(result?.handoff?.reason) ||
     HANDOFF_CATEGORIES.has(category) ||
     riskFlags.some((flag) => IMMEDIATE_SAFETY_FLAGS.has(String(flag || "")))
   );

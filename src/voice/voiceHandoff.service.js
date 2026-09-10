@@ -1,3 +1,4 @@
+import { staffReviewDueAt } from "../services/staffReviewPolicy.service.js";
 import Alert from "../models/alert.js";
 import SocketService from "../services/socket.service.js";
 
@@ -78,6 +79,7 @@ class VoiceHandoffService {
           status: "pending",
           priority,
           actionRequired: true,
+          dueAt: staffReviewDueAt(priority),
           reason,
           recommendedAction:
             "Accept the screened transfer if available; otherwise review the captured context. Do not assume the caller was promised a callback time.",

@@ -1,3 +1,4 @@
+import { recordCallAnswer } from "../services/callAnswerEvidence.service.js";
 import Alert from "../models/alert.js";
 import CallLog from "../models/callLog.js";
 import Conversation from "../models/conversation.js";
@@ -378,6 +379,8 @@ class VoiceSessionService {
     if (from) update.from = from;
     if (to) update.to = to;
 
+    await recordCallAnswer({ businessId: session.business?._id || session.business,
+      callLogId: session.callLog?._id || session.callLog, answeredBy: 'ai' });
     return VoiceSession.findByIdAndUpdate(
       session._id,
       { $set: update },

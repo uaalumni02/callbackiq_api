@@ -1,14 +1,6 @@
+import { BUSINESS_TYPES } from "../businessTypes.js";
 const isValidBusinessType = (businessType) => {
-  const validTypes = [
-    "hvac",
-    "plumbing",
-    "roofing",
-    "electrical",
-    "restoration",
-    "other",
-  ];
-
-  return validTypes.includes(businessType);
+  return BUSINESS_TYPES.includes(businessType);
 };
 
 const isValidPhone = (phone) => {

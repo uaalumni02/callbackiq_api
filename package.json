@@ -7,7 +7,7 @@
   "scripts": {
     "test": "jest --runInBand",
     "test:watch": "jest --watch --runInBand",
-    "test:phase0": "jest tests/unit/businessFeatures.test.js tests/unit/twilioEventKey.test.js tests/unit/contactPreference.service.test.js tests/unit/twilioWebhookEvent.service.test.js tests/integration/twilioWebhookIdempotency.test.js tests/integration/twilioOptOut.test.js tests/integration/businessFeatures.test.js tests/integration/providerUniqueIndexes.test.js tests/routes/twilio.routes.test.js tests/routes/business.routes.test.js tests/routes/dashboard.routes.test.js tests/routes/alert.routes.test.js --runInBand",
+    "test:phase0": "jest tests/unit/businessFeatures.test.js tests/unit/twilioEventKey.test.js tests/integration/contactPreference.service.test.js tests/integration/twilioWebhookEvent.service.test.js tests/integration/twilioWebhookIdempotency.test.js tests/integration/twilioOptOut.test.js tests/integration/businessFeatures.test.js tests/integration/providerUniqueIndexes.test.js tests/routes/twilio.routes.test.js tests/routes/business.routes.test.js tests/routes/dashboard.routes.test.js tests/routes/alert.routes.test.js --runInBand",
     "test:phase1": "jest tests/routes/businessConfiguration.routes.test.js tests/services/bookingEligibility.service.test.js --runInBand",
     "test:phase2": "jest tests/completion/phase0-2.contract.test.js tests/unit/timezone.service.test.js tests/unit/appointmentPolicy.service.test.js tests/unit/appointment.service.test.js tests/unit/internalScheduling.provider.test.js tests/unit/slotGenerator.service.test.js tests/integration/appointmentEngine.test.js --runInBand",
     "test:phase0-2:completion": "npm run verify:phase0-2:structure && npm run test:phase0 && npm run test:phase1 && npm run test:phase2",
@@ -135,7 +135,8 @@
     "perf:mixed-scale": "node perf/mixed-scale.mjs",
     "test:durable-persistence": "jest tests/integration/durableWebhookWork.persistence.test.js --runInBand",
     "audit:history": "node scripts/audit-secret-history.mjs",
-    "test:sms-voice-release": "node scripts/verify-sms-voice-conversation-release.mjs"
+    "test:sms-voice-release": "node scripts/verify-sms-voice-conversation-release.mjs",
+    "test:browser": "jest --config jest.browser.config.cjs --runInBand"
   },
   "keywords": [],
   "author": "",

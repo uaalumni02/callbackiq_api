@@ -406,12 +406,22 @@ describe("Twilio SMS opt-out handling", () => {
       String(conversation._id),
     );
 
-    const customerReplyAlert = await Alert.findOne({
+    expect(criticalAlert.acknowledgedAt).toBeNull();
+    expect(criticalAlert.resolvedAt).toBeNull();
+
+    // The inbound reply and AI handoff share one actionable emergency alert.
+    // A second customer_reply alert would split ownership of the same request.
+    const emergencyAlerts = await Alert.find({
       business: business._id,
-      dedupeKey: "customer_reply:SM_EMERGENCY_123",
+      dedupeKey: {
+        $in: [
+          "human_handoff:SM_EMERGENCY_123",
+          "customer_reply:SM_EMERGENCY_123",
+        ],
+      },
     });
 
-    expect(customerReplyAlert).toBeTruthy();
-    expect(customerReplyAlert.priority).toBe("critical");
+    expect(emergencyAlerts).toHaveLength(1);
+    expect(String(emergencyAlerts[0]._id)).toBe(String(criticalAlert._id));
   });
 });

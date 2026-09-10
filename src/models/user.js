@@ -1,3 +1,4 @@
+import { BUSINESS_TYPES } from "../helpers/businessTypes.js";
 import { installAccessRevocation } from "../helpers/model/accessRevocation.js";
 import mongoose from "mongoose";
 
@@ -60,14 +61,7 @@ const UserSchema = new Schema(
 
     businessType: {
       type: String,
-      enum: [
-        "hvac",
-        "plumbing",
-        "roofing",
-        "electrical",
-        "restoration",
-        "other",
-      ],
+      enum: BUSINESS_TYPES,
       default: "other",
     },
 

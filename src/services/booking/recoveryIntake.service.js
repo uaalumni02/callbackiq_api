@@ -1,3 +1,4 @@
+import { requestStaffSchedulingReview } from "./staffSchedulingReview.service.js";
 import { recoveryLeakQuestion, recoveryCompletionReply } from './recoveryIntakePresentation.service.js';
 import { getApprovedServiceEstimate } from './approvedServiceEstimate.service.js';
 import { logOperationalError } from '../../helpers/logging/safeLogger.js';
@@ -12,7 +13,7 @@ import { isConfirmationQuestion } from './conversationQuestions.service.js';
 import { assertDistributedLeaseActive } from '../distributedLease.service.js';
 import { assertVoiceTurnActive } from '../voiceTurnContext.service.js';
 import { resetUncertainTurns } from '../messaging/uncertainReply.service.js';
-import { filterAutomatedSlots, automatedSchedulingNotice, AUTOMATED_NOTICE_MS } from '../scheduling/automatedSchedulingPolicy.service.js';
+import { filterAutomatedSlots, automatedSchedulingNotice } from '../scheduling/automatedSchedulingPolicy.service.js';
 import { formatDateKey } from '../scheduling/timezone.service.js';
 
 const clean = value => String(value || '').replace(/\s+/g, ' ').trim();
@@ -209,8 +210,9 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   const range = findDateRange(preference, timezone, now);
   const time = parseTimePreference(state.time || preference, timezone, now);
   if (!range) return ask('date', 'What day would you prefer? The business will need to approve the appointment.');
-  if (range.endDate < formatDateKey(new Date(+now + AUTOMATED_NOTICE_MS), timezone)) {
-    return ask('available_preference', `${automatedSchedulingNotice} Would you like the next available appointment options?`);
+  const sameDayRequest = range.startDate === formatDateKey(now, timezone) && range.endDate === range.startDate;
+  if (sameDayRequest && time.targetMinutes === null && !time.timeOfDay) {
+    return requestStaffSchedulingReview({ business, lead, conversation, customerMessage: text, channel, now });
   }
   if (time.targetMinutes === null && !time.timeOfDay) return ask('time', 'What time works best that day?');
   if (state.triagePending) return ask('leak_activity', 'Before I finish, is water leaking right now?');
@@ -238,6 +240,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
           }
           else {
             ready = false;
+            state.availability.status = 'no_matching_slot';
             const alternatives = future.slice(0, 2).map(slot => slotLabel(slot, timezone));
             availabilityNote = alternatives.length ? `That time isn't available. Current openings: ${alternatives.join(' or ')}. Which works for you?` : `${automatedSchedulingNotice} There are no eligible openings in that window. What later day could work?`;
           }
@@ -247,6 +250,9 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   } catch (error) {
     if (['VOICE_STALE_TURN', 'DISTRIBUTED_LEASE_LOST'].includes(error?.code)) throw error;
     // A provider failure is unknown availability, never an empty calendar or a confirmed slot.
+  }
+  if (!ready && sameDayRequest && state.availability.status === 'no_matching_slot') {
+    return requestStaffSchedulingReview({ business, lead, conversation, customerMessage: text, channel, now });
   }
   if (!ready) return ask('available_preference', availabilityNote);
   state.reviewReady = true;

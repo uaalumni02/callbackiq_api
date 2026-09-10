@@ -1,3 +1,4 @@
+import { requestStaffSchedulingReview } from "./staffSchedulingReview.service.js";
 import { schedulingQuestionReply } from "./schedulingQuestions.service.js";
 import { bookingQuestionReply } from "./conversationQuestions.service.js";
 import { classifySmsIntent } from "../messaging/smsIntentClassifier.service.js";
@@ -268,6 +269,7 @@ const handleReadOnlyAvailabilityInquiry = async ({
   lead,
   conversation,
   text,
+  channel = "sms",
 }) => {
   const businessName = String(
     business?.businessName || "the business",
@@ -379,13 +381,16 @@ const handleReadOnlyAvailabilityInquiry = async ({
       3,
     );
 
+    if (!offeredSlots.length && range.startDate === today && range.endDate === today) {
+      return { handled: true, result: await requestStaffSchedulingReview({ business, lead, conversation, customerMessage: text, channel }) };
+    }
     let alternativeNote = '';
     if (!offeredSlots.length) {
       const expandedStart = range.startDate > today ? range.startDate : today;
       const expanded = await getAvailabilityTool({ business, serviceOfferingId: service.id,
         startDate: expandedStart, endDate: new Date(new Date(`${expandedStart}T12:00:00Z`).getTime() + 14 * 86_400_000).toISOString().slice(0, 10), postalCode });
       if (expanded?.supportedServiceArea !== false) offeredSlots = filterAutomatedSlots(expanded?.slots).slice(0, 3);
-      if (offeredSlots.length) alternativeNote = 'That time is unavailable. At least 24 hours of notice is required. ';
+      if (offeredSlots.length) alternativeNote = 'That time is unavailable under the business scheduling rules. ';
     }
     if (!offeredSlots.length) {
       const qualifier = timePreference?.timeOfDay
@@ -627,7 +632,7 @@ class BookingStateMachineService {
         const expired = conversation.bookingState.expiresAt && new Date(conversation.bookingState.expiresAt) <= new Date();
         if (expired) {
           await updateState(conversation, { offeredSlots: [], selectedSlot: null, status: 'not_started', expiresAt: null });
-          const refreshed = await handleReadOnlyAvailabilityInquiry({ business, lead, conversation, text: 'What is available?' });
+          const refreshed = await handleReadOnlyAvailabilityInquiry({ business, lead, conversation, channel: bookingChannel, text: 'What is available?' });
           refreshed.result.reply = `The earlier options expired. ${refreshed.result.reply}`;
           return refreshed;
         }
@@ -640,6 +645,7 @@ class BookingStateMachineService {
         if (!selected) {
           if (smsIntent.intents.availabilityInquiry || smsIntent.intents.scheduling) {
             return handleReadOnlyAvailabilityInquiry({
+              channel: bookingChannel,
               business,
               lead,
               conversation,
@@ -708,6 +714,7 @@ class BookingStateMachineService {
 
       if (smsIntent.intents.availabilityInquiry || (smsIntent.intents.scheduling && conversation?.bookingState?.searchStartDate)) {
         return handleReadOnlyAvailabilityInquiry({
+              channel: bookingChannel,
           business,
           lead,
           conversation,
@@ -1127,6 +1134,9 @@ class BookingStateMachineService {
         3,
       );
 
+      if (offeredSlots.length === 0 && range.startDate === today && range.endDate === today) {
+        return { handled: true, result: await requestStaffSchedulingReview({ business, lead, conversation: activeConversation, customerMessage: text, channel: bookingChannel }) };
+      }
       if (offeredSlots.length === 0) {
         const attempts = Number(activeConversation.bookingState?.negotiationAttempts || 0) + 1;
         const expandedRange = {

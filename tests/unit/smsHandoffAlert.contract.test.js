@@ -17,7 +17,7 @@ describe("SMS human handoff alert and lifecycle contract", () => {
     expect(alertSource).toContain("actionRequired: true");
     expect(alertSource).toContain("dueAt");
     expect(alertSource).toContain("callbackSlaMinutes");
-    expect(alertSource).toContain("SMS_URGENT_CALLBACK_SLA_MINUTES");
+    expect(alertSource).toContain("staffReviewDueAt");
     expect(alertSource).toContain("urgent: isUrgent");
     expect(alertSource).toContain("dedupeKey: `human_handoff:");
     expect(alertSource).toContain("return this.create({");

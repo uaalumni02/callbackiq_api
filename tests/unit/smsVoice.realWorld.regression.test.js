@@ -3,7 +3,7 @@ import VoiceAgent from '../../src/voice/voiceAgent.service.js';
 import Booking from '../../src/services/booking/bookingStateMachine.service.js';
 import { parseTimePreference, findDateRange } from '../../src/services/booking/appointmentPreferenceParser.service.js';
 import { classifySmsIntent } from '../../src/services/messaging/smsIntentClassifier.service.js';
-import { filterAutomatedSlots, assertAutomatedNotice } from '../../src/services/scheduling/automatedSchedulingPolicy.service.js';
+import { filterAutomatedSlots } from '../../src/services/scheduling/automatedSchedulingPolicy.service.js';
 import { constrainUncertainReply } from '../../src/services/messaging/uncertainReply.service.js';
 import searchServices from '../../src/helpers/ai/tools/searchServices.tool.js';
 import getAvailability from '../../src/helpers/ai/tools/getAvailability.tool.js';
@@ -34,14 +34,14 @@ function context(id, channel='sms') {
 beforeEach(()=>{
  jest.clearAllMocks();jest.useFakeTimers().setSystemTime(now);
  searchServices.mockImplementation(async({query})=>[{id:query.includes('sink')?'sink':'toilet',name:query.includes('sink')?'Sink clearing':'Toilet clearing',score:1}]);
- getAvailability.mockResolvedValue({supportedServiceArea:true,slots:[{startAt:'2026-09-11T13:00:00Z',endAt:'2026-09-11T14:00:00Z'},{startAt:'2026-09-09T23:00:00Z',endAt:'2026-09-10T00:00:00Z'}]});
+ getAvailability.mockImplementation(async ({ startDate, endDate }) => ({supportedServiceArea:true,slots: startDate <= '2026-09-11' && endDate >= '2026-09-11' ? [{startAt:'2026-09-11T13:00:00Z',endAt:'2026-09-11T14:00:00Z'}] : []}));
  Alert.createSystemAlert.mockResolvedValue({_id:'alert'});Alert.createHumanHandoffAlert.mockResolvedValue({_id:'alert'});
  VoiceUnderstanding.classifyVoiceTurn.mockResolvedValue({confidence:85,language:'en',intent:'booking',entities:{},safety:{isEmergency:false},directedAbuse:false});
 });
 afterEach(()=>jest.useRealTimers());
-test.each(['sms','voice'])('%s concurrently replays both customers with isolated state and 24-hour offers',async channel=>{
+test.each(['sms','voice'])('%s concurrently replays both customers with isolated state and policy-filtered offers',async channel=>{
  const a=context(1,channel),b=context(2,channel);
- for(const [left,right] of [['My toilet is clogged','My sink is clogged'],['No, just the toilet','No, just the sink'],['965 Sidney Marcus BLVD Atlanta Georgia 30324','970 Sidney Marcus blvd Atlanta, Ga 30324'],["What's available?","What's available?"],['Can you do today?','Can you do today?'],['9p','Now']]){
+ for(const [left,right] of [['My toilet is clogged','My sink is clogged'],['No, just the toilet','No, just the sink'],['965 Sidney Marcus BLVD Atlanta Georgia 30324','970 Sidney Marcus blvd Atlanta, Ga 30324'],["What's available?","What's available?"]]){
   const responses=await Promise.all([a.turn(left),b.turn(right)]);
   for(const result of responses) expect(result.reply).not.toMatch(/need to repeat|needs to review your request|What day would you prefer.*preference only/);
  }
@@ -63,12 +63,10 @@ test('date-only and clock ranges do not manufacture a single exact time',()=>{
  expect(parseTimePreference('not now',timezone,now).targetMinutes).toBeNull();
 });
 test.each(["What's available?",'What is open?','Can you do today?','Could you do tomorrow?'])('routes %s to availability',text=>expect(classifySmsIntent({customerMessage:text}).intents.availabilityInquiry).toBe(true));
-test('24-hour boundary is elapsed time, including DST transitions and malformed slots',()=>{
+test('option freshness uses elapsed time across DST and rejects malformed slots',()=>{
  const epoch=new Date('2026-11-01T04:30:00Z');
  const slot=delta=>({startAt:new Date(+epoch+delta),endAt:new Date(+epoch+delta+3600000)});
- expect(filterAutomatedSlots([slot(86399999),slot(86400000),{startAt:'bad',endAt:'bad'}],epoch)).toEqual([slot(86400000)]);
- expect(()=>assertAutomatedNotice(slot(86399999).startAt,epoch)).toThrow(/24 hours/);
- expect(()=>assertAutomatedNotice(slot(86400000).startAt,epoch)).not.toThrow();
+ expect(filterAutomatedSlots([slot(-1),slot(0),slot(1),slot(3600000),{startAt:'bad',endAt:'bad'}],epoch)).toEqual([slot(1),slot(3600000)]);
  expect(()=>filterAutomatedSlots(undefined,epoch)).toThrow(/invalid availability/);
 });
 test('successful deterministic intake resets uncertainty before another unclear turn',async()=>{
@@ -110,4 +108,15 @@ test('invalid and excessive date ranges cannot launch an unbounded availability 
 });
 test('short meridiem ranges preserve both bounds',()=>{
  const p=parseTimePreference('between 9p and 11p',timezone,now);expect(p.windowStartMinutes).toBe(1260);expect(p.windowEndMinutes).toBe(1381);expect(p.exactMinutes).toBeNull();
+});
+
+test.each(['sms','voice'])('%s routes an unavailable same-day request into staff review',async channel=>{
+ const c=context(1,channel);
+ await c.turn('My toilet is clogged'); await c.turn('No, just the toilet');
+ await c.turn('965 Sidney Marcus BLVD Atlanta Georgia 30324');
+ const result=await c.turn('Can you do today?');
+ expect(result.reply).toMatch(/team review/);
+ expect(result.reply).toMatch(/not a confirmed appointment/);
+ expect(c.conversation.bookingState.offeredSlots).toEqual([]);
+ if(channel==='voice') { expect(result.outcome).toBe('callback_saved'); expect(Alert.createHumanHandoffAlert).toHaveBeenCalled(); }
 });

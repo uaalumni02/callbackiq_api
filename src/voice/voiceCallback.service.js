@@ -1,3 +1,4 @@
+import { staffReviewDueAt } from "../services/staffReviewPolicy.service.js";
 import mongoose from "mongoose";
 
 import Alert from "../models/alert.js";
@@ -111,10 +112,7 @@ const endPacket = (reasonCode, reason) => ({
     callbackCaptured: reasonCode === "callback-captured",
   }),
 });
-const dueAtForPriority = (priority) => {
-  const minutes = priority === "critical" ? 5 : priority === "high" ? 30 : 120;
-  return new Date(Date.now() + minutes * 60 * 1000);
-};
+const dueAtForPriority = staffReviewDueAt;
 const emit = (method, ...args) => {
   try {
     if (typeof SocketService?.[method] === "function") {

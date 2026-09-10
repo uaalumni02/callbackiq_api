@@ -1,0 +1,46 @@
+name: Customer and staff browser workflows
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main, development]
+  push:
+    branches: [main, development]
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: api
+      - uses: actions/checkout@v6
+        with:
+          repository: uaalumni02/callbackiq_frontend
+          ref: ${{ github.base_ref || github.ref_name }}
+          path: frontend
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+      - run: npm ci --ignore-scripts
+        working-directory: api
+      - run: npm ci --ignore-scripts
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+        env:
+          CI: true
+          REACT_APP_API_BASE_URL: http://127.0.0.1:43771/api
+      - run: npx playwright install --with-deps chromium
+        working-directory: api
+      - run: npm run test:browser
+        working-directory: api
+        env:
+          CALLBACKIQ_FRONTEND_DIR: ${{ github.workspace }}/frontend
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-results
+          path: api/browser-results
+          if-no-files-found: ignore

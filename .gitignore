@@ -55,3 +55,7 @@ voice-webhook-load-*.json
 voice-concurrency-certification-*.json
 # Generated benchmark / certification output
 # Local source backups / temporary patch artifacts
+
+# Generated verification output
+/coverage-diff-release/
+/browser-results/

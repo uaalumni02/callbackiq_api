@@ -1,10 +1,9 @@
 import CallLog from "../models/callLog.js";
 import SocketService from "./socket.service.js";
 
+// Only destination callbacks or an authenticated relay connection establish
+// who answered. Parent completed/in-progress events are telemetry only.
 const CALL_STATUS_MAP = {
-  "in-progress": "answered",
-  answered: "answered",
-  completed: "answered",
   busy: "busy",
   "no-answer": "no_answer",
   no_answer: "no_answer",
@@ -13,7 +12,6 @@ const CALL_STATUS_MAP = {
 };
 
 const ALLOWED_CURRENT = {
-  answered: ["missed", "answered"],
   busy: ["missed", "busy"],
   no_answer: ["missed", "no_answer"],
   failed: ["missed", "failed"],
@@ -26,7 +24,8 @@ export const processTwilioCallStatus = async ({ businessId, payload = {} }) => {
   const providerStatus = String(payload.CallStatus || "").trim().toLowerCase();
   if (!businessId || !providerCallId || !providerStatus) return null;
   const canonicalStatus = CALL_STATUS_MAP[providerStatus] || "";
-  const durationSeconds = Math.max(0, Number(payload.CallDuration || 0));
+  const rawDuration = Number(payload.CallDuration || 0);
+  const durationSeconds = Number.isFinite(rawDuration) ? Math.max(0, rawDuration) : 0;
   const eventBase = {
     providerStatus,
     canonicalStatus,
@@ -39,6 +38,8 @@ export const processTwilioCallStatus = async ({ businessId, payload = {} }) => {
     callLog = await CallLog.findOneAndUpdate(
       { business: businessId, providerCallId },
       {
+        $set: { providerStatus },
+        $max: { durationSeconds },
         $push: {
           providerStatusEvents: appendEvent({
             ...eventBase,
@@ -55,9 +56,10 @@ export const processTwilioCallStatus = async ({ businessId, payload = {} }) => {
         business: businessId,
         providerCallId,
         status: { $in: ALLOWED_CURRENT[canonicalStatus] || [] },
+        disposition: { $nin: ["answered_by_business", "answered_by_ai"] },
       },
       {
-        $set: { status: canonicalStatus },
+        $set: { providerStatus, status: canonicalStatus, disposition: canonicalStatus },
         $max: { durationSeconds },
         $push: {
           providerStatusEvents: appendEvent({

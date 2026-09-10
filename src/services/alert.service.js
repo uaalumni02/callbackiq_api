@@ -1,3 +1,4 @@
+import { staffReviewDueAt, staffReviewSlaMinutes } from "./staffReviewPolicy.service.js";
 import { safeConsole } from "../helpers/logging/safeLogger.js";
 import { moneyAmount } from "./valuation/opportunityValue.js";
 // CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1: alerts
@@ -203,11 +204,17 @@ class AlertService {
       customerPhone,
     });
 
-    return this.createAutomatic({
+    return this[priority === "critical" ? "create" : "createAutomatic"]({
       businessId,
       leadId,
-      type: "customer_reply",
-      title: "New customer reply",
+      conversationId,
+      actionRequired: priority === "critical",
+      dueAt: priority === "critical" ? staffReviewDueAt("critical") : null,
+      reason: priority === "critical" ? "safety_hazard" : "",
+      recommendedAction: priority === "critical" ? "Review the latest safety concern and contact the customer if available. No dispatch or response time has been promised." : "",
+      lastCustomerMessage: priority === "critical" ? messageBody : "",
+      type: priority === "critical" ? "safety_emergency" : "customer_reply",
+      title: priority === "critical" ? "Urgent safety concern — staff review required" : "New customer reply",
       message: `${customer}: ${truncate(messageBody)}`,
       priority: normalizePriority(priority),
       metadata: {
@@ -216,7 +223,7 @@ class AlertService {
         providerMessageId: providerMessageId || null,
         customerPhone: customerPhone || null,
       },
-      dedupeKey: `customer_reply:${providerMessageId || messageId}`,
+      dedupeKey: `${priority === "critical" ? "human_handoff" : "customer_reply"}:${providerMessageId || messageId}`,
     });
   }
 
@@ -261,10 +268,16 @@ class AlertService {
       String(result?.alertMessage || "").trim() ||
       `${customer}'s latest message requires human review.`;
 
-    return this.createAutomatic({
+    return this.create({
       businessId,
       leadId,
-      type: "system",
+      conversationId,
+      actionRequired: true,
+      dueAt: staffReviewDueAt(isEmergency ? "critical" : "high"),
+      reason: messageCategory,
+      recommendedAction: "Review the customer request and contact them if available. No response time or dispatch has been promised.",
+      lastCustomerMessage: result?.summary || "",
+      type: isEmergency ? "safety_emergency" : "human_requested",
       title: truncate(title, 120),
       message: truncate(message, 1000),
       priority: normalizePriority(
@@ -300,7 +313,7 @@ class AlertService {
   }) {
     const customer = getCustomerLabel({ customerName, customerPhone });
     const category = String(result?.messageCategory || "human_requested");
-    const intake = ["intake_complete", "intake_follow_up", "intake_unclear"].includes(result?.handoff?.reason);
+    const intake = ["intake_complete", "intake_follow_up", "intake_unclear", "scheduling_review"].includes(result?.handoff?.reason);
     const riskFlags = Array.isArray(result?.riskFlags) ? result.riskFlags : [];
     const urgency = String(result?.urgency || lead?.urgency || "")
       .trim()
@@ -312,18 +325,7 @@ class AlertService {
       riskFlags.includes("safety_hazard") ||
       riskFlags.includes("hazardous_diy_request");
     const isUrgent = isEmergency || urgency === "high";
-    const parseSla = (value, fallback) => {
-      const parsed = Number.parseInt(String(value || ""), 10);
-      return Number.isFinite(parsed) && parsed >= 1
-        ? Math.min(240, parsed)
-        : fallback;
-    };
-    const slaMinutes = isEmergency
-      ? parseSla(process.env.SMS_EMERGENCY_CALLBACK_SLA_MINUTES, 5)
-      : isUrgent
-        ? parseSla(process.env.SMS_URGENT_CALLBACK_SLA_MINUTES, 10)
-        : parseSla(process.env.SMS_HUMAN_CALLBACK_SLA_MINUTES, 15);
-    const dueAt = new Date(Date.now() + slaMinutes * 60 * 1000);
+    const dueAt = staffReviewDueAt(isEmergency ? 'critical' : isUrgent ? 'high' : 'medium');
     const serviceNeeded = String(
       result?.serviceNeeded || lead?.serviceNeeded || "",
     ).trim();
@@ -385,7 +387,7 @@ class AlertService {
         urgent: isUrgent,
         address: address || null,
         preferredAppointmentTime: preferredAppointmentTime || null,
-        callbackSlaMinutes: slaMinutes,
+        callbackSlaMinutes: staffReviewSlaMinutes(isEmergency ? 'critical' : isUrgent ? 'high' : 'medium'),
       },
       dedupeKey: `human_handoff:${providerMessageId || messageId}`,
     });

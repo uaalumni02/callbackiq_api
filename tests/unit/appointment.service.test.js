@@ -168,12 +168,12 @@ describe("AppointmentService", () => {
     jest.useRealTimers();
   });
 
-  test('AI hold cannot bypass 24 hours even when lower scheduling layers offer the slot', async () => {
+  test('AI hold rechecks authoritative availability rather than trusting a stale offered slot', async () => {
     Appointment.findOne.mockResolvedValueOnce(null);
     const startAt = new Date(Date.now() + 23 * 3600000);
-    await expect(AppointmentService.create({ business, input: { customerPhone: '+14045550100', serviceOfferingId: 's1', bookedBy: 'ai', startAt }, confirm: false })).rejects.toMatchObject({code:'MINIMUM_NOTICE_NOT_MET'});
+    await expect(AppointmentService.create({ business, input: { customerPhone: '+14045550100', serviceOfferingId: 's1', bookedBy: 'ai', startAt }, confirm: false })).rejects.toMatchObject({code:'SLOT_UNAVAILABLE'});
     expect(Appointment.create).not.toHaveBeenCalled();
-    expect(AvailabilityService.getAvailability).not.toHaveBeenCalled();
+    expect(AvailabilityService.getAvailability).toHaveBeenCalled();
   });
 
   test("exports expected active statuses and transitions", () => {

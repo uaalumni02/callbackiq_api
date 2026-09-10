@@ -313,6 +313,7 @@ export const handleSmsRecoveryVoiceWebhook = async (req, res) => {
           to: twilioNumber,
           direction: "inbound",
           status: "missed",
+          disposition: "missed",
           durationSeconds: 0,
           provider: "twilio",
           providerCallId: callSid,

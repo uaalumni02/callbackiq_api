@@ -1,3 +1,4 @@
+import { staffReviewDueAt } from "./staffReviewPolicy.service.js";
 import Alert from "../models/alert.js";
 import SocketService from "./socket.service.js";
 
@@ -87,7 +88,7 @@ class InterventionService {
       recommendedAction,
       aiSummary,
       lastCustomerMessage,
-      dueAt,
+      dueAt: dueAt || staffReviewDueAt(normalizedPriority),
       metadata: {
         ...metadata,
         externalNotificationEligible:
