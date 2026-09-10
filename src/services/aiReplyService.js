@@ -1,3 +1,4 @@
+import { observeCustomerConstraint, respectCustomerConstraints } from './conversationCondition.service.js';
 import { getApprovedServiceEstimate } from "./booking/approvedServiceEstimate.service.js";
 import { constrainUncertainReply, qualifiedIntakeFacts, resetUncertainTurns } from "./messaging/uncertainReply.service.js";
 import { handleRecoveryIntake } from "./booking/recoveryIntake.service.js";
@@ -183,7 +184,10 @@ export const generateAIReplyResult = async ({
       lead,
       conversation,
     });
+    const constraintResult = await observeCustomerConstraint({ conversation, lead, customerMessage: latestCustomerMessage });
+    if (constraintResult && !deterministicAssessment.handled) return constraintResult;
     if (deterministicAssessment.handled) {
+      deterministicAssessment.reply = respectCustomerConstraints(deterministicAssessment.reply, { conversation, customerMessage: latestCustomerMessage });
       return preserveTurnUrgency(
         deterministicResult(deterministicAssessment),
         turnUrgency,
@@ -289,6 +293,7 @@ export const generateAIReplyResult = async ({
       businessType: business?.businessType || "other",
       customerMessage: latestCustomerMessage,
       lead: understoodLead,
+      ...(conversation ? { conversation } : {}),
       recentMessages: messages,
       inboundAssessment,
       businessConfiguration,

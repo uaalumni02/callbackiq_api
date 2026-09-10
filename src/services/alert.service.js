@@ -295,6 +295,7 @@ class AlertService {
         riskFlags,
         confidence: Number(result?.confidence) || 0,
         guardrail: result?.guardrail || {},
+        customerConstraints: result?.customerConstraints || [],
       },
       dedupeKey: `ai_review:${providerMessageId || messageId}`,
     });
@@ -378,6 +379,7 @@ class AlertService {
         customerPhone: customerPhone || null,
         callbackPhone: result?.handoff?.callbackPhone || customerPhone || null,
         handoffReason: String(result?.handoff?.reason || ""),
+        customerConstraints: result?.customerConstraints || [],
         intakeReview: intake ? result?.intakeReview || { serviceNeeded, address, preferredAppointmentTime } : null,
         callbackRequested: result?.handoff?.callbackRequested === true,
         messageCategory: category,

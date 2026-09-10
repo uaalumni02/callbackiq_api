@@ -1,3 +1,4 @@
+import { respectCustomerConstraints } from '../conversationCondition.service.js';
 import { getApprovedServiceEstimate } from "../booking/approvedServiceEstimate.service.js";
 import { confirmationTimingReply } from "../booking/recoveryIntake.service.js";
 import { isConfirmationQuestion } from "../booking/conversationQuestions.service.js";
@@ -101,9 +102,9 @@ const persistOutboundReply = async ({
   inboundMessage,
   result,
 }) => {
-  const reply = sanitizeUnverifiedStaffCommitments(result?.reply, {
+  const reply = respectCustomerConstraints(sanitizeUnverifiedStaffCommitments(result?.reply, {
     channel: "sms",
-  });
+  }), { conversation, customerMessage: inboundMessage?.body });
   if (!reply || result?.decision === "no_reply") return { sent: false, reason: "no_reply" };
   assertDistributedLeaseActive();
 
@@ -630,6 +631,7 @@ export const processInboundSmsJob = async (job) => {
       result,
       business,
       lead,
+      conversation,
       customerMessage: customerTurn.customerMessage,
     });
   }

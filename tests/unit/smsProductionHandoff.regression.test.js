@@ -67,8 +67,7 @@ describe("production SMS handoff", () => {
     expect(result.decision).toBe("send_fixed_response");
     expect(result.reply).toMatch(/flagged|callback request/i);
     expect(result.reply).toMatch(/can't guarantee/i);
-    expect(result.reply).toMatch(/correct shutoff/i);
-    expect(result.reply).toMatch(/electrical equipment/i);
+    expect(result.reply).not.toMatch(/correct shutoff/i);
     expect(result.shouldAlertOwner).toBe(true);
     expect(result.guardrail.skipAI).toBe(true);
     expect(result.handoff.acknowledgementRequired).toBe(true);
@@ -95,7 +94,7 @@ describe("production SMS handoff", () => {
 
     expect(result.shouldAlertOwner).toBe(true);
     expect(result.alertPriority).toBe("high");
-    expect(result.reply).toMatch(/flagged this as urgent/i);
+    expect(result.reply).not.toMatch(/flagged this as urgent/i);
     expect(result.reply).toMatch(/service address/i);
     expect(result.reply).not.toMatch(/will contact you shortly/i);
   });
@@ -123,7 +122,7 @@ describe("production SMS handoff", () => {
         "I have a leaking pipe. It is urgent. What might it cost, and can I book someone?",
     });
 
-    expect(result.reply).toMatch(/flagged this as urgent/i);
+    expect(result.reply).not.toMatch(/flagged this as urgent/i);
     expect(result.reply).toMatch(/rough estimate/i);
     expect(result.reply).toMatch(/final price can vary/i);
     expect(result.reply).toMatch(/appointment/i);
@@ -243,7 +242,7 @@ describe("production SMS handoff", () => {
     expect(policy.directResult.reply).toMatch(/not a confirmed appointment/i);
   });
 
-  it("combines human callback confirmation with cautious plumbing safety guidance", () => {
+  it("keeps a callback acknowledgement separate from the safety policy", () => {
     const reply = buildHumanHandoffAcknowledgement({
       business,
       lead,
@@ -257,10 +256,9 @@ describe("production SMS handoff", () => {
         "The puddle is spreading. Is it safe to leave it running? Please call me.",
     });
 
-    expect(reply).toMatch(/flagged this as urgent/i);
-    expect(reply).toMatch(/can't guarantee a callback time/i);
-    expect(reply).toMatch(/correct shutoff/i);
-    expect(reply).toMatch(/sparks, smoke, fire, or immediate danger/i);
+    expect(reply).toMatch(/callback request/i);
+    expect(reply).toMatch(/can't guarantee/i);
+    expect(reply).not.toMatch(/correct shutoff/i);
     expect(reply.length).toBeLessThanOrEqual(320);
   });
 });

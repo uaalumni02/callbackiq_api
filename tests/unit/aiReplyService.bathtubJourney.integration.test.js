@@ -1,3 +1,4 @@
+import { ensureUrgentOperationalResult, isUrgentOperationalResult, ensureHumanHandoffResult, requiresHumanHandoff } from '../../src/services/messaging/smsHandoff.service.js';
 import OpenAI from 'openai';
 import { generateAIReplyResult, resetOpenAIReplyClient } from '../../src/services/aiReplyService.js';
 import { classifySmsIntent } from '../../src/services/messaging/smsIntentClassifier.service.js';
@@ -33,7 +34,9 @@ function journey() {
       const lead = { ...structuredClone(savedLead), async save() { leadWrites(); savedLead = JSON.parse(JSON.stringify(this)); } };
       const conversation = { ...structuredClone(savedConversation), async save() { conversationWrites(); savedConversation = JSON.parse(JSON.stringify(this)); }, set(path, value) { const keys = path.split('.'); let target = this; for (const key of keys.slice(0, -1)) target = target[key] ||= {}; target[keys.at(-1)] = value; }, markModified() {} };
       messages.push({ _id: `in-${turn}`, direction: 'inbound', body, createdAt: new Date(Date.parse('2026-09-08T01:59:00Z') + turn * 60000) });
-      const result = await generateAIReplyResult({ business, lead, conversation, customerMessage: body, messages });
+      let result = await generateAIReplyResult({ business, lead, conversation, customerMessage: body, messages });
+      if (requiresHumanHandoff(result)) result = ensureHumanHandoffResult({ result, business, lead, conversation, customerMessage: body });
+      else if (isUrgentOperationalResult(result)) result = ensureUrgentOperationalResult({ result, business, lead, conversation, customerMessage: body });
       messages.push({ _id: `out-${turn}`, direction: 'outbound', body: result.reply, createdAt: new Date(Date.parse('2026-09-08T01:59:00Z') + turn * 60000 + 1000) });
       return result;
     },
@@ -102,4 +105,38 @@ test('unfamiliar service uses one metered model extraction and then the real sha
   expect(reserveAiUsage.mock.invocationCallOrder[0]).toBeLessThan(modelCreate.mock.invocationCallOrder[0]);
   expect(modelCreate.mock.calls[0][0].text.format.name).toMatch(/qualif/i);
   expect(AlertService.createHumanHandoffAlert).not.toHaveBeenCalled();
+});
+
+
+test('dishwasher transcript survives reloads and interrupts timing collection for a limitation', async () => {
+  const c=journey();
+  const first=await c.turn('My dishwasher is leaking.');
+  expect(first.reply).toMatch(/leaking right now/); expect(first.urgency).toBe('medium');
+  const clarification=await c.turn('Only when I use it');
+  expect(clarification.reply).toMatch(/Thanks for clarifying/);
+  expect(clarification.reply).toMatch(/avoid using/);
+  expect(c.conversation.conversationMemory.recoveryIntake.leakPattern).toBe('during_use');
+  for (const body of ['970 Sidney Marcus Blvd ne','30324','I need someone to come tomorrow']) {
+    const result=await c.turn(body);
+    expect(result.reply).not.toMatch(/flagged this as urgent|shutoff|electrical equipment/);
+  }
+  const date=c.lead.preferredAppointmentTime;
+  const limitation=await c.turn("I can't turn the water off");
+  expect(limitation.reply).toMatch(/unable to shut off the water/);
+  expect(limitation.reply).toMatch(/leaking right now/);
+  expect(limitation.reply).not.toMatch(/What time|turn it off/);
+  expect(c.lead.preferredAppointmentTime).toBe(date);
+  expect(c.lead.address).toContain('30324');
+  expect(c.conversation.conversationMemory.recoveryIntake.customerConstraints).toContain('water_control_unavailable');
+  const resumed=await c.turn('No');
+  expect(resumed.reply).toMatch(/time/);
+  expect(c.conversation.conversationMemory.recoveryIntake.leakPattern).toBe('not_active');
+});
+
+test('new flooding after a limitation preserves danger advice and omits the unavailable action', async () => {
+ const c=journey(); await c.turn('My dishwasher is leaking'); await c.turn('Only when I use it');
+ await c.turn("I can't turn the water off");
+ const danger=await c.turn('Now my kitchen is flooding');
+ expect(danger.riskFlags).toContain('safety_hazard'); expect(danger.reply).toMatch(/911/);
+ expect(danger.reply).toMatch(/standing water/); expect(danger.reply).not.toMatch(/shut off|turn it off/);
 });

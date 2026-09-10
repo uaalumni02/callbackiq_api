@@ -1,3 +1,5 @@
+import { observeCustomerConstraint, respectCustomerConstraints } from '../services/conversationCondition.service.js';
+import AlertService from '../services/alert.service.js';
 import { handleVoiceExit } from "./voiceExit.service.js";
 import { handleRecoveryIntake } from "../services/booking/recoveryIntake.service.js";
 import { schedulingQuestionReply } from "../services/booking/schedulingQuestions.service.js";
@@ -320,7 +322,15 @@ const recordConfirmedAppointment = async ({
 };
 
 class VoiceAgentService {
-  static async handlePrompt({ session, customerMessage, signal = null, turnId = "" }) {
+  static async handlePrompt(args) {
+    const result = await this.handlePromptInternal(args);
+    if (!result?.reply) return result;
+    return { ...result, reply: respectCustomerConstraints(result.reply, {
+      conversation: args.session?.conversation, customerMessage: args.customerMessage,
+    }) };
+  }
+
+  static async handlePromptInternal({ session, customerMessage, signal = null, turnId = "" }) {
     assertVoiceTurnActive();
     if (signal?.aborted) throw signal.reason || new Error("Voice turn aborted.");
     const text = clean(customerMessage, 4000);
@@ -393,6 +403,16 @@ class VoiceAgentService {
       });
     }
 
+    const constraintResult = await observeCustomerConstraint({ conversation, lead, customerMessage: text, channel: 'voice' });
+    if (constraintResult && !safety?.isEmergency && !safety?.shouldSendSafetyReply) {
+      assertVoiceTurnActive();
+      await AlertService.createAIReviewAlert({ businessId: business._id, leadId: lead?._id,
+        conversationId: conversation._id, providerMessageId: `voice-constraint:${session._id}:${turnId || session.transcript?.length || 0}`,
+        customerPhone: lead?.phone || conversation.customerPhone, result: constraintResult });
+      assertVoiceTurnActive();
+      return { reply: constraintResult.reply };
+    }
+    if (safety?.reply) safety.reply = respectCustomerConstraints(safety.reply, { conversation, customerMessage: text });
     if (safety?.isEmergency || safety?.shouldSendSafetyReply) {
       if (lead) {
         lead.urgency = "emergency";

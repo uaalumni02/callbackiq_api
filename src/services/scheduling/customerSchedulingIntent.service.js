@@ -79,7 +79,7 @@ const EXPLICIT_HUMAN_PATTERNS = [
 ];
 
 const HIGH_URGENCY = [
-  /\bleaking\s+water\b|\bdish\s*washer\b.{0,25}\bleak(?:s|ing)?\b/i,
+  /\b(?:actively|currently|still)\s+leaking\b|\bleaking\s+(?:water\s+)?right now\b/i,
   /\b(?:active(?:ly)?\s+leak(?:ing)?|water\s+leak(?:ing)?|roof\s+(?:is\s+)?(?:active(?:ly)?\s+)?leak(?:ing)?|water\s+coming\s+in|water\s+intrusion)\b/i,
   /\b(?:water\s+heater|hot\s+water\s+heater).{0,30}\bleak(?:ing|s|ed)?\b/i,
   /\bleak(?:ing|s|ed)?\b.{0,40}\b(?:floor|ceiling|wall|cabinet|room)\b/i,

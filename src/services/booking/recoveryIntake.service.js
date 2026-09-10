@@ -1,3 +1,4 @@
+import { patternHasAffirmedSafetyMatch } from '../../helpers/ai/aiGuardrails.js';
 import { requestStaffSchedulingReview } from "./staffSchedulingReview.service.js";
 import { recoveryLeakQuestion, recoveryCompletionReply } from './recoveryIntakePresentation.service.js';
 import { getApprovedServiceEstimate } from './approvedServiceEstimate.service.js';
@@ -105,6 +106,11 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
     state.serviceDetail = service;
     state.serviceSourceTurnId = String(turnId);
   }
+  const activeEvidence = text.split(/\b(?:but|however)\b|[;.!?]/i).some(clause =>
+    !stopped.test(clause) && patternHasAffirmedSafetyMatch(active, clause));
+  const stoppedEvidence = stopped.test(text) && !activeEvidence;
+  const shortTriageAnswer = state.triagePending && ['leak_activity', 'constraint_condition'].includes(state.field);
+  if (state.field === 'constraint_condition' && /^(?:no|nope)[.! ]*$/i.test(text)) state.constraintQuestion = '';
   const wasTriageResolved = state.triageResolved;
   const wasClogResolved = state.clogResolved;
   if (state.clogPending && /^(?:no|nope|yes|yeah|yep)\b|\b(?:only|just) (?:the |this |my )?(?:sink|toilet|drain|tub|shower)|\b(?:not overflowing|no backup|no other fixtures|other fixtures (?:are )?fine)\b/i.test(text)) {
@@ -114,25 +120,25 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   }
   if (cloggedFixture(`${lead.serviceNeeded} ${text}`) && !state.clogAsked && !leak.test(`${lead.serviceNeeded} ${text}`)) state.clogPending = true;
   const triageRelevant = state.triagePending || leak.test(`${lead.serviceNeeded} ${text}`);
-  if (triageRelevant && (stopped.test(text) || active.test(text) || /^(?:yes|yeah|yep|no|nope)[.! ]*$/i.test(text))) {
+  if (triageRelevant && (stoppedEvidence || activeEvidence || (shortTriageAnswer && /^(?:yes|yeah|yep|no|nope)[.! ]*$/i.test(text)))) {
     state.triageAnswer = text.slice(0, 250);
-    state.leakPattern = /\bonly (?:when|during)\b/i.test(text) ? 'during_use' : stopped.test(text) || /^(?:no|nope)[.! ]*$/i.test(text) ? 'not_active' : 'active';
+    state.leakPattern = !activeEvidence && /\bonly (?:when|during)\b/i.test(text) ? 'during_use' : stoppedEvidence || /^(?:no|nope)[.! ]*$/i.test(text) ? 'not_active' : 'active';
   }
-  if (active.test(text) && !stopped.test(text)) {
+  if (activeEvidence) {
     state.triageResolved = true;
     state.triagePending = false;
     if (lead.urgency !== 'emergency') lead.urgency = 'high';
-  } else if (state.triageResolved && /\b(?:now|again|started|worse)\b/i.test(text) && leak.test(text) && !stopped.test(text)) {
+  } else if (state.triageResolved && /\b(?:now|again|started|worse)\b/i.test(text) && leak.test(text) && !stoppedEvidence) {
     state.triageResolved = false;
     state.triageAsked = false;
   }
   const contextHasLeak = leak.test(`${lead.serviceNeeded} ${text}`);
   if (state.triagePending) {
-    if (stopped.test(text) || /^(?:no|nope)[.! ]*$/i.test(text)) { state.triagePending = false; state.triageResolved = true; }
-    else if (active.test(text) || /^(?:yes|yeah|yep)[.! ]*$/i.test(text)) { state.triagePending = false; state.triageResolved = true; if (lead.urgency !== 'emergency') lead.urgency = 'high'; }
+    if (stoppedEvidence || /^(?:no|nope)[.! ]*$/i.test(text)) { state.triagePending = false; state.triageResolved = true; }
+    else if (activeEvidence || /^(?:yes|yeah|yep)[.! ]*$/i.test(text)) { state.triagePending = false; state.triageResolved = true; if (lead.urgency !== 'emergency') lead.urgency = 'high'; }
     // A customer may answer another question first. Preserve it without repeating triage.
   } else if (contextHasLeak && !state.triageResolved) {
-    if (stopped.test(text) || active.test(text)) { state.triageResolved = true; if (!stopped.test(text) && lead.urgency !== 'emergency') lead.urgency = 'high'; }
+    if (stoppedEvidence || activeEvidence) { state.triageResolved = true; if (!stoppedEvidence && lead.urgency !== 'emergency') lead.urgency = 'high'; }
     else state.triagePending = true;
   }
   const understoodAnswer = Boolean(known(service) || address || incomingRange ||
@@ -174,7 +180,10 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
       }
       return result;
     }
-    return fixed(`${pricingPrefix}${reply}`, lead);
+    const acknowledged = !wasTriageResolved && state.triageResolved && state.leakPattern === 'during_use'
+      ? 'Thanks for clarifying that it leaks during use. Please avoid using it for now. '
+      : '';
+    return fixed(`${pricingPrefix}${acknowledged}${reply}`, lead);
   };
   if (state.triagePending && !state.triageAsked) {
     state.triageAsked = true; await persist();

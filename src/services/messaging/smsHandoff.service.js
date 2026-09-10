@@ -1,3 +1,4 @@
+import { respectCustomerConstraints, currentConstraints } from '../conversationCondition.service.js';
 // CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1
 // Delivery-safe human handoff helpers for production SMS conversations.
 import {
@@ -24,9 +25,6 @@ const IMMEDIATE_SAFETY_FLAGS = new Set([
 
 const EXPLICIT_CALLBACK_PATTERN =
   /\b(?:call me|call us|have (?:someone|a person|the team) call|can (?:someone|a person|the team) call|please call|phone me|ring me)\b/i;
-
-const WATER_SAFETY_PATTERN =
-  /\b(?:water|leak(?:ing)?|flood(?:ing)?|puddle|shut\s*off|water heater|pipe|sink|toilet)\b/i;
 
 const HANDOFF_STATUS_PATTERNS = [
   /\b(?:did|has).{0,35}(?:callback|call back|request|message).{0,25}(?:go through|come through|arrive|send|sent|receive|received)\b/i,
@@ -80,25 +78,6 @@ const businessName = (business) =>
 const callbackPhone = (conversation) =>
   clean(conversation?.customerPhone) || clean(conversation?.customerPhoneLookup);
 
-const isUrgent = ({ result, lead }) => {
-  const urgency = clean(result?.urgency || lead?.urgency).toLowerCase();
-  return hasSafetyRisk(result) || ["high", "emergency"].includes(urgency);
-};
-
-const shouldIncludeWaterSafety = ({ business, lead, customerMessage, result }) => {
-  if (clean(business?.businessType).toLowerCase() !== "plumbing") return false;
-  const context = [
-    customerMessage,
-    result?.serviceNeeded,
-    lead?.serviceNeeded,
-    result?.summary,
-    lead?.summary,
-  ]
-    .map(clean)
-    .join(" ");
-  return WATER_SAFETY_PATTERN.test(context) && isUrgent({ result, lead });
-};
-
 export const requiresHumanHandoff = (result) => {
   const category = clean(result?.messageCategory).toLowerCase();
   const riskFlags = Array.isArray(result?.riskFlags) ? result.riskFlags : [];
@@ -147,56 +126,24 @@ export const ensureUrgentOperationalResult = ({
   result = {},
   business,
   lead = {},
+  conversation = {},
   customerMessage = "",
 }) => {
-  const name = businessName(business);
   const rawReply = clean(result?.reply);
-  const replyHadUnsafeCommitment =
-    hasUnverifiedStaffCommitment(rawReply);
-
-  let reply = sanitizeUnverifiedStaffCommitments(rawReply, {
-    channel: "sms",
-  });
-
-  if (!reply) {
-    reply = `I've flagged this as urgent for ${name}. I can keep helping here with the details and available options.`;
-  }
-
-  if (shouldIncludeWaterSafety({ business, lead, customerMessage, result })) {
-    const addressCaptured = Boolean(clean(result?.address || lead?.address));
-    const preferenceCaptured = Boolean(
-      clean(
-        result?.preferredAppointmentTime ||
-          lead?.preferredAppointmentTime,
-      ),
-    );
-
-    const nextStep = !addressCaptured
-      ? " What is the service address?"
-      : !preferenceCaptured
-        ? " What day or time works best for you?"
-        : " I can keep helping with available service options here.";
-
-    const waterSafety =
-      `I've flagged this as urgent for ${name}. ` +
-      "If water is actively leaking and you can safely identify and reach " +
-      "the correct shutoff, turn it off. Avoid standing water near " +
-      "electrical equipment.";
-
-    /*
-     * Preserve useful policy-screened content such as a requested rough
-     * estimate, disclaimer, or booking guidance. If the original response
-     * contained an unverified staff/callback promise, discard that response
-     * and use the deterministic safe next step instead.
-     */
-    reply =
-      rawReply && !replyHadUnsafeCommitment && reply
-        ? `${waterSafety} ${reply}`
-        : `${waterSafety}${nextStep}`;
-  }
+  const unsafe = hasUnverifiedStaffCommitment(rawReply);
+  // Priority controls staff routing, not a paragraph appended to every turn.
+  // Intake and safety policy already selected the appropriate next action.
+  const fallback = !clean(result?.address || lead?.address)
+    ? "What is the service address?"
+    : "What day or time would you prefer? The business must confirm the appointment.";
+  const reply = respectCustomerConstraints(
+    unsafe || !rawReply ? fallback : sanitizeUnverifiedStaffCommitments(rawReply, { channel: 'sms' }),
+    { conversation, customerMessage },
+  );
 
   return {
     ...result,
+    customerConstraints: currentConstraints(conversation),
     reply,
     shouldAlertOwner: true,
     alertPriority: "high",
@@ -250,12 +197,9 @@ export const buildHumanHandoffAcknowledgement = ({
       ? ` I've shared the ${service.slice(0, 80)} details and urgency you provided.`
       : " I've shared the details and urgency you provided.";
 
-  if (shouldIncludeWaterSafety({ business, lead, customerMessage, result })) {
-    return `I've flagged this as urgent for ${name}. Avoid using the fixture. Don't touch electrical equipment or stand in water. If you can safely identify and reach the correct shutoff, turn it off. For sparks, smoke, fire, or immediate danger, leave and call 911. I can't guarantee a callback time.`;
-  }
-
   if (hasSafetyRisk(result)) {
-    return `I've flagged this for immediate review by ${name}. Avoid the affected area. For immediate danger, leave and call 911. Do not wait for a callback or rely on this service for emergency response.`;
+    const guidance = respectCustomerConstraints(result.reply, { conversation, customerMessage });
+    return guidance || `Avoid the affected area. For immediate danger, leave and call 911. Do not wait for a business callback.`;
   }
 
   const opening = explicitCallback
@@ -298,6 +242,7 @@ export const ensureHumanHandoffResult = ({
 
   return {
     ...result,
+    customerConstraints: currentConstraints(conversation),
     decision: "send_fixed_response",
     actionType: "human_handoff",
     messageCategory:

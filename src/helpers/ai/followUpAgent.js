@@ -1,3 +1,4 @@
+import { currentConstraints } from '../../services/conversationCondition.service.js';
 import { classifySmsIntent } from "../../services/messaging/smsIntentClassifier.service.js";
 import { safeConsole } from "../logging/safeLogger.js";
 import { parseAiOutput } from "./validateAiOutput.js";
@@ -391,6 +392,7 @@ const runFollowUpAgent = async ({
   businessType = "other",
   customerMessage,
   lead = {},
+  conversation = null,
   recentMessages = [],
   inboundAssessment = null,
   activityWindowStartAt = null,
@@ -476,6 +478,7 @@ REPLY RULES:
 - Answer the latest customer question before continuing intake. A waitlist question is not a new time preference. Emergency service capability does not establish a live opening.
 - No request submission, waitlist enrollment, dispatch, or staff alert has completed in this text-only step. Never describe those actions as completed or under review.
 - Ask at most one question, and ask zero questions when the customer already supplied enough information to advance.
+- Use recorded customer limitations as constraints on your advice. A customer correction changes the current situation; do not keep repeating old warnings. Ask one relevant clarification when the current condition is uncertain. Never infer that a hazard is resolved from unrelated address or scheduling answers.
 - Never ask for a field already present in the latest message, conversation history, or existing lead data.
 - Never restart the qualification script after the customer changes topics. Extract all useful facts from every turn, keep them, and ask only the single highest-value missing question.
 - Customers may answer out of order, combine service + urgency + address + scheduling in one SMS, ask a pricing question mid-flow, correct prior information, or ask for a person. Preserve supplied facts and respond to the newest intent without losing prior context.
@@ -514,6 +517,8 @@ LEAD DATA RULES:
           recordedPreference: cleanText(lead.preferredAppointmentTime),
           emergencyServiceAvailable: verifiedFacts.emergencyServiceAvailable ?? "unverified",
         },
+        currentCustomerConstraints: currentConstraints(conversation),
+        currentCondition: conversation?.conversationMemory?.recoveryIntake?.leakPattern || "unknown",
         existingLead: {
           customerName: cleanText(lead.customerName),
           serviceNeeded: cleanText(lead.serviceNeeded) && lead.serviceNeeded !== "Unknown" ? cleanText(lead.serviceNeeded) : currentTurn.entities.serviceNeeded,

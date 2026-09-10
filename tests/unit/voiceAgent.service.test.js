@@ -1,3 +1,5 @@
+import AlertService from '../../src/services/alert.service.js';
+jest.mock('../../src/services/alert.service.js', () => ({ __esModule: true, default: { createAIReviewAlert: jest.fn().mockResolvedValue({alert:{_id:'a1'}}) } }));
 import ServiceOffering from "../../src/models/serviceOffering.js";
 import Appointment from "../../src/models/appointment.js";
 import searchServicesTool from "../../src/helpers/ai/tools/searchServices.tool.js";
@@ -603,4 +605,16 @@ describe("CALLBACKIQ_DIFF_COVERAGE_VOICE_RELEASE", () => {
       );
     },
   );
+});
+
+
+test('voice preserves the saved preference and asks about current conditions when water cannot be shut off', async () => {
+ const session=makeSession(); session.lead.serviceNeeded='dishwasher leak'; session.lead.preferredAppointmentTime='tomorrow';
+ session.conversation.save=jest.fn().mockResolvedValue(null);
+ session.conversation.conversationMemory={recoveryIntake:{journeyKey:'',date:'2026-09-10',leakPattern:'during_use'}};
+ VoiceUnderstandingService.classifyVoiceTurn.mockResolvedValue({entities:{}, safety:{isEmergency:false,shouldSendSafetyReply:false}});
+ const result=await VoiceAgentService.handlePrompt({session,customerMessage:"I cannot turn the water off",turnId:'constraint-1'});
+ expect(result.reply).toMatch(/unable to shut off/); expect(result.reply).toMatch(/leaking right now/);
+ expect(session.lead.preferredAppointmentTime).toBe('tomorrow');
+ expect(AlertService.createAIReviewAlert).toHaveBeenCalledWith(expect.objectContaining({result:expect.objectContaining({customerConstraints:['water_control_unavailable']})}));
 });

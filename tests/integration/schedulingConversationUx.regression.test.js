@@ -18,7 +18,7 @@ jest.mock("../../src/helpers/ai/tools/createAppointment.tool.js", () => ({ __esM
 
 const first = "My kitchen sink is clogged and dish washer is leaking water. When can someone come out";
 const business = { _id: "business-1", businessName: "Atlanta Pro Plumbing & Drain", timezone: "America/New_York", features: { aiBookingEnabled: false } };
-const modelReply = { decision: "send", actionType: "collect_appointment_preference", messageCategory: "appointment_preference", reply: "I have both the clogged sink and dishwasher leak. Is water still leaking?", serviceNeeded: "kitchen sink clog and dishwasher leak", urgency: "high", address: "", preferredAppointmentTime: "", leadQualityScore: 50, estimatedValue: 0, summary: "Both plumbing issues captured", shouldAlertOwner: false, alertPriority: "low", riskFlags: [], confidence: 95 };
+const modelReply = { decision: "send", actionType: "collect_appointment_preference", messageCategory: "appointment_preference", reply: "I have both the clogged sink and dishwasher leak. Is water still leaking?", serviceNeeded: "kitchen sink clog and dishwasher leak", urgency: "medium", address: "", preferredAppointmentTime: "", leadQualityScore: 50, estimatedValue: 0, summary: "Both plumbing issues captured", shouldAlertOwner: false, alertPriority: "low", riskFlags: [], confidence: 95 };
 const create = jest.fn();
 const originalKey = process.env.OPENAI_API_KEY;
 beforeEach(() => {
@@ -49,7 +49,8 @@ test("real SMS reply pipeline replays all five customer turns without losing ser
   expect(one.reply).toMatch(/still leaking/i);
   expect(one.reply).not.toMatch(/what service/i);
   expect(lead.serviceNeeded).toMatch(/sink.*dish washer/i);
-  expect(lead.urgency).toBe("high");
+  // An unspecified leak requires clarification; active leakage is not established.
+  expect(lead.urgency).toBe("medium");
   expect(searchServices).toHaveBeenCalledWith(expect.objectContaining({ query: expect.stringMatching(/sink.*dish washer/i) }));
   const two = await turn("Kitchen sink is clogged and dishwasher leaks");
   expect(two.reply).toContain("Is water still leaking?");
@@ -129,4 +130,14 @@ test('toilet intake passes through the actual SMS reply pipeline with persistent
   const status=await turn('When will it be confirmed'); expect(status.reply).toMatch(/confirmation timeframe/);
   expect(lead.preferredAppointmentTime).toBe('2026-09-08 at 8:00');
   expect(create).not.toHaveBeenCalled(); expect(createAppointment).not.toHaveBeenCalled();
+});
+
+
+test.each([
+  ["My kitchen sink is clogged and dish washer is leaking water. When can someone come out", "medium"],
+  ["My kitchen sink is clogged and dishwasher is actively leaking right now. When can someone come out", "high"],
+])('scheduling keeps evidence-based urgency for %s', async (body, urgency) => {
+  const result = await generateAIReplyResult({ business, lead: { serviceNeeded: "Unknown", urgency: "medium" }, conversation: { bookingState: { status: "not_started" } }, messages: [{ direction: "inbound", body }] });
+  expect(result.urgency).toBe(urgency);
+  expect(createAppointment).not.toHaveBeenCalled();
 });
