@@ -12,10 +12,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           path: api
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           repository: uaalumni02/callbackiq_frontend
           token: ${{ secrets.CALLBACKIQ_CROSS_REPO_READ_TOKEN || github.token }}
