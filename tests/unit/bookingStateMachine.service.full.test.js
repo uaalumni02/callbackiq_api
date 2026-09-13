@@ -1,3 +1,10 @@
+// This suite isolates downstream orchestration. The actual catalog/tenant gate is
+// exercised by serviceEligibility.journey.test.js and the configured channel journeys.
+jest.mock('../../src/services/serviceEligibility/serviceEligibility.service.js', () => ({
+  ...jest.requireActual('../../src/services/serviceEligibility/serviceEligibility.service.js'),
+  guardServiceRequest: jest.fn().mockResolvedValue(null),
+  assertServiceRequestEligible: jest.fn().mockResolvedValue({ decision: 'supported', canBook: true }),
+}));
 import Appointment from "../../src/models/appointment.js";
 import Conversation from "../../src/models/conversation.js";
 import ServiceOffering from "../../src/models/serviceOffering.js";

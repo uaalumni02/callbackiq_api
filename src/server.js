@@ -177,7 +177,7 @@ const shutdown = async (signal, exitCode = 0) => {
     await stopWebhookWorkWorker();
     stopSmsIngressReconciliationWorker();
     stopSmsDeliveryReconciliationWorker();
-    stopConversationLifecycleWorker();
+    await stopConversationLifecycleWorker();
     stopVoiceUsageReconciliationWorker();
     await conversationRelayServer.close({ drainMs: Math.max(0, Number(process.env.VOICE_DRAIN_TIMEOUT_MS) || 610000) });
     stopSocketSessions();

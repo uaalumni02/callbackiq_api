@@ -1,3 +1,4 @@
+import { scoreService } from '../../../services/serviceEligibility/policy.js';
 import ServiceOffering from "../../../models/serviceOffering.js";
 import { normalizeServiceText, matchesServicePhrase } from '../../../services/catalog/servicePhrase.service.js';
 
@@ -13,15 +14,12 @@ export const searchServicesTool = async ({ businessId, query }) => {
 
   const scored = services
     .map((service) => {
-      const terms = [service.name, service.category, ...(service.keywords || [])]
-        .map(normalize)
-        .filter(Boolean);
       const excluded = (service.excludedKeywords || []).some((term) =>
         Boolean(normalize(term)) && matchesServicePhrase(text, term),
       );
       const score = excluded
         ? -1
-        : terms.reduce((total, term) => total + (matchesServicePhrase(text, term) ? 1 : 0), 0);
+        : scoreService(text, service);
       return { service, score };
     })
     .filter((item) => item.score >= 0)

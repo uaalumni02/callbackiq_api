@@ -291,6 +291,9 @@ export const getConversationsPage = async (businessId, query = {}) => {
   const limit = normalizePageLimit(query.limit);
   const cursor = decodeCursor(query.cursor);
   const filter = { business: businessId };
+  if (["open", "closed", "archived"].includes(query.status)) filter.status = query.status;
+  const search = String(query.q || query.search || "").trim().slice(0, 200);
+
 
   if (cursor) {
     const createdAt = requireDate(cursor.createdAt);
@@ -312,13 +315,34 @@ export const getConversationsPage = async (businessId, query = {}) => {
     }
   }
 
-  const documents = await Conversation.find(filter)
-    .sort({ lastMessageAt: -1, createdAt: -1, _id: -1 })
-    .limit(limit + 1)
-    .populate("business", "businessName phone owner")
-    .populate("lead", "customerName phone serviceNeeded urgency status")
-    .populate("archivedBy", "userName email role")
-    .lean();
+  let documents;
+  if (search) {
+    const pattern = new RegExp(escapeRegex(search), "i");
+    // Keep joined search on the server; do not materialize every matching lead ID.
+    documents = await Conversation.aggregate([
+      { $match: { ...filter, business: requireObjectId(businessId) } },
+      { $sort: { lastMessageAt: -1, createdAt: -1, _id: -1 } },
+      { $lookup: { from: Lead.collection.name, localField: "lead", foreignField: "_id", as: "searchLead" } },
+      { $match: { $or: [ { customerName: pattern }, { customerPhone: pattern },
+        { searchLead: { $elemMatch: { business: requireObjectId(businessId), $or: [
+          { customerName: pattern }, { phone: pattern }, { serviceNeeded: pattern },
+        ] } } } ] } },
+      { $limit: limit + 1 }, { $project: { searchLead: 0 } },
+    ]).option({ maxTimeMS: 5000 });
+    documents = await Conversation.populate(documents, [
+      { path: "business", select: "businessName phone owner" },
+      { path: "lead", select: "customerName phone serviceNeeded urgency status" },
+      { path: "archivedBy", select: "userName email role" },
+    ]);
+  } else {
+    documents = await Conversation.find(filter)
+      .sort({ lastMessageAt: -1, createdAt: -1, _id: -1 })
+      .limit(limit + 1)
+      .populate("business", "businessName phone owner")
+      .populate("lead", "customerName phone serviceNeeded urgency status")
+      .populate("archivedBy", "userName email role")
+      .lean();
+  }
 
   return finishPage({
     documents,
@@ -338,19 +362,20 @@ export const getMessagesPage = async (
 ) => {
   const limit = normalizePageLimit(query.limit);
   const cursor = decodeCursor(query.cursor);
+  const latest = query.order === "latest";
   const filter = { conversation: conversationId };
 
   if (cursor) {
     const createdAt = requireDate(cursor.createdAt);
     const id = requireObjectId(cursor.id);
     filter.$or = [
-      { createdAt: { $gt: createdAt } },
-      { createdAt, _id: { $gt: id } },
+      { createdAt: { [latest ? "$lt" : "$gt"]: createdAt } },
+      { createdAt, _id: { [latest ? "$lt" : "$gt"]: id } },
     ];
   }
 
   const messageQuery = Message.find(filter)
-    .sort({ createdAt: 1, _id: 1 })
+    .sort({ createdAt: latest ? -1 : 1, _id: latest ? -1 : 1 })
     .limit(limit + 1)
     .populate("lead", "customerName phone serviceNeeded");
 
@@ -383,7 +408,7 @@ export const getMessagesPage = async (
       }))
     : documents;
 
-  return finishPage({
+  const page = finishPage({
     documents: responseDocuments,
     limit,
     cursorFor: (item) => ({
@@ -391,6 +416,8 @@ export const getMessagesPage = async (
       id: String(item._id),
     }),
   });
+  if (latest) page.items.reverse();
+  return page;
 };
 
 export default {

@@ -1,3 +1,5 @@
+import Operations from '../../src/models/businessOperationsSettings.js';
+jest.mock('../../src/models/businessOperationsSettings.js', () => ({ __esModule: true, default: { findOne: jest.fn() } }));
 import { ensureUrgentOperationalResult, isUrgentOperationalResult, ensureHumanHandoffResult, requiresHumanHandoff } from '../../src/services/messaging/smsHandoff.service.js';
 import OpenAI from 'openai';
 import { generateAIReplyResult, resetOpenAIReplyClient } from '../../src/services/aiReplyService.js';
@@ -49,7 +51,10 @@ beforeEach(() => {
   resetOpenAIReplyClient();
   OpenAI.mockImplementation(() => ({ responses: { create: modelCreate } }));
   modelCreate.mockRejectedValue(new Error('Unexpected model call during deterministic intake'));
-  ServiceOffering.find.mockReturnValue({ select: jest.fn().mockReturnValue({ lean: jest.fn().mockResolvedValue([]) }) });
+  const catalog = [{ _id: 'service', business: business._id, active: true, aiCanDiscuss: true, aiCanBook: false,
+    name: 'Plumbing service', category: 'plumbing', keywords: ['bathtub', 'tube', 'escutcheon', 'dishwasher'] }];
+  ServiceOffering.find.mockImplementation(() => ({ lean: jest.fn().mockResolvedValue(catalog), select() { return this; } }));
+  Operations.findOne.mockReturnValue({ lean: jest.fn().mockResolvedValue({ serviceEligibilityPolicy: { catalogComplete: true } }) });
   reserveAiUsage.mockResolvedValue({ allowed: true });
   buildAIConfigurationContext.mockResolvedValue({});
 });

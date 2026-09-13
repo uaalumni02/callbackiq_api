@@ -1,15 +1,18 @@
+import Operations from '../../src/models/businessOperationsSettings.js';
+jest.mock('../../src/models/businessOperationsSettings.js', () => ({ __esModule: true, default: { findOne: jest.fn() } }));
 import ServiceOffering from '../../src/models/serviceOffering.js';
 import { getApprovedServiceEstimate } from '../../src/services/booking/approvedServiceEstimate.service.js';
 
 jest.mock('../../src/models/serviceOffering.js', () => ({ __esModule: true, default: { find: jest.fn() } }));
-const offering = overrides => ({ business: 'business-a', name: 'Bathtub resealing', keywords: ['recaulking'], excludedKeywords: ['fiberglass repair'], active: true, aiCanDiscuss: true, aiCanBook: false, disclosePriceEstimate: true, priceEstimateMin: 125, priceEstimateMax: 250, ...overrides });
+const offering = overrides => ({ _id: 'offering-1', business: 'business-a', name: 'Bathtub resealing', keywords: ['recaulking'], excludedKeywords: ['fiberglass repair'], active: true, aiCanDiscuss: true, aiCanBook: false, disclosePriceEstimate: true, priceEstimateMin: 125, priceEstimateMax: 250, ...overrides });
 const query = { businessId: 'business-a', serviceNeeded: 'My bathtub needs recaulking' };
 let select;
 let lean;
 beforeEach(() => {
   lean = jest.fn().mockResolvedValue([offering()]);
   select = jest.fn().mockReturnValue({ lean });
-  ServiceOffering.find.mockReturnValue({ select });
+  ServiceOffering.find.mockReturnValue({ select, lean });
+  Operations.findOne.mockReturnValue({ lean: jest.fn().mockResolvedValue({}) });
   ServiceOffering.find.mockClear();
 });
 

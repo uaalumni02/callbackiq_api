@@ -81,6 +81,7 @@ const BookingStateSchema = new Schema(
 
 const conversationSchema = new Schema(
   {
+    serviceEligibility: { type: Schema.Types.Mixed, default: undefined },
     business: {
       type: Schema.Types.ObjectId,
       ref: "Business",
@@ -200,6 +201,7 @@ const conversationSchema = new Schema(
       handoffStatusReplyAt: { type: Date, default: null },
     },
     lifecycle: {
+      lastScannedAt: { type: Date, default: null },
       recoveryNudgeCount: { type: Number, min: 0, max: 2, default: 0 },
       nextRecoveryNudgeAt: { type: Date, default: null },
       lastLifecycleActionAt: { type: Date, default: null },
@@ -291,6 +293,8 @@ conversationSchema.index(
     },
   },
 );
+conversationSchema.index({ status: 1, "lifecycle.lastScannedAt": 1, _id: 1 });
+
 const Conversation =
   mongoose.models.Conversation ||
   mongoose.model("Conversation", conversationSchema);

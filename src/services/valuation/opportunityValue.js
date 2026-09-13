@@ -17,10 +17,11 @@ export const ownerEstimate = (amount, actorId = null) => ({
   },
 });
 export const isVerifiedEstimate = (record) =>
+  record?.serviceEligibility?.decision !== "unsupported" &&
   ["owner", "service_catalog", "historical"].includes(record?.valuation?.source) && moneyAmount(record?.estimatedValue) !== null;
 export const verifiedAmount = (record) => isVerifiedEstimate(record) ? moneyAmount(record.estimatedValue) : null;
 export const verifiedAmountExpression = { $cond: [
-  { $and: [{ $in: ["$valuation.source", ["owner", "service_catalog", "historical"]] }, { $isNumber: "$estimatedValue" }] }, "$estimatedValue", null,
+  { $and: [{ $ne: [{ $ifNull: ["$serviceEligibility.decision", ""] }, "unsupported"] }, { $in: ["$valuation.source", ["owner", "service_catalog", "historical"]] }, { $isNumber: "$estimatedValue" }] }, "$estimatedValue", null,
 ] };
 export const estimateCoverageGroup = {
   estimatedCount: { $sum: { $cond: [{ $ne: [verifiedAmountExpression, null] }, 1, 0] } },

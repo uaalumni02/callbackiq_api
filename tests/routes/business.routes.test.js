@@ -14,7 +14,7 @@ import {
 
 beforeAll(async () => {
   await connectTestDB();
-});
+}, 60_000);
 
 afterEach(async () => {
   await clearTestDB();

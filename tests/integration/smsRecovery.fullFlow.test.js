@@ -1,3 +1,12 @@
+jest.mock('../../src/models/serviceOffering.js', () => ({ __esModule: true, default: { find: jest.fn() } }));
+import EligibilityCatalog from '../../src/models/serviceOffering.js';
+import EligibilityOperations from '../../src/models/businessOperationsSettings.js';
+import { approvedOffering, catalogQuery } from '../helpers/approvedServiceCatalog.js';
+jest.mock('../../src/models/businessOperationsSettings.js', () => ({ __esModule: true, default: { findOne: jest.fn() } }));
+beforeEach(() => {
+  EligibilityCatalog.find = jest.fn(() => catalogQuery([approvedOffering('service-1', 'plumbing', ['dishwasher'])]));
+  EligibilityOperations.findOne.mockReturnValue(catalogQuery({ serviceEligibilityPolicy: { catalogComplete: true } }));
+});
 import { getApprovedServiceEstimate } from "../../src/services/booking/approvedServiceEstimate.service.js";
 import { handleInboundSmsWebhook } from "../../src/services/twilioSmsWebhook.service.js";
 import { processInboundSmsJob } from "../../src/services/messaging/inboundSmsJobProcessor.service.js";
@@ -213,6 +222,8 @@ const inboundMessage = {
 };
 
 beforeEach(() => {
+  delete lead.serviceEligibility;
+  delete conversation.serviceEligibility;
   jest.clearAllMocks();
   getApprovedServiceEstimate.mockResolvedValue("");
   Conversation.findOne.mockImplementation(({ _id }) => Conversation.findById(_id));
@@ -552,6 +563,7 @@ describe("completed manual intake uses the durable staff handoff", () => {
     ["landscaping", "Tree trimming", "A tree fell onto my house", "Can you trim the hedges as well?"],
   ];
   test.each(tradeCases)("%s: distinguishes a routine follow-up from a safety escalation", async (trade, service, danger, routine) => {
+    EligibilityCatalog.find.mockReturnValue(catalogQuery([approvedOffering('service-1', trade, ['smoke detector', 'hedges', 'tap', 'lock repair'])]));
     Business.findById.mockResolvedValue({ ...business, businessType: trade });
     activeLead.serviceNeeded = service; activeLead.urgency = "medium";
     activeLead.preferredAppointmentTime = "2026-09-09 at 14:00";
@@ -567,6 +579,7 @@ describe("completed manual intake uses the durable staff handoff", () => {
     expect(activeLead.serviceNeeded).toBe(service);
   });
   test.each(tradeCases)("%s: urgent follow-up is retained during staff takeover with no AI reply", async (trade, service, danger) => {
+    EligibilityCatalog.find.mockReturnValue(catalogQuery([approvedOffering('service-1', trade, ['smoke detector', 'hedges', 'tap', 'lock repair'])]));
     Business.findById.mockResolvedValue({ ...business, businessType: trade });
     activeLead.serviceNeeded = service; activeLead.urgency = "medium";
     activeLead.preferredAppointmentTime = "2026-09-09 at 14:00";

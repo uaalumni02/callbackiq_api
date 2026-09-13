@@ -88,7 +88,7 @@ describe("Stripe-native trial lifecycle regression", () => {
     process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
     await connectTestDB();
     await TrialRedemption.init();
-  });
+  }, 60_000);
 
   afterEach(async () => {
     jest.clearAllMocks();

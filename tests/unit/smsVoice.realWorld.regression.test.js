@@ -1,3 +1,12 @@
+jest.mock('../../src/models/serviceOffering.js', () => ({ __esModule: true, default: { find: jest.fn() } }));
+import EligibilityCatalog from '../../src/models/serviceOffering.js';
+import EligibilityOperations from '../../src/models/businessOperationsSettings.js';
+import { approvedOffering, catalogQuery } from '../helpers/approvedServiceCatalog.js';
+jest.mock('../../src/models/businessOperationsSettings.js', () => ({ __esModule: true, default: { findOne: jest.fn() } }));
+beforeEach(() => {
+  EligibilityCatalog.find = jest.fn(() => catalogQuery([approvedOffering('s1', 'plumbing', ['dishwasher'])]));
+  EligibilityOperations.findOne.mockReturnValue(catalogQuery({ serviceEligibilityPolicy: { catalogComplete: true } }));
+});
 import { generateAIReplyResult } from '../../src/services/aiReplyService.js';
 import VoiceAgent from '../../src/voice/voiceAgent.service.js';
 import Booking from '../../src/services/booking/bookingStateMachine.service.js';
@@ -92,9 +101,13 @@ test('failed availability and failed alert do not claim empty calendar or succes
 });
 test('an interrupted voice turn cannot persist an availability offer',async()=>{
  const c=context(1);c.lead.serviceNeeded='sink clearing';const controller=new AbortController();
+ const savedBookingStates=[]; c.conversation.save.mockImplementation(async()=>{savedBookingStates.push(structuredClone(c.conversation.bookingState));});
  searchServices.mockImplementation(async()=>{controller.abort();return [{id:'sink',name:'Sink clearing',score:1}];});
  await expect(runWithVoiceTurnContext({signal:controller.signal},()=>Booking.handle({...c,customerMessage:"What's available?",channel:'voice'}))).rejects.toMatchObject({code:'VOICE_STALE_TURN'});
- expect(c.conversation.save).not.toHaveBeenCalled();
+ // Eligibility may be saved before the provider aborts; no offer may be saved.
+ expect(c.conversation.bookingState.offeredSlots || []).toEqual([]);
+ expect(c.conversation.bookingState.status).not.toBe('offering_slots');
+ for (const state of savedBookingStates) { expect(state.offeredSlots || []).toEqual([]); expect(state.status).not.toBe('offering_slots'); }
 });
 test('both fixture values resolve independently; unknown has an explicit reason',()=>{
  const services=[{_id:'s1',business:'b',active:true,name:'Toilet clearing',keywords:['clogged toilet'],estimatedValue:225},{_id:'s2',business:'b',active:true,name:'Sink clearing',keywords:['clogged sink'],estimatedValue:175}];

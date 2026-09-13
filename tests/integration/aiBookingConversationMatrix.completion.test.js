@@ -1,3 +1,11 @@
+import EligibilityCatalog from '../../src/models/serviceOffering.js';
+import EligibilityOperations from '../../src/models/businessOperationsSettings.js';
+import { approvedOffering, catalogQuery } from '../helpers/approvedServiceCatalog.js';
+jest.mock('../../src/models/businessOperationsSettings.js', () => ({ __esModule: true, default: { findOne: jest.fn() } }));
+beforeEach(() => {
+  EligibilityCatalog.find = jest.fn(() => catalogQuery([approvedOffering('s1', 'hvac', [])]));
+  EligibilityOperations.findOne.mockReturnValue(catalogQuery({ serviceEligibilityPolicy: { catalogComplete: true } }));
+});
 import Appointment from "../../src/models/appointment.js";
 import Conversation from "../../src/models/conversation.js";
 import ServiceOffering from "../../src/models/serviceOffering.js";

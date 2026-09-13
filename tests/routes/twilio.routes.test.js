@@ -1,3 +1,4 @@
+import ServiceOffering from '../../src/models/serviceOffering.js';
 
 import request from "supertest";
 import mongoose from "mongoose";
@@ -79,7 +80,7 @@ afterAll(async () => {
 });
 
 const createBusiness = async (overrides = {}) => {
-  return Business.create({
+  const business = await Business.create({
     owner: new mongoose.Types.ObjectId(),
     businessName: "Atlanta Pro Plumbing",
     businessType: "plumbing",
@@ -91,6 +92,8 @@ const createBusiness = async (overrides = {}) => {
       "Hi, this is {{businessName}}. Sorry we missed your call. What service do you need help with today?",
     ...overrides,
   });
+  await ServiceOffering.create({ business: business._id, name: 'Water heater repair', category: 'plumbing', active: true, aiCanDiscuss: true, aiCanBook: true, keywords: ['water heater'] });
+  return business;
 };
 
 describe("Twilio Routes", () => {

@@ -51,6 +51,7 @@ async function api(url, { method = 'GET', data, bearer = token } = {}) {
 async function visit(route) {
   await page.goto(`${base}${route}`);
   await page.waitForLoadState('networkidle');
+  expect(new URL(page.url()).pathname).toBe(new URL(route, base).pathname);
 }
 async function visible(locator) { await locator.first().waitFor({ state: 'visible', timeout: 15000 }); }
 
@@ -61,7 +62,7 @@ beforeAll(async () => {
   await Promise.all([Alert.init(), CallLog.init(), Message.init(), Appointment.init()]);
   owner = await User.create({ userName: 'Browser Owner', email: 'owner@example.test', password: 'unused-test-hash', businessName: 'Browser HVAC', role: 'owner', emailVerified: true, termsAccepted: true, privacyAccepted: true });
   business = await Business.create({ owner: owner._id, businessName: 'Browser HVAC', businessType: 'hvac', phone: '+14045550199', forwardingPhone: '+14045550198', timezone: 'America/New_York', isActive: true, trackingNumber: { status: 'active' }, messagingCompliance: { smsReady: true, a2pStatus: 'registered', senderAttached: true }, features: { missedCallSmsEnabled: true, aiQualificationEnabled: true, aiBookingEnabled: false } });
-  await Subscription.create({ business: business._id, status: 'active', plan: 'pro', currentPeriodEnd: new Date(Date.now()+30*86400000) });
+  await Subscription.create({ business: business._id, status: 'active', isActive: true, plan: 'pro', currentPeriodEnd: new Date(Date.now()+30*86400000) });
   token = Token.sign({ userId: String(owner._id), role: 'owner', sessionVersion: 0 });
   lead = await Lead.create({ business: business._id, customerName: 'Browser Customer', phone: '+14045550100', serviceNeeded: 'HVAC repair', urgency: 'high', address: '100 Main Street Atlanta GA 30324' });
   conversation = await Conversation.create({ business: business._id, lead: lead._id, customerPhone: lead.phone, status: 'open', aiEnabled: true });
@@ -74,6 +75,9 @@ beforeAll(async () => {
   server = await new Promise((resolve,reject) => { const s=shell.listen(43771,'127.0.0.1',()=>resolve(s)); s.on('error',reject); });
   browser = await chromium.launch({ headless: true });
   context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  // Confirm the seeded owner can reach protected data before testing UI flows.
+  const accessProbe = await api('/call-logs');
+  expect(accessProbe).toMatchObject({ status: 200 });
   page = await context.newPage();
   page.on('pageerror', error => failures.push(error.message));
   // Retarget the built SPA's API origin to this isolated server. Responses are
@@ -155,7 +159,7 @@ test('same-day voice scheduling review appears without creating or confirming an
 });
 
 test('owner can approve, reschedule and cancel a policy-checked customer hold through the UI', async () => {
-  const service=await ServiceOffering.create({business:business._id,name:'HVAC repair',aiCanBook:true,durationMinutes:60,keywords:['HVAC repair']});
+  const service=await ServiceOffering.create({business:business._id,name:'HVAC repair',category:'hvac',active:true,aiCanDiscuss:true,aiCanBook:true,durationMinutes:60,keywords:['HVAC repair']});
   await ServiceArea.create({business:business._id,zipCodes:['30324']});
   await SchedulingPolicy.create({business:business._id,minimumNoticeMinutes:60,allowSameDayBooking:true});
   await AvailabilityRule.insertMany(Array.from({length:7},(_,dayOfWeek)=>({business:business._id,dayOfWeek,enabled:true,capacity:1,windows:[{startTime:'08:00',endTime:'18:00'}]})));
@@ -203,7 +207,7 @@ test('setup persists a newly supported trade and shows clear trial wording', asy
 
 test('mobile navigation works across both layout entry points', async () => {
   await page.setViewportSize({width:390,height:844});
-  for(const route of ['/dashboard','/call-logs']) {
+  for(const route of ['/dashboard','/call-logs','/billing']) {
     await visit(route); await page.getByRole('button',{name:'Menu',exact:true}).click();
     await visible(page.getByRole('link',{name:'Needs Attention'}));
     await page.keyboard.press('Escape');

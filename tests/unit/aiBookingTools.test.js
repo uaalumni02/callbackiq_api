@@ -1,3 +1,10 @@
+// This suite isolates downstream orchestration. The actual catalog/tenant gate is
+// exercised by serviceEligibility.journey.test.js and the configured channel journeys.
+jest.mock('../../src/services/serviceEligibility/serviceEligibility.service.js', () => ({
+  ...jest.requireActual('../../src/services/serviceEligibility/serviceEligibility.service.js'),
+  guardServiceRequest: jest.fn().mockResolvedValue(null),
+  assertServiceRequestEligible: jest.fn().mockResolvedValue({ decision: 'supported', canBook: true }),
+}));
 import ServiceOffering from "../../src/models/serviceOffering.js";
 import Conversation from "../../src/models/conversation.js";
 import AppointmentService from "../../src/services/scheduling/appointment.service.js";
@@ -78,11 +85,11 @@ describe("AI booking tools", () => {
   test("searches, scores, excludes, sorts, limits, and serializes services", async () => {
     const services = [
       { _id: 1, name: "Drain Cleaning", category: "Plumbing", keywords: ["clog"], excludedKeywords: ["roof"], durationMinutes: 60, estimatedValue: 200, requiresHumanReview: false },
-      { _id: 2, name: "Leak Repair", category: "Plumbing", keywords: ["leak"], excludedKeywords: [], durationMinutes: 90, estimatedValue: 350, requiresHumanReview: true },
+      { _id: 2, name: "Leak Repair", category: "Plumbing", keywords: ["pipe leak"], excludedKeywords: [], durationMinutes: 90, estimatedValue: 350, requiresHumanReview: true },
       { _id: 3, name: "Other", category: "General", keywords: [], excludedKeywords: [], durationMinutes: 30, estimatedValue: 100, requiresHumanReview: false },
     ];
     ServiceOffering.find.mockReturnValue(leanResult(services));
-    const result = await searchServicesTool({ businessId: "b1", query: "I have a LEAK" });
+    const result = await searchServicesTool({ businessId: "b1", query: "I have a PIPE LEAK" });
     expect(result[0]).toMatchObject({ id: "2", name: "Leak Repair", score: 1 });
     expect(ServiceOffering.find).toHaveBeenCalledWith({ business: "b1", active: true, aiCanBook: true });
   });
@@ -99,13 +106,13 @@ describe("AI booking tools", () => {
   test("drops excluded services and limits results to five", async () => {
     const services = Array.from({ length: 7 }, (_, index) => ({
       _id: index,
-      name: `Leak ${index}`,
-      category: "leak",
+      name: `Pipe leak ${index}`,
+      category: "pipe leak",
       keywords: [],
       excludedKeywords: index === 0 ? ["emergency"] : [],
     }));
     ServiceOffering.find.mockReturnValue(leanResult(services));
-    const result = await searchServicesTool({ businessId: "b1", query: "emergency leak" });
+    const result = await searchServicesTool({ businessId: "b1", query: "emergency pipe leak" });
     expect(result).toHaveLength(5);
     expect(result.some((item) => item.id === "0")).toBe(false);
   });

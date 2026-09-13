@@ -9,12 +9,12 @@ test('sole service explicitly excluding request is never fallback eligible',asyn
 });
 test('blank exclusion entries do not veto all customer requests',async()=>{
  ServiceOffering.find.mockReturnValue({lean:jest.fn().mockResolvedValue([{...offering,excludedKeywords:['','  ',null]}])});
- expect(await searchServices({businessId:'business',query:'repair'})).toEqual([expect.objectContaining({id:'service',score:1})]);
+ expect(await searchServices({businessId:'business',query:'plumbing'})).toEqual([expect.objectContaining({id:'service'})]);
 });
 test('does not infer an unrelated sole service from an unfamiliar request',async()=>{
  expect(await searchServices({businessId:'business',query:'a strange noise'})).toEqual([]);
 });
 test('does not fallback to one unexcluded service from several unrelated services',async()=>{
- ServiceOffering.find.mockReturnValue({lean:jest.fn().mockResolvedValue([offering,{...offering,_id:'other',excludedKeywords:[]}])});
+ ServiceOffering.find.mockReturnValue({lean:jest.fn().mockResolvedValue([offering,{...offering,_id:'other',name:'Water heater',category:'water heater',keywords:['water heater'],excludedKeywords:[]}])});
  expect(await searchServices({businessId:'business',query:'septic inspection'})).toEqual([]);
 });

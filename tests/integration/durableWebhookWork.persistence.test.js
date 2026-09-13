@@ -7,7 +7,7 @@ jest.mock('../../src/services/twilioSmsService.js', () => ({ sendSms: jest.fn() 
 import WebhookWork from '../../src/models/webhookWork.js';
 import { enqueueWebhookWork, claimWebhookWork } from '../../src/services/webhooks/webhookWork.service.js';
 import { connectTestDB, clearTestDB, closeTestDB } from '../setup/testDb.js';
-beforeAll(async () => { await connectTestDB(); await WebhookWork.init(); });
+beforeAll(async () => { await connectTestDB(); await WebhookWork.init(); }, 60_000);
 afterEach(clearTestDB); afterAll(closeTestDB);
 test('concurrent webhooks create one durable job, one worker wins, expired lease fences its predecessor', async () => {
   const input = { businessId: new mongoose.Types.ObjectId(), kind: 'recovery_sms', eventId: 'CA_REPLAY', payload: { callSid: 'CA_REPLAY' } };

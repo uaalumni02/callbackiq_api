@@ -1,3 +1,4 @@
+import { guardServiceRequest } from '../serviceEligibility/serviceEligibility.service.js';
 import { requestStaffSchedulingReview } from "./staffSchedulingReview.service.js";
 import { schedulingQuestionReply } from "./schedulingQuestions.service.js";
 import { bookingQuestionReply } from "./conversationQuestions.service.js";
@@ -350,8 +351,7 @@ const handleReadOnlyAvailabilityInquiry = async ({
   }
 
   try {
-    const availability = await getAvailabilityTool({
-      business,
+    const availability = await getAvailabilityTool({ business, leadId: lead?._id, conversationId: conversation?._id,
       serviceOfferingId: service.id,
       startDate: range.startDate,
       endDate: range.endDate,
@@ -387,7 +387,7 @@ const handleReadOnlyAvailabilityInquiry = async ({
     let alternativeNote = '';
     if (!offeredSlots.length) {
       const expandedStart = range.startDate > today ? range.startDate : today;
-      const expanded = await getAvailabilityTool({ business, serviceOfferingId: service.id,
+      const expanded = await getAvailabilityTool({ business, leadId: lead?._id, conversationId: conversation?._id, serviceOfferingId: service.id,
         startDate: expandedStart, endDate: new Date(new Date(`${expandedStart}T12:00:00Z`).getTime() + 14 * 86_400_000).toISOString().slice(0, 10), postalCode });
       if (expanded?.supportedServiceArea !== false) offeredSlots = filterAutomatedSlots(expanded?.slots).slice(0, 3);
       if (offeredSlots.length) alternativeNote = 'That time is unavailable under the business scheduling rules. ';
@@ -611,6 +611,8 @@ class BookingStateMachineService {
     const text = String(customerMessage || "").trim();
     if (conversation?.humanTakeover || ['closed', 'archived'].includes(conversation?.status)) return { handled: false };
 
+    const serviceGuard = await guardServiceRequest({ business, lead, conversation, customerMessage, channel });
+    if (serviceGuard) return { handled: true, result: serviceGuard };
     const schedulingReply = schedulingQuestionReply({ customerMessage: text, business, lead });
     if (schedulingReply) return { handled: true, result: fixedResult({ reply: schedulingReply, category: "availability_inquiry" }) };
 
@@ -1105,8 +1107,7 @@ class BookingStateMachineService {
 
       let availability;
       try {
-        availability = await getAvailabilityTool({
-          business,
+        availability = await getAvailabilityTool({ business, leadId: lead?._id, conversationId: conversation?._id,
           serviceOfferingId:
             activeConversation.bookingState.serviceOffering,
           startDate: range.startDate,
@@ -1145,8 +1146,7 @@ class BookingStateMachineService {
         };
         let alternatives = [];
         try {
-          const expanded = await getAvailabilityTool({
-            business,
+          const expanded = await getAvailabilityTool({ business, leadId: lead?._id, conversationId: conversation?._id,
             serviceOfferingId: activeConversation.bookingState.serviceOffering,
             startDate: expandedRange.startDate,
             endDate: expandedRange.endDate,

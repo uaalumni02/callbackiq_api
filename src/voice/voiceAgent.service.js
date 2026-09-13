@@ -1,3 +1,4 @@
+import { guardServiceRequest } from '../services/serviceEligibility/serviceEligibility.service.js';
 import { observeCustomerConstraint, respectCustomerConstraints } from '../services/conversationCondition.service.js';
 import AlertService from '../services/alert.service.js';
 import { handleVoiceExit } from "./voiceExit.service.js";
@@ -440,6 +441,10 @@ class VoiceAgentService {
           "If anyone is in immediate danger, hang up and call 911 now. CallBackIQ flagged this for urgent review, but do not wait for a callback or use this service instead of emergency services.",
       });
     }
+
+    const serviceGuard = await guardServiceRequest({ business, lead, conversation, customerMessage: text, channel: 'voice', turnId,
+      semanticAssessment: understanding?.entities?.service ? { serviceNeeded: understanding.entities.service, confidence: understanding.confidence } : null });
+    if (serviceGuard) return { reply: toSpokenReply(serviceGuard.reply) };
 
     // Safety and opt-out handling must not wait on ancillary valuation reads.
     assertVoiceTurnActive();

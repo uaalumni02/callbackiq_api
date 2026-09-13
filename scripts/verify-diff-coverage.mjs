@@ -84,7 +84,8 @@ if (!base) {
 
 let diff = "";
 try {
-  diff = git("diff", "--unified=0", "--no-color", `${base}...HEAD`, "--", "src");
+  const diffBase = git("merge-base", base, "HEAD");
+  diff = git("diff", "--unified=0", "--no-color", diffBase, "--", "src");
 } catch (error) {
   fail(`Unable to compute Git diff from ${base}: ${error.stderr || error.message}`);
   process.exit();

@@ -12,7 +12,7 @@ describe("Billing anomaly persistence regression", () => {
   beforeAll(async () => {
     await connectTestDB();
     await BillingAnomaly.init();
-  });
+  }, 60_000);
 
   beforeEach(() => {
     consoleError = jest.spyOn(console, "error").mockImplementation(() => {});

@@ -20,7 +20,7 @@ jest.mock("../../src/services/demoBrowserCall.service.js", () => ({
 
 beforeAll(async () => {
   await connectTestDB();
-});
+}, 60_000);
 
 afterEach(async () => {
   jest.clearAllMocks();

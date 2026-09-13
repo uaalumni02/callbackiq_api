@@ -1,3 +1,4 @@
+import { guardServiceRequest, blocksServiceAutomation } from '../serviceEligibility/serviceEligibility.service.js';
 import { respectCustomerConstraints } from '../conversationCondition.service.js';
 import { getApprovedServiceEstimate } from "../booking/approvedServiceEstimate.service.js";
 import { confirmationTimingReply } from "../booking/recoveryIntake.service.js";
@@ -91,6 +92,7 @@ const buildLeadUpdates = (lead, result) => {
 
   const score = Number(result?.leadQualityScore ?? result?.score);
   if (Number.isFinite(score)) updates.leadQualityScore = Math.min(100, Math.max(0, score));
+  if (blocksServiceAutomation(lead)) { updates.leadQualityScore = 0; updates.qualifiedAt = null; }
   if (!lead.firstRespondedAt) updates.firstRespondedAt = new Date();
   return updates;
 };
@@ -496,6 +498,20 @@ export const processInboundSmsJob = async (job) => {
       sent: delivery?.sent === true,
       suppressed: delivery?.suppressed === true,
     };
+  }
+
+  if (!deterministicAssessment.handled && !automationPaused) {
+    const eligibilityResult = await guardServiceRequest({ business, lead, conversation,
+      customerMessage: customerTurn.customerMessage, turnId: String(inboundMessage._id) });
+    if (eligibilityResult) {
+      const delivery = await persistOutboundReply({ business, lead, conversation, inboundMessage, result: eligibilityResult });
+      SocketService.emitLeadUpdated(business._id, lead);
+      SocketService.emitConversationUpdated(business._id, conversation);
+      await completeCoalescedJobs({ conversationId: conversation._id, primaryJobId: job._id,
+        primaryMessageId: inboundMessage._id, turnMessageIds: customerTurn.turnMessageIds });
+      return { decision: eligibilityResult.decision, reason: eligibilityResult.serviceEligibility.reason,
+        sent: delivery.sent === true, outboundMessageId: delivery.message?._id || null };
+    }
   }
 
   // Completed manual intake stays in the staff queue. New messages are already

@@ -1,3 +1,11 @@
+import EligibilityCatalog from '../../src/models/serviceOffering.js';
+import EligibilityOperations from '../../src/models/businessOperationsSettings.js';
+import { approvedOffering, catalogQuery } from '../helpers/approvedServiceCatalog.js';
+jest.mock('../../src/models/businessOperationsSettings.js', () => ({ __esModule: true, default: { findOne: jest.fn() } }));
+beforeEach(() => {
+  EligibilityCatalog.find = jest.fn(() => catalogQuery([approvedOffering('service-1', 'plumbing', [])]));
+  EligibilityOperations.findOne.mockReturnValue(catalogQuery({ serviceEligibilityPolicy: { catalogComplete: true } }));
+});
 import BookingStateMachineService from "../../src/services/booking/bookingStateMachine.service.js";
 import getAvailabilityTool from "../../src/helpers/ai/tools/getAvailability.tool.js";
 import createAppointmentTool from "../../src/helpers/ai/tools/createAppointment.tool.js";
@@ -231,6 +239,7 @@ describe.each(['sms', 'voice'])('reported read-only journey (%s)', (channel) => 
   const business = { _id: 'business-1', businessName: 'Atlanta Pro Plumbing', timezone: 'America/New_York', features: { aiBookingEnabled: false } };
   const offered = () => {
     const c = makeConversation();
+    c.serviceEligibility = { decision: 'supported', serviceId: 'service-1', request: 'drain clearing' };
     Object.assign(c.bookingState, { status: 'offering_slots', expiresAt: new Date('2026-09-07T15:45:00Z'), offeredSlots: [
       { startAt: new Date('2026-09-07T17:00:00Z'), endAt: new Date('2026-09-07T17:30:00Z') },
       { startAt: new Date('2026-09-07T17:30:00Z'), endAt: new Date('2026-09-07T18:00:00Z') },

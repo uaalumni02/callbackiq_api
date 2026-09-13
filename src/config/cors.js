@@ -59,6 +59,7 @@ const corsOrigin = (origin, callback) => {
 };
 
 const expressCorsOptions = {
+  exposedHeaders: ["X-Page-Limit", "X-Has-More", "X-Next-Cursor", "Retry-After"],
   origin: corsOrigin,
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],

@@ -1,3 +1,4 @@
+import { assertServiceRequestEligible } from '../serviceEligibility/serviceEligibility.service.js';
 import { safeConsole } from "../../helpers/logging/safeLogger.js";
 import { resolveOpportunityValue, ownerEstimate, moneyAmount } from "../valuation/opportunityValue.js";
 import crypto from "crypto";
@@ -502,6 +503,9 @@ class AppointmentService {
       businessId: business._id,
       serviceOfferingId: input.serviceOfferingId || input.serviceOffering,
     });
+    if (input.bookedBy === 'ai' || input.conversation || input.lead) await assertServiceRequestEligible({ businessId: business._id,
+      leadId: input.lead, conversationId: input.conversation, serviceOfferingId: service._id,
+      request: input.serviceQuery, allowStaffReview: input.bookedBy !== 'ai' });
     const hold = await createHold({
       business,
       service,
@@ -554,6 +558,9 @@ class AppointmentService {
       throw error;
     }
 
+    if (appointment.bookedBy === 'ai' || appointment.conversation) await assertServiceRequestEligible({ businessId: business._id,
+      leadId: appointment.lead, conversationId: appointment.conversation, serviceOfferingId: appointment.serviceOffering,
+      allowStaffReview: Boolean(approvedBy) });
     const stillAvailable = await exactSlotAvailable({
       business,
       serviceOfferingId: appointment.serviceOffering,

@@ -1,3 +1,4 @@
+import { blocksServiceAutomation } from '../serviceEligibility/policy.js';
 import { safeConsole } from "../../helpers/logging/safeLogger.js";
 import Lead from "../../models/lead.js";
 import ServiceOffering from "../../models/serviceOffering.js";
@@ -8,7 +9,7 @@ import { assertDistributedLeaseActive } from '../distributedLease.service.js';
 
 // Reserve BEFORE asynchronous analysis. A later request invalidates earlier work.
 async function reserveValuation(lead, businessId) {
-  if (!lead?._id) return null;
+  if (!lead?._id || blocksServiceAutomation(lead)) return null;
   if (!lead.valuation?.source && lead.estimatedValue == null) {
     // Compare against the stored absence of provenance so a concurrent owner
     // estimate cannot be converted into an automatic value.
@@ -28,6 +29,7 @@ async function commitValuation(ticket, { businessId, evidence, proposedService =
   assertVoiceTurnActive(); assertDistributedLeaseActive();
   return Lead.findOneAndUpdate({ _id: ticket._id, business: businessId,
     valuationVersion: ticket.valuationVersion,
+    "serviceEligibility.decision": { $nin: ["unsupported", "needs_clarification", "needs_staff_review"] },
     "valuation.source": { $in: ["unknown", "service_catalog", "historical"] },
   }, { $set: value, $inc: { valuationVersion: 1 } }, { returnDocument: "after", runValidators: true });
 }

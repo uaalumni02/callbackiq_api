@@ -51,7 +51,7 @@ jobs:
         run: npm ci
 
       - name: Verify scale indexes and focused regressions
-        run: npm run verify:index-manifest && npm run test:scale-readiness && npm run test:durable-persistence
+        run: npm run verify:index-manifest && npm run test:scale-readiness && npm run test:durable-persistence && npm run test:scale-release
 
       - name: Run complete deterministic release certification
         env:

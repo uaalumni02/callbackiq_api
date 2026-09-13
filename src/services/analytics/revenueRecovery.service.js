@@ -41,7 +41,7 @@ class RevenueRecoveryService {
         business: businessId,
         firstRespondedAt: dateFilter,
       }),
-      Lead.countDocuments({ business: businessId, qualifiedAt: dateFilter }),
+      Lead.countDocuments({ business: businessId, qualifiedAt: dateFilter, "serviceEligibility.decision": { $ne: "unsupported" } }),
       ConversionEvent.countDocuments({
         business: businessId,
         type: "human_takeover",
@@ -212,7 +212,7 @@ class RevenueRecoveryService {
           {
             $match: {
               business: businessId,
-              qualifiedAt: dateFilter,
+              qualifiedAt: dateFilter, "serviceEligibility.decision": { $ne: "unsupported" },
             },
           },
           {

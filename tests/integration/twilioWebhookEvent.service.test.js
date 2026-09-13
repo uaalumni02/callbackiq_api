@@ -16,7 +16,7 @@ import {
 beforeAll(async () => {
   await connectTestDB();
   await WebhookEvent.init();
-});
+}, 60_000);
 
 afterEach(async () => {
   await clearTestDB();

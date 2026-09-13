@@ -742,7 +742,7 @@ export const initializeConversationRelayServer = (
           },
           () => coordinateConversationTurn({ session, customerMessage,
             operation: () => voiceAgentService.handlePrompt({ session, customerMessage, signal: abortController.signal, turnId }) }),
-        ));
+        ), { signal: abortController.signal });
         const result = await Promise.race([agentPromise, timeoutPromise, cancellationPromise]);
         settled = true;
         if (turnId !== currentTurn || abortController.signal.aborted) {

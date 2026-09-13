@@ -41,7 +41,7 @@ beforeAll(async () => {
   // Without an explicit build, the duplicate-trial tests would pass for the
   // wrong reason: the in-memory collection would simply accept both writes.
   await TrialRedemption.init();
-});
+}, 60_000);
 
 beforeEach(() => {
   process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";

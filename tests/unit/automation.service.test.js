@@ -119,6 +119,12 @@ describe("AutomationService", () => {
     Alert.create.mockResolvedValue({ _id: "alert-1" });
   });
 
+  test.each(['unsupported', 'needs_clarification', 'needs_staff_review'])('suppresses queued follow-up for %s service eligibility', async decision => {
+    Conversation.findById.mockReturnValue(leanQuery({ _id: 'c1', status: 'open', customerPhone: '+14045550100', serviceEligibility: { decision } }));
+    expect(await AutomationService.suppressionReason(doc())).toBe('service_eligibility_required');
+    expect(sendSms).not.toHaveBeenCalled();
+  });
+
   afterEach(() => {
     jest.useRealTimers();
     jest.restoreAllMocks();

@@ -1,3 +1,4 @@
+import { guardServiceRequest } from './serviceEligibility/serviceEligibility.service.js';
 import { observeCustomerConstraint, respectCustomerConstraints } from './conversationCondition.service.js';
 import { getApprovedServiceEstimate } from "./booking/approvedServiceEstimate.service.js";
 import { constrainUncertainReply, qualifiedIntakeFacts, resetUncertainTurns } from "./messaging/uncertainReply.service.js";
@@ -193,6 +194,9 @@ export const generateAIReplyResult = async ({
         turnUrgency,
       );
     }
+
+    const serviceGuard = await guardServiceRequest({ business, lead, conversation, customerMessage: latestCustomerMessage });
+    if (serviceGuard) return serviceGuard;
 
     const intake = await handleRecoveryIntake({ business, lead, conversation, customerMessage: latestCustomerMessage, turnId: messages.filter(message => message.direction === "inbound").at(-1)?._id || "" });
     if (intake) return preserveTurnUrgency(intake, turnUrgency);

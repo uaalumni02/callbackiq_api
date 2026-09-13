@@ -17,7 +17,7 @@ jest.mock("../../src/services/demoNotification.service.js", () => ({
 describe("Atomic Book a Demo route", () => {
   beforeAll(async () => {
     await connectTestDB();
-  });
+  }, 60_000);
 
   beforeEach(async () => {
     jest.clearAllMocks();

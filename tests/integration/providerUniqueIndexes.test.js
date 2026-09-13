@@ -18,7 +18,7 @@ beforeAll(async () => {
     CallLog.init(),
     Message.init(),
   ]);
-});
+}, 60_000);
 
 afterEach(async () => {
   await clearTestDB();

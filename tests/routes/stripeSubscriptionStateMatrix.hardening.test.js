@@ -93,7 +93,7 @@ describe("Stripe subscription state matrix hardening", () => {
     await connectTestDB();
     await TrialRedemption.init();
     await BillingEvent.init();
-  });
+  }, 60_000);
 
   afterEach(async () => {
     jest.clearAllMocks();

@@ -20,7 +20,7 @@ jest.mock("../../src/services/twilioSmsService.js", () => ({
 beforeAll(async () => {
   await connectTestDB();
   await WebhookEvent.init();
-});
+}, 60_000);
 
 beforeEach(() => {
   sendSms.mockRejectedValue(

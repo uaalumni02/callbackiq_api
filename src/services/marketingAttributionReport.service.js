@@ -112,7 +112,7 @@ export const getAttributionReport = async ({
       leads: linkedLeads.length,
       qualifiedLeads: linkedLeads.filter(
         (lead) =>
-          (Number(lead.leadQualityScore) || 0) >= 60,
+          lead.serviceEligibility?.decision !== "unsupported" && (Number(lead.leadQualityScore) || 0) >= 60,
       ).length,
       bookedJobs: bookedJobs.length,
       estimatedRevenue,

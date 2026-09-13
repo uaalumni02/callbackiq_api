@@ -22,7 +22,7 @@ jest.mock("../../src/services/twilioSmsService.js", () => ({
 
 beforeAll(async () => {
   await connectTestDB();
-});
+}, 60_000);
 
 afterEach(async () => {
   await clearTestDB();

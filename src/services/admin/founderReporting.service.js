@@ -345,7 +345,7 @@ export const refreshBusinessReport = async (businessId, now = new Date()) => {
       {
         total: { $sum: 1 },
         replied: sumIf({ $gt: [{ $size: "$_replies" }, 0] }),
-        qualified: sumIf({ $ne: [{ $ifNull: ["$qualifiedAt", null] }, null] }),
+        qualified: sumIf({ $and: [{ $ne: [{ $ifNull: ["$serviceEligibility.decision", ""] }, "unsupported"] }, { $ne: [{ $ifNull: ["$qualifiedAt", null] }, null] }] }),
         booked: sumIf({ $gt: [{ $size: "$_bookings" }, 0] }),
       },
       now,

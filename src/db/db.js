@@ -734,7 +734,7 @@ class Db {
         .find({ business: businessId })
         .sort({ lastMessageAt: -1, createdAt: -1 })
         .populate("business", "businessName phone owner")
-        .populate("lead", "customerName phone serviceNeeded urgency status")
+        .populate("lead", "customerName phone serviceNeeded urgency status serviceEligibility")
         .populate("archivedBy", "userName email role")
         .lean();
     } catch (error) {
@@ -770,7 +770,7 @@ class Db {
       if (populateLead) {
         query = query.populate(
           "lead",
-          "customerName phone serviceNeeded urgency status",
+          "customerName phone serviceNeeded urgency status serviceEligibility",
         );
       }
 
@@ -799,7 +799,7 @@ class Db {
           business: businessId,
         })
         .populate("business", "businessName phone owner")
-        .populate("lead", "customerName phone serviceNeeded urgency status")
+        .populate("lead", "customerName phone serviceNeeded urgency status serviceEligibility")
         .populate("archivedBy", "userName email role")
         .lean();
     } catch (error) {
@@ -815,7 +815,7 @@ class Db {
           runValidators: true,
         })
         .populate("business", "businessName phone owner")
-        .populate("lead", "customerName phone serviceNeeded urgency status")
+        .populate("lead", "customerName phone serviceNeeded urgency status serviceEligibility")
         .populate("archivedBy", "userName email role");
     } catch (error) {
       safeConsole.error("Error updating conversation:", error);
@@ -936,7 +936,7 @@ class Db {
           "business",
           "businessName businessType phone smsTemplate estimatedJobValue",
         )
-        .populate("lead", "customerName phone serviceNeeded urgency status")
+        .populate("lead", "customerName phone serviceNeeded urgency status serviceEligibility")
         .populate("conversation", "customerPhone customerName status")
         .lean();
     } catch (error) {
@@ -952,7 +952,7 @@ class Db {
           "business",
           "businessName businessType phone smsTemplate estimatedJobValue",
         )
-        .populate("lead", "customerName phone serviceNeeded urgency status")
+        .populate("lead", "customerName phone serviceNeeded urgency status serviceEligibility")
         .populate("conversation", "customerPhone customerName status");
     } catch (error) {
       safeConsole.error("Error fetching call log:", error);
@@ -970,7 +970,7 @@ class Db {
           "business",
           "businessName businessType phone smsTemplate estimatedJobValue",
         )
-        .populate("lead", "customerName phone serviceNeeded urgency status")
+        .populate("lead", "customerName phone serviceNeeded urgency status serviceEligibility")
         .populate("conversation", "customerPhone customerName status")
         .lean();
     } catch (error) {
@@ -989,7 +989,7 @@ class Db {
           "business",
           "businessName businessType phone smsTemplate estimatedJobValue",
         )
-        .populate("lead", "customerName phone serviceNeeded urgency status")
+        .populate("lead", "customerName phone serviceNeeded urgency status serviceEligibility")
         .populate("conversation", "customerPhone customerName status");
     } catch (error) {
       safeConsole.error("Error updating call log:", error);
@@ -1015,7 +1015,7 @@ class Db {
           "business",
           "businessName businessType phone smsTemplate estimatedJobValue",
         )
-        .populate("lead", "customerName phone serviceNeeded urgency status")
+        .populate("lead", "customerName phone serviceNeeded urgency status serviceEligibility")
         .populate("conversation", "customerPhone customerName status");
     } catch (error) {
       safeConsole.error("Error updating call log for business:", error);
@@ -1123,7 +1123,7 @@ class Db {
           "business",
           "businessName phone smsTemplate estimatedJobValue",
         )
-        .populate("lead", "customerName phone serviceNeeded urgency status")
+        .populate("lead", "customerName phone serviceNeeded urgency status serviceEligibility")
         .populate("conversation", "customerPhone customerName status");
     } catch (error) {
       safeConsole.error("Error updating call log by providerCallId:", error);
@@ -1492,7 +1492,7 @@ class Db {
         .find({ business: businessId })
         .sort({ createdAt: -1 })
         .populate("business", "businessName businessType phone")
-        .populate("lead", "customerName phone serviceNeeded urgency status")
+        .populate("lead", "customerName phone serviceNeeded urgency status serviceEligibility")
         .lean();
     } catch (error) {
       safeConsole.error("Error fetching alerts by business:", error);
@@ -1508,7 +1508,7 @@ class Db {
         })
         .sort({ createdAt: -1 })
         .populate("business", "businessName businessType phone")
-        .populate("lead", "customerName phone serviceNeeded urgency status")
+        .populate("lead", "customerName phone serviceNeeded urgency status serviceEligibility")
         .lean();
     } catch (error) {
       safeConsole.error("Error fetching unread alerts:", error);
@@ -1520,7 +1520,7 @@ class Db {
       return await model
         .findById(id)
         .populate("business", "businessName businessType phone")
-        .populate("lead", "customerName phone serviceNeeded urgency status");
+        .populate("lead", "customerName phone serviceNeeded urgency status serviceEligibility");
     } catch (error) {
       safeConsole.error("Error fetching alert by ID:", error);
       throw error;
@@ -1534,7 +1534,7 @@ class Db {
           business: businessId,
         })
         .populate("business", "businessName businessType phone")
-        .populate("lead", "customerName phone serviceNeeded urgency status");
+        .populate("lead", "customerName phone serviceNeeded urgency status serviceEligibility");
     } catch (error) {
       safeConsole.error("Error fetching alert for business:", error);
       throw error;
@@ -1548,7 +1548,7 @@ class Db {
           runValidators: true,
         })
         .populate("business", "businessName businessType phone")
-        .populate("lead", "customerName phone serviceNeeded urgency status");
+        .populate("lead", "customerName phone serviceNeeded urgency status serviceEligibility");
     } catch (error) {
       safeConsole.error("Error updating alert:", error);
       throw error;
@@ -1570,7 +1570,7 @@ class Db {
           },
         )
         .populate("business", "businessName businessType phone")
-        .populate("lead", "customerName phone serviceNeeded urgency status");
+        .populate("lead", "customerName phone serviceNeeded urgency status serviceEligibility");
     } catch (error) {
       safeConsole.error("Error updating alert for business:", error);
       throw error;
@@ -1594,7 +1594,7 @@ class Db {
           },
         )
         .populate("business", "businessName businessType phone")
-        .populate("lead", "customerName phone serviceNeeded urgency status");
+        .populate("lead", "customerName phone serviceNeeded urgency status serviceEligibility");
     } catch (error) {
       safeConsole.error("Error marking alert as read:", error);
       throw error;
@@ -1621,7 +1621,7 @@ class Db {
           },
         )
         .populate("business", "businessName businessType phone")
-        .populate("lead", "customerName phone serviceNeeded urgency status");
+        .populate("lead", "customerName phone serviceNeeded urgency status serviceEligibility");
     } catch (error) {
       safeConsole.error("Error marking business alert as read:", error);
       throw error;

@@ -1,3 +1,4 @@
+import { assertServiceRequestEligible } from '../../../services/serviceEligibility/serviceEligibility.service.js';
 import AppointmentService from "../../../services/scheduling/appointment.service.js";
 import AlertService from "../../../services/alert.service.js";
 import {
@@ -11,6 +12,7 @@ export const createAppointmentTool = async ({
   input,
   idempotencyKey,
 }) => {
+  await assertServiceRequestEligible({ businessId: business._id, leadId: input?.lead, conversationId: input?.conversation, serviceOfferingId: input?.serviceOfferingId || input?.serviceOffering, request: input?.serviceQuery });
   const [policy, service] = await Promise.all([
     getSchedulingPolicy(business._id),
     getAiBookableService({

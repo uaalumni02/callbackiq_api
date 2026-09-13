@@ -1,3 +1,4 @@
+import { blocksServiceAutomation } from '../serviceEligibility/policy.js';
 import {
   resetTwilioClient as resetCentralTwilioClient,
   sendSms,
@@ -95,6 +96,7 @@ class AutomationService {
       ]);
 
     if (!business?.isActive) return "business_inactive";
+    if (blocksServiceAutomation(conversation) && !confirmedAppointment) return "service_eligibility_required";
     if (!business.features?.automatedFollowUpEnabled) return "automation_disabled";
     if (!conversation || conversation.status !== "open") return "conversation_not_open";
     if (conversation.humanTakeover) return "human_takeover";

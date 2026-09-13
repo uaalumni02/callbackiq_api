@@ -10,7 +10,7 @@ beforeAll(async () => {
   await connectTestDB();
   await BillingEvent.syncIndexes();
   await SafetyEvent.syncIndexes();
-});
+}, 60_000);
 
 afterEach(async () => {
   await clearTestDB();

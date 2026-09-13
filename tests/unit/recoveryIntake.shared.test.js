@@ -1,3 +1,12 @@
+jest.mock('../../src/models/serviceOffering.js', () => ({ __esModule: true, default: { find: jest.fn() } }));
+import EligibilityCatalog from '../../src/models/serviceOffering.js';
+import EligibilityOperations from '../../src/models/businessOperationsSettings.js';
+import { approvedOffering, catalogQuery } from '../helpers/approvedServiceCatalog.js';
+jest.mock('../../src/models/businessOperationsSettings.js', () => ({ __esModule: true, default: { findOne: jest.fn() } }));
+beforeEach(() => {
+  EligibilityCatalog.find = jest.fn(() => catalogQuery([approvedOffering('s1', 'plumbing', ['dishwasher', 'appliance']), approvedOffering('hvac-1', 'hvac')]));
+  EligibilityOperations.findOne.mockReturnValue(catalogQuery({ serviceEligibilityPolicy: { catalogComplete: true } }));
+});
 import { getApprovedServiceEstimate } from '../../src/services/booking/approvedServiceEstimate.service.js';
 import { handleRecoveryIntake } from '../../src/services/booking/recoveryIntake.service.js';
 import searchServices from '../../src/helpers/ai/tools/searchServices.tool.js';

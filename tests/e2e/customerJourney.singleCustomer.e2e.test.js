@@ -269,7 +269,7 @@ describe("CallBackIQ single-customer complete lifecycle", () => {
         durationMinutes: 90,
         estimatedValue: 250,
         emergencyEligible: true,
-        requiresHumanReview: true,
+        requiresHumanReview: false,
         keywords: [
           "plumbing",
           "pipe",

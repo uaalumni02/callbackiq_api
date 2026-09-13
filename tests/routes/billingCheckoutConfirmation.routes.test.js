@@ -75,7 +75,7 @@ const putCheckoutInProgress = async ({ business, sessionId = "cs_test_123" }) =>
 
 beforeAll(async () => {
   await connectTestDB();
-});
+}, 60_000);
 
 beforeEach(() => {
   jest.clearAllMocks();

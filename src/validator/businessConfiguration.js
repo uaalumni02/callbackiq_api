@@ -118,6 +118,10 @@ const handoffContactSchema = Joi.object({
 });
 
 export const operationsSettingsSchema = Joi.object({
+  serviceEligibilityPolicy: Joi.object({
+    catalogComplete: Joi.boolean().required(),
+    excludedServices: Joi.array().items(Joi.string().trim().min(2).max(100)).max(50).default([]),
+  }),
   humanHandoffContacts: Joi.array().items(handoffContactSchema).max(25),
   emergencyPolicy: Joi.object({
     enabled: Joi.boolean(),

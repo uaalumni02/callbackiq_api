@@ -1,3 +1,5 @@
+import { isSoftOptOutPhrase } from '../messaging/smsCompliance.service.js';
+import { guardServiceRequest } from '../serviceEligibility/serviceEligibility.service.js';
 import { patternHasAffirmedSafetyMatch } from '../../helpers/ai/aiGuardrails.js';
 import { requestStaffSchedulingReview } from "./staffSchedulingReview.service.js";
 import { recoveryLeakQuestion, recoveryCompletionReply } from './recoveryIntakePresentation.service.js';
@@ -50,7 +52,10 @@ const slotLabel = (slot, timezone) => new Intl.DateTimeFormat('en-US', {
 // The existing booking engine still owns every automatically booked appointment.
 export const handleRecoveryIntake = async ({ business, lead, conversation, customerMessage, channel = 'sms', session = null, turnId = '', semanticAssessment = null, now = new Date() }) => {
   const text = clean(customerMessage);
+  if (isSoftOptOutPhrase(text)) return null;
   if (!text || !lead || !conversation || conversation.humanTakeover || ['closed', 'archived'].includes(conversation.status)) return null;
+  const serviceGuard = await guardServiceRequest({ business, lead, conversation, customerMessage, channel, turnId, semanticAssessment });
+  if (serviceGuard) return serviceGuard;
   if (isConfirmationQuestion(text) && !/\b(?:cancel|reschedule|call me|human)\b/i.test(text)) {
     if (!conversation.bookingState?.appointment && !['offering_slots', 'awaiting_confirmation'].includes(conversation.bookingState?.status)) {
       return fixed(confirmationTimingReply({ lead, channel }), lead, { messageCategory: 'appointment_status' });
@@ -238,7 +243,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
     } else {
       const services = await searchServices({ businessId: business._id, query: lead.serviceNeeded }); checkActive();
       if (services.length === 1 && Number.isFinite(services[0].score) && services[0].score > 0) {
-        const available = await getAvailability({ business, serviceOfferingId: services[0].id, startDate: range.startDate, endDate: range.endDate, postalCode }); checkActive();
+        const available = await getAvailability({ business, leadId: lead._id, conversationId: conversation._id, serviceQuery: lead.serviceNeeded, serviceOfferingId: services[0].id, startDate: range.startDate, endDate: range.endDate, postalCode }); checkActive();
         if (available.supportedServiceArea === false) { ready = false; availabilityNote = 'That address needs a service-area review before scheduling.'; }
         else if (Array.isArray(available.slots)) {
           const future = filterAutomatedSlots(available.slots, now);

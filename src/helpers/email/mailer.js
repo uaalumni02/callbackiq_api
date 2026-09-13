@@ -5,6 +5,8 @@ const getClientUrl = () => process.env.CLIENT_URL || "http://localhost:3001";
 const createTransporter = () =>
   nodemailer.createTransport({
     service: "gmail",
+    connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 20000,
+    disableFileAccess: true, disableUrlAccess: true,
     auth: {
       user: process.env.GMAIL_ADDRESS,
       pass: process.env.GMAIL_PASSWORD,
@@ -134,3 +136,16 @@ Subscribe: ${getClientUrl()}/billing`,
   });
 
 export default sendPasswordResetEmail;
+
+// Notification content deliberately excludes customer text and contact details.
+// Provider acceptance is not proof of inbox delivery or owner acknowledgment.
+export const sendStaffReviewEmail = ({ email, businessName, alertId, stage }) => {
+  const clientUrl = new URL(getClientUrl());
+  if (!["https:", "http:"].includes(clientUrl.protocol)) throw new Error("Invalid CLIENT_URL");
+  const link = new URL("/intervention-center", clientUrl);
+  link.searchParams.set("alertId", alertId);
+  return sendEmail({ to: email,
+    subject: stage === "overdue" ? "CallBackIQ: staff review is overdue" : "CallBackIQ: customer request needs review",
+    text: `${businessName || "Your business"} has a customer request requiring staff review.\n\nOpen Needs Attention and acknowledge the request: ${link}\n\nThis email does not confirm that anyone has accepted the request or booked an appointment.`,
+  });
+};

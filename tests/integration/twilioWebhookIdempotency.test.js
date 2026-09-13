@@ -1,3 +1,4 @@
+import ServiceOffering from '../../src/models/serviceOffering.js';
 
 import request from "supertest";
 import mongoose from "mongoose";
@@ -110,7 +111,7 @@ afterAll(async () => {
 });
 
 const createBusiness = async (overrides = {}) => {
-  return Business.create({
+  const business = await Business.create({
     owner: new mongoose.Types.ObjectId(),
     businessName: "Atlanta Pro Plumbing",
     businessType: "plumbing",
@@ -124,6 +125,8 @@ const createBusiness = async (overrides = {}) => {
     isActive: true,
     ...overrides,
   });
+  await ServiceOffering.create({ business: business._id, name: 'Water heater repair', category: 'plumbing', active: true, aiCanDiscuss: true, aiCanBook: true, keywords: ['water heater'] });
+  return business;
 };
 
 const sendInboundSms = (overrides = {}) => {

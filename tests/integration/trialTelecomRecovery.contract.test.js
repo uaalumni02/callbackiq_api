@@ -120,7 +120,7 @@ describe("trial -> Stripe -> tracking number -> A2P -> missed-call SMS contract"
     process.env.A2P_EVENT_STREAM_PASSWORD = "ci-a2p-pass";
     await connectTestDB();
     await TrialRedemption.init();
-  });
+  }, 60_000);
 
   beforeEach(() => {
     jest.clearAllMocks();

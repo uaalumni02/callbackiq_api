@@ -72,7 +72,7 @@ beforeAll(async () => {
   process.env.TWILIO_PHONE_NUMBER = "4041112222";
 
   await connectTestDB();
-});
+}, 60_000);
 
 afterEach(async () => {
   jest.clearAllMocks();

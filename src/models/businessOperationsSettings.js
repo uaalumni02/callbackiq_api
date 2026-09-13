@@ -24,6 +24,10 @@ const BusinessOperationsSettingsSchema = new Schema(
       unique: true,
       index: true,
     },
+    serviceEligibilityPolicy: {
+      catalogComplete: { type: Boolean, default: false },
+      excludedServices: { type: [String], default: [], validate: value => value.length <= 50 && value.every(term => term.length <= 100) },
+    },
     humanHandoffContacts: {
       type: [HandoffContactSchema],
       default: [],

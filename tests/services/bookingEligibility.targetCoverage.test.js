@@ -58,6 +58,7 @@ const BASE_SERVICE = {
   excludedKeywords: [],
   active: true,
   aiCanBook: true,
+  aiCanDiscuss: true,
   durationMinutes: 60,
   bufferBeforeMinutes: 10,
   bufferAfterMinutes: 15,
@@ -217,7 +218,7 @@ describe("bookingEligibility target coverage", () => {
 
   test.each([
     ["Drain Cleaning", "drain"],
-    ["Plumbing", "plumb"],
+    ["Plumbing", "plumbing"],
     ["clog", "clog"],
   ])("matches service by %s", async (_kind, query) => {
     arrange();

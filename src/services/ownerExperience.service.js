@@ -235,6 +235,19 @@ const nextActionFor = ({
     };
   }
 
+  const eligibility = conversation?.serviceEligibility || lead?.serviceEligibility;
+  if (eligibility?.decision === 'unsupported') return {
+    kind: 'closed', label: 'Service not offered', detail: 'The requested work is outside the approved offerings. No appointment should be arranged for this request.',
+    requiresOwner: false, actionRequired: false,
+  };
+  if (eligibility?.decision === 'needs_staff_review') return {
+    kind: 'exception', label: 'Review service eligibility', detail: `${eligibility.request || 'Requested service'} — ${String(eligibility.reason || 'scope uncertain').replace(/_/g, ' ')}. ${eligibility.reviewSubmitted ? 'Customer requested review.' : 'Awaiting customer permission to submit review.'}`,
+    requiresOwner: eligibility.reviewSubmitted === true, actionRequired: eligibility.reviewSubmitted === true,
+  };
+  if (eligibility?.decision === 'needs_clarification') return {
+    kind: 'qualify', label: 'Clarify requested service', detail: 'The requested work has not yet been matched to an approved offering.', requiresOwner: false, actionRequired: false,
+  };
+
   if (evidence.humanTakeover || evidence.stage === "human_takeover") {
     return {
       kind: "exception",
@@ -409,6 +422,7 @@ const serializeOpportunity = ({
     lead.summary || conversation?.conversationMemory?.summary || lead.notes || "";
 
   return {
+    serviceEligibility: conversation?.serviceEligibility || lead.serviceEligibility || null,
     id: String(lead._id),
     customerName: lead.customerName || conversation?.customerName || "Customer",
     phone: lead.phone || conversation?.customerPhone || "",
@@ -485,7 +499,7 @@ const latestByLead = (documents) => {
 
 const attentionPreview = async (businessId, limit = 5) => {
   const alerts = await Alert.find(ownerInterventionFilter(businessId))
-    .populate("lead", "customerName phone serviceNeeded urgency estimatedValue valuation status summary")
+    .populate("lead", "customerName phone serviceNeeded urgency estimatedValue valuation status summary serviceEligibility")
     .populate("conversation", "customerName customerPhone lastMessage lastMessageAt status")
     .populate("appointment", "startAt endAt timezone status provider")
     .sort({ dueAt: 1, createdAt: -1 })
@@ -692,7 +706,7 @@ class OwnerExperienceService {
         lead: lead._id,
       })
         .select(
-          "lead customerName customerPhone status humanTakeover bookingState conversationMemory lastMessage lastMessageAt createdAt updatedAt",
+          "lead serviceEligibility customerName customerPhone status humanTakeover bookingState conversationMemory lastMessage lastMessageAt createdAt updatedAt",
         )
         .sort({ lastMessageAt: -1, updatedAt: -1 })
         .lean(),
@@ -903,7 +917,7 @@ class OwnerExperienceService {
     const [conversations, appointments, openInterventionLeadIds] = await Promise.all([
       Conversation.find({ business: business._id, lead: { $in: leadIds } })
         .select(
-          "lead customerName customerPhone status humanTakeover bookingState conversationMemory lastMessage lastMessageAt createdAt updatedAt",
+          "lead serviceEligibility customerName customerPhone status humanTakeover bookingState conversationMemory lastMessage lastMessageAt createdAt updatedAt",
         )
         .sort({ lastMessageAt: -1, updatedAt: -1 })
         .lean(),

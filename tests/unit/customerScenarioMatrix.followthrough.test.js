@@ -1,3 +1,9 @@
+jest.mock('../../src/models/serviceOffering.js', () => ({ __esModule: true, default: { find: jest.fn() } }));
+import EligibilityCatalog from '../../src/models/serviceOffering.js';
+import EligibilityOperations from '../../src/models/businessOperationsSettings.js';
+import { approvedOffering, catalogQuery } from '../helpers/approvedServiceCatalog.js';
+jest.mock('../../src/models/businessOperationsSettings.js', () => ({ __esModule: true, default: { findOne: jest.fn() } }));
+beforeEach(() => { EligibilityOperations.findOne.mockReturnValue(catalogQuery({ serviceEligibilityPolicy: { catalogComplete: true } })); });
 import { handleRecoveryIntake } from '../../src/services/booking/recoveryIntake.service.js';
 import { getApprovedServiceEstimate } from '../../src/services/booking/approvedServiceEstimate.service.js';
 import searchServices from '../../src/helpers/ai/tools/searchServices.tool.js';
@@ -12,6 +18,7 @@ jest.mock('../../src/services/alert.service.js', () => ({ __esModule: true, defa
 const now = new Date('2026-09-07T14:00:00Z');
 const address = '87 Oak Lane Marietta GA 30060';
 function context(channel = 'sms', trade = 'plumbing') {
+ EligibilityCatalog.find = jest.fn(() => catalogQuery([approvedOffering('s1', trade.toLowerCase(), trade.toLowerCase() === 'electrical' ? ['ceiling fan'] : trade.toLowerCase() === 'locksmith' ? ['lock replacement','front door lock'] : [])]));
  const lead = {_id:'l1',serviceNeeded:'Unknown',urgency:'medium',phone:'+14045550100',save:jest.fn().mockResolvedValue(null)};
  const conversation = {_id:'c1',status:'open',bookingState:{status:'not_started'},conversationMemory:{},save:jest.fn().mockResolvedValue(null),set(path,value){this.conversationMemory.recoveryIntake=value;}};
  const ctx = {business:{_id:'b1',businessName:`Test ${trade}`,businessType:trade,timezone:'America/New_York',features:{aiBookingEnabled:false}},lead,conversation,channel,session:{_id:'v1'},now};

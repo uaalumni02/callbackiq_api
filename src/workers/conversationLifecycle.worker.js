@@ -1,3 +1,5 @@
+import { blocksServiceAutomation } from '../services/serviceEligibility/policy.js';
+import { startStaffNotificationWorker, stopStaffNotificationWorker } from "./staffNotification.worker.js";
 import { recoverFailedSmsStaffReviews } from "../services/smsStaffReviewRecovery.service.js";
 import { escalateOverdueInterventions } from "../services/interventionEscalation.service.js";
 import Conversation from "../models/conversation.js";
@@ -153,6 +155,7 @@ export const expireBookingOffer = async (conversation, now) => {
 };
 
 const nudgeAbandonedRecovery = async (conversation, now) => {
+  if (blocksServiceAutomation(conversation)) return false;
   if (conversation.status !== "open" || conversation.aiEnabled === false || conversation.humanTakeover) return false;
 
   const lastInbound = await Message.findOne({
@@ -227,6 +230,15 @@ const processConversation = async (conversation, now) => {
   const lease = await withDistributedLease(
     `sms-conversation:${conversation._id}`,
     async () => {
+      // Advance the scan position even for no-ops and errors. Reload under the
+      // conversation lease so a stale candidate cannot undo staff activity.
+      const fresh = await Conversation.findOneAndUpdate(
+        { _id: conversation._id, status: "open" },
+        { $set: { "lifecycle.lastScannedAt": now } },
+        { returnDocument: "after" },
+      );
+      if (!fresh) return "noop";
+      conversation = fresh;
       if (await releaseStaleHumanTakeover(conversation, now)) return "takeover_released";
       if (await expireBookingOffer(conversation, now)) return "offer_expired";
       if (await nudgeAbandonedRecovery(conversation, now)) return "recovery_nudged";
@@ -252,13 +264,18 @@ export const runConversationLifecycleOnce = async ({ now = new Date(), limit = 1
         { "lifecycle.recoveryNudgeCount": { $exists: false } },
       ],
     })
-      .sort({ lastMessageAt: 1, _id: 1 })
+      .sort({ "lifecycle.lastScannedAt": 1, _id: 1 })
       .limit(Math.max(1, Math.min(500, Number(limit) || 100)));
 
     let processed = 0;
     const outcomes = {};
     for (const conversation of conversations) {
-      const outcome = await processConversation(conversation, now);
+      let outcome;
+      try { outcome = await processConversation(conversation, now); }
+      catch (error) {
+        logOperationalError("sms.lifecycle.conversation_failed", error, { conversationId: conversation._id });
+        outcome = "failed";
+      }
       outcomes[outcome] = (outcomes[outcome] || 0) + 1;
       if (!["noop", "lease_busy"].includes(outcome)) processed += 1;
     }
@@ -269,6 +286,7 @@ export const runConversationLifecycleOnce = async ({ now = new Date(), limit = 1
 };
 
 export const startConversationLifecycleWorker = () => {
+  startStaffNotificationWorker();
   if (timer || String(process.env.SMS_LIFECYCLE_WORKER_ENABLED || "true").toLowerCase() === "false") return timer;
   void runConversationLifecycleOnce().catch((error) =>
     logOperationalError("sms.lifecycle.initial_failed", error),
@@ -284,7 +302,8 @@ export const startConversationLifecycleWorker = () => {
   return timer;
 };
 
-export const stopConversationLifecycleWorker = () => {
+export const stopConversationLifecycleWorker = async () => {
+  await stopStaffNotificationWorker();
   if (timer) clearInterval(timer);
   timer = null;
   running = false;

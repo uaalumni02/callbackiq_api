@@ -1,3 +1,4 @@
+import { evaluateServicePolicy } from './serviceEligibility/policy.js';
 import AvailabilityException from "../models/availabilityException.js";
 import AvailabilityRule from "../models/availabilityRule.js";
 import BusinessOperationsSettings from "../models/businessOperationsSettings.js";
@@ -7,31 +8,6 @@ import ServiceOffering from "../models/serviceOffering.js";
 
 const normalize = (value) => String(value || "").trim().toLowerCase();
 
-const findService = async (businessId, serviceQuery) => {
-  const query = normalize(serviceQuery);
-  const services = await ServiceOffering.find({
-    business: businessId,
-    active: true,
-  }).sort({ name: 1 });
-
-  if (!query) return null;
-
-  return (
-    services.find((service) => {
-      const excluded = (service.excludedKeywords || []).some((keyword) =>
-        query.includes(normalize(keyword)),
-      );
-
-      if (excluded) return false;
-
-      const terms = [service.name, service.category, ...(service.keywords || [])]
-        .map(normalize)
-        .filter(Boolean);
-
-      return terms.some((term) => query.includes(term) || term.includes(query));
-    }) || null
-  );
-};
 
 const getZonedParts = (date, timeZone) => {
   const formatter = new Intl.DateTimeFormat("en-US", {
@@ -215,13 +191,15 @@ export const evaluateBookingEligibility = async ({
   requestedStart,
   customerHasAddress = false,
 }) => {
-  const [service, policy, serviceArea, operations] = await Promise.all([
-    findService(business._id, serviceQuery),
+  const [services, policy, serviceArea, operations] = await Promise.all([
+    ServiceOffering.find({ business: business._id, active: true }).sort({ name: 1 }),
     SchedulingPolicy.findOne({ business: business._id }),
     ServiceArea.findOne({ business: business._id }),
     BusinessOperationsSettings.findOne({ business: business._id }),
   ]);
 
+  const serviceEligibility = evaluateServicePolicy({ request: serviceQuery, services, policy: operations?.serviceEligibilityPolicy || {} });
+  const service = ['supported', 'needs_staff_review'].includes(serviceEligibility.decision) ? services.find(item => String(item._id) === serviceEligibility.serviceId) || null : null;
   const resolvedPolicy = policy || {
     minimumNoticeMinutes: 120,
     maximumAdvanceDays: 60,
@@ -241,7 +219,7 @@ export const evaluateBookingEligibility = async ({
 
   const emergencyEscalation = Boolean(service?.emergencyEligible);
   const requiresHumanReview = Boolean(
-    service?.requiresHumanReview ||
+    serviceEligibility.decision === 'needs_staff_review' || service?.requiresHumanReview ||
       emergencyEscalation ||
       (!service && operations?.aiPermissions?.requireHumanReviewForUnknownService),
   );
@@ -269,7 +247,7 @@ export const evaluateBookingEligibility = async ({
   }
 
   const mayAiBook =
-    Boolean(service) &&
+    serviceEligibility.decision === 'supported' && Boolean(service) &&
     service.aiCanBook === true &&
     !requiresHumanReview &&
     serviceAreaResult.supported === true &&
@@ -279,6 +257,7 @@ export const evaluateBookingEligibility = async ({
     operations?.aiPermissions?.canBookEligibleServices === true;
 
   return {
+    serviceEligibility,
     servicePerformed: Boolean(service),
     matchedService: service,
     locationSupported: serviceAreaResult.supported,

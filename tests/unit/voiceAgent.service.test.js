@@ -1,3 +1,11 @@
+// Valuation persistence is covered separately; voice routing uses provider doubles.
+jest.mock('../../src/services/valuation/opportunityValuation.service.js', () => ({
+  ...jest.requireActual('../../src/services/valuation/opportunityValuation.service.js'),
+  beginValuation: jest.fn().mockResolvedValue(null),
+  finishValuation: jest.fn().mockResolvedValue(null),
+}));
+// These tests isolate voice routing; real eligibility + voice journeys live in serviceEligibility.journey.test.js.
+jest.mock('../../src/services/serviceEligibility/serviceEligibility.service.js', () => ({ guardServiceRequest: jest.fn().mockResolvedValue(null), blocksServiceAutomation: jest.fn().mockReturnValue(false) }));
 import AlertService from '../../src/services/alert.service.js';
 jest.mock('../../src/services/alert.service.js', () => ({ __esModule: true, default: { createAIReviewAlert: jest.fn().mockResolvedValue({alert:{_id:'a1'}}) } }));
 import ServiceOffering from "../../src/models/serviceOffering.js";
