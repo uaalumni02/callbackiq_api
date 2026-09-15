@@ -14,12 +14,12 @@ import {
   TRANSFER_NUMBER,
 } from "./syntheticCallFactory.js";
 
-export const createConcurrencyBusiness = async ({ maxConcurrentCalls = 25 } = {}) =>
+export const createConcurrencyBusiness = async ({ maxConcurrentCalls = 25, phone = BUSINESS_NUMBER } = {}) =>
   Business.create({
     owner: new mongoose.Types.ObjectId(),
     businessName: `Concurrency Plumbing ${Date.now()}-${Math.random().toString(16).slice(2)}`,
     businessType: "plumbing",
-    phone: BUSINESS_NUMBER,
+    phone,
     forwardingPhone: TRANSFER_NUMBER,
     isActive: true,
     features: {

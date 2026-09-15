@@ -43,7 +43,8 @@ const extraHeaders = process.env.PERF_HEADERS_JSON
 
 const tenants = process.env.PERF_TENANTS_FILE ? JSON.parse(await fs.readFile(process.env.PERF_TENANTS_FILE, "utf8")) : [];
 const targetRps = Math.max(0, Number(process.env.PERF_TARGET_RPS) || 0);
-const runId = crypto.randomUUID();
+const runId = process.env.SCALE_RUN_ID || crypto.randomUUID();
+const identities = [];
 const results = [];
 let next = 0;
 
@@ -67,6 +68,7 @@ const one = async (index) => {
     const sid = `SM${crypto.createHash("sha256").update(`${runId}:${index}`).digest("hex").slice(0,32)}`;
     params.MessageSid = sid; params.SmsSid = sid;
     if (tenants.length) { params.To = tenants[index % tenants.length].to; params.From = tenants[index % tenants.length].from || params.From; }
+    identities.push({ sid, businessId: tenants[index % tenants.length]?.businessId || "" });
     const signatureHeaders = process.env.TWILIO_AUTH_TOKEN ? { "x-twilio-signature": getExpectedTwilioSignature(process.env.TWILIO_AUTH_TOKEN, process.env.PERF_SIGNATURE_URL || target, params) } : {};
     const response = await fetch(target, {
       method: process.env.PERF_METHOD || "POST",
@@ -118,9 +120,7 @@ const statuses = Object.fromEntries(
   ]),
 );
 
-console.log(
-  JSON.stringify(
-    {
+const report = {
       target,
       configuredRequestsPerSecond: targetRps,
       tenantCount: tenants.length || 1,
@@ -138,10 +138,10 @@ console.log(
         max: Number(Math.max(...durations).toFixed(2)),
       },
       statuses,
-    },
-    null,
-    2,
-  ),
-);
+    };
+report.runId = runId;
+console.log(JSON.stringify(report, null, 2));
+if (process.env.PERF_REPORT_PATH) await fs.writeFile(process.env.PERF_REPORT_PATH, JSON.stringify(report, null, 2) + "\n", { mode: 0o600 });
+if (process.env.SCALE_SMS_IDENTITIES_FILE) await fs.writeFile(process.env.SCALE_SMS_IDENTITIES_FILE, JSON.stringify(identities), { mode: 0o600 });
 
 if (success !== total) process.exitCode = 1;

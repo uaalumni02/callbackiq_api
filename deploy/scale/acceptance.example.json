@@ -1,0 +1,126 @@
+{
+  "apiSha": "",
+  "uiSha": "",
+  "mixedReports": [],
+  "infrastructure": {
+    "imageDigest": "",
+    "topologyRef": "",
+    "providerQuotaRef": ""
+  },
+  "checks": {
+    "burst350": {
+      "passed": false,
+      "observedAt": "",
+      "observedBy": "",
+      "evidenceRef": ""
+    },
+    "workerKillFinalAttempt": {
+      "passed": false,
+      "observedAt": "",
+      "observedBy": "",
+      "evidenceRef": ""
+    },
+    "voiceGracefulDrain": {
+      "passed": false,
+      "observedAt": "",
+      "observedBy": "",
+      "evidenceRef": ""
+    },
+    "voiceAbruptFailure": {
+      "passed": false,
+      "observedAt": "",
+      "observedBy": "",
+      "evidenceRef": ""
+    },
+    "redisOutage": {
+      "passed": false,
+      "observedAt": "",
+      "observedBy": "",
+      "evidenceRef": ""
+    },
+    "mongoFailover": {
+      "passed": false,
+      "observedAt": "",
+      "observedBy": "",
+      "evidenceRef": ""
+    },
+    "provider429AndTimeout": {
+      "passed": false,
+      "observedAt": "",
+      "observedBy": "",
+      "evidenceRef": ""
+    },
+    "webhookReplay": {
+      "passed": false,
+      "observedAt": "",
+      "observedBy": "",
+      "evidenceRef": ""
+    },
+    "crossTenantAccess": {
+      "passed": false,
+      "observedAt": "",
+      "observedBy": "",
+      "evidenceRef": ""
+    },
+    "ownerEmailAndOpsPaging": {
+      "passed": false,
+      "observedAt": "",
+      "observedBy": "",
+      "evidenceRef": ""
+    },
+    "noStaffResponse": {
+      "passed": false,
+      "observedAt": "",
+      "observedBy": "",
+      "evidenceRef": ""
+    },
+    "realHandsetVoiceAndSms": {
+      "passed": false,
+      "observedAt": "",
+      "observedBy": "",
+      "evidenceRef": ""
+    },
+    "realCalendarApprovalRescheduleCancel": {
+      "passed": false,
+      "observedAt": "",
+      "observedBy": "",
+      "evidenceRef": ""
+    },
+    "realBillingTrialAndExpired": {
+      "passed": false,
+      "observedAt": "",
+      "observedBy": "",
+      "evidenceRef": ""
+    },
+    "realMobileLogin": {
+      "passed": false,
+      "observedAt": "",
+      "observedBy": "",
+      "evidenceRef": ""
+    },
+    "backupRestore": {
+      "passed": false,
+      "observedAt": "",
+      "observedBy": "",
+      "evidenceRef": ""
+    },
+    "ingressWebsocketAndProxy": {
+      "passed": false,
+      "observedAt": "",
+      "observedBy": "",
+      "evidenceRef": ""
+    },
+    "providerQuotaReview": {
+      "passed": false,
+      "observedAt": "",
+      "observedBy": "",
+      "evidenceRef": ""
+    },
+    "continuousLiveSoak": {
+      "passed": false,
+      "observedAt": "",
+      "observedBy": "",
+      "evidenceRef": ""
+    }
+  }
+}

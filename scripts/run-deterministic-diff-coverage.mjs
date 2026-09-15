@@ -126,6 +126,11 @@ const relatedTests = relatedResult.stdout
   .filter(Boolean);
 
 const explicitReleaseTests = [
+  "tests/unit/adminScaleHealth.route.release.test.js",
+  "tests/unit/staffNotification.worker.release.test.js",
+  "tests/unit/staffNotification.dispatch.test.js",
+  "tests/unit/remainingCoverage.server.test.js",
+
   "tests/unit/aiBookingApproval.production.test.js",
   "tests/unit/aiBookingPermission.release.test.js",
   "tests/unit/aiBookingTools.test.js",

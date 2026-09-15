@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import "dotenv/config";
 import fs from "node:fs/promises";
+import { validateVoiceReport } from "./acceptance.mjs";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { performance } from "node:perf_hooks";
@@ -48,12 +49,12 @@ const runId = env("VOICE_LOAD_RUN_ID", new Date().toISOString());
 const clientsWanted = int("VOICE_RELAY_CLIENTS", aiMode ? 5 : 50, 1000);
 const connectConcurrency = Math.min(
   clientsWanted,
-  int("VOICE_RELAY_CONNECT_CONCURRENCY", 5, 50),
+  int("VOICE_RELAY_CONNECT_CONCURRENCY", 5, 1000),
 );
 const setupSettleMs = int("VOICE_RELAY_SETUP_SETTLE_MS", 1100, 10000);
 const holdMs = int("VOICE_RELAY_HOLD_MS", 1500, 600000);
 const turnTimeoutMs = int("VOICE_RELAY_TURN_TIMEOUT_MS", 20000, 120000);
-const turns = aiMode ? int("VOICE_RELAY_TURNS", 2, 10) : 0;
+const turns = aiMode ? int("VOICE_RELAY_TURNS", 2, 1000) : 0;
 const expectedAccepted = int(
   "VOICE_RELAY_EXPECT_ACCEPTED",
   Math.min(clientsWanted, int("VOICE_LOAD_MAX_CONCURRENT", 25, 100)),
@@ -111,7 +112,7 @@ const parseParameters = (twiml) => {
 
 const createVoiceSession = async (index) => {
   const callSid = sidFor("call", index);
-  const from = callerFor(index);
+  const from = tenants[index % tenants.length].from || callerFor(index);
   const destination = tenants[index % tenants.length].to;
   const params = {
     AccountSid: accountSid,
@@ -139,13 +140,14 @@ const createVoiceSession = async (index) => {
   const relay = /<ConversationRelay\b/i.test(twiml);
   if (!response.ok || !relay) {
     throw new Error(
-      `Voice bootstrap ${index} failed: HTTP ${response.status}, relay=${relay}, body=${twiml.slice(0, 300)}`,
+      `Voice bootstrap ${index} failed: HTTP ${response.status}, relay=${relay}`,
     );
   }
   const customParameters = parseParameters(twiml);
   if (!customParameters.voiceSessionId || !customParameters.businessId) {
     throw new Error(`Voice bootstrap ${index} returned relay TwiML without required custom parameters.`);
   }
+  if (tenants[index % tenants.length].businessId && String(customParameters.businessId) !== String(tenants[index % tenants.length].businessId)) throw new Error("Voice bootstrap tenant mismatch");
   return {
     index,
     callSid,
@@ -288,6 +290,7 @@ const prompts = (() => {
 const waitForAgentReply = (relay, prompt) =>
   new Promise((resolve, reject) => {
     const started = performance.now();
+    let text = "";
     const ignored = /^(?:Got it\.?|One moment\.?|Entiendo\.?)$/i;
     const timer = setTimeout(() => {
       cleanup();
@@ -302,12 +305,15 @@ const waitForAgentReply = (relay, prompt) =>
       }
       if (message?.type === "end") {
         cleanup();
-        resolve({ latencyMs: performance.now() - started, ended: true, message });
+        reject(new Error("Unexpected session end before completing the requested turn"));
         return;
       }
       if (message?.type !== "text") return;
       const token = String(message.token || "").trim();
       if (!token || ignored.test(token)) return;
+      text += token;
+      if (message.last !== true) return;
+      if (/trouble continuing|capacity is temporarily unavailable|allowance is exhausted|technical difficulties|try again later/i.test(text)) { cleanup(); reject(new Error("Fallback reply under load")); return; }
       cleanup();
       resolve({ latencyMs: performance.now() - started, ended: false, message });
     };
@@ -351,6 +357,19 @@ const runStarted = performance.now();
 await Promise.all(Array.from({ length: connectConcurrency }, worker));
 const acceptedRelays = relays.filter((relay) => relay.accepted);
 const rejectedRelays = relays.filter((relay) => !relay.accepted);
+if (process.send) await new Promise((resolve, reject) => {
+  const timer = setTimeout(() => reject(new Error('Mixed workload start barrier timed out')), 60000);
+  process.once('message', message => { clearTimeout(timer); message?.type === 'begin' ? resolve() : reject(new Error('Invalid start barrier')); });
+  process.send({ type: 'ready' });
+});
+const workStarted = performance.now();
+const minDurationMs = Math.max(0, Number(env('VOICE_RELAY_MIN_DURATION_MS', 0)));
+if (!Number.isFinite(minDurationMs) || minDurationMs > 480000) throw new Error('A relay cohort must be <= 8 minutes; use repeated cohorts for a soak.');
+let unexpectedEnds = 0;
+const onWorkMessage = raw => { try { if (JSON.parse(raw.toString()).type === 'end') unexpectedEnds++; } catch {} };
+for (const relay of acceptedRelays) relay.socket.on('message', onWorkMessage);
+let minimumActiveDuringWork = acceptedRelays.filter(r => r.socket.readyState === WebSocket.OPEN).length;
+const monitor = setInterval(() => { minimumActiveDuringWork = Math.min(minimumActiveDuringWork, acceptedRelays.filter(r => r.socket.readyState === WebSocket.OPEN).length); }, 100);
 const activeAtTurnStart = acceptedRelays.filter(r => r.socket.readyState === WebSocket.OPEN).length;
 const turnLatencies = [];
 const turnFailures = [];
@@ -373,7 +392,11 @@ if (aiMode) {
   );
 }
 
-await new Promise((resolve) => setTimeout(resolve, holdMs));
+await new Promise((resolve) => setTimeout(resolve, Math.max(holdMs, minDurationMs - (performance.now() - workStarted))));
+minimumActiveDuringWork = Math.min(minimumActiveDuringWork, acceptedRelays.filter(r => r.socket.readyState === WebSocket.OPEN).length);
+clearInterval(monitor);
+for (const relay of acceptedRelays) relay.socket.off('message', onWorkMessage);
+const workDurationMs = performance.now() - workStarted;
 
 for (const relay of acceptedRelays) {
   try {
@@ -409,6 +432,7 @@ const connectionLatencies = relays.map((relay) => relay.connectionLatencyMs);
 const bootstrapLatencies = relays.map((relay) => relay.bootstrapLatencyMs);
 const report = {
   generatedAt: new Date().toISOString(),
+  schemaVersion: 2, runId, minimumActiveDuringWork, workDurationMs, unexpectedEnds,
   mode: aiMode ? "integrated-relay-ai-load" : "integrated-relay-capacity-load",
   httpVoiceUrl,
   wsTarget,
@@ -456,11 +480,14 @@ const report = {
   aiTurnFailureSamples: turnFailures.slice(0, 10),
 };
 
+report.acceptanceErrors = validateVoiceReport(report, { expected: expectedAccepted, turns, ai: aiMode,
+  minDurationMs, p95Ms: int('VOICE_RELAY_P95_MAX_MS', 5000), p99Ms: int('VOICE_RELAY_P99_MAX_MS', 10000) });
 await fs.writeFile(outputPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
 console.log(JSON.stringify(report, null, 2));
 console.log(`Report: ${outputPath}`);
 
 if (
+  report.acceptanceErrors.length > 0 ||
   acceptedRelays.length !== expectedAccepted ||
   activeAtTurnStart < expectedAccepted ||
   failures.length > 0 ||

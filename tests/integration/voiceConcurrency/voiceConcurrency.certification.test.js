@@ -161,6 +161,32 @@ describe("Voice Concurrency Certification", () => {
     60000,
   );
 
+  test("1001 businesses retain isolation during 350 parallel voice contexts", async () => {
+    const businesses = [];
+    for (let start = 0; start < 1001; start += 25) businesses.push(...await Promise.all(
+      Array.from({ length: Math.min(25, 1001 - start) }, (_, i) => createConcurrencyBusiness({ phone: `+1${String(2020000000 + start + i)}` }))));
+    const calls = Array.from({ length: 350 }, (_, index) => ({ ...buildSyntheticCall({ index, namespace: 'fleet-350' }), to: businesses[index].phone }));
+    const sessions = await Promise.all(calls.map(async (call, index) => {
+      const business = businesses[index];
+      const [session] = await establishCalls({ business, calls: [call] });
+      await appendSentinelTurn({ session, call });
+      const [capacity] = await acquireAll({ business, sessions: [session] });
+      expect(capacity.allowed).toBe(true);
+      return session;
+    }));
+    expect(await Business.countDocuments()).toBe(1001);
+    expect(uniqueStrings(sessions.map(x => x.business))).toBe(350);
+    expect(await VoiceSession.countDocuments({ status: 'active' })).toBe(350);
+    const stored = await VoiceSession.find().lean();
+    expect(findTranscriptContamination({ sessions: stored, calls })).toEqual([]);
+    for (let i = 0; i < sessions.length; i++) {
+      expect(String((await Lead.findById(sessions[i].lead)).business)).toBe(String(businesses[i]._id));
+      expect(String((await Conversation.findById(sessions[i].conversation)).business)).toBe(String(businesses[i]._id));
+    }
+    await Promise.all(sessions.map((session, i) => releaseAll({ business: businesses[i], sessions: [session] })));
+    expect(await VoiceCapacity.countDocuments({ 'leases.0': { $exists: true } })).toBe(0);
+  }, 180000);
+
   test("capacity boundary atomically admits exactly two of three calls", async () => {
     const business = await createConcurrencyBusiness({ maxConcurrentCalls: 2 });
     const calls = Array.from({ length: 3 }, (_, index) =>

@@ -138,7 +138,15 @@
     "test:sms-voice-release": "node scripts/verify-sms-voice-conversation-release.mjs",
     "test:browser": "jest --config jest.browser.config.cjs --runInBand",
     "test:scale-release": "jest tests/integration/scaleRelease.persistence.test.js tests/unit/voiceAdmission.queue.test.js tests/unit/staffNotification.dispatch.test.js --runInBand",
-    "verify:scale-deployment": "node scripts/verify-scale-deployment.mjs"
+    "verify:scale-deployment": "node scripts/verify-scale-deployment.mjs",
+    "test:scale-fleet": "node --test hardening-tests/scaleAcceptance.test.mjs && jest --runInBand tests/unit/scaleFleet.release.test.js tests/unit/smsStaffReviewRecovery.test.js tests/unit/opsPaging.release.test.js tests/unit/scaleHealth.release.test.js tests/unit/processHeartbeat.release.test.js tests/unit/operationsWorker.release.test.js",
+    "test:scale-fleet:persistence": "jest --runInBand tests/integration/scaleFleet.persistence.test.js",
+    "verify:scale-profile": "node scripts/check-scale-config.mjs",
+    "verify:scale-certificate": "node scripts/verify-scale-certificate.mjs",
+    "perf:mixed-soak": "node perf/mixed-soak.mjs",
+    "deploy:render-scale": "node deploy/scale/render.mjs",
+    "probe:scale-health": "node scripts/probe-scale-health.mjs",
+    "verify:staging-browser": "node scripts/staging-browser-acceptance.mjs"
   },
   "keywords": [],
   "author": "",
@@ -199,19 +207,22 @@
       "<rootDir>/callbackiq[^/]*_update/",
       "<rootDir>/CallBackIQ[^/]*(?:Update|Bundle)/",
       "<rootDir>/.callbackiq-fix-backups/",
-      "<rootDir>/.callbackiq-update-backups/"
+      "<rootDir>/.callbackiq-update-backups/",
+      "<rootDir>/[.]callbackiq-scale-release-[^/]*-backup/"
     ],
     "watchPathIgnorePatterns": [
       "<rootDir>/.callbackiq-phase9-backup/",
       "<rootDir>/.callbackiq-backups/",
       "<rootDir>/.callbackiq-fix-backups/",
-      "<rootDir>/.callbackiq-update-backups/"
+      "<rootDir>/.callbackiq-update-backups/",
+      "<rootDir>/[.]callbackiq-scale-release-[^/]*-backup/"
     ],
     "modulePathIgnorePatterns": [
       "<rootDir>/.callbackiq-phase9-backup/",
       "<rootDir>/.callbackiq-backups/",
       "<rootDir>/.callbackiq-fix-backups/",
-      "<rootDir>/.callbackiq-update-backups/"
+      "<rootDir>/.callbackiq-update-backups/",
+      "<rootDir>/[.]callbackiq-scale-release-[^/]*-backup/"
     ],
     "watchman": false,
     "setupFilesAfterEnv": [

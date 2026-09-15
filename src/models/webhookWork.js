@@ -11,9 +11,12 @@ const schema = new mongoose.Schema({
   attempts: { type: Number, default: 0 },
   lastErrorCode: String,
   completedAt: Date,
+  staffReviewAlertRecorded: { type: Boolean, default: false },
 }, { timestamps: true });
 schema.index({ status: 1, availableAt: 1, createdAt: 1 });
 schema.index({ status: 1, leaseUntil: 1 });
+schema.index({ status: 1, createdAt: 1 });
+schema.index({ status: 1, staffReviewAlertRecorded: 1, updatedAt: 1, _id: 1 });
 // Completed identities intentionally remain: an old provider replay must not
 // silently resurrect a previously completed customer communication.
 export default mongoose.models.WebhookWork || mongoose.model("WebhookWork", schema);

@@ -106,6 +106,7 @@ const MessageSchema = new Schema(
     encoding: { type: String, enum: ["", "GSM-7", "UCS-2"], default: "" },
     segmentCount: { type: Number, min: 0, default: 1 },
     deliveredAt: { type: Date, default: null },
+    providerAcceptedAt: { type: Date, default: null },
     failedAt: { type: Date, default: null },
     inReplyToMessage: { type: Schema.Types.ObjectId, ref: "Message", default: null },
     deliveryAttemptedAt: { type: Date, default: null },

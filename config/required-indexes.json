@@ -200,6 +200,29 @@
   {
     "collection": "alerts",
     "key": {
+      "actionRequired": 1,
+      "resolvedAt": 1,
+      "acknowledgedAt": 1,
+      "dueAt": 1,
+      "_id": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "alerts",
+    "key": {
+      "actionRequired": 1,
+      "resolvedAt": 1,
+      "acknowledgedAt": 1,
+      "priority": 1,
+      "createdAt": 1,
+      "_id": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "alerts",
+    "key": {
       "business": 1,
       "readAt": 1,
       "createdAt": -1
@@ -1654,6 +1677,38 @@
     }
   },
   {
+    "collection": "opsincidents",
+    "key": {
+      "status": 1,
+      "nextAttemptAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "opsincidents",
+    "key": {
+      "status": 1,
+      "leaseUntil": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "opsincidents",
+    "key": {
+      "desiredAction": 1,
+      "checkedAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "opsincidents",
+    "key": {
+      "published": 1,
+      "updatedAt": 1
+    },
+    "options": {}
+  },
+  {
     "collection": "outboundsmsaudits",
     "key": {
       "business": 1
@@ -1700,6 +1755,23 @@
         }
       }
     }
+  },
+  {
+    "collection": "processheartbeats",
+    "key": {
+      "seenAt": 1
+    },
+    "options": {
+      "expireAfterSeconds": 300
+    }
+  },
+  {
+    "collection": "processheartbeats",
+    "key": {
+      "role": 1,
+      "seenAt": 1
+    },
+    "options": {}
   },
   {
     "collection": "production_operation_leases",
@@ -1968,6 +2040,24 @@
     "key": {
       "status": 1,
       "leaseExpiresAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "smsprocessingjobs",
+    "key": {
+      "status": 1,
+      "createdAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "smsprocessingjobs",
+    "key": {
+      "status": 1,
+      "result.staffReviewAlertRecorded": 1,
+      "deadAt": 1,
+      "_id": 1
     },
     "options": {}
   },
@@ -2585,6 +2675,24 @@
     "key": {
       "status": 1,
       "leaseUntil": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "webhookworks",
+    "key": {
+      "status": 1,
+      "createdAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "webhookworks",
+    "key": {
+      "status": 1,
+      "staffReviewAlertRecorded": 1,
+      "updatedAt": 1,
+      "_id": 1
     },
     "options": {}
   }

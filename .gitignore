@@ -59,3 +59,10 @@ voice-concurrency-certification-*.json
 # Generated verification output
 /coverage-diff-release/
 /browser-results/
+
+# Private capacity evidence and generated deployment material
+scale-reports/
+scale-evidence/
+scale-soak-*/
+scale-deployment.json
+staging-browser-report.json

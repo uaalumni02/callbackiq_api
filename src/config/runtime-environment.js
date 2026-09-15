@@ -66,6 +66,7 @@ const VALID_PROCESS_ROLES = new Set([
   "worker-maintenance",
   "worker-voice-usage",
   "worker-lifecycle",
+  "worker-ops",
 ]);
 
 export const getProcessRole = (env = process.env) =>

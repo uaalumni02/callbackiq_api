@@ -1,5 +1,29 @@
 import jwt from "jsonwebtoken";
 import request from "supertest";
+import nodemailer from "nodemailer";
+
+// Keep the real notification service and templates; isolate only SMTP.
+jest.mock("nodemailer", () => ({
+  __esModule: true,
+  default: { createTransport: jest.fn() },
+}));
+const mockSendMail = jest.fn();
+const priorMailEnv = Object.fromEntries(
+  ["GMAIL_ADDRESS", "GMAIL_PASSWORD", "DEMO_NOTIFICATION_EMAIL"].map(key => [key, process.env[key]]),
+);
+beforeEach(() => {
+  process.env.GMAIL_ADDRESS = "demo-sender@example.test";
+  process.env.GMAIL_PASSWORD = "inert-test-password";
+  process.env.DEMO_NOTIFICATION_EMAIL = "demo-admin@example.test";
+  mockSendMail.mockReset().mockResolvedValue({ accepted: ["demo-admin@example.test"], messageId: "test-demo-mail" });
+  nodemailer.createTransport.mockReset().mockReturnValue({ sendMail: mockSendMail });
+});
+afterAll(() => {
+  for (const [key, value] of Object.entries(priorMailEnv)) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+});
 
 import app from "../../src/app.js";
 import DemoRequest from "../../src/models/demoRequest.js";
@@ -8,6 +32,7 @@ import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testDb.js";
 
 beforeAll(async () => {
   await connectTestDB();
+  await Promise.all([DemoRequest.init(), User.init()]);
 }, 60_000);
 
 afterEach(async () => {
@@ -90,6 +115,11 @@ describe("Demo Request Routes", () => {
       .post("/api/demo-requests")
       .send(createDemoRequestPayload());
 
+    expect(mockSendMail).toHaveBeenCalledTimes(1);
+    expect(mockSendMail).toHaveBeenCalledWith(expect.objectContaining({
+      to: "demo-admin@example.test",
+      subject: expect.stringContaining("Atlanta Pro Plumbing"),
+    }));
     expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
     expect(res.body.data.fullName).toBe("John Smith");

@@ -98,6 +98,8 @@ const AlertSchema = new Schema(
 );
 
 AlertSchema.index({ business: 1, createdAt: -1 });
+AlertSchema.index({ actionRequired: 1, resolvedAt: 1, acknowledgedAt: 1, dueAt: 1, _id: 1 });
+AlertSchema.index({ actionRequired: 1, resolvedAt: 1, acknowledgedAt: 1, priority: 1, createdAt: 1, _id: 1 });
 AlertSchema.index({ business: 1, readAt: 1, createdAt: -1 });
 AlertSchema.index({ business: 1, status: 1, createdAt: -1 });
 AlertSchema.index({

@@ -11,6 +11,7 @@ const BLOCKED_PROVIDER_SUFFIXES = Object.freeze([
   "openai.com",
   "googleapis.com",
   "resend.com",
+  "pagerduty.com",
 ]);
 
 const BLOCKED_PROVIDER_HOSTS = new Set([

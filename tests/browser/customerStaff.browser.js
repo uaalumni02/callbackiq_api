@@ -76,7 +76,7 @@ beforeAll(async () => {
   browser = await chromium.launch({ headless: true });
   context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   // Confirm the seeded owner can reach protected data before testing UI flows.
-  const accessProbe = await api('/call-logs');
+  const accessProbe = await api('/calls');
   expect(accessProbe).toMatchObject({ status: 200 });
   page = await context.newPage();
   page.on('pageerror', error => failures.push(error.message));
@@ -174,14 +174,14 @@ test('owner can approve, reschedule and cancel a policy-checked customer hold th
   expect(await AppointmentNotificationJob.countDocuments({appointment:hold._id})).toBeGreaterThan(0);
   await page.getByRole('button',{name:'Reschedule',exact:true}).click();
   const nextDay=new Date(Date.now()+4*86400000).toISOString().slice(0,10);
-  await page.getByLabel('Search from').fill(nextDay);
-  await page.getByLabel('Search through').fill(nextDay);
-  await page.getByRole('button',{name:'Check availability',exact:true}).click();
-  await page.waitForFunction(()=>document.querySelectorAll('select option').length>1);
-  const replacement=page.getByLabel('Open replacement time');
+  const reschedulePanel = page.locator('.owner-appointment-action-panel').filter({ has: page.getByText('Choose an open replacement time', { exact: true }) });
+  await reschedulePanel.getByLabel('Search from').fill(nextDay);
+  await reschedulePanel.getByLabel('Search through').fill(nextDay);
+  await reschedulePanel.getByRole('button',{name:'Check availability',exact:true}).click();
+  const replacement=reschedulePanel.getByLabel('Open replacement time');
   await replacement.locator('option').nth(1).waitFor({state:'attached'});
   await replacement.selectOption({index:1});
-  await page.getByRole('button',{name:'Reschedule to selected time'}).click();
+  await reschedulePanel.getByRole('button',{name:'Reschedule to selected time'}).click();
   await visible(page.getByText('Appointment rescheduled and confirmed.'));
   const original=await Appointment.findById(hold._id);
   expect(original.status).toBe('rescheduled');
@@ -189,16 +189,26 @@ test('owner can approve, reschedule and cancel a policy-checked customer hold th
   await visit(`/appointments?appointmentId=${original.rescheduledTo}`);
   await page.getByRole('button',{name:'Cancel',exact:true}).click();
   await page.getByLabel('Cancellation reason').fill('Customer requested cancellation');
+  const cancellationResponse = page.waitForResponse(response =>
+    new URL(response.url()).pathname === `/api/appointments/${original.rescheduledTo}/cancel` && response.request().method() === 'POST');
   await page.getByRole('button',{name:'Confirm cancellation'}).click();
-  await page.waitForLoadState('networkidle');
+  const canceled = await cancellationResponse;
+  expect(canceled.status()).toBe(200);
+  expect(await canceled.json()).toMatchObject({ success: true, data: { status: 'canceled' } });
+  await visible(page.getByText('Appointment canceled.', { exact: true }));
   expect((await Appointment.findById(original.rescheduledTo)).status).toBe('canceled');
 });
 
 test('setup persists a newly supported trade and shows clear trial wording', async () => {
   await visit('/setup');
   await page.locator('select[name="businessType"]').selectOption('appliance_repair');
+  expect(await page.locator('select[name="businessType"]').inputValue()).toBe('appliance_repair');
+  const savedResponse = page.waitForResponse(response => new URL(response.url()).pathname === '/api/businesses/mine' && response.request().method() === 'PATCH');
   await page.getByRole('button',{name:/continue|next/i}).click();
-  await page.waitForLoadState('networkidle');
+  const saved = await savedResponse;
+  expect(saved.request().postDataJSON()).toMatchObject({ businessType: 'appliance_repair' });
+  expect(saved.status()).toBe(200);
+  expect(await saved.json()).toMatchObject({ data: { businessType: 'appliance_repair' } });
   expect((await Business.findById(business._id)).businessType).toBe('appliance_repair');
   await visit('/setup?step=activate');
   await visible(page.getByText('Pro features, free for 14 days'));
@@ -212,7 +222,11 @@ test('mobile navigation works across both layout entry points', async () => {
     await visible(page.getByRole('link',{name:'Needs Attention'}));
     await page.keyboard.press('Escape');
     expect(await page.getByRole('button',{name:'Menu',exact:true}).getAttribute('aria-expanded')).toBe('false');
-    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+    const overflow = await page.evaluate(() => ({
+      viewport: innerWidth, width: document.documentElement.scrollWidth, scrollX: window.scrollX,
+      elements: Array.from(document.querySelectorAll('body *')).filter(node => node.getBoundingClientRect().right > innerWidth + 1).slice(0, 10).map(node => ({tag: node.tagName, className: node.className})),
+    }));
+    if (overflow.width > overflow.viewport + 1) throw new Error(`Mobile overflow: ${JSON.stringify({ route, ...overflow })}`);
   }
   await page.setViewportSize({width:1280,height:900});
 });

@@ -1,4 +1,5 @@
 import { blocksServiceAutomation } from '../services/serviceEligibility/policy.js';
+import { withDeadline } from '../services/boundedRedis.service.js';
 import { startStaffNotificationWorker, stopStaffNotificationWorker } from "./staffNotification.worker.js";
 import { recoverFailedSmsStaffReviews } from "../services/smsStaffReviewRecovery.service.js";
 import { escalateOverdueInterventions } from "../services/interventionEscalation.service.js";
@@ -249,7 +250,7 @@ const processConversation = async (conversation, now) => {
   return lease.acquired ? lease.value : "lease_busy";
 };
 
-export const runConversationLifecycleOnce = async ({ now = new Date(), limit = 100 } = {}) => {
+export const runConversationLifecycleOnce = async ({ now = new Date(), limit = Number(process.env.SMS_LIFECYCLE_BATCH_SIZE) || 100 } = {}) => {
   if (running) return { skipped: true, processed: 0 };
   running = true;
   try {
@@ -269,7 +270,11 @@ export const runConversationLifecycleOnce = async ({ now = new Date(), limit = 1
 
     let processed = 0;
     const outcomes = {};
-    for (const conversation of conversations) {
+    let next = 0;
+    const lanes = Math.max(1, Math.min(25, Number(process.env.SMS_LIFECYCLE_CONCURRENCY) || 1));
+    await Promise.all(Array.from({ length: lanes }, async () => {
+      while (next < conversations.length) {
+      const conversation = conversations[next++];
       let outcome;
       try { outcome = await processConversation(conversation, now); }
       catch (error) {
@@ -278,7 +283,8 @@ export const runConversationLifecycleOnce = async ({ now = new Date(), limit = 1
       }
       outcomes[outcome] = (outcomes[outcome] || 0) + 1;
       if (!["noop", "lease_busy"].includes(outcome)) processed += 1;
-    }
+      }
+    }));
     return { skipped: false, processed, scanned: conversations.length, outcomes };
   } finally {
     running = false;
@@ -303,10 +309,11 @@ export const startConversationLifecycleWorker = () => {
 };
 
 export const stopConversationLifecycleWorker = async () => {
-  await stopStaffNotificationWorker();
   if (timer) clearInterval(timer);
   timer = null;
-  running = false;
+  await stopStaffNotificationWorker();
+  await withDeadline((async () => { while (running) await new Promise(resolve => setTimeout(resolve, 25)); })(),
+    Number(process.env.WORKER_DRAIN_TIMEOUT_MS) || 120000, 'LIFECYCLE_DRAIN_TIMEOUT');
 };
 
 export default {

@@ -162,6 +162,30 @@ export const heartbeatInboundSmsJob = async ({ jobId, leaseToken }) => {
   );
 };
 
+// A crash on the last claimed attempt cannot be recovered by the ordinary
+// claim predicate. Fence against both a live owner and a concurrent completion.
+// Never send again here: the provider may already have accepted the operation.
+export const reconcileExhaustedInboundSmsJobs = async ({ now = new Date(), limit = 100 } = {}) => {
+  let recovered = 0;
+  for (let i = 0; i < Math.max(1, Math.min(500, Number(limit) || 100)); i++) {
+    const job = await SmsProcessingJob.findOneAndUpdate({
+      $expr: { $gte: ["$attemptCount", "$maxAttempts"] },
+      $or: [
+        { status: "processing", leaseExpiresAt: { $lte: now } },
+        { status: { $in: ["queued", "retry"] }, availableAt: { $lte: now } },
+      ],
+    }, {
+      $set: { status: "dead", deadAt: now, leaseToken: "", leaseExpiresAt: null,
+        lastError: "Retry budget exhausted after interruption; verify provider outcome before responding",
+        "result.recoveryReason": "exhausted_after_interruption",
+        "result.staffReviewAlertRecorded": false },
+    }, { sort: { availableAt: 1, _id: 1 }, returnDocument: "after" });
+    if (!job) break;
+    recovered++;
+  }
+  return { recovered };
+};
+
 export const reconcileOrphanedInboundSmsJobs = async ({
   limit = 100,
   horizonMs = 7 * 24 * 60 * 60 * 1000,
@@ -308,5 +332,6 @@ export default {
   heartbeatInboundSmsJob,
   deferInboundSmsJob,
   reconcileOrphanedInboundSmsJobs,
+  reconcileExhaustedInboundSmsJobs,
   getInboundSmsQueueHealth,
 };

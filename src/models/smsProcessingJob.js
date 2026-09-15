@@ -44,6 +44,8 @@ SmsProcessingJobSchema.index({
   createdAt: 1,
 });
 SmsProcessingJobSchema.index({ status: 1, leaseExpiresAt: 1 });
+SmsProcessingJobSchema.index({ status: 1, createdAt: 1 });
+SmsProcessingJobSchema.index({ status: 1, 'result.staffReviewAlertRecorded': 1, deadAt: 1, _id: 1 });
 
 const SmsProcessingJob =
   mongoose.models.SmsProcessingJob ||

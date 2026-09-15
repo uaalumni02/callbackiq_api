@@ -20,7 +20,12 @@ import {
   removeExpenseOverride,
 } from "../controllers/adminReporting.js";
 import rateLimit from "express-rate-limit";
+import { readScaleHealth } from '../services/scaleHealth.service.js';
 const router = express.Router();
+router.get('/scale-health', checkAuth, requireAdmin, rateLimit({ windowMs: 60000, limit: 30 }), async (req, res, next) => {
+  try { res.set('Cache-Control', 'no-store').json({ success: true, data: await readScaleHealth() }); }
+  catch (error) { next(error); }
+});
 router.put("/balances", checkAuth, requireAdmin, saveProviderBalance);
 router.delete(
   "/balances/:provider/manual",

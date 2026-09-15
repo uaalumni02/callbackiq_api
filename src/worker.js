@@ -1,4 +1,7 @@
 import { startAdminReportingWorker, stopAdminReportingWorker } from "./workers/adminReporting.worker.js";
+import { assertScaleProfile } from './config/scaleProfile.js';
+import { startProcessHeartbeat, stopProcessHeartbeat } from './services/processHeartbeat.service.js';
+import { startOperationsWorker, stopOperationsWorker } from './workers/operations.worker.js';
 import { safeConsole } from "./helpers/logging/safeLogger.js";
 import { startWebhookWorkWorker, stopWebhookWorkWorker } from "./workers/webhookWork.worker.js";
 import { Server } from "socket.io";
@@ -54,6 +57,7 @@ import {
 } from "./workers/voiceUsageReconciliation.worker.js";
 
 export const roleMap = {
+  "worker-ops": [["operations", startOperationsWorker, stopOperationsWorker]],
   worker: [
     ["admin-reporting", startAdminReportingWorker, stopAdminReportingWorker],
     ["a2p", startA2pReconciliationWorker, stopA2pReconciliationWorker],
@@ -111,6 +115,7 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const shutdown = async (signal, exitCode = 0) => {
   if (stopping) return;
   stopping = true;
+  await stopProcessHeartbeat();
   safeConsole.log(`Worker shutdown requested (${signal})`);
 
   for (const [name, stop] of activeStops.reverse()) {
@@ -156,6 +161,7 @@ export const startWorkerProcess = async ({
   normalizeRuntimeEnvironment();
   validateEnvironment(process.env, { throwOnError: true });
   assertRealtimeScalingConfig();
+  assertScaleProfile();
 
   const role = assertValidProcessRole();
   if (!workerRoles[role]) {
@@ -174,6 +180,7 @@ export const startWorkerProcess = async ({
   }
 
   safeConsole.log(`CallBackIQ worker process ready (${getProcessRole()})`);
+  startProcessHeartbeat();
 };
 
 const workerBootTestMode =

@@ -1,4 +1,6 @@
 import { startAdminReportingWorker, stopAdminReportingWorker } from "./workers/adminReporting.worker.js";
+import { assertScaleProfile } from './config/scaleProfile.js';
+import { startProcessHeartbeat, stopProcessHeartbeat } from './services/processHeartbeat.service.js';
 import { safeConsole } from "./helpers/logging/safeLogger.js";
 import { startWebhookWorkWorker, stopWebhookWorkWorker } from "./workers/webhookWork.worker.js";
 import { beginDrain } from "./services/runtimeState.service.js";
@@ -159,6 +161,7 @@ const shutdown = async (signal, exitCode = 0) => {
   if (isShuttingDown) return;
   isShuttingDown = true;
   beginDrain();
+  await stopProcessHeartbeat();
   conversationRelayServer.beginDrain();
   safeConsole.log(`${signal} received. Shutting down CallBackIQ API...`);
   const forcedExitTimer = setTimeout(() => {
@@ -217,6 +220,7 @@ const startServer = async () => {
   validateEnvironment(process.env, { throwOnError: true });
   assertServerProcessRole();
   assertRealtimeScalingConfig();
+  assertScaleProfile();
   startRuntimeMetricsLogging();
 await connectDB();
   await initializeSocketRedisAdapter(io);
@@ -244,6 +248,7 @@ await connectDB();
     startVoiceUsageReconciliationWorker();
   }
   httpServer.listen(port, () => {
+    startProcessHeartbeat();
     safeConsole.log(`Server running on http://localhost:${port}`);
     safeConsole.log("Socket.IO server initialized");
   });

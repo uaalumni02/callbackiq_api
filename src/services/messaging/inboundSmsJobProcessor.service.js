@@ -273,6 +273,7 @@ const persistOutboundReply = async ({
       claimed._id,
       {
         providerMessageId: sent?.sid || "",
+        ...(sent?.sid && !sent?.suppressed ? { providerAcceptedAt: new Date() } : {}),
         body: sent?.body || reply,
         status,
         deliveryStatus: status,

@@ -1,4 +1,5 @@
 // Server orchestration runs with socket, provider and worker boundaries mocked.
+jest.mock('../../src/services/processHeartbeat.service.js', () => ({ startProcessHeartbeat: jest.fn(), stopProcessHeartbeat: jest.fn() }));
 jest.mock("../../src/workers/adminReporting.worker.js",()=>({__esModule:true,startAdminReportingWorker: jest.fn(),stopAdminReportingWorker: jest.fn()}));
 jest.mock("../../src/helpers/logging/safeLogger.js",()=>({__esModule:true,safeConsole: jest.fn()}));
 jest.mock("../../src/workers/webhookWork.worker.js",()=>({__esModule:true,startWebhookWorkWorker: jest.fn(),stopWebhookWorkWorker: jest.fn()}));
@@ -31,7 +32,7 @@ jest.mock('mongoose',()=>({__esModule:true,default:{connection:{readyState:0,clo
 jest.mock('http',()=>({createServer:jest.fn()}));
 jest.mock('socket.io',()=>({Server:jest.fn()}));
 test('SIGTERM waits for lifecycle shutdown before closing voice and exiting',async()=>{
- const http={listen:jest.fn(),on:jest.fn(),listening:false};require('http').createServer.mockReturnValue(http);
+ const http={listen:jest.fn((port,callback)=>callback()),on:jest.fn(),listening:false};require('http').createServer.mockReturnValue(http);
  const io={use:jest.fn(),on:jest.fn(),close:jest.fn(cb=>cb())};require('socket.io').Server.mockImplementation(()=>io);
  require('../../src/services/socket.service.js').default.initialize=jest.fn();
  require('../../src/helpers/logging/safeLogger.js').safeConsole={log:jest.fn(),error:jest.fn()};
@@ -42,6 +43,7 @@ test('SIGTERM waits for lifecycle shutdown before closing voice and exiting',asy
  const exit=jest.spyOn(process,'exit').mockImplementation(()=>{});const prior=process.env.VOICE_RELAY_ENABLED;process.env.VOICE_RELAY_ENABLED='true';
  try {
   require('../../src/server.js');await new Promise(r=>setImmediate(r));
+  expect(require('../../src/services/processHeartbeat.service.js').startProcessHeartbeat).toHaveBeenCalledTimes(1);
   handlers.SIGTERM();await new Promise(r=>setImmediate(r));
   expect(lifecycle.stopConversationLifecycleWorker).toHaveBeenCalledTimes(1);expect(relay.close).not.toHaveBeenCalled();expect(exit).not.toHaveBeenCalled();
   release();await new Promise(r=>setImmediate(r));expect(relay.close).toHaveBeenCalledTimes(1);expect(exit).toHaveBeenCalledWith(0);
