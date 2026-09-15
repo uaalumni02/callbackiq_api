@@ -1,3 +1,4 @@
+import { queryFailure } from "../services/scale/queryBudget.js";
 import { safeConsole } from "../helpers/logging/safeLogger.js";
 import mongoose from "mongoose";
 
@@ -115,6 +116,7 @@ const createOrReuseConversation = async ({ businessId, payload }) => {
         business: businessId,
       });
     } catch (error) {
+      if (queryFailure(error)) return res.status(503).set("Retry-After", "2").json({ success: false, code: "QUERY_BUDGET_EXCEEDED", message: "This view is busy. Please retry or narrow your search." });
       if (Number(error?.code) !== 11000) throw error;
       existingConversation = await findExisting();
       if (!existingConversation) throw error;
@@ -280,6 +282,7 @@ class ConversationController {
         data: payload,
       });
     } catch (error) {
+      if (queryFailure(error)) return res.status(503).set("Retry-After", "2").json({ success: false, code: "QUERY_BUDGET_EXCEEDED", message: "This view is busy. Please retry or narrow your search." });
       if (error.isJoi) {
         return Response.responseInvalidInput(res, error.message);
       }
@@ -314,6 +317,7 @@ class ConversationController {
 
       return Response.responseOk(res, payload, "Conversations fetched");
     } catch (error) {
+      if (queryFailure(error)) return res.status(503).set("Retry-After", "2").json({ success: false, code: "QUERY_BUDGET_EXCEEDED", message: "This view is busy. Please retry or narrow your search." });
       safeConsole.error("Error in getMyConversations:", error);
       return Response.responseServerError(res);
     }
@@ -336,6 +340,7 @@ class ConversationController {
         "Conversation fetched",
       );
     } catch (error) {
+      if (queryFailure(error)) return res.status(503).set("Retry-After", "2").json({ success: false, code: "QUERY_BUDGET_EXCEEDED", message: "This view is busy. Please retry or narrow your search." });
       safeConsole.error("Error in getConversationById:", error);
       return Response.responseServerError(res);
     }
@@ -404,6 +409,7 @@ class ConversationController {
         "Conversation updated successfully",
       );
     } catch (error) {
+      if (queryFailure(error)) return res.status(503).set("Retry-After", "2").json({ success: false, code: "QUERY_BUDGET_EXCEEDED", message: "This view is busy. Please retry or narrow your search." });
       safeConsole.error("Error in updateConversation:", error);
       return Response.responseServerError(res);
     }
@@ -461,6 +467,7 @@ class ConversationController {
         "Conversation archived successfully",
       );
     } catch (error) {
+      if (queryFailure(error)) return res.status(503).set("Retry-After", "2").json({ success: false, code: "QUERY_BUDGET_EXCEEDED", message: "This view is busy. Please retry or narrow your search." });
       safeConsole.error("Error in archiveConversation:", error);
       return Response.responseServerError(res);
     }
@@ -519,6 +526,7 @@ class ConversationController {
         "Conversation restored successfully",
       );
     } catch (error) {
+      if (queryFailure(error)) return res.status(503).set("Retry-After", "2").json({ success: false, code: "QUERY_BUDGET_EXCEEDED", message: "This view is busy. Please retry or narrow your search." });
       safeConsole.error("Error in restoreConversation:", error);
       return Response.responseServerError(res);
     }
@@ -564,6 +572,7 @@ class ConversationController {
         message: "Conversation deleted successfully",
       });
     } catch (error) {
+      if (queryFailure(error)) return res.status(503).set("Retry-After", "2").json({ success: false, code: "QUERY_BUDGET_EXCEEDED", message: "This view is busy. Please retry or narrow your search." });
       safeConsole.error("Error in deleteConversation:", error);
       return Response.responseServerError(res);
     }

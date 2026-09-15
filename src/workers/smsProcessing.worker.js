@@ -1,3 +1,4 @@
+import { withSmsTenantSlot, recordSmsProcessingDuration, recordSmsTenantDeferral } from "../services/scale/smsTenantFairness.service.js";
 import { withDeadline } from "../services/boundedRedis.service.js";
 import { withDistributedLease, assertDistributedLeaseActive, invalidateDistributedLease, registerDistributedLeaseGuard } from "../services/distributedLease.service.js";
 // CALLBACKIQ_SCALE_HARDENING_V1
@@ -94,7 +95,7 @@ const processWithHeartbeat = async (job) => {
   }
 };
 
-const processClaimedJob = async (job) => {
+const processConversationJob = async (job) => {
   try {
     const lease = await withDistributedLease(
       `sms-conversation:${job.conversation}`,
@@ -154,6 +155,19 @@ const processClaimedJob = async (job) => {
   }
 };
 
+const processClaimedJob = async (job) => {
+  const admitted = await withSmsTenantSlot(job.business, async () => {
+    const started = performance.now();
+    try { return await processConversationJob(job); }
+    finally { recordSmsProcessingDuration(performance.now() - started); }
+  });
+  if (!admitted.acquired) {
+    recordSmsTenantDeferral();
+    await deferInboundSmsJob({ jobId: job._id, leaseToken: job.leaseToken,
+      delayMs: 500 + Math.floor(Math.random() * 1000), reason: "tenant_concurrency_limit" });
+  }
+};
+
 export const drainSmsProcessingQueueOnce = async () => {
   if (running) return { processed: 0, skipped: true };
   running = true;
@@ -163,6 +177,7 @@ export const drainSmsProcessingQueueOnce = async () => {
   const laneCount = Math.min(concurrency(), maxJobs);
   let nextSlot = 0;
   let processed = 0;
+  const servedBusinesses = new Set();
 
   const runLane = async () => {
     while (true) {
@@ -170,8 +185,13 @@ export const drainSmsProcessingQueueOnce = async () => {
       nextSlot += 1;
       if (slot >= maxJobs || generation !== stopGeneration) return;
 
-      const job = await claimNextInboundSmsJob();
+      let job = await claimNextInboundSmsJob({ excludeBusinesses: [...servedBusinesses] });
+      if (!job && servedBusinesses.size) {
+        servedBusinesses.clear();
+        job = await claimNextInboundSmsJob();
+      }
       if (!job) return;
+      servedBusinesses.add(String(job.business));
 
       processed += 1;
       await processClaimedJob(job);
@@ -179,9 +199,9 @@ export const drainSmsProcessingQueueOnce = async () => {
   };
 
   try {
-    await Promise.all(
-      Array.from({ length: laneCount }, () => runLane()),
-    );
+    const outcomes = await Promise.allSettled(Array.from({ length: laneCount }, () => runLane()));
+    const failure = outcomes.find(item => item.status === "rejected");
+    if (failure) throw failure.reason;
   } finally {
     running = false;
   }

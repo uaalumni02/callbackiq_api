@@ -1,3 +1,4 @@
+import { sizeSmsWorkers } from '../../scripts/scale-sms-sizing.mjs';
 import fs from 'node:fs/promises';
 const image = process.env.SCALE_IMAGE;
 const sha = process.env.RELEASE_SHA;
@@ -19,14 +20,27 @@ for (const row of rows) {
     row[1] = count;
   }
 }
+const smsSizing = process.env.SCALE_SMS_PROCESSING_P95_MS ? sizeSmsWorkers({
+  jobsPerSecond: Number(process.env.SCALE_SMS_JOBS_PER_SECOND), processingP95Ms: Number(process.env.SCALE_SMS_PROCESSING_P95_MS),
+  lanes: 25, utilization: Number(process.env.SCALE_SMS_TARGET_UTILIZATION || .65), spareReplicas: 1,
+}) : null;
+if (smsSizing && rows.find(x => x[0] === 'worker-sms')[1] < smsSizing.requiredReplicas) throw new Error(`SMS sizing requires at least ${smsSizing.requiredReplicas} replicas for the supplied measurements`);
+const autoscale = process.env.SCALE_AUTOSCALING_ENABLED === 'true';
+if (autoscale && process.env.SCALE_SMS_METRICS_ADAPTER_READY !== 'true') throw new Error('SMS autoscaling requires an installed external metrics adapter for callbackiq_sms_oldest_job_age_seconds');
+const maxima = new Map(rows.map(([role, replicas]) => [role, replicas]));
+if (autoscale) for (const role of ['api', 'worker-sms']) {
+  const maximum = Number(process.env[`SCALE_MAX_REPLICAS_${role.toUpperCase().replaceAll('-', '_')}`]);
+  if (!Number.isInteger(maximum) || maximum < maxima.get(role) || maximum > 100) throw new Error(`Declare a valid autoscaling maximum for ${role}`);
+  maxima.set(role, maximum);
+}
 // Include one surge pod for EVERY deployment plus 50 operator/migration connections.
-const connections = rows.reduce((n, [, count, pool]) => n + (count + 1) * pool, 50);
+const connections = rows.reduce((n, [role, , pool]) => n + (maxima.get(role) + 1) * pool, 50);
 const config = { NODE_ENV: 'production', SCALE_PROFILE: 'business-1000-voice-350',
   SCALE_TARGET_BUSINESSES: '1001', SCALE_TARGET_VOICE: '350', SCALE_VOICE_REPLICAS: '6', SCALE_SMS_REPLICAS: '12', API_INSTANCE_COUNT: '4',
   VOICE_INSTANCE_MAX_SESSIONS: '100', VOICE_INSTANCE_MAX_PENDING: '100', VOICE_INSTANCE_MAX_AI_TURNS: '75',
   VOICE_FLEET_MAX_SESSIONS: '450', VOICE_FLEET_MAX_AI_TURNS: '400', VOICE_TURN_QUEUE_WAIT_MS: '1000', VOICE_TURN_QUEUE_MAX: '100',
   VOICE_DRAIN_TIMEOUT_MS: '610000', DEPLOY_TERMINATION_GRACE_MS: '660000', WORKER_DRAIN_TIMEOUT_MS: '120000',
-  SMS_PROCESSING_CONCURRENCY: '25', SMS_PROCESSING_BATCH_SIZE: '100', SMS_LIFECYCLE_CONCURRENCY: '10', SMS_LIFECYCLE_BATCH_SIZE: '250', SMS_LIFECYCLE_INTERVAL_MS: '15000',
+  SMS_PROCESSING_CONCURRENCY: '25', SMS_TENANT_MAX_CONCURRENCY: '5', OWNER_QUERY_MAX_TIME_MS: '3000', SCALE_CACHE_MAX_LOADERS: '8', SMS_PROCESSING_BATCH_SIZE: '100', SMS_LIFECYCLE_CONCURRENCY: '10', SMS_LIFECYCLE_BATCH_SIZE: '250', SMS_LIFECYCLE_INTERVAL_MS: '15000',
   SOCKET_REDIS_REQUIRED: 'true', SCALE_CACHE_NAMESPACE: `callbackiq:${namespace}`, COMMUNICATION_ROUTE_RATE_LIMIT_FAIL_CLOSED: 'true',
   RECOVERY_SMS_ASYNC_ENABLED: 'true', STAFF_NOTIFICATION_EMAIL_ENABLED: 'true', OPS_PAGING_ENABLED: 'true',
   RUNTIME_METRICS_LOG_ENABLED: 'true', MONGO_MIN_POOL_SIZE: '2', MONGO_MAX_CONNECTING: '4',
@@ -58,6 +72,13 @@ for (const [role, replicas, pool, cpu, memory] of rows) {
         livenessProbe: { ...live, periodSeconds: 10, timeoutSeconds: 4, failureThreshold: 6 },
       }], volumes: [{ name: 'tmp', emptyDir: { sizeLimit: '128Mi' } }] } },
   } });
+  if (autoscale && ['api', 'worker-sms'].includes(role)) items.push({ apiVersion: 'autoscaling/v2', kind: 'HorizontalPodAutoscaler',
+    metadata: { name: `callbackiq-${role}`, namespace }, spec: { scaleTargetRef: { apiVersion: 'apps/v1', kind: 'Deployment', name: `callbackiq-${role}` },
+      minReplicas: replicas, maxReplicas: maxima.get(role),
+      metrics: role === 'api' ? [{ type: 'Resource', resource: { name: 'cpu', target: { type: 'Utilization', averageUtilization: 65 } } }]
+        : [{ type: 'External', external: { metric: { name: 'callbackiq_sms_oldest_job_age_seconds', selector: { matchLabels: { deployment: namespace } } }, target: { type: 'Value', value: '5' } } }],
+      behavior: { scaleDown: { stabilizationWindowSeconds: 600, policies: [{ type: 'Pods', value: 1, periodSeconds: 60 }] }, scaleUp: { stabilizationWindowSeconds: 0 } },
+    } });
   items.push({ apiVersion: 'policy/v1', kind: 'PodDisruptionBudget', metadata: { name: `callbackiq-${role}`, namespace }, spec: { maxUnavailable: 1, selector: { matchLabels: labels } } });
   if (!worker) items.push({ apiVersion: 'v1', kind: 'Service', metadata: { name: `callbackiq-${role}`, namespace }, spec: {
     selector: labels, ports: [{ port: 3000, targetPort: 3000 }],
@@ -74,4 +95,4 @@ items.push({ apiVersion: 'networking.k8s.io/v1', kind: 'Ingress', metadata: { na
   ['/api/twilio/tracking-call-complete', 'Exact', 'voice'], ['/', 'Prefix', 'api'],
 ].map(([path, pathType, role]) => ({ path, pathType, backend: { service: { name: `callbackiq-${role}`, port: { number: 3000 } } } })) } }] } });
 await fs.writeFile(output, JSON.stringify({ apiVersion: 'v1', kind: 'List', items }, null, 2) + '\n');
-console.log(JSON.stringify({ output, mongoConnectionsIncludingSurge: connections, note: 'Sizing is a starting configuration, not certified throughput. Secrets and ingress must be configured before applying.' }));
+console.log(JSON.stringify({ output, mongoConnectionsIncludingSurge: connections, smsSizing, autoscalingEnabled: autoscale, note: 'Sizing is a starting configuration, not certified throughput. Secrets and ingress must be configured before applying.' }));

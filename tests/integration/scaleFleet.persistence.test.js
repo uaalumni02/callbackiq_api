@@ -11,7 +11,8 @@ import { reconcileExhaustedInboundSmsJobs, completeInboundSmsJob } from '../../s
 import { recoverFailedSmsStaffReviews } from '../../src/services/smsStaffReviewRecovery.service.js';
 import { setOpsIncident, dispatchOpsEvents } from '../../src/services/opsPaging.service.js';
 jest.mock('../../src/services/socket.service.js', () => ({ __esModule: true, default: { emitAlertCreated: jest.fn(), emitAlertUpdated: jest.fn(), emitDashboardRefresh: jest.fn() } }));
-beforeAll(async () => { await connectTestDB(); await Promise.all([Job.init(), Alert.init(), Incident.init()]); }, 120000);
+let mongoUrl;
+beforeAll(async () => { mongoUrl = await connectTestDB(); await Promise.all([Job.init(), Alert.init(), Incident.init()]); }, 120000);
 afterEach(async () => { delete process.env.OPS_PAGING_ENABLED; if (mongoose.connection.readyState === 1) await clearTestDB(); });
 afterAll(async () => { if (mongoose.connection.readyState === 1) await closeTestDB(); });
 const oid = () => new mongoose.Types.ObjectId();
@@ -29,7 +30,7 @@ test('parallel sweepers move one exhausted job to review without changing a live
 test('SIGKILL after final claim is recovered and produces one linked staff review', async () => {
   const job = await fixture({ status: 'retry', attemptCount: 4, maxAttempts: 5, availableAt: new Date(0) });
   const child = fork(path.resolve('tests/fixtures/claim-final-sms.mjs'), [], { env: { ...process.env,
-    SCALE_CRASH_TEST_MONGO: `mongodb://${mongoose.connection.host}:${mongoose.connection.port}/${mongoose.connection.name}`, NODE_ENV: 'test' }, stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
+    SCALE_CRASH_TEST_MONGO: mongoUrl, NODE_ENV: 'test' }, stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
   try {
     await new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('Crash fixture did not claim')), 20000);

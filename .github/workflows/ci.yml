@@ -53,6 +53,9 @@ jobs:
       - name: Verify scale indexes and focused regressions
         run: npm run verify:index-manifest && npm run test:scale-readiness && npm run test:durable-persistence && npm run test:scale-release && npm run test:scale-fleet && npm run test:scale-fleet:persistence
 
+      - name: Verify bounded owner reads and SMS tenant fairness
+        run: npm run test:scale-query-fixes && npm run test:scale-query-fixes:persistence
+
       - name: Run complete deterministic release certification
         env:
           NODE_OPTIONS: --max-old-space-size=4096

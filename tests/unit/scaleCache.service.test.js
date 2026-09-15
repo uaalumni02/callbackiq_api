@@ -80,3 +80,18 @@ describe("scaleCache.service", () => {
     expect(calls).toBe(2);
   });
 });
+
+it('bounds database loader fan-out across different cold keys', async () => {
+  const env = { ...process.env };
+  process.env.SCALE_CACHE_ENABLED = 'true'; process.env.SCALE_CACHE_MAX_LOADERS = '2';
+  delete process.env.REDIS_URL; delete process.env.SOCKET_REDIS_URL; delete process.env.SCALE_CACHE_REDIS_URL;
+  clearLocalScaleCache();
+  let release; const gate = new Promise(resolve => { release = resolve; }); let started = 0;
+  try {
+    const requests = Array.from({ length: 6 }, (_, i) => getOrLoadScaleCache({ key: `fanout:${i}`, loader: async () => { started++; await gate; return i; } }));
+    const settled = Promise.allSettled(requests);
+    await new Promise(resolve => setImmediate(resolve)); expect(started).toBe(2); release();
+    const results = await settled;
+    expect(results.filter(x => x.status === 'rejected')).toHaveLength(4);
+  } finally { release(); clearLocalScaleCache(); process.env = env; }
+});

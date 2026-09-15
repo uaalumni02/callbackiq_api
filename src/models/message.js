@@ -152,6 +152,10 @@ MessageSchema.pre("validate", function validateMessageContent() {
 /*
  * Supports loading a complete transcript in chronological order.
  */
+// Bounded owner read and related-record lookup indexes. Additive migration only.
+MessageSchema.index({ business: 1, lead: 1, createdAt: -1, _id: -1 });
+MessageSchema.index({ business: 1, conversation: 1, createdAt: -1, _id: -1 });
+MessageSchema.index({ business: 1, createdAt: -1, _id: -1 });
 MessageSchema.index({
   conversation: 1,
   createdAt: 1,

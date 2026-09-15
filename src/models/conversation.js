@@ -257,6 +257,10 @@ for (const operation of ["find", "findOne", "countDocuments", "findOneAndDelete"
   conversationSchema.pre(operation, normalizeConversationPhoneFilter);
 }
 
+// Bounded owner read and related-record lookup indexes. Additive migration only.
+conversationSchema.index({ business: 1, lead: 1, status: 1 });
+conversationSchema.index({ business: 1, lead: 1, lastMessageAt: -1, updatedAt: -1, _id: -1 });
+conversationSchema.index({ business: 1, createdAt: -1, _id: -1 });
 conversationSchema.index({
   business: 1,
   status: 1,

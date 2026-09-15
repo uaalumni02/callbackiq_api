@@ -75,6 +75,10 @@ const ConversionEventSchema = new Schema(
   { timestamps: true },
 );
 
+// Bounded owner read and related-record lookup indexes. Additive migration only.
+ConversionEventSchema.index({ business: 1, lead: 1, createdAt: -1, _id: -1 });
+ConversionEventSchema.index({ business: 1, conversation: 1, createdAt: -1, _id: -1 });
+ConversionEventSchema.index({ business: 1, createdAt: -1, _id: -1 });
 ConversionEventSchema.index({ business: 1, occurredAt: -1, type: 1 });
 // CALLBACKIQ_ATTRIBUTION_10OF10_FULL_V2: equality fields precede the range field.
 ConversionEventSchema.index({ business: 1, type: 1, occurredAt: -1 });

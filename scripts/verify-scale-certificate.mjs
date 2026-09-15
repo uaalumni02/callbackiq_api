@@ -16,13 +16,13 @@ for (const name of files || []) {
   if (!r.runId || runIds.has(r.runId)) errors.push(`${name}: missing or duplicate run ID`);
   runIds.add(r.runId);
   if (r.apiSha !== evidence.apiSha || r.uiSha !== evidence.uiSha) errors.push('Report release mismatch');
-  errors.push(...validateMixedReport(r).map(x => `${name}: ${x}`));
+  errors.push(...validateMixedReport(r, { requireOwnerReads: true }).map(x => `${name}: ${x}`));
   testedMs += Number(r.durationMs) || 0;
 }
 if (testedMs < 3600000) errors.push('At least 60 minutes of passing mixed cohorts required');
 const required = ['continuousLiveSoak', 'burst350', 'workerKillFinalAttempt', 'voiceGracefulDrain', 'voiceAbruptFailure', 'redisOutage', 'mongoFailover',
   'provider429AndTimeout', 'webhookReplay', 'crossTenantAccess', 'ownerEmailAndOpsPaging', 'noStaffResponse',
-  'realHandsetVoiceAndSms', 'realCalendarApprovalRescheduleCancel', 'realBillingTrialAndExpired', 'realMobileLogin', 'backupRestore', 'ingressWebsocketAndProxy', 'providerQuotaReview'];
+  'realHandsetVoiceAndSms', 'realCalendarApprovalRescheduleCancel', 'realBillingTrialAndExpired', 'realMobileLogin', 'backupRestore', 'ingressWebsocketAndProxy', 'providerQuotaReview', 'noisySmsTenant', 'largeHistoryQueries', 'coldCacheReplicaRefresh', 'smsWorkerSizing'];
 for (const name of required) {
   const item = evidence.checks?.[name];
   const when = Date.parse(item?.observedAt);

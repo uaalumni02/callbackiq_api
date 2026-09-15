@@ -30,11 +30,13 @@ const makeChain = (documents) => {
     sort: jest.fn(),
     limit: jest.fn(),
     populate: jest.fn(),
+    maxTimeMS: jest.fn(),
     lean: jest.fn(),
   };
   chain.sort.mockReturnValue(chain);
   chain.limit.mockReturnValue(chain);
   chain.populate.mockReturnValue(chain);
+  chain.maxTimeMS.mockReturnValue(chain);
   chain.lean.mockResolvedValue(documents);
   return chain;
 };
@@ -55,10 +57,12 @@ describe("cursor pagination", () => {
       { _id: id(2), createdAt: new Date("2026-01-02") },
       { _id: id(1), createdAt: new Date("2026-01-01") },
     ];
-    Lead.find.mockReturnValue(makeChain(documents));
+    const query = makeChain(documents);
+    Lead.find.mockReturnValue(query);
 
     const first = await getLeadsPage("biz", { limit: "2" });
     expect(first.items).toHaveLength(2);
+    expect(query.maxTimeMS).toHaveBeenCalledWith(3000);
     expect(first.hasMore).toBe(true);
     expect(first.nextCursor).toEqual(expect.any(String));
 

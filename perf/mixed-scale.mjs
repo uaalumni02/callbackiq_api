@@ -1,3 +1,4 @@
+import { exerciseOwnerReads, OWNER_READ_ROUTES } from './owner-read-workload.mjs';
 // Full acceptance cohort: real DB/provider outcomes, signed webhooks, authenticated tenants.
 import 'dotenv/config';
 import fs from 'node:fs/promises';
@@ -9,6 +10,7 @@ import { percentile, validateMixedReport } from './acceptance.mjs';
 const env = process.env;
 if (env.SCALE_ALLOW_STAGING_LOAD !== 'true') throw new Error('Dedicated staging load requires SCALE_ALLOW_STAGING_LOAD=true; provider costs apply.');
 const tenants = JSON.parse(await fs.readFile(env.SCALE_TENANTS_FILE, 'utf8'));
+if (Array.isArray(tenants) && tenants.some(t => !/^[a-f0-9]{24}$/i.test(t.probeLeadId || '') || !t.probeSearch)) throw new Error('Supply probeLeadId and probeSearch for every staging tenant, with 1000+ leads per tenant and 21+ messages on the probe customer.');
 if (!Array.isArray(tenants) || tenants.length < 1001 || new Set(tenants.map(t => t.businessId)).size !== tenants.length || new Set(tenants.map(t => t.to)).size !== tenants.length || tenants.some(t => !t.businessId || !/^\+\d{10,15}$/.test(t.to) || !/^\+\d{10,15}$/.test(t.from) || !t.token)) throw new Error('Supply 1001+ distinct tenants with businessId, to, authorized from, and owner token.');
 for (const name of ['SCALE_API_URL', 'VOICE_LOAD_HTTP_TARGET', 'TWILIO_AUTH_TOKEN', 'SCALE_ADMIN_TOKEN', 'SCALE_API_SHA', 'SCALE_UI_SHA']) if (!env[name]) throw new Error(`${name} is required`);
 const duration = Number(env.SCALE_DURATION_MS || 300000), voiceCount = Number(env.SCALE_VOICE_SESSIONS || 350);
@@ -19,6 +21,7 @@ await fs.mkdir(output, { recursive: true, mode: 0o700 });
 const file = name => path.join(output, name);
 const base = env.SCALE_API_URL.replace(/\/$/, '');
 const sockets = [], reads = [], children = [];
+const ownerReads = Object.fromEntries(OWNER_READ_ROUTES.map(name => [name, { durations: [], failures: 0 }]));
 let failures = 0, minimumDashboards = tenants.length, stopping = false, sampleTimer;
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const get = async (url, token) => {
@@ -73,7 +76,12 @@ try {
     await delay(index * 10000 / tenants.length);
     while (!stopping && performance.now() < deadline) {
       const began = performance.now();
-      try { await get('/api/owner/dashboard', tenant.token); reads.push(performance.now() - began); }
+      try {
+        await get('/api/owner/dashboard', tenant.token); reads.push(performance.now() - began);
+        await exerciseOwnerReads({ get, tenant, observe: (name, ms, ok) => {
+          ownerReads[name].durations.push(ms); if (!ok) ownerReads[name].failures++;
+        } });
+      }
       catch { failures++; }
       await delay(Math.max(0, Math.min(10000, deadline - performance.now())));
     }
@@ -86,11 +94,12 @@ try {
   const after = (await get('/api/admin/scale-health', env.SCALE_ADMIN_TOKEN)).data;
   if (!after.healthy || after.releases.some(x => x !== env.SCALE_API_SHA)) failures++;
   report = { ...report, before, after, minimumDashboards, failures, childExitCodes,
+    ownerReads: Object.fromEntries(Object.entries(ownerReads).map(([name, row]) => [name, { count: row.durations.length, failures: row.failures, p95Ms: percentile(row.durations, .95), p99Ms: percentile(row.durations, .99) }])),
     dashboardP95Ms: percentile(reads, .95), successfulDashboardReads: reads.length,
     voice: JSON.parse(await fs.readFile(file('voice.json'), 'utf8')),
     sms: JSON.parse(await fs.readFile(file('sms.json'), 'utf8')),
     outcomes: JSON.parse(await fs.readFile(file('outcomes.json'), 'utf8')) };
-  report.acceptanceErrors = validateMixedReport(report, { voice: voiceCount, durationMs: duration });
+  report.acceptanceErrors = validateMixedReport(report, { voice: voiceCount, durationMs: duration, requireOwnerReads: true });
 } catch (error) {
   // Do not serialize URLs, response payloads, tokens, or provider data.
   report.acceptanceErrors = ['workload_incomplete']; report.failure = String(error.message).slice(0, 200);

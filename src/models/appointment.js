@@ -188,6 +188,10 @@ AppointmentSchema.pre("validate", function validateTimes() {
   }
 });
 
+// Bounded owner read and related-record lookup indexes. Additive migration only.
+AppointmentSchema.index({ business: 1, lead: 1, status: 1 });
+AppointmentSchema.index({ business: 1, lead: 1, createdAt: -1, _id: -1 });
+AppointmentSchema.index({ business: 1, createdAt: -1, _id: -1 });
 AppointmentSchema.index({ business: 1, startAt: 1, status: 1 });
 AppointmentSchema.index(
   { business: 1, idempotencyKey: 1 },

@@ -81,6 +81,8 @@ class OwnerExperienceController {
         search: req.query.search || "",
         limit: req.query.limit || 50,
         skip: req.query.skip || 0,
+        cursor: req.query.cursor,
+        includeSummary: req.query.includeSummary !== "false",
       });
       return res.status(200).json({ success: true, data });
     } catch (error) {

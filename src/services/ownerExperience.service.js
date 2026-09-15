@@ -1,3 +1,4 @@
+import { queryOwnerOpportunities } from "./scale/ownerOpportunityQuery.service.js";
 import { intakeReviewVersion, manualIntakeSubmitted } from "./booking/intakeReviewContext.service.js";
 import mongoose from "mongoose";
 import Alert from "../models/alert.js";
@@ -81,9 +82,6 @@ const URGENCY_RANK = {
   medium: 2,
   low: 1,
 };
-
-const escapeRegex = (value) =>
-  String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const ownerInterventionFilter = (businessId) => ({
   business: businessId,
@@ -486,16 +484,6 @@ const serializeOpportunity = ({
   };
 };
 
-const latestByLead = (documents) => {
-  const map = new Map();
-  for (const document of documents) {
-    const leadId = document?.lead?._id || document?.lead;
-    if (!leadId) continue;
-    const key = String(leadId);
-    if (!map.has(key)) map.set(key, document);
-  }
-  return map;
-};
 
 const attentionPreview = async (businessId, limit = 5) => {
   const alerts = await Alert.find(ownerInterventionFilter(businessId))
@@ -734,254 +722,21 @@ class OwnerExperienceService {
     });
   }
 
-  static async opportunities({
-    business,
-    view = "active",
-    search = "",
-    limit = 50,
-    skip = 0,
-  }) {
-    const allowedViews = new Set([
-      "active",
-      "ready",
-      "needs_me",
-      "waiting",
-      "booked",
-      "not_booked",
-      "all",
-    ]);
-    const normalizedView = allowedViews.has(view) ? view : "active";
-    const cappedLimit = Math.min(Math.max(Number(limit) || 50, 1), 250);
-    const normalizedSkip = Math.max(Number(skip) || 0, 0);
-    const normalizedSearch = String(search || "").trim().slice(0, 120);
-
-    const [waitingLeadIds, takeoverLeadIds, interventionLeadIds] = await Promise.all([
-      Conversation.distinct("lead", {
-        business: business._id,
-        status: "open",
-        lead: { $ne: null },
-        "bookingState.status": { $in: ["offering_slots", "awaiting_confirmation"] },
-      }),
-      Conversation.distinct("lead", {
-        business: business._id,
-        status: "open",
-        lead: { $ne: null },
-        $or: [
-          { humanTakeover: true },
-          { "bookingState.status": { $in: ["failed", "human_takeover"] } },
-        ],
-      }),
-      Alert.distinct("lead", {
-        ...ownerInterventionFilter(business._id),
-        lead: { $ne: null },
-      }),
-    ]);
-    const needsMeLeadIds = [
-      ...new Map(
-        [...takeoverLeadIds, ...interventionLeadIds].map((id) => [
-          String(id),
-          id,
-        ]),
-      ).values(),
-    ];
-
-    const autoBookingEnabled = Boolean(business?.features?.aiBookingEnabled);
-    const activeAppointmentLeadIds = await Appointment.distinct("lead", {
-      business: business._id,
-      lead: { $ne: null },
-      status: { $in: ["held", "confirmed"] },
-    });
-    const readyToScheduleLeadIds = autoBookingEnabled
-      ? []
-      : await Lead.distinct("_id", {
-          business: business._id,
-          status: { $in: ["new", "contacted"] },
-          serviceNeeded: { $nin: ["", "Unknown"] },
-          address: { $nin: ["", null] },
-          preferredAppointmentTime: { $nin: ["", null] },
-          _id: {
-            $nin: [...needsMeLeadIds, ...activeAppointmentLeadIds],
-          },
-        });
-
-    const filter = { business: business._id };
-    if (normalizedView === "active") {
-      filter.status = { $in: ["new", "contacted"] };
-    } else if (normalizedView === "ready") {
-      filter.status = { $in: ["new", "contacted"] };
-      filter._id = { $in: readyToScheduleLeadIds };
-    } else if (normalizedView === "needs_me") {
-      filter.status = { $in: ["new", "contacted"] };
-      filter._id = { $in: needsMeLeadIds };
-    } else if (normalizedView === "waiting") {
-      filter.status = { $in: ["new", "contacted"] };
-      filter._id = { $in: waitingLeadIds };
-    } else if (normalizedView === "booked") {
-      filter.status = "booked";
-    } else if (normalizedView === "not_booked") {
-      filter.status = "lost";
-    }
-
-    if (normalizedSearch) {
-      const regex = new RegExp(escapeRegex(normalizedSearch), "i");
-      filter.$or = [
-        { customerName: regex },
-        { phone: regex },
-        { serviceNeeded: regex },
-        { summary: regex },
-      ];
-    }
-
-    const scopedFilter = { ...filter };
-    delete scopedFilter.business;
-
-    const [facet = {}] = await Lead.aggregate([
-      { $match: { business: business._id } },
-      {
-        $facet: {
-          page: [
-            { $match: scopedFilter },
-            { $sort: { updatedAt: -1 } },
-            { $skip: normalizedSkip },
-            { $limit: cappedLimit },
-          ],
-          total: [{ $match: scopedFilter }, { $count: "value" }],
-          active: [
-            { $match: { status: { $in: ["new", "contacted"] } } },
-            { $count: "value" },
-          ],
-          ready: [
-            {
-              $match: {
-                status: { $in: ["new", "contacted"] },
-                _id: { $in: readyToScheduleLeadIds },
-              },
-            },
-            { $count: "value" },
-          ],
-          booked: [
-            { $match: { status: "booked" } },
-            { $count: "value" },
-          ],
-          waiting: [
-            {
-              $match: {
-                status: { $in: ["new", "contacted"] },
-                _id: { $in: waitingLeadIds },
-              },
-            },
-            { $count: "value" },
-          ],
-          needsMe: [
-            {
-              $match: {
-                status: { $in: ["new", "contacted"] },
-                _id: { $in: needsMeLeadIds },
-              },
-            },
-            { $count: "value" },
-          ],
-        },
-      },
-    ]);
-
-    const leads = Array.isArray(facet.page) ? facet.page : [];
-    const count = (key) => Number(facet?.[key]?.[0]?.value || 0);
-    const total = count("total");
-    const activeCount = count("active");
-    const bookedCount = count("booked");
-    const readyToScheduleCount = count("ready");
-    const waitingCount = count("waiting");
-    const needsMeCount = count("needsMe");
-
-    if (!leads.length) {
-      return {
-        items: [],
-        stats: {
-          active: activeCount,
-          readyToSchedule: readyToScheduleCount,
-          needsMe: needsMeCount,
-          waiting: waitingCount,
-          booked: bookedCount,
-        },
-        pagination: {
-          total,
-          limit: cappedLimit,
-          skip: normalizedSkip,
-          hasMore: false,
-        },
-      };
-    }
-
-    const leadIds = leads.map((lead) => lead._id);
-    const [conversations, appointments, openInterventionLeadIds] = await Promise.all([
-      Conversation.find({ business: business._id, lead: { $in: leadIds } })
-        .select(
-          "lead serviceEligibility customerName customerPhone status humanTakeover bookingState conversationMemory lastMessage lastMessageAt createdAt updatedAt",
-        )
-        .sort({ lastMessageAt: -1, updatedAt: -1 })
-        .lean(),
-      Appointment.find({ business: business._id, lead: { $in: leadIds } })
-        .select(
-          "lead status startAt endAt timezone source bookedBy provider confirmedAt customerConfirmedAt estimatedValue valuation actualRevenue requiresBusinessApproval failureReason createdAt",
-        )
-        .sort({ createdAt: -1 })
-        .lean(),
-      Alert.distinct("lead", {
-        ...ownerInterventionFilter(business._id),
-        lead: { $in: leadIds },
-      }),
-    ]);
-
-    const conversationByLead = latestByLead(conversations);
-    const appointmentByLead = latestByLead(appointments);
-    const openInterventionLeadSet = new Set(openInterventionLeadIds.map((id) => String(id)));
-    const items = leads
-      .map((lead) =>
-        serializeOpportunity({
-          business,
-          lead,
-          conversation: conversationByLead.get(String(lead._id)) || null,
-          appointment: appointmentByLead.get(String(lead._id)) || null,
-          hasOpenIntervention: openInterventionLeadSet.has(String(lead._id)),
-        }),
-      )
-      .sort((a, b) => {
-        const actionRank = {
-          exception: 6,
-          schedule: 5,
-          approval: 5,
-          customer: 4,
-          automation: 3,
-          appointment: 2,
-          complete: 1,
-        };
-        const actionDifference =
-          (actionRank[b.nextAction?.kind] || 0) -
-          (actionRank[a.nextAction?.kind] || 0);
-        if (actionDifference) return actionDifference;
-        const urgency = (URGENCY_RANK[b.urgency] || 0) - (URGENCY_RANK[a.urgency] || 0);
-        if (urgency) return urgency;
-        return new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime();
-      });
-
-    return {
-      items,
-      stats: {
-        active: activeCount,
-        readyToSchedule: readyToScheduleCount,
-        needsMe: needsMeCount,
-        waiting: waitingCount,
-        booked: bookedCount,
-      },
-      pagination: {
-        total,
-        limit: cappedLimit,
-        skip: normalizedSkip,
-        hasMore: normalizedSkip + items.length < total,
-      },
-    };
+  static async opportunities(options) {
+    const { business } = options;
+    const page = await queryOwnerOpportunities({ ...options, interventionFilter: ownerInterventionFilter(business._id) });
+    return { ...page, rows: undefined, items: page.rows.map(row => {
+      const { _conversation, _appointment, _interventions, _waiting, _takeover, _appointments, _active, _needsMe, _isWaiting, _ready, ...lead } = row;
+      return serializeOpportunity({ business, lead, conversation: _conversation[0] || null,
+        appointment: _appointment[0] || null, hasOpenIntervention: _interventions.length > 0 });
+    }).sort((a, b) => {
+      const rank = { exception: 6, schedule: 5, approval: 5, customer: 4, automation: 3, appointment: 2, complete: 1 };
+      return (rank[b.nextAction?.kind] || 0) - (rank[a.nextAction?.kind] || 0)
+        || (URGENCY_RANK[b.urgency] || 0) - (URGENCY_RANK[a.urgency] || 0)
+        || new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime();
+    }) };
   }
+
 }
 
 export {

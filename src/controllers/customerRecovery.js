@@ -2,17 +2,10 @@ import { safeConsole } from "../helpers/logging/safeLogger.js";
 import { verifiedAmount } from "../services/valuation/opportunityValue.js";
 import mongoose from "mongoose";
 
-import Alert from "../models/alert.js";
-import Appointment from "../models/appointment.js";
 import Business from "../models/business.js";
-import CallLog from "../models/callLog.js";
-import Conversation from "../models/conversation.js";
-import ConversationIntelligence from "../models/conversationIntelligence.js";
-import ConversionEvent from "../models/conversionEvent.js";
 import Lead from "../models/lead.js";
-import Message from "../models/message.js";
-import VoiceSession from "../models/voiceSession.js";
-import { syncCustomerLifecycle } from "../services/customerLifecycle.service.js";
+import { readCustomerDetail, readCustomerHistory } from "../services/scale/customerHistory.service.js";
+import { queryBudgetMs, queryFailure } from "../services/scale/queryBudget.js";
 
 const asId = (value) => value?._id || value?.id || value;
 
@@ -32,7 +25,7 @@ class CustomerRecoveryController {
         return res.status(400).json({ success: false, message: "Invalid customer ID" });
       }
 
-      const business = await Business.findOne({ owner: ownerId }).lean();
+      const business = await Business.findOne({ owner: ownerId }).maxTimeMS(queryBudgetMs()).lean();
       if (!business) {
         return res.status(404).json({ success: false, message: "Business not found" });
       }
@@ -40,76 +33,23 @@ class CustomerRecoveryController {
       const lead = await Lead.findOne({
         _id: leadId,
         business: business._id,
-      }).lean();
+      }).maxTimeMS(queryBudgetMs()).lean();
       if (!lead) {
         return res.status(404).json({ success: false, message: "Customer not found" });
       }
 
-      const conversations = await Conversation.find({
-        business: business._id,
-        $or: [{ lead: lead._id }, { customerPhone: lead.phone }],
-      })
-        .sort({ lastMessageAt: -1, createdAt: -1 })
-        .lean();
+      if (req.query?.section) {
+        const page = await readCustomerHistory({ businessId: business._id, lead,
+          section: req.query.section, cursor: req.query.cursor, limit: req.query.limit });
+        return res.status(200).json({ success: true, data: page });
+      }
+      const { pages, summary } = await readCustomerDetail({ businessId: business._id, lead, limit: req.query?.limit });
+      const { conversations, messages, calls, appointments, voiceSessions, interventions, intelligence, conversionEvents } =
+        Object.fromEntries(Object.entries(pages).map(([key, page]) => [key, page.items]));
+      const customerLifecycleStatus = summary.customerLifecycleStatus;
 
-      const conversationIds = conversations.map(asId).filter(Boolean);
-      const linked = (extra = []) => ({
-        business: business._id,
-        $or: [
-          { lead: lead._id },
-          ...(conversationIds.length
-            ? [{ conversation: { $in: conversationIds } }]
-            : []),
-          ...extra,
-        ],
-      });
-
-      const [
-        messages,
-        calls,
-        appointments,
-        voiceSessions,
-        interventions,
-        intelligence,
-        conversionEvents,
-      ] = await Promise.all([
-        Message.find(linked()).sort({ createdAt: 1 }).lean(),
-        CallLog.find(
-          linked([{ from: lead.phone }, { to: lead.phone }]),
-        )
-          .sort({ createdAt: -1 })
-          .lean(),
-        Appointment.find(linked())
-          .populate("serviceOffering")
-          .sort({ startAt: -1 })
-          .lean(),
-        VoiceSession.find(linked()).sort({ startedAt: -1 }).lean(),
-        Alert.find(linked())
-          .populate("assignedTo", "userName email")
-          .sort({ createdAt: -1 })
-          .lean(),
-        ConversationIntelligence.find(linked())
-          .sort({ updatedAt: -1 })
-          .lean(),
-        ConversionEvent.find({
-          business: business._id,
-          lead: lead._id,
-        })
-          .sort({ occurredAt: -1, createdAt: -1 })
-          .lean(),
-      ]);
-
-      const customerLifecycleStatus = await syncCustomerLifecycle({
-        businessId: business._id,
-        lead,
-        conversations,
-        appointments,
-        voiceSessions,
-      });
-
-      // Return one canonical lifecycle value across every customer-domain
-      // record even before the asynchronous persistence updates are observed by
-      // a subsequent read.
+      // Derive one lifecycle value from authoritative history. A read never
+      // updates stored records or their timestamps.
       const withLifecycle = (items = []) =>
         items.map((item) => ({ ...item, customerLifecycleStatus }));
       const canonicalConversations = withLifecycle(conversations);
@@ -117,41 +57,34 @@ class CustomerRecoveryController {
       const canonicalVoiceSessions = withLifecycle(voiceSessions);
       const canonicalInterventions = withLifecycle(interventions);
 
-      const currentAppointment =
+      const currentAppointment = (summary.appointment && withLifecycle([summary.appointment])[0]) ||
         canonicalAppointments.find((item) =>
           ["held", "confirmed", "rescheduled"].includes(item.status),
         ) ||
         canonicalAppointments[0] ||
         null;
-      const activeIntervention =
+      const activeIntervention = (summary.intervention && withLifecycle([summary.intervention])[0]) ||
         canonicalInterventions.find(
           (item) => !item.resolvedAt && item.actionRequired,
         ) ||
         canonicalInterventions.find((item) => !item.resolvedAt) ||
         null;
-      const latestIntelligence = intelligence[0] || null;
+      const latestIntelligence = summary.intelligence || intelligence[0] || null;
 
-      const actualRevenue = appointments.length
-        ? appointments.filter(item => item.status === "completed").reduce((total, item) => total + maxMoney(item.actualRevenue), 0)
-        : maxMoney(lead.actualRevenue);
-      const openAppointments = appointments.filter(item => item.status === "confirmed");
-      const amounts = openAppointments.length ? openAppointments.map(verifiedAmount).filter(value => value !== null) : [verifiedAmount(lead)].filter(value => value !== null);
-      const estimatedRevenue = amounts.length ? amounts.reduce((sum, value) => sum + value, 0) : null;
-      const recovered = Boolean(
-        lead.recovered ||
-          customerLifecycleStatus === "recovered" ||
-          appointments.some((item) => item.status === "completed") ||
-          actualRevenue > 0,
-      );
+      const actualRevenue = summary.appointmentCount ? summary.actualRevenue : maxMoney(lead.actualRevenue);
+      const estimatedRevenue = summary.confirmedCount ? summary.estimatedRevenue : verifiedAmount(lead);
+      const recovered = Boolean(lead.recovered || customerLifecycleStatus === "recovered" || summary.completed || actualRevenue > 0);
 
       return res.status(200).json({
         success: true,
         data: {
+          pagination: Object.fromEntries(Object.entries(pages).map(([key, page]) => [key, page.pagination])),
+          historyOrder: "newest_first; messages chronological within each page",
           customer: {
             ...lead,
             customerLifecycleStatus,
           },
-          conversation: canonicalConversations[0] || null,
+          conversation: summary.conversation ? withLifecycle([summary.conversation])[0] : canonicalConversations[0] || null,
           conversations: canonicalConversations,
           messages,
           calls,
@@ -163,7 +96,7 @@ class CustomerRecoveryController {
           aiSummary:
             latestIntelligence?.summary ||
             lead.summary ||
-            conversations[0]?.conversationMemory?.summary ||
+            summary.conversation?.conversationMemory?.summary ||
             "",
           intelligence: latestIntelligence,
           recovery: {
@@ -181,11 +114,13 @@ class CustomerRecoveryController {
                 business.trackingNumber?.status === "active",
             ),
             customerPhone: lead.phone || "",
-            conversationId: asId(conversations[0]) || "",
+            conversationId: asId(summary.conversation || conversations[0]) || "",
           },
         },
       });
     } catch (error) {
+      if (error.statusCode === 400) return res.status(400).json({ success: false, message: error.message });
+      if (queryFailure(error)) return res.status(503).set("Retry-After", "2").json({ success: false, code: "QUERY_BUDGET_EXCEEDED", message: "Customer history is busy. Please retry." });
       safeConsole.error("Customer recovery detail error:", error);
       return res.status(500).json({
         success: false,

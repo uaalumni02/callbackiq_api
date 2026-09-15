@@ -1,9 +1,12 @@
+import { createCacheRefreshCoordinator } from "./scale/cacheRefresh.service.js";
 import { safeConsole } from "../helpers/logging/safeLogger.js";
 // CALLBACKIQ_SCALE_HARDENING_V1
 import { createBoundedRedis } from "./boundedRedis.service.js";
 
 const memory = new Map();
 const inflight = new Map();
+let activeLoaders = 0;
+const refreshNotBefore = new Map();
 
 const bool = (value, fallback = false) => {
   if (value == null || String(value).trim() === "") return fallback;
@@ -100,44 +103,49 @@ const readRedis = async (key) => {
   }
 };
 
-const writeRedis = async (key, envelope, staleMs) => {
-  const client = await connectRedis();
-  if (!client) return;
-  try {
-    const ttlSeconds = Math.max(1, Math.ceil(staleMs / 1000));
-    await client.set(fullKey(key), serialize(envelope), { EX: ttlSeconds });
-  } catch (error) {
-    safeConsole.error("Scale cache Redis write failed:", error?.message || error);
-  }
-};
-
+const coordinate = createCacheRefreshCoordinator({ execute: async operation => {
+  try { return await redis.execute(operation); }
+  catch (cause) { throw Object.assign(new Error("Redis cache unavailable"), { code: "REDIS_CACHE_UNAVAILABLE", cause }); }
+} });
 const loadFresh = async ({ key, loader, ttlMs, staleMs }) => {
   if (inflight.has(key)) return inflight.get(key);
-
+  const maximum = integer(process.env.SCALE_CACHE_MAX_LOADERS, 8, { min: 1, max: 100 });
+  if (inflight.size >= maximum * 4) throw Object.assign(new Error("Cache refresh capacity reached"), { code: "CACHE_REFRESH_BUSY", statusCode: 503 });
+  const guardedLoader = async () => {
+    if (activeLoaders >= maximum) throw Object.assign(new Error("Cache refresh capacity reached"), { code: "CACHE_REFRESH_BUSY", statusCode: 503 });
+    activeLoaders++;
+    try { return await loader(); } finally { activeLoaders--; }
+  };
   const promise = (async () => {
-    const value = await loader();
-    const now = Date.now();
-    const envelope = {
-      value,
-      freshUntil: now + ttlMs,
-      staleUntil: now + staleMs,
-    };
+    let envelope;
+    if (cacheRedisUrl()) {
+      try {
+        envelope = await coordinate({ key: fullKey(key), load: guardedLoader, stale: getMemory(key), ttlMs, staleMs });
+      } catch (error) {
+        // Coordination contention never starts another database refresh. Only
+        // a Redis outage permits the bounded per-process fallback.
+        if (!String(error.code || "").startsWith("REDIS_")) throw error;
+      }
+    }
+    if (!envelope) {
+      const value = await guardedLoader(), now = Date.now();
+      envelope = { value, freshUntil: now + ttlMs, staleUntil: now + staleMs };
+    }
     setMemory(key, envelope);
-    void writeRedis(key, envelope, staleMs);
-    return value;
+    return envelope.value;
   })();
-
   inflight.set(key, promise);
-  try {
-    return await promise;
-  } finally {
-    if (inflight.get(key) === promise) inflight.delete(key);
-  }
+  try { return await promise; }
+  finally { if (inflight.get(key) === promise) inflight.delete(key); }
 };
 
 const refreshInBackground = (options) => {
+  if ((refreshNotBefore.get(options.key) || 0) > Date.now()) return;
+  refreshNotBefore.set(options.key, Date.now() + 1000);
+  while (refreshNotBefore.size > memoryMaxEntries()) refreshNotBefore.delete(refreshNotBefore.keys().next().value);
   void loadFresh(options).catch((error) => {
-    safeConsole.error("Scale cache background refresh failed:", error?.message || error);
+    refreshNotBefore.set(options.key, Date.now() + 2000);
+    safeConsole.error("Scale cache background refresh failed:", error?.code || "CACHE_REFRESH_FAILED");
   });
 };
 
@@ -213,6 +221,7 @@ export const deleteScaleCacheKey = async (key) => {
 export const clearLocalScaleCache = () => {
   memory.clear();
   inflight.clear();
+  refreshNotBefore.clear();
 };
 
 export const closeScaleCache = async () => {

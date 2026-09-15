@@ -97,6 +97,11 @@ const AlertSchema = new Schema(
   { timestamps: true },
 );
 
+// Bounded owner read and related-record lookup indexes. Additive migration only.
+AlertSchema.index({ business: 1, lead: 1, createdAt: -1, _id: -1 });
+AlertSchema.index({ business: 1, conversation: 1, createdAt: -1, _id: -1 });
+AlertSchema.index({ business: 1, lead: 1, resolvedAt: 1, type: 1 });
+AlertSchema.index({ business: 1, createdAt: -1, _id: -1 });
 AlertSchema.index({ business: 1, createdAt: -1 });
 AlertSchema.index({ actionRequired: 1, resolvedAt: 1, acknowledgedAt: 1, dueAt: 1, _id: 1 });
 AlertSchema.index({ actionRequired: 1, resolvedAt: 1, acknowledgedAt: 1, priority: 1, createdAt: 1, _id: 1 });

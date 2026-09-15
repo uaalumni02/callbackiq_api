@@ -121,6 +121,30 @@
       "observedAt": "",
       "observedBy": "",
       "evidenceRef": ""
+    },
+    "noisySmsTenant": {
+      "passed": false,
+      "observedAt": "",
+      "observedBy": "",
+      "evidenceRef": ""
+    },
+    "largeHistoryQueries": {
+      "passed": false,
+      "observedAt": "",
+      "observedBy": "",
+      "evidenceRef": ""
+    },
+    "coldCacheReplicaRefresh": {
+      "passed": false,
+      "observedAt": "",
+      "observedBy": "",
+      "evidenceRef": ""
+    },
+    "smsWorkerSizing": {
+      "passed": false,
+      "observedAt": "",
+      "observedBy": "",
+      "evidenceRef": ""
     }
   }
 }

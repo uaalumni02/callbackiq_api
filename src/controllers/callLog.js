@@ -1,3 +1,4 @@
+import { queryFailure } from "../services/scale/queryBudget.js";
 import { safeConsole } from "../helpers/logging/safeLogger.js";
 import mongoose from "mongoose";
 
@@ -64,6 +65,7 @@ class CallLogController {
         data: callLog,
       });
     } catch (error) {
+      if (queryFailure(error)) return res.status(503).set("Retry-After", "2").json({ success: false, code: "QUERY_BUDGET_EXCEEDED", message: "This view is busy. Please retry or narrow your search." });
       if (error.isJoi) {
         return Response.responseInvalidInput(res, error.message);
       }
@@ -91,6 +93,7 @@ class CallLogController {
       setPaginationHeaders(res, page);
       return Response.responseOk(res, page.items, "Call logs fetched");
     } catch (error) {
+      if (queryFailure(error)) return res.status(503).set("Retry-After", "2").json({ success: false, code: "QUERY_BUDGET_EXCEEDED", message: "This view is busy. Please retry or narrow your search." });
       safeConsole.error("Error in getMyCallLogs:", error);
       return Response.responseServerError(res);
     }
@@ -111,6 +114,7 @@ class CallLogController {
       const data = await getCallLogsOverview(business._id, req.query);
       return Response.responseOk(res, data, "Call log page fetched");
     } catch (error) {
+      if (queryFailure(error)) return res.status(503).set("Retry-After", "2").json({ success: false, code: "QUERY_BUDGET_EXCEEDED", message: "This view is busy. Please retry or narrow your search." });
       safeConsole.error("Error in getMyCallLogsOverview:", error);
       if (error?.code === "INVALID_CURSOR") {
         return Response.responseInvalidInput(res, "Invalid pagination cursor");
@@ -150,6 +154,7 @@ class CallLogController {
 
       return Response.responseOk(res, callLog, "Call log fetched");
     } catch (error) {
+      if (queryFailure(error)) return res.status(503).set("Retry-After", "2").json({ success: false, code: "QUERY_BUDGET_EXCEEDED", message: "This view is busy. Please retry or narrow your search." });
       safeConsole.error("Error in getCallLogById:", error);
       return Response.responseServerError(res);
     }
@@ -198,6 +203,7 @@ class CallLogController {
         "Call log updated successfully",
       );
     } catch (error) {
+      if (queryFailure(error)) return res.status(503).set("Retry-After", "2").json({ success: false, code: "QUERY_BUDGET_EXCEEDED", message: "This view is busy. Please retry or narrow your search." });
       if (error.isJoi) {
         return Response.responseInvalidInput(res, error.message);
       }
@@ -265,6 +271,7 @@ class CallLogController {
         message: "Call log hidden successfully",
       });
     } catch (error) {
+      if (queryFailure(error)) return res.status(503).set("Retry-After", "2").json({ success: false, code: "QUERY_BUDGET_EXCEEDED", message: "This view is busy. Please retry or narrow your search." });
       safeConsole.error("Error in deleteCallLog:", error);
       return Response.responseServerError(res);
     }

@@ -193,6 +193,45 @@
     "collection": "alerts",
     "key": {
       "business": 1,
+      "lead": 1,
+      "createdAt": -1,
+      "_id": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "alerts",
+    "key": {
+      "business": 1,
+      "conversation": 1,
+      "createdAt": -1,
+      "_id": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "alerts",
+    "key": {
+      "business": 1,
+      "lead": 1,
+      "resolvedAt": 1,
+      "type": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "alerts",
+    "key": {
+      "business": 1,
+      "createdAt": -1,
+      "_id": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "alerts",
+    "key": {
+      "business": 1,
       "createdAt": -1
     },
     "options": {}
@@ -292,6 +331,34 @@
     "collection": "appointments",
     "key": {
       "requiresBusinessApproval": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "appointments",
+    "key": {
+      "business": 1,
+      "lead": 1,
+      "status": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "appointments",
+    "key": {
+      "business": 1,
+      "lead": 1,
+      "createdAt": -1,
+      "_id": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "appointments",
+    "key": {
+      "business": 1,
+      "createdAt": -1,
+      "_id": -1
     },
     "options": {}
   },
@@ -816,6 +883,35 @@
     "collection": "calllogs",
     "key": {
       "business": 1,
+      "lead": 1,
+      "createdAt": -1,
+      "_id": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "calllogs",
+    "key": {
+      "business": 1,
+      "conversation": 1,
+      "createdAt": -1,
+      "_id": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "calllogs",
+    "key": {
+      "business": 1,
+      "createdAt": -1,
+      "_id": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "calllogs",
+    "key": {
+      "business": 1,
       "createdAt": -1
     },
     "options": {}
@@ -1012,6 +1108,35 @@
     "collection": "conversations",
     "key": {
       "business": 1,
+      "lead": 1,
+      "status": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "conversations",
+    "key": {
+      "business": 1,
+      "lead": 1,
+      "lastMessageAt": -1,
+      "updatedAt": -1,
+      "_id": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "conversations",
+    "key": {
+      "business": 1,
+      "createdAt": -1,
+      "_id": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "conversations",
+    "key": {
+      "business": 1,
       "status": 1,
       "lastMessageAt": -1,
       "createdAt": -1
@@ -1119,6 +1244,35 @@
     "collection": "conversationintelligences",
     "key": {
       "business": 1,
+      "lead": 1,
+      "createdAt": -1,
+      "_id": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "conversationintelligences",
+    "key": {
+      "business": 1,
+      "conversation": 1,
+      "createdAt": -1,
+      "_id": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "conversationintelligences",
+    "key": {
+      "business": 1,
+      "createdAt": -1,
+      "_id": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "conversationintelligences",
+    "key": {
+      "business": 1,
       "buyingLikelihood.score": -1
     },
     "options": {}
@@ -1181,6 +1335,35 @@
     "collection": "conversionevents",
     "key": {
       "marketingSource": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "conversionevents",
+    "key": {
+      "business": 1,
+      "lead": 1,
+      "createdAt": -1,
+      "_id": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "conversionevents",
+    "key": {
+      "business": 1,
+      "conversation": 1,
+      "createdAt": -1,
+      "_id": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "conversionevents",
+    "key": {
+      "business": 1,
+      "createdAt": -1,
+      "_id": -1
     },
     "options": {}
   },
@@ -1388,6 +1571,25 @@
     "collection": "leads",
     "key": {
       "business": 1,
+      "updatedAt": -1,
+      "_id": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "leads",
+    "key": {
+      "business": 1,
+      "status": 1,
+      "updatedAt": -1,
+      "_id": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "leads",
+    "key": {
+      "business": 1,
       "createdAt": -1
     },
     "options": {}
@@ -1574,6 +1776,35 @@
       "business": 1,
       "status": 1,
       "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "messages",
+    "key": {
+      "business": 1,
+      "lead": 1,
+      "createdAt": -1,
+      "_id": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "messages",
+    "key": {
+      "business": 1,
+      "conversation": 1,
+      "createdAt": -1,
+      "_id": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "messages",
+    "key": {
+      "business": 1,
+      "createdAt": -1,
+      "_id": -1
     },
     "options": {}
   },
@@ -2425,6 +2656,35 @@
     "collection": "voicesessions",
     "key": {
       "outcome": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "voicesessions",
+    "key": {
+      "business": 1,
+      "lead": 1,
+      "createdAt": -1,
+      "_id": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "voicesessions",
+    "key": {
+      "business": 1,
+      "conversation": 1,
+      "createdAt": -1,
+      "_id": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "voicesessions",
+    "key": {
+      "business": 1,
+      "createdAt": -1,
+      "_id": -1
     },
     "options": {}
   },

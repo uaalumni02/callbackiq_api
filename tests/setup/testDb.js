@@ -9,6 +9,7 @@ const connectTestDB = async () => {
   try {
     await mongoServer.start();
     await mongoose.connect(mongoServer.getUri(), { serverSelectionTimeoutMS: 15000 });
+    return mongoServer.getUri();
   } catch (error) {
     // Preserve the startup error; cleanup must not replace it or buffer queries.
     try { if (mongoose.connection.readyState !== 0) await mongoose.connection.close(); } catch {}

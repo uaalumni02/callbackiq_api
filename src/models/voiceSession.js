@@ -127,6 +127,10 @@ const VoiceSessionSchema = new Schema(
   { timestamps: true, minimize: false },
 );
 
+// Bounded owner read and related-record lookup indexes. Additive migration only.
+VoiceSessionSchema.index({ business: 1, lead: 1, createdAt: -1, _id: -1 });
+VoiceSessionSchema.index({ business: 1, conversation: 1, createdAt: -1, _id: -1 });
+VoiceSessionSchema.index({ business: 1, createdAt: -1, _id: -1 });
 VoiceSessionSchema.index(
   { business: 1, providerCallSid: 1 },
   { unique: true },

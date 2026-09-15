@@ -1,3 +1,4 @@
+import { queryFailure } from "../services/scale/queryBudget.js";
 import { safeConsole } from "../helpers/logging/safeLogger.js";
 import { handleConversationManualMessage } from "../services/messaging/manualConversationMessage.service.js";
 import mongoose from "mongoose";
@@ -99,6 +100,7 @@ class MessageController {
       setPaginationHeaders(res, page);
       return Response.responseOk(res, page.items, "Messages fetched");
     } catch (error) {
+      if (queryFailure(error)) return res.status(503).set("Retry-After", "2").json({ success: false, code: "QUERY_BUDGET_EXCEEDED", message: "This view is busy. Please retry or narrow your search." });
       safeConsole.error("Error in getMessagesByConversation:", error);
       return Response.responseServerError(res);
     }
@@ -135,6 +137,7 @@ class MessageController {
 
       return Response.responseOk(res, message, "Message fetched");
     } catch (error) {
+      if (queryFailure(error)) return res.status(503).set("Retry-After", "2").json({ success: false, code: "QUERY_BUDGET_EXCEEDED", message: "This view is busy. Please retry or narrow your search." });
       safeConsole.error("Error in getMessageById:", error);
       return Response.responseServerError(res);
     }
@@ -187,6 +190,7 @@ class MessageController {
         message: "Message deleted successfully",
       });
     } catch (error) {
+      if (queryFailure(error)) return res.status(503).set("Retry-After", "2").json({ success: false, code: "QUERY_BUDGET_EXCEEDED", message: "This view is busy. Please retry or narrow your search." });
       safeConsole.error("Error in deleteMessage:", error);
       return Response.responseServerError(res);
     }

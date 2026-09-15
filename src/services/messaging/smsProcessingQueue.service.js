@@ -64,11 +64,12 @@ export const enqueueInboundSmsJob = async ({
   );
 };
 
-export const claimNextInboundSmsJob = async ({ now = new Date() } = {}) => {
+export const claimNextInboundSmsJob = async ({ now = new Date(), excludeBusinesses = [] } = {}) => {
   const leaseToken = crypto.randomUUID();
   const leaseExpiresAt = new Date(now.getTime() + leaseMs());
   return SmsProcessingJob.findOneAndUpdate(
     {
+      ...(excludeBusinesses.length ? { business: { $nin: excludeBusinesses.slice(0, 200) } } : {}),
       $expr: { $lt: ["$attemptCount", "$maxAttempts"] },
       $or: [
         { status: "queued", availableAt: { $lte: now } },
@@ -88,6 +89,7 @@ export const claimNextInboundSmsJob = async ({ now = new Date() } = {}) => {
     },
     {
       sort: { priority: -1, availableAt: 1, createdAt: 1 },
+      maxTimeMS: Math.max(100, Math.min(5000, Number(process.env.SMS_CLAIM_MAX_TIME_MS) || 2000)),
       returnDocument: "after",
     },
   );

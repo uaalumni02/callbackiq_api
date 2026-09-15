@@ -207,6 +207,10 @@ const CallLogSchema = new Schema(
 /*
  * Supports recent call history and dashboard queries for one business.
  */
+// Bounded owner read and related-record lookup indexes. Additive migration only.
+CallLogSchema.index({ business: 1, lead: 1, createdAt: -1, _id: -1 });
+CallLogSchema.index({ business: 1, conversation: 1, createdAt: -1, _id: -1 });
+CallLogSchema.index({ business: 1, createdAt: -1, _id: -1 });
 CallLogSchema.index({
   business: 1,
   createdAt: -1,

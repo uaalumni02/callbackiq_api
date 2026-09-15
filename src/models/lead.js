@@ -163,6 +163,9 @@ for (const operation of ["find", "findOne", "countDocuments", "findOneAndDelete"
   LeadSchema.pre(operation, normalizeLeadPhoneFilter);
 }
 
+// Bounded owner read and related-record lookup indexes. Additive migration only.
+LeadSchema.index({ business: 1, updatedAt: -1, _id: -1 });
+LeadSchema.index({ business: 1, status: 1, updatedAt: -1, _id: -1 });
 LeadSchema.index({ business: 1, createdAt: -1 });
 LeadSchema.index({ business: 1, status: 1, createdAt: -1 });
 LeadSchema.index({ business: 1, phone: 1, createdAt: -1 });

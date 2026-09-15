@@ -1,3 +1,4 @@
+import { smsProcessingMetrics } from "./scale/smsTenantFairness.service.js";
 import { logOperationalEvent } from "../helpers/logging/safeLogger.js";
 import { getVoiceSnapshot } from "./runtimeState.service.js";
 import { monitorEventLoopDelay } from "node:perf_hooks";
@@ -53,6 +54,7 @@ export const snapshotRuntimeMetrics = () => {
   return {
     timestamp: new Date().toISOString(),
     voice: getVoiceSnapshot(),
+    sms: smsProcessingMetrics(),
     eventLoop: { p95Ms: eventLoopDelay.percentile(95) / 1e6, p99Ms: eventLoopDelay.percentile(99) / 1e6 },
     process: {
       pid: process.pid,

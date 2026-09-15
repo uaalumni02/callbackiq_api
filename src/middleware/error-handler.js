@@ -1,3 +1,4 @@
+import { queryFailure } from "../services/scale/queryBudget.js";
 import MonitoringService from "../services/monitoring.service.js";
 
 const errorHandler = (error, req, res, next) => {
@@ -5,6 +6,10 @@ const errorHandler = (error, req, res, next) => {
     return next(error);
   }
 
+  if (queryFailure(error) || ["CACHE_REFRESH_BUSY", "CACHE_LOADER_TIMEOUT"].includes(error?.code)) {
+    return res.status(503).set("Retry-After", "2").json({ success: false,
+      code: "QUERY_BUDGET_EXCEEDED", message: "This view is busy. Please retry or narrow your search." });
+  }
   const requestId = req.context?.requestId || "";
   const statusCode =
     Number.isInteger(error?.statusCode) && error.statusCode >= 400

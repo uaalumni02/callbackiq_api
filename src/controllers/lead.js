@@ -1,3 +1,4 @@
+import { queryFailure } from "../services/scale/queryBudget.js";
 import { safeConsole } from "../helpers/logging/safeLogger.js";
 import { updateOwnerLead, ownerEstimate, unknownEstimate } from "../services/valuation/opportunityValuation.service.js";
 import mongoose from "mongoose";
@@ -123,6 +124,7 @@ class LeadController {
         data: lead,
       });
     } catch (error) {
+      if (queryFailure(error)) return res.status(503).set("Retry-After", "2").json({ success: false, code: "QUERY_BUDGET_EXCEEDED", message: "This view is busy. Please retry or narrow your search." });
       safeConsole.error("Error in createLead:", error);
 
       if (error.isJoi) {
@@ -167,6 +169,7 @@ class LeadController {
       setPaginationHeaders(res, page);
       return Response.responseOk(res, page.items, "Leads fetched");
     } catch (error) {
+      if (queryFailure(error)) return res.status(503).set("Retry-After", "2").json({ success: false, code: "QUERY_BUDGET_EXCEEDED", message: "This view is busy. Please retry or narrow your search." });
       safeConsole.error("Error in getMyLeads:", error);
       return Response.responseServerError(res);
     }
@@ -187,6 +190,7 @@ class LeadController {
       const data = await getLeadsOverview(business._id, req.query);
       return Response.responseOk(res, data, "Lead page fetched");
     } catch (error) {
+      if (queryFailure(error)) return res.status(503).set("Retry-After", "2").json({ success: false, code: "QUERY_BUDGET_EXCEEDED", message: "This view is busy. Please retry or narrow your search." });
       safeConsole.error("Error in getMyLeadsOverview:", error);
       if (error?.code === "INVALID_CURSOR") {
         return Response.responseInvalidInput(res, "Invalid pagination cursor");
@@ -258,6 +262,7 @@ class LeadController {
 
       return Response.responseOk(res, payload, "Lead fetched");
     } catch (error) {
+      if (queryFailure(error)) return res.status(503).set("Retry-After", "2").json({ success: false, code: "QUERY_BUDGET_EXCEEDED", message: "This view is busy. Please retry or narrow your search." });
       safeConsole.error("Error in getLeadById:", error);
       return Response.responseServerError(res);
     }
@@ -323,6 +328,7 @@ class LeadController {
 
       return Response.responseOk(res, updatedLead, "Lead updated successfully");
     } catch (error) {
+      if (queryFailure(error)) return res.status(503).set("Retry-After", "2").json({ success: false, code: "QUERY_BUDGET_EXCEEDED", message: "This view is busy. Please retry or narrow your search." });
       safeConsole.error("Error in updateLead:", error);
 
       if (error.isJoi) {
@@ -401,6 +407,7 @@ class LeadController {
         "Lead status updated successfully",
       );
     } catch (error) {
+      if (queryFailure(error)) return res.status(503).set("Retry-After", "2").json({ success: false, code: "QUERY_BUDGET_EXCEEDED", message: "This view is busy. Please retry or narrow your search." });
       safeConsole.error("Error in updateLeadStatus:", error);
       return Response.responseServerError(res);
     }
@@ -449,6 +456,7 @@ class LeadController {
         message: "Lead deleted successfully",
       });
     } catch (error) {
+      if (queryFailure(error)) return res.status(503).set("Retry-After", "2").json({ success: false, code: "QUERY_BUDGET_EXCEEDED", message: "This view is busy. Please retry or narrow your search." });
       safeConsole.error("Error in deleteLead:", error);
       return Response.responseServerError(res);
     }

@@ -436,6 +436,10 @@ const ConversationIntelligenceSchema = new Schema(
 /*
  * Supports sorting and filtering by buying likelihood for one business.
  */
+// Bounded owner read and related-record lookup indexes. Additive migration only.
+ConversationIntelligenceSchema.index({ business: 1, lead: 1, createdAt: -1, _id: -1 });
+ConversationIntelligenceSchema.index({ business: 1, conversation: 1, createdAt: -1, _id: -1 });
+ConversationIntelligenceSchema.index({ business: 1, createdAt: -1, _id: -1 });
 ConversationIntelligenceSchema.index({
   business: 1,
   "buyingLikelihood.score": -1,

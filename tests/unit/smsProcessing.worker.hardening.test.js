@@ -297,11 +297,21 @@ describe("smsProcessing.worker hardening", () => {
 
   test("a busy conversation defers the claimed job without sending or completing it", async () => {
     mockClaimNextInboundSmsJob.mockResolvedValueOnce(job()).mockResolvedValue(null);
-    mockWithDistributedLease.mockResolvedValueOnce({ acquired: false });
+    mockWithDistributedLease.mockImplementation(async (key, operation) => key.startsWith("sms-conversation:")
+      ? { acquired: false } : { acquired: true, value: await operation() });
     await drainSmsProcessingQueueOnce();
     expect(mockDeferInboundSmsJob).toHaveBeenCalledWith({ jobId: "job-1", leaseToken: "lease-1", delayMs: 500, reason: "conversation_lease_busy" });
     expect(mockSafelyProcessInboundSmsJob).not.toHaveBeenCalled();
     expect(mockCompleteInboundSmsJob).not.toHaveBeenCalled();
+    expect(mockFailInboundSmsJob).not.toHaveBeenCalled();
+  });
+
+  test("a saturated tenant defers work without exhausting the provider retry budget", async () => {
+    mockClaimNextInboundSmsJob.mockResolvedValueOnce(job()).mockResolvedValue(null);
+    mockWithDistributedLease.mockResolvedValue({ acquired: false });
+    await drainSmsProcessingQueueOnce();
+    expect(mockDeferInboundSmsJob).toHaveBeenCalledWith(expect.objectContaining({ reason: "tenant_concurrency_limit", jobId: "job-1", leaseToken: "lease-1" }));
+    expect(mockSafelyProcessInboundSmsJob).not.toHaveBeenCalled();
     expect(mockFailInboundSmsJob).not.toHaveBeenCalled();
   });
 

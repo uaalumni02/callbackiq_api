@@ -1,3 +1,4 @@
+import { queryBudgetMs } from "./scale/queryBudget.js";
 import { verifiedAmountExpression, estimateCoverageGroup } from "./valuation/opportunityValue.js";
 // CALLBACKIQ_PRODUCTION_HARDENING_V1
 import mongoose from "mongoose";
@@ -92,7 +93,7 @@ export const getLeadsPage = async (businessId, query = {}) => {
     filter.status = query.status;
   }
 
-  const search = String(query.q || query.search || "").trim();
+  const search = String(query.q || query.search || "").trim().slice(0, 200);
   if (search) {
     const pattern = new RegExp(escapeRegex(search), "i");
     clauses.push({
@@ -125,6 +126,7 @@ export const getLeadsPage = async (businessId, query = {}) => {
     .sort({ createdAt: -1, _id: -1 })
     .limit(limit + 1)
     .populate("business", "businessName businessType phone")
+    .maxTimeMS(queryBudgetMs())
     .lean();
 
   return finishPage({
@@ -158,7 +160,7 @@ export const getLeadsOverview = async (businessId, query = {}) => {
           actualRevenue: { $sum: "$actualRevenue" },
         },
       },
-    ]),
+    ]).option({ maxTimeMS: queryBudgetMs() }),
   ]);
 
   return {
@@ -196,7 +198,7 @@ export const getCallLogsPage = async (businessId, query = {}) => {
     filter.direction = query.direction;
   }
 
-  const search = String(query.q || query.search || "").trim();
+  const search = String(query.q || query.search || "").trim().slice(0, 200);
   if (search) {
     const pattern = new RegExp(escapeRegex(search), "i");
     clauses.push({
@@ -236,6 +238,7 @@ export const getCallLogsPage = async (businessId, query = {}) => {
       "customerName phone estimatedValue valuation actualRevenue firstAttribution latestAttribution source",
     )
     .populate("conversation", "customerName customerPhone status")
+    .maxTimeMS(queryBudgetMs())
     .lean();
 
   return finishPage({
@@ -272,7 +275,7 @@ export const getCallLogsOverview = async (businessId, query = {}) => {
           recovered: { $sum: { $cond: ["$recovered", 1, 0] } },
         },
       },
-    ]),
+    ]).option({ maxTimeMS: queryBudgetMs() }),
   ]);
 
   return {
@@ -328,7 +331,7 @@ export const getConversationsPage = async (businessId, query = {}) => {
           { customerName: pattern }, { phone: pattern }, { serviceNeeded: pattern },
         ] } } } ] } },
       { $limit: limit + 1 }, { $project: { searchLead: 0 } },
-    ]).option({ maxTimeMS: 5000 });
+    ]).option({ maxTimeMS: queryBudgetMs() });
     documents = await Conversation.populate(documents, [
       { path: "business", select: "businessName phone owner" },
       { path: "lead", select: "customerName phone serviceNeeded urgency status" },
@@ -341,7 +344,8 @@ export const getConversationsPage = async (businessId, query = {}) => {
       .populate("business", "businessName phone owner")
       .populate("lead", "customerName phone serviceNeeded urgency status")
       .populate("archivedBy", "userName email role")
-      .lean();
+      .maxTimeMS(queryBudgetMs())
+    .lean();
   }
 
   return finishPage({
@@ -390,7 +394,8 @@ export const getMessagesPage = async (
     );
   }
 
-  const documents = await messageQuery.lean();
+  const documents = await messageQuery.maxTimeMS(queryBudgetMs())
+    .lean();
 
   const conversationSummary = conversation
     ? {

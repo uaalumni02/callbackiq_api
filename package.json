@@ -146,7 +146,11 @@
     "perf:mixed-soak": "node perf/mixed-soak.mjs",
     "deploy:render-scale": "node deploy/scale/render.mjs",
     "probe:scale-health": "node scripts/probe-scale-health.mjs",
-    "verify:staging-browser": "node scripts/staging-browser-acceptance.mjs"
+    "verify:staging-browser": "node scripts/staging-browser-acceptance.mjs",
+    "test:scale-query-fixes": "node --test hardening-tests/scaleCacheCoordination.test.mjs && jest --runInBand tests/unit/scaleQuerySafety.test.js tests/unit/scaleCache.service.test.js tests/unit/productionHardening.cursorPagination.test.js tests/unit/smsProcessing.worker.hardening.test.js tests/unit/smsProcessingQueue.reclaim.test.js tests/unit/smsProcessingQueue.orphanReconciliation.test.js",
+    "test:scale-query-fixes:persistence": "jest --runInBand tests/integration/scaleQueryPersistence.test.js tests/routes/ownerExperience.routes.test.js tests/integration/scaleFleet.persistence.test.js",
+    "probe:scale-queries": "node scripts/probe-scale-queries.mjs",
+    "plan:sms-capacity": "node scripts/scale-sms-sizing.mjs"
   },
   "keywords": [],
   "author": "",
