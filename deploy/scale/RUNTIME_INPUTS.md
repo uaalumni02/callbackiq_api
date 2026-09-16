@@ -1,5 +1,7 @@
 # Runtime inputs for the scale deployment
 
+**September 16 update:** follow `docs/SCALE_CAPACITY_RELEASE_2026_09_16.md`. A measured `SCALE_CAPACITY_PLAN` is now mandatory; the sample below omits those required inputs and will not render until supplied. The measured renderer supersedes the historical initial SMS replica count and sizing formula described below.
+
 The renderer creates application workloads and ingress. It does not purchase servers, create Mongo/Redis, provision Twilio numbers, enroll A2P campaigns, set provider quotas, create TLS certificates, or deploy the frontend. Those are externally managed prerequisites.
 
 Use an existing managed Kubernetes cluster with enough schedulable capacity and an installed ingress-nginx controller, a Mongo replica set with backups, and shared managed Redis. You may translate this topology to another host, but its WebSocket routing and termination grace must match. Do not move a production deployment merely by running this renderer.
@@ -26,7 +28,7 @@ Do not treat OpenAI as having a single universal concurrency quota: derive the d
 
 The email path is not a bulk-mail capacity guarantee. At high urgent-alert rates, test the actual Gmail/Workspace sending quota and transport latency. PagerDuty is a separate operations escalation path; it pages your staffed operator, not the customer's business phone. Configure the operator escalation schedule in PagerDuty and verify receipt. The app never marks a business review acknowledged because a paging provider accepted it.
 
-The reference fleet starts with 4 API, 6 voice, 12 SMS, 2 operations, and two of each remaining worker role. Pools are explicitly bounded and the connection calculation includes one surge replica per deployment. CPU/memory requests are starting allocations for measurement. No HPA is installed: automatic scale-down of long-lived calls must first pass drain testing. Use manual replica changes with a regenerated connection budget; do not blindly raise limits.
+The reference fleet starts with 4 API, 6 voice, 12 SMS, 2 operations, and two of each remaining worker role. Pools are explicitly bounded and the connection calculation includes one surge replica per deployment. CPU/memory requests are starting allocations for measurement. API/SMS HPA is optional and requires an installed external-metrics adapter; voice stays manually sized because long-lived calls require drain testing. Regenerate connection/provider budgets for maximum replica counts.
 
 Render, inspect and validate without changing the cluster:
 
@@ -47,4 +49,4 @@ The ingress preserves path/query/body and routes all voice callback paths and `/
 
 The initial 12 SMS replicas with 25 lanes each provide 300 processing lanes, not 300 messages per second. At 200 messages/second, a two-second whole-job average needs roughly 400 occupied lanes before headroom; four seconds needs roughly 800. Account for provider calls, database waits, conversation leases and retries in the duration. A fast webhook ACK does not reduce that work.
 
-After measuring, start with `ceil(target_rps * measured_job_seconds * 1.25 / lanes_per_worker) + 1` SMS replicas, then validate queue-age and provider-acceptance SLOs. This formula is a sizing estimate, not a throughput certificate. Override the renderer with `SCALE_REPLICAS_WORKER_SMS`, `SCALE_REPLICAS_API`, or `SCALE_REPLICAS_VOICE`; it recalculates the Mongo allocation and role expectations. Increasing workers without provider quota and database capacity will not fix an overloaded provider.
+After measuring, the renderer uses `ceil(target_rps * worst_measured_p95_seconds / (25 * utilization)) + 1` SMS replicas, then requires queue-age and provider-acceptance SLO verification. This formula is a sizing estimate, not a throughput certificate. Override the renderer with `SCALE_REPLICAS_WORKER_SMS`, `SCALE_REPLICAS_API`, or `SCALE_REPLICAS_VOICE`; it recalculates the Mongo allocation and role expectations. Increasing workers without provider quota and database capacity will not fix an overloaded provider.

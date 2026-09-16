@@ -20,7 +20,7 @@ export function startProcessHeartbeat() {
         await fs.rename(`${target}.tmp`, target);
       }
       if (ready) await Heartbeat.updateOne({ _id: id }, { $set: { role: process.env.PROCESS_ROLE,
-        seenAt: now, ready, release: process.env.RELEASE_SHA || 'unrecorded' } }, { upsert: true }).maxTimeMS(3000);
+        seenAt: now, ready, capacityPlan: process.env.SCALE_CAPACITY_PLAN_SHA256 || 'unrecorded', image: process.env.SCALE_IMAGE_DIGEST || 'unrecorded', release: process.env.RELEASE_SHA || 'unrecorded' } }, { upsert: true }).maxTimeMS(3000);
     })().catch(error => logOperationalError('fleet.heartbeat_failed', error)).finally(() => { active = null; });
   };
   tick(); timer = setInterval(tick, 10000); timer.unref?.();

@@ -126,6 +126,14 @@ const relatedTests = relatedResult.stdout
   .filter(Boolean);
 
 const explicitReleaseTests = [
+  "tests/unit/scaleTimeoutControllers.release.test.js",
+  "tests/unit/scaleCustomerDetail.release.test.js",
+  "tests/unit/scaleCacheCoordinator.release.test.js",
+  "tests/unit/scaleCacheRedis.release.test.js",
+  "tests/unit/scaleReadContracts.release.test.js",
+  "tests/unit/scaleCapacityPlan.release.test.js",
+  "tests/unit/scaleHealth.release.test.js",
+
   "tests/unit/adminScaleHealth.route.release.test.js",
   "tests/unit/staffNotification.worker.release.test.js",
   "tests/unit/staffNotification.dispatch.test.js",

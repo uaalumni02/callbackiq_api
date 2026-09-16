@@ -39,3 +39,11 @@ module.exports = {
     },
   },
 };
+
+// Ignore installer rollback backups
+for (const key of ["testPathIgnorePatterns","modulePathIgnorePatterns","watchPathIgnorePatterns"]) {
+  module.exports[key] = [...new Set([
+    ...(module.exports[key] || []),
+    "<rootDir>/[.]callbackiq-[^/]*backup[^/]*/"
+  ])];
+}

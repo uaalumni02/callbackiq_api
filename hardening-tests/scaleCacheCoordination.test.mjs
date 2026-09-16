@@ -1,3 +1,4 @@
+import { capacityFixture } from './capacityFixtures.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createCacheRefreshCoordinator } from '../src/services/scale/cacheRefresh.service.js';
@@ -61,14 +62,16 @@ test('capacity certificate rejects missing or incomplete expensive-route evidenc
 });
 
 test('optional autoscaling budgets maximum replicas and demands a metrics adapter', async () => {
-  const { mkdtemp, readFile, rm } = await import('node:fs/promises');
+  const { mkdtemp, readFile, writeFile, rm } = await import('node:fs/promises');
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
   const { spawnSync } = await import('node:child_process');
   const dir = await mkdtemp(join(tmpdir(), 'callbackiq-render-'));
   try {
     const file = join(dir, 'deployment.json');
-    const env = { ...process.env, SCALE_IMAGE: `example/app@sha256:${'0'.repeat(64)}`, RELEASE_SHA: 'a'.repeat(40),
+    const planFile = join(dir, 'plan.json');
+    await writeFile(planFile, JSON.stringify(capacityFixture()));
+    const env = { SCALE_CAPACITY_PLAN: planFile, SCALE_MONGO_CONNECTION_BUDGET: '2000', ...process.env, SCALE_IMAGE: `example/app@sha256:${'0'.repeat(64)}`, RELEASE_SHA: 'a'.repeat(40),
       SCALE_INGRESS_HOST: 'example.test', SCALE_TLS_SECRET: 'test-tls', SCALE_DEPLOYMENT_FILE: file,
       SCALE_AUTOSCALING_ENABLED: 'true', SCALE_MAX_REPLICAS_API: '8', SCALE_MAX_REPLICAS_WORKER_SMS: '30' };
     const script = new URL('../deploy/scale/render.mjs', import.meta.url);

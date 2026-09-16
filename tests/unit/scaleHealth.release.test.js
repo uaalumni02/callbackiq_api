@@ -26,3 +26,12 @@ test('failed pager is unhealthy even with empty queues', async () => {
  Incident.countDocuments.mockReturnValue({ maxTimeMS: async () => 1 });
  expect(await readScaleHealth()).toMatchObject({ healthy: false, failedPages: 1 });
 });
+
+test('fleet health reports unique deployment identities and exposes unrecorded older workers', async () => {
+ Heartbeat.aggregate.mockReturnValue({ option: async () => [
+  { _id: 'api', count: 2, releases: ['release'], capacityPlans: ['plan'], images: ['image'] },
+  { _id: 'worker-sms', count: 2, releases: ['release'], capacityPlans: ['plan'], images: ['image'] },
+  { _id: 'voice', count: 1, releases: ['release'] },
+ ] });
+ expect(await readScaleHealth()).toMatchObject({capacityPlans:['plan','unrecorded'],images:['image','unrecorded']});
+});

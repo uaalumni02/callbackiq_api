@@ -18,6 +18,14 @@ export function validateScaleProfile(env = process.env) {
   if ((n('SCALE_VOICE_REPLICAS') - 1) * n('VOICE_INSTANCE_MAX_AI_TURNS') < n('SCALE_TARGET_VOICE')) errors.push('AI turn capacity must survive loss of one replica');
   if (n('VOICE_FLEET_MAX_SESSIONS') < n('SCALE_TARGET_VOICE') || n('VOICE_FLEET_MAX_AI_TURNS') < n('SCALE_TARGET_VOICE')) errors.push('Fleet limits are below the target');
   if (n('VOICE_FLEET_MAX_SESSIONS') > n('PROVIDER_VOICE_SESSION_QUOTA') || n('VOICE_FLEET_MAX_AI_TURNS') > n('PROVIDER_AI_CONCURRENT_QUOTA')) errors.push('Fleet limits exceed declared provider capacity');
+  if (!/^[a-f0-9]{64}$/.test(env.SCALE_CAPACITY_PLAN_SHA256 || '') || !['live', 'simulated'].includes(env.SCALE_CAPACITY_PROVIDER_MODE)) errors.push('A measured capacity plan identity and provider mode are required');
+  requireNumber('SCALE_SMS_REQUIRED_REPLICAS', 2);
+  requireNumber('SCALE_TARGET_SMS_RPS', 200);
+  requireNumber('SCALE_COMBINED_AI_CONCURRENCY', 1);
+  if (n('SCALE_COMBINED_AI_CONCURRENCY') < n('VOICE_FLEET_MAX_AI_TURNS') + (n('SCALE_SMS_REPLICAS') + 1) * 25 || n('PROVIDER_AI_CONCURRENT_QUOTA') < n('SCALE_COMBINED_AI_CONCURRENCY')) errors.push('Combined SMS/voice provider concurrency is underallocated');
+  if (!(n('SCALE_SMS_PROCESSING_P95_MS') > 0 && n('SCALE_SMS_TARGET_UTILIZATION') > 0 && n('SCALE_SMS_TARGET_UTILIZATION') <= .8)) errors.push('Measured SMS service time and utilization are required');
+  const calculatedSms = Math.ceil(n('SCALE_TARGET_SMS_RPS') * n('SCALE_SMS_PROCESSING_P95_MS') / 1000 / (25 * n('SCALE_SMS_TARGET_UTILIZATION'))) + 1;
+  if (n('SMS_PROCESSING_CONCURRENCY') !== 25 || n('SCALE_SMS_REQUIRED_REPLICAS') < calculatedSms || n('SCALE_SMS_REPLICAS') < n('SCALE_SMS_REQUIRED_REPLICAS')) errors.push('SMS replicas/lanes are below measured capacity requirements');
   if (n('SCALE_MONGO_DECLARED_CONNECTIONS') > n('SCALE_MONGO_CONNECTION_BUDGET')) errors.push('Mongo connection allocation exceeds the budget');
   if (!env.REDIS_URL || !env.SCALE_CACHE_NAMESPACE || env.SOCKET_REDIS_REQUIRED !== 'true') errors.push('Shared Redis and an explicit deployment namespace are required');
   if (!['true', 'false'].includes(env.COMMUNICATION_ROUTE_RATE_LIMIT_FAIL_CLOSED)) errors.push('Choose the webhook coordination outage policy explicitly');

@@ -116,7 +116,6 @@ const createOrReuseConversation = async ({ businessId, payload }) => {
         business: businessId,
       });
     } catch (error) {
-      if (queryFailure(error)) return res.status(503).set("Retry-After", "2").json({ success: false, code: "QUERY_BUDGET_EXCEEDED", message: "This view is busy. Please retry or narrow your search." });
       if (Number(error?.code) !== 11000) throw error;
       existingConversation = await findExisting();
       if (!existingConversation) throw error;

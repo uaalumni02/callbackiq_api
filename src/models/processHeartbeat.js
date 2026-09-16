@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 const schema = new mongoose.Schema({
   _id: String, role: { type: String, required: true }, seenAt: { type: Date, required: true },
-  release: String, ready: Boolean,
+  release: String, ready: Boolean, capacityPlan: String, image: String,
 }, { versionKey: false });
 schema.index({ seenAt: 1 }, { expireAfterSeconds: 300 });
 schema.index({ role: 1, seenAt: 1 });

@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "apiSha": "",
+  "providerMode": "simulated",
+  "observedAt": "",
+  "observedBy": "",
+  "evidenceRef": "",
+  "target": {
+    "businesses": 1001,
+    "voiceSessions": 350,
+    "smsPerSecond": 200
+  },
+  "utilization": 0.65,
+  "smsSamples": [
+    {
+      "scenario": "normal",
+      "completedJobs": 0,
+      "durationMs": 0,
+      "processingP95Ms": 0,
+      "evidenceRef": ""
+    },
+    {
+      "scenario": "slow-provider",
+      "completedJobs": 0,
+      "durationMs": 0,
+      "processingP95Ms": 0,
+      "evidenceRef": ""
+    }
+  ],
+  "providerDemand": {
+    "aiRequestsPerSms": 0,
+    "aiTokensPerSms": 0,
+    "voiceTurnsPerSecond": 0,
+    "aiRequestsPerVoiceTurn": 0,
+    "aiTokensPerVoiceTurn": 0,
+    "smsSegmentsPerJob": 0,
+    "otherAiRequestsPerMinute": 0,
+    "otherAiTokensPerMinute": 0,
+    "otherAiConcurrent": 0
+  },
+  "providerQuota": {
+    "aiRequestsPerMinute": 0,
+    "aiTokensPerMinute": 0,
+    "smsSegmentsPerSecond": 0,
+    "voiceSessions": 0,
+    "aiConcurrent": 0,
+    "observedAt": "",
+    "evidenceRef": ""
+  }
+}

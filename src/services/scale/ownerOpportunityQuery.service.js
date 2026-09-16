@@ -29,6 +29,28 @@ const viewFilter = view => ({ active: { status: { $in: ['new', 'contacted'] } },
   ready: { _ready: true }, waiting: { _isWaiting: true }, needs_me: { _needsMe: true }, all: {} })[view];
 const needsFlags = view => ['ready', 'waiting', 'needs_me'].includes(view);
 const execute = pipeline => Lead.aggregate(pipeline).option({ maxTimeMS: queryBudgetMs() });
+// All views share this tenant summary; search terms must not multiply the
+// expensive workflow joins. Historical closed leads need no workflow joins.
+export const ownerStatusPipeline = businessId => [{ $match: { business: businessId } },
+  { $group: { _id: '$status', count: { $sum: 1 } } }];
+export const ownerWorkflowPipeline = (businessId, flags) => [
+  { $match: { business: businessId, status: { $in: ['new', 'contacted'] } } }, ...flags,
+  { $group: { _id: null, readyToSchedule: { $sum: { $cond: ['$_ready', 1, 0] } },
+    needsMe: { $sum: { $cond: ['$_needsMe', 1, 0] } }, waiting: { $sum: { $cond: ['$_isWaiting', 1, 0] } } } },
+];
+export const ownerSummaryKey = (businessId, autoBooking, interventionFilter) =>
+  `owner-workflow-summary:v2:${crypto.createHash('sha256').update(JSON.stringify([String(businessId), autoBooking, interventionFilter])).digest('hex')}`;
+export async function readOwnerSummary({ businessId, flags, autoBooking, interventionFilter }) {
+  return ScaleCache.getOrLoad({ key: ownerSummaryKey(businessId, autoBooking, interventionFilter), ttlMs: 10000, staleMs: 30000, loader: async () => {
+    const statuses = await execute(ownerStatusPipeline(businessId));
+    const count = name => statuses.find(row => row._id === name)?.count || 0;
+    const active = count('new') + count('contacted');
+    const [workflow] = active ? await execute(ownerWorkflowPipeline(businessId, flags)) : [];
+    return { stats: { active, readyToSchedule: workflow?.readyToSchedule || 0,
+      needsMe: workflow?.needsMe || 0, waiting: workflow?.waiting || 0, booked: count('booked') },
+      total: statuses.reduce((sum, row) => sum + row.count, 0), lost: count('lost'), observedAt: new Date().toISOString() };
+  } });
+}
 export async function queryOwnerOpportunities({ business, interventionFilter, view = 'active', search = '', limit, skip = 0, cursor, includeSummary = true }) {
   view = ['active', 'booked', 'not_booked', 'ready', 'waiting', 'needs_me', 'all'].includes(view) ? view : 'active';
   const size = pageLimit(limit), offset = Number(skip) || 0;
@@ -39,7 +61,7 @@ export async function queryOwnerOpportunities({ business, interventionFilter, vi
   const continuation = decodePage(cursor, scope);
   const searchMatch = search ? { $or: ['customerName', 'phone', 'serviceNeeded', 'summary'].map(key => ({ [key]: new RegExp(escape(search), 'i') })) } : {};
   const flags = opportunityFlags(businessId, interventionFilter, Boolean(business.features?.aiBookingEnabled));
-  const base = [{ $match: { business: businessId, ...searchMatch } }];
+  const base = [{ $match: { business: businessId, ...searchMatch, ...(needsFlags(view) ? { status: { $in: ['new', 'contacted'] } } : {}) } }];
   // Sort and seek on an indexed lead field before joining any foreign records.
   const filtered = [...base, { $match: beforePage(continuation, 'updatedAt') }, { $sort: { updatedAt: -1, _id: -1 } },
     ...(needsFlags(view) ? flags : []), { $match: viewFilter(view) }];
@@ -53,17 +75,23 @@ export async function queryOwnerOpportunities({ business, interventionFilter, vi
   const page = finishPage(rows, size, scope, 'updatedAt');
   const result = { rows: page.items, pagination: { ...page.pagination, skip: offset } };
   if (includeSummary) {
-    const key = crypto.createHash('sha256').update(JSON.stringify([String(businessId), view, search, Boolean(business.features?.aiBookingEnabled)])).digest('hex');
-    const summary = await ScaleCache.getOrLoad({ key: `owner-opportunity-counts:${key}`, ttlMs: 10000, staleMs: 30000, loader: async () => {
-      const [stats] = await execute([{ $match: { business: businessId } }, ...flags, { $group: { _id: null,
-        active: { $sum: { $cond: ['$_active', 1, 0] } }, readyToSchedule: { $sum: { $cond: ['$_ready', 1, 0] } },
-        needsMe: { $sum: { $cond: ['$_needsMe', 1, 0] } }, waiting: { $sum: { $cond: ['$_isWaiting', 1, 0] } },
-        booked: { $sum: { $cond: [{ $eq: ['$status', 'booked'] }, 1, 0] } } } }]);
-      const [total] = await execute([...base, ...(needsFlags(view) ? flags : []), { $match: viewFilter(view) }, { $count: 'value' }]);
-      return { stats: stats || { active: 0, readyToSchedule: 0, needsMe: 0, waiting: 0, booked: 0 }, total: total?.value || 0, observedAt: new Date().toISOString() };
-    } });
-    const { _id, ...stats } = summary.stats;
-    result.stats = stats; result.pagination.total = summary.total; result.summaryObservedAt = summary.observedAt;
+    const summary = await readOwnerSummary({ businessId, flags,
+      autoBooking: Boolean(business.features?.aiBookingEnabled), interventionFilter });
+    let total;
+    if (!search) {
+      total = { active: summary.stats.active, booked: summary.stats.booked, not_booked: summary.lost,
+        ready: summary.stats.readyToSchedule, waiting: summary.stats.waiting, needs_me: summary.stats.needsMe, all: summary.total }[view];
+    } else {
+      // Only the search-specific count is keyed by search/view. The shared
+      // workflow summary above is reused across all tabs and typed searches.
+      const key = crypto.createHash('sha256').update(JSON.stringify([scope, Boolean(business.features?.aiBookingEnabled), interventionFilter])).digest('hex');
+      const count = await ScaleCache.getOrLoad({ key: `owner-search-count:v2:${key}`, ttlMs: 10000, staleMs: 30000, loader: async () => {
+        const [row] = await execute([...base, ...(needsFlags(view) ? flags : []), { $match: viewFilter(view) }, { $count: 'value' }]);
+        return { value: row?.value || 0 };
+      } });
+      total = count.value;
+    }
+    result.stats = summary.stats; result.pagination.total = total; result.summaryObservedAt = summary.observedAt;
   }
   return result;
 }

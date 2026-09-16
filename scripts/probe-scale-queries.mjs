@@ -6,6 +6,9 @@ import CallLog from '../src/models/callLog.js';
 import Conversation from '../src/models/conversation.js';
 import Job from '../src/models/smsProcessingJob.js';
 import Message from '../src/models/message.js';
+import Business from '../src/models/business.js';
+import { ownerInterventionFilter } from '../src/services/ownerExperience.service.js';
+import { ownerStatusPipeline, ownerWorkflowPipeline, opportunityFlags } from '../src/services/scale/ownerOpportunityQuery.service.js';
 import { getMongoUrl } from '../src/config/runtime-environment.js';
 import { historyPipeline } from '../src/services/scale/customerHistory.service.js';
 import { queryBudgetMs } from '../src/services/scale/queryBudget.js';
@@ -26,7 +29,12 @@ try {
   const lead = await Lead.findOne({ _id: leadId, business }).maxTimeMS(queryBudgetMs()).lean();
   if (!lead) throw new Error('Probe lead does not belong to the declared business');
   const term = String(process.env.SCALE_PROBE_SEARCH || 'no-match-scale-probe').slice(0, 120).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const settings = await Business.findById(business).select('features').maxTimeMS(queryBudgetMs()).lean();
+  const flags = opportunityFlags(business, ownerInterventionFilter(business), Boolean(settings?.features?.aiBookingEnabled));
   const tests = [
+    ['owner-status-summary', () => Lead.aggregate(ownerStatusPipeline(business)).option({ maxTimeMS: queryBudgetMs() }).explain('executionStats')],
+    ['owner-workflow-summary', () => Lead.aggregate(ownerWorkflowPipeline(business, flags)).option({ maxTimeMS: queryBudgetMs() }).explain('executionStats')],
+    ['lead-search-miss', () => Lead.find({ business, $or: ['customerName', 'phone', 'serviceNeeded', 'summary'].map(key => ({ [key]: /scale-probe-no-match-01d07c38/i })) }).sort({ createdAt: -1, _id: -1 }).limit(51).maxTimeMS(queryBudgetMs()).explain('executionStats')],
     ['owner-page', () => Lead.find({ business }).sort({ updatedAt: -1, _id: -1 }).limit(51).maxTimeMS(queryBudgetMs()).explain('executionStats')],
     ['lead-search', () => Lead.find({ business, $or: ['customerName', 'phone', 'serviceNeeded'].map(key => ({ [key]: new RegExp(term, 'i') })) }).sort({ createdAt: -1, _id: -1 }).limit(51).maxTimeMS(queryBudgetMs()).explain('executionStats')],
     ['call-search', () => CallLog.find({ business, deletedAt: null, $or: ['from', 'to', 'notes', 'transcription'].map(key => ({ [key]: new RegExp(term, 'i') })) }).sort({ createdAt: -1, _id: -1 }).limit(51).maxTimeMS(queryBudgetMs()).explain('executionStats')],
@@ -37,7 +45,8 @@ try {
     ] }).sort({ priority: -1, availableAt: 1, createdAt: 1 }).limit(1).maxTimeMS(queryBudgetMs()).explain('executionStats')],
   ];
   for (const [name, execute] of tests) {
-    try { records.push({ name, measured: true, plans: collect(await execute()) }); }
+    const started = performance.now();
+    try { const plans = collect(await execute()); records.push({ name, measured: true, elapsedMs: performance.now() - started, plans }); }
     catch (error) { records.push({ name, measured: false, code: String(error.code || error.codeName || 'QUERY_FAILED') }); process.exitCode = 1; }
   }
   const counts = { leads: await Lead.countDocuments({ business }).maxTimeMS(queryBudgetMs()), messages: await Message.countDocuments({ business }).maxTimeMS(queryBudgetMs()) };

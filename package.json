@@ -147,10 +147,13 @@
     "deploy:render-scale": "node deploy/scale/render.mjs",
     "probe:scale-health": "node scripts/probe-scale-health.mjs",
     "verify:staging-browser": "node scripts/staging-browser-acceptance.mjs",
-    "test:scale-query-fixes": "node --test hardening-tests/scaleCacheCoordination.test.mjs && jest --runInBand tests/unit/scaleQuerySafety.test.js tests/unit/scaleCache.service.test.js tests/unit/productionHardening.cursorPagination.test.js tests/unit/smsProcessing.worker.hardening.test.js tests/unit/smsProcessingQueue.reclaim.test.js tests/unit/smsProcessingQueue.orphanReconciliation.test.js",
+    "test:scale-query-fixes": "node --test hardening-tests/scaleCacheCoordination.test.mjs && jest --runInBand tests/unit/scaleQuerySafety.test.js tests/unit/scaleCache.service.test.js tests/unit/productionHardening.cursorPagination.test.js tests/unit/smsProcessing.worker.hardening.test.js tests/unit/smsProcessingQueue.reclaim.test.js tests/unit/smsProcessingQueue.orphanReconciliation.test.js tests/unit/ownerSummary.capacity.test.js",
     "test:scale-query-fixes:persistence": "jest --runInBand tests/integration/scaleQueryPersistence.test.js tests/routes/ownerExperience.routes.test.js tests/integration/scaleFleet.persistence.test.js",
     "probe:scale-queries": "node scripts/probe-scale-queries.mjs",
-    "plan:sms-capacity": "node scripts/scale-sms-sizing.mjs"
+    "plan:sms-capacity": "node scripts/scale-sms-sizing.mjs",
+    "test:scale-capacity": "node --test hardening-tests/scaleCapacityRelease.test.mjs && jest --runInBand tests/unit/ownerSummary.capacity.test.js",
+    "verify:release-ci": "node scripts/check-release-ci.mjs",
+    "prepare:scale-evidence": "node scripts/prepare-scale-evidence.mjs"
   },
   "keywords": [],
   "author": "",
@@ -212,21 +215,24 @@
       "<rootDir>/CallBackIQ[^/]*(?:Update|Bundle)/",
       "<rootDir>/.callbackiq-fix-backups/",
       "<rootDir>/.callbackiq-update-backups/",
-      "<rootDir>/[.]callbackiq-scale-release-[^/]*-backup/"
+      "<rootDir>/[.]callbackiq-scale-release-[^/]*-backup/",
+      "<rootDir>/[.]callbackiq-[^/]*backup[^/]*/"
     ],
     "watchPathIgnorePatterns": [
       "<rootDir>/.callbackiq-phase9-backup/",
       "<rootDir>/.callbackiq-backups/",
       "<rootDir>/.callbackiq-fix-backups/",
       "<rootDir>/.callbackiq-update-backups/",
-      "<rootDir>/[.]callbackiq-scale-release-[^/]*-backup/"
+      "<rootDir>/[.]callbackiq-scale-release-[^/]*-backup/",
+      "<rootDir>/[.]callbackiq-[^/]*backup[^/]*/"
     ],
     "modulePathIgnorePatterns": [
       "<rootDir>/.callbackiq-phase9-backup/",
       "<rootDir>/.callbackiq-backups/",
       "<rootDir>/.callbackiq-fix-backups/",
       "<rootDir>/.callbackiq-update-backups/",
-      "<rootDir>/[.]callbackiq-scale-release-[^/]*-backup/"
+      "<rootDir>/[.]callbackiq-scale-release-[^/]*-backup/",
+      "<rootDir>/[.]callbackiq-[^/]*backup[^/]*/"
     ],
     "watchman": false,
     "setupFilesAfterEnv": [

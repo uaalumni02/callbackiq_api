@@ -59,3 +59,16 @@ test('tenant slots limit overlapping jobs while another business can continue', 
   } finally { release(); await pending; }
   expect((await withSmsTenantSlot(business, async () => 'again')).value).toBe('again');
 });
+
+test('summary counts retain historical booked/lost totals while workflow joins use active leads', async () => {
+  const business = { _id: oid(), features: {} };
+  const common = { business: business._id, createdAt: new Date(), updatedAt: new Date() };
+  await Lead.collection.insertMany([
+    { ...common, status: 'new', serviceNeeded: 'repair', address: '1 Main', preferredAppointmentTime: 'tomorrow' },
+    ...Array.from({ length: 120 }, () => ({ ...common, status: 'booked' })),
+    ...Array.from({ length: 30 }, () => ({ ...common, status: 'lost' })),
+  ]);
+  const options = { business, interventionFilter: ownerInterventionFilter(business._id) };
+  expect(await queryOwnerOpportunities({ ...options, view: 'all' })).toMatchObject({ stats: { active: 1, booked: 120, readyToSchedule: 1 }, pagination: { total: 151 } });
+  expect(await queryOwnerOpportunities({ ...options, view: 'not_booked' })).toMatchObject({ pagination: { total: 30 } });
+});

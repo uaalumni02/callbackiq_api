@@ -4,147 +4,270 @@
   "mixedReports": [],
   "infrastructure": {
     "imageDigest": "",
-    "topologyRef": "",
-    "providerQuotaRef": ""
+    "topology": {
+      "path": "scale-deployment.json",
+      "sha256": ""
+    }
   },
   "checks": {
     "burst350": {
       "passed": false,
       "observedAt": "",
       "observedBy": "",
-      "evidenceRef": ""
+      "apiSha": "",
+      "uiSha": "",
+      "attachment": {
+        "path": "",
+        "sha256": ""
+      }
     },
     "workerKillFinalAttempt": {
       "passed": false,
       "observedAt": "",
       "observedBy": "",
-      "evidenceRef": ""
+      "apiSha": "",
+      "uiSha": "",
+      "attachment": {
+        "path": "",
+        "sha256": ""
+      }
     },
     "voiceGracefulDrain": {
       "passed": false,
       "observedAt": "",
       "observedBy": "",
-      "evidenceRef": ""
+      "apiSha": "",
+      "uiSha": "",
+      "attachment": {
+        "path": "",
+        "sha256": ""
+      }
     },
     "voiceAbruptFailure": {
       "passed": false,
       "observedAt": "",
       "observedBy": "",
-      "evidenceRef": ""
+      "apiSha": "",
+      "uiSha": "",
+      "attachment": {
+        "path": "",
+        "sha256": ""
+      }
     },
     "redisOutage": {
       "passed": false,
       "observedAt": "",
       "observedBy": "",
-      "evidenceRef": ""
+      "apiSha": "",
+      "uiSha": "",
+      "attachment": {
+        "path": "",
+        "sha256": ""
+      }
     },
     "mongoFailover": {
       "passed": false,
       "observedAt": "",
       "observedBy": "",
-      "evidenceRef": ""
+      "apiSha": "",
+      "uiSha": "",
+      "attachment": {
+        "path": "",
+        "sha256": ""
+      }
     },
     "provider429AndTimeout": {
       "passed": false,
       "observedAt": "",
       "observedBy": "",
-      "evidenceRef": ""
+      "apiSha": "",
+      "uiSha": "",
+      "attachment": {
+        "path": "",
+        "sha256": ""
+      }
     },
     "webhookReplay": {
       "passed": false,
       "observedAt": "",
       "observedBy": "",
-      "evidenceRef": ""
+      "apiSha": "",
+      "uiSha": "",
+      "attachment": {
+        "path": "",
+        "sha256": ""
+      }
     },
     "crossTenantAccess": {
       "passed": false,
       "observedAt": "",
       "observedBy": "",
-      "evidenceRef": ""
+      "apiSha": "",
+      "uiSha": "",
+      "attachment": {
+        "path": "",
+        "sha256": ""
+      }
     },
     "ownerEmailAndOpsPaging": {
       "passed": false,
       "observedAt": "",
       "observedBy": "",
-      "evidenceRef": ""
+      "apiSha": "",
+      "uiSha": "",
+      "attachment": {
+        "path": "",
+        "sha256": ""
+      }
     },
     "noStaffResponse": {
       "passed": false,
       "observedAt": "",
       "observedBy": "",
-      "evidenceRef": ""
+      "apiSha": "",
+      "uiSha": "",
+      "attachment": {
+        "path": "",
+        "sha256": ""
+      }
     },
     "realHandsetVoiceAndSms": {
       "passed": false,
       "observedAt": "",
       "observedBy": "",
-      "evidenceRef": ""
+      "apiSha": "",
+      "uiSha": "",
+      "attachment": {
+        "path": "",
+        "sha256": ""
+      }
     },
     "realCalendarApprovalRescheduleCancel": {
       "passed": false,
       "observedAt": "",
       "observedBy": "",
-      "evidenceRef": ""
+      "apiSha": "",
+      "uiSha": "",
+      "attachment": {
+        "path": "",
+        "sha256": ""
+      }
     },
     "realBillingTrialAndExpired": {
       "passed": false,
       "observedAt": "",
       "observedBy": "",
-      "evidenceRef": ""
+      "apiSha": "",
+      "uiSha": "",
+      "attachment": {
+        "path": "",
+        "sha256": ""
+      }
     },
     "realMobileLogin": {
       "passed": false,
       "observedAt": "",
       "observedBy": "",
-      "evidenceRef": ""
+      "apiSha": "",
+      "uiSha": "",
+      "attachment": {
+        "path": "",
+        "sha256": ""
+      }
     },
     "backupRestore": {
       "passed": false,
       "observedAt": "",
       "observedBy": "",
-      "evidenceRef": ""
+      "apiSha": "",
+      "uiSha": "",
+      "attachment": {
+        "path": "",
+        "sha256": ""
+      }
     },
     "ingressWebsocketAndProxy": {
       "passed": false,
       "observedAt": "",
       "observedBy": "",
-      "evidenceRef": ""
+      "apiSha": "",
+      "uiSha": "",
+      "attachment": {
+        "path": "",
+        "sha256": ""
+      }
     },
     "providerQuotaReview": {
       "passed": false,
       "observedAt": "",
       "observedBy": "",
-      "evidenceRef": ""
+      "apiSha": "",
+      "uiSha": "",
+      "attachment": {
+        "path": "",
+        "sha256": ""
+      }
     },
     "continuousLiveSoak": {
       "passed": false,
       "observedAt": "",
       "observedBy": "",
-      "evidenceRef": ""
+      "apiSha": "",
+      "uiSha": "",
+      "attachment": {
+        "path": "",
+        "sha256": ""
+      }
     },
     "noisySmsTenant": {
       "passed": false,
       "observedAt": "",
       "observedBy": "",
-      "evidenceRef": ""
+      "apiSha": "",
+      "uiSha": "",
+      "attachment": {
+        "path": "",
+        "sha256": ""
+      }
     },
     "largeHistoryQueries": {
       "passed": false,
       "observedAt": "",
       "observedBy": "",
-      "evidenceRef": ""
+      "apiSha": "",
+      "uiSha": "",
+      "attachment": {
+        "path": "",
+        "sha256": ""
+      }
     },
     "coldCacheReplicaRefresh": {
       "passed": false,
       "observedAt": "",
       "observedBy": "",
-      "evidenceRef": ""
+      "apiSha": "",
+      "uiSha": "",
+      "attachment": {
+        "path": "",
+        "sha256": ""
+      }
     },
     "smsWorkerSizing": {
       "passed": false,
       "observedAt": "",
       "observedBy": "",
-      "evidenceRef": ""
+      "apiSha": "",
+      "uiSha": "",
+      "attachment": {
+        "path": "",
+        "sha256": ""
+      }
     }
-  }
+  },
+  "schemaVersion": 2,
+  "capacityPlan": {
+    "path": "capacity-plan.json",
+    "sha256": ""
+  },
+  "queryReports": []
 }

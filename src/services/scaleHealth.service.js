@@ -8,7 +8,7 @@ export async function readScaleHealth({ now = new Date() } = {}) {
   const [sms, recovery, heartbeats, failedPages, uncertainEmail] = await Promise.all([
     SmsJob.findOne({ status: { $in: ['queued', 'retry', 'processing'] } }).sort({ createdAt: 1 }).select('createdAt').maxTimeMS(3000).lean(),
     WebhookWork.findOne({ status: { $in: ['queued', 'processing'] } }).sort({ createdAt: 1 }).select('createdAt').maxTimeMS(3000).lean(),
-    Heartbeat.aggregate([{ $match: { ready: true, seenAt: { $gte: new Date(now - 45000) } } }, { $group: { _id: '$role', count: { $sum: 1 }, releases: { $addToSet: '$release' } } }]).option({ maxTimeMS: 3000 }),
+    Heartbeat.aggregate([{ $match: { ready: true, seenAt: { $gte: new Date(now - 45000) } } }, { $group: { _id: '$role', count: { $sum: 1 }, releases: { $addToSet: '$release' }, capacityPlans: { $addToSet: '$capacityPlan' }, images: { $addToSet: '$image' } } }]).option({ maxTimeMS: 3000 }),
     Incident.countDocuments({ status: 'failed' }).maxTimeMS(3000),
     Notification.countDocuments({ status: { $in: ['failed', 'uncertain'] } }).maxTimeMS(3000),
   ]);
@@ -22,5 +22,7 @@ export async function readScaleHealth({ now = new Date() } = {}) {
   const unhealthy = missingRoles.length > 0 || failedPages > 0 || smsOldestAgeMs > 60000 || recoveryOldestAgeMs > 30000;
   return { timestamp: now.toISOString(), healthy: !unhealthy, roles, required, missingRoles,
     releases: [...new Set(heartbeats.flatMap(x => x.releases))],
+    capacityPlans: [...new Set(heartbeats.flatMap(x => x.capacityPlans || ['unrecorded']))],
+    images: [...new Set(heartbeats.flatMap(x => x.images || ['unrecorded']))],
     smsOldestAgeMs, recoveryOldestAgeMs, failedPages, uncertainEmail };
 }

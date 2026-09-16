@@ -18,7 +18,7 @@ for (let i = 0; i < cohorts; i++) {
     child.once('error', () => resolve(1)); child.once('exit', code => { process.off('SIGTERM', stop); process.off('SIGINT', stop); resolve(code ?? 1); });
   });
   let errors = ['missing_report'];
-  try { errors = validateMixedReport(JSON.parse(await fs.readFile(path.join(dir, 'mixed.json'), 'utf8'))); } catch {}
+  try { errors = validateMixedReport(JSON.parse(await fs.readFile(path.join(dir, 'mixed.json'), 'utf8')), { requireOwnerReads: true, requireOperationalEvidence: true }); } catch {}
   results.push({ cohort: i + 1, startedAt, endedAt: new Date().toISOString(), code, errors });
   await fs.writeFile(path.join(root, 'soak.json'), JSON.stringify({ continuous: false, results,
     note: 'Repeated sustained cohorts; setup/outcome-audit intervals between cohorts are recorded, not counted as continuous active-call time.' }, null, 2));

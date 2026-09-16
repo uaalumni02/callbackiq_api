@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 const missingSearch = encodeURIComponent(`scale-no-match-${crypto.randomUUID()}`);
 // Response correctness checks shared by the mixed workload. Manifest IDs refer
 // only to dedicated staging fixtures; never write returned customer data to logs.
-export const OWNER_READ_ROUTES = ['opportunities', 'customer-detail', 'lead-search', 'call-search', 'conversation-search', 'customer-history', 'lead-search-miss', 'call-search-miss', 'conversation-search-miss'];
+export const OWNER_READ_ROUTES = ['opportunities-ready', 'opportunities-waiting', 'opportunities-needs-me', 'opportunities', 'customer-detail', 'lead-search', 'call-search', 'conversation-search', 'customer-history', 'lead-search-miss', 'call-search-miss', 'conversation-search-miss'];
 export async function exerciseOwnerReads({ get, tenant, observe }) {
   const leadId = tenant.probeLeadId, search = encodeURIComponent(tenant.probeSearch);
   if (!/^[a-f0-9]{24}$/i.test(leadId || '') || !tenant.probeSearch) throw new Error('Each staging tenant needs probeLeadId and probeSearch');
@@ -19,6 +19,11 @@ export async function exerciseOwnerReads({ get, tenant, observe }) {
   if (page.pagination.nextCursor) await probe('opportunities', `/api/owner/opportunities?view=all&limit=20&includeSummary=false&cursor=${encodeURIComponent(page.pagination.nextCursor)}`, data => {
     assert(Array.isArray(data?.items) && data.items.length <= 20 && !data.items.some(item => page.items.some(first => first.id === item.id)));
   });
+  for (const view of ['ready', 'waiting', 'needs_me']) {
+    await probe(`opportunities-${view.replace('_', '-')}`, `/api/owner/opportunities?view=${view}&limit=20`, data => {
+      assert(Array.isArray(data?.items) && data.items.length <= 20 && Number.isFinite(data.pagination?.total));
+    });
+  }
   const detail = await probe('customer-detail', `/api/customers/${leadId}/recovery-detail?limit=20`, data => {
     assert(String(data?.customer?._id) === leadId && owned(data.customer));
     for (const section of ['messages', 'calls', 'appointments', 'voiceSessions', 'interventions', 'conversations']) assert(Array.isArray(data[section]) && data[section].length <= 20 && data[section].every(owned));

@@ -1,3 +1,4 @@
+import { validateOperationalEvidence } from './operational-evidence.mjs';
 import { validateOwnerReadReport } from './owner-read-workload.mjs';
 export function percentile(values, p) {
   if (!values.length) return null;
@@ -17,9 +18,10 @@ export function validateVoiceReport(report, { expected, turns, ai, minDurationMs
   return errors;
 }
 // A JSON report that says "passed" is insufficient: validate measured fields.
-export function validateMixedReport(r, { businesses = 1001, voice = 350, durationMs = 300000, smsRps = 200, requireOwnerReads = false } = {}) {
+export function validateMixedReport(r, { businesses = 1001, voice = 350, durationMs = 300000, smsRps = 200, requireOwnerReads = false, requireOperationalEvidence = false } = {}) {
   const errors = [];
   if (!r || r.schemaVersion !== 2) return ['invalid_report'];
+  if (requireOperationalEvidence) errors.push(...validateOperationalEvidence(r));
   if (requireOwnerReads) errors.push(...validateOwnerReadReport(r.ownerReads, { minimum: businesses }));
   if (!(r.tenants >= businesses) || !(r.minimumDashboards >= businesses)) errors.push('dashboard_concurrency');
   if (!(r.durationMs >= durationMs) || r.failures || !Array.isArray(r.childExitCodes) || r.childExitCodes.length < 4 || r.childExitCodes.some(x => x !== 0)) errors.push('workload_failed');
