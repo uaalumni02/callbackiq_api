@@ -595,12 +595,38 @@ describe("completed manual intake uses the durable staff handoff", () => {
     expect(AlertService.createHumanHandoffAlert).toHaveBeenCalledWith(expect.objectContaining({ result: expect.objectContaining({ urgency: "emergency" }) }));
     expect(sendSms).not.toHaveBeenCalled(); expect(generateAIReplyResult).not.toHaveBeenCalled();
   });
-  test.each(["Please cancel that request", "Actually I need Thursday instead", "The address is wrong", "I need a price", "Do you cover my area?", "What does that mean?", "Thank you"])("preserves post-intake follow-up for staff: %s", async text => {
+  test.each(["Actually I need Thursday instead", "The address is wrong", "I need a price", "Do you cover my area?", "What does that mean?", "Thank you"])("preserves post-intake follow-up for staff: %s", async text => {
     activeConversation.orchestration = { handoffReason: "intake_complete", handoffInboundMessage: "previous" };
     activeInbound.body = text; activeLead.preferredAppointmentTime = "2026-09-09 at 14:00";
     await processInboundSmsJob(job);
     expect(AlertService.createHumanHandoffAlert).toHaveBeenCalledWith(expect.objectContaining({ customerMessage: text }));
     expect(activeLead.preferredAppointmentTime).toBe("2026-09-09 at 14:00");
+    expect(generateAIReplyResult).not.toHaveBeenCalled();
+  });
+
+  test("withdraws completed intake durably and acknowledges the withdrawal", async () => {
+    activeConversation.orchestration = { handoffReason: "intake_complete", handoffInboundMessage: "previous" };
+    activeConversation.save = jest.fn().mockResolvedValue(null);
+    activeLead.save = jest.fn().mockResolvedValue(null);
+    AlertService.create = jest.fn().mockResolvedValue({ alert: { _id: "withdrawal-alert" } });
+    activeInbound.body = "Please cancel that request";
+    const response = await processInboundSmsJob(job);
+    expect(response.sent).toBe(true);
+    expect(sendSms.mock.calls[0][0].body).toMatch(/withdrawn/);
+    expect(activeConversation.conversationMemory.recoveryIntake.withdrawnAt).toBeTruthy();
+    expect(activeLead.status).toBe("lost");
+    expect(AlertService.create).toHaveBeenCalledWith(expect.objectContaining({ actionRequired: true, title: "Customer withdrew service request" }));
+    expect(generateAIReplyResult).not.toHaveBeenCalled();
+  });
+
+  test.each(tradeCases)("%s: pending staff review still answers an immediate-help question", async (trade, service) => {
+    activeLead.serviceNeeded = service;
+    activeConversation.orchestration = { handoffReason: "intake_complete", handoffInboundMessage: "previous" };
+    activeInbound.body = "What can I do about it for right now?";
+    const response = await processInboundSmsJob(job);
+    expect(response.sent).toBe(true);
+    expect(sendSms.mock.calls[0][0].body).toMatch(/Avoid using/);
+    expect(sendSms.mock.calls[0][0].body).not.toMatch(/repeat|needs to review|confirmed appointment/);
     expect(generateAIReplyResult).not.toHaveBeenCalled();
   });
 

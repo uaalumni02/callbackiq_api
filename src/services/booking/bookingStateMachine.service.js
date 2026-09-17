@@ -1,3 +1,4 @@
+import { handleConversationControl } from '../conversationControl.service.js';
 import { extractCustomerAddress, normalizeSpokenAddress } from './customerAddress.service.js';
 import { getApprovedServiceEstimate } from './approvedServiceEstimate.service.js';
 import { guardServiceRequest } from '../serviceEligibility/serviceEligibility.service.js';
@@ -524,6 +525,8 @@ class BookingStateMachineService {
     const text = String(customerMessage || "").trim();
     if (conversation?.humanTakeover || ['closed', 'archived'].includes(conversation?.status)) return { handled: false };
 
+    const control = await handleConversationControl({ business, lead, conversation, customerMessage, channel });
+    if (control) return { handled: true, result: control };
     const serviceGuard = await guardServiceRequest({ business, lead, conversation, customerMessage, channel });
     if (serviceGuard) return { handled: true, result: serviceGuard };
     const schedulingReply = schedulingQuestionReply({ customerMessage: text, business, lead });
@@ -567,6 +570,7 @@ class BookingStateMachineService {
               text,
             });
           }
+          if (!/^\s*(?:option\s*)?\d+\s*[.!]?\s*$/i.test(text)) return { handled: false };
           return {
             handled: true,
             result: fixedResult({
@@ -588,8 +592,10 @@ class BookingStateMachineService {
         }
 
         assertVoiceTurnActive(); assertDistributedLeaseActive();
-        await AlertService.createSystemAlert({
-          businessId: business._id,
+        const savedSelection = await AlertService.create({
+          businessId: business._id, leadId: lead?._id, conversationId: conversation?._id,
+          type: "system", actionRequired: true,
+          recommendedAction: "Check the service address, service area and timing, then accept or decline the requested visit.",
           title: "Customer selected an appointment time",
           message:
             "Automatic booking is disabled, but the customer selected a real available slot. The team must confirm the appointment directly.",
@@ -606,6 +612,7 @@ class BookingStateMachineService {
           dedupeKey: `read_only_slot_selected:${business._id}:${conversation?._id || lead?._id || "unknown"}:${new Date(selected.startAt).toISOString()}`,
         });
 
+        if (!savedSelection?.alert?._id) throw Object.assign(new Error("Selected time was not queued for review."), { code: "STAFF_ACTION_NOT_SAVED" });
         if (conversation?.set && typeof conversation.save === "function") {
           await updateState(conversation, {
             status: "human_takeover",
@@ -621,7 +628,7 @@ class BookingStateMachineService {
         return {
           handled: true,
           result: fixedResult({
-            reply: `I’ve sent your request for ${selectedLabel} to ${business.businessName || "the business"}. That appointment is not confirmed until the team accepts it.`,
+            reply: `I’ve sent your request for ${selectedLabel} to ${business.businessName || "the business"}. That appointment is not confirmed until the team accepts it.${!lead?.address ? " I still need the service address to complete the request." : ""}`,
             category: "appointment_preference",
           }),
         };

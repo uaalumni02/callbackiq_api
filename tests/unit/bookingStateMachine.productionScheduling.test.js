@@ -41,7 +41,7 @@ jest.mock("../../src/services/conversionEvent.service.js", () => ({
 }));
 jest.mock("../../src/services/alert.service.js", () => ({
   __esModule: true,
-  default: { createSystemAlert: jest.fn() },
+  default: { createSystemAlert: jest.fn(), create: jest.fn().mockResolvedValue({ alert: { _id: "alert1" } }) },
 }));
 jest.mock("../../src/services/scheduling/timezone.service.js", () => ({
   __esModule: true,

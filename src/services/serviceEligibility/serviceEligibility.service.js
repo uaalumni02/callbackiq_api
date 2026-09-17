@@ -1,3 +1,4 @@
+import { isRequestWithdrawal, requestWasWithdrawn } from '../conversationControlPolicy.js';
 import { extractCustomerAddress, addressFromTurn, isAddressOnlyTurn } from '../booking/customerAddress.service.js';
 import { isSoftOptOutPhrase } from '../messaging/smsCompliance.service.js';
 import { staffReviewDueAt } from '../staffReviewPolicy.service.js';
@@ -34,6 +35,7 @@ export async function guardServiceRequest({ business, lead, conversation, custom
   const text = clean(customerMessage);
   if (!business?._id || !conversation || !text || conversation.humanTakeover || conversation.aiEnabled === false || ['closed', 'archived'].includes(conversation.status)) return null;
   // Safety, consent and abuse controls retain precedence even when called by a lower-level entry point.
+  if (isRequestWithdrawal(text) || requestWasWithdrawn(conversation)) return null;
   if (isSoftOptOutPhrase(text) || evaluateDeterministicInboundGuardrails({ customerMessage: text }).handled) return null;
   if (conversation.bookingState?.appointment && /\b(?:cancel|reschedule|move|status of)\b.{0,80}\b(?:appointment|booking|visit)\b/i.test(text)) return null;
   const intent = classifySmsIntent({ business, lead, conversation, customerMessage: text });
@@ -164,6 +166,7 @@ export async function assertServiceRequestEligible({ businessId, leadId, convers
     leadId ? Lead.findOne({ _id: leadId?._id || leadId, business: businessId }).lean() : null,
     conversationId ? Conversation.findOne({ _id: conversationId?._id || conversationId, business: businessId }).lean() : null,
   ]);
+  if (requestWasWithdrawn(conversation)) throw Object.assign(new Error('The customer withdrew this service request.'), { code: 'SERVICE_REQUEST_WITHDRAWN', statusCode: 409 });
   const state = conversation?.serviceEligibility || lead?.serviceEligibility;
   if ((leadId && !lead) || (conversationId && !conversation)) throw Object.assign(new Error('Service request context was not found.'), { code: 'SERVICE_CONTEXT_NOT_FOUND', statusCode: 404 });
   // Tool arguments cannot replace the customer's saved request with a permitted service.

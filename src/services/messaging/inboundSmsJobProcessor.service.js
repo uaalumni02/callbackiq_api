@@ -1,7 +1,8 @@
+import { handleConversationControl } from '../conversationControl.service.js';
 import { guardServiceRequest, blocksServiceAutomation } from '../serviceEligibility/serviceEligibility.service.js';
 import { respectCustomerConstraints } from '../conversationCondition.service.js';
 import { getApprovedServiceEstimate } from "../booking/approvedServiceEstimate.service.js";
-import { confirmationTimingReply } from "../booking/recoveryIntake.service.js";
+import { confirmationTimingReply, handleRecoveryIntake } from "../booking/recoveryIntake.service.js";
 import { isConfirmationQuestion } from "../booking/conversationQuestions.service.js";
 import { beginValuation, finishValuation } from "../valuation/opportunityValuation.service.js";
 // CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1: processor
@@ -439,6 +440,30 @@ export const processInboundSmsJob = async (job) => {
       primaryMessageId: inboundMessage._id, turnMessageIds: customerTurn.turnMessageIds,
     });
     return { decision: "skipped", reason: "ai_ineligible" };
+  }
+
+  if (!deterministicAssessment.handled && !automationPaused) {
+    const params = { business, lead, conversation, customerMessage: customerTurn.customerMessage,
+      turnId: String(inboundMessage._id), recentMessages: messages };
+    const control = await handleConversationControl(params);
+    const reviewUpdate = !control && conversation?.orchestration?.handoffReason === "intake_complete" && !handoffSource
+      ? await handleRecoveryIntake({ ...params, reviewOnly: true }) : null;
+    const directResult = control || reviewUpdate;
+    if (directResult) {
+      await Conversation.findByIdAndUpdate(conversation._id, { $set: buildSmsStatePatch({ conversation, classification,
+        outcome: { intent: directResult.messageCategory }, hasCustomerReply: true }) }, { runValidators: true });
+      const delivery = await persistOutboundReply({ business, lead, conversation, inboundMessage, result: directResult });
+      await Message.findByIdAndUpdate(inboundMessage._id, { $set: { aiOutcome: {
+        intent: directResult.messageCategory, outcome: "reply_ready", serviceNeeded: lead.serviceNeeded || "",
+        address: lead.address || "", urgency: lead.urgency || "medium",
+      } } });
+      SocketService.emitLeadUpdated(business._id, lead);
+      SocketService.emitConversationUpdated(business._id, conversation);
+      await completeCoalescedJobs({ conversationId: conversation._id, primaryJobId: job._id,
+        primaryMessageId: inboundMessage._id, turnMessageIds: customerTurn.turnMessageIds });
+      return { decision: directResult.decision, messageCategory: directResult.messageCategory,
+        sent: delivery.sent === true, outboundMessageId: delivery.message?._id || null };
+    }
   }
 
   if (handoffStatusQuestion && !deterministicAssessment.handled) {

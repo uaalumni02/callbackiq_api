@@ -23,7 +23,7 @@ import { formatDateKey } from '../scheduling/timezone.service.js';
 const clean = value => String(value || '').replace(/\s+/g, ' ').trim();
 const known = value => clean(value) && !/^(unknown|not provided|n\/a)$/i.test(clean(value));
 const leak = /\b(?:leak(?:ing|s)?|overflow(?:ing)?|water spreading)\b/i;
-const active = /\b(?:(?:actively|still|currently) (?:leaking|overflowing)|(?:leaking|overflowing) right now|won't stop leaking|will not stop leaking|overflowing|spreading|gushing|flooding)\b/i;
+const active = /\b(?:(?:actively|still|currently) (?:leaking|overflowing)|(?:leaking|overflowing) (?:right now|constantly|continuously|nonstop|all the time)|(?:constantly|continuously) (?:leaking|overflowing)|won't stop leaking|will not stop leaking|overflowing|spreading|gushing|flooding)\b/i;
 const stopped = /\b(?:(?:not|no longer|stopped) (?:leaking|overflowing|flooding|spreading|gushing)|no (?:active )?(?:leak|overflow|flooding)|(?:leak(?:ing)?|overflow(?:ing)?) (?:has )?stopped|only when|only (?:leaks|leaking|overflows|overflowing))\b/i;
 const controlMessage = /^(?:stop|unsubscribe|help|start|unstop)[.! ]*$/i;
 const clogQuestion = 'Is water overflowing or backing up into other fixtures?';
@@ -45,7 +45,7 @@ const slotLabel = (slot, timezone) => new Intl.DateTimeFormat('en-US', {
 
 // This layer captures facts and reads scheduling data. It never creates an appointment.
 // The existing booking engine still owns every automatically booked appointment.
-export const handleRecoveryIntake = async ({ business, lead, conversation, customerMessage, channel = 'sms', session = null, turnId = '', semanticAssessment = null, recentMessages = [], now = new Date() }) => {
+export const handleRecoveryIntake = async ({ business, lead, conversation, customerMessage, channel = 'sms', session = null, turnId = '', semanticAssessment = null, recentMessages = [], reviewOnly = false, now = new Date() }) => {
   const text = clean(customerMessage);
   if (isSoftOptOutPhrase(text)) return null;
   if (!text || !lead || !conversation || conversation.humanTakeover || conversation.aiEnabled === false || ['closed', 'archived'].includes(conversation.status)) return null;
@@ -77,7 +77,12 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   if (controlMessage.test(text) || businessHoursQuestion.test(text) ||
       ['human', 'callback', 'cancel', 'reschedule', 'status', 'availabilityInquiry'].some(intent => classification.intents?.[intent])) return null;
   if (channel === 'voice' && (session?.metadata?.callbackCapture?.status || session?.metadata?.currentUnderstanding?.language === 'es' || session?.metadata?.currentUnderstanding?.language === 'other')) return null;
-  if (['offering_slots', 'awaiting_confirmation', 'booking', 'pending_business_confirmation', 'booked', 'human_takeover'].includes(conversation.bookingState?.status)) return null;
+  const bookingActive = reviewOnly || ['offering_slots', 'awaiting_confirmation', 'booking', 'pending_business_confirmation', 'booked', 'human_takeover'].includes(conversation.bookingState?.status);
+  // Slot selections and confirmations still belong to the booking engine,
+  // including expiry and availability rechecks. A missing intake memory is not
+  // evidence that a numeric option is a newly supplied service fact.
+  if (bookingActive && !reviewOnly && !capturedAddress && !classification.entities?.serviceNeeded &&
+      (/^(?:option\s*)?\d+[.! ]*$/i.test(text) || /^(?:yes|yeah|yep|no|nope|confirm|okay|ok)[.! ]*$/i.test(text) || classification.intents?.scheduling)) return null;
   const checkActive = () => { assertDistributedLeaseActive(); if (channel === 'voice') assertVoiceTurnActive(); };
   const timezone = business.timezone || 'America/New_York';
   const journeyKey = conversation.orchestration?.recoveryJourneyKey || '';
@@ -110,7 +115,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   const incomingTime = parseTimePreference(schedulingText, timezone, now);
   if (incomingRange) state.date = incomingRange.startDate === incomingRange.endDate ? incomingRange.startDate : `${incomingRange.startDate} through ${incomingRange.endDate}`;
   if (incomingTime.targetMinutes !== null || incomingTime.timeOfDay) state.time = incomingTime.exactMinutes !== null ? `${Math.floor(incomingTime.exactMinutes / 60)}:${String(incomingTime.exactMinutes % 60).padStart(2, '0')}` : incomingTime.raw.slice(0, 300);
-  if (state.date || state.time) lead.preferredAppointmentTime = [state.date, state.time].filter(Boolean).join(' at ');
+  if (!bookingActive && (state.date || state.time)) lead.preferredAppointmentTime = [state.date, state.time].filter(Boolean).join(' at ');
 
   // Keep new detail even if the canonical service remains unchanged. It is
   // bounded, scoped to this recovery journey, and explicitly customer evidence.
@@ -200,6 +205,27 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
       : '';
     return fixed(`${isRepeatCorrection(text) && address ? 'Sorry, I have your address now. ' : ''}${pricingPrefix}${addressAcknowledgement}${acknowledged}${reply}`, lead);
   };
+  // Facts remain writable during scheduling and review. Do not replace the
+  // booking proposal or claim that an existing appointment has changed.
+  if (bookingActive) {
+    await persist();
+    if (reviewOnly || activeEvidence || ['pending_business_confirmation', 'booked', 'human_takeover'].includes(conversation.bookingState?.status)) {
+      checkActive();
+      const savedUpdate = await AlertService.create({ businessId: business._id, leadId: lead._id, conversationId: conversation._id,
+        type: 'system', title: activeEvidence ? 'Customer reports an ongoing leak' : 'Customer updated a scheduling request',
+        message: `${lead.serviceNeeded}; ${text}`.slice(0, 1000), actionRequired: true,
+        priority: activeEvidence ? 'high' : 'medium',
+        recommendedAction: 'Review the new customer information before approving or dispatching. Existing appointment details have not been changed.',
+        dedupeKey: `intake-update:${conversation._id}:${journeyKey}:${String(turnId || text).slice(0, 200)}` });
+      if (!savedUpdate?.alert?._id) throw Object.assign(new Error('Customer update was not queued for review.'), { code: 'STAFF_ACTION_NOT_SAVED' });
+      checkActive();
+    }
+    const detail = activeEvidence ? 'I’ve noted that it is leaking continuously. Avoid using the affected equipment or area for now. ' : address ? 'I’ve saved the service address. ' : 'I’ve saved those additional details. ';
+    const pending = conversation.bookingState?.status === 'offering_slots'
+      ? 'Your earlier time choices are still listed. The team must verify availability; no appointment is confirmed.'
+      : 'Your scheduling status has not changed. The team must review changes to the request.';
+    return fixed(pricingPrefix + detail + pending, lead, { shouldAlertOwner: false, alertPriority: activeEvidence ? 'high' : 'medium', alertTitle: activeEvidence ? 'Customer reports an ongoing leak' : '' });
+  }
   if (state.triagePending && !state.triageAsked) {
     state.triageAsked = true; await persist();
     return ask('leak_activity', recoveryLeakQuestion(state.serviceDetail || lead.serviceNeeded));

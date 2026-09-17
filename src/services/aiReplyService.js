@@ -1,3 +1,4 @@
+import { handleConversationControl } from './conversationControl.service.js';
 import { guardServiceRequest } from './serviceEligibility/serviceEligibility.service.js';
 import { observeCustomerConstraint, respectCustomerConstraints } from './conversationCondition.service.js';
 import { getApprovedServiceEstimate } from "./booking/approvedServiceEstimate.service.js";
@@ -194,6 +195,9 @@ export const generateAIReplyResult = async ({
         turnUrgency,
       );
     }
+
+    const control = await handleConversationControl({ business, lead, conversation, customerMessage: latestCustomerMessage });
+    if (control) return preserveTurnUrgency(control, turnUrgency);
 
     const serviceGuard = await guardServiceRequest({ business, lead, conversation, customerMessage: latestCustomerMessage, recentMessages: messages });
     if (serviceGuard) return serviceGuard;

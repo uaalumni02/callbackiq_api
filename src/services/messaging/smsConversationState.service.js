@@ -1,3 +1,4 @@
+import { requestWasWithdrawn } from '../conversationControlPolicy.js';
 const clean = (value) => String(value || "").trim();
 
 export const SMS_CONVERSATION_PHASES = [
@@ -30,6 +31,7 @@ const BOOKING_TO_PHASE = new Map([
 ]);
 
 export const deriveSmsConversationPhase = (conversation, { hasCustomerReply = true } = {}) => {
+  if (requestWasWithdrawn(conversation)) return "closed";
   if (!conversation || ["closed", "archived"].includes(clean(conversation.status))) {
     return "closed";
   }

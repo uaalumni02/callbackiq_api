@@ -44,7 +44,7 @@ jest.mock("../../src/services/conversionEvent.service.js", () => ({
 }));
 jest.mock("../../src/services/alert.service.js", () => ({
   __esModule: true,
-  default: { createSystemAlert: jest.fn() },
+  default: { createSystemAlert: jest.fn(), create: jest.fn().mockResolvedValue({ alert: { _id: "alert1" } }) },
 }));
 jest.mock("../../src/services/businessReadiness.service.js", () => ({
   __esModule: true,
@@ -615,7 +615,7 @@ describe("BookingStateMachineService complete behavior", () => {
   test("cancels a booked appointment", async () => {
     const conversation = makeConversation({ bookingState: { status: "booked", appointment: "a1", offeredSlots: [SLOT_1], selectedSlot: SLOT_1 } });
     const result = await handle({ conversation, message: "cancel my appointment" });
-    expect(cancelAppointmentTool).toHaveBeenCalledWith({ business, appointmentId: "a1", reason: "Customer requested cancellation by SMS." });
+    expect(cancelAppointmentTool).toHaveBeenCalledWith({ business, appointmentId: "a1", reason: "Customer withdrew request by sms: cancel my appointment" });
     expect(conversation.bookingState).toMatchObject({ status: "not_started", appointment: null, selectedSlot: null, offeredSlots: [] });
     expect(result.result.reply).toContain("has been canceled");
   });
@@ -626,7 +626,7 @@ describe("BookingStateMachineService complete behavior", () => {
       conversation: makeConversation({ bookingState: { status: "booked", appointment: "a1" } }),
       message: "cancel",
     });
-    expect(result.result.reply).toContain("couldn’t confirm the cancellation");
+    expect(result.result.reply).toMatch(/could not confirm.*canceled/);
   });
 
   test("starts a booked-appointment reschedule", async () => {
@@ -916,7 +916,7 @@ describe("CALLBACKIQ_DIFF_COVERAGE_BOOKING_RELEASE", () => {
       });
 
       expect(
-        AlertService.createSystemAlert,
+        AlertService.create,
       ).toHaveBeenCalledWith(
         expect.objectContaining({
           title:
@@ -1242,7 +1242,7 @@ describe("CALLBACKIQ_FINAL_BOOKING_BRANCH_TOP_OFF", () => {
       );
 
       expect(
-        AlertService.createSystemAlert,
+        AlertService.create,
       ).toHaveBeenCalledWith(
         expect.objectContaining({
           title:
@@ -1293,7 +1293,7 @@ describe("CALLBACKIQ_FINAL_BOOKING_BRANCH_TOP_OFF", () => {
       expect(result.handled).toBe(true);
 
       const alert =
-        AlertService.createSystemAlert
+        AlertService.create
           .mock.calls[0][0];
 
       expect(
@@ -1344,7 +1344,7 @@ describe("CALLBACKIQ_FINAL_BOOKING_BRANCH_TOP_OFF", () => {
       expect(result.handled).toBe(true);
 
       const alert =
-        AlertService.createSystemAlert
+        AlertService.create
           .mock.calls[0][0];
 
       expect(alert.dedupeKey).toContain(

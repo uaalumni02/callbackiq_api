@@ -1,6 +1,6 @@
 // Shared, read-only conversational answers. Never submits or confirms a booking.
 export const isConfirmationQuestion = (text) =>
-  /\b(?:will|can|does|do|how|when|who|is|has)\b.*\b(?:confirm|confirmation|confirmed|approve|approved|approval)\b/i.test(String(text || "")) ||
+  /\b(?:will|can|does|do|how|when|who|is|has)\b.*\b(?:confirm|confirmation|confirmed|approve|approved|approval|accept|accepted|acceptance)\b/i.test(String(text || "")) ||
   /\b(?:is|was) (?:it|that|this|my appointment) booked\b/i.test(String(text || ""));
 
 export const isAmbiguousServiceLoss = (text) =>
@@ -13,7 +13,7 @@ export const bookingQuestionReply = ({ customerMessage, conversation }) => {
   if (/\b(?:call me|speak to|talk to|human|representative|cancel|reschedule)\b/i.test(customerMessage)) return null;
   const state = conversation?.bookingState || {};
   if (state.status === "human_takeover" && state.lastError === "selected_slot_requires_manual_confirmation") {
-    return "Your preferred time has been sent to the team for review. It is not a confirmed appointment. I can't guarantee a confirmation call or a response time. Please wait for the team to confirm before expecting a visit.";
+    return "Your preferred time has been sent to the team for review. It is not a confirmed appointment. I don't have a confirmation timeframe and can't guarantee a confirmation call. Please wait for the team to confirm before expecting a visit.";
   }
   if (state.status === "offering_slots") {
     return "These are available options only; no appointment has been submitted or reserved. Choose a time first. The team must approve the request before it is confirmed.";

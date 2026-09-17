@@ -192,3 +192,14 @@ test('a supplied query cannot override a legacy lead that has no eligibility sta
   await expect(getAvailability({ business, leadId: 'l', serviceOfferingId: 'plumbing', serviceQuery: 'toilet repair' })).rejects.toMatchObject({ code: 'SERVICE_ELIGIBILITY_REQUIRED' });
   expect(Availability.getAvailability).not.toHaveBeenCalled();
 });
+
+test('withdrawn requests cannot be booked or approved by staff', async () => {
+  Lead.findOne.mockReturnValue(query({ _id: 'l', business: 'b', serviceNeeded: 'sink repair' }));
+  Conversation.findOne.mockReturnValue(query({ _id: 'c', business: 'b', orchestration: { recoveryJourneyKey: 'current' },
+    conversationMemory: { recoveryIntake: { journeyKey: 'current', withdrawnAt: new Date() } } }));
+  for (const allowStaffReview of [false, true]) {
+    await expect(assertServiceRequestEligible({ businessId: 'b', leadId: 'l', conversationId: 'c', serviceOfferingId: 'plumbing', allowStaffReview }))
+      .rejects.toMatchObject({ code: 'SERVICE_REQUEST_WITHDRAWN' });
+  }
+  expect(Conversation.findOne).toHaveBeenCalledWith({ _id: 'c', business: 'b' });
+});

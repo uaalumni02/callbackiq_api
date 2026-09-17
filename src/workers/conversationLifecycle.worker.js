@@ -1,3 +1,4 @@
+import { requestWasWithdrawn } from '../services/conversationControlPolicy.js';
 import { blocksServiceAutomation } from '../services/serviceEligibility/policy.js';
 import { withDeadline } from '../services/boundedRedis.service.js';
 import { startStaffNotificationWorker, stopStaffNotificationWorker } from "./staffNotification.worker.js";
@@ -156,7 +157,7 @@ export const expireBookingOffer = async (conversation, now) => {
 };
 
 const nudgeAbandonedRecovery = async (conversation, now) => {
-  if (blocksServiceAutomation(conversation)) return false;
+  if (requestWasWithdrawn(conversation) || blocksServiceAutomation(conversation)) return false;
   if (conversation.status !== "open" || conversation.aiEnabled === false || conversation.humanTakeover) return false;
 
   const lastInbound = await Message.findOne({
