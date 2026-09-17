@@ -30,18 +30,26 @@ export const createVoiceAdmission = (options = {}) => {
   };
   const waitMs = Math.max(0, Math.min(5000, Number(options.waitMs ?? process.env.VOICE_TURN_QUEUE_WAIT_MS) || 0));
   const maxWaiting = positive(options.maxWaiting ?? process.env.VOICE_TURN_QUEUE_MAX, 100);
-  let waiting = 0;
+  const queue = [];
+  const listeners = new Set();
   let pending = 0, sessions = 0, turns = 0, draining = false, rejected = 0;
+  const timing = { completed: 0, failed: 0, queueWaitMs: 0, maxQueueWaitMs: 0, processingMs: 0 };
   const full = () => Object.assign(new Error("Voice turn capacity reached"), { code: "VOICE_ADMISSION_FULL" });
-  const pause = (signal) => new Promise((resolve, reject) => {
-    const abort = () => { clearTimeout(timer); signal?.removeEventListener("abort", abort); reject(signal.reason || Object.assign(new Error("Turn canceled"), { code: "VOICE_STALE_TURN" })); };
-    const timer = setTimeout(() => { signal?.removeEventListener("abort", abort); resolve(); }, 25);
+  const canceled = signal => signal?.reason || Object.assign(new Error("Turn canceled"), { code: "VOICE_STALE_TURN" });
+  const wake = () => { for (const listener of [...listeners]) listener(); };
+  const pause = (signal, ms) => new Promise((resolve, reject) => {
+    const cleanup = () => { clearTimeout(timer); listeners.delete(done); signal?.removeEventListener("abort", abort); };
+    const done = () => { cleanup(); resolve(); };
+    const abort = () => { cleanup(); reject(canceled(signal)); };
+    const timer = setTimeout(done, Math.max(1, ms));
+    listeners.add(done);
     signal?.addEventListener("abort", abort, { once: true });
     if (signal?.aborted) abort();
   });
-  return {
+  const admission = {
+    // Existing sessions may finish their turns while connection admission drains.
     drain: () => { draining = true; },
-    snapshot: () => ({ pending, sessions, turns, waiting, draining, rejected, limits }),
+    snapshot: () => ({ pending, sessions, turns, waiting: queue.length, draining, rejected, limits: { ...limits }, timing: { ...timing } }),
     acquireConnection: () => {
       if (draining || pending >= limits.pending || sessions + pending >= limits.sessions) { rejected++; return null; }
       pending++;
@@ -51,33 +59,60 @@ export const createVoiceAdmission = (options = {}) => {
         release: () => { if (state === "pending") pending--; if (state === "active") sessions--; state = "released"; },
       };
     },
-    runTurn: async (operation, { signal } = {}) => {
-      const deadline = Date.now() + waitMs;
-      let queued = false;
+    runTurn: async (operation, { signal, onTiming } = {}) => {
+      const started = performance.now(), deadline = started + waitMs;
+      const ticket = {};
+      let reserved = false, release, processingStarted, outcome = "failed";
       try {
-        while (true) {
-          if (signal?.aborted) throw signal.reason || Object.assign(new Error("Turn canceled"), { code: "VOICE_STALE_TURN" });
-          if (turns < limits.turns) {
-            turns++;
-            let release;
-            try {
-              try { release = await acquireFleetVoiceSlot("turns"); }
-              catch (error) { if (error.code !== "VOICE_ADMISSION_FULL") throw error; }
-              if (release) {
-                if (queued) { waiting--; queued = false; }
-                if (signal?.aborted) throw signal.reason;
-                return await operation();
-              }
-            } finally { turns--; await release?.(); }
+        if (signal?.aborted) throw canceled(signal);
+        if (queue.length >= maxWaiting || ((turns >= limits.turns || queue.length) && waitMs === 0)) { rejected++; throw full(); }
+        queue.push(ticket);
+        let waited = false;
+        while (!reserved) {
+          if (signal?.aborted) throw canceled(signal);
+          if (waited && performance.now() >= deadline) { rejected++; throw full(); }
+          if (queue[0] === ticket && turns < limits.turns) {
+            queue.shift(); turns++; reserved = true; wake();
+          } else {
+            waited = true;
+            await pause(signal, deadline - performance.now());
           }
-          if (Date.now() >= deadline) { rejected++; throw full(); }
-          if (!queued) {
-            if (waiting >= maxWaiting) { rejected++; throw full(); }
-            waiting++; queued = true;
-          }
-          await pause(signal);
         }
-      } finally { if (queued) waiting--; }
+        // Keep the local reservation during fleet contention. New arrivals cannot
+        // steal a released local slot from an older queued caller.
+        while (!release) {
+          if (signal?.aborted) throw canceled(signal);
+          try { release = await (options.acquireFleetSlot || acquireFleetVoiceSlot)("turns"); }
+          catch (error) {
+            if (error.code !== "VOICE_ADMISSION_FULL") throw error;
+            if (performance.now() >= deadline) { rejected++; throw full(); }
+            await pause(signal, Math.min(25, deadline - performance.now()));
+          }
+          if (!release && performance.now() >= deadline) { rejected++; throw full(); }
+        }
+        if (signal?.aborted) throw canceled(signal);
+        // Include Redis acquisition in the queue budget, but preserve immediate
+        // admission when queueing is disabled (waitMs === 0).
+        if (waitMs > 0 && performance.now() >= deadline) { rejected++; throw full(); }
+        processingStarted = performance.now();
+        const result = await operation(); outcome = "completed"; return result;
+      } finally {
+        const ended = performance.now();
+        const queueWaitMs = (processingStarted ?? ended) - started;
+        const processingMs = processingStarted === undefined ? 0 : ended - processingStarted;
+        timing[outcome]++; timing.queueWaitMs += queueWaitMs;
+        timing.maxQueueWaitMs = Math.max(timing.maxQueueWaitMs, queueWaitMs);
+        timing.processingMs += processingMs;
+        const index = queue.indexOf(ticket); if (index >= 0) queue.splice(index, 1);
+        // Release shared capacity before waking local successors.
+        try { await release?.(); }
+        finally {
+          if (reserved) turns--;
+          wake();
+          try { onTiming?.({ queueWaitMs, processingMs, outcome }); } catch { /* Telemetry must not change call outcomes. */ }
+        }
+      }
     },
   };
+  return admission;
 };

@@ -73,6 +73,7 @@ import {
 } from "./helpers/voiceAssertions.js";
 
 const clearDatabase = async () => {
+  if (mongoose.connection.readyState !== 1) return;
   for (const collection of Object.values(mongoose.connection.collections)) {
     await collection.deleteMany({});
   }

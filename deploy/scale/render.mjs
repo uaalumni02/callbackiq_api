@@ -1,3 +1,4 @@
+import { validateVoiceTopology } from '../../src/config/voiceTopology.js';
 import { validateCapacityPlan } from '../../src/config/scaleCapacityPlan.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
@@ -110,5 +111,7 @@ items.push({ apiVersion: 'networking.k8s.io/v1', kind: 'Ingress', metadata: { na
   ...['voice', 'voice-fallback', 'voice-overflow', 'voice-complete', 'voice-transfer-complete', 'voice-staff-screen', 'voice-staff-screen-decision'].map(route => [`/api/twilio/${route}`, 'Exact', 'voice']),
   ['/api/twilio/tracking-call-complete', 'Exact', 'voice'], ['/', 'Prefix', 'api'],
 ].map(([path, pathType, role]) => ({ path, pathType, backend: { service: { name: `callbackiq-${role}`, port: { number: 3000 } } } })) } }] } });
+const topologyCheck = validateVoiceTopology({ items });
+if (!topologyCheck.passed) throw new Error(topologyCheck.errors.join('; '));
 await fs.writeFile(output, JSON.stringify({ apiVersion: 'v1', kind: 'List', items }, null, 2) + '\n');
 console.log(JSON.stringify({ output, mongoConnectionsIncludingSurge: connections, smsSizing, capacityPlanSha256, providerMode: capacityPlan.providerMode, autoscalingEnabled: autoscale, note: 'Sizing is a starting configuration, not certified throughput. Secrets and ingress must be configured before applying.' }));

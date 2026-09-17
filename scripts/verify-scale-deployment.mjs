@@ -1,6 +1,9 @@
+import { validateScaleProfile } from '../src/config/scaleProfile.js';
 import 'dotenv/config';
 import { getMongoUrl } from '../src/config/runtime-environment.js';
 const env=process.env, errors=[], notes=[];
+errors.push(...validateScaleProfile(env).errors);
+if (env.REDIS_URL && [env.VOICE_CAPACITY_REDIS_URL, env.SOCKET_REDIS_URL].some(url => url && url !== env.REDIS_URL)) errors.push('Use the same shared Redis endpoint for fleet and socket coordination, or separately review the split topology.');
 const positive=key=>Number(env[key])>0;
 if(!getMongoUrl())errors.push('Set MONGO_URL.');
 if(!env.REDIS_URL && !env.SOCKET_REDIS_URL)errors.push('Configure shared Redis.');
