@@ -98,7 +98,7 @@ describe("SMS missed-call recovery journey identity", () => {
     jest.clearAllMocks();
   });
 
-  test("a new CallSid resets only active booking/recovery state", async () => {
+  test("a new CallSid preserves the unfinished request and its journey identity", async () => {
     arrange(makeConversation("CA-old"));
 
     await getOrCreateSmsLeadAndConversation({
@@ -110,17 +110,8 @@ describe("SMS missed-call recovery journey identity", () => {
     });
 
     const [, updates] = Conversation.findByIdAndUpdate.mock.calls[0];
-    expect(updates).toMatchObject({
-      reopenReason: "new_missed_call_recovery_journey",
-      "bookingState.status": "not_started",
-      "bookingState.serviceOffering": null,
-      "bookingState.streetAddress": "",
-      "bookingState.postalCode": "",
-      "bookingState.offeredSlots": [],
-      "bookingState.negotiationAttempts": 0,
-      "orchestration.recoveryJourneyKey": "CA-new",
-      "orchestration.phase": "recovering",
-    });
+    expect(Object.keys(updates).some(key => key.startsWith('bookingState.') || key.startsWith('orchestration.'))).toBe(false);
+    expect(updates.reopenReason).toBeUndefined();
   });
 
   test("a retry of the same CallSid does not reset the active booking state again", async () => {

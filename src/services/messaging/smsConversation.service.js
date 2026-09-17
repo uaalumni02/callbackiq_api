@@ -1,4 +1,3 @@
-import { hasRecentRecoveryIntroduction } from "./recoveryIntroduction.service.js";
 // CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1: conversation-service
 import Lead from "../../models/lead.js";
 import Conversation from "../../models/conversation.js";
@@ -8,83 +7,8 @@ import { normalizeSmsPhone } from "./smsCompliance.service.js";
 
 const isDuplicateKey = (error) => error?.code === 11000;
 
-// CALLBACKIQ_SMS_TAKEOVER_LIFECYCLE
-// A manual staff reply owns the conversation for a limited period. A later
-// missed call may start a new automated recovery cycle only after that
-// takeover has been inactive long enough to be considered stale.
-const DEFAULT_HUMAN_TAKEOVER_TTL_MINUTES = 60;
-const getHumanTakeoverTtlMs = () => {
-  const configured = Number.parseInt(
-    String(process.env.SMS_HUMAN_TAKEOVER_TTL_MINUTES || ""),
-    10,
-  );
-  const minutes = Number.isFinite(configured) && configured > 0
-    ? configured
-    : DEFAULT_HUMAN_TAKEOVER_TTL_MINUTES;
-  return minutes * 60 * 1000;
-};
-const latestTakeoverActivityAt = (conversation) => {
-  const candidates = [conversation?.humanTakeoverAt, conversation?.lastMessageAt]
-    .map((value) => (value ? new Date(value).getTime() : Number.NaN))
-    .filter(Number.isFinite);
-  return candidates.length ? Math.max(...candidates) : null;
-};
-const isStaleHumanTakeover = (conversation, now = new Date()) => {
-  if (conversation?.humanTakeover !== true) return false;
-  const latestActivityAt = latestTakeoverActivityAt(conversation);
-  if (latestActivityAt == null) return false; // fail closed when history is incomplete
-  return now.getTime() - latestActivityAt >= getHumanTakeoverTtlMs();
-};
-
-
-// CALLBACKIQ_BOOKING_RECOVERY_FIX_V2: history remains on Lead/Conversation/Message; only active workflow state is reset.
-const resetActiveRecoveryJourney = ({ now, reason, recoveryJourneyKey }) => ({
-  status: "open",
-  aiEnabled: true,
-  humanTakeover: false,
-  humanTakeoverAt: null,
-  humanTakeoverBy: null,
-  reopenedAt: now,
-  reopenReason: reason,
-
-  "bookingState.status": "not_started",
-  "bookingState.serviceOffering": null,
-  "bookingState.streetAddress": "",
-  "bookingState.postalCode": "",
-  "bookingState.timeOfDay": "",
-  "bookingState.preferredStart": null,
-  "bookingState.preferredEnd": null,
-  "bookingState.offeredSlots": [],
-  "bookingState.selectedSlot": null,
-  "bookingState.appointment": null,
-  "bookingState.expiresAt": null,
-  "bookingState.lastError": "",
-  "bookingState.negotiationAttempts": 0,
-  "bookingState.lastCustomerPreference": "",
-  "bookingState.lastAvailabilityCheckedAt": null,
-  "bookingState.searchStartDate": "",
-  "bookingState.searchEndDate": "",
-  "bookingState.escalatedAt": null,
-
-  "orchestration.recoveryJourneyKey": recoveryJourneyKey,
-  "orchestration.recoveryJourneyStartedAt": now,
-  "orchestration.phase": "recovering",
-  "orchestration.lastOutcome": "",
-  "orchestration.lastIntent": "",
-  "orchestration.lastIntentConfidence": 0,
-  "orchestration.lastStateTransitionAt": now,
-  "orchestration.handoffStatus": "",
-  "orchestration.handoffReason": "",
-  "orchestration.handoffRequestedAt": null,
-  "orchestration.handoffAcknowledgedAt": null,
-  "orchestration.handoffInboundMessage": null,
-  "orchestration.handoffOutboundMessage": null,
-  "orchestration.handoffCallbackPhone": "",
-  "orchestration.handoffLastError": "",
-  "orchestration.handoffStatusReplyAt": null,
-  "orchestration.silentFailureCount": 0,
-});
-
+// A new phone call is not a new service request. Keep intake, appointment,
+// handoff, and staff ownership intact until an explicit workflow changes them.
 const findExistingLead = async ({ businessId, phone }) => {
   return Lead.findOne({
     business: businessId,
@@ -197,6 +121,8 @@ const upsertConversation = async ({
             activeRecord: true,
             aiEnabled: true,
             humanTakeover: false,
+            "orchestration.recoveryJourneyKey": String(recoveryJourneyKey || "").trim(),
+            "orchestration.recoveryJourneyStartedAt": new Date(),
             lastMessage: body || "Attachment received",
             lastMessageAt: new Date(),
           },
@@ -221,7 +147,6 @@ const upsertConversation = async ({
     lead: conversation.lead || lead._id,
     customerPhone,
     customerPhoneLookup: customerPhone,
-    activeRecord: true,
   };
 
   if (body) {
@@ -229,54 +154,19 @@ const upsertConversation = async ({
     updates.lastMessageAt = new Date();
   }
 
-  const now = new Date();
-  const normalizedRecoveryJourneyKey = String(recoveryJourneyKey || "").trim();
-  const previousRecoveryJourneyKey = String(
-    conversation?.orchestration?.recoveryJourneyKey || "",
-  ).trim();
-  const freshMissedCallRecovery =
-    !hasRecentRecoveryIntroduction(conversation, now) &&
-    reopenEligible &&
-    source === "missed_call" &&
-    conversation.humanTakeover !== true &&
-    Boolean(normalizedRecoveryJourneyKey) &&
-    normalizedRecoveryJourneyKey !== previousRecoveryJourneyKey;
-
-  const staleTakeoverRecovery =
-    reopenEligible &&
-    source === "missed_call" &&
-    isStaleHumanTakeover(conversation, now);
-  const closedConversationRecovery =
-    reopenEligible &&
-    conversation.status === "closed" &&
-    conversation.humanTakeover !== true;
-
-  if (
-    freshMissedCallRecovery ||
-    staleTakeoverRecovery ||
-    closedConversationRecovery
-  ) {
-    const reason = staleTakeoverRecovery
-      ? "new_missed_call_after_stale_human_takeover"
-      : freshMissedCallRecovery
-        ? "new_missed_call_recovery_journey"
-        : "new_customer_contact";
-
-    Object.assign(
-      updates,
-      resetActiveRecoveryJourney({
-        now,
-        reason,
-        recoveryJourneyKey:
-          normalizedRecoveryJourneyKey || previousRecoveryJourneyKey,
-      }),
-    );
-  }
-
   conversation = await Conversation.findByIdAndUpdate(conversation._id, updates, {
     returnDocument: "after",
     runValidators: true,
   });
+
+  if (reopenEligible && conversation.status === "closed" &&
+      conversation.humanTakeover !== true && conversation.aiEnabled !== false) {
+    conversation = await Conversation.findOneAndUpdate({
+      _id: conversation._id, business: businessId, status: "closed",
+      humanTakeover: { $ne: true }, aiEnabled: { $ne: false },
+    }, { $set: { status: "open", reopenedAt: new Date(), reopenReason: "returning_customer_contact" } },
+    { returnDocument: "after", runValidators: true }) || conversation;
+  }
 
   if (created) SocketService.emitConversationCreated(businessId, conversation);
   else SocketService.emitConversationUpdated(businessId, conversation);

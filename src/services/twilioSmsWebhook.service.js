@@ -335,7 +335,7 @@ export const handleSmsRecoveryVoiceWebhook = async (req, res) => {
       customerPhone,
       source: "missed_call",
       reopenEligible: true,
-      // CALLBACKIQ_BOOKING_RECOVERY_FIX_V2: duplicate webhook delivery keeps the same journey; a new CallSid resets active booking state.
+      // CallSid initializes a new conversation only; repeat calls preserve its request.
       recoveryJourneyKey: callSid,
     });
     if (

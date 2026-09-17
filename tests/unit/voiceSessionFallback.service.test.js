@@ -1,3 +1,5 @@
+import { claimRecoveryIntroduction } from "../../src/services/messaging/recoveryIntroduction.service.js";
+jest.mock("../../src/services/messaging/recoveryIntroduction.service.js", () => ({ claimRecoveryIntroduction: jest.fn() }));
 import Alert from "../../src/models/alert.js";
 import Message from "../../src/models/message.js";
 import VoiceSession from "../../src/models/voiceSession.js";
@@ -71,6 +73,7 @@ describe("VoiceSessionService fallback", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    claimRecoveryIntroduction.mockResolvedValue(true);
     callLog = {
       status: "answered",
       missedCallTextSent: false,
@@ -197,4 +200,35 @@ describe("VoiceSessionService fallback", () => {
     expect(sendSms).not.toHaveBeenCalled();
     expect(Message.create).not.toHaveBeenCalled();
   });
+  test("shared introduction cooldown suppresses a separate voice call", async () => {
+    claimRecoveryIntroduction.mockResolvedValue(false);
+    await VoiceSessionService.sendFallbackSms({ sessionId: session._id });
+    expect(sendSms).not.toHaveBeenCalled();
+    expect(VoiceSession.findByIdAndUpdate).toHaveBeenCalledWith(session._id,
+      expect.objectContaining({ $set: expect.objectContaining({ fallbackSmsStatus: "suppressed" }) }));
+  });
+
+  test("a failed fallback retry uses the same SMS operation identity", async () => {
+    session.providerCallSid = "CA-stable";
+    sendSms.mockRejectedValueOnce(new Error("uncertain send"));
+    await VoiceSessionService.sendFallbackSms({ sessionId: session._id });
+    await VoiceSessionService.sendFallbackSms({ sessionId: session._id });
+    const keys = sendSms.mock.calls.map(([args]) => args.metadata.idempotencyKey);
+    expect(keys).toEqual(["missed-call-recovery:business-1:CA-stable", "missed-call-recovery:business-1:CA-stable"]);
+  });
+
+  test("claim store failure cannot reach the SMS provider and remains retryable", async () => {
+    claimRecoveryIntroduction.mockRejectedValue(new Error("claim unavailable"));
+    await expect(VoiceSessionService.sendFallbackSms({ sessionId: session._id })).rejects.toThrow("claim unavailable");
+    expect(sendSms).not.toHaveBeenCalled();
+    expect(VoiceSession.findByIdAndUpdate).toHaveBeenCalledWith(session._id, { $set: { fallbackSmsStatus: "failed" } });
+  });
+
+  test("a read-only overlapping session does not send a fallback introduction", async () => {
+    session.metadata.sharedRequestReadOnly = true;
+    await VoiceSessionService.sendFallbackSms({ sessionId: session._id });
+    expect(sendSms).not.toHaveBeenCalled();
+    expect(claimRecoveryIntroduction).not.toHaveBeenCalled();
+  });
+
 });

@@ -957,6 +957,8 @@ export const initializeConversationRelayServer = (
             businessId:
               session.business?._id || session.business,
             callerPhone: session.from,
+            providerCallSid: session.providerCallSid,
+            sessionId: session._id,
             maxCalls:
               session.business?.voiceSettings
                 ?.callerVelocityLimitPerHour || 10,

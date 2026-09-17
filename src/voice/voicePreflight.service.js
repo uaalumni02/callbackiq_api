@@ -38,6 +38,7 @@ export const checkVoicePreflight = async ({
   business,
   callerPhone,
   sessionId,
+  providerCallSid,
   now = new Date(),
 }) => {
   const businessId = business?._id || business?.id || business;
@@ -76,6 +77,9 @@ export const checkVoicePreflight = async ({
     VoiceFraudDetectionService.evaluateCallerVelocity({
       businessId,
       callerPhone,
+      providerCallSid,
+      sessionId: normalizeDocumentId(sessionId),
+      now,
       maxCalls: Number(settings.callerVelocityLimitPerHour) || 10,
       windowMinutes: 60,
     }),

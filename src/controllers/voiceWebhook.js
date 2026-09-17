@@ -416,7 +416,8 @@ class VoiceWebhookController {
 
       const preflight = await VoicePreflightService.checkVoicePreflight({
         business,
-        callerPhone: fields.from,
+        callerPhone: session.from,
+        providerCallSid: fields.providerCallSid,
         sessionId: session._id,
       });
 

@@ -2605,6 +2605,15 @@
     "options": {}
   },
   {
+    "collection": "voicecallerwindows",
+    "key": {
+      "expiresAt": 1
+    },
+    "options": {
+      "expireAfterSeconds": 0
+    }
+  },
+  {
     "collection": "voicecapacities",
     "key": {
       "business": 1

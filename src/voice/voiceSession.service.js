@@ -1,3 +1,4 @@
+import { claimRecoveryIntroduction } from "../services/messaging/recoveryIntroduction.service.js";
 import { recordCallAnswer } from "../services/callAnswerEvidence.service.js";
 import Alert from "../models/alert.js";
 import CallLog from "../models/callLog.js";
@@ -159,7 +160,7 @@ class VoiceSessionService {
         ? Conversation.findOne({
             business: business._id,
             customerPhone: normalizedFrom,
-            status: "open",
+            status: { $ne: "archived" },
           }).sort({ lastMessageAt: -1 })
         : Promise.resolve(null);
 
@@ -223,12 +224,12 @@ class VoiceSessionService {
         emit("emitConversationCreated", business._id, conversation);
       } catch (error) {
         // Same-caller concurrent calls can also race on the unique active
-        // conversation identity. Reuse the open conversation that won.
+        // conversation identity. Reuse the non-archived conversation that won (including closed records).
         if (error?.code !== 11000 || !usableCaller) throw error;
         conversation = await Conversation.findOne({
           business: business._id,
           customerPhone: normalizedFrom,
-          status: "open",
+          status: { $ne: "archived" },
         }).sort({ lastMessageAt: -1 });
         if (!conversation) throw error;
       }
@@ -475,7 +476,9 @@ class VoiceSessionService {
     ).replaceAll("{{businessName}}", business.businessName);
 
     let suppressionReason = "";
-    if (business.features?.missedCallSmsEnabled === false) {
+    if (session.metadata?.sharedRequestReadOnly) {
+      suppressionReason = "Another call owns the shared request; no additional recovery text was sent.";
+    } else if (business.features?.missedCallSmsEnabled === false) {
       suppressionReason = "The business disabled missed-call SMS.";
     } else if (!isUsableCallerId(to) || !from) {
       suppressionReason = "A usable caller or business phone number was unavailable.";
@@ -487,6 +490,21 @@ class VoiceSessionService {
         await isSmsSuppressed({ businessId: business._id, phone: to })
       ) {
         suppressionReason = "The caller opted out of SMS.";
+      }
+    }
+
+    const recoveryOperationKey = `missed-call-recovery:${business._id}:${session.providerCallSid || session._id}`;
+    if (!suppressionReason) {
+      try {
+        const introClaimed = conversation?._id && await claimRecoveryIntroduction({
+          businessId: business._id, conversationId: conversation._id,
+          operationKey: session.providerCallSid || String(session._id),
+        });
+        if (!introClaimed) suppressionReason = "Recovery introduction already claimed or conversation is under team control.";
+      } catch (error) {
+        // Fail closed on an unavailable claim store and leave the job retryable.
+        await VoiceSession.findByIdAndUpdate(session._id, { $set: { fallbackSmsStatus: "failed" } });
+        throw error;
       }
     }
 
@@ -512,7 +530,9 @@ class VoiceSessionService {
           usageCategory: "voice_fallback",
           conversationId: conversation?._id || null,
           leadId: lead?._id || null,
-          metadata: { voiceSessionId: session._id },
+          directResponse: true,
+          requireOptOutDisclosure: true,
+          metadata: { voiceSessionId: session._id, idempotencyKey: recoveryOperationKey },
         });
         if (sent?.suppressed) {
           suppressionReason = sent.reason || "Central SMS policy suppressed the message.";

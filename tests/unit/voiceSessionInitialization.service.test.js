@@ -1,3 +1,6 @@
+import Lead from "../../src/models/lead.js";
+import Conversation from "../../src/models/conversation.js";
+import CallLog from "../../src/models/callLog.js";
 import VoiceSession from "../../src/models/voiceSession.js";
 import VoiceSessionService from "../../src/voice/voiceSession.service.js";
 import {
@@ -127,4 +130,20 @@ describe("VoiceSessionService initial context upsert", () => {
       }),
     );
   });
+  test.each([false, true])("closed conversation reuse survives a concurrent insert: %s", async race => {
+    const lead = { _id: "lead-1", customerName: "Returning customer" };
+    const conversation = { _id: "conversation-1", status: "closed" };
+    Lead.findOne = jest.fn(() => ({ sort: jest.fn().mockResolvedValue(lead) }));
+    Conversation.findOne = jest.fn(() => ({ sort: jest.fn().mockResolvedValue(conversation) }));
+    if (race) Conversation.findOne.mockReturnValueOnce({ sort: jest.fn().mockResolvedValue(null) });
+    Conversation.create = jest.fn().mockRejectedValue(Object.assign(new Error("duplicate active record"), { code: 11000 }));
+    CallLog.findOne = jest.fn().mockResolvedValue({ _id: "call-log-1" });
+    VoiceSession.findOneAndUpdate.mockResolvedValue({ _id: "voice-session-1" });
+    VoiceSession.findByIdAndUpdate = jest.fn().mockResolvedValue({ _id: "voice-session-1" });
+    await VoiceSessionService.ensureContext({ business: { _id: "business-1" }, from: "+14045550100", to: "+14045550101", providerCallSid: "CA-returning" });
+    expect(Conversation.findOne.mock.calls.every(([filter]) => filter.status.$ne === "archived")).toBe(true);
+    expect(VoiceSession.findByIdAndUpdate).toHaveBeenCalledWith("voice-session-1", expect.objectContaining({ $set: expect.objectContaining({ conversation: "conversation-1" }) }), expect.any(Object));
+    if (!race) expect(Conversation.create).not.toHaveBeenCalled();
+  });
+
 });

@@ -41,7 +41,8 @@ test("reopens a stale closed conversation but preserves intentional human takeov
   };
   Lead.findOne.mockReturnValue(queryResult(lead));
   Conversation.findOne.mockReturnValue(queryResult(closed));
-  Conversation.findByIdAndUpdate.mockResolvedValue({ ...closed, status: "open", aiEnabled: true });
+  Conversation.findByIdAndUpdate.mockResolvedValue(closed);
+  Conversation.findOneAndUpdate.mockResolvedValue({ ...closed, status: "open" });
 
   await getOrCreateSmsLeadAndConversation({
     business: { _id: "business-1", estimatedJobValue: 500 },
@@ -50,9 +51,9 @@ test("reopens a stale closed conversation but preserves intentional human takeov
     source: "sms",
     reopenEligible: true,
   });
-  expect(Conversation.findByIdAndUpdate).toHaveBeenCalledWith(
-    "conversation-1",
-    expect.objectContaining({ status: "open", aiEnabled: true, humanTakeover: false }),
+  expect(Conversation.findOneAndUpdate).toHaveBeenCalledWith(
+    expect.objectContaining({ _id: "conversation-1", status: "closed", humanTakeover: { $ne: true }, aiEnabled: { $ne: false } }),
+    { $set: expect.objectContaining({ status: "open", reopenReason: "returning_customer_contact" }) },
     expect.objectContaining({ returnDocument: "after" }),
   );
 });

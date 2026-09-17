@@ -9,7 +9,7 @@ jest.mock('../../src/services/distributedLease.service.js',()=>({withDistributed
 let session,conversation,lead,operation;
 beforeEach(()=>{
  jest.clearAllMocks();
- conversation={_id:'c',business:'b',lead:'l',status:'open',conversationMemory:{recoveryIntake:{address:'SMS-updated address'}}};
+ conversation={_id:'c',business:'b',lead:'l',status:'open',orchestration:{activeVoiceIntakeSession:'v'},conversationMemory:{recoveryIntake:{address:'SMS-updated address'}}};
  lead={_id:'l',business:'b',address:'SMS-updated address'};
  session={_id:'v',business:{_id:'b'},conversation:{_id:'c'},lead:{_id:'l',address:'stale'}};
  Conversation.findOne.mockResolvedValue(conversation);Lead.findOne.mockResolvedValue(lead);

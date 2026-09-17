@@ -81,7 +81,7 @@ describe("SMS human takeover lifecycle", () => {
     else process.env.SMS_HUMAN_TAKEOVER_TTL_MINUTES = originalTtl;
   });
 
-  test("resumes a stale human takeover for a new missed-call recovery", async () => {
+  test("repeat calls do not release stale staff ownership", async () => {
     arrangeConversation({
       humanTakeoverAt: new Date("2026-08-07T11:30:00.000Z"),
       lastMessageAt: new Date("2026-08-07T12:30:00.000Z"),
@@ -94,20 +94,11 @@ describe("SMS human takeover lifecycle", () => {
       reopenEligible: true,
     });
 
-    expect(Conversation.findByIdAndUpdate).toHaveBeenCalledWith(
-      "conversation-1",
-      expect.objectContaining({
-        status: "open",
-        aiEnabled: true,
-        humanTakeover: false,
-        humanTakeoverAt: null,
-        humanTakeoverBy: null,
-        reopenReason: "new_missed_call_after_stale_human_takeover",
-      }),
-      expect.objectContaining({ returnDocument: "after" }),
-    );
-    expect(conversation.aiEnabled).toBe(true);
-    expect(conversation.humanTakeover).toBe(false);
+    const updates = Conversation.findByIdAndUpdate.mock.calls[0][1];
+    expect(updates.humanTakeover).toBeUndefined();
+    expect(updates.aiEnabled).toBeUndefined();
+    expect(conversation.aiEnabled).toBe(false);
+    expect(conversation.humanTakeover).toBe(true);
   });
 
   test("preserves a recent human takeover during a new missed call", async () => {
