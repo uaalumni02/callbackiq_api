@@ -101,7 +101,7 @@ const deterministic = (text) => {
     situationProfanity: SITUATION_PROFANITY.test(text) && !directedAbuse,
     entities: {
       service: service || (
-        intent === "service_request" || intent === "booking"
+        intent === "service_request"
           ? clean(text, 240)
           : ""),
       name: "",

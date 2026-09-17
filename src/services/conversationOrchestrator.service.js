@@ -82,11 +82,11 @@ class ConversationOrchestratorService {
       }),
       Conversation.findByIdAndUpdate(conversation._id, {
         $set: {
-          "conversationMemory.summary": String(result?.summary || "").slice(0, 2000),
-          "conversationMemory.serviceNeeded": outcome.serviceNeeded,
-          "conversationMemory.urgency": outcome.urgency,
-          "conversationMemory.address": outcome.address,
-          "conversationMemory.preferredAppointmentTime": outcome.preferredAppointmentTime,
+          ...(result?.summary ? { "conversationMemory.summary": String(result.summary).slice(0, 2000) } : {}),
+          ...(outcome.serviceNeeded ? { "conversationMemory.serviceNeeded": outcome.serviceNeeded } : {}),
+          ...(outcome.urgency ? { "conversationMemory.urgency": outcome.urgency } : {}),
+          ...(outcome.address ? { "conversationMemory.address": outcome.address } : {}),
+          ...(outcome.preferredAppointmentTime ? { "conversationMemory.preferredAppointmentTime": outcome.preferredAppointmentTime } : {}),
           "conversationMemory.lastIntent": outcome.intent,
           "conversationMemory.confidence": outcome.confidence,
           "conversationMemory.lastUpdatedAt": new Date(),

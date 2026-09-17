@@ -195,10 +195,10 @@ export const generateAIReplyResult = async ({
       );
     }
 
-    const serviceGuard = await guardServiceRequest({ business, lead, conversation, customerMessage: latestCustomerMessage });
+    const serviceGuard = await guardServiceRequest({ business, lead, conversation, customerMessage: latestCustomerMessage, recentMessages: messages });
     if (serviceGuard) return serviceGuard;
 
-    const intake = await handleRecoveryIntake({ business, lead, conversation, customerMessage: latestCustomerMessage, turnId: messages.filter(message => message.direction === "inbound").at(-1)?._id || "" });
+    const intake = await handleRecoveryIntake({ business, lead, conversation, customerMessage: latestCustomerMessage, recentMessages: messages, turnId: messages.filter(message => message.direction === "inbound").at(-1)?._id || "" });
     if (intake) return preserveTurnUrgency(intake, turnUrgency);
 
     /*
@@ -277,7 +277,7 @@ export const generateAIReplyResult = async ({
     if (Object.keys(qualifiedFacts).length) {
       const semanticIntake = await handleRecoveryIntake({
         business, lead, conversation, customerMessage: latestCustomerMessage,
-        semanticAssessment: inboundAssessment,
+        semanticAssessment: inboundAssessment, recentMessages: messages,
         turnId: messages.filter(message => message.direction === "inbound").at(-1)?._id || "",
       });
       if (semanticIntake) return preserveTurnUrgency(semanticIntake, turnUrgency);

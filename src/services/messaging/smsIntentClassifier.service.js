@@ -81,7 +81,7 @@ const SERVICE_TAIL = /\s*(?:[,.;!?]|\band\b|\bbut\b)\s*(?:can|could|will|would|a
 // Extract customer-reported facts, never service eligibility or a diagnosis.
 // Grammatical problem/action shapes deliberately work beyond a trade noun list.
 const NON_SERVICE = /\b(?:appointment|booking|technician|crew|invoice|payment|credit card|refund|phone number|email|zip code|postal code|service address|availability|business hours|password|instructions|system prompt)\b/i;
-const SERVICE_ACTION = /\b(?:repair(?:ed|ing)?|replac(?:e|ed|ement|ing)|install(?:ed|ation|ing)?|reseal(?:ed|ing)?|recaulk(?:ed|ing)?|clean(?:ed|ing)?|inspect(?:ed|ion|ing)?|maintain|maintenance|fix(?:ed|ing)?|remov(?:e|ed|al|ing)|paint(?:ed|ing)?|trim(?:med|ming)?|unblock(?:ed|ing)?)\b/i;
+const SERVICE_ACTION = /\b(?:repair(?:ed|ing)?|replac(?:e|ed|ement|ing)|install(?:ed|ation|ing)?|reseal(?:ed|ing)?|recaulk(?:ed|ing)?|clean(?:ed|ing)?|inspect(?:ed|ion|ing)?|maintain|maintenance|fix(?:ed|ing)?|remov(?:e|ed|al|ing)|paint(?:ed|ing)?|trim(?:med|ming)?|unblock(?:ed|ing)?|restoration|remediation)\b/i;
 const PROBLEM_STATE = /\b(?:clogged|blocked|leak(?:ing|s)?|broken|not working|won['’]t|will not|no heat|no power|damaged|cracked|peeling|loose|stuck|noisy|rattling|dripping|overflowing|needs?|stopped working|keeps? .{1,30}ing)\b/i;
 
 export const extractService = (text, { lead = null, conversation = null } = {}) => {
@@ -101,6 +101,8 @@ export const extractService = (text, { lead = null, conversation = null } = {}) 
     }
     if (any(HUMAN, clause) || any(CANCEL, clause) || any(RESCHEDULE, clause) || any(STATUS, clause)) continue;
     if (/^(?:stop|start|unstop|help|yes|no|okay|ok|thanks?|hello|hi)[!. ]*$/i.test(clause) || /^(?:\d|https?:|[^ ]+@)/i.test(clause)) continue;
+    // A request to act on "it" describes an intent, not a replacement job.
+    if (/\b(?:fix|repair|replace|inspect|install|service)\s+(?:it|that|this|the same thing)(?=$|[?.!,;]|\s+(?:today|tomorrow|next|on|at|for me|please|and|when|soon|now)\b)/i.test(clause)) continue;
     const prefixed = clause.match(SERVICE_PREFIX);
     let candidate = clean(prefixed?.[1] || clause).replace(SERVICE_TAIL, "").replace(/[?,.!]+$/, "");
     const explicitRequest = /^(?:i|we)\s+(?:need|want|would like)\s+(?!to (?:know|book|schedule|cancel|reschedule)\b)/i.test(candidate);

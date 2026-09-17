@@ -1,3 +1,5 @@
+import { extractCustomerAddress, normalizeSpokenAddress } from './customerAddress.service.js';
+import { getApprovedServiceEstimate } from './approvedServiceEstimate.service.js';
 import { guardServiceRequest } from '../serviceEligibility/serviceEligibility.service.js';
 import { requestStaffSchedulingReview } from "./staffSchedulingReview.service.js";
 import { schedulingQuestionReply } from "./schedulingQuestions.service.js";
@@ -39,10 +41,8 @@ const hasBookingAvailabilityHint = (value, timeZone = "America/New_York") =>
 const HUMAN_INTENT = /\b(human|person|representative|staff|someone|call me|talk to)\b/i;
 const AFFIRMATIVE_TOKEN = /\b(yes|yep|yeah|yup|correct|confirm|confirmed|book it|please do|that works|works for me|sounds good|ok|okay|sure)\b/i;
 const NEGATIVE_TOKEN = /\b(no|nope|not that|different|another|change it|cancel|do not|don't|not yet)\b/i;
-const PRICE_INTENT = /\b(price|pricing|cost|estimate|estimated|quote|ballpark|how much|rate|charge)\b/i;
 const EXACT_PRICE = /\b(exact|final|total)\b.{0,25}\b(price|cost|quote|charge)\b|\bhow much (?:will|does) it cost\b/i;
 const ZIP_PATTERN = /\b(\d{5})(?:-\d{4})?\b/;
-const STREET_SUFFIX_PATTERN = /\b(?:street|st|avenue|ave|road|rd|drive|dr|lane|ln|court|ct|boulevard|blvd|parkway|pkwy|place|pl|way|trail|trl|circle|cir|highway|hwy|terrace|ter)\.?\b/i;
 
 const isAffirmative = (value) => {
   const text = String(value || "").trim();
@@ -60,16 +60,9 @@ const cleanStreetAddress = (value) =>
     .replace(/^[,;:\s-]+|[,;:\s-]+$/g, "")
     .replace(/\s{2,}/g, " ");
 
-const parseStreetAddress = (value) => {
-  const street = cleanStreetAddress(value);
-  const hasStreetNumber = /^\d{1,7}[a-z]?\s+/i.test(street);
-  const hasLetters = /[a-z]/i.test(street);
-  const hasEnoughWords = street.split(/\s+/).filter(Boolean).length >= 3;
-  const valid =
-    hasStreetNumber &&
-    hasLetters &&
-    (STREET_SUFFIX_PATTERN.test(street) || hasEnoughWords);
-  return { street, valid };
+const parseStreetAddress = value => {
+  const address = extractCustomerAddress(String(value || '').replace(/^(?:yes|yeah|yep|sure|okay|ok)[,\s-]*/i, ''), { expected: true });
+  return { street: cleanStreetAddress(address), valid: Boolean(address) };
 };
 
 const fixedResult = ({
@@ -102,80 +95,6 @@ const fixedResult = ({
   },
 });
 
-const formatCurrency = (value) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(Number(value));
-
-const resolvePricingService = async ({
-  businessId,
-  bookingState,
-  lead,
-  text,
-}) => {
-  if (bookingState?.serviceOffering) {
-    return ServiceOffering.findOne({
-      _id: bookingState.serviceOffering,
-      business: businessId,
-      active: true,
-      aiCanDiscuss: true,
-    }).lean();
-  }
-
-  const matches = await searchServicesTool({
-    businessId,
-    query: String(lead?.serviceNeeded || "").trim() || text,
-  });
-  if (matches.length !== 1) return null;
-
-  return ServiceOffering.findOne({
-    _id: matches[0].id,
-    business: businessId,
-    active: true,
-    aiCanDiscuss: true,
-  }).lean();
-};
-
-const buildApprovedPriceEstimate = (service) => {
-  if (!service?.disclosePriceEstimate) return "";
-
-  const min =
-    service.priceEstimateMin == null ? null : Number(service.priceEstimateMin);
-  const max =
-    service.priceEstimateMax == null ? null : Number(service.priceEstimateMax);
-  let range = "";
-  if ((min !== null && (!Number.isFinite(min) || min < 0)) ||
-      (max !== null && (!Number.isFinite(max) || max < 0)) ||
-      (min !== null && max !== null && min > max)) return '';
-
-  if (Number.isFinite(min) && Number.isFinite(max)) {
-    range =
-      min === max
-        ? `around ${formatCurrency(min)}`
-        : `roughly ${formatCurrency(min)}–${formatCurrency(max)}`;
-  } else if (Number.isFinite(min)) {
-    range = `starting around ${formatCurrency(min)}`;
-  } else if (Number.isFinite(max)) {
-    range = `typically up to about ${formatCurrency(max)}`;
-  }
-
-  if (!range) return "";
-
-  const diagnostic =
-    service.discloseDiagnosticFee && service.diagnosticFee != null
-      ? ` A diagnostic/service-call fee of ${formatCurrency(
-          service.diagnosticFee,
-        )} may apply.`
-      : "";
-  const disclaimer =
-    String(service.priceEstimateDisclaimer || "").trim() ||
-    "This is a rough estimate only. Final pricing depends on the actual scope, site conditions, parts, and technician evaluation.";
-
-  return `For ${service.name}, the business-approved rough estimate is ${range}.${diagnostic} ${disclaimer}`;
-};
-
 const buildAvailabilityPricingNote = async ({
   business,
   bookingState = null,
@@ -190,13 +109,7 @@ const buildAvailabilityPricingNote = async ({
   if (!intent.intents.pricing) return "";
 
   try {
-    const pricingService = await resolvePricingService({
-      businessId: business._id,
-      bookingState,
-      lead,
-      text,
-    });
-    const approved = buildApprovedPriceEstimate(pricingService);
+    const approved = await getApprovedServiceEstimate({ businessId: business._id, serviceNeeded: lead?.serviceNeeded, customerMessage: text });
     if (approved) return approved;
   } catch {
     // Pricing context must never prevent a real availability lookup.
@@ -292,6 +205,12 @@ const handleReadOnlyAvailabilityInquiry = async ({
     };
   }
 
+  const pricingNote = await buildAvailabilityPricingNote({
+    business,
+    bookingState: conversation?.bookingState || null,
+    lead,
+    text,
+  });
   let matches = [];
   try {
     matches = await searchServicesTool({
@@ -321,19 +240,13 @@ const handleReadOnlyAvailabilityInquiry = async ({
     return {
       handled: true,
       result: fixedResult({
-        reply: `I have ${knownService}. I can’t verify live availability for this job right now. ${/\bleak(?:ing|s)?\b/i.test(knownService) ? "Is water still leaking or spreading?" : lead?.preferredAppointmentTime ? "Your preferred time still needs business confirmation." : "What day and time would you prefer?"}`,
+        reply: `${pricingNote ? `${pricingNote} ` : ""}I have ${knownService}. I can’t verify live availability for this job right now. ${/\bleak(?:ing|s)?\b/i.test(knownService) ? "Is water still leaking or spreading?" : lead?.preferredAppointmentTime ? "Your preferred time still needs business confirmation." : "What day and time would you prefer?"}`,
         category: "availability_inquiry",
       }),
     };
   }
 
   const service = matches[0];
-  const pricingNote = await buildAvailabilityPricingNote({
-    business,
-    bookingState: conversation?.bookingState || null,
-    lead,
-    text,
-  });
   const requestedRange = findDateRange(text, timeZone);
   const today = formatDateKey(new Date(), timeZone);
   const previousRange = conversation?.bookingState?.searchStartDate && conversation?.bookingState?.searchEndDate
@@ -431,7 +344,7 @@ const handleReadOnlyAvailabilityInquiry = async ({
     return {
       handled: true,
       result: fixedResult({
-        reply: `${alternativeNote}${pricingNote ? `${pricingNote} ` : ""}Current openings: ${options}. Which option works best? Business approval is required; this is not a confirmed appointment.`,
+        reply: `${alternativeNote}${pricingNote ? `${pricingNote} ` : ""}Current openings: ${options}. Which option works best? Not a confirmed appointment; business approval required.`,
         category: "availability_inquiry",
       }),
     };
@@ -778,13 +691,7 @@ class BookingStateMachineService {
       smsIntent.intents.pricing &&
       !smsIntent.intents.availabilityInquiry
     ) {
-      const pricingService = await resolvePricingService({
-        businessId: business._id,
-        bookingState: activeConversation.bookingState,
-        lead,
-        text,
-      });
-      const approvedEstimate = buildApprovedPriceEstimate(pricingService);
+      const approvedEstimate = await getApprovedServiceEstimate({ businessId: business._id, serviceNeeded: lead?.serviceNeeded, customerMessage: text });
 
       return {
         handled: true,
@@ -926,7 +833,7 @@ class BookingStateMachineService {
     ) {
       const { street, valid } = parseStreetAddress(text);
       const suppliedZip =
-        text.match(ZIP_PATTERN)?.[1] ||
+        normalizeSpokenAddress(text).match(ZIP_PATTERN)?.[1] ||
         activeConversation.bookingState?.postalCode ||
         "";
 

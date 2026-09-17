@@ -1,3 +1,4 @@
+import { extractCustomerAddress, addressFromTurn, isAddressOnlyTurn } from '../booking/customerAddress.service.js';
 import { isSoftOptOutPhrase } from '../messaging/smsCompliance.service.js';
 import { staffReviewDueAt } from '../staffReviewPolicy.service.js';
 import crypto from 'crypto';
@@ -29,7 +30,7 @@ export async function evaluateServiceEligibility({ businessId, request, semantic
   return result;
 }
 
-export async function guardServiceRequest({ business, lead, conversation, customerMessage, semanticAssessment = null, channel = 'sms', turnId = '' }) {
+export async function guardServiceRequest({ business, lead, conversation, customerMessage, semanticAssessment = null, channel = 'sms', turnId = '', recentMessages = [] }) {
   const text = clean(customerMessage);
   if (!business?._id || !conversation || !text || conversation.humanTakeover || conversation.aiEnabled === false || ['closed', 'archived'].includes(conversation.status)) return null;
   // Safety, consent and abuse controls retain precedence even when called by a lower-level entry point.
@@ -38,12 +39,13 @@ export async function guardServiceRequest({ business, lead, conversation, custom
   const intent = classifySmsIntent({ business, lead, conversation, customerMessage: text });
   let current = extractService(text, { lead, conversation });
   const prior = conversation.serviceEligibility || lead?.serviceEligibility;
-  if (!current && semanticAssessment?.serviceNeeded && semanticAssessment?.confidence >= 60) current = text;
+  if (!current && !prior?.request && !known(lead?.serviceNeeded) && !intent.intents?.scheduling &&
+      semanticAssessment?.serviceNeeded && semanticAssessment?.confidence >= 60) current = text;
   const hasDomain = serviceDomains(text).length > 0;
   // Symptom updates answer triage; they do not request an unidentified new service.
   if (!hasDomain && (prior?.request || known(lead?.serviceNeeded)) &&
       /^(?:(?:it |the leak )?(?:has )?)?(?:not|no longer|stopped|only when|only during)\b/i.test(text)) current = '';
-  if (!current && hasDomain) current = text;
+  if (!current && hasDomain && !isAddressOnlyTurn(text)) current = text;
   const clarificationAnswer = prior?.decision === 'needs_clarification' &&
     !['cancel', 'reschedule', 'status', 'human', 'callback'].some(key => intent.intents?.[key]);
   if (clarificationAnswer && /\b(?:unsure|not sure|don['’]?t know)\b/i.test(text)) current = `unsure: ${prior.request}`;
@@ -52,7 +54,9 @@ export async function guardServiceRequest({ business, lead, conversation, custom
   if (!current && /\b(?:hours|open|close|phone number|email|payment|invoice|warranty)\b/i.test(text)) return null;
   if (!current && /^(?:thanks|thank you|ok|okay|hi|hello|bye)[!. ]*$/i.test(text)) return null;
   if (!current && conversation.bookingState?.appointment && !blocksServiceAutomation(conversation)) return null;
-  const acceptingReview = prior?.decision === 'needs_staff_review' && /^(?:yes|yeah|please do|go ahead|submit|sure)\b/i.test(text);
+  const acceptingReview = prior?.decision === 'needs_staff_review' && (intent.response.affirmative ||
+    /\b(?:submit|send|save)\b.{0,30}\b(?:request|review|team|staff)\b/i.test(text) ||
+    /\b(?:can|could|please|want to|like to)\b.{0,25}\b(?:schedule|book|appointment)\b/i.test(text)) && !intent.response.negative;
   const decliningReview = prior?.decision === 'needs_staff_review' && /^(?:no|nope|no thanks)\b/i.test(text);
   // Pronouns and slot answers keep the previously checked service rather than becoming a new job.
   if (current && /^(?:it|that|this)\b/i.test(current) && prior?.request) current = '';
@@ -60,13 +64,13 @@ export async function guardServiceRequest({ business, lead, conversation, custom
   if (!request && intent.intents?.pricing && !semanticAssessment) return null;
   if (!request && !intent.intents?.scheduling && !intent.intents?.pricing && !intent.intents?.availabilityInquiry) return null;
   let eligibility;
-  let semanticService = semanticAssessment?.serviceNeeded || (prior?.request === request ? prior.semanticService : '') || '';
-  let confidence = semanticAssessment?.confidence || (prior?.request === request ? prior.semanticConfidence : 0) || 0;
+  let semanticService = (current ? semanticAssessment?.serviceNeeded : '') || (prior?.request === request ? prior.semanticService : '') || '';
+  let confidence = (current ? semanticAssessment?.confidence : 0) || (prior?.request === request ? prior.semanticConfidence : 0) || 0;
   try {
     eligibility = await evaluateServiceEligibility({ businessId: business._id, request,
       semanticService, confidence });
     // Reuse the metered, schema-validated interpreter for unfamiliar first-turn wording.
-    if (current && !hasDomain && !semanticAssessment && ['catalog_incomplete', 'unrecognized_service'].includes(eligibility.reason) && prior?.request !== request) {
+    if (current && !semanticAssessment && ['catalog_incomplete', 'unrecognized_service'].includes(eligibility.reason) && prior?.request !== request) {
       const usage = await reserveAiUsage({ business, customerPhone: lead?.phone || conversation.customerPhone || '' });
       if (usage.allowed) {
         const understood = await qualifyLeadWithAI({ business, messageBody: text });
@@ -94,10 +98,11 @@ export async function guardServiceRequest({ business, lead, conversation, custom
     lead.markModified?.('serviceEligibility');
     if (current && (!known(lead.serviceNeeded) || changed || eligibility.decision !== 'supported')) lead.serviceNeeded = (eligibility.decision === 'supported' && semanticService && confidence >= 80 ? semanticService : current).slice(0, 200);
   }
-  if (changed || eligibility.decision !== 'supported') {
+  if (changed || (!prior && eligibility.decision !== 'supported')) {
     // Invalidate stale proposals, never cancel an existing customer appointment.
     if (!conversation.bookingState?.appointment) conversation.bookingState = { status: 'not_started' };
-    conversation.conversationMemory = { ...(conversation.conversationMemory?.toObject?.() || conversation.conversationMemory || {}), recoveryIntake: {} };
+    const memory = conversation.conversationMemory?.toObject?.() || conversation.conversationMemory || {};
+    conversation.conversationMemory = { ...memory, recoveryIntake: current && prior?.request !== request ? {} : (memory.recoveryIntake || {}) };
     conversation.markModified?.('conversationMemory');
     if (conversation.lifecycle) conversation.lifecycle.nextRecoveryNudgeAt = null;
     if (lead && !lead.bookedAt && !lead.appointment) {
@@ -108,6 +113,15 @@ export async function guardServiceRequest({ business, lead, conversation, custom
         lead.valuation = { source: 'unknown', basis: 'Service eligibility is not verified.', updatedAt: new Date() };
       }
       lead.valuationVersion = Number(lead.valuationVersion || 0) + 1;
+    }
+  }
+  // Keep facts even while service acceptance needs review. No price/calendar action is authorized.
+  if (lead && eligibility.decision === 'needs_staff_review') {
+    const address = addressFromTurn({customerMessage:text, recentMessages, conversation, knownAddress: known(lead.address) ? lead.address : ''}) || extractCustomerAddress(text, { expected: Boolean(reviewSubmitted || acceptingReview) });
+    if (address) lead.address = address;
+    else if (/^\d{5}(?:-\d{4})?$/.test(text) && known(lead.address) && !/\b\d{5}\b/.test(lead.address)) lead.address += `, ${text}`;
+    if (!address && !intent.intents?.availabilityInquiry && (intent.entities?.range || intent.entities?.timePreference?.timeOfDay || intent.entities?.timePreference?.targetMinutes != null)) {
+      lead.preferredAppointmentTime = text.slice(0, 500);
     }
   }
   checkActive();
@@ -129,11 +143,15 @@ export async function guardServiceRequest({ business, lead, conversation, custom
     checkActive();
     if (lead) { lead.serviceEligibility = state; lead.markModified?.('serviceEligibility'); await lead.save?.(); }
     conversation.serviceEligibility = state; conversation.markModified?.('serviceEligibility'); await conversation.save?.();
-    reply = "Your request is saved for staff to review whether they can accept the work. There is no confirmed appointment or guaranteed callback time.";
+    const next = !known(lead?.address) ? ' What is the service address?' :
+      !/\b\d{5}(?:-\d{4})?\b/.test(lead.address) ? ' What is the ZIP code for that address?' :
+      !known(lead?.preferredAppointmentTime) ? ' What day would you prefer?' : '';
+    reply = `${intent.intents?.pricing ? "I don't have an approved estimate for this request yet. " : ''}Your request is saved for staff to review whether they can accept the work. No appointment is confirmed.${next}`;
   } else if (decliningReview) reply = "Understood. I won't submit a staff review request or arrange an appointment for this work.";
   return { decision: 'send_fixed_response', actionType: 'send_fixed_response', messageCategory: 'service_request',
     reply, serviceEligibility: state, serviceNeeded: lead?.serviceNeeded || request.slice(0, 200),
-    urgency: 'low', leadQualityScore: 0, intakeReady: false, shouldAlertOwner: false,
+    address: lead?.address || '', preferredAppointmentTime: lead?.preferredAppointmentTime || '',
+    urgency: lead?.urgency || 'medium', leadQualityScore: 0, intakeReady: false, shouldAlertOwner: false,
     riskFlags: [], guardrail: { skipAI: true, reason: 'service_eligibility', usedFallback: false } };
 }
 

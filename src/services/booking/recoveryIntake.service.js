@@ -1,3 +1,4 @@
+import { extractCustomerAddress, addressFromTurn, isRepeatCorrection } from './customerAddress.service.js';
 import { isSoftOptOutPhrase } from '../messaging/smsCompliance.service.js';
 import { guardServiceRequest } from '../serviceEligibility/serviceEligibility.service.js';
 import { patternHasAffirmedSafetyMatch } from '../../helpers/ai/aiGuardrails.js';
@@ -28,13 +29,7 @@ const controlMessage = /^(?:stop|unsubscribe|help|start|unstop)[.! ]*$/i;
 const clogQuestion = 'Is water overflowing or backing up into other fixtures?';
 const cloggedFixture = value => /\b(?:clogged|blocked|stopped up)\b/i.test(value) && /\b(?:toilet|sink|drain|tub|shower|sewer)\b/i.test(value);
 const businessHoursQuestion = /\b(?:what (?:are|time)|when (?:are|do|will)).{0,35}\b(?:hours|open|close)\b/i;
-const addressFrom = text => {
-  let value = clean(text).replace(/^(?:my |the )?address is\s+/i, '').replace(/^(?:i am at|i'm at|we are at|we're at|at)\s+/i, '');
-  // A date/time after the ZIP is a separate fact, not part of the address.
-  const scheduledTail = value.match(/^(.*?\b\d{5}(?:-\d{4})?)(?:[,;.]?\s+)((?:on\s+)?(?:today|tomorrow|next|mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?|jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?|20\d{2}-\d{2}-\d{2}|at\s+\d)[\s\S]*)$/i);
-  if (scheduledTail) value = scheduledTail[1];
-  return /^\d{1,7}[a-z]?\s+.+\b(?:st(?:reet)?|ave(?:nue)?|rd|road|dr(?:ive)?|ln|lane|ct|court|blvd|boulevard|way|pkwy|parkway|place|pl|circle|cir|trail|trl|terrace|ter|highway|hwy)\b/i.test(value) ? value.slice(0, 500) : '';
-};
+const addressFrom = extractCustomerAddress;
 const fixed = (reply, lead, extra = {}) => ({
   decision: 'send_fixed_response', actionType: 'request_information', messageCategory: 'service_request',
   reply, serviceNeeded: lead.serviceNeeded || '', urgency: lead.urgency || 'medium', address: lead.address || '',
@@ -50,11 +45,26 @@ const slotLabel = (slot, timezone) => new Intl.DateTimeFormat('en-US', {
 
 // This layer captures facts and reads scheduling data. It never creates an appointment.
 // The existing booking engine still owns every automatically booked appointment.
-export const handleRecoveryIntake = async ({ business, lead, conversation, customerMessage, channel = 'sms', session = null, turnId = '', semanticAssessment = null, now = new Date() }) => {
+export const handleRecoveryIntake = async ({ business, lead, conversation, customerMessage, channel = 'sms', session = null, turnId = '', semanticAssessment = null, recentMessages = [], now = new Date() }) => {
   const text = clean(customerMessage);
   if (isSoftOptOutPhrase(text)) return null;
-  if (!text || !lead || !conversation || conversation.humanTakeover || ['closed', 'archived'].includes(conversation.status)) return null;
-  const serviceGuard = await guardServiceRequest({ business, lead, conversation, customerMessage, channel, turnId, semanticAssessment });
+  if (!text || !lead || !conversation || conversation.humanTakeover || conversation.aiEnabled === false || ['closed', 'archived'].includes(conversation.status)) return null;
+  const capturedAddress = addressFromTurn({ customerMessage: text, recentMessages, conversation, knownAddress: known(lead.address) ? lead.address : '' });
+  if (capturedAddress) {
+    assertDistributedLeaseActive(); assertVoiceTurnActive();
+    if (known(lead.address) && capturedAddress !== lead.address && !conversation.bookingState?.appointment) {
+      conversation.bookingState = { status: 'not_started' };
+      if (conversation.conversationMemory?.recoveryIntake) {
+        conversation.conversationMemory.recoveryIntake.availability = { status: 'unknown' };
+        conversation.conversationMemory.recoveryIntake.submitted = false;
+        conversation.markModified?.('conversationMemory.recoveryIntake');
+      }
+      await conversation.save?.();
+      assertDistributedLeaseActive(); assertVoiceTurnActive();
+    }
+    lead.address = capturedAddress; await lead.save?.();
+  }
+  const serviceGuard = await guardServiceRequest({ business, lead, conversation, customerMessage, channel, turnId, semanticAssessment, recentMessages });
   if (serviceGuard) return serviceGuard;
   if (isConfirmationQuestion(text) && !/\b(?:cancel|reschedule|call me|human)\b/i.test(text)) {
     if (!conversation.bookingState?.appointment && !['offering_slots', 'awaiting_confirmation'].includes(conversation.bookingState?.status)) {
@@ -81,7 +91,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
     (!semanticAssessment.decision || ['send', 'send_ai_response', 'send_fixed_response'].includes(semanticAssessment.decision))
     ? semanticAssessment : null;
   const service = classification.entities?.serviceNeeded || (typeof semantic?.serviceNeeded === 'string' ? clean(semantic.serviceNeeded).slice(0, 160) : '');
-  if (!state.started && !known(service) && !classification.intents?.scheduling && !addressFrom(text)) return null;
+  if (!state.started && !known(service) && !known(lead.serviceNeeded) && !classification.intents?.scheduling && !capturedAddress && !addressFrom(text)) return null;
   state.started = true;
   if (state.submitted && state.failures >= 2 && known(service)) { state.submitted = false; state.failures = 0; }
   if (known(service) && known(lead.serviceNeeded) && clean(service).toLowerCase() !== clean(lead.serviceNeeded).toLowerCase() &&
@@ -92,9 +102,8 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   }
   if (known(service) && (!known(lead.serviceNeeded) || classification.intents?.correction || classification.intents?.newService)) lead.serviceNeeded = service;
   if (!known(lead.serviceNeeded)) return null;
-  const address = addressFrom(text) || (typeof semantic?.address === 'string' ? addressFrom(semantic.address) : '');
+  const address = capturedAddress || addressFrom(text);
   if (address) lead.address = address;
-  if (!address && /^\d{5}(?:-\d{4})?$/.test(text) && known(lead.address) && !/\b\d{5}\b/.test(lead.address)) lead.address = `${lead.address}, ${text}`;
 
   const schedulingText = address ? clean(text.replace(address, '')) : text;
   const incomingRange = !/^\d{5}(?:-\d{4})?$/.test(schedulingText) ? findDateRange(schedulingText, timezone, now) : null;
@@ -146,7 +155,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
     if (stoppedEvidence || activeEvidence) { state.triageResolved = true; if (!stoppedEvidence && lead.urgency !== 'emergency') lead.urgency = 'high'; }
     else state.triagePending = true;
   }
-  const understoodAnswer = Boolean(known(service) || address || incomingRange ||
+  const understoodAnswer = Boolean((!oldState?.started && known(lead.serviceNeeded)) || known(service) || address || incomingRange ||
     incomingTime.targetMinutes !== null || incomingTime.timeOfDay ||
     state.triageResolved !== wasTriageResolved || state.clogResolved !== wasClogResolved || stopped.test(text) || active.test(text));
   // An unanswered field is not proof the customer was unintelligible. Let the
@@ -185,10 +194,11 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
       }
       return result;
     }
+    const addressAcknowledgement = channel === 'voice' && address && /\b\d{5}\b/.test(address) ? `I have ZIP ${address.match(/\b\d{5}\b/)[0].split('').join(' ')}. ` : '';
     const acknowledged = !wasTriageResolved && state.triageResolved && state.leakPattern === 'during_use'
       ? 'Thanks for clarifying that it leaks during use. Please avoid using it for now. '
       : '';
-    return fixed(`${pricingPrefix}${acknowledged}${reply}`, lead);
+    return fixed(`${isRepeatCorrection(text) && address ? 'Sorry, I have your address now. ' : ''}${pricingPrefix}${addressAcknowledgement}${acknowledged}${reply}`, lead);
   };
   if (state.triagePending && !state.triageAsked) {
     state.triageAsked = true; await persist();

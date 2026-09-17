@@ -442,7 +442,7 @@ class VoiceAgentService {
       });
     }
 
-    const serviceGuard = await guardServiceRequest({ business, lead, conversation, customerMessage: text, channel: 'voice', turnId,
+    const serviceGuard = await guardServiceRequest({ business, lead, conversation, customerMessage: text, channel: 'voice', turnId, recentMessages,
       semanticAssessment: understanding?.entities?.service ? { serviceNeeded: understanding.entities.service, confidence: understanding.confidence } : null });
     if (serviceGuard) return { reply: toSpokenReply(serviceGuard.reply) };
 
@@ -465,7 +465,7 @@ class VoiceAgentService {
       typeof understanding.entities?.service === "string" && understanding.entities.service.trim()
       ? { isInScope: true, confidence: understanding.confidence, serviceNeeded: understanding.entities.service }
       : null;
-    const intake = await handleRecoveryIntake({ business, lead, conversation, customerMessage: text, channel: "voice", session, turnId, semanticAssessment });
+    const intake = await handleRecoveryIntake({ business, lead, conversation, customerMessage: text, channel: "voice", session, turnId, semanticAssessment, recentMessages });
     if (intake) { resetFallbackGuard(guard); return { reply: toSpokenReply(intake.reply), ...(intake.outcome ? { outcome: intake.outcome } : {}) }; }
 
     // Classifier uncertainty is not a failed conversational turn. Short slot

@@ -19,6 +19,13 @@ const generic = new Set('a an the my our your is are was be it this that i we yo
 export const meaningfulServicePhrase = value => normalize(value).split(' ').some(word => word && !generic.has(word) && !/^(?:repairs?|repairing|repaired|fix(?:es|ed|ing)?|leaks?|leaking|install(?:s|ed|ing|ation)?|replac(?:e|es|ed|ing|ement)|clean(?:s|ed|ing)?|inspect(?:s|ed|ing|ion)?|maintain(?:s|ed|ing)?|care|help|assistance)$/.test(word));
 export const serviceDomains = value => Object.entries(domains).filter(([, pattern]) => pattern.test(normalize(value))).map(([key]) => key);
 const domainOf = service => aliases[normalize(service.category)] || normalize(service.category);
+export const isBroadService = service => {
+  const name = normalize(service.name).replace(/\b(?:service|services|general|residential|commercial|repair|repairs|maintenance)\b/g, '').trim();
+  return (aliases[name] || name) === domainOf(service);
+};
+// Specific offerings supersede a broad offering of the same trade, never another trade.
+export const preferSpecificServices = services => services.filter(service => !isBroadService(service) ||
+  !services.some(other => !isBroadService(other) && domainOf(other) === domainOf(service)));
 const activeText = value => String(value || '').replace(/^.*\b(?:instead|i meant|rather than that|forget that)\b[:, ]*/i, '').trim();
 // Negated clauses cannot supply positive eligibility evidence.
 const affirmedText = value => activeText(value).split(/\bbut\b|[;.!?]/i)
@@ -31,8 +38,7 @@ export const scoreService = (query, service) => {
   const category = domainOf(service);
   // A known conflicting trade cannot win on a generic keyword such as "repair".
   if (evidenceDomains.length && domains[category] && !evidenceDomains.includes(category)) return 0;
-  const broadName = normalize(service.name).replace(/\b(?:service|services|general|residential|commercial)\b/g, '').trim();
-  const broadMatch = (aliases[broadName] || broadName) === category && evidenceDomains.includes(category);
+  const broadMatch = isBroadService(service) && evidenceDomains.includes(category);
   return Number(broadMatch) + [service.name, service.category, ...(service.keywords || [])]
     .filter(meaningfulServicePhrase)
     .reduce((score, term) => score + (matchesServicePhrase(text, term) ? 1 : 0), 0);
@@ -62,8 +68,8 @@ export const evaluateServicePolicy = ({ request, services = [], policy = {}, sem
   }
   const excluded = active.filter(service => (service.excludedKeywords || []).some(term => matchesServicePhrase(text, term) ||
     (semanticSafe && matchesServicePhrase(semanticService, term))));
-  const matches = active.filter(service => !excluded.includes(service) &&
-    (scoreService(raw, service) > 0 || (semanticSafe && scoreService(semanticService, service) > 0)));
+  const matches = preferSpecificServices(active.filter(service => !excluded.includes(service) &&
+    (scoreService(raw, service) > 0 || (semanticSafe && scoreService(semanticService, service) > 0))));
   if (rawDomains.length > 1) {
     const covered = new Set(matches.flatMap(service => [domainOf(service), ...serviceDomains(service.name)]));
     if (rawDomains.some(domain => !covered.has(domain))) return result('needs_clarification', 'mixed_service_request', raw);

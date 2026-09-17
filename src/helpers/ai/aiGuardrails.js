@@ -12,7 +12,7 @@ const STOP_KEYWORDS = new Set([
 const HELP_KEYWORDS = new Set(["HELP", "INFO"]);
 
 const CARD_NUMBER_PATTERN = /(?:\d[ -]*?){13,19}/g;
-const SSN_PATTERN = /\b\d{3}-?\d{2}-?\d{4}\b/g;
+const SSN_PATTERN = /\b(?:\d{3}-\d{2}-\d{4}|\d{9})\b/g;
 const PASSWORD_PATTERN = /\b(password|passcode|pin)\s*[:=]\s*\S+/gi;
 
 const PROMPT_INJECTION_PATTERNS = [

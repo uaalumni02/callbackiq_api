@@ -1,4 +1,4 @@
-import { scoreService } from '../../../services/serviceEligibility/policy.js';
+import { scoreService, preferSpecificServices } from '../../../services/serviceEligibility/policy.js';
 import ServiceOffering from "../../../models/serviceOffering.js";
 import { normalizeServiceText, matchesServicePhrase } from '../../../services/catalog/servicePhrase.service.js';
 
@@ -27,7 +27,8 @@ export const searchServicesTool = async ({ businessId, query }) => {
 
   const positive = scored.filter((item) => item.score > 0);
   // A sole catalog service is not evidence that it matches the customer's job.
-  const matches = positive;
+  const preferred = new Set(preferSpecificServices(positive.map(item => item.service)));
+  const matches = positive.filter(item => preferred.has(item.service));
 
   return matches.slice(0, 5).map(({ service, score }) => ({
     id: String(service._id),
