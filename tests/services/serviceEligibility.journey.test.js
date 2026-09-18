@@ -203,3 +203,22 @@ test('withdrawn requests cannot be booked or approved by staff', async () => {
   }
   expect(Conversation.findOne).toHaveBeenCalledWith({ _id: 'c', business: 'b' });
 });
+
+test.each([
+  ['plumbing', 'My kitchen sink is clogged'],
+  ['hvac', 'My furnace is broken'],
+  ['electrical', 'My outlet is broken'],
+  ['roofing', 'I need roof repair'],
+  ['restoration', 'I need water damage restoration'],
+  ['garage_door', 'My garage door is stuck'],
+  ['locksmith', 'My door lock is broken'],
+  ['landscaping', 'I need the hedges trimmed'],
+])('%s retains approved work through a contextual pricing follow-up', async (category, request) => {
+  services = [{ ...plumbing, _id: category, category, name: `${category} service`, keywords: [request.replace(/^I need /i, "")], excludedKeywords: [] }];
+  const j = journey();
+  expect(await j.turn(request)).toBeNull();
+  const before = j.lead().serviceNeeded;
+  expect(await j.turn('Tomorrow at 9pm. How much would it cost to fix something like this?')).toBeNull();
+  expect(j.lead().serviceNeeded).toBe(before);
+  expect(j.conversation().serviceEligibility.decision).toBe('supported');
+});

@@ -54,6 +54,8 @@ export const buildSmsRecoveryVoicePrompt = ({
       "A team member may respond when available, but response timing is not guaranteed.";
   }
 
+  message += " This service does not monitor emergencies or dispatch emergency help. For immediate danger, call 911.";
+
   const safeMessage = sanitizeUnverifiedStaffCommitments(
     String(message ?? ""),
     { channel: "voice" },

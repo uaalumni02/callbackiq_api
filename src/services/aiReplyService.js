@@ -68,7 +68,7 @@ const deterministicResult = (assessment) => ({
   messageCategory: assessment.category,
   reply: assessment.reply,
   serviceNeeded: "",
-  urgency: assessment.category === "emergency" ? "emergency" : "medium",
+  urgency: assessment.category === "emergency" ? "emergency" : assessment.urgency || "medium",
   address: "",
   preferredAppointmentTime: "",
   leadQualityScore: 0,

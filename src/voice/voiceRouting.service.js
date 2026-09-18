@@ -161,12 +161,12 @@ export const ensureAutomatedAssistantDisclosure = (greeting, businessName = "") 
   const fallback = name
     ? `Thanks for calling ${name}. This is their automated assistant. How can I help you today?`
     : "Thanks for calling. This is the automated assistant. How can I help you today?";
-  const cleaned = cleanGreeting(greeting);
-  if (!cleaned) return fallback;
-  if (AI_DISCLOSURE_PATTERN.test(cleaned)) return cleaned;
-  return name
+  const boundary = "This service does not monitor emergencies or dispatch emergency help. For immediate danger, call 911.";
+  const cleaned = cleanGreeting(String(greeting || "").replaceAll(boundary, "").trim());
+  const disclosed = !cleaned ? fallback : AI_DISCLOSURE_PATTERN.test(cleaned) ? cleaned : name
     ? `Thanks for calling ${name}. This is their automated assistant. ${cleaned}`
     : `This is the automated assistant. ${cleaned}`;
+  return disclosed.includes(boundary) ? disclosed : `${disclosed} ${boundary}`;
 };
 const dynamicGreeting = (businessName) =>
   ensureAutomatedAssistantDisclosure("", businessName);

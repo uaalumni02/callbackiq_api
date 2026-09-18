@@ -1,3 +1,4 @@
+import { reconcileConversationLead } from "./conversationLeadIdentity.service.js";
 // CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1: conversation-service
 import Lead from "../../models/lead.js";
 import Conversation from "../../models/conversation.js";
@@ -189,13 +190,13 @@ export const getOrCreateSmsLeadAndConversation = async ({
     throw error;
   }
 
-  const lead = await upsertLead({
+  let lead = await upsertLead({
     business,
     customerPhone: normalizedPhone,
     body: String(body || "").trim(),
     source,
   });
-  const conversation = await upsertConversation({
+  let conversation = await upsertConversation({
     business,
     lead,
     customerPhone: normalizedPhone,
@@ -205,6 +206,7 @@ export const getOrCreateSmsLeadAndConversation = async ({
     recoveryJourneyKey,
   });
 
+  ({ lead, conversation } = await reconcileConversationLead({ business, lead, conversation, customerPhone: normalizedPhone }));
   return { lead, conversation, customerPhone: normalizedPhone };
 };
 

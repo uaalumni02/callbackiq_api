@@ -103,6 +103,9 @@ export const extractService = (text, { lead = null, conversation = null } = {}) 
     if (/^(?:stop|start|unstop|help|yes|no|okay|ok|thanks?|hello|hi)[!. ]*$/i.test(clause) || /^(?:\d|https?:|[^ ]+@)/i.test(clause)) continue;
     // A request to act on "it" describes an intent, not a replacement job.
     if (/\b(?:fix|repair|replace|inspect|install|service)\s+(?:it|that|this|the same thing)(?=$|[?.!,;]|\s+(?:today|tomorrow|next|on|at|for me|please|and|when|soon|now)\b)/i.test(clause)) continue;
+    // Anaphoric price/action questions refer to the existing request. They are
+    // not service objects ("fix something like this", "repair the issue").
+    if (/\b(?:fix|repair|replace|inspect|install|service|resolve|address|handle)\s+(?:(?:something|anything)\s+(?:like|similar to)\s+(?:this|that|it)|(?:this|that|the|my|our|same)\s+(?:issue|problem|work|job)|(?:it|this|that))(?:[?.!,;]|$|\s+(?:please|today|tomorrow|now|for|at|on|and|would|will|cost)\b)/i.test(clause)) continue;
     const prefixed = clause.match(SERVICE_PREFIX);
     let candidate = clean(prefixed?.[1] || clause).replace(SERVICE_TAIL, "").replace(/[?,.!]+$/, "");
     const explicitRequest = /^(?:i|we)\s+(?:need|want|would like)\s+(?!to (?:know|book|schedule|cancel|reschedule)\b)/i.test(candidate);

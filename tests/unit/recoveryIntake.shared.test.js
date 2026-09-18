@@ -234,3 +234,40 @@ test.each(['sms','voice'])('%s keeps a same-day request actionable when no slot 
  expect(result.intakeReady).toBe(false);
  if(channel==='voice') expect(AlertService.createHumanHandoffAlert).toHaveBeenCalledTimes(1);
 });
+
+test.each(['sms', 'voice'])('%s preserves the sink through compound price/time and checks the late time', async channel => {
+  const c = context(channel);
+  await c.turn('My kitchen sink is clogged and the water backs up into the other side when I run the disposal');
+  await c.turn('No other fixtures are affected. Only the sink.');
+  await c.turn('979 Walk Rd Atlanta GA 30324');
+  getApprovedServiceEstimate.mockResolvedValue('The approved estimate is $150–$300; final price requires inspection.');
+  const r = await c.turn('Sep 8 at 9pm. How much would it cost to fix something like this?');
+  expect(c.lead.serviceNeeded).toMatch(/sink/i);
+  expect(c.lead.serviceNeeded).not.toMatch(/fix something/);
+  expect(c.lead.address).toBe('979 Walk Rd Atlanta GA 30324');
+  expect(c.lead.preferredAppointmentTime).toBe('2026-09-08 at 21:00');
+  expect(r.reply).toMatch(/150/);
+  expect(r.reply).toMatch(/isn't available/);
+  expect(r.intakeReady).toBe(false);
+  expect(getAvailability).toHaveBeenCalled();
+});
+test('suppressed clog question remains pending and is asked again before address', async () => {
+  const c = context();
+  const first = await c.turn('My kitchen sink is clogged');
+  expect(first.reply).toMatch(/overflowing/);
+  const r = await handleRecoveryIntake({ ...c, customerMessage: 'My kitchen sink is clogged', recentMessages: [
+    { direction: 'outbound', body: first.reply, status: 'suppressed', deliveryStatus: 'suppressed' }
+  ] });
+  expect(r.reply).toMatch(/overflowing/);
+  expect(r.intakeReady).toBe(false);
+});
+
+test('voice model wording cannot replace the service detail during a contextual price question', async () => {
+  const c = context('voice');
+  await c.turn('My kitchen sink is clogged'); await c.turn('No other fixtures are affected');
+  await handleRecoveryIntake({ ...c, customerMessage: 'How much to fix something like this?', semanticAssessment: {
+    isInScope: true, confidence: 95, serviceNeeded: 'fix something like this', decision: 'send_fixed_response'
+  } });
+  expect(c.lead.serviceNeeded).toMatch(/sink/);
+  expect(c.conversation.conversationMemory.recoveryIntake.serviceDetail).toMatch(/sink/);
+});

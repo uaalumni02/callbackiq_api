@@ -238,6 +238,15 @@ const persistOutboundReply = async ({
         metadata: { ...claimed.metadata, suppressionReason },
       }, { returnDocument: "after", runValidators: true });
       SocketService.emitMessageCreated(business._id, outbound);
+      logOperationalEvent("twilio.sms.reply_suppressed", { businessId: business._id,
+        conversationId: conversation._id, inboundMessageId: inboundMessage._id, reason: suppressionReason });
+      if (["automation_context_changed", "automation_context_missing"].includes(suppressionReason)) {
+        await AlertService.createSystemAlert({ businessId: business._id,
+          title: "Customer SMS reply blocked by record mismatch",
+          message: "A prepared reply was not sent because its customer or lead link changed. Review the conversation and respond manually after verifying the recipient.",
+          priority: "high", metadata: { conversationId: String(conversation._id), inboundMessageId: String(inboundMessage._id), reason: suppressionReason },
+          dedupeKey: `sms_identity_suppressed:${inboundMessage._id}` });
+      }
       return { sent: false, suppressed: true, reason: suppressionReason, message: outbound };
     }
     const sent = await sendSms({
@@ -430,7 +439,8 @@ export const processInboundSmsJob = async (job) => {
     isHumanHandoffStatusQuestion(customerTurn.customerMessage);
 
   const safetyReviewRequired = deterministicAssessment.handled &&
-    ["emergency", "hazardous_diy_request"].includes(deterministicAssessment.category);
+    (["emergency", "hazardous_diy_request"].includes(deterministicAssessment.category) ||
+      deterministicAssessment.reason === "safety_clarification_required");
   const automationPaused = conversation.humanTakeover === true || conversation.aiEnabled === false ||
     ["closed", "archived"].includes(conversation.status);
   // Safety evidence still updates the staff queue; it cannot resume automation.
@@ -545,15 +555,16 @@ export const processInboundSmsJob = async (job) => {
   if ((conversation?.orchestration?.handoffReason === "intake_complete" && !handoffSource) ||
       (automationPaused && safetyReviewRequired)) {
     const safety = deterministicAssessment.handled &&
-      ["emergency", "hazardous_diy_request"].includes(deterministicAssessment.category);
+      (["emergency", "hazardous_diy_request"].includes(deterministicAssessment.category) ||
+      deterministicAssessment.reason === "safety_clarification_required");
     // This branch bypasses the ordinary AI result persistence. Preserve facts
     // and raise urgency before creating the durable staff task or replying.
     const urgency = preserveHigherUrgency(lead.urgency,
-      safety ? "emergency" : classification.entities?.urgency);
+      safety ? (deterministicAssessment.category === "emergency" ? "emergency" : "high") : classification.entities?.urgency);
     assertDistributedLeaseActive();
     const followUpLead = await Lead.findByIdAndUpdate(lead._id,
       { $set: { urgency } }, { returnDocument: "after", runValidators: true });
-    const intent = safety ? "emergency" : "intake_follow_up";
+    const intent = safety ? deterministicAssessment.category : "intake_follow_up";
     const followUpConversation = await Conversation.findByIdAndUpdate(conversation._id, {
       $set: {
         "conversationMemory.urgency": urgency,
@@ -579,17 +590,17 @@ export const processInboundSmsJob = async (job) => {
       customerName: lead.customerName, customerPhone: conversation.customerPhone,
       customerMessage: customerTurn.customerMessage, lead,
       result: {
-        messageCategory: safety ? "emergency" : "service_request",
+        messageCategory: safety ? deterministicAssessment.category : "service_request",
         urgency,
         summary: safety ? "New customer safety concern; review the full conversation." : "Additional customer message after completed intake; review the full conversation.",
         handoff: { reason: automationPaused ? "staff_safety_review" : "intake_follow_up", callbackRequested: false },
-        riskFlags: safety ? ["safety_hazard"] : [],
+        riskFlags: safety ? (deterministicAssessment.riskFlags || ["safety_hazard"]) : [],
       },
     });
     let delivery = { sent: false };
     if (safety && !automationPaused) {
       delivery = await persistOutboundReply({ business, lead, conversation, inboundMessage,
-        result: { decision: "send_fixed_response", actionType: "send_fixed_response", messageCategory: "emergency", reply: deterministicAssessment.reply, guardrail: { skipAI: true } },
+        result: { decision: "send_fixed_response", actionType: "send_fixed_response", messageCategory: deterministicAssessment.category, reply: deterministicAssessment.reply, guardrail: { skipAI: true } },
       });
     }
     if (!safety && classification.intents?.pricing && !automationPaused) {

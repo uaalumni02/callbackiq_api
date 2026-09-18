@@ -1,3 +1,5 @@
+import { buildMissedCallRecoveryText } from "../services/messaging/smsCompliance.service.js";
+import { reconcileConversationLead } from "../services/messaging/conversationLeadIdentity.service.js";
 import { claimRecoveryIntroduction } from "../services/messaging/recoveryIntroduction.service.js";
 import { recordCallAnswer } from "../services/callAnswerEvidence.service.js";
 import Alert from "../models/alert.js";
@@ -235,6 +237,12 @@ class VoiceSessionService {
       }
     }
 
+    if (usableCaller) {
+      ({ lead, conversation } = await reconcileConversationLead({
+        business, lead, conversation, customerPhone: normalizedFrom,
+      }));
+    }
+
     if (!callLog) {
       try {
         callLog = await CallLog.create({
@@ -470,10 +478,7 @@ class VoiceSessionService {
     const callLog = session.callLog;
     const from = normalizePhoneToE164(session.to || business.phone);
     const to = normalizePhoneToE164(session.from || lead?.phone);
-    const body = String(
-      business.smsTemplate ||
-        `Hi, this is ${business.businessName}. Sorry we missed your call. What service do you need help with today?`,
-    ).replaceAll("{{businessName}}", business.businessName);
+    const body = buildMissedCallRecoveryText({ business });
 
     let suppressionReason = "";
     if (session.metadata?.sharedRequestReadOnly) {

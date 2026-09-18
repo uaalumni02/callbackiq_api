@@ -626,3 +626,19 @@ test('voice preserves the saved preference and asks about current conditions whe
  expect(session.lead.preferredAppointmentTime).toBe('tomorrow');
  expect(AlertService.createAIReviewAlert).toHaveBeenCalledWith(expect.objectContaining({result:expect.objectContaining({customerConstraints:['water_control_unavailable']})}));
 });
+
+test('voice persists an unclear safety concern before answering, without callback or booking promises', async () => {
+  jest.clearAllMocks();
+  const session = makeSession();
+  const reply = 'This service does not monitor emergencies or dispatch emergency help. Is there immediate danger?';
+  VoiceUnderstandingService.classifyVoiceTurn.mockResolvedValue({ intent: 'service_request', entities: {},
+    safety: { isEmergency: false, needsReview: true, reply, reviewAssessment: {
+      category: 'service_request', reason: 'safety_clarification_required', alertPriority: 'high',
+      shouldAlertOwner: true, riskFlags: ['safety_clarification'],
+    } } });
+  const result = await VoiceAgentService.handlePrompt({ session, customerMessage: 'An alarm is beeping', turnId: 'risk-review' });
+  expect(result.reply).toBe(reply);
+  expect(AlertService.createAIReviewAlert).toHaveBeenCalledWith(expect.objectContaining({ result: expect.objectContaining({ messageCategory: 'service_request', alertPriority: 'high' }) }));
+  expect(VoiceCallbackService.handle).not.toHaveBeenCalled();
+  expect(BookingStateMachineService.handle).not.toHaveBeenCalled();
+});

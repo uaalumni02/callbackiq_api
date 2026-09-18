@@ -13,7 +13,7 @@ describe("SMS compliance policy", () => {
       buildMissedCallRecoveryText({
         business: { businessName: "Atlanta Pro Plumbing", smsTemplate: "Hi from {{businessName}}. How can we help?" },
       }),
-    ).toBe("Hi from Atlanta Pro Plumbing. How can we help? Reply STOP to opt out.");
+    ).toBe("Hi from Atlanta Pro Plumbing. How can we help? This service does not monitor emergencies or dispatch emergency help. For immediate danger, call 911. Reply STOP to opt out.");
     expect(ensureOptOutDisclosure("Reply STOP to opt out.")).toBe("Reply STOP to opt out.");
   });
 

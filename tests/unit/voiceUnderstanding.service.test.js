@@ -49,3 +49,10 @@ test("a confident unknown model verdict cannot erase a directly stated service",
   expect(result.intent).toBe("service_request");
   expect(result.entities.service).toBe(fallback.entities.service);
 });
+
+test.each(['The water is now spilling out to the floor', 'Water is running onto the carpet'])('voice takes the deterministic safety path: %s', async customerMessage => {
+  const { classifyVoiceTurn } = await import('../../src/voice/voiceUnderstanding.service.js');
+  const result = await classifyVoiceTurn({ customerMessage });
+  expect(result.safety).toMatchObject({ isEmergency: true, hazardType: 'flood' });
+  expect(result.source).toBe('deterministic');
+});

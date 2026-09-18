@@ -452,6 +452,23 @@ describe("completed manual intake uses the durable staff handoff", () => {
     expect(Conversation.findOne).toHaveBeenCalledWith({ _id: conversation._id, business: business._id });
   });
 
+  test("record mismatch suppresses dispatch and creates an actionable staff alert", async () => {
+    AlertService.createHumanHandoffAlert.mockImplementationOnce(async () => {
+      activeConversation.lead = "another-lead";
+      return { _id: "intake-alert" };
+    });
+    Message.findByIdAndUpdate.mockImplementation(async (_id, update) => ({ _id, ...update }));
+    const result = await processInboundSmsJob(job);
+    expect(result).toMatchObject({ sent: false, suppressed: true });
+    expect(sendSms).not.toHaveBeenCalled();
+    expect(AlertService.createSystemAlert).toHaveBeenCalledWith(expect.objectContaining({
+      title: "Customer SMS reply blocked by record mismatch", priority: "high",
+      metadata: expect.objectContaining({ reason: "automation_context_changed" }),
+    }));
+    expect(logOperationalEvent).toHaveBeenCalledWith("twilio.sms.reply_suppressed",
+      expect.objectContaining({ reason: "automation_context_changed" }));
+  });
+
   test("replays a suppressed turn without sending or declaring uncertain delivery", async () => {
     Message.findOne.mockReset().mockReturnValueOnce(leanQuery(null)).mockResolvedValue({
       _id: "previously-suppressed", status: "suppressed", providerMessageId: "",
@@ -595,6 +612,19 @@ describe("completed manual intake uses the durable staff handoff", () => {
     expect(AlertService.createHumanHandoffAlert).toHaveBeenCalledWith(expect.objectContaining({ result: expect.objectContaining({ urgency: "emergency" }) }));
     expect(sendSms).not.toHaveBeenCalled(); expect(generateAIReplyResult).not.toHaveBeenCalled();
   });
+  test("unclear risk during staff takeover persists high priority without an emergency label or automatic reply", async () => {
+    activeConversation.humanTakeover = true;
+    activeLead.serviceNeeded = "sink clog"; activeLead.urgency = "medium";
+    activeInbound.body = "An alarm is beeping";
+    evaluateDeterministicInboundGuardrails.mockImplementation(jest.requireActual("../../src/helpers/ai/aiGuardrails.js").evaluateDeterministicInboundGuardrails);
+    const result = await processInboundSmsJob(job);
+    expect(result.reason).toBe("staff_safety_review");
+    expect(activeLead.urgency).toBe("high");
+    expect(activeLead.serviceNeeded).toBe("sink clog");
+    expect(AlertService.createHumanHandoffAlert).toHaveBeenCalledWith(expect.objectContaining({ result: expect.objectContaining({ messageCategory: "service_request", urgency: "high", riskFlags: ["safety_clarification"] }) }));
+    expect(sendSms).not.toHaveBeenCalled();
+    expect(generateAIReplyResult).not.toHaveBeenCalled();
+  });
   test.each(["Actually I need Thursday instead", "The address is wrong", "I need a price", "Do you cover my area?", "What does that mean?", "Thank you"])("preserves post-intake follow-up for staff: %s", async text => {
     activeConversation.orchestration = { handoffReason: "intake_complete", handoffInboundMessage: "previous" };
     activeInbound.body = text; activeLead.preferredAppointmentTime = "2026-09-09 at 14:00";
@@ -660,6 +690,14 @@ test.each(["hvac", "electrical", "roofing", "restoration", "garage_door", "locks
   evaluateDeterministicInboundGuardrails.mockReturnValue({ handled: true, category: "emergency", riskFlags: ["safety_hazard"] });
   const req = { body: { From: lead.phone, To: business.phone, Body: "Someone is trapped", MessageSid: "SM_SAFETY", NumMedia: "0" } };
   await handleInboundSmsWebhook(req, createResponse());
+  expect(enqueueInboundSmsJob).toHaveBeenCalled();
+  expect(sendSms).not.toHaveBeenCalled();
+});
+
+test("webhook queues unclear risk for staff review while automation remains off", async () => {
+  getOrCreateSmsLeadAndConversation.mockResolvedValue({ lead, conversation: { ...conversation, humanTakeover: true, aiEnabled: false } });
+  evaluateDeterministicInboundGuardrails.mockReturnValue({ handled: true, category: "service_request", reason: "safety_clarification_required" });
+  await handleInboundSmsWebhook({ body: { From: lead.phone, To: business.phone, Body: "An alarm is beeping", MessageSid: "SM_UNCLEAR", NumMedia: "0" } }, createResponse());
   expect(enqueueInboundSmsJob).toHaveBeenCalled();
   expect(sendSms).not.toHaveBeenCalled();
 });

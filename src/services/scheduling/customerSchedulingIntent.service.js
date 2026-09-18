@@ -79,6 +79,10 @@ const EXPLICIT_HUMAN_PATTERNS = [
 ];
 
 const HIGH_URGENCY = [
+  /\b(?:only|sole) (?:toilet|bathroom)\b.{0,35}\b(?:clogged|blocked|unusable|broken|not working)\b/i,
+  /\b(?:front|entry|exterior) door\b.{0,25}\b(?:won[’']?t lock|cannot lock|can[’']?t lock|broken lock)\b/i,
+  /\b(?:no running water|water supply is out|whole house has no water)\b/i,
+  /\b(?:garage(?: door)?|torsion) spring\b.{0,20}\b(?:broken|snapped)\b/i,
   /\b(?:actively|currently|still)\s+leaking\b|\bleaking\s+(?:water\s+)?right now\b/i,
   /\b(?:active(?:ly)?\s+leak(?:ing)?|water\s+leak(?:ing)?|roof\s+(?:is\s+)?(?:active(?:ly)?\s+)?leak(?:ing)?|water\s+coming\s+in|water\s+intrusion)\b/i,
   /\b(?:water\s+heater|hot\s+water\s+heater).{0,30}\bleak(?:ing|s|ed)?\b/i,

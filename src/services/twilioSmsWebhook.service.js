@@ -595,7 +595,8 @@ export const handleInboundSmsWebhook = async (req, res) => {
       ? evaluateDeterministicInboundGuardrails({ customerMessage: body, recentMessages: [] })
       : null;
     const safetyReviewRequired = inboundSafetyAssessment?.handled === true &&
-      ["emergency", "hazardous_diy_request"].includes(inboundSafetyAssessment.category);
+      (["emergency", "hazardous_diy_request"].includes(inboundSafetyAssessment.category) ||
+        inboundSafetyAssessment.reason === "safety_clarification_required");
     const postHandoffStatusEligible =
       conversation.humanTakeover === true &&
       isHumanHandoffStatusQuestion(body);

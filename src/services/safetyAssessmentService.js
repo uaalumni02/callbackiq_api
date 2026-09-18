@@ -64,7 +64,7 @@ const getEmergencyReply =
   typeof Guardrails.getEmergencyReply === "function"
     ? Guardrails.getEmergencyReply
     : () =>
-        "This may be dangerous. Move to a safe location and call 911 if anyone is in immediate danger. A business response is not guaranteed.";
+        "If anyone is in immediate danger, call 911 from a safe location. This service does not monitor emergencies or dispatch emergency help. Do not wait for a callback.";
 
 const detectSafetyHazardTypes = (value) => {
   if (typeof Guardrails.detectSafetyHazardTypes === "function") {

@@ -88,6 +88,15 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   const journeyKey = conversation.orchestration?.recoveryJourneyKey || '';
   const oldState = conversation.conversationMemory?.recoveryIntake;
   const state = oldState?.journeyKey === journeyKey ? { ...oldState } : { journeyKey };
+  // A prepared but unsent question is not a question the customer received.
+  // Keep the outstanding triage field and ask again after transport recovers.
+  if (channel === 'sms') {
+    const lastOutbound = recentMessages.filter(message => message.direction === 'outbound').at(-1);
+    if (lastOutbound && ['suppressed', 'failed', 'undelivered'].includes(lastOutbound.deliveryStatus || lastOutbound.status)) {
+      if (state.clogPending && /overflowing or backing up into other fixtures/i.test(lastOutbound.body || '')) state.clogAsked = false;
+      if (state.triagePending && /(?:leaking right now|is water leaking)/i.test(lastOutbound.body || '')) state.triageAsked = false;
+    }
+  }
   // Semantic evidence uses the existing metered, schema-validated qualification.
   // It describes the request; it never authorizes a service, price or booking.
   const semantic = semanticAssessment?.isInScope === true &&
@@ -95,7 +104,8 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
     !semanticAssessment.guardrail?.usedFallback && !(semanticAssessment.riskFlags?.length) &&
     (!semanticAssessment.decision || ['send', 'send_ai_response', 'send_fixed_response'].includes(semanticAssessment.decision))
     ? semanticAssessment : null;
-  const service = classification.entities?.serviceNeeded || (typeof semantic?.serviceNeeded === 'string' ? clean(semantic.serviceNeeded).slice(0, 160) : '');
+  const contextualPriceQuestion = classification.intents?.pricing && known(lead.serviceNeeded) && !classification.entities?.serviceNeeded;
+  const service = classification.entities?.serviceNeeded || (!contextualPriceQuestion && typeof semantic?.serviceNeeded === 'string' ? clean(semantic.serviceNeeded).slice(0, 160) : '');
   if (!state.started && !known(service) && !known(lead.serviceNeeded) && !classification.intents?.scheduling && !capturedAddress && !addressFrom(text)) return null;
   state.started = true;
   if (state.submitted && state.failures >= 2 && known(service)) { state.submitted = false; state.failures = 0; }
@@ -242,9 +252,9 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
     return fixed(reply, lead);
   }
   // Pricing is a question within intake, not a reason to discard its facts.
-  if (classification.intents?.pricing) {
+  if (classification.intents?.pricing && !incomingRange && incomingTime.targetMinutes === null && !incomingTime.timeOfDay) {
     await persist();
-    const priceResponse = pricingReply({ business, lead, triageResolved: state.triageResolved === true });
+    const priceResponse = pricingReply({ business, lead, triageResolved: state.triageResolved === true || state.clogResolved === true });
     const reply = approvedEstimate ? `${approvedEstimate} ${priceResponse.replace(`For ${clean(lead.serviceNeeded)}, I don't have a confirmed price yet.`, '').trim()}` : priceResponse;
     return fixed(reply, lead, { messageCategory: 'pricing_request' });
   }
@@ -311,7 +321,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   state.preferredAppointmentTime = lead.preferredAppointmentTime;
   await persist();
   const intakeReview = { reviewReady: true, journeyKey, serviceNeeded: state.serviceNeeded, serviceDetail: state.serviceDetail || '', address: state.address, preferredAppointmentTime: state.preferredAppointmentTime, triageAnswer: state.triageAnswer || '', availability: state.availability };
-  const result = fixed(availabilityNote, lead, { intakeReady: true, intakeReview, summary: `${state.serviceDetail || lead.serviceNeeded}; ${state.triageAnswer || ''}; ${lead.address}; requested ${lead.preferredAppointmentTime}`, messageCategory: 'appointment_preference', intakeCompletionReply: recoveryCompletionReply({ lead, state, channel }) });
+  const result = fixed(pricingPrefix + availabilityNote, lead, { intakeReady: true, intakeReview, summary: `${state.serviceDetail || lead.serviceNeeded}; ${state.triageAnswer || ''}; ${lead.address}; requested ${lead.preferredAppointmentTime}`, messageCategory: 'appointment_preference', intakeCompletionReply: pricingPrefix + recoveryCompletionReply({ lead, state, channel }) });
   if (ready && channel === 'voice') {
     checkActive();
     await AlertService.createHumanHandoffAlert({ businessId: business._id, leadId: lead._id, conversationId: conversation._id, providerMessageId: `voice-intake:${session?._id || conversation._id}:${journeyKey}`, customerPhone: lead.phone || conversation.customerPhone, customerName: lead.customerName, customerMessage: text, lead, result: { ...result, handoff: { reason: 'intake_complete' } } });

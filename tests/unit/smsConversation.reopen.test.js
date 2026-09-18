@@ -40,6 +40,7 @@ test("reopens a stale closed conversation but preserves intentional human takeov
     customerPhone: "+14045550101",
   };
   Lead.findOne.mockReturnValue(queryResult(lead));
+  Lead.findByIdAndUpdate.mockResolvedValue(lead);
   Conversation.findOne.mockReturnValue(queryResult(closed));
   Conversation.findByIdAndUpdate.mockResolvedValue(closed);
   Conversation.findOneAndUpdate.mockResolvedValue({ ...closed, status: "open" });

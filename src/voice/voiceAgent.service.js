@@ -415,6 +415,17 @@ class VoiceAgentService {
       return { reply: constraintResult.reply };
     }
     if (safety?.reply) safety.reply = respectCustomerConstraints(safety.reply, { conversation, customerMessage: text });
+    if (safety?.needsReview) {
+      const assessment = safety.reviewAssessment;
+      assertVoiceTurnActive();
+      await AlertService.createAIReviewAlert({ businessId: business._id, leadId: lead?._id,
+        conversationId: conversation._id, providerMessageId: `voice-safety-review:${session._id}:${turnId || session.transcript?.length || 0}`,
+        customerPhone: lead?.phone || conversation.customerPhone,
+        result: { ...assessment, messageCategory: assessment.category, summary: assessment.reason,
+          alertTitle: "Customer safety concern needs review", alertMessage: text } });
+      assertVoiceTurnActive();
+      return { reply: safety.reply };
+    }
     if (safety?.isEmergency || safety?.shouldSendSafetyReply) {
       if (lead) {
         lead.urgency = "emergency";

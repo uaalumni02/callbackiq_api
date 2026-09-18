@@ -147,6 +147,7 @@ describe("VoiceSessionService fallback", () => {
     );
     expect(Message.create).toHaveBeenCalled();
     expect(callLog.missedCallTextSent).toBe(true);
+    expect(sendSms).toHaveBeenCalledWith(expect.objectContaining({ body: expect.stringContaining("does not monitor emergencies or dispatch emergency help") }));
   });
 
   test("does not reset sent status when only local logging fails", async () => {

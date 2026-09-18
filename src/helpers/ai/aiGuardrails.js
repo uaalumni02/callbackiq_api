@@ -31,9 +31,8 @@ const PROMPT_INJECTION_PATTERNS = [
  * Safety hazards are grouped by type so the customer receives a
  * hazard-specific fixed response instead of one generic emergency message.
  *
- * Detection is intentionally biased toward false positives: it is far better
- * to escalate a non-emergency to the owner than to send a generic marketing
- * reply to a customer whose house is flooding.
+ * These are conservative routing signals, not diagnoses or emergency monitoring.
+ * Routine equipment requests must remain distinguishable from current danger.
  *
  * [\s\S] is used instead of "." between phrases so patterns still match when
  * the customer's message spans multiple lines.
@@ -64,6 +63,9 @@ const SAFETY_HAZARD_PATTERN_GROUPS = [
   {
     type: "gas",
     patterns: [
+      /\b(?:generator|charcoal grill|gas grill)\b[^.!?;]{0,35}\b(?:running|operating|on|used|using)\b[^.!?;]{0,20}\b(?:indoors|inside|in (?:the |my |our )?(?:house|home|garage|basement))\b/i,
+      /\b(?:running|using)\b[^.!?;]{0,20}\b(?:generator|charcoal grill|gas grill)\b[^.!?;]{0,30}\b(?:indoors|inside|garage|basement)\b/i,
+
       /\b(?:smell|smells?|smelling|odor|odour) (?:of )?gas\b/i,
       /\bgas (?:leak|line leak|odor|odour|smell)\b/i,
       /\bpropane (?:leak|smell|odor|odour)\b/i,
@@ -90,6 +92,9 @@ const SAFETY_HAZARD_PATTERN_GROUPS = [
   {
     type: "electrical",
     patterns: [
+      /\b(?:tree|branch|branches|ladder)\b[^.!?;]{0,30}\b(?:touching|on|against|contact with)\s+(?:the |a |live )?(?:power|electric(?:al)?)\s+(?:lines?|wires?)\b/i,
+      /\b(?:panel|breaker box|outlet|electrical equipment)\s+(?:is |are )?(?:underwater|submerged|covered in water)\b/i,
+
       /\b(?:electrical )?(?:sparking|arcing)\b/i,
       /\b(?:electrocuted|electric shock|got (?:shocked|zapped))\b/i,
       /\b(?:downed|fallen|live) (?:power line|electrical line|wire)\b/i,
@@ -102,6 +107,9 @@ const SAFETY_HAZARD_PATTERN_GROUPS = [
   {
     type: "structural",
     patterns: [
+      /\b(?:ceiling|roof)\s+(?:is |has been |now )?(?:sagging|bulging|buckling)\b/i,
+      /\b(?:garage door|tree)\s+(?:is |now )?(?:falling|hanging loose|about to fall)\b/i,
+
       /\b(?:ceiling|roof|walls?|floor|deck|porch|stairs|staircase|chimney|balcony)\b[\s\S]{0,25}\b(?:collaps(?:ed|ing)|caving|caved|giving way|fell in|falling (?:in|down))\b/i,
       /\b(?:ceiling|roof) (?:is )?falling\b(?! apart)/i,
       /\btree (?:fell|has fallen|came down|crashed|landed) (?:on|onto|into|through)\b/i,
@@ -113,6 +121,8 @@ const SAFETY_HAZARD_PATTERN_GROUPS = [
   {
     type: "trapped",
     patterns: [
+      /\b(?:baby|toddler|kid|child|dog|cat|pet|person|someone)\s+(?:is |got |was |has been )?locked\s+(?:in|inside)\b/i,
+
       /\b(?:person|child|kid|baby|pet|dog|cat|someone|somebody|he|she|they|i['\u2019]?m|i am|we['\u2019]?re|we are) (?:is |are |am |got |get )?trapped\b/i,
       /(?<!\bair\s)\btrapped (?:in|under|inside|behind)\b/i,
       /\bstuck (?:under|inside|in the (?:elevator|bathroom|basement|attic|crawl ?space))\b/i,
@@ -127,6 +137,9 @@ const SAFETY_HAZARD_PATTERN_GROUPS = [
        */
       /\bactive flooding\b/i,
       /\bgushing water\b/i,
+      // Escaping water is actionable even when the caller never says "flood".
+      /\bwater\s+(?:(?:is|has been|now|still|currently|actively)\s+){0,3}(?:spilling|running|flowing|overflowing)\b[^.!?;]{0,35}\b(?:floor|carpet|room|hallway|stairs)\b/i,
+      /\b(?:sink|toilet|tub|dishwasher|washer|water heater|pipe)\s+(?:(?:is|has been|now|still|currently|actively)\s+){0,3}(?:spilling|overflowing)\b/i,
       /\bwater (?:is )?(?:pouring|gushing|flooding)\b/i,
       /\bflood(?:ing|ed)?\s+(?:my|our|the)\s+(?:house|home|basement|apartment|property|kitchen|bathroom|garage|floor)\b/i,
       /\b(?:house|home|basement|apartment|property|kitchen|bathroom|garage)\b[\s\S]*\b(?:is |are )?(?:flooding|flooded|under ?water)\b/i,
@@ -157,11 +170,16 @@ const SAFETY_HAZARD_PATTERN_GROUPS = [
   },
   {
     type: "sewage",
-    patterns: [/\b(?:sewage|sewer) (?:backup|overflow)\b/i],
+    patterns: [
+      /\b(?:sewage|raw sewage|feces)\s+(?:is |now )?(?:coming|flowing|spilling|backing|rising)\b/i,
+/\b(?:sewage|sewer) (?:backup|overflow)\b/i],
   },
   {
     type: "temperature",
     patterns: [
+      /\b(?:heat|heating|furnace|ac|a\/c|air conditioning|cooling)\s+(?:is |has )?(?:broken|failed|out|stopped working|not working)\b[^.!?;]{0,70}\b(?:infant|baby|newborn|elderly|extreme heat|freezing|medical)\b/i,
+      /\b(?:oxygen concentrator|ventilator|life support)\b[^.!?;]{0,50}\b(?:lost power|no power|power is out|stopped working)\b/i,
+
       /\bno heat\b[\s\S]*\b(?:freezing|dangerously cold|below freezing|infant|baby|newborn|elderly|oxygen|medical)\b/i,
       /\b(?:freezing|dangerously cold|infant|baby|newborn|elderly|oxygen|medical condition)\b[\s\S]*\bno heat\b/i,
       /\bno (?:ac|a\/c|air conditioning|cooling)\b[\s\S]*\b(?:heat ?wave|extreme heat|dangerously hot|infant|baby|newborn|elderly|oxygen|medical)\b/i,
@@ -180,6 +198,8 @@ const SAFETY_HAZARD_PATTERN_GROUPS = [
   {
     type: "other",
     patterns: [
+      /\b(?:someone|he|she|they|intruder)\b[^.!?;]{0,30}\b(?:threatening|attacking|breaking in)\b/i,
+      /\b(?:kill myself|hurt myself|end my life|suicide)\b/i,
       /\b(?:call(?:ed|ing)?|dial(?:ed|ing)?) 911\b/i,
       /\b(?:this is|it['\u2019]?s|its|we (?:have|are having)|i (?:have|am having)|having) an emergency\b/i,
       /\bemergency situation\b/i,
@@ -195,6 +215,7 @@ const SAFETY_HAZARD_PATTERN_GROUPS = [
 const HAZARDOUS_DIY_PATTERNS = [
   /\bhow (?:do|can|should) i (?:fix|repair|replace|open|disconnect|rewire)\b/i,
   /\bwalk me through\b/i,
+  /\b(?:how (?:do|can|should) i|can i|help me)\s+(?:bypass|disable|jump|adjust|release|recharge)\b/i,
   /\btell me how to\b/i,
 ];
 
@@ -202,6 +223,7 @@ const HAZARDOUS_SYSTEM_PATTERNS = [
   /\bgas (?:line|valve|furnace|water heater)\b/i,
   /\belectrical (?:panel|wiring|service|breaker)\b/i,
   /\bhigh voltage\b/i,
+  /\b(?:garage(?: door)? (?:spring|cable)|torsion spring|safety sensor|refrigerant|live wire|breaker)\b/i,
   /\bcarbon monoxide\b/i,
   /\bcombustion\b/i,
   /\bstructural (?:damage|repair|wall|beam)\b/i,
@@ -308,28 +330,28 @@ const SAFE_REPLIES = Object.freeze({
    * applies (for example: person trapped, dangerous no-heat situations).
    */
   emergency:
-    "This may be dangerous. Move to a safe location and call 911 if anyone is in immediate danger. Do not wait for a callback if there is immediate danger. A business response is not guaranteed.",
+    "This service does not monitor emergencies or dispatch emergency help. If anyone is in immediate danger, call 911 from a safe location. Do not wait for a business reply or callback.",
   medicalEmergency:
-    "If someone is injured, unconscious, or having trouble breathing, call 911 right away — do not wait for a text response. Do not wait for a callback if there is immediate danger. A business response is not guaranteed.",
+    "Call 911 right away for a possible medical emergency. This service does not monitor emergencies or dispatch emergency help. Do not wait for a business reply or callback.",
   structuralEmergency:
-    "Keep everyone away from the damaged area and leave the building if it feels unsafe. Call 911 if anyone is in immediate danger. Do not wait for a callback if there is immediate danger. A business response is not guaranteed.",
+    "Stay away from the damaged area. If anyone is in immediate danger, call 911 from a safe location. This service does not monitor emergencies or dispatch emergency help. Do not wait for a callback.",
   trappedEmergency:
-    "Call 911 right away and do not attempt a rescue that could put you in danger. Do not wait for a callback if there is immediate danger. A business response is not guaranteed.",
+    "Call 911 for a person or animal trapped in danger. Do not attempt a dangerous rescue. This service does not monitor emergencies or dispatch emergency help. Do not wait for a callback.",
   temperatureEmergency:
-    "Extreme indoor heat or cold can be dangerous, especially for children, older adults, and anyone with medical needs. Move anyone at risk somewhere safer and call 911 if there are signs of a medical emergency. A business response is not guaranteed.",
+    "If anyone is in immediate danger or has medical symptoms, call 911. This service does not monitor emergencies or dispatch emergency help. Do not wait for a business reply or callback.",
   gasEmergency:
-    "If you smell gas or suspect a leak, leave the building now, avoid flames and light switches, and call 911 or your gas utility's emergency line from a safe location. A business response is not guaranteed.",
+    "For suspected gas or carbon monoxide danger, leave the area and call 911 or your gas utility emergency line from a safe location. Avoid flames and switches. This service does not monitor emergencies or dispatch emergency help. Do not wait for a callback.",
   fireEmergency:
-    "If there is fire or smoke, leave the building immediately and call 911. Do not try to handle it yourself. A business response is not guaranteed.",
+    "For fire or smoke, leave the area and call 911 from a safe location. This service does not monitor emergencies or dispatch emergency help. Do not wait for a business reply or callback.",
   electricalEmergency:
-    "Stay away from the affected outlet, wiring, or panel. If it is safe to do so, shut off power at the breaker. Call 911 if there is smoke, fire, or an injury. A business response is not guaranteed.",
+    "Stay away from affected wires, equipment and nearby water. Do not touch them. Call 911 or the utility emergency line for immediate danger. This service does not monitor emergencies or dispatch emergency help. Do not wait for a callback.",
   floodEmergency:
-    "That sounds urgent. If it is safe to do so, shut off the main water supply and stay away from standing water near outlets, cords, or electrical panels. Call 911 if anyone is in immediate danger. Do not wait for a callback if there is immediate danger. A business response is not guaranteed.",
+    "Stay away from standing water and affected electrical equipment. Call 911 if anyone is in immediate danger. Contact a qualified professional for repairs. This service does not monitor emergencies or dispatch emergency help. Do not wait for a callback.",
   sewageEmergency:
-    "Avoid contact with the backup and keep children and pets away from the area. Call 911 if anyone is in immediate danger. Do not wait for a callback if there is immediate danger. A business response is not guaranteed.",
+    "Avoid contact with sewage and keep children and pets away. Call 911 if anyone is in immediate danger. This service does not monitor emergencies or dispatch emergency help. Do not wait for a business reply or callback.",
 
   hazardousDIY:
-    "For safety, I cannot guide you through a hazardous repair. Avoid touching the affected equipment and contact emergency services if there is immediate danger. I have marked the request as urgent for the business.",
+    "I cannot provide instructions for hazardous repairs or bypassing safety devices. Contact a qualified professional. If anyone is in immediate danger, call 911. This service does not monitor emergencies or dispatch emergency help. Do not wait for a callback.",
   help: "CallBackIQ is the business's automated service assistant. Reply with the service you need, or reply STOP to opt out of messages.",
   optOut:
     "You have been unsubscribed and will no longer receive automated text messages from this business.",
@@ -637,7 +659,8 @@ export const patternHasAffirmedSafetyMatch = (pattern, text) => {
     let match;
 
     while ((match = matcher.exec(clause)) !== null) {
-      if (!isNegatedSafetyMatch(clause, match.index)) {
+      const internallyNegated = /\b(?:is not|are not|isn[’']?t|aren[’']?t|not currently|no longer)\b/i.test(match[0]);
+      if (!internallyNegated && !isNegatedSafetyMatch(clause, match.index)) {
         return true;
       }
 
@@ -658,7 +681,13 @@ export const patternHasAffirmedSafetyMatch = (pattern, text) => {
  * severity so gas and fire outrank flooding when a message mentions both.
  */
 export const detectSafetyHazardType = (value) => {
-  const text = cleanText(value);
+  const text = cleanText(value).split(/([.!?;]|\b(?:but|however|and)\b)/).map(clause => {
+    // Mask only explicitly resolved historical events, retaining other clauses.
+    const historical = /\b(?:yesterday|last week|last month|last year|years? ago)\b/i.test(clause);
+    const resolved = /\b(?:repaired|resolved|fixed|stopped|replaced)\b/i.test(clause);
+    const current = /\b(?:now|still|again|currently|today)\b/i.test(clause);
+    return historical && resolved && !current ? "resolved historical service" : clause;
+  }).join("");
 
   if (!text) {
     return "";
@@ -669,7 +698,8 @@ export const detectSafetyHazardType = (value) => {
   const hazardText = text.replace(
     /\b((?:install|replace|test|inspect|service|repair)(?:ing|ment|ation)?\s+(?:(?:a|an|the|my|our|new|old|existing)\s+){0,3})(?:smoke|carbon monoxide|co|fire)\s+(?:detectors?|alarms?)\b(?![^.!?;]{0,35}\b(?:going off|triggered|sounding|beeping)\b)/gi,
     "$1safety equipment",
-  );
+  ).replace(/\b(?:smoke|fire|carbon monoxide|co)\s+(?:detectors?|alarms?)\b(?![^.!?;]{0,25}\b(?:going off|triggered|sounding|beeping)\b)/gi, "safety equipment")
+    .replace(/\b(?:fire pit|fireplace|smoke test|smoke testing|fire damage restoration)\b/gi, "equipment service");
   const matchedGroup = SAFETY_HAZARD_PATTERN_GROUPS.find((group) =>
     group.patterns.some((pattern) =>
       patternHasAffirmedSafetyMatch(pattern, hazardText),
@@ -677,6 +707,44 @@ export const detectSafetyHazardType = (value) => {
   );
 
   return matchedGroup ? matchedGroup.type : "";
+};
+
+const SAFETY_QUESTION = "Is anyone in immediate danger, or is there smoke, a gas smell, sparking, or uncontrolled water right now?";
+const SAFETY_CLARIFICATION_REPLY = `${SAFETY_QUESTION} If yes, contact 911 or the utility emergency line from a safe location; do not wait here. This service does not monitor emergencies or dispatch emergency help.`;
+
+export const assessSafetyContext = ({ customerMessage, recentMessages = [], activityWindowStartAt = null }) => {
+  const text = cleanText(customerMessage);
+  const direct = detectSafetyHazardType(text);
+  if (direct) return { hazardType: direct };
+  const start = activityWindowStartAt ? new Date(activityWindowStartAt).getTime() : 0;
+  const now = Date.now();
+  const history = recentMessages.filter(m => {
+    if ([m.status, m.deliveryStatus].some(v => ["suppressed", "failed", "undelivered"].includes(v))) return false;
+    const at = new Date(m.createdAt || m.at || 0).getTime();
+    return at >= Math.max(start || 0, now - 30 * 60 * 1000) && at <= now + 60 * 1000;
+  }).slice(-6);
+  const body = m => cleanText(m?.body || m?.text);
+  if (history.at(-1)?.direction === "inbound" && body(history.at(-1)) === text) history.pop();
+  const last = history.at(-1);
+  const affirmative = /^(?:yes|yeah|yep|correct|it is|there is|still happening)[.! ]*$/i.test(text);
+  if (affirmative && last?.direction === "outbound" && body(last).startsWith(SAFETY_QUESTION)) {
+    return { hazardType: "other" };
+  }
+  const worsening = /^(?:yes[, ]+)?(?:it(?:'s| is)|things? (?:is|are)) (?:getting worse|worse|still happening|spreading|getting bigger)[.! ]*$/i.test(text);
+  if (worsening) {
+    const previous = [...history].reverse().find(m => m.direction === "inbound" && body(m) !== text);
+    const hazard = previous && detectSafetyHazardType(body(previous));
+    if (hazard) return { hazardType: hazard };
+  }
+  const uncertain = patternHasAffirmedSafetyMatch(/\b(?:strange|weird|unusual) (?:smell|odor)|\b(?:alarm|detector) (?:is )?(?:beeping|going off|sounding)|\b(?:something|there) (?:just )?(?:burst|exploded)|\bheard (?:a )?loud bang\b/i, text);
+  // An ambiguous report does not establish an emergency or diagnose the cause.
+  const answeringSafetyQuestion = last?.direction === "outbound" && body(last).startsWith(SAFETY_QUESTION);
+  const cannotClarify = answeringSafetyQuestion && /^(?:not sure|i (?:do not|don't) know|maybe|unsure)[.! ]*$/i.test(text);
+  if (uncertain || worsening || cannotClarify) return { hazardType: "", needsClarification: true,
+    reply: answeringSafetyQuestion
+      ? "I cannot determine whether this is safe. Contact a qualified professional; for immediate danger, call 911 or the utility emergency line from a safe location. This service does not monitor emergencies or dispatch emergency help. Do not wait for a callback."
+      : SAFETY_CLARIFICATION_REPLY };
+  return { hazardType: "" };
 };
 
 export const containsSafetyHazard = (value) => {
@@ -910,7 +978,8 @@ export const evaluateDeterministicInboundGuardrails = ({
    * emergency may send several rapid messages, and rate limiting must never
    * silence a safety response or suppress the critical owner alert.
    */
-  const hazardType = detectSafetyHazardType(message);
+  const safetyContext = assessSafetyContext({ customerMessage: message, recentMessages, activityWindowStartAt });
+  const hazardType = safetyContext.hazardType;
 
   if (hazardType) {
     return {
@@ -926,6 +995,13 @@ export const evaluateDeterministicInboundGuardrails = ({
       hazardType,
       reason: `safety_hazard_detected:${hazardType}`,
     };
+  }
+
+  if (safetyContext.needsClarification) {
+    return { handled: true, skipAI: true, category: "service_request", decision: "alert_owner",
+      actionType: "send_fixed_response", reply: safetyContext.reply, shouldAlertOwner: true,
+      alertPriority: "high", urgency: "high", riskFlags: ["safety_clarification"], hazardType: "",
+      reason: "safety_clarification_required" };
   }
 
   const abuseCheck = evaluateConversationAbuse({
@@ -1233,7 +1309,13 @@ export const validateOutboundReply = ({
     violations,
   );
 
-  if (containsHazardousDIYRequest(normalizedReply)) {
+  const unsafeInstructions = [
+    /\b(?:bypass|disable|jump|short)\b[^.!?;]{0,30}\b(?:safety sensor|interlock|breaker|safety switch)\b/i,
+    /\b(?:open|remove|disconnect|rewire)\b[^.!?;]{0,25}\b(?:electrical panel|live wire|gas line)\b/i,
+    /\b(?:adjust|release|wind|unwind)\b[^.!?;]{0,25}\b(?:torsion spring|garage door spring)\b/i,
+    /\b(?:shut|turn|switch) off (?:the )?(?:main )?(?:power|breaker|water supply)\b/i,
+  ].some(pattern => patternHasAffirmedSafetyMatch(pattern, normalizedReply));
+  if (unsafeInstructions || containsHazardousDIYRequest(normalizedReply)) {
     violations.push("hazardous_repair_instruction");
   }
 

@@ -68,7 +68,7 @@ jest.mock("../../src/helpers/logging/safeLogger.js", () => ({
 
 jest.mock("../../src/services/socket.service.js", () => ({
   __esModule: true,
-  default: {},
+  default: { emitConversationUpdated: jest.fn() },
 }));
 
 jest.mock("../../src/voice/voiceLineType.service.js", () => ({
@@ -132,7 +132,7 @@ describe("VoiceSessionService initial context upsert", () => {
   });
   test.each([false, true])("closed conversation reuse survives a concurrent insert: %s", async race => {
     const lead = { _id: "lead-1", customerName: "Returning customer" };
-    const conversation = { _id: "conversation-1", status: "closed" };
+    const conversation = { _id: "conversation-1", lead: "lead-1", status: "closed" };
     Lead.findOne = jest.fn(() => ({ sort: jest.fn().mockResolvedValue(lead) }));
     Conversation.findOne = jest.fn(() => ({ sort: jest.fn().mockResolvedValue(conversation) }));
     if (race) Conversation.findOne.mockReturnValueOnce({ sort: jest.fn().mockResolvedValue(null) });
@@ -144,6 +144,22 @@ describe("VoiceSessionService initial context upsert", () => {
     expect(Conversation.findOne.mock.calls.every(([filter]) => filter.status.$ne === "archived")).toBe(true);
     expect(VoiceSession.findByIdAndUpdate).toHaveBeenCalledWith("voice-session-1", expect.objectContaining({ $set: expect.objectContaining({ conversation: "conversation-1" }) }), expect.any(Object));
     if (!race) expect(Conversation.create).not.toHaveBeenCalled();
+  });
+
+  test("voice repairs an orphaned conversation before attaching the session", async () => {
+    const business = { _id: "business-1" };
+    const lead = { _id: "lead-1", business: business._id, phone: "+14045550100" };
+    const conversation = { _id: "conversation-1", business: business._id,
+      lead: "deleted-lead", customerPhone: lead.phone, status: "open", humanTakeover: false };
+    Lead.findOne = jest.fn().mockReturnValueOnce({ sort: jest.fn().mockResolvedValue(lead) }).mockResolvedValueOnce(null);
+    Conversation.findOne = jest.fn(() => ({ sort: jest.fn().mockResolvedValue(conversation) }));
+    Conversation.findOneAndUpdate = jest.fn().mockResolvedValue({ ...conversation, lead: lead._id });
+    CallLog.findOne = jest.fn().mockResolvedValue({ _id: "call-log-1" });
+    VoiceSession.findOneAndUpdate.mockResolvedValue({ _id: "voice-session-1" });
+    VoiceSession.findByIdAndUpdate = jest.fn().mockResolvedValue({ _id: "voice-session-1" });
+    await VoiceSessionService.ensureContext({ business, from: lead.phone, to: "+14045550101", providerCallSid: "CA-orphan" });
+    expect(Conversation.findOneAndUpdate).toHaveBeenCalledWith(expect.objectContaining({ lead: "deleted-lead", business: business._id }), expect.any(Object), expect.any(Object));
+    expect(VoiceSession.findByIdAndUpdate).toHaveBeenCalledWith("voice-session-1", expect.objectContaining({ $set: expect.objectContaining({ lead: lead._id, conversation: conversation._id }) }), expect.any(Object));
   });
 
 });

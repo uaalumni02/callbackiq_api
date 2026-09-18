@@ -1,7 +1,7 @@
 import { extractService } from "../services/messaging/smsIntentClassifier.service.js";
 import OpenAI from "openai";
 import {
-  detectSafetyHazardType,
+  evaluateDeterministicInboundGuardrails,
   getEmergencyReply,
 } from "../helpers/ai/aiGuardrails.js";
 import {
@@ -64,9 +64,11 @@ const getClient = () => {
 
 const clean = (value, max = 500) => cleanVoiceText(value, max);
 
-const deterministic = (text) => {
+const deterministic = (text, recentMessages = []) => {
   const service = extractService(text);
-  const hazard = detectSafetyHazardType(text);
+  const guard = evaluateDeterministicInboundGuardrails({ customerMessage: text, recentMessages });
+  const hazard = guard.hazardType;
+  const review = guard.reason === "safety_clarification_required" || guard.category === "hazardous_diy_request";
   const isEmergency = Boolean(hazard);
   const language = SPANISH.test(text) || isLikelyNonEnglish(text) ? "es" : "en";
   let intent = "general_help";
@@ -91,11 +93,13 @@ const deterministic = (text) => {
     intent,
     confidence: isEmergency ? 100 : intent === "unknown" ? 0 : 65,
     safety: {
+      needsReview: review,
+      reviewAssessment: review ? guard : undefined,
       isEmergency,
       shouldSendSafetyReply: isEmergency,
       hazardType: hazard || "none",
       hazardTypes: hazard ? [hazard] : [],
-      reply: isEmergency ? getEmergencyReply(hazard || "other") : "",
+      reply: isEmergency ? getEmergencyReply(hazard || "other") : review ? guard.reply : "",
     },
     directedAbuse,
     situationProfanity: SITUATION_PROFANITY.test(text) && !directedAbuse,
@@ -204,10 +208,10 @@ export const classifyVoiceTurn = async ({
 }) => {
   if (signal?.aborted) throw signal.reason || new Error("Voice turn aborted.");
   const text = clean(customerMessage, 4000);
-  const fallback = deterministic(text);
+  const fallback = deterministic(text, recentMessages);
 
   // Deterministic safety is the hard fast-path. It never waits for a model.
-  if (fallback.safety.isEmergency || ["human", "opt_out", "wrong_number"].includes(fallback.intent)) return fallback;
+  if (fallback.safety.isEmergency || fallback.safety.needsReview || ["human", "opt_out", "wrong_number"].includes(fallback.intent)) return fallback;
 
   const openai = getClient();
   if (!openai) return fallback;

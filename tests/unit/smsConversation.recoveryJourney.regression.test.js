@@ -44,6 +44,7 @@ const business = {
 
 const lead = {
   _id: "l1",
+  business: "b1",
   customerName: "Customer",
   phone: "+14705550111",
   phoneLookup: "+14705550111",
@@ -128,5 +129,41 @@ describe("SMS missed-call recovery journey identity", () => {
     const [, updates] = Conversation.findByIdAndUpdate.mock.calls[0];
     expect(updates["bookingState.status"]).toBeUndefined();
     expect(updates["orchestration.recoveryJourneyKey"]).toBeUndefined();
+  });
+});
+
+describe('lead/conversation identity at SMS ingress', () => {
+  beforeEach(() => jest.clearAllMocks());
+  test('repairs a deleted lead with a scoped compare-and-set and preserves ownership', async () => {
+    const conversation = { ...makeConversation('CA-old'), lead: 'deleted', humanTakeover: true, aiEnabled: false };
+    arrange(conversation);
+    Lead.findOne.mockReturnValueOnce({ sort: jest.fn().mockResolvedValue(lead) }).mockResolvedValueOnce(null);
+    Conversation.findOneAndUpdate.mockResolvedValue({ ...conversation, lead: lead._id });
+    const result = await getOrCreateSmsLeadAndConversation({ business, customerPhone: lead.phone });
+    expect(result.lead._id).toBe(result.conversation.lead);
+    expect(result.conversation.humanTakeover).toBe(true);
+    expect(result.conversation.aiEnabled).toBe(false);
+    expect(Conversation.findOneAndUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ business: 'b1', lead: 'deleted', customerPhone: lead.phone }),
+      expect.objectContaining({ $set: expect.objectContaining({ lead: 'l1' }) }), expect.any(Object));
+  });
+  test('uses an existing linked lead instead of a newer duplicate', async () => {
+    arrange({ ...makeConversation('CA-old'), lead: 'linked' });
+    const linked = { ...lead, _id: 'linked', business: 'b1' };
+    Lead.findOne.mockReturnValueOnce({ sort: jest.fn().mockResolvedValue(lead) }).mockResolvedValueOnce(linked);
+    const result = await getOrCreateSmsLeadAndConversation({ business, customerPhone: lead.phone });
+    expect(result.lead).toBe(linked);
+    expect(Conversation.findOneAndUpdate).not.toHaveBeenCalled();
+  });
+  test.each([{ business: 'other', phone: lead.phone }, { business: 'b1', phone: '+14705550222' }])('rejects conflicting linked identity %j', conflict => {
+    arrange({ ...makeConversation('CA-old'), lead: 'linked' });
+    Lead.findOne.mockReturnValueOnce({ sort: jest.fn().mockResolvedValue(lead) }).mockResolvedValueOnce({ ...lead, _id: 'linked', ...conflict });
+    return expect(getOrCreateSmsLeadAndConversation({ business, customerPhone: lead.phone })).rejects.toMatchObject({ code: 'SMS_LEAD_IDENTITY_CONFLICT' });
+  });
+  test('does not overwrite a concurrently repaired conversation', () => {
+    arrange({ ...makeConversation('CA-old'), lead: 'deleted' });
+    Lead.findOne.mockReturnValueOnce({ sort: jest.fn().mockResolvedValue(lead) }).mockResolvedValueOnce(null);
+    Conversation.findOneAndUpdate.mockResolvedValue(null);
+    return expect(getOrCreateSmsLeadAndConversation({ business, customerPhone: lead.phone })).rejects.toMatchObject({ code: 'SMS_LEAD_REPAIR_CONFLICT' });
   });
 });

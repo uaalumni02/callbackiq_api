@@ -57,7 +57,9 @@ export const buildMissedCallRecoveryText = ({ business, template } = {}) => {
   const rendered = String(template || business?.smsTemplate || fallback)
     .replaceAll("{{businessName}}", businessName)
     .trim();
-  return ensureOptOutDisclosure(rendered || fallback);
+  const body = rendered || fallback;
+  const boundary = "This service does not monitor emergencies or dispatch emergency help. For immediate danger, call 911.";
+  return ensureOptOutDisclosure(body.includes(boundary) ? body : `${body} ${boundary}`);
 };
 
 const SOFT_OPT_OUT_PATTERNS = [
