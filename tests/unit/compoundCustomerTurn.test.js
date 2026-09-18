@@ -106,3 +106,21 @@ test('replacement and additional work have different plans',()=>{
  expect(planCustomerTurn({...c,customerMessage:'Actually roof repair instead'}).additionalRequest).toBe('');
  expect(planCustomerTurn({...c,customerMessage:'Can you also repair my roof? I still need the faucet.'}).additionalRequest).toMatch(/roof/);
 });
+
+test.each(['plumbing faucet replacement','HVAC repair','electrical outlet replacement','roof repair','garage door repair','lock replacement','water restoration','landscaping'])('compound correction invalidates location-dependent choices for %s',async service=>{
+ const c=context();c.lead.serviceNeeded=service;c.lead.address='123 Main St Atlanta GA 30324';
+ const result=await handleCompoundCustomerTurn({...c,customerMessage:'Option 1 works. My address is 999 Oak Lane Atlanta GA 30309. Please call me. Is it confirmed?',turnId:'correction'});
+ expect(c.lead.address).toBe('999 Oak Lane Atlanta GA 30309');expect(result.address).toBe(c.lead.address);
+ expect(result.reply).toMatch(/options need rechecking/);expect(result.reply).not.toMatch(/Requested (?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)/);
+ expect(c.conversation.bookingState.offeredSlots).toEqual([]);
+ expect(c.conversation.conversationMemory.recoveryIntake.compoundTurn.selectedSlot).toBeNull();
+});
+test('address journal repairs interrupted lead persistence before replying',async()=>{
+ const c=context();c.lead.save.mockRejectedValueOnce(new Error('interrupted'));
+ const input={...c,customerMessage:'My address is 999 Oak Lane Atlanta GA 30309. Option 1. Call me.',turnId:'retry'};
+ await expect(handleCompoundCustomerTurn(input)).rejects.toThrow('interrupted');
+ c.lead.address='123 Main St';
+ const result=await handleCompoundCustomerTurn(input);
+ expect(result.address).toBe('999 Oak Lane Atlanta GA 30309');expect(c.lead.address).toBe(result.address);
+ expect(c.conversation.bookingState.offeredSlots).toEqual([]);
+});

@@ -1,3 +1,6 @@
+import { handleCompoundCustomerTurn } from '../services/messaging/compoundCustomerTurn.service.js';
+import { planCustomerTurn } from '../services/messaging/customerTurnPlan.service.js';
+import { applyCustomerAddressRevision } from '../services/messaging/customerRequestRevision.service.js';
 import { captureTurnFacts } from '../services/booking/turnFactCapture.service.js';
 import { classifySmsIntent } from '../services/messaging/smsIntentClassifier.service.js';
 import { handleConversationControl } from '../services/conversationControl.service.js';
@@ -468,7 +471,29 @@ class VoiceAgentService {
       });
     }
 
-    const control = await handleConversationControl({ business, lead, conversation, customerMessage: text, channel: "voice" });
+    const latestCustomerTurn = [...(session.transcript || [])].reverse().find((entry) => entry.role === "customer");
+    const requestTurnId = `voice:${session._id}:${latestCustomerTurn?.at || turnId || session.transcript?.length || 0}`;
+    const turnPlan = planCustomerTurn({ business, lead, conversation, customerMessage: text });
+    const compound = await handleCompoundCustomerTurn({ business, lead, conversation, customerMessage: text, turnId: requestTurnId, channel: 'voice' });
+    if (compound) {
+      if (compound.handoff?.required) {
+        assertVoiceTurnActive();
+        await AlertService.createHumanHandoffAlert({ businessId: business._id, leadId: lead?._id,
+          conversationId: conversation._id, customerPhone: lead?.phone || conversation.customerPhone,
+          customerMessage: text, lead, result: compound, providerMessageId: `voice-compound:${session._id}:${turnId || session.transcript?.length || 0}` });
+        assertVoiceTurnActive();
+        conversation.orchestration = { ...(conversation.orchestration?.toObject?.() || conversation.orchestration || {}),
+          handoffReason: 'scheduling_review', phase: 'handoff_pending', handoffStatus: 'pending_ack' };
+        conversation.markModified?.('orchestration');
+        await conversation.save();
+      }
+      resetFallbackGuard(guard);
+      return { reply: toSpokenReply(compound.reply) };
+    }
+    if (!turnPlan.withdrawal && turnPlan.confirmation) await applyCustomerAddressRevision({ business, lead, conversation, customerMessage: text, turnId: requestTurnId, recentMessages });
+    const changedService = !turnPlan.withdrawal && turnPlan.classified.entities?.serviceNeeded &&
+      (turnPlan.classified.intents?.correction || turnPlan.classified.intents?.newService);
+    const control = changedService || turnPlan.additionalRequest ? null : await handleConversationControl({ business, lead, conversation, customerMessage: text, channel: "voice" });
     if (control) { resetFallbackGuard(guard); return { reply: toSpokenReply(control.reply) }; }
 
     const serviceGuard = await guardServiceRequest({ business, lead, conversation, customerMessage: text, channel: 'voice', turnId, recentMessages,

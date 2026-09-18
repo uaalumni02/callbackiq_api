@@ -1,3 +1,4 @@
+jest.mock('../../src/services/webhooks/webhookWork.service.js',()=>({enqueueWebhookWork:jest.fn().mockResolvedValue({_id:'safety-job'})}));
 import { optOutSms } from "../../src/services/messaging/contactPreference.service.js";
 jest.mock("../../src/services/messaging/contactPreference.service.js", () => ({ optOutSms: jest.fn(async () => ({})) }));
 import { handleRecoveryIntake } from '../../src/services/booking/recoveryIntake.service.js';

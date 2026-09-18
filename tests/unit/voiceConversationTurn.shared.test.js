@@ -1,3 +1,4 @@
+jest.mock('../../src/services/webhooks/webhookWork.service.js',()=>({enqueueWebhookWork:jest.fn().mockResolvedValue({_id:'safety-job'})}));
 import { runVoiceConversationTurn } from '../../src/services/voiceConversationTurn.service.js';
 import Conversation from '../../src/models/conversation.js';
 import Lead from '../../src/models/lead.js';
@@ -48,4 +49,16 @@ test('interrupted turn cannot refresh into new side effects',async()=>{
 });
 test('missing tenant lead fails without running the agent',async()=>{
  Lead.findOne.mockResolvedValue(null);await expect(runVoiceConversationTurn({session,customerMessage:'tomorrow',operation})).rejects.toThrow(/lead no longer exists/);expect(operation).not.toHaveBeenCalled();
+});
+
+test.each(['takeover','overlap','busy','database_down'])('safety event survives %s without waiting for intake or promising a response',async mode=>{
+ if(mode==='takeover') conversation.humanTakeover=true;
+ if(mode==='overlap') conversation.orchestration.activeVoiceIntakeSession='other';
+ if(mode==='busy') withDistributedLease.mockResolvedValue({acquired:false});
+ if(mode==='database_down') withDistributedLease.mockRejectedValue(new Error('database down'));
+ const {enqueueWebhookWork}=require('../../src/services/webhooks/webhookWork.service.js');
+ const r=await runVoiceConversationTurn({session,customerMessage:'I smell gas',operation,turnId:9});
+ expect(r.reply).toMatch(/does not monitor emergencies or dispatch emergency help/);
+ expect(enqueueWebhookWork).toHaveBeenCalledWith(expect.objectContaining({kind:'voice_safety_review',businessId:'b',payload:expect.objectContaining({conversationId:'c'})}));
+ expect(withDistributedLease).not.toHaveBeenCalled();expect(operation).not.toHaveBeenCalled();
 });

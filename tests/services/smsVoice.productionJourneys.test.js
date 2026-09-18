@@ -222,3 +222,21 @@ test.each(trades.flatMap(([trade,request])=>['sms','voice'].map(channel=>({trade
  expect(AlertService.create).toHaveBeenCalledWith(expect.objectContaining({ title:'Additional service question', metadata:expect.objectContaining({primaryService:originalLead.serviceNeeded}) }));
  expect(AppointmentService.create).not.toHaveBeenCalled();
 });
+
+test('voice service replacement is checked before answering a confirmation question',async()=>{
+ const lead={_id:'l',serviceNeeded:'faucet replacement',phone:'+14045550101',save:jest.fn()};
+ const conversation={_id:'c',status:'open',conversationMemory:{},orchestration:{},bookingState:{status:'offering_slots',offeredSlots:[]},save:jest.fn()};
+ const result=await VoiceAgent.handlePromptInternal({session:{_id:'v',business,lead,conversation,metadata:{},transcript:[]},customerMessage:'Instead I need roof repair. Is my appointment confirmed?',turnId:'replace'});
+ expect(result.reply).toMatch(/does not offer/);expect(lead.serviceNeeded).toMatch(/roof/);
+ expect(conversation.bookingState.status).toBe('not_started');
+});
+test('voice mixed selection and callback retains the chosen time and creates actionable handoff',async()=>{
+ const start=new Date(Date.now()+3*86400000);
+ const lead={_id:'l',serviceNeeded:'faucet replacement',phone:'+14045550101',address:'123 Main St Atlanta GA 30324',save:jest.fn()};
+ const conversation={_id:'c',status:'open',conversationMemory:{},orchestration:{},bookingState:{status:'offering_slots',expiresAt:new Date(Date.now()+600000),offeredSlots:[{startAt:start,endAt:new Date(+start+3600000)}]},save:jest.fn()};
+ const result=await VoiceAgent.handlePromptInternal({session:{_id:'v',business,lead,conversation,metadata:{},transcript:[]},customerMessage:'Option 1 works. Please call me. Is it confirmed?',turnId:'compound'});
+ expect(result.reply).toMatch(/Requested/);expect(result.reply).toMatch(/Not a confirmed appointment/);
+ expect(lead.preferredAppointmentTime).toBeTruthy();expect(VoiceCallback.handle).not.toHaveBeenCalled();
+ expect(AlertService.createHumanHandoffAlert).toHaveBeenCalledWith(expect.objectContaining({result:expect.objectContaining({preferredAppointmentTime:lead.preferredAppointmentTime})}));
+ expect(conversation.orchestration.handoffReason).toBe('scheduling_review');
+});

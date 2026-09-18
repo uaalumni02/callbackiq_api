@@ -4,13 +4,7 @@ import VoiceSession from '../models/voiceSession.js';
 import { handleVoiceExit } from '../voice/voiceExit.service.js';
 import { withDistributedLease, registerDistributedLeaseGuard, assertDistributedLeaseActive } from './distributedLease.service.js';
 import { assertVoiceTurnActive } from './voiceTurnContext.service.js';
-import { detectSafetyHazardType, getEmergencyReply } from '../helpers/ai/aiGuardrails.js';
-
-const overlapReply = customerMessage => {
-  const hazard = detectSafetyHazardType(customerMessage);
-  return { reply: hazard ? getEmergencyReply(hazard) :
-    'Another call from this number is already handling this request. I cannot change it on this call. Please finish the other call, then call again if you need help with a separate request.' };
-};
+import { voiceSafetyAssessment, voiceSafetyReviewReply } from './voiceSafetyReview.service.js';
 
 // Keep one intake writer for the lifetime of a voice call, not merely one turn.
 // A contending call remains read-only even if the original call later ends.
@@ -46,7 +40,10 @@ const ownsVoiceIntake = async (session, conversation, businessId) => {
 
 // SMS workers use this same per-conversation key. Refresh after acquiring it:
 // a populated voice session is a snapshot, not the current shared intake state.
-export const runVoiceConversationTurn = async ({ session, customerMessage, operation }) => {
+export const runVoiceConversationTurn = async ({ session, customerMessage, operation, turnId = '' }) => {
+  assertVoiceTurnActive();
+  const safety = voiceSafetyAssessment(customerMessage);
+  if (safety) return voiceSafetyReviewReply({ session, customerMessage, turnId, assessment: safety });
   const businessId = session.business?._id || session.business;
   const conversationId = session.conversation?._id || session.conversation;
   const lease = await withDistributedLease(`sms-conversation:${conversationId}`, async () => {
@@ -64,10 +61,10 @@ export const runVoiceConversationTurn = async ({ session, customerMessage, opera
     const exit = await handleVoiceExit({ session, customerMessage });
     if (exit) return exit;
     if (conversation.humanTakeover || conversation.aiEnabled === false || ['closed', 'archived'].includes(conversation.status)) {
-      const hazard = detectSafetyHazardType(customerMessage);
-      return { reply: hazard ? getEmergencyReply(hazard) : 'This request is under team review. I cannot change or confirm an appointment here.' };
+      return await voiceSafetyReviewReply({ session, customerMessage, turnId }) || { reply: 'This request is under team review. I cannot change or confirm an appointment here.' };
     }
-    if (!await ownsVoiceIntake(session, conversation, businessId)) return overlapReply(customerMessage);
+    if (!await ownsVoiceIntake(session, conversation, businessId)) return await voiceSafetyReviewReply({ session, customerMessage, turnId }) ||
+      { reply: 'Another call from this number is already handling this request. I cannot change it on this call. Please finish the other call, then call again if you need help with a separate request.' };
     assertDistributedLeaseActive();
     const result = await operation();
     assertDistributedLeaseActive();
@@ -75,12 +72,11 @@ export const runVoiceConversationTurn = async ({ session, customerMessage, opera
     const latest = await Conversation.findOne({ _id: conversationId, business: businessId });
     assertVoiceTurnActive();
     if (latest?.humanTakeover || latest?.aiEnabled === false) {
-      return { reply: 'The team has taken over this request. No additional appointment is confirmed by this call.' };
+      return await voiceSafetyReviewReply({ session, customerMessage, turnId }) || { reply: 'The team has taken over this request. No additional appointment is confirmed by this call.' };
     }
     return result;
   }, { ttlMs: 60000, metadata: { worker: 'voice_turn', businessId: String(businessId), sessionId: String(session._id) } });
   if (lease.acquired) return lease.value;
   // A busy SMS turn must not suppress immediate hazard guidance.
-  const hazard = detectSafetyHazardType(customerMessage);
-  return { reply: hazard ? getEmergencyReply(hazard) : 'Another message for this request is still being processed. Please try again in a moment; no appointment is confirmed.' };
+  return await voiceSafetyReviewReply({ session, customerMessage, turnId }) || { reply: 'Another message for this request is still being processed. Please try again in a moment; no appointment is confirmed.' };
 };

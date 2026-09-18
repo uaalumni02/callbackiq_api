@@ -108,6 +108,16 @@ describe("VoiceSessionService fallback", () => {
     Message.create.mockResolvedValue({ _id: "message-1" });
   });
 
+  test.each(['marker', 'outcome', 'transcript'])('suppresses routine recovery after safety evidence: %s', async (source) => {
+    if (source === 'marker') session.metadata.safetyConcernReportedAt = new Date();
+    if (source === 'outcome') session.outcome = 'safety_guidance';
+    if (source === 'transcript') session.transcript = [{ role: 'customer', text: 'I smell gas' }];
+    await VoiceSessionService.sendFallbackSms({ sessionId: session._id, failureReason: 'disconnected' });
+    expect(sendSms).not.toHaveBeenCalled();
+    expect(claimRecoveryIntroduction).not.toHaveBeenCalled();
+    expect(VoiceSession.findByIdAndUpdate).toHaveBeenCalledWith(session._id, expect.objectContaining({ $set: expect.objectContaining({ fallbackSmsStatus: 'suppressed' }) }));
+  });
+
   test("suppresses the fallback SMS when the caller opted out", async () => {
     isSmsSuppressed.mockResolvedValue(true);
 

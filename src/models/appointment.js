@@ -95,6 +95,15 @@ const AppointmentSchema = new Schema(
       required: true,
     },
 
+    // Audit only: this stored record does not itself authorize policy bypass.
+    schedulingException: {
+      type: new Schema({
+        businessId: String, serviceOfferingId: String, startAt: String,
+        approvedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+        reason: String, approvedAt: Date,
+      }, { _id: false }), default: null,
+    },
+
     // CALLBACKIQ_MARKETING_ATTRIBUTION_V1: immutable booking attribution snapshot.
     marketingSource: {
       type: Schema.Types.ObjectId,

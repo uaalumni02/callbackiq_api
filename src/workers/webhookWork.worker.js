@@ -22,6 +22,9 @@ export const processWebhookWork = async (job) => {
     } else if (job.kind === "missed_followup") {
       const { scheduleMissedCallFollowUp } = await import("../middleware/missed-call-automation-lifecycle.js");
       await scheduleMissedCallFollowUp({ body: job.payload, businessId: job.business, retryMissingConversation: true });
+    } else if (job.kind === 'voice_safety_review') {
+      const { processVoiceSafetyReview } = await import('../services/voiceSafetyReview.service.js');
+      await processVoiceSafetyReview({ ...job.payload, businessId: job.business });
     } else throw new Error("Unsupported webhook job type");
     await WebhookWork.updateOne(identity, { $set: { status: "completed", completedAt: new Date() }, $unset: { leaseToken: 1, leaseUntil: 1 } });
   } catch (error) {

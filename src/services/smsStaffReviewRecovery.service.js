@@ -37,10 +37,12 @@ export async function recoverFailedWebhookReviews({ now = new Date(), limit = 10
     .sort({ updatedAt: 1, _id: 1 }).limit(Math.max(1, Math.min(250, limit))).lean();
   let recovered = 0;
   for (const job of jobs) {
+    const safety = job.kind === 'voice_safety_review';
     const result = await AlertService.create({ businessId: job.business,
+      ...(safety ? { conversationId: job.payload?.conversationId } : {}),
       type: 'integration_failure', priority: 'critical', actionRequired: true, dueAt: now,
-      title: 'Missed-call recovery requires manual review',
-      message: 'A durable recovery operation could not complete. Verify the provider outcome before contacting the customer.',
+      title: safety ? 'Caller safety report requires manual review' : 'Missed-call recovery requires manual review',
+      message: safety ? 'A caller safety report could not be fully processed. Review the linked voice conversation. This is not an emergency dispatch; receipt and response are not guaranteed.' : 'A durable recovery operation could not complete. Verify the provider outcome before contacting the customer.',
       reason: 'recovery_processing_failed', metadata: { jobId: job._id, kind: job.kind },
       dedupeKey: `recovery_staff_review:${job._id}` });
     if (!result?.alert?._id) throw new Error('Recovery staff review was not persisted');

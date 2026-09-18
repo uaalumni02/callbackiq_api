@@ -261,13 +261,16 @@ describe("Twilio Routes", () => {
       ).toBe(0);
     });
 
-    test("honors no_reply decisions", async () => {
+    test("honors intentional spam no_reply decisions", async () => {
       const business = await createBusiness();
 
       generateAIReplyResult.mockResolvedValueOnce({
         ...defaultAIResult,
         decision: "no_reply",
         actionType: "no_reply",
+        messageCategory: "possible_spam",
+        serviceNeeded: "",
+        summary: "Repeated spam; no response required.",
         reply: "",
       });
 
@@ -282,6 +285,7 @@ describe("Twilio Routes", () => {
         });
 
       expect(response.status).toBe(200);
+      expect(generateAIReplyResult).toHaveBeenCalledTimes(1);
       expect(sendSms).not.toHaveBeenCalled();
 
       expect(
@@ -290,6 +294,37 @@ describe("Twilio Routes", () => {
           direction: "outbound",
         }),
       ).toBe(0);
+    });
+
+    test("routes unexplained model silence on a service request to staff review", async () => {
+      const business = await createBusiness();
+      generateAIReplyResult.mockResolvedValueOnce({
+        ...defaultAIResult,
+        decision: "no_reply",
+        actionType: "no_reply",
+        reply: "",
+      });
+      const response = await request(app)
+        .post("/api/twilio/sms")
+        .type("form")
+        .send({
+          From: "4045559999",
+          To: "4045551234",
+          Body: "My water heater needs repair",
+          MessageSid: "SM_UNEXPECTED_SILENCE_123",
+        });
+      expect(response.status).toBe(200);
+      expect(generateAIReplyResult).toHaveBeenCalledTimes(1);
+      expect(sendSms).toHaveBeenCalledTimes(1);
+      expect(sendSms).toHaveBeenCalledWith(expect.objectContaining({
+        body: expect.stringContaining("not a confirmed appointment"),
+        metadata: expect.objectContaining({
+          decision: "send_fixed_response",
+          handoffReason: "intake_unclear",
+          handoffRequired: true,
+        }),
+      }));
+      expect(await Message.countDocuments({ business: business._id, direction: "outbound" })).toBe(1);
     });
 
     test("returns empty TwiML and creates nothing when no business exists", async () => {

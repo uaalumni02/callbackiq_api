@@ -68,9 +68,6 @@ class AvailabilityService {
     }
     const timeZone = business.timezone || "America/New_York";
     const now = new Date();
-    const earliestCustomerFacingStart = new Date(
-      now.getTime() + minimumNoticeMinutes * 60_000,
-    );
     const todayKey = formatDateKey(now, timeZone);
 
     const policySafeSlots = (Array.isArray(slots) ? slots : [])
@@ -79,9 +76,10 @@ class AvailabilityService {
         if (Number.isNaN(startAt.getTime())) return false;
         const endAt = new Date(slot.endAt);
         if (!Number.isFinite(endAt.getTime()) || endAt <= startAt) return false;
-        if (startAt < earliestCustomerFacingStart) return false;
+        const slotPolicy = effectiveSchedulingPolicy(policy, service, { businessId, startAt });
+        if (startAt <= now || startAt < new Date(now.getTime() + slotPolicy.minimumNoticeMinutes * 60_000)) return false;
         if (
-          !allowSameDayBooking &&
+          !slotPolicy.allowSameDayBooking &&
           formatDateKey(startAt, timeZone) === todayKey
         ) {
           return false;

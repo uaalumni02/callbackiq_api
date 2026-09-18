@@ -740,7 +740,7 @@ export const initializeConversationRelayServer = (
             signal: abortController.signal,
             isActive: () => !intentionalEnd && !failureStarted && turnId === currentTurn,
           },
-          () => coordinateConversationTurn({ session, customerMessage,
+          () => coordinateConversationTurn({ session, customerMessage, turnId,
             operation: () => voiceAgentService.handlePrompt({ session, customerMessage, signal: abortController.signal, turnId }) }),
         ), { signal: abortController.signal });
         const result = await Promise.race([agentPromise, timeoutPromise, cancellationPromise]);

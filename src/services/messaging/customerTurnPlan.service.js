@@ -38,8 +38,9 @@ export function planCustomerTurn({ customerMessage, business, lead, conversation
   const callback = classified.intents.human || classified.intents.callback;
   const confirmation = /\b(?:guarantee|guaranteed|confirmed|confirmation|approve|approved|booked|reserved)\b/i.test(text);
   const additionalRequest = withdrawal ? '' : additionalServiceText(text, lead, conversation);
+  const selectionReference = /\b(?:option\s*\d+|first option|second option|third option|that time|this time)\b/i.test(text);
   const selectionContext = ['offering_slots', 'awaiting_confirmation'].includes(conversation?.bookingState?.status);
   return { text, classified, withdrawal, callback, confirmation, additionalRequest,
     compound: !withdrawal && callback &&
-      (selectionContext || confirmation || classified.intents.pricing || classified.intents.availabilityInquiry || classified.intents.reschedule) };
+      (selectionContext || selectionReference || confirmation || classified.intents.pricing || classified.intents.availabilityInquiry || classified.intents.reschedule) };
 }

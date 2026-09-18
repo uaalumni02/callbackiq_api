@@ -12,6 +12,7 @@ export const VOICE_OUTCOMES = Object.freeze([
   "transfer_accepted",
   "direct_answer_resolved",
   "safety_escalated",
+  "safety_guidance",
   "wrong_number",
   "caller_declined",
   "opted_out",

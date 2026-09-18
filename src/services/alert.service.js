@@ -103,7 +103,7 @@ class AlertService {
       metadata,
       dedupeKey: dedupeKey || null,
       actionRequired: Boolean(actionRequired),
-      dueAt: dueAt || null,
+      dueAt: dueAt || (actionRequired ? staffReviewDueAt(normalizePriority(priority), now) : null),
       reason: truncate(reason, 1000),
       recommendedAction: truncate(recommendedAction, 1000),
       aiSummary: truncate(aiSummary, 2000),

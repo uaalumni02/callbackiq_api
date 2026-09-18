@@ -160,7 +160,7 @@ export const generateInternalSlots = async ({
         const bufferedEndAt = addMinutes(endAt, bufferAfterMinutes);
 
         try {
-          validateBookingWindow({ startAt, policy: effectiveSchedulingPolicy(policy, service), now, timeZone });
+          validateBookingWindow({ startAt, policy: effectiveSchedulingPolicy(policy, service, { businessId, startAt }), now, timeZone });
         } catch (error) {
           if (["SAME_DAY_BOOKING_DISABLED", "MINIMUM_NOTICE_NOT_MET", "MAXIMUM_ADVANCE_EXCEEDED"].includes(error.code)) {
             continue;

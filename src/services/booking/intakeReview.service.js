@@ -1,3 +1,4 @@
+import { withStaffSchedulingException } from '../scheduling/staffSchedulingException.service.js';
 import { extractCustomerPostalCode } from './customerAddress.service.js';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
@@ -28,6 +29,15 @@ export const approveIntake = async ({ business, conversationId, input, approvedB
       (input.endAt && (typeof input.endAt !== 'string' || !/(?:Z|[+-]\d\d:\d\d)$/.test(input.endAt) || !Number.isFinite(Date.parse(input.endAt)) || Date.parse(input.endAt) <= Date.parse(input.startAt)))) {
     throw fail('A reviewed service, timezone-qualified start time, and current intake review version are required.', 'INVALID_INTAKE_APPROVAL', 400);
   }
+  const requestedException = input.schedulingException;
+  if (requestedException !== undefined && (!requestedException || requestedException.allowShortNotice !== true ||
+      typeof requestedException.reason !== 'string' || requestedException.reason.trim().length < 15 ||
+      requestedException.reason.trim().length > 500 || !mongoose.isValidObjectId(approvedBy))) {
+    throw fail('A staff identity and a 15–500 character reason are required for a short-notice exception.', 'INVALID_SCHEDULING_EXCEPTION', 400);
+  }
+  const exception = requestedException ? { businessId: String(business._id), serviceOfferingId: String(input.serviceOfferingId),
+    startAt: input.startAt, approvedBy: String(approvedBy), reason: requestedException.reason.trim(), approvedAt: new Date() } : null;
+  const runScheduling = operation => exception ? withStaffSchedulingException(exception, operation) : operation();
   const lease = await withDistributedLease(`sms-conversation:${conversationId}`, async () => {
     const conversation = await Conversation.findOne({ _id: conversationId, business: business._id });
     if (!conversation) throw fail('Conversation not found.', 'CONVERSATION_NOT_FOUND', 404);
@@ -35,8 +45,12 @@ export const approveIntake = async ({ business, conversationId, input, approvedB
     if (!lead || ['closed', 'archived'].includes(conversation.status) || !manualIntakeSubmitted(conversation)) {
       throw fail('This conversation does not have an active submitted service request.', 'INTAKE_NOT_REVIEWABLE');
     }
+    const reviewState = conversation.conversationMemory?.recoveryIntake || {};
+    if (conversation.bookingState?.appointment && !reviewState.reviewAppointmentId && !reviewState.appointmentId) {
+      throw fail('This request already has an appointment. Review or reschedule that appointment instead.', 'INTAKE_EXISTING_APPOINTMENT');
+    }
     if (intakeReviewVersion(conversation, lead) !== input.intakeReviewVersion) throw fail('The customer details changed. Refresh and review the request again.', 'INTAKE_REVIEW_CHANGED');
-    const alert = await Alert.exists({ business: business._id, conversation: conversation._id, type: 'human_requested', $or: [{ 'metadata.handoffReason': 'intake_complete' }, { 'metadata.messageCategory': 'appointment_preference' }] });
+    const alert = await Alert.exists({ business: business._id, conversation: conversation._id, type: 'human_requested', $or: [{ 'metadata.handoffReason': { $in: ['intake_complete', 'scheduling_review'] } }, { 'metadata.messageCategory': 'appointment_preference' }] });
     if (!alert) throw fail('The service request review record is missing.', 'INTAKE_REVIEW_MISSING');
     await assertVoiceReviewIdle(business._id, conversation._id);
     const customerPhone = normalizePhoneToE164(conversation.customerPhone);
@@ -47,13 +61,13 @@ export const approveIntake = async ({ business, conversationId, input, approvedB
     const journey = conversation.orchestration?.recoveryJourneyKey || 'legacy';
     const key = `intake-approval:${conversation._id}:${crypto.createHash('sha256').update(journey).digest('hex').slice(0, 24)}`;
     assertDistributedLeaseActive();
-    const appointment = await AppointmentService.create({ business, idempotencyKey: key, confirm: false, ownerValuationAuthorized: true, input: {
+    const appointment = await runScheduling(() => AppointmentService.create({ business, idempotencyKey: key, confirm: false, ownerValuationAuthorized: true, input: {
       serviceOfferingId: input.serviceOfferingId, startAt: input.startAt, ...(input.endAt ? { endAt: input.endAt } : {}),
       lead: lead._id, conversation: conversation._id, customerName: lead.customerName || conversation.customerName,
       customerPhone, customerEmail: lead.email || '', address: { street: address, postalCode },
       timezone: business.timezone || 'America/New_York', source: 'manual', bookedBy: 'staff', requiresBusinessApproval: true,
       notes: `Reviewed service request: ${lead.serviceNeeded}. Customer preference: ${lead.preferredAppointmentTime || ''}`,
-    } });
+    } }));
     assertDistributedLeaseActive();
     await Conversation.updateOne({ _id: conversation._id, business: business._id }, { $set: {
       'conversationMemory.recoveryIntake.reviewAppointmentId': String(appointment._id),
@@ -78,7 +92,7 @@ export const approveIntake = async ({ business, conversationId, input, approvedB
     assertDistributedLeaseActive();
     await assertVoiceReviewIdle(business._id, conversation._id);
     assertDistributedLeaseActive();
-    const confirmed = await AppointmentService.confirm({ business, appointmentId: appointment._id, approvedBy });
+    const confirmed = await runScheduling(() => AppointmentService.confirm({ business, appointmentId: appointment._id, approvedBy }));
     assertDistributedLeaseActive();
     // Retry safely repairs a notice missing after a crash, without resending an existing job.
     let confirmationNoticeStatus = 'unavailable';

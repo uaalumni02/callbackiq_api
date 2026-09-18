@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 const schema = new mongoose.Schema({
   _id: String,
-  kind: { type: String, enum: ["recovery_sms", "missed_followup"], required: true },
+  kind: { type: String, enum: ["recovery_sms", "missed_followup", "voice_safety_review"], required: true },
   business: { type: mongoose.Schema.Types.ObjectId, ref: "Business", required: true },
   payload: { type: mongoose.Schema.Types.Mixed, required: true },
   status: { type: String, enum: ["queued", "processing", "completed", "dead"], default: "queued" },

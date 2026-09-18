@@ -1,3 +1,4 @@
+import { applyCustomerAddressRevision } from './customerRequestRevision.service.js';
 import { planCustomerTurn } from './customerTurnPlan.service.js';
 import { selectOfferedSlot } from '../booking/bookingStateMachine.service.js';
 import { guardServiceRequest, blocksServiceAutomation } from '../serviceEligibility/serviceEligibility.service.js';
@@ -24,6 +25,8 @@ export async function handleCompoundCustomerTurn({ business, lead, conversation,
     if (prior.result?.preferredAppointmentTime) { lead.preferredAppointmentTime = prior.result.preferredAppointmentTime; check(); await lead.save(); }
     return prior.result;
   }
+  const { addressChanged } = await applyCustomerAddressRevision({ business, lead, conversation, customerMessage, turnId });
+  const priorService = lead.serviceNeeded;
   const boundary = await guardServiceRequest({ business, lead, conversation, customerMessage, channel, turnId });
   if (boundary && !boundary.additionalRequest) return boundary;
   const state = conversation.bookingState || {};
@@ -40,8 +43,14 @@ export async function handleCompoundCustomerTurn({ business, lead, conversation,
   const expired = !state.expiresAt || !Number.isFinite(new Date(state.expiresAt).getTime()) || new Date(state.expiresAt) <= now;
   const selection = !plan.classified.intents.reschedule && !rejected && !expired && !blocksServiceAutomation(conversation) && distinct.length === 1 &&
     new Date(distinct[0].startAt) > now && new Date(distinct[0].endAt) > new Date(distinct[0].startAt) ? distinct[0] : null;
-  let selectionReply = '';
-  let preference = lead.preferredAppointmentTime || '';
+  const requestChanged = addressChanged || priorService !== lead.serviceNeeded;
+  let selectionReply = requestChanged ? 'Request updated; earlier time options need rechecking. ' : '';
+  const schedulingClauses = clauses.filter(clause => {
+    const intents = classifySmsIntent({ customerMessage: clause }).intents;
+    return !intents.callback && !intents.human && !intents.pricing && !intents.status &&
+      !/^(?:can|could|do|does|is|are|will|would|what|when|how)\b/i.test(clause);
+  }).join(' ');
+  let preference = captureTurnFacts({ customerMessage: schedulingClauses, business, lead }).preferredAppointmentTime || lead.preferredAppointmentTime || '';
   if (plan.classified.intents.reschedule) {
     const schedulingText = clauses.filter(clause => {
       const intents = classifySmsIntent({customerMessage:clause}).intents;
@@ -50,7 +59,7 @@ export async function handleCompoundCustomerTurn({ business, lead, conversation,
     preference = captureTurnFacts({ customerMessage:schedulingText, business, lead }).preferredAppointmentTime || preference;
     selectionReply = 'Your rescheduling request needs staff review. ';
   } else if (plan.classified.intents.availabilityInquiry && !slots.length) {
-    selectionReply = 'Your availability question needs staff review; no opening is verified by this message. ';
+    selectionReply += 'Your availability question needs staff review; no opening is verified by this message. ';
   }
   if (selection) {
     preference = new Intl.DateTimeFormat('en-US', { timeZone: timezone, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(selection.startAt));

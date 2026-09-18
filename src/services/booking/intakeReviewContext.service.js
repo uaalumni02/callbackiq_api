@@ -10,7 +10,8 @@ export const intakeReviewVersion = (conversation, lead) => crypto.createHash('sh
 export const manualIntakeSubmitted = conversation => {
   const state = conversation?.conversationMemory?.recoveryIntake || {};
   const journey = conversation?.orchestration?.recoveryJourneyKey || '';
+  if (state.withdrawnAt) return false;
   if (state.journeyKey !== undefined && state.journeyKey !== journey) return false;
   if (Number(state.failures || 0) >= 2 && state.reviewReady !== true) return false;
-  return Boolean(state.submitted || conversation?.orchestration?.handoffReason === 'intake_complete');
+  return Boolean(state.submitted || ['intake_complete', 'scheduling_review'].includes(conversation?.orchestration?.handoffReason));
 };

@@ -75,3 +75,32 @@ test('does not create appointment for anonymous voice contact',async()=>{convers
 test('preserves discoverable hold when provider confirmation fails',async()=>{AppointmentService.confirm.mockRejectedValue(new Error('provider unavailable'));await expect(run()).rejects.toThrow('provider unavailable');expect(Conversation.updateOne).toHaveBeenCalledWith(expect.anything(),{$set:expect.objectContaining({'conversationMemory.recoveryIntake.reviewAppointmentId':appointment._id})});});
 
 test('customer contact correction invalidates reviewed version',async()=>{conversation.customerPhone='+14045550124';await expect(run()).rejects.toMatchObject({code:'INTAKE_REVIEW_CHANGED'});expect(AppointmentService.create).not.toHaveBeenCalled();});
+
+test('new scheduling-review request is eligible for staff approval',async()=>{
+ conversation.conversationMemory.recoveryIntake={};conversation.orchestration.handoffReason='scheduling_review';
+ input.intakeReviewVersion=intakeReviewVersion(conversation,lead);
+ expect((await run()).appointment.status).toBe('confirmed');
+});
+test('withdrawal invalidates a scheduling review even if its handoff reason remains',async()=>{
+ conversation.conversationMemory.recoveryIntake={withdrawnAt:new Date()};conversation.orchestration.handoffReason='scheduling_review';
+ input.intakeReviewVersion=intakeReviewVersion(conversation,lead);
+ await expect(run()).rejects.toMatchObject({code:'INTAKE_NOT_REVIEWABLE'});
+});
+test('staff exception exists only inside the reviewed create and confirm operations',async()=>{
+ const {currentStaffSchedulingException}=require('../../src/services/scheduling/staffSchedulingException.service.js');
+ input.schedulingException={allowShortNotice:true,reason:'Customer and dispatcher agreed on this earlier appointment.'};
+ const scope={businessId:business._id,serviceOfferingId:input.serviceOfferingId,startAt:input.startAt};
+ AppointmentService.create.mockImplementation(async()=>{expect(currentStaffSchedulingException(scope)).toMatchObject({approvedBy:'f'.repeat(24),reason:input.schedulingException.reason});return appointment;});
+ AppointmentService.confirm.mockImplementation(async()=>{expect(currentStaffSchedulingException(scope)).toBeTruthy();return appointment;});
+ await approveIntake({business,conversationId:conversation._id,input,approvedBy:'f'.repeat(24)});
+ expect(currentStaffSchedulingException(scope)).toBeNull();
+});
+test.each([{}, {allowShortNotice:true}, {allowShortNotice:false,reason:'Long enough documented reason.'}, {allowShortNotice:true,reason:'short'}])('rejects incomplete scheduling exception %j',async exception=>{
+ input.schedulingException=exception;await expect(run()).rejects.toMatchObject({code:'INVALID_SCHEDULING_EXCEPTION'});
+ expect(AppointmentService.create).not.toHaveBeenCalled();
+});
+test('scheduling review cannot create a second appointment for an already booked request',async()=>{
+ conversation.bookingState={status:'booked',appointment:'existing'};
+ conversation.orchestration.handoffReason='scheduling_review';input.intakeReviewVersion=intakeReviewVersion(conversation,lead);
+ await expect(run()).rejects.toMatchObject({code:'INTAKE_EXISTING_APPOINTMENT'});expect(AppointmentService.create).not.toHaveBeenCalled();
+});

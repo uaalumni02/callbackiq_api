@@ -1,3 +1,4 @@
+import { currentStaffSchedulingException } from './staffSchedulingException.service.js';
 import { assertServiceRequestEligible } from '../serviceEligibility/serviceEligibility.service.js';
 import { safeConsole } from "../../helpers/logging/safeLogger.js";
 import { resolveOpportunityValue, ownerEstimate, moneyAmount } from "../valuation/opportunityValue.js";
@@ -328,6 +329,7 @@ const createHold = async ({
     approvalRequestedAt:
       input.requiresBusinessApproval === true ? new Date() : null,
     notes: input.notes || "",
+    schedulingException: currentStaffSchedulingException({ businessId, serviceOfferingId: service._id, startAt }),
   };
 
   for (let capacityLane = 1; capacityLane <= capacity; capacityLane += 1) {
