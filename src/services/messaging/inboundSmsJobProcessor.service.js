@@ -41,6 +41,7 @@ import { sanitizeUnverifiedStaffCommitments } from "../customerCommitmentSafety.
 import { getSmsAutomationSuppressionReason } from "./smsAutomationDispatchPolicy.service.js";
 import { assertDistributedLeaseActive } from "../distributedLease.service.js";
 import { describeSmsWorkflowDecision, preserveSmsInterruptFacts, buildSmsRequestRevisionPatch, reviewSmsAppointmentRevision } from './smsWorkflowPolicy.service.js';
+import { planCustomerTurn } from './customerTurnPlan.service.js';
 
 const VALID_URGENCIES = new Set(["low", "medium", "high", "emergency"]);
 const SMS_URGENCY_RANK = Object.freeze({
@@ -382,6 +383,7 @@ export const processInboundSmsJob = async (job) => {
   });
   const messages = customerTurn.historyMessages;
   const effectiveInboundMessage = customerTurn.primaryInboundMessage;
+  const turnPlan = planCustomerTurn({ business, lead, conversation, customerMessage: customerTurn.customerMessage });
   const handoffSource = isHumanHandoffSource({
     conversation,
     inboundMessageId: inboundMessage._id,
@@ -460,12 +462,12 @@ export const processInboundSmsJob = async (job) => {
     return { decision: "skipped", reason: "ai_ineligible" };
   }
 
-  if (!deterministicAssessment.handled && !automationPaused) {
+  if (!deterministicAssessment.handled && !automationPaused && !turnPlan.compound) {
     const params = { business, lead, conversation, customerMessage: customerTurn.customerMessage,
       turnId: String(inboundMessage._id), recentMessages: messages };
     const changedService = !isRequestWithdrawal(customerTurn.customerMessage) && classification.entities?.serviceNeeded &&
       (classification.intents?.correction || classification.intents?.newService);
-    const control = changedService ? null : await handleConversationControl(params);
+    const control = changedService || turnPlan.additionalRequest ? null : await handleConversationControl(params);
     const reviewUpdate = !control && conversation?.orchestration?.handoffReason === "intake_complete" && !handoffSource
       ? await handleRecoveryIntake({ ...params, reviewOnly: true }) : null;
     const directResult = reviewSmsAppointmentRevision({ lead, conversation,
@@ -498,7 +500,7 @@ export const processInboundSmsJob = async (job) => {
     }
   }
 
-  if (handoffStatusQuestion && !deterministicAssessment.handled) {
+  if (handoffStatusQuestion && !deterministicAssessment.handled && !turnPlan.compound && !turnPlan.additionalRequest) {
     if (!shouldSendHumanHandoffStatusAcknowledgement({ conversation })) {
       await completeCoalescedJobs({
         conversationId: conversation._id,
@@ -558,7 +560,7 @@ export const processInboundSmsJob = async (job) => {
     };
   }
 
-  if (!deterministicAssessment.handled && !automationPaused) {
+  if (!deterministicAssessment.handled && !automationPaused && !turnPlan.compound) {
     const eligibilityResult = await guardServiceRequest({ business, lead, conversation,
       customerMessage: customerTurn.customerMessage, turnId: String(inboundMessage._id) });
     if (eligibilityResult) {
@@ -567,14 +569,14 @@ export const processInboundSmsJob = async (job) => {
       SocketService.emitConversationUpdated(business._id, conversation);
       await completeCoalescedJobs({ conversationId: conversation._id, primaryJobId: job._id,
         primaryMessageId: inboundMessage._id, turnMessageIds: customerTurn.turnMessageIds });
-      return { decision: eligibilityResult.decision, reason: eligibilityResult.serviceEligibility.reason,
+      return { decision: eligibilityResult.decision, reason: eligibilityResult.serviceEligibility?.reason || eligibilityResult.guardrail?.reason,
         sent: delivery.sent === true, outboundMessageId: delivery.message?._id || null };
     }
   }
 
   // Completed manual intake stays in the staff queue. New messages are already
   // durable; attach an action-required alert instead of restarting AI intake.
-  if ((conversation?.orchestration?.handoffReason === "intake_complete" && !handoffSource) ||
+  if ((conversation?.orchestration?.handoffReason === "intake_complete" && !handoffSource && !turnPlan.compound) ||
       (automationPaused && safetyReviewRequired)) {
     const safety = deterministicAssessment.handled &&
       (["emergency", "hazardous_diy_request"].includes(deterministicAssessment.category) ||

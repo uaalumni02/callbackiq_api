@@ -30,6 +30,8 @@ import {
 } from "./messaging/smsTurnPolicy.service.js";
 import { classifySmsIntent } from "./messaging/smsIntentClassifier.service.js";
 import { preserveSmsInterruptFacts } from './messaging/smsWorkflowPolicy.service.js';
+import { handleCompoundCustomerTurn } from './messaging/compoundCustomerTurn.service.js';
+import { planCustomerTurn } from './messaging/customerTurnPlan.service.js';
 
 const fallbackReply = SAFE_REPLIES.fallback;
 
@@ -208,11 +210,15 @@ const generateReplyResult = async ({
       return preserveTurnUrgency(guarded, turnUrgency);
     }
 
+    const compound = await handleCompoundCustomerTurn({ business, lead, conversation, customerMessage: latestCustomerMessage,
+      turnId: messages.filter(message => message.direction === 'inbound').at(-1)?._id || '' });
+    if (compound) return preserveTurnUrgency(compound, turnUrgency);
+    const turnPlan = planCustomerTurn({ business, lead, conversation, customerMessage: latestCustomerMessage });
     // A question bundled with a changed service must pass service eligibility
     // before a read-only status answer can short-circuit the turn.
     const changedService = !isRequestWithdrawal(latestCustomerMessage) && turnClassification.entities?.serviceNeeded &&
       (turnClassification.intents?.correction || turnClassification.intents?.newService);
-    const control = changedService ? null : await handleConversationControl({ business, lead, conversation, customerMessage: latestCustomerMessage });
+    const control = changedService || turnPlan.additionalRequest ? null : await handleConversationControl({ business, lead, conversation, customerMessage: latestCustomerMessage });
     if (control) return preserveTurnUrgency(control, turnUrgency);
 
     const serviceGuard = await guardServiceRequest({ business, lead, conversation, customerMessage: latestCustomerMessage, recentMessages: messages });

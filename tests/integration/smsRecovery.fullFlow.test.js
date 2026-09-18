@@ -470,6 +470,28 @@ describe("completed manual intake uses the durable staff handoff", () => {
     expect(AlertService.createHumanHandoffAlert.mock.invocationCallOrder[0]).toBeLessThan(sendSms.mock.invocationCallOrder[0]);
   });
 
+  test('real compound reply pipeline keeps selection, callback and approval through final SMS dispatch', async () => {
+    activeLead.save = jest.fn(async () => activeLead);
+    activeConversation.save = jest.fn(async () => activeConversation);
+    const startAt = new Date(Date.now() + 3 * 86400000);
+    activeConversation.bookingState = { status: 'offering_slots', expiresAt: new Date(Date.now() + 600000),
+      offeredSlots: [{ startAt, endAt: new Date(startAt.getTime() + 3600000) }] };
+    activeInbound.body = 'That time works for me. Please have someone call me at this number. Can you guarantee my appointment?';
+    generateAIReplyResult.mockImplementation(jest.requireActual('../../src/services/aiReplyService.js').generateAIReplyResult);
+    await processInboundSmsJob(job);
+    const body = sendSms.mock.calls[0][0].body;
+    expect(body).toMatch(/Requested/);
+    expect(body).toMatch(/not a confirmed appointment/i);
+    expect(body).toMatch(/Callback requested/);
+    expect(activeLead.preferredAppointmentTime).toBeTruthy();
+    expect(activeConversation.conversationMemory.recoveryIntake.compoundTurn.selectedSlot.startAt).toEqual(startAt);
+    expect(AlertService.createHumanHandoffAlert).toHaveBeenCalledWith(expect.objectContaining({
+      lead: expect.objectContaining({ preferredAppointmentTime: activeLead.preferredAppointmentTime }),
+      result: expect.objectContaining({ handoff: expect.objectContaining({ callbackRequested: true, reason: 'scheduling_review' }) }) }));
+    expect(AlertService.createHumanHandoffAlert.mock.invocationCallOrder[0]).toBeLessThan(sendSms.mock.invocationCallOrder[0]);
+    expect(body.length).toBeLessThanOrEqual(320);
+  });
+
   test('same-day scheduling review creates the staff alert before the SMS acknowledgement', async () => {
     activeInbound.body = 'Can someone come today?';
     generateAIReplyResult.mockResolvedValue({ decision: 'send_fixed_response', actionType: 'human_handoff', messageCategory: 'appointment_preference',

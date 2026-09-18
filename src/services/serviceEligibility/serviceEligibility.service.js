@@ -15,6 +15,8 @@ import { reserveAiUsage } from '../communicationUsage.service.js';
 import { assertVoiceTurnActive } from '../voiceTurnContext.service.js';
 import { assertDistributedLeaseActive } from '../distributedLease.service.js';
 import { evaluateServicePolicy, eligibilityReply, serviceDomains, blocksServiceAutomation } from './policy.js';
+import { additionalServiceText } from '../messaging/customerTurnPlan.service.js';
+import { preserveAdditionalServiceRequest } from './additionalServiceRequest.service.js';
 
 const clean = value => String(value || '').trim();
 const known = value => clean(value) && !/^(unknown|not provided|n\/a)$/i.test(clean(value));
@@ -37,6 +39,12 @@ export async function guardServiceRequest({ business, lead, conversation, custom
   // Safety, consent and abuse controls retain precedence even when called by a lower-level entry point.
   if (isRequestWithdrawal(text) || requestWasWithdrawn(conversation)) return null;
   if (isSoftOptOutPhrase(text) || evaluateDeterministicInboundGuardrails({ customerMessage: text }).handled) return null;
+  const additionalRequest = additionalServiceText(text, lead, conversation);
+  if (additionalRequest) {
+    const additional = await preserveAdditionalServiceRequest({ request: additionalRequest, business, lead, conversation,
+      customerMessage: text, evaluate: evaluateServiceEligibility });
+    if (additional) return additional;
+  }
   if (conversation.bookingState?.appointment && /\b(?:cancel|reschedule|move|status of)\b.{0,80}\b(?:appointment|booking|visit)\b/i.test(text)) return null;
   const intent = classifySmsIntent({ business, lead, conversation, customerMessage: text });
   let current = extractService(text, { lead, conversation });

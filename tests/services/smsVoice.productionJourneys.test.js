@@ -180,3 +180,45 @@ test('a status question cannot bypass eligibility for a corrected, unsupported s
  expect(j.conversation().bookingState.offeredSlots || []).toHaveLength(0);
  expect(AppointmentService.create).not.toHaveBeenCalled();
 });
+
+const compoundSelections = [
+ 'That time works for me. Please have someone call me at this number. Can you guarantee my appointment?',
+ 'Please call me. Option 1 works for me. Is the appointment confirmed?',
+ 'Can someone call me and confirm it? The first option works.',
+ 'Yes. Give me a call. Am I booked?',
+];
+test.each(trades.flatMap(([trade,request])=>compoundSelections.map(text=>({trade,request,text}))))(
+ '$trade retains the offered preference and answers callback plus confirmation: $text', async ({trade,request,text})=>{
+ services=[{...plumbing,_id:trade,name:trade==='garage_door'?'Garage door service':`${trade} service`,category:trade,keywords:[]}];
+ const j=journey('sms'); await j.turn(request,true); await j.turn('970 Sidney Marcus Atlanta GA 30324',true);
+ await j.turn('What is available?',true);
+ const offered=j.conversation().bookingState.offeredSlots[0];
+ const result=await j.turn(text,true);
+ expect(result.compoundTurn).toBe(true);
+ expect(result.reply).toMatch(/Requested/);
+ expect(result.reply).toMatch(/not a confirmed appointment/i);
+ expect(result.reply).toMatch(/Callback requested/);
+ expect(j.lead().preferredAppointmentTime).toBe(result.preferredAppointmentTime);
+ expect(j.conversation().conversationMemory.recoveryIntake.compoundTurn.selectedSlot.startAt).toEqual(offered.startAt);
+ expect(AppointmentService.create).not.toHaveBeenCalled();
+ expect(result.reply.length).toBeLessThanOrEqual(320);
+});
+
+test.each(trades.flatMap(([trade,request])=>['sms','voice'].map(channel=>({trade,request,channel}))))(
+ '$channel $trade retains the primary request when additional work is queried', async ({trade,request,channel})=>{
+ services=[{...plumbing,_id:trade,name:trade==='garage_door'?'Garage door service':`${trade} service`,category:trade,keywords:[]}];
+ const j=journey(channel);await j.turn(request,true);await j.turn('970 Sidney Marcus Atlanta GA 30324',true);
+ await j.turn('What is available?',true);
+ const original=structuredClone(j.conversation());const originalLead=structuredClone(j.lead());
+ const extra=trade==='roofing'?'faucet replacement':'roof repair';
+ const result=await j.turn(`One more thing: can you also do ${extra}, or do I need another company? I still need the original work.`,true);
+ expect(result.reply).toMatch(/request stays active/);
+ expect(j.lead().serviceNeeded).toBe(originalLead.serviceNeeded);
+ expect(j.lead().address).toBe(originalLead.address);
+ expect(j.conversation().serviceEligibility).toEqual(original.serviceEligibility);
+ expect(j.conversation().bookingState).toEqual(original.bookingState);
+ const additional=j.conversation().conversationMemory.recoveryIntake.additionalRequests;
+ expect(additional).toHaveLength(1);expect(additional[0].accepted).toBe(false);
+ expect(AlertService.create).toHaveBeenCalledWith(expect.objectContaining({ title:'Additional service question', metadata:expect.objectContaining({primaryService:originalLead.serviceNeeded}) }));
+ expect(AppointmentService.create).not.toHaveBeenCalled();
+});

@@ -368,7 +368,7 @@ class AlertService {
       recommendedAction: isEmergency
         ? "Review the latest safety concern and attempt to contact the customer to assess whether your team can assist. Do not treat the requested appointment as confirmed."
         : intake
-        ? "Review the service, urgency, address, preferred time, and latest customer questions. Confirm availability with the customer before a visit."
+        ? `${result?.handoff?.callbackRequested === true ? `Call ${customerPhone || 'the customer'} as requested. ` : ''}Review the service, urgency, address, preferred time, and latest customer questions. Confirm availability with the customer before a visit.`
         : `Call ${customerPhone || "the customer"} and review the full SMS conversation before responding.`,
       aiSummary: String(result?.summary || lead?.summary || ""),
       lastCustomerMessage: customerMessage,

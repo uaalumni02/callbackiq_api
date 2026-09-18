@@ -18,7 +18,7 @@ const interruptCategories = new Set(['human_requested', 'appointment_status', 'p
 // Do not reinterpret opt-outs, withdrawals, or service-eligibility decisions.
 // These are customer-request facts only, never changes to an Appointment.
 export function preserveSmsInterruptFacts({ result, customerMessage, business, lead, conversation }) {
-  if (!result || result.decision === 'no_reply' || result.serviceEligibility ||
+  if (!result || result.compoundTurn || result.additionalRequest || result.decision === 'no_reply' || result.serviceEligibility ||
       requestWasWithdrawn(conversation) ||
       (!interruptCategories.has(result.messageCategory) && result.guardrail?.reason !== 'ai_pipeline_error')) return result;
   const classification = classifySmsIntent({ customerMessage, business, lead, conversation });

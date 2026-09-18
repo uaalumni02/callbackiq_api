@@ -223,7 +223,7 @@ export const ensureHumanHandoffResult = ({
   const safety = hasSafetyRisk(result);
   const needsCombinedReply =
     safety ||
-    explicitCallback ||
+    (explicitCallback && result.compoundTurn !== true) ||
     !originalReply ||
     result?.decision === "no_reply";
   const reply = sanitizeUnverifiedStaffCommitments(

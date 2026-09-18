@@ -148,9 +148,10 @@ const selectSlotOptions = (slots, urgency = "medium", maximum = 3) => {
     : spreadSlotOptions(chronological, maximum);
 };
 
-const selectOfferedSlot = (message, offeredSlots, timeZone) => {
+export const selectOfferedSlot = (message, offeredSlots, timeZone) => {
   const text = String(message || "").trim().toLowerCase();
   if (/\b(?:not|no|don't|do not|can't|cannot|cancel)\b/i.test(text)) return null;
+  if (offeredSlots.length === 1 && /^(?:yes|yeah|yep|that (?:time |option )?works(?: for me)?|works for me|sounds good|that one|the offered time)[.! ]*$/i.test(text)) return offeredSlots[0];
   // Option numbers are whole selections, never digits embedded in a clock time.
   const option = text.match(/^(?:(?:option|number|the)\s+)?(first|second|third|one|two|three|1|2|3)(?:\s+(?:one|option))?(?:\s+(?:please|works(?: for me)?))?[.! ]*$/);
   if (option) {
