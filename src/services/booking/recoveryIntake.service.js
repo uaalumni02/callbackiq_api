@@ -1,4 +1,4 @@
-import { extractCustomerAddress, addressFromTurn, isRepeatCorrection } from './customerAddress.service.js';
+import { extractCustomerAddress, addressFromTurn, isRepeatCorrection, extractCustomerPostalCode } from './customerAddress.service.js';
 import { isSoftOptOutPhrase } from '../messaging/smsCompliance.service.js';
 import { guardServiceRequest } from '../serviceEligibility/serviceEligibility.service.js';
 import { patternHasAffirmedSafetyMatch } from '../../helpers/ai/aiGuardrails.js';
@@ -27,6 +27,11 @@ const active = /\b(?:(?:actively|still|currently) (?:leaking|overflowing)|(?:lea
 const stopped = /\b(?:(?:not|no longer|stopped) (?:leaking|overflowing|flooding|spreading|gushing)|no (?:active )?(?:leak|overflow|flooding)|(?:leak(?:ing)?|overflow(?:ing)?) (?:has )?stopped|only when|only (?:leaks|leaking|overflows|overflowing))\b/i;
 const controlMessage = /^(?:stop|unsubscribe|help|start|unstop)[.! ]*$/i;
 const clogQuestion = 'Is water overflowing or backing up into other fixtures?';
+// Do not re-ask what the customer already answered ("it is not overflowing").
+const noOverflowStated = value => /\b(?:not|isn['’]?t|no|without)\s+(?:[a-z]+\s+){0,3}(?:overflow(?:ing)?|flood(?:ing|ed)?)\b/i.test(clean(value));
+const clogQuestionFor = context => noOverflowStated(context)
+  ? 'Thanks, I noted it is not overflowing. Is it backing up into any other sinks, tubs, or toilets?'
+  : clogQuestion;
 const cloggedFixture = value => /\b(?:clogged|blocked|stopped up)\b/i.test(value) && /\b(?:toilet|sink|drain|tub|shower|sewer)\b/i.test(value);
 const businessHoursQuestion = /\b(?:what (?:are|time)|when (?:are|do|will)).{0,35}\b(?:hours|open|close)\b/i;
 const addressFrom = extractCustomerAddress;
@@ -93,7 +98,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   if (channel === 'sms') {
     const lastOutbound = recentMessages.filter(message => message.direction === 'outbound').at(-1);
     if (lastOutbound && ['suppressed', 'failed', 'undelivered'].includes(lastOutbound.deliveryStatus || lastOutbound.status)) {
-      if (state.clogPending && /overflowing or backing up into other fixtures/i.test(lastOutbound.body || '')) state.clogAsked = false;
+      if (state.clogPending && /(?:overflowing or backing up into other fixtures|backing up into any other)/i.test(lastOutbound.body || '')) state.clogAsked = false;
       if (state.triagePending && /(?:leaking right now|is water leaking)/i.test(lastOutbound.body || '')) state.triageAsked = false;
     }
   }
@@ -142,12 +147,12 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   if (state.field === 'constraint_condition' && /^(?:no|nope)[.! ]*$/i.test(text)) state.constraintQuestion = '';
   const wasTriageResolved = state.triageResolved;
   const wasClogResolved = state.clogResolved;
-  if (state.clogPending && /^(?:no|nope|yes|yeah|yep)\b|\b(?:only|just) (?:the |this |my )?(?:sink|toilet|drain|tub|shower)|\b(?:not overflowing|no backup|no other fixtures|other fixtures (?:are )?fine)\b/i.test(text)) {
+  if (state.clogPending && /^(?:no|nope|yes|yeah|yep)\b|\b(?:only|just) (?:the |this |my )?(?:sink|toilet|drain|tub|shower)|\b(?:no backup|no other fixtures|other fixtures (?:are )?fine)\b/i.test(text)) {
     state.clogPending = false; state.clogResolved = true;
     state.triageAnswer = text.slice(0, 250);
     if (/^(?:yes|yeah|yep)\b/i.test(text) && lead.urgency !== 'emergency') lead.urgency = 'high';
   }
-  if (cloggedFixture(`${lead.serviceNeeded} ${text}`) && !state.clogAsked && !leak.test(`${lead.serviceNeeded} ${text}`)) state.clogPending = true;
+  if (cloggedFixture(`${lead.serviceNeeded} ${text}`) && !state.clogAsked && !state.clogResolved && !patternHasAffirmedSafetyMatch(leak, `${lead.serviceNeeded} ${text}`)) state.clogPending = true;
   const triageRelevant = state.triagePending || leak.test(`${lead.serviceNeeded} ${text}`);
   if (triageRelevant && (stoppedEvidence || activeEvidence || (shortTriageAnswer && /^(?:yes|yeah|yep|no|nope)[.! ]*$/i.test(text)))) {
     state.triageAnswer = text.slice(0, 250);
@@ -209,7 +214,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
       }
       return result;
     }
-    const addressAcknowledgement = channel === 'voice' && address && /\b\d{5}\b/.test(address) ? `I have ZIP ${address.match(/\b\d{5}\b/)[0].split('').join(' ')}. ` : '';
+    const addressAcknowledgement = channel === 'voice' && address && extractCustomerPostalCode(address) ? `I have ZIP ${extractCustomerPostalCode(address).split('').join(' ')}. ` : '';
     const acknowledged = !wasTriageResolved && state.triageResolved && state.leakPattern === 'during_use'
       ? 'Thanks for clarifying that it leaks during use. Please avoid using it for now. '
       : '';
@@ -242,7 +247,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   }
   if (state.clogPending && !state.clogAsked) {
     state.clogAsked = true;
-    return ask('clog_scope', clogQuestion);
+    return ask('clog_scope', clogQuestionFor(`${lead.serviceNeeded} ${state.serviceDetail || ''} ${text}`));
   }
   if (state.submitted) {
     await persist();
@@ -260,12 +265,12 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   }
   if (business.features?.aiBookingEnabled === true) {
     if (state.triagePending) return ask('leak_activity', 'Is water leaking right now?');
-    if (state.clogPending) return ask('clog_scope', clogQuestion);
+    if (state.clogPending) return ask('clog_scope', clogQuestionFor(`${lead.serviceNeeded} ${state.serviceDetail || ''} ${text}`));
     await persist(); return null;
   }
   await persist();
   if (!known(lead.address)) return ask('address', 'What is the service address?');
-  if (!/\b\d{5}(?:-\d{4})?\b/.test(lead.address)) return ask('postal_code', 'What is the ZIP code for that address?');
+  if (!extractCustomerPostalCode(lead.address)) return ask('postal_code', 'What is the ZIP code for that address?');
   const preference = clean(lead.preferredAppointmentTime);
   const range = findDateRange(preference, timezone, now);
   const time = parseTimePreference(state.time || preference, timezone, now);
@@ -276,13 +281,13 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   }
   if (time.targetMinutes === null && !time.timeOfDay) return ask('time', 'What time works best that day?');
   if (state.triagePending) return ask('leak_activity', 'Before I finish, is water leaking right now?');
-  if (state.clogPending) return ask('clog_scope', clogQuestion);
+  if (state.clogPending) return ask('clog_scope', clogQuestionFor(`${lead.serviceNeeded} ${state.serviceDetail || ''} ${text}`));
 
   let availabilityNote = "I couldn't verify that time's availability; it needs team review.";
   let ready = true;
   state.availability = { status: 'unknown', checkedAt: now.toISOString(), timezone };
   try {
-    const postalCode = lead.address.match(/\b\d{5}\b/)[0];
+    const postalCode = extractCustomerPostalCode(lead.address);
     const area = await validateServiceArea({ businessId: business._id, postalCode }); checkActive();
     if (area.supported === false) {
       ready = false; availabilityNote = 'That address is outside the configured service area. Is there another service address?';

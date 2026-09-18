@@ -19,3 +19,9 @@ test('voice queues the review before acknowledging and propagates persistence fa
  expect(result.outcome).toBe('callback_saved');
  expect(AlertService.createHumanHandoffAlert).toHaveBeenCalledWith(expect.objectContaining({ businessId: 'b', conversationId: 'c', result: expect.objectContaining({ intakeReady: false }) }));
 });
+test('a new same-day request replaces an older requested day while retaining its clock preference', async () => {
+ const c = context(); c.lead.preferredAppointmentTime = '2026-09-22 at 14:00';
+ const result = await requestStaffSchedulingReview({ ...c, customerMessage: 'Can someone come today?', now: new Date('2026-09-17T21:00:00-04:00') });
+ expect(result.preferredAppointmentTime).toBe('2026-09-17 at 14:00');
+ expect(c.lead.preferredAppointmentTime).toBe(result.preferredAppointmentTime);
+});

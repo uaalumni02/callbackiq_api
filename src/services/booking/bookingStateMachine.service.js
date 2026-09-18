@@ -1,5 +1,5 @@
 import { handleConversationControl } from '../conversationControl.service.js';
-import { extractCustomerAddress, normalizeSpokenAddress } from './customerAddress.service.js';
+import { extractCustomerAddress, normalizeSpokenAddress, extractCustomerPostalCode, withoutCustomerPostalCode } from './customerAddress.service.js';
 import { getApprovedServiceEstimate } from './approvedServiceEstimate.service.js';
 import { guardServiceRequest } from '../serviceEligibility/serviceEligibility.service.js';
 import { requestStaffSchedulingReview } from "./staffSchedulingReview.service.js";
@@ -53,11 +53,10 @@ const isAffirmative = (value) => {
 const isNegative = (value) => NEGATIVE_TOKEN.test(String(value || "").trim());
 
 const cleanStreetAddress = (value) =>
-  String(value || "")
+  withoutCustomerPostalCode(value)
     .trim()
     .replace(/^(?:yes|yeah|yep|sure|okay|ok)[,\s-]*/i, "")
     .replace(/^(?:it(?:'s| is)|the address is|address is|we(?:'re| are) at|i(?:'m| am) at|at)\s+/i, "")
-    .replace(ZIP_PATTERN, "")
     .replace(/^[,;:\s-]+|[,;:\s-]+$/g, "")
     .replace(/\s{2,}/g, " ");
 
@@ -259,7 +258,7 @@ const handleReadOnlyAvailabilityInquiry = async ({
     endDate: formatDateKey(new Date(Date.now() + 6 * 86_400_000), timeZone),
   };
   const timePreference = parseTimePreference(text, timeZone);
-  const postalCode = String(lead?.address || "").match(ZIP_PATTERN)?.[1] || "";
+  const postalCode = extractCustomerPostalCode(lead?.address);
   if (conversation?.set && typeof conversation.save === 'function') {
     await updateState(conversation, { searchStartDate: range.startDate, searchEndDate: range.endDate });
   }
@@ -299,12 +298,37 @@ const handleReadOnlyAvailabilityInquiry = async ({
       return { handled: true, result: await requestStaffSchedulingReview({ business, lead, conversation, customerMessage: text, channel }) };
     }
     let alternativeNote = '';
+    let optionsLabel = 'Current openings';
     if (!offeredSlots.length) {
       const expandedStart = range.startDate > today ? range.startDate : today;
       const expanded = await getAvailabilityTool({ business, leadId: lead?._id, conversationId: conversation?._id, serviceOfferingId: service.id,
-        startDate: expandedStart, endDate: new Date(new Date(`${expandedStart}T12:00:00Z`).getTime() + 14 * 86_400_000).toISOString().slice(0, 10), postalCode });
-      if (expanded?.supportedServiceArea !== false) offeredSlots = filterAutomatedSlots(expanded?.slots).slice(0, 3);
-      if (offeredSlots.length) alternativeNote = 'That time is unavailable under the business scheduling rules. ';
+        startDate: expandedStart, endDate: new Date(new Date(`${expandedStart}T12:00:00Z`).getTime() + 13 * 86_400_000).toISOString().slice(0, 10), postalCode });
+      if (expanded?.supportedServiceArea !== false) {
+        if (!Array.isArray(expanded?.slots)) throw new Error('Invalid expanded availability response');
+        // Keep honoring the time the customer asked for. Only when nothing in
+        // the next two weeks matches do we show the closest times, and we say
+        // so plainly instead of blaming unnamed "scheduling rules".
+        const expandedSlots = filterAutomatedSlots(expanded?.slots);
+        const expandedMatches = filterSlotsByTimePreference(expandedSlots, timePreference, timeZone);
+        const hasTimePreference = timePreference?.targetMinutes != null || Boolean(timePreference?.timeOfDay) ||
+          timePreference?.windowStartMinutes != null || timePreference?.windowEndMinutes != null;
+        if (expandedMatches.length) {
+          offeredSlots = selectSlotOptions(expandedMatches, lead?.urgency, 3);
+          alternativeNote = 'No matching time in the requested dates. ';
+          optionsLabel = 'Closest matches';
+        } else {
+          offeredSlots = (timePreference?.targetMinutes != null
+            ? rankSlotsByTimePreference(expandedSlots, timePreference, timeZone).slice(0, 3)
+                .sort((a, b) => new Date(a.startAt) - new Date(b.startAt))
+            : expandedSlots.slice(0, 3));
+          if (offeredSlots.length) {
+            alternativeNote = hasTimePreference
+              ? `I don’t see an opening at that time in the two weeks starting ${expandedStart}. `
+              : 'Nothing is open on that day. ';
+            optionsLabel = hasTimePreference ? 'Closest openings' : 'Current openings';
+          }
+        }
+      }
     }
     if (!offeredSlots.length) {
       const qualifier = timePreference?.timeOfDay
@@ -345,7 +369,7 @@ const handleReadOnlyAvailabilityInquiry = async ({
     return {
       handled: true,
       result: fixedResult({
-        reply: `${alternativeNote}${pricingNote ? `${pricingNote} ` : ""}Current openings: ${options}. Which option works best? Not a confirmed appointment; business approval required.`,
+        reply: `${pricingNote ? `${pricingNote} ` : ""}${alternativeNote}${optionsLabel}: ${options}. Which option works best? Not a confirmed appointment; business approval required.`,
         category: "availability_inquiry",
       }),
     };
@@ -840,7 +864,7 @@ class BookingStateMachineService {
     ) {
       const { street, valid } = parseStreetAddress(text);
       const suppliedZip =
-        normalizeSpokenAddress(text).match(ZIP_PATTERN)?.[1] ||
+        extractCustomerPostalCode(text) ||
         activeConversation.bookingState?.postalCode ||
         "";
 

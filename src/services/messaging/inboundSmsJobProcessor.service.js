@@ -1,3 +1,4 @@
+import { captureTurnFacts } from '../booking/turnFactCapture.service.js';
 import { handleConversationControl } from '../conversationControl.service.js';
 import { guardServiceRequest, blocksServiceAutomation } from '../serviceEligibility/serviceEligibility.service.js';
 import { respectCustomerConstraints } from '../conversationCondition.service.js';
@@ -423,6 +424,7 @@ export const processInboundSmsJob = async (job) => {
     customerMessage: customerTurn.customerMessage,
     business,
     conversation,
+    lead,
   });
   const deterministicAssessment = evaluateDeterministicInboundGuardrails({
     customerMessage: customerTurn.customerMessage,
@@ -562,8 +564,10 @@ export const processInboundSmsJob = async (job) => {
     const urgency = preserveHigherUrgency(lead.urgency,
       safety ? (deterministicAssessment.category === "emergency" ? "emergency" : "high") : classification.entities?.urgency);
     assertDistributedLeaseActive();
+    const facts = safety ? captureTurnFacts({ customerMessage: customerTurn.customerMessage, classification, business, lead }) : {};
     const followUpLead = await Lead.findByIdAndUpdate(lead._id,
-      { $set: { urgency } }, { returnDocument: "after", runValidators: true });
+      { $set: { ...facts, urgency } }, { returnDocument: "after", runValidators: true });
+    Object.assign(lead, facts, { urgency });
     const intent = safety ? deterministicAssessment.category : "intake_follow_up";
     const followUpConversation = await Conversation.findByIdAndUpdate(conversation._id, {
       $set: {

@@ -417,6 +417,27 @@ describe("completed manual intake uses the durable staff handoff", () => {
     generateAIReplyResult.mockResolvedValue({ decision: "send_fixed_response", actionType: "send_fixed_response", messageCategory: "appointment_preference", reply: "I've noted Wednesday at 9 AM as your preference.", preferredAppointmentTime: "Wednesday at 9 AM", serviceNeeded: activeLead.serviceNeeded, urgency: "high", guardrail: { usedFallback: false } });
   });
 
+
+  test('a safety message after intake updates its address before staff notification', async () => {
+    activeConversation.orchestration = { handoffReason: 'intake_complete', handoffInboundMessage: 'previous' };
+    activeInbound.body = 'Water is pouring through the ceiling! 56566 Road Way Atlanta GA 30323';
+    evaluateDeterministicInboundGuardrails.mockImplementation(jest.requireActual('../../src/helpers/ai/aiGuardrails.js').evaluateDeterministicInboundGuardrails);
+    await processInboundSmsJob(job);
+    expect(activeLead.address).toBe('56566 Road Way Atlanta GA 30323');
+    expect(AlertService.createHumanHandoffAlert).toHaveBeenCalledWith(expect.objectContaining({ lead: expect.objectContaining({ address: activeLead.address, urgency: 'emergency' }) }));
+    expect(AlertService.createHumanHandoffAlert.mock.invocationCallOrder[0]).toBeLessThan(sendSms.mock.invocationCallOrder[0]);
+  });
+
+  test('same-day scheduling review creates the staff alert before the SMS acknowledgement', async () => {
+    activeInbound.body = 'Can someone come today?';
+    generateAIReplyResult.mockResolvedValue({ decision: 'send_fixed_response', actionType: 'human_handoff', messageCategory: 'appointment_preference',
+      reply: 'Your requested timing is saved for team review.', serviceNeeded: activeLead.serviceNeeded, address: activeLead.address,
+      preferredAppointmentTime: 'today', handoff: { required: true, reason: 'scheduling_review' }, shouldAlertOwner: true });
+    await processInboundSmsJob(job);
+    expect(activeConversation.orchestration.handoffReason).toBe('scheduling_review');
+    expect(AlertService.createHumanHandoffAlert).toHaveBeenCalledWith(expect.objectContaining({ result: expect.objectContaining({ handoff: expect.objectContaining({ reason: 'scheduling_review' }) }) }));
+    expect(AlertService.createHumanHandoffAlert.mock.invocationCallOrder[0]).toBeLessThan(sendSms.mock.invocationCallOrder[0]);
+  });
   test("saves all details and the staff alert before acknowledging; does not pretend staff took over", async () => {
     const result = await processInboundSmsJob(job);
     expect(result.handoffStatus).toBe("acknowledged");

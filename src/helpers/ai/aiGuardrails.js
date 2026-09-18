@@ -140,7 +140,7 @@ const SAFETY_HAZARD_PATTERN_GROUPS = [
       // Escaping water is actionable even when the caller never says "flood".
       /\bwater\s+(?:(?:is|has been|now|still|currently|actively)\s+){0,3}(?:spilling|running|flowing|overflowing)\b[^.!?;]{0,35}\b(?:floor|carpet|room|hallway|stairs)\b/i,
       /\b(?:sink|toilet|tub|dishwasher|washer|water heater|pipe)\s+(?:(?:is|has been|now|still|currently|actively)\s+){0,3}(?:spilling|overflowing)\b/i,
-      /\bwater (?:is )?(?:pouring|gushing|flooding)\b/i,
+      /\bwater\s+(?:(?:is|has been|now|still|currently|actively|just|keeps?)\s+){0,3}(?:pouring|gushing|flooding|spraying|shooting)\b/i,
       /\bflood(?:ing|ed)?\s+(?:my|our|the)\s+(?:house|home|basement|apartment|property|kitchen|bathroom|garage|floor)\b/i,
       /\b(?:house|home|basement|apartment|property|kitchen|bathroom|garage)\b[\s\S]*\b(?:is |are )?(?:flooding|flooded|under ?water)\b/i,
 
@@ -604,44 +604,105 @@ export const containsPromptInjection = (value) => {
  * Contrast words and sentence punctuation create independent safety clauses so
  * a negated historical statement cannot suppress a later affirmative hazard.
  */
-const SAFETY_NEGATION_PREFIX =
-  /(?:^|\b)(?:no|never|without|not|isn['’]?t|aren['’]?t|wasn['’]?t|weren['’]?t|don['’]?t|doesn['’]?t|didn['’]?t|can['’]?t|couldn['’]?t|haven['’]?t|hasn['’]?t|hadn['’]?t|is not|are not|was not|were not|do not|does not|did not|cannot|could not|have not|has not|had not)\b(?:\s+\w+){0,3}\s*$/i;
+const SAFETY_NEGATION_CUE =
+  "(?:no|never|without|not|nothing|none|neither|nor|isn['’]?t|aren['’]?t|wasn['’]?t|weren['’]?t|don['’]?t|doesn['’]?t|didn['’]?t|can['’]?t|couldn['’]?t|haven['’]?t|hasn['’]?t|hadn['’]?t|is not|are not|was not|were not|do not|does not|did not|cannot|could not|have not|has not|had not)";
+
+/*
+ * A negation cue governs the next few words, including a coordinated list:
+ * "no leaking or flooding", "not flooded or anything", "nothing is flooded".
+ */
+const SAFETY_NEGATION_PREFIX = new RegExp(
+  `(?:^|\\b)${SAFETY_NEGATION_CUE}\\b(?:[\\s,/]+[\\w'’]+){0,4}[\\s,/]*$`,
+  "i",
+);
 
 const SAFETY_FALSE_NEGATION =
   /\bnot\s+(?:only|just)\b/i;
 
-const splitSafetyClauses = (text) =>
+/*
+ * Negation scope ends when the customer starts a new affirmative statement.
+ * "My basement has no power and is flooded" is a flood. This list is
+ * deliberately biased toward ending scope early: when scope is uncertain the
+ * hazard stays affirmed (fail-safe).
+ */
+const SAFETY_NEGATION_SCOPE_END =
+  /\b(?:now|still|then|so|because|since|when|while|until|after|and\s+(?:is|are|was|were|it|its|it['’]s|there|there['’]s|the|my|our|we|i|water|now|then|has|have))\b/i;
+
+/*
+ * These phrases contain a negation word that is part of the hazard itself
+ * ("water won't stop", "can't shut it off", "not breathing").
+ */
+const SAFETY_HAZARD_BEARING_NEGATION =
+  /\b(?:won['’]?t|will not|can['’]?t|cannot|can not|couldn['’]?t|could not|doesn['’]?t|does not|isn['’]?t|is not|not)\s+(?:[\w'’]+\s+){0,3}?(?:stop(?:ping)?|shut(?:ting)?|turn(?:ing)?|clos(?:e|ing)|breath(?:e|ing)|respon(?:d|ding|sive)|conscious|mov(?:e|ing)|get out|escape|drain(?:ing)?)\b/i;
+
+/*
+ * "No the kitchen is flooding" / "No, it's pouring" - a leading "no" that is
+ * answering a question, followed by a new subject, is not a negation.
+ */
+const LEADING_ANSWER_NO =
+  /^\s*(?:no|nope|nah)\b[\s,.!-]*(?=(?:the|my|our|it|its|it['’]s|i|i['’]m|we|we['’]re|there['’]s|there is|there are|actually)\b)/i;
+
+const splitSafetyClauses = (text, preserveSubjectLinks = false) =>
   String(text || "")
+    // A new subject + predicate ends the previous negation. Keep comma lists
+    // ("no smoke, fire or sparks") together, but separate independent reports.
+    .replace(/(?:,\s*|\band\s+)(?=(?:(?:the|my|our|your|his|her)\s+[a-z]+(?:\s+[a-z]+){0,2}|water|smoke|flames?|it|there|i|we|he|she|they)\s+(?:is|are|has|have|was|were|keeps?|comes?|pours?|flows?|smells?|started)\b)/gi, boundary => preserveSubjectLinks ? boundary : "; ")
     .split(
       /(?:[.!?;]+|\b(?:but|however|although|though|yet|except)\b)/i,
     )
-    .map((clause) => clause.trim())
+    .map((clause) => clause.replace(LEADING_ANSWER_NO, "").trim())
     .filter(Boolean);
 
-const isNegatedSafetyMatch = (clause, matchIndex) => {
-  /*
-   * Limit the scope of negation. This intentionally does not treat a distant
-   * "not" elsewhere in the sentence as negating the hazard.
-   */
-  const prefix = clause
-    .slice(Math.max(0, matchIndex - 90), matchIndex)
-    .trim();
-
+const negationGovernsPosition = (clause, position) => {
+  const prefix = clause.slice(Math.max(0, position - 90), position).trim();
   if (!prefix) return false;
 
   /*
    * "not only smoke..." and "not just smoke..." are affirmative mentions,
    * not safety negations.
    */
-  if (SAFETY_FALSE_NEGATION.test(prefix.slice(-40))) {
-    return false;
-  }
+  if (SAFETY_FALSE_NEGATION.test(prefix.slice(-40))) return false;
 
-  return SAFETY_NEGATION_PREFIX.test(prefix);
+  const cueMatch = SAFETY_NEGATION_PREFIX.exec(prefix);
+  if (!cueMatch) return false;
+
+  // Anything between the cue and the hazard that restarts an affirmative
+  // statement ends the negation scope.
+  return !SAFETY_NEGATION_SCOPE_END.test(cueMatch[0]);
+};
+
+/*
+ * Some hazards ARE a negation: "no heat", "no AC", "no running water".
+ * When the pattern itself spells out the negation word, a cue inside the
+ * match is the hazard, not a denial of it.
+ */
+const patternCarriesNegation = (pattern) =>
+  // Strip regex escapes first so "\\bno heat" is read as "no heat", not "bno".
+  /(?:^|[^a-z])(?:no|not|without|never|nothing|none)(?:[^a-z]|$)/i.test(
+    String(pattern?.source || "").replace(/\\[a-zA-Z]/g, " "),
+  );
+
+const isNegatedSafetyMatch = (clause, matchIndex, matchText = "", pattern = null) => {
+  if (SAFETY_HAZARD_BEARING_NEGATION.test(matchText)) return false;
+
+  // Negation stated before the whole matched phrase.
+  if (negationGovernsPosition(clause, matchIndex)) return true;
+
+  /*
+   * Negation stated inside a wide match. Patterns such as
+   * /kitchen ... flooding/ can begin far before the hazard word, so
+   * "my kitchen sink is clogged there is no leaking or flooding" must be
+   * evaluated at the hazard word, not at "kitchen".
+   */
+  const lastWord = /[\w'’]+\s*$/.exec(matchText);
+  if (lastWord && lastWord.index > 0 && !patternCarriesNegation(pattern)) {
+    return negationGovernsPosition(clause, matchIndex + lastWord.index);
+  }
+  return false;
 };
 
 export const patternHasAffirmedSafetyMatch = (pattern, text) => {
-  for (const clause of splitSafetyClauses(text)) {
+  for (const clause of splitSafetyClauses(text, patternCarriesNegation(pattern))) {
     /*
      * Clone the expression so global/sticky lastIndex state can never leak
      * between calls. Use global matching so a negated first occurrence does
@@ -660,7 +721,7 @@ export const patternHasAffirmedSafetyMatch = (pattern, text) => {
 
     while ((match = matcher.exec(clause)) !== null) {
       const internallyNegated = /\b(?:is not|are not|isn[’']?t|aren[’']?t|not currently|no longer)\b/i.test(match[0]);
-      if (!internallyNegated && !isNegatedSafetyMatch(clause, match.index)) {
+      if (!internallyNegated && !isNegatedSafetyMatch(clause, match.index, match[0], pattern)) {
         return true;
       }
 

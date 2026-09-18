@@ -1,3 +1,5 @@
+import { captureTurnFacts } from '../services/booking/turnFactCapture.service.js';
+import { classifySmsIntent } from '../services/messaging/smsIntentClassifier.service.js';
 import { handleConversationControl } from '../services/conversationControl.service.js';
 import { guardServiceRequest } from '../services/serviceEligibility/serviceEligibility.service.js';
 import { observeCustomerConstraint, respectCustomerConstraints } from '../services/conversationCondition.service.js';
@@ -415,6 +417,16 @@ class VoiceAgentService {
       return { reply: constraintResult.reply };
     }
     if (safety?.reply) safety.reply = respectCustomerConstraints(safety.reply, { conversation, customerMessage: text });
+    if (safety?.needsReview || safety?.isEmergency || safety?.shouldSendSafetyReply) {
+      const facts = captureTurnFacts({ customerMessage: text, business, lead,
+        classification: classifySmsIntent({ customerMessage: text, business, lead, conversation }) });
+      if (lead && Object.keys(facts).length) {
+        assertVoiceTurnActive();
+        Object.assign(lead, facts);
+        await lead.save();
+        assertVoiceTurnActive();
+      }
+    }
     if (safety?.needsReview) {
       const assessment = safety.reviewAssessment;
       assertVoiceTurnActive();
@@ -445,6 +457,8 @@ class VoiceAgentService {
           serviceNeeded: lead?.serviceNeeded || `Potential ${safety?.hazardType || "safety"} emergency`,
           urgency: "emergency",
           urgencyDetail: text,
+          location: lead?.address,
+          preferredTime: lead?.preferredAppointmentTime,
         },
         immediate: true,
         sendConfirmationSms: false,

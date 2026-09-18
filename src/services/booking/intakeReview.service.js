@@ -1,3 +1,4 @@
+import { extractCustomerPostalCode } from './customerAddress.service.js';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
 import Conversation from '../../models/conversation.js';
@@ -41,7 +42,7 @@ export const approveIntake = async ({ business, conversationId, input, approvedB
     const customerPhone = normalizePhoneToE164(conversation.customerPhone);
     if (!customerPhone) throw fail('Confirm a usable customer phone number before approving this request.', 'INTAKE_CONTACT_REQUIRED');
     const address = String(lead.address || '').trim();
-    const postalCode = address.match(/\b\d{5}(?:-\d{4})?\b/)?.[0];
+    const postalCode = extractCustomerPostalCode(address);
     if (!address || !postalCode || !lead.serviceNeeded) throw fail('Review the service and complete address before scheduling.', 'INTAKE_INCOMPLETE');
     const journey = conversation.orchestration?.recoveryJourneyKey || 'legacy';
     const key = `intake-approval:${conversation._id}:${crypto.createHash('sha256').update(journey).digest('hex').slice(0, 24)}`;

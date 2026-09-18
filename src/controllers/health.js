@@ -9,12 +9,19 @@ const databaseState = () => {
   return states[mongoose.connection.readyState] || "unknown";
 };
 
+// Only publish a validated build identifier, never arbitrary environment text.
+const deployedCommit = () => {
+  const value = process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT_SHA || process.env.SOURCE_VERSION || '';
+  return /^[a-f0-9]{7,40}$/i.test(value) ? value : null;
+};
+
 class HealthController {
   static live(req, res) {
     return res.status(200).json({
       success: true,
       status: "live",
       service: "callbackiq-api",
+      commit: deployedCommit(),
       environment: process.env.APP_ENV || process.env.NODE_ENV || "development",
       uptimeSeconds: Math.floor(process.uptime()),
       requestId: req.context?.requestId || "",

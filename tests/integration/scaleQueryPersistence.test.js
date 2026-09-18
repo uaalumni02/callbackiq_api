@@ -10,7 +10,12 @@ import { queryOwnerOpportunities } from '../../src/services/scale/ownerOpportuni
 import { withSmsTenantSlot } from '../../src/services/scale/smsTenantFairness.service.js';
 import { ownerInterventionFilter } from '../../src/services/ownerExperience.service.js';
 const oid = () => new mongoose.Types.ObjectId();
-beforeAll(connectTestDB, 120000);
+beforeAll(async () => {
+  await connectTestDB();
+  // Raw collection fixtures must satisfy the real unique index regardless of
+  // whether background model initialization wins the first insert race.
+  await Appointment.init();
+}, 120000);
 afterEach(async () => { delete process.env.SMS_TENANT_MAX_CONCURRENCY; if (mongoose.connection.readyState === 1) await clearTestDB(); });
 afterAll(async () => { if (mongoose.connection.readyState === 1) await closeTestDB(); });
 test('history traverses every older message once, includes legacy links, and excludes another tenant', async () => {
@@ -28,8 +33,8 @@ test('history traverses every older message once, includes legacy links, and exc
 test('old completed appointments remain in all-history totals and reads do not update lifecycle', async () => {
   const business = oid(), lead = { _id: oid(), phone: '+14045550124', status: 'new', customerLifecycleStatus: 'new' };
   await Lead.collection.insertOne({ ...lead, business });
-  await Appointment.collection.insertMany([{ business, lead: lead._id, status: 'completed', actualRevenue: 275, createdAt: new Date(0) },
-    ...Array.from({length: 60}, () => ({ business, lead: lead._id, status: 'canceled', createdAt: new Date() }))]);
+  await Appointment.collection.insertMany([{ business, lead: lead._id, idempotencyKey: 'history-completed', status: 'completed', actualRevenue: 275, createdAt: new Date(0) },
+    ...Array.from({length: 60}, (_, i) => ({ business, lead: lead._id, idempotencyKey: `history-canceled-${i}`, status: 'canceled', createdAt: new Date() }))]);
   const summary = await readCustomerSummary({ businessId: business, lead });
   expect(summary).toMatchObject({ actualRevenue: 275, customerLifecycleStatus: 'recovered', appointmentCount: 61 });
   expect((await Lead.findById(lead._id).lean()).customerLifecycleStatus).toBe('new');

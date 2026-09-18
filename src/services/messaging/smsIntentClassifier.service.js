@@ -50,6 +50,7 @@ const RESCHEDULE = [
 ];
 
 const CORRECTION = [
+  /\b(?:it['’]?s|it is)\b.{0,60}\bnot\b|\bnot\b.{1,50},/i,
   /\b(?:actually|correction|instead|rather|i meant|make that|not .{0,35}(?:but|it's|it is))\b/i,
 ];
 
@@ -86,6 +87,24 @@ const PROBLEM_STATE = /\b(?:clogged|blocked|leak(?:ing|s)?|broken|not working|wo
 
 export const extractService = (text, { lead = null, conversation = null } = {}) => {
   const known = clean(lead?.serviceNeeded || conversation?.serviceNeeded || conversation?.bookingState?.serviceNeeded);
+  // "It's the bathroom sink, not the kitchen sink" corrects part of the saved
+  // request. Apply it only when the replaced words are actually in that request.
+  if (known && !/^unknown$/i.test(known)) {
+    const NOUN = "([a-z][a-z'’/-]*(?:\\s+[a-z][a-z'’/-]*){0,3}?)";
+    const DET = "(?:the |my |our |a |an )?";
+    const forward = clean(text).match(new RegExp(`\\b(?:(?:it['’]?s|it is|i meant|i mean|make that|actually)[,]?\\s+)+${DET}${NOUN}\\s*(?:,|\\band\\b|\\bbut\\b)?\\s*\\bnot\\s+${DET}${NOUN}(?=\\s*(?:[.,;!?]|$))`, "i"));
+    const reverse = forward ? null : clean(text).match(new RegExp(`\\bnot\\s+${DET}${NOUN}\\s*(?:[,;-]|\\bbut\\b)\\s*(?:it['’]?s|it is|rather|i meant)?\\s*${DET}${NOUN}(?=\\s*(?:[.,;!?]|$))`, "i"));
+    const replacement = clean(forward?.[1] || reverse?.[2]);
+    const replaced = clean(forward?.[2] || reverse?.[1]);
+    if (replacement && replaced && replacement.toLowerCase() !== replaced.toLowerCase()) {
+      const escaped = replaced.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const target = new RegExp(`\\b${escaped}\\b`, "i");
+      if (target.test(known)) {
+        const corrected = clean(known.replace(target, replacement));
+        if (corrected.length >= 3 && corrected.length <= 160) return corrected;
+      }
+    }
+  }
   // Keep each clause independent: a question about price cannot swallow a fact.
   const clauses = clean(text).split(/(?:[.!?;]\s*|,?\s+(?:and|but)\s+|\s+)(?=(?:how much|what (?:is|does|would|will|time)|when|how soon|can you|could you|will you|are you)\b)|[.!?;]\s*/i);
   for (let clause of clauses) {

@@ -4,6 +4,7 @@ import { observeCustomerConstraint, respectCustomerConstraints } from './convers
 import { getApprovedServiceEstimate } from "./booking/approvedServiceEstimate.service.js";
 import { constrainUncertainReply, qualifiedIntakeFacts, resetUncertainTurns } from "./messaging/uncertainReply.service.js";
 import { handleRecoveryIntake } from "./booking/recoveryIntake.service.js";
+import { captureTurnFacts } from "./booking/turnFactCapture.service.js";
 import {
   SAFE_REPLIES,
   cleanText,
@@ -190,10 +191,20 @@ export const generateAIReplyResult = async ({
     if (constraintResult && !deterministicAssessment.handled) return constraintResult;
     if (deterministicAssessment.handled) {
       deterministicAssessment.reply = respectCustomerConstraints(deterministicAssessment.reply, { conversation, customerMessage: latestCustomerMessage });
-      return preserveTurnUrgency(
-        deterministicResult(deterministicAssessment),
-        turnUrgency,
-      );
+      const guarded = deterministicResult(deterministicAssessment);
+      // Safety replies win the turn, but customer-supplied facts are kept so
+      // nobody is asked to repeat an address after an emergency notice.
+      const safetyTurn = ["emergency", "hazardous_diy_request"].includes(deterministicAssessment.category) ||
+        deterministicAssessment.reason === "safety_clarification_required";
+      if (safetyTurn) {
+        Object.assign(guarded, captureTurnFacts({
+          customerMessage: latestCustomerMessage,
+          classification: turnClassification,
+          lead,
+          business,
+        }));
+      }
+      return preserveTurnUrgency(guarded, turnUrgency);
     }
 
     const control = await handleConversationControl({ business, lead, conversation, customerMessage: latestCustomerMessage });

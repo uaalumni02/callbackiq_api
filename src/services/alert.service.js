@@ -348,7 +348,7 @@ class AlertService {
      * promise unless the action-required staff alert is durably stored. The
      * unique dedupe key makes retries safe.
      */
-    return this.create({
+    const persisted = await this.create({
       businessId,
       leadId,
       conversationId,
@@ -393,6 +393,10 @@ class AlertService {
       },
       dedupeKey: `human_handoff:${providerMessageId || messageId}`,
     });
+    if (!persisted?.alert?._id) {
+      throw Object.assign(new Error('Staff handoff alert was not persisted.'), { code: 'STAFF_ACTION_NOT_SAVED' });
+    }
+    return persisted;
   }
   static async createHotLeadAlert({
     businessId,

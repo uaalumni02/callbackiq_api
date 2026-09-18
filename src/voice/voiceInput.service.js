@@ -1,3 +1,4 @@
+import { extractCustomerPostalCode } from '../services/booking/customerAddress.service.js';
 import {
   digitsOnly,
   normalizePhoneToE164,
@@ -113,7 +114,7 @@ const spokenDigits = (value) => {
 
 export const extractPostalCode = (value) => {
   const text = cleanVoiceText(value, 500);
-  const direct = text.match(ZIP_PATTERN)?.[1];
+  const direct = extractCustomerPostalCode(text);
   if (direct) return direct;
   const words = spokenDigits(text);
   return words.length >= 5 ? words.slice(0, 5) : "";

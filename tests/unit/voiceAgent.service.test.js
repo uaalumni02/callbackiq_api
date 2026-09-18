@@ -117,6 +117,18 @@ const makeSession = () => {
 };
 
 describe("VoiceAgentService callback-first recovery", () => {
+  test('an emergency persists the complete address before creating the voice callback', async () => {
+    const session = makeSession();
+    assessInboundSafety.mockResolvedValue({ isEmergency: true, shouldSendSafetyReply: true, hazardType: 'flood', reply: 'Do not wait for a callback.' });
+    await VoiceAgentService.handlePrompt({ session, customerMessage: 'Water is pouring through the ceiling! 56566 Road Way Atlanta GA 30323' });
+    expect(session.lead.address).toBe('56566 Road Way Atlanta GA 30323');
+    expect(session.lead.save.mock.invocationCallOrder[0]).toBeLessThan(VoiceCallbackService.handle.mock.invocationCallOrder[0]);
+    expect(VoiceCallbackService.handle).toHaveBeenCalledWith(expect.objectContaining({
+      immediate: true, sendConfirmationSms: false,
+      seed: expect.objectContaining({ location: '56566 Road Way Atlanta GA 30323', urgency: 'emergency' }),
+    }));
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
     assessInboundSafety.mockResolvedValue({ isEmergency: false });

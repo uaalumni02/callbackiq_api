@@ -34,6 +34,14 @@ const parseAddressCandidate = (value, { expected = false } = {}) => {
   text = normalizeSpokenAddress(text);
   // Separate a supplied date/time from the location, without inventing street components.
   text = text.replace(/([\s\S]*?\b\d{5}(?:-\d{4})?)(?:[,;.]?\s+)(?=(?:on\s+)?(?:today|tomorrow|next|mon|tue|wed|thu|fri|sat|sun|jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?|at\s+\d|20\d{2}-))/i, '$1\n').split('\n')[0];
+  // Match a postal token after the street number/name, then consume only a
+  // bounded unit suffix. Do not let regex backtracking discard ZIP+4 or units.
+  const postalEnd = /^(\d{1,7}[a-z]?(?:-\d+)?\s+[a-z][\s\S]*?\s\d{5}(?:-\d{4})?)\b/i.exec(text);
+  if (postalEnd) {
+    const tail = text.slice(postalEnd[0].length);
+    const unit = /^\s*,?\s*(?:(?:apt|apartment|unit|suite|ste|bldg|building|lot)\.?\s*#?\s*|#\s*)([a-z0-9]+(?:-[a-z0-9]+)?)(?=$|[\s.,;!?])/i.exec(tail);
+    text = postalEnd[0] + (unit ? ` ${unit[0].trim().replace(/^,\s*/, '')}` : '');
+  }
   if (!/^\d{1,7}[a-z]?(?:-\d+)?\s+[a-z]/i.test(text) || text.length > 500) return '';
   if (/\b(?:dollars?|bucks?|minutes?|hours?|days?|weeks?|am|pm|percent|bedrooms?|bathrooms?)\b|\$|https?:|@/i.test(text)) return '';
   if (/\b(?:schedule|appointment|tomorrow|today|next week|please|need|want|repair|replace|cost|quote)\b/i.test(text)) return '';
@@ -49,7 +57,7 @@ export const extractCustomerAddress = (value, options = {}) => {
   const direct = parseAddressCandidate(text, options);
   if (direct) return direct;
   const candidates = [];
-  const boundaries = /(?:[,;]\s*|\b(?:address is|located at|i am at|i'm at|we are at|we're at|at)\s+)(?=\d{1,7}[a-z]?(?:-\d+)?\s+[a-z])/gi;
+  const boundaries = /(?:[,;.!?]\s*|\b(?:address is|located at|i am at|i'm at|we are at|we're at|at)\s+)(?=\d{1,7}[a-z]?(?:-\d+)?\s+[a-z])/gi;
   for (const match of text.matchAll(boundaries)) {
     const candidate = parseAddressCandidate(text.slice(match.index + match[0].length), options);
     if (candidate && !candidates.includes(candidate)) candidates.push(candidate);
@@ -57,12 +65,29 @@ export const extractCustomerAddress = (value, options = {}) => {
   // Multiple competing locations require clarification, never an arbitrary pick.
   return candidates.length === 1 ? candidates[0] : '';
 };
+// A five-digit street number is not a ZIP. Use the bounded address when
+// available, and skip its leading street-number token before reading postal data.
+const postalMatch = value => {
+  const text = clean(value);
+  const numberEnd = /^\d{1,7}[a-z]?(?:-\d+)?\s+[a-z]/i.test(text) ? text.indexOf(' ') : -1;
+  return [...text.matchAll(/\b(\d{5})(?:-\d{4})?\b/g)].find(match => match.index > numberEnd) || null;
+};
+export const extractCustomerPostalCode = value => {
+  const normalized = normalizeSpokenAddress(value);
+  return postalMatch(extractCustomerAddress(normalized) || normalized)?.[1] || '';
+};
+export const withoutCustomerPostalCode = value => {
+  const text = clean(value);
+  const match = postalMatch(text);
+  return match ? clean(text.slice(0, match.index) + text.slice(match.index + match[0].length)) : text;
+};
 export const addressFromTurn = ({ customerMessage, recentMessages = [], conversation = null, knownAddress = '' } = {}) => {
   const field = conversation?.conversationMemory?.recoveryIntake?.field;
   const expected = field === 'address' || ['collecting_location', 'collecting_street_address'].includes(conversation?.bookingState?.status);
   const zip = clean(customerMessage).match(/^(?:(?:no|actually|correction)[, ]+)?(?:(?:the |my )?(?:zip(?: code)?|postal code)(?: is)?[: ]+)?(\d{5}(?:-\d{4})?)[.! ]*$/i)?.[1];
-  if (zip && knownAddress && (!/\b\d{5}\b/.test(knownAddress) || /^(?:no|actually|correction|(?:the |my )?(?:zip|postal))\b/i.test(clean(customerMessage)))) {
-    return /\b\d{5}(?:-\d{4})?\b/.test(knownAddress) ? knownAddress.replace(/\b\d{5}(?:-\d{4})?\b/, zip) : `${knownAddress}, ${zip}`;
+  if (zip && knownAddress && (!extractCustomerPostalCode(knownAddress) || /^(?:no|actually|correction|(?:the |my )?(?:zip|postal))\b/i.test(clean(customerMessage)))) {
+    const match = postalMatch(knownAddress);
+    return match ? knownAddress.slice(0, match.index) + zip + knownAddress.slice(match.index + match[0].length) : `${knownAddress}, ${zip}`;
   }
   if (isRepeatCorrection(customerMessage) && knownAddress) return knownAddress;
   const current = extractCustomerAddress(customerMessage, { expected });

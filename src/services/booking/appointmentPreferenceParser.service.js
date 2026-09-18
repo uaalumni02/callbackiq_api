@@ -325,7 +325,14 @@ export const findDateRange = (message, timeZone = "America/New_York", now = new 
     const explicitlyNext = /\bnext\s+(?:sun|sunday|mon|monday|tue|tues|tuesday|wed|weds|wednesday|thu|thur|thurs|thursday|fri|friday|sat|saturday)\b/i.test(text);
     const explicitlyThis = /\b(?:this|coming)\s+(?:sun|sunday|mon|monday|tue|tues|tuesday|wed|weds|wednesday|thu|thur|thurs|thursday|fri|friday|sat|saturday)\b/i.test(text);
     let daysAhead = (matchedWeekday.index - currentWeekday + 7) % 7;
-    if (explicitlyNext) daysAhead = daysAhead === 0 ? 7 : daysAhead + 7;
+    if (explicitlyNext) {
+      // "Next Tuesday" said on a Thursday means the Tuesday of next calendar
+      // week (5 days away), not the one after it. Resolve to the named weekday
+      // inside the week that starts next Monday.
+      const mondayIndexed = (matchedWeekday.index + 6) % 7;
+      const resolved = shiftDateKey(nextWeekStart, mondayIndexed);
+      return { startDate: resolved, endDate: resolved };
+    }
     else if (daysAhead === 0 && !explicitlyThis) daysAhead = 7;
     const key = shiftDateKey(todayKey, daysAhead);
     return { startDate: key, endDate: key };

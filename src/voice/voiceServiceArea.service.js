@@ -1,7 +1,8 @@
+import { extractCustomerPostalCode } from '../services/booking/customerAddress.service.js';
 import validateServiceAreaTool from "../helpers/ai/tools/validateServiceArea.tool.js";
 
 const normalize = (value) => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-const postal = (value) => String(value || "").match(/\b\d{5}\b/)?.[0] || "";
+const postal = extractCustomerPostalCode;
 const configuredAreas = (business) => {
   const value = business?.aiKnowledge?.verifiedFacts?.serviceAreas?.value;
   const sources = [value, business?.serviceAreas, business?.serviceAreaCities, business?.serviceZipCodes].flat().filter(Boolean);
