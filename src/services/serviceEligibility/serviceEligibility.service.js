@@ -1,3 +1,4 @@
+import { assessProblemClarity } from "../booking/requestQualificationPolicy.service.js";
 import { isRequestWithdrawal, requestWasWithdrawn } from '../conversationControlPolicy.js';
 import { extractCustomerAddress, addressFromTurn, isAddressOnlyTurn } from '../booking/customerAddress.service.js';
 import { isSoftOptOutPhrase } from '../messaging/smsCompliance.service.js';
@@ -183,6 +184,17 @@ export async function assertServiceRequestEligible({ businessId, leadId, convers
   if ((!allowStaffReview && eligibility.canBook !== true) || (eligibility.decision !== 'supported' && !(allowStaffReview && eligibility.decision === 'needs_staff_review' && eligibility.serviceId)) ||
       String(eligibility.serviceId || '') !== String(serviceOfferingId?._id || serviceOfferingId || '')) {
     throw Object.assign(new Error('Review the requested service before pricing or scheduling.'), { code: 'SERVICE_ELIGIBILITY_REQUIRED', statusCode: 409, eligibility });
+  }
+  if (!allowStaffReview) {
+    const intake = conversation?.conversationMemory?.recoveryIntake || {};
+    const problem = assessProblemClarity({ service: lead?.serviceNeeded || actualRequest, text: '',
+      previous: intake.problem, policy: eligibility.intakePolicy, category: eligibility.category,
+      interrupt: true });
+    if (problem.status !== 'clear' || intake.triagePending || intake.clogPending) {
+      throw Object.assign(new Error('Clarify the customer problem before offering or creating an appointment.'), {
+        code: 'REQUEST_QUALIFICATION_REQUIRED', statusCode: 409, problem,
+      });
+    }
   }
   return eligibility;
 }

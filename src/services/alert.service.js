@@ -367,6 +367,8 @@ class AlertService {
       reason: category,
       recommendedAction: isEmergency
         ? "Review the latest safety concern and attempt to contact the customer to assess whether your team can assist. Do not treat the requested appointment as confirmed."
+        : result?.qualificationReason
+        ? 'Review the coverage decision and unresolved problem details before offering an appointment. Contact the customer if clarification is needed.'
         : intake
         ? `${result?.handoff?.callbackRequested === true ? `Call ${customerPhone || 'the customer'} as requested. ` : ''}Review the service, urgency, address, preferred time, and latest customer questions. Confirm availability with the customer before a visit.`
         : `Call ${customerPhone || "the customer"} and review the full SMS conversation before responding.`,
@@ -381,6 +383,7 @@ class AlertService {
         handoffReason: String(result?.handoff?.reason || ""),
         customerConstraints: result?.customerConstraints || [],
         intakeReview: intake ? result?.intakeReview || { serviceNeeded, address, preferredAppointmentTime } : null,
+        qualificationReason: String(result?.qualificationReason || ''),
         callbackRequested: result?.handoff?.callbackRequested === true,
         messageCategory: category,
         riskFlags,

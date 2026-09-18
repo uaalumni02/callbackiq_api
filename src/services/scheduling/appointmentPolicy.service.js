@@ -3,7 +3,7 @@ import AvailabilityRule from "../../models/availabilityRule.js";
 import SchedulingPolicy from "../../models/schedulingPolicy.js";
 import ServiceArea from "../../models/serviceArea.js";
 import ServiceOffering from "../../models/serviceOffering.js";
-import getPostalCodeDistanceMiles from "../location/postalCodeDistance.service.js";
+import { evaluateServiceAreaPolicy } from "./serviceAreaPolicy.service.js";
 import { formatDateKey, getUtcDayOfWeekForDateKey } from "./timezone.service.js";
 
 const ZIP_PATTERN = /^\d{5}(?:-\d{4})?$/;
@@ -99,76 +99,13 @@ export const getAiBookableService = async ({
   return service;
 };
 
-export const validateServiceArea = async ({
-  businessId,
-  postalCode,
-  distanceResolver = getPostalCodeDistanceMiles,
-}) => {
-  const normalizedPostalCode = String(postalCode || "").trim();
-
-  if (!normalizedPostalCode) {
-    return { supported: true, reason: "not_provided" };
+export const validateServiceArea = async ({ businessId, postalCode, distanceResolver }) => {
+  const normalized = String(postalCode || "").trim();
+  if (normalized && !ZIP_PATTERN.test(normalized)) {
+    throw serviceError("postalCode must be a valid US ZIP code.", 400, "INVALID_POSTAL_CODE");
   }
-
-  if (!ZIP_PATTERN.test(normalizedPostalCode)) {
-    throw serviceError("postalCode must be a valid US ZIP code.", 400);
-  }
-
   const area = await ServiceArea.findOne({ business: businessId }).lean();
-
-  if (!area) {
-    return { supported: true, reason: "no_restriction_configured" };
-  }
-
-  const fiveDigitZip = normalizedPostalCode.slice(0, 5);
-
-  if (area.type === "zip_codes") {
-    const configuredZipCodes = Array.isArray(area.zipCodes) ? area.zipCodes : [];
-
-    if (configuredZipCodes.length === 0) {
-      return { supported: true, reason: "no_restriction_configured" };
-    }
-
-    const supported = configuredZipCodes.some(
-      (value) => String(value || "").slice(0, 5) === fiveDigitZip,
-    );
-
-    return {
-      supported,
-      reason: supported ? "matched" : "outside_configured_service_area",
-      mode: "zip_codes",
-    };
-  }
-
-  if (area.type === "radius") {
-    const centerPostalCode = String(area.centerPostalCode || "").trim().slice(0, 5);
-    const radiusMiles = Number(area.radiusMiles);
-
-    if (!ZIP_PATTERN.test(centerPostalCode) || !Number.isFinite(radiusMiles) || radiusMiles <= 0) {
-      throw serviceError(
-        "The radius service area is missing a valid center ZIP code or radius.",
-        409,
-        "SERVICE_AREA_CONFIGURATION_INCOMPLETE",
-      );
-    }
-
-    const distanceMiles = await distanceResolver({
-      originPostalCode: centerPostalCode,
-      destinationPostalCode: fiveDigitZip,
-    });
-    const supported = distanceMiles <= radiusMiles;
-
-    return {
-      supported,
-      reason: supported ? "matched_radius" : "outside_configured_service_area",
-      mode: "radius",
-      distanceMiles: Number(distanceMiles.toFixed(2)),
-      radiusMiles,
-      centerPostalCode,
-    };
-  }
-
-  return { supported: true, reason: "no_restriction_configured" };
+  return evaluateServiceAreaPolicy({ area, postalCode: normalized, distanceResolver });
 };
 
 export const validateBookingWindow = ({

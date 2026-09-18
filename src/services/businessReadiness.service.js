@@ -15,7 +15,7 @@ const CONNECTED_PROVIDER = {
 };
 
 const hasServiceArea = (serviceArea) =>
-  serviceArea?.type === "zip_codes"
+  serviceArea?.type === "unrestricted" ? true : serviceArea?.type === "zip_codes"
     ? Boolean(serviceArea?.zipCodes?.length)
     : Boolean(serviceArea?.centerPostalCode && Number(serviceArea?.radiusMiles) > 0);
 

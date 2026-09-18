@@ -96,10 +96,11 @@ describe("appointment policy service", () => {
     ).rejects.toMatchObject({ statusCode: 409, code: "SERVICE_NOT_BOOKABLE" });
   });
 
-  test("allows an omitted service-area ZIP", async () => {
-    await expect(validateServiceArea({ businessId: "b1", postalCode: "" })).resolves.toEqual({
-      supported: true,
-      reason: "not_provided",
+  test("requires a ZIP for configured coverage", async () => {
+    ServiceArea.findOne.mockReturnValue(leanResult({ type: "zip_codes", zipCodes: ["30318"] }));
+    await expect(validateServiceArea({ businessId: "b1", postalCode: "" })).resolves.toMatchObject({
+      supported: null,
+      reason: "zip_code_required",
     });
   });
 
@@ -115,13 +116,13 @@ describe("appointment policy service", () => {
   test.each([
     [null],
     [{ type: "zip_codes", zipCodes: [] }],
-  ])("allows the ZIP when no ZIP restriction exists", async (area) => {
+  ])("does not assume coverage when configuration is missing", async (area) => {
     ServiceArea.findOne.mockReturnValue(leanResult(area));
     await expect(
       validateServiceArea({ businessId: "b1", postalCode: "30318" }),
-    ).resolves.toEqual({
-      supported: true,
-      reason: "no_restriction_configured",
+    ).resolves.toMatchObject({
+      supported: null,
+      reason: "service_area_not_configured",
     });
   });
 
@@ -136,9 +137,9 @@ describe("appointment policy service", () => {
 
     await expect(
       validateServiceArea({ businessId: "b1", postalCode: "30318" }),
-    ).rejects.toMatchObject({
-      statusCode: 409,
-      code: "SERVICE_AREA_CONFIGURATION_INCOMPLETE",
+    ).resolves.toMatchObject({
+      supported: null,
+      reason: "service_area_configuration_incomplete",
     });
   });
 
@@ -158,7 +159,7 @@ describe("appointment policy service", () => {
         postalCode: "30309",
         distanceResolver,
       }),
-    ).resolves.toEqual({
+    ).resolves.toMatchObject({
       supported: true,
       reason: "matched_radius",
       mode: "radius",
@@ -174,14 +175,14 @@ describe("appointment policy service", () => {
     );
     await expect(
       validateServiceArea({ businessId: "b1", postalCode: "30318-9999" }),
-    ).resolves.toEqual({
+    ).resolves.toMatchObject({
       supported: true,
       reason: "matched",
       mode: "zip_codes",
     });
     await expect(
       validateServiceArea({ businessId: "b1", postalCode: "99999" }),
-    ).resolves.toEqual({
+    ).resolves.toMatchObject({
       supported: false,
       reason: "outside_configured_service_area",
       mode: "zip_codes",

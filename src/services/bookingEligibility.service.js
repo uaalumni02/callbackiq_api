@@ -1,3 +1,5 @@
+import { evaluateServiceAreaPolicy } from "./scheduling/serviceAreaPolicy.service.js";
+import { effectiveSchedulingPolicy } from "./scheduling/effectiveSchedulingPolicy.service.js";
 import { evaluateServicePolicy } from './serviceEligibility/policy.js';
 import AvailabilityException from "../models/availabilityException.js";
 import AvailabilityRule from "../models/availabilityRule.js";
@@ -39,29 +41,6 @@ const getZonedParts = (date, timeZone) => {
 
 const timeFallsInWindows = (time, windows = []) =>
   windows.some((window) => time >= window.startTime && time < window.endTime);
-
-const evaluateServiceArea = (serviceArea, zipCode) => {
-  if (!serviceArea) {
-    return { supported: null, reason: "service_area_not_configured" };
-  }
-
-  if (!zipCode) {
-    return { supported: null, reason: "zip_code_required" };
-  }
-
-  if (serviceArea.type === "zip_codes") {
-    const supported = (serviceArea.zipCodes || []).includes(zipCode);
-    return {
-      supported,
-      reason: supported ? "zip_code_supported" : "zip_code_not_supported",
-    };
-  }
-
-  return {
-    supported: null,
-    reason: "radius_distance_check_requires_geocoding",
-  };
-};
 
 const evaluateAvailability = async ({
   business,
@@ -200,17 +179,17 @@ export const evaluateBookingEligibility = async ({
 
   const serviceEligibility = evaluateServicePolicy({ request: serviceQuery, services, policy: operations?.serviceEligibilityPolicy || {} });
   const service = ['supported', 'needs_staff_review'].includes(serviceEligibility.decision) ? services.find(item => String(item._id) === serviceEligibility.serviceId) || null : null;
-  const resolvedPolicy = policy || {
-    minimumNoticeMinutes: 120,
+  const resolvedPolicy = effectiveSchedulingPolicy(policy?.toObject?.() || policy || {
+    minimumNoticeMinutes: 1440,
     maximumAdvanceDays: 60,
     requireAddressBeforeBooking: true,
     requireServiceBeforeBooking: true,
     allowSameDayBooking: false,
     allowAfterHoursBooking: false,
     defaultDurationMinutes: 90,
-  };
+  }, service || {});
 
-  const serviceAreaResult = evaluateServiceArea(serviceArea, zipCode);
+  const serviceAreaResult = await evaluateServiceAreaPolicy({ area: serviceArea, postalCode: zipCode });
   const availability = await evaluateAvailability({
     business,
     requestedStart,

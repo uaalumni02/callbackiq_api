@@ -81,7 +81,7 @@ export const evaluateServicePolicy = ({ request, services = [], policy = {}, sem
     const service = matches[0];
     return result(service.aiCanDiscuss !== true || service.requiresHumanReview === true ? 'needs_staff_review' : 'supported',
       service.aiCanDiscuss !== true ? 'discussion_requires_staff' : service.requiresHumanReview ? 'service_requires_staff' : 'catalog_match', raw,
-      { serviceId: String(service._id), serviceName: service.name, canBook: service.aiCanBook === true,
+      { serviceId: String(service._id), serviceName: service.name, category: service.category, intakePolicy: service.intakePolicy?.toObject?.() || service.intakePolicy || {}, canBook: service.aiCanBook === true,
         canEstimate: service.aiCanDiscuss === true && service.disclosePriceEstimate === true });
   }
   if (excluded.length && (policy.catalogComplete === true || excluded.length === active.length)) {

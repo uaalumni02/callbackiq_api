@@ -13,7 +13,7 @@ import searchServices from '../../src/helpers/ai/tools/searchServices.tool.js';
 import getAvailability from '../../src/helpers/ai/tools/getAvailability.tool.js';
 import validateServiceArea from '../../src/helpers/ai/tools/validateServiceArea.tool.js';
 import AlertService from '../../src/services/alert.service.js';
-import { buildCompletedIntakeResult, shouldCompleteManualIntake } from '../../src/services/messaging/smsHandoff.service.js';
+import { buildCompletedIntakeResult, shouldCompleteManualIntake, ensureHumanHandoffResult } from '../../src/services/messaging/smsHandoff.service.js';
 import { sanitizeUnverifiedStaffCommitments } from '../../src/services/customerCommitmentSafety.service.js';
 jest.mock('../../src/services/booking/approvedServiceEstimate.service.js', () => ({ getApprovedServiceEstimate: jest.fn().mockResolvedValue('') }));
 jest.mock('../../src/helpers/ai/tools/searchServices.tool.js', () => ({ __esModule: true, default: jest.fn() }));
@@ -270,4 +270,64 @@ test('voice model wording cannot replace the service detail during a contextual 
   } });
   expect(c.lead.serviceNeeded).toMatch(/sink/);
   expect(c.conversation.conversationMemory.recoveryIntake.serviceDetail).toMatch(/sink/);
+});
+
+test.each(['sms', 'voice'])('%s clarifies a vague problem, keeps out-of-order facts, and blocks out-of-area dates early', async channel => {
+ const c = context(channel);
+ const first = await c.turn('My toilet is broken');
+ expect(first.intakeReady).toBe(false);
+ expect(c.conversation.conversationMemory.recoveryIntake.problem.status).toBe('needs_clarification');
+ expect(first.reply).toMatch(/what is happening/i);
+ await c.turn('Tuesday at 1 pm');
+ expect(c.lead.preferredAppointmentTime).toBeTruthy();
+ expect(c.conversation.conversationMemory.recoveryIntake.problem.status).toBe('needs_clarification');
+ const detail = await c.turn("It won't flush");
+ expect(detail.reply).toMatch(/service address/);
+ expect(c.conversation.conversationMemory.recoveryIntake.problem.status).toBe('clear');
+ validateServiceArea.mockResolvedValue({ supported: false, reason: 'outside_configured_service_area' });
+ const outside = await c.turn('123 Easy Street Bessemer AL 35022');
+ expect(outside.reply).toMatch(/outside the configured service area/);
+ expect(outside.intakeReady).toBe(false);
+ expect(getAvailability).not.toHaveBeenCalled();
+ expect(c.conversation.conversationMemory.recoveryIntake.readiness.readyForOptions).toBe(false);
+});
+test.each(['sms', 'voice'])('%s routes unknown coverage to review without asking for a day or calling the calendar', async channel => {
+ const c = context(channel); await c.turn('Replace my faucet');
+ validateServiceArea.mockResolvedValue({ supported: null, reason: 'service_area_not_configured' });
+ const result = await c.turn('123 Easy Street Bessemer AL 35022');
+ expect(result.intakeReady).toBe(false);
+ expect(result.handoff.required).toBe(true);
+ expect(result.reply).not.toMatch(/what day|what time|currently available/i);
+ expect(result.intakeReview.coverage.supported).toBeNull();
+ expect(getAvailability).not.toHaveBeenCalled();
+ if (channel === 'voice') expect(AlertService.createHumanHandoffAlert).toHaveBeenCalled();
+});
+test.each(['sms', 'voice'])('%s records uncertain customer details for review without a false completed intake', async channel => {
+ const c = context(channel); await c.turn('My toilet is broken');
+ const result = await c.turn("I don't know");
+ expect(result.intakeReady).toBe(false);
+ expect(result.handoff.required).toBe(true);
+ expect(c.conversation.conversationMemory.recoveryIntake.problem.status).toBe('needs_staff_review');
+ expect(getAvailability).not.toHaveBeenCalled();
+});
+test('voice qualification review cannot acknowledge a failed durable alert', async () => {
+ const c = context('voice'); await c.turn('My toilet is broken');
+ AlertService.createHumanHandoffAlert.mockRejectedValue(new Error('storage failed'));
+ await expect(c.turn("I don't know")).rejects.toThrow('storage failed');
+ expect(c.conversation.conversationMemory.recoveryIntake.submitted).not.toBe(true);
+});
+test('missing explicit readiness never completes manual intake', () => {
+ const c = context(); Object.assign(c.lead, { serviceNeeded: 'toilet repair', address: '123 Easy Street 35022', preferredAppointmentTime: 'Tuesday at 1', urgency: 'medium' });
+ expect(shouldCompleteManualIntake({ ...c, result: { messageCategory: 'service_request' } })).toBe(false);
+});
+
+
+test('SMS handoff preserves the coverage blocker instead of claiming an unsolicited callback request', async () => {
+ const c = context(); await c.turn('Replace my faucet');
+ validateServiceArea.mockResolvedValue({ supported: null, reason: 'service_area_not_configured' });
+ const result = await c.turn('123 Easy Street Bessemer AL 35022');
+ const final = ensureHumanHandoffResult({ ...c, result, customerMessage: '123 Easy Street Bessemer AL 35022' });
+ expect(final.reply).toMatch(/coverage.*review/i);
+ expect(final.reply).not.toMatch(/callback request|currently available/i);
+ expect(final.handoff.required).toBe(true);
 });

@@ -100,7 +100,7 @@ export const shouldCompleteManualIntake = ({ business, lead, conversation, resul
   !conversation?.orchestration?.handoffReason &&
   !["closed", "archived"].includes(conversation?.status) &&
   !["offering_slots", "awaiting_confirmation", "booking", "pending_business_confirmation", "booked"].includes(conversation?.bookingState?.status) &&
-  result?.intakeReady !== false &&
+  result?.intakeReady === true &&
   result?.decision !== "no_reply" &&
   result?.guardrail?.usedFallback !== true &&
   !requiresHumanHandoff(result) &&

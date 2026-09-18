@@ -37,7 +37,12 @@ class AvailabilityService {
       ? normalizeCalendarProviderName(providerNameOverride)
       : businessCalendarProviderName(business);
 
-    if (!serviceArea.supported) {
+    if (serviceArea.supported == null) {
+      throw Object.assign(new Error('The service area needs staff review before checking availability.'), {
+        code: 'SERVICE_AREA_REVIEW_REQUIRED', statusCode: 409, serviceArea,
+      });
+    }
+    if (serviceArea.supported !== true) {
       return {
         supportedServiceArea: false,
         reason: serviceArea.reason,

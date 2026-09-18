@@ -28,6 +28,11 @@ const serviceFields = {
   discloseDiagnosticFee: Joi.boolean(),
   emergencyEligible: Joi.boolean(),
   requiresHumanReview: Joi.boolean(),
+  intakePolicy: Joi.object({
+    requireClarification: Joi.boolean(),
+    clarificationQuestion: Joi.string().trim().allow('').max(240),
+    detailKeywords: Joi.array().items(Joi.string().trim().min(2).max(80)).max(30),
+  }),
   keywords: Joi.array().items(Joi.string().trim().max(100)).max(50),
   excludedKeywords: Joi.array().items(Joi.string().trim().max(100)).max(50),
 };
@@ -100,7 +105,7 @@ export const schedulingPolicySchema = Joi.object({
 }).min(1);
 
 export const serviceAreaSchema = Joi.object({
-  type: Joi.string().valid("zip_codes", "radius").required(),
+  type: Joi.string().valid("zip_codes", "radius", "unrestricted").required(),
   zipCodes: Joi.array().items(Joi.string().pattern(zipPattern)).max(1000).default([]),
   centerPostalCode: Joi.string().allow("").pattern(zipPattern),
   radiusMiles: Joi.number().min(1).max(500),

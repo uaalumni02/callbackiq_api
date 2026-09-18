@@ -905,19 +905,21 @@ class BookingStateMachineService {
         businessId: business._id,
         postalCode: suppliedZip,
       });
-      if (!area.supported) {
+      if (area.supported !== true) {
         await escalateToHumanTool({
           businessId: business._id,
           leadId: lead?._id,
           conversationId: activeConversation._id,
-          reason: "unsupported_service_area",
+          reason: area.supported === false ? "unsupported_service_area" : "service_area_review_required",
           customerMessage: text,
         });
         return {
           handled: true,
           result: fixedResult({
             reply:
-              "That ZIP code is outside the currently approved automated service area. I’ve sent the request to the team to review directly.",
+              area.supported === false
+                ? "That ZIP code is outside the configured service area. The request needs direct team review; no appointment is confirmed."
+                : "I couldn't verify coverage for that address. The request needs direct team review; no appointment is confirmed.",
             category: "service_area_question",
           }),
         };
@@ -964,19 +966,21 @@ class BookingStateMachineService {
         businessId: business._id,
         postalCode: zip,
       });
-      if (!area.supported) {
+      if (area.supported !== true) {
         await escalateToHumanTool({
           businessId: business._id,
           leadId: lead?._id,
           conversationId: activeConversation._id,
-          reason: "unsupported_service_area",
+          reason: area.supported === false ? "unsupported_service_area" : "service_area_review_required",
           customerMessage: text,
         });
         return {
           handled: true,
           result: fixedResult({
             reply:
-              "That ZIP code is outside the currently approved automated service area. I’ve sent the request to the team to review directly.",
+              area.supported === false
+                ? "That ZIP code is outside the configured service area. The request needs direct team review; no appointment is confirmed."
+                : "I couldn't verify coverage for that address. The request needs direct team review; no appointment is confirmed.",
             category: "service_area_question",
           }),
         };

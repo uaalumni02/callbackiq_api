@@ -94,7 +94,7 @@ export const getConfigurationReadiness = ({
       (rule) => rule.enabled && Array.isArray(rule.windows) && rule.windows.length,
     ),
     serviceArea:
-      serviceArea?.type === "zip_codes"
+      serviceArea?.type === "unrestricted" ? true : serviceArea?.type === "zip_codes"
         ? Boolean(serviceArea?.zipCodes?.length)
         : Boolean(serviceArea?.centerPostalCode && serviceArea?.radiusMiles),
     schedulingPolicy: Boolean(schedulingPolicy),

@@ -1,3 +1,4 @@
+jest.mock('../../src/helpers/ai/tools/validateServiceArea.tool.js', () => ({ __esModule: true, default: jest.fn().mockResolvedValue({ supported: true, reason: 'matched' }) }));
 import { generateAIReplyResult } from '../../src/services/aiReplyService.js';
 import { handleConversationControl, isRequestWithdrawal } from '../../src/services/conversationControl.service.js';
 import { handleRecoveryIntake } from '../../src/services/booking/recoveryIntake.service.js';

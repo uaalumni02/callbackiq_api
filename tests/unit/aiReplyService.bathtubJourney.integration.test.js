@@ -1,3 +1,4 @@
+jest.mock('../../src/helpers/ai/tools/validateServiceArea.tool.js', () => ({ __esModule: true, default: jest.fn().mockResolvedValue({ supported: true, reason: 'matched' }) }));
 import Operations from '../../src/models/businessOperationsSettings.js';
 jest.mock('../../src/models/businessOperationsSettings.js', () => ({ __esModule: true, default: { findOne: jest.fn() } }));
 import { ensureUrgentOperationalResult, isUrgentOperationalResult, ensureHumanHandoffResult, requiresHumanHandoff } from '../../src/services/messaging/smsHandoff.service.js';

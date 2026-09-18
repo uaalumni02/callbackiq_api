@@ -104,3 +104,32 @@ test('scheduling review cannot create a second appointment for an already booked
  conversation.orchestration.handoffReason='scheduling_review';input.intakeReviewVersion=intakeReviewVersion(conversation,lead);
  await expect(run()).rejects.toMatchObject({code:'INTAKE_EXISTING_APPOINTMENT'});expect(AppointmentService.create).not.toHaveBeenCalled();
 });
+
+test('explicit staff approval preserves unresolved evidence without requiring a new UI field', async () => {
+ conversation.conversationMemory.recoveryIntake.problem = { status: 'needs_staff_review', reason: 'customer_unsure' };
+ input.intakeReviewVersion = intakeReviewVersion(conversation, lead);
+ expect((await run()).appointment.status).toBe('confirmed');
+ expect(AppointmentService.create.mock.calls[0][0].input.notes).toContain('customer_unsure');
+ expect(Conversation.updateOne).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ $set: expect.objectContaining({
+   'conversationMemory.recoveryIntake.qualificationReview': expect.objectContaining({ problem: { status: 'needs_staff_review', reason: 'customer_unsure' } }),
+ }) }));
+});
+test('a changed problem assessment invalidates a pending staff approval', async () => {
+ AppointmentService.create.mockImplementation(async () => {
+   conversation.conversationMemory.recoveryIntake.problem = { status: 'needs_staff_review', reason: 'new_symptoms' };
+   return appointment;
+ });
+ await expect(run()).rejects.toMatchObject({ code: 'INTAKE_REVIEW_CHANGED' });
+ expect(AppointmentService.confirm).not.toHaveBeenCalled();
+});
+
+test('records an optional staff qualification note but rejects malformed notes before creating an appointment', async () => {
+ conversation.conversationMemory.recoveryIntake.problem = { status: 'needs_staff_review', reason: 'customer_unsure' };
+ input.intakeReviewVersion = intakeReviewVersion(conversation, lead);
+ input.qualificationReviewNote = {};
+ await expect(run()).rejects.toMatchObject({ code: 'INVALID_QUALIFICATION_REVIEW_NOTE' });
+ expect(AppointmentService.create).not.toHaveBeenCalled();
+ input.qualificationReviewNote = 'Reviewed the symptom uncertainty and approved a diagnostic visit.';
+ expect((await run()).appointment.status).toBe('confirmed');
+ expect(AppointmentService.create.mock.calls[0][0].input.notes).toContain(input.qualificationReviewNote);
+});

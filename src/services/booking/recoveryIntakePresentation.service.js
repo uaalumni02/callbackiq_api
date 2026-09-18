@@ -25,14 +25,14 @@ export const recoveryCompletionReply = ({ lead, state, channel = 'sms' }) => {
   const service = clean(state.serviceDetail || lead.serviceNeeded);
   const address = clean(lead.address);
   const opening = 'Request saved for team review. The appointment is not confirmed.';
-  const availability = state.availability?.status === 'available'
+  const availability = state.availability?.status === 'available' && state.readiness?.availabilityVerified === true
     ? 'That time is currently available, subject to business approval.'
     : 'Availability still needs review.';
-  const ending = 'Please wait for confirmation before a visit.';
+  const ending = 'Please wait for confirmation before expecting a technician.';
   const compose = (serviceText, addressText) => `${opening} ${serviceText}${qualification}; ${addressText}. Requested: ${preference}. ${availability} ${ending}`;
   if (channel === 'voice') return compose(truncateText(service, 120), truncateText(address, 160));
   const overhead = compose('', '').length;
   const budget = Math.max(0, SMS_MAX_LENGTH - overhead);
-  const serviceBudget = Math.min(service.length, Math.max(25, Math.floor(budget * 0.42)));
+  const serviceBudget = Math.min(service.length, Math.max(25, budget - Math.min(address.length, 160)));
   return compose(truncateText(service, serviceBudget), truncateText(address, Math.max(0, budget - serviceBudget)));
 };

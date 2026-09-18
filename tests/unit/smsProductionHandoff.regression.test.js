@@ -266,7 +266,7 @@ describe("production SMS handoff", () => {
 
 describe("manual intake completion boundaries", () => {
   const ready = { serviceNeeded: "Sink clogged", urgency: "high", address: "123 Main Street", preferredAppointmentTime: "Wednesday at 9 AM" };
-  const result = { decision: "send_fixed_response", messageCategory: "appointment_preference", guardrail: { usedFallback: false } };
+  const result = { intakeReady: true, decision: "send_fixed_response", messageCategory: "appointment_preference", guardrail: { usedFallback: false } };
   test.each(["serviceNeeded", "urgency", "address", "preferredAppointmentTime"])("waits for missing %s", field => {
     expect(shouldCompleteManualIntake({ business, conversation, lead: { ...ready, [field]: "" }, result })).toBe(false);
   });

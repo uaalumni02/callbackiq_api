@@ -21,7 +21,7 @@ const ServiceAreaSchema = new Schema(
     },
     type: {
       type: String,
-      enum: ["zip_codes", "radius"],
+      enum: ["zip_codes", "radius", "unrestricted"],
       default: "zip_codes",
     },
     zipCodes: {

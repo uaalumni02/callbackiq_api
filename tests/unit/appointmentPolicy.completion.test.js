@@ -88,7 +88,7 @@ describe("appointment policy completion gates", () => {
         postalCode: "30309",
         distanceResolver,
       }),
-    ).resolves.toEqual({
+    ).resolves.toMatchObject({
       supported: true,
       reason: "matched_radius",
       mode: "radius",
@@ -127,9 +127,9 @@ describe("appointment policy completion gates", () => {
 
     await expect(
       validateServiceArea({ businessId: "b1", postalCode: "30318" }),
-    ).rejects.toMatchObject({
-      code: "SERVICE_AREA_CONFIGURATION_INCOMPLETE",
-      statusCode: 409,
+    ).resolves.toMatchObject({
+      supported: null,
+      reason: "service_area_configuration_incomplete",
     });
   });
 

@@ -126,6 +126,11 @@ const ServiceOfferingSchema = new Schema(
       type: Boolean,
       default: null,
     },
+    intakePolicy: {
+      requireClarification: { type: Boolean, default: false },
+      clarificationQuestion: { type: String, trim: true, maxlength: 240, default: '' },
+      detailKeywords: { type: [String], default: [] },
+    },
     keywords: {
       type: [String],
       default: [],

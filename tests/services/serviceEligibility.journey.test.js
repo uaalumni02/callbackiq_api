@@ -1,3 +1,5 @@
+import validateServiceArea from '../../src/helpers/ai/tools/validateServiceArea.tool.js';
+jest.mock('../../src/helpers/ai/tools/validateServiceArea.tool.js', () => ({ __esModule: true, default: jest.fn() }));
 import { guardServiceRequest, assertServiceRequestEligible } from '../../src/services/serviceEligibility/serviceEligibility.service.js';
 import { generateAIReplyResult } from '../../src/services/aiReplyService.js';
 import VoiceAgent from '../../src/voice/voiceAgent.service.js';
@@ -20,7 +22,7 @@ jest.mock('../../src/models/serviceOffering.js', () => ({ __esModule: true, defa
 jest.mock('../../src/models/businessOperationsSettings.js', () => ({ __esModule: true, default: { findOne: jest.fn() } }));
 jest.mock('../../src/models/lead.js', () => ({ __esModule: true, default: { findOne: jest.fn(), findOneAndUpdate: jest.fn() } }));
 jest.mock('../../src/models/conversation.js', () => ({ __esModule: true, default: { findOne: jest.fn() } }));
-jest.mock('../../src/services/alert.service.js', () => ({ __esModule: true, default: { create: jest.fn() } }));
+jest.mock('../../src/services/alert.service.js', () => ({ __esModule: true, default: { create: jest.fn(), createHumanHandoffAlert: jest.fn() } }));
 jest.mock('../../src/services/scheduling/availability.service.js', () => ({ __esModule: true, default: { getAvailability: jest.fn() } }));
 jest.mock('../../src/services/scheduling/appointment.service.js', () => ({ __esModule: true, default: { create: jest.fn() } }));
 jest.mock('../../src/helpers/ai/qualifyLeadWithAI.js', () => ({ qualifyLeadWithAI: jest.fn() }));
@@ -53,6 +55,8 @@ beforeEach(() => {
   ServiceOffering.find.mockImplementation(() => query(services));
   Operations.findOne.mockImplementation(() => query({ serviceEligibilityPolicy: policy }));
   AlertService.create.mockResolvedValue({ alert: { _id: 'alert' } });
+  AlertService.createHumanHandoffAlert.mockResolvedValue({ alert: { _id: 'handoff' } });
+  validateServiceArea.mockResolvedValue({ supported: true, reason: 'matched' });
   Lead.findOneAndUpdate.mockReturnValue(query(null));
   reserveAiUsage.mockResolvedValue({ allowed: true });
   qualifyLeadWithAI.mockResolvedValue({ isInScope: true, serviceNeeded: '', confidence: 10 });
@@ -221,4 +225,62 @@ test.each([
   expect(await j.turn('Tomorrow at 9pm. How much would it cost to fix something like this?')).toBeNull();
   expect(j.lead().serviceNeeded).toBe(before);
   expect(j.conversation().serviceEligibility.decision).toBe('supported');
+});
+
+test.each(['sms', 'voice'])('%s actual entry point persists vague-problem clarification across reloads', async channel => {
+ business.features.aiBookingEnabled = false;
+ const j = journey(channel);
+ const first = await j.turn('My toilet is broken', true);
+ expect(first.reply).toMatch(/what is happening/i);
+ expect(j.conversation().conversationMemory.recoveryIntake.problem.status).toBe('needs_clarification');
+ const next = await j.turn("It won't flush", true);
+ expect(next.reply).toMatch(/service address/i);
+ expect(j.conversation().conversationMemory.recoveryIntake.problem.status).toBe('clear');
+ validateServiceArea.mockResolvedValue({ supported: false, reason: 'outside_configured_service_area' });
+ const outside = await j.turn('123 Easy Street Bessemer AL 35022', true);
+ expect(outside.reply).toMatch(/outside the configured service area/i);
+ expect(j.lead().address).toContain('35022');
+ expect(Availability.getAvailability).not.toHaveBeenCalled();
+ expect(AppointmentService.create).not.toHaveBeenCalled();
+});
+test.each(['sms', 'voice'])('%s actual entry point routes unknown coverage to review before dates', async channel => {
+ business.features.aiBookingEnabled = false;
+ const j = journey(channel); await j.turn('Replace my faucet', true);
+ validateServiceArea.mockResolvedValue({ supported: null, reason: 'service_area_not_configured' });
+ const reply = await j.turn('123 Easy Street Bessemer AL 35022', true);
+ expect(reply.reply).toMatch(/coverage.*review/i);
+ expect(reply.reply).not.toMatch(/what day|what time|currently available/i);
+ expect(j.conversation().conversationMemory.recoveryIntake.readiness.readyForOptions).toBe(false);
+ expect(Availability.getAvailability).not.toHaveBeenCalled();
+ if (channel === 'voice') expect(AlertService.createHumanHandoffAlert).toHaveBeenCalled();
+});
+test('calendar and create tools independently reject unresolved problem clarity', async () => {
+ const j = journey(); await j.turn('My toilet is broken', true);
+ // Tools must not trust a model-supplied alternative request or offering.
+ await expect(getAvailability({ business, leadId: 'l', conversationId: 'c', serviceOfferingId: 'plumbing', serviceQuery: 'install faucet' })).rejects.toMatchObject({ code: 'REQUEST_QUALIFICATION_REQUIRED' });
+ await expect(createAppointment({ business, input: { lead: 'l', conversation: 'c', serviceOfferingId: 'plumbing', serviceQuery: 'install faucet' } })).rejects.toMatchObject({ code: 'REQUEST_QUALIFICATION_REQUIRED' });
+ expect(Availability.getAvailability).not.toHaveBeenCalled();
+ expect(AppointmentService.create).not.toHaveBeenCalled();
+});
+
+describe.each(['sms', 'voice'])('%s cross-trade qualification through actual entry point', channel => {
+ test.each([
+   ['plumbing', 'Plumbing', 'My toilet is broken'],
+   ['hvac', 'HVAC', 'My AC is not working'],
+   ['electrical', 'Electrical', 'My outlet is broken'],
+   ['roofing', 'Roofing', 'My roof is damaged'],
+   ['restoration', 'Restoration', 'I need restoration for damage'],
+   ['garage_door', 'Garage door', 'My garage door is not working'],
+   ['locksmith', 'Locksmith', 'My door lock is broken'],
+   ['landscaping', 'Landscaping', 'My sprinkler has a problem'],
+ ])('%s saves a clarification without calendar or booking side effects', async (category, name, request) => {
+   business.features.aiBookingEnabled = false;
+   services = [{ ...plumbing, _id: category, category, name, keywords: [] }];
+   const j = journey(channel);
+   const result = await j.turn(request, true);
+   expect(result.reply).toContain('?');
+   expect(j.conversation().conversationMemory.recoveryIntake.problem.status).toBe('needs_clarification');
+   expect(Availability.getAvailability).not.toHaveBeenCalled();
+   expect(AppointmentService.create).not.toHaveBeenCalled();
+ });
 });

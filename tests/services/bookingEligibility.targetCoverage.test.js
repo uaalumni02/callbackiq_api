@@ -129,7 +129,7 @@ describe("bookingEligibility target coverage", () => {
     expect(result).toMatchObject({
       servicePerformed: true,
       locationSupported: true,
-      serviceAreaReason: "zip_code_supported",
+      serviceAreaReason: "matched",
       serviceAiCanBook: true,
       businessAiBookingEnabled: true,
       operationsAiBookingAllowed: true,
@@ -192,14 +192,14 @@ describe("bookingEligibility target coverage", () => {
   test.each([
     [null, "", "service_area_not_configured", null],
     [{ type: "zip_codes", zipCodes: ["30301"] }, "", "zip_code_required", null],
-    [{ type: "zip_codes", zipCodes: ["30301"] }, "99999", "zip_code_not_supported", false],
-    [{ type: "radius", centerPostalCode: "30301", radiusMiles: 20 }, "30301", "radius_distance_check_requires_geocoding", null],
+    [{ type: "zip_codes", zipCodes: ["30301"] }, "99999", "outside_configured_service_area", false],
+    [{ type: "radius", centerPostalCode: "30301", radiusMiles: 20 }, "30301", "matched_radius", true],
   ])("covers service-area state %#", async (area, zipCode, reason, supported) => {
     arrange({ area });
     const result = await evaluate({ zipCode });
     expect(result.serviceAreaReason).toBe(reason);
     expect(result.locationSupported).toBe(supported);
-    expect(result.mayAiBook).toBe(false);
+    expect(result.mayAiBook).toBe(supported === true);
   });
 
   test("excluded service keyword defeats an otherwise matching term", async () => {

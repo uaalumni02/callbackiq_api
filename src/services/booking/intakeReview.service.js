@@ -46,11 +46,26 @@ export const approveIntake = async ({ business, conversationId, input, approvedB
       throw fail('This conversation does not have an active submitted service request.', 'INTAKE_NOT_REVIEWABLE');
     }
     const reviewState = conversation.conversationMemory?.recoveryIntake || {};
+    const unresolvedQualification = (reviewState.problem && reviewState.problem.status !== 'clear') ||
+      reviewState.triagePending || reviewState.clogPending;
+    const qualificationReviewNote = typeof input.qualificationReviewNote === 'string' ? input.qualificationReviewNote.trim() : '';
+    if (input.qualificationReviewNote !== undefined &&
+        (typeof input.qualificationReviewNote !== 'string' || qualificationReviewNote.length < 15 || qualificationReviewNote.length > 500)) {
+      throw fail('A qualification review note must contain 15–500 characters.', 'INVALID_QUALIFICATION_REVIEW_NOTE', 400);
+    }
+    // This owner-scoped endpoint is the explicit human decision. Preserve the
+    // exact uncertainty reviewed; do not force an incompatible new UI field or
+    // pretend the customer's symptom was resolved by approving a diagnostic visit.
+    const qualificationReview = unresolvedQualification ? {
+      note: qualificationReviewNote, approvedBy, reviewedAt: new Date(),
+      problem: reviewState.problem || null, triagePending: Boolean(reviewState.triagePending),
+      clogPending: Boolean(reviewState.clogPending), triageAnswer: reviewState.triageAnswer || '',
+    } : null;
     if (conversation.bookingState?.appointment && !reviewState.reviewAppointmentId && !reviewState.appointmentId) {
       throw fail('This request already has an appointment. Review or reschedule that appointment instead.', 'INTAKE_EXISTING_APPOINTMENT');
     }
     if (intakeReviewVersion(conversation, lead) !== input.intakeReviewVersion) throw fail('The customer details changed. Refresh and review the request again.', 'INTAKE_REVIEW_CHANGED');
-    const alert = await Alert.exists({ business: business._id, conversation: conversation._id, type: 'human_requested', $or: [{ 'metadata.handoffReason': { $in: ['intake_complete', 'scheduling_review'] } }, { 'metadata.messageCategory': 'appointment_preference' }] });
+    const alert = await Alert.exists({ business: business._id, conversation: conversation._id, type: 'human_requested', $or: [{ 'metadata.handoffReason': { $in: ['intake_complete', 'scheduling_review', 'intake_unclear'] } }, { 'metadata.messageCategory': 'appointment_preference' }] });
     if (!alert) throw fail('The service request review record is missing.', 'INTAKE_REVIEW_MISSING');
     await assertVoiceReviewIdle(business._id, conversation._id);
     const customerPhone = normalizePhoneToE164(conversation.customerPhone);
@@ -66,7 +81,7 @@ export const approveIntake = async ({ business, conversationId, input, approvedB
       lead: lead._id, conversation: conversation._id, customerName: lead.customerName || conversation.customerName,
       customerPhone, customerEmail: lead.email || '', address: { street: address, postalCode },
       timezone: business.timezone || 'America/New_York', source: 'manual', bookedBy: 'staff', requiresBusinessApproval: true,
-      notes: `Reviewed service request: ${lead.serviceNeeded}. Customer preference: ${lead.preferredAppointmentTime || ''}`,
+      notes: `Reviewed service request: ${lead.serviceNeeded}. Customer preference: ${lead.preferredAppointmentTime || ''}${unresolvedQualification ? `. Staff approved with unresolved intake details: ${reviewState.problem?.reason || 'triage_unresolved'}.${qualificationReviewNote ? ` Review note: ${qualificationReviewNote}` : ''}` : ''}`,
     } }));
     assertDistributedLeaseActive();
     await Conversation.updateOne({ _id: conversation._id, business: business._id }, { $set: {
@@ -105,6 +120,7 @@ export const approveIntake = async ({ business, conversationId, input, approvedB
       'conversationMemory.recoveryIntake.appointmentId': String(confirmed._id),
       'conversationMemory.recoveryIntake.approvedAt': confirmed.approvalDecisionAt || new Date(),
       'conversationMemory.recoveryIntake.approvedBy': approvedBy,
+      ...(unresolvedQualification ? { 'conversationMemory.recoveryIntake.qualificationReview': qualificationReview } : {}),
       'bookingState.status': 'booked', 'bookingState.appointment': confirmed._id,
       'bookingState.expiresAt': null, 'bookingState.lastError': '',
     } });

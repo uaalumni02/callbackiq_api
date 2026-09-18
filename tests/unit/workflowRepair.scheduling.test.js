@@ -17,7 +17,7 @@ beforeEach(()=>{
  jest.useFakeTimers();jest.setSystemTime(new Date('2026-09-21T10:00:00Z'));
  jest.spyOn(ServiceOffering,'findOne').mockReturnValue(lean({_id:'s',active:true,aiCanDiscuss:true,aiCanBook:true,durationMinutes:60}));
  jest.spyOn(SchedulingPolicy,'findOne').mockReturnValue(lean(null));
- jest.spyOn(ServiceArea,'findOne').mockReturnValue(lean(null));
+ jest.spyOn(ServiceArea,'findOne').mockReturnValue(lean({type:'zip_codes',zipCodes:['30324']}));
  jest.spyOn(AvailabilityRule,'find').mockReturnValue(lean([{dayOfWeek:1,enabled:true,capacity:1,windows:[{startTime:'12:00',endTime:'14:00'}]}]));
  jest.spyOn(AvailabilityException,'find').mockReturnValue(lean([]));
  jest.spyOn(Appointment,'find').mockReturnValue(lean([]));
