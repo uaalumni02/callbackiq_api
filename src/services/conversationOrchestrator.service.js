@@ -3,6 +3,7 @@ import Message from "../models/message.js";
 import AlertService from "./alert.service.js";
 import { generateAIReplyResult } from "./aiReplyService.js";
 import { logOperationalError, logOperationalEvent } from "../helpers/logging/safeLogger.js";
+import { enforceSmsWorkflowResult } from './messaging/smsWorkflowPolicy.service.js';
 
 const FALLBACK_REPLY = "Thanks — I have your message. I’m alerting the team so your request doesn’t get missed.";
 
@@ -36,6 +37,7 @@ class ConversationOrchestratorService {
       result = null;
     }
 
+    result = enforceSmsWorkflowResult(result, { lead });
     const latestConversation = await Conversation.findById(conversation._id);
     let escalated = latestConversation?.humanTakeover === true || latestConversation?.bookingState?.status === "human_takeover";
     const reply = String(result?.reply || "").trim();
@@ -62,6 +64,8 @@ class ConversationOrchestratorService {
         shouldAlertOwner: true, alertPriority: "high", alertTitle: "Customer follow-up required",
         alertMessage: "Review the conversation because the primary reply pipeline produced no customer response.",
         riskFlags: ["other"], confidence: 0,
+        intakeReady: false,
+        handoff: { required: true, reason: "intake_unclear", callbackRequested: false },
         guardrail: { skipAI: true, reason: "silent_failure_guard", usedFallback: true, violations: [] },
       };
       escalated = true;

@@ -10,6 +10,7 @@ export const SMS_CONVERSATION_PHASES = [
   "awaiting_business_approval",
   "confirmed",
   "post_booking",
+  "handoff_pending",
   "human_takeover",
   "closed",
 ];
@@ -38,6 +39,8 @@ export const deriveSmsConversationPhase = (conversation, { hasCustomerReply = tr
   if (conversation.humanTakeover === true || conversation.bookingState?.status === "human_takeover") {
     return "human_takeover";
   }
+  if (conversation.orchestration?.handoffReason &&
+      !['pending_business_confirmation', 'booked'].includes(conversation.bookingState?.status)) return 'handoff_pending';
   const bookingStatus = clean(conversation.bookingState?.status);
   if (BOOKING_TO_PHASE.has(bookingStatus)) return BOOKING_TO_PHASE.get(bookingStatus);
   if (!hasCustomerReply) return "recovering";

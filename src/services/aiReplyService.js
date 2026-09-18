@@ -1,4 +1,4 @@
-import { handleConversationControl } from './conversationControl.service.js';
+import { handleConversationControl, isRequestWithdrawal } from './conversationControl.service.js';
 import { guardServiceRequest } from './serviceEligibility/serviceEligibility.service.js';
 import { observeCustomerConstraint, respectCustomerConstraints } from './conversationCondition.service.js';
 import { getApprovedServiceEstimate } from "./booking/approvedServiceEstimate.service.js";
@@ -29,6 +29,7 @@ import {
   evaluateSmsTurnPolicy,
 } from "./messaging/smsTurnPolicy.service.js";
 import { classifySmsIntent } from "./messaging/smsIntentClassifier.service.js";
+import { preserveSmsInterruptFacts } from './messaging/smsWorkflowPolicy.service.js';
 
 const fallbackReply = SAFE_REPLIES.fallback;
 
@@ -126,7 +127,7 @@ const buildFallbackResult = (error) => ({
   },
 });
 
-export const generateAIReplyResult = async ({
+const generateReplyResult = async ({
   business,
   lead,
   conversation = null,
@@ -207,7 +208,11 @@ export const generateAIReplyResult = async ({
       return preserveTurnUrgency(guarded, turnUrgency);
     }
 
-    const control = await handleConversationControl({ business, lead, conversation, customerMessage: latestCustomerMessage });
+    // A question bundled with a changed service must pass service eligibility
+    // before a read-only status answer can short-circuit the turn.
+    const changedService = !isRequestWithdrawal(latestCustomerMessage) && turnClassification.entities?.serviceNeeded &&
+      (turnClassification.intents?.correction || turnClassification.intents?.newService);
+    const control = changedService ? null : await handleConversationControl({ business, lead, conversation, customerMessage: latestCustomerMessage });
     if (control) return preserveTurnUrgency(control, turnUrgency);
 
     const serviceGuard = await guardServiceRequest({ business, lead, conversation, customerMessage: latestCustomerMessage, recentMessages: messages });
@@ -336,6 +341,12 @@ export const generateAIReplyResult = async ({
     });
     return preserveTurnUrgency(buildFallbackResult(error), turnUrgency);
   }
+};
+
+export const generateAIReplyResult = async (parameters) => {
+  const result = await generateReplyResult(parameters);
+  return preserveSmsInterruptFacts({ ...parameters, result,
+    customerMessage: cleanText(parameters.customerMessage) || getLatestInboundMessage(parameters.messages) });
 };
 
 export const generateAIReply = async (parameters) => {

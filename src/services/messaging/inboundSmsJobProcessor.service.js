@@ -1,5 +1,5 @@
 import { captureTurnFacts } from '../booking/turnFactCapture.service.js';
-import { handleConversationControl } from '../conversationControl.service.js';
+import { handleConversationControl, isRequestWithdrawal } from '../conversationControl.service.js';
 import { guardServiceRequest, blocksServiceAutomation } from '../serviceEligibility/serviceEligibility.service.js';
 import { respectCustomerConstraints } from '../conversationCondition.service.js';
 import { getApprovedServiceEstimate } from "../booking/approvedServiceEstimate.service.js";
@@ -40,6 +40,7 @@ import {
 import { sanitizeUnverifiedStaffCommitments } from "../customerCommitmentSafety.service.js";
 import { getSmsAutomationSuppressionReason } from "./smsAutomationDispatchPolicy.service.js";
 import { assertDistributedLeaseActive } from "../distributedLease.service.js";
+import { describeSmsWorkflowDecision, preserveSmsInterruptFacts, buildSmsRequestRevisionPatch, reviewSmsAppointmentRevision } from './smsWorkflowPolicy.service.js';
 
 const VALID_URGENCIES = new Set(["low", "medium", "high", "emergency"]);
 const SMS_URGENCY_RANK = Object.freeze({
@@ -106,6 +107,10 @@ const persistOutboundReply = async ({
   inboundMessage,
   result,
 }) => {
+  const workflowDecision = describeSmsWorkflowDecision({ result, conversation });
+  assertDistributedLeaseActive();
+  await Message.updateOne({ _id: inboundMessage._id, business: business._id },
+    { $set: { 'metadata.workflowDecision': workflowDecision } });
   const reply = respectCustomerConstraints(sanitizeUnverifiedStaffCommitments(result?.reply, {
     channel: "sms",
   }), { conversation, customerMessage: inboundMessage?.body });
@@ -182,6 +187,7 @@ const persistOutboundReply = async ({
         inReplyToMessage: inboundMessage._id,
         metadata: {
           source: "inbound_sms_reply",
+          workflowDecision,
           decision: result?.decision || "reply",
           messageCategory: result?.messageCategory || "unknown",
           handoffRequired: result?.handoff?.required === true,
@@ -457,13 +463,27 @@ export const processInboundSmsJob = async (job) => {
   if (!deterministicAssessment.handled && !automationPaused) {
     const params = { business, lead, conversation, customerMessage: customerTurn.customerMessage,
       turnId: String(inboundMessage._id), recentMessages: messages };
-    const control = await handleConversationControl(params);
+    const changedService = !isRequestWithdrawal(customerTurn.customerMessage) && classification.entities?.serviceNeeded &&
+      (classification.intents?.correction || classification.intents?.newService);
+    const control = changedService ? null : await handleConversationControl(params);
     const reviewUpdate = !control && conversation?.orchestration?.handoffReason === "intake_complete" && !handoffSource
       ? await handleRecoveryIntake({ ...params, reviewOnly: true }) : null;
-    const directResult = control || reviewUpdate;
+    const directResult = reviewSmsAppointmentRevision({ lead, conversation,
+      result: preserveSmsInterruptFacts({ result: control || reviewUpdate,
+        customerMessage: customerTurn.customerMessage, business, lead, conversation }) });
     if (directResult) {
-      await Conversation.findByIdAndUpdate(conversation._id, { $set: buildSmsStatePatch({ conversation, classification,
-        outcome: { intent: directResult.messageCategory }, hasCustomerReply: true }) }, { runValidators: true });
+      const revisionPatch = buildSmsRequestRevisionPatch({ result: directResult, lead, conversation });
+      const interruptUpdates = buildLeadUpdates(lead, directResult);
+      const refreshedLead = await Lead.findByIdAndUpdate(lead._id, interruptUpdates, { returnDocument: "after", runValidators: true });
+      if (refreshedLead) Object.assign(lead, typeof refreshedLead.toObject === 'function' ? refreshedLead.toObject() : refreshedLead);
+      await Conversation.findByIdAndUpdate(conversation._id, { $set: { ...buildSmsStatePatch({ conversation, classification,
+        outcome: { intent: directResult.messageCategory }, hasCustomerReply: true }), ...revisionPatch } }, { runValidators: true });
+      if (Object.keys(revisionPatch).length && conversation.bookingState?.appointment) {
+        await AlertService.createHumanHandoffAlert({ businessId: business._id, leadId: lead._id, conversationId: conversation._id,
+          messageId: inboundMessage._id, providerMessageId: inboundMessage.providerMessageId,
+          customerPhone: conversation.customerPhone, customerMessage: customerTurn.customerMessage, lead,
+          result: { ...directResult, handoff: { required: true, reason: 'scheduling_review' } } });
+      }
       const delivery = await persistOutboundReply({ business, lead, conversation, inboundMessage, result: directResult });
       await Message.findByIdAndUpdate(inboundMessage._id, { $set: { aiOutcome: {
         intent: directResult.messageCategory, outcome: "reply_ready", serviceNeeded: lead.serviceNeeded || "",
@@ -670,7 +690,7 @@ export const processInboundSmsJob = async (job) => {
     : await ConversationOrchestratorService.process({
         business, lead, conversation, messages, inboundMessage: effectiveInboundMessage,
       });
-  let result = orchestration.result || {};
+  let result = reviewSmsAppointmentRevision({ result: orchestration.result || {}, lead, conversation });
   assertDistributedLeaseActive();
   let handoffRequired = requiresHumanHandoff(result);
   const urgentOperational = isUrgentOperationalResult(result);
@@ -695,6 +715,7 @@ export const processInboundSmsJob = async (job) => {
 
   let updatedLead = lead;
   let updatedConversation = conversation;
+  const revisionPatch = buildSmsRequestRevisionPatch({ result, lead, conversation });
   const leadUpdates = buildLeadUpdates(lead, result);
   if (Object.keys(leadUpdates).length) {
     updatedLead = await Lead.findByIdAndUpdate(lead._id, leadUpdates, {
@@ -733,7 +754,7 @@ export const processInboundSmsJob = async (job) => {
   assertDistributedLeaseActive();
   updatedConversation = await Conversation.findByIdAndUpdate(
     updatedConversation._id,
-    { $set: { ...statePatch, ...pendingHandoffPatch } },
+    { $set: { ...statePatch, ...revisionPatch, ...pendingHandoffPatch } },
     { returnDocument: "after", runValidators: true },
   );
   SocketService.emitConversationUpdated(business._id, updatedConversation);

@@ -428,6 +428,48 @@ describe("completed manual intake uses the durable staff handoff", () => {
     expect(AlertService.createHumanHandoffAlert.mock.invocationCallOrder[0]).toBeLessThan(sendSms.mock.invocationCallOrder[0]);
   });
 
+  test.each([
+    { decision: 'no_reply', actionType: 'no_reply', messageCategory: 'service_details', reply: '', guardrail: { skipAI: false } },
+    { decision: 'send', actionType: 'confirm_booking', messageCategory: 'appointment_preference', reply: 'You are booked.', guardrail: { skipAI: false } },
+    { decision: 'send_fixed_response', messageCategory: 'unknown', reply: 'Fallback', guardrail: { skipAI: false, reason: 'ai_pipeline_error', usedFallback: true } },
+  ])('unusable model result becomes a persisted handoff before customer delivery: %j', async candidate => {
+    generateAIReplyResult.mockResolvedValue(candidate);
+    await processInboundSmsJob(job);
+    expect(activeConversation.orchestration.handoffReason).toBe('intake_unclear');
+    expect(activeConversation.humanTakeover).toBe(false);
+    expect(AlertService.createHumanHandoffAlert.mock.invocationCallOrder[0]).toBeLessThan(sendSms.mock.invocationCallOrder[0]);
+    expect(sendSms.mock.calls[0][0].body).not.toMatch(/you are booked/i);
+    expect(Message.create).toHaveBeenCalledWith(expect.objectContaining({ metadata: expect.objectContaining({
+      workflowDecision: expect.objectContaining({ action: 'staff_review', version: 1 }) }) }));
+    expect(Message.updateOne).toHaveBeenCalledWith({ _id: activeInbound._id, business: business._id },
+      { $set: { 'metadata.workflowDecision': expect.objectContaining({ action: 'staff_review' }) } });
+  });
+
+  test('a failed staff-task write prevents a fallback promise from being sent', async () => {
+    generateAIReplyResult.mockResolvedValue({ decision: 'no_reply', messageCategory: 'unknown', guardrail: { skipAI: false } });
+    AlertService.createHumanHandoffAlert.mockRejectedValueOnce(new Error('staff task unavailable'));
+    await expect(processInboundSmsJob(job)).rejects.toThrow('staff task unavailable');
+    expect(sendSms).not.toHaveBeenCalled();
+    expect(activeConversation.orchestration.handoffStatus).toBe('pending_ack');
+  });
+
+  test('an address supplied with a confirmation question is persisted without changing the existing appointment', async () => {
+    activeInbound.body = 'My address is 456 Oak St, Atlanta GA 30303. When will the appointment be confirmed?';
+    activeConversation.bookingState = { status: 'pending_business_confirmation', appointment: 'appointment-1' };
+    // The reply pipeline supplies request facts; this test exercises the actual
+    // processor's persistence, staff routing and delivery order.
+    generateAIReplyResult.mockResolvedValue({ decision: 'send_fixed_response', actionType: 'send_fixed_response',
+      messageCategory: 'appointment_status', reply: 'The appointment is still awaiting business approval.',
+      address: '456 Oak St, Atlanta GA 30303', guardrail: { skipAI: true } });
+    await processInboundSmsJob(job);
+    expect(activeLead.address).toContain('456 Oak St');
+    expect(activeConversation.bookingState).toMatchObject({ status: 'pending_business_confirmation', appointment: 'appointment-1' });
+    expect(AlertService.createHumanHandoffAlert).toHaveBeenCalledWith(expect.objectContaining({
+      lead: expect.objectContaining({ address: expect.stringContaining('456 Oak St') }),
+      result: expect.objectContaining({ handoff: expect.objectContaining({ required: true, reason: 'scheduling_review' }) }) }));
+    expect(AlertService.createHumanHandoffAlert.mock.invocationCallOrder[0]).toBeLessThan(sendSms.mock.invocationCallOrder[0]);
+  });
+
   test('same-day scheduling review creates the staff alert before the SMS acknowledgement', async () => {
     activeInbound.body = 'Can someone come today?';
     generateAIReplyResult.mockResolvedValue({ decision: 'send_fixed_response', actionType: 'human_handoff', messageCategory: 'appointment_preference',

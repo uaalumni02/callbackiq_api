@@ -156,3 +156,27 @@ test.each(['sms','voice'])('%s ZIP correction clears offered times and preserves
  expect(j.lead().serviceNeeded).toContain('faucet'); expect(j.conversation().bookingState.offeredSlots || []).toHaveLength(0);
  expect(AppointmentService.create).not.toHaveBeenCalled(); expect(result.reply).not.toMatch(/can't verify that this business/);
 });
+
+test.each(trades)('%s callback interruption preserves compound facts through the real SMS reply pipeline', async (trade, request) => {
+ services=[{...plumbing,_id:trade,name:trade==='garage_door'?'Garage door service':`${trade} service`,category:trade,keywords:[]}];
+ const j=journey('sms');
+ await j.turn(request,true);
+ const result=await j.turn('Please call me. My address is 123 Main St, Atlanta GA 30303. Tomorrow at 3pm works.',true);
+ expect(result.address).toContain('123 Main St');
+ expect(result.preferredAppointmentTime).toContain('15:00');
+ expect(result.serviceNeeded).toBe(j.lead().serviceNeeded);
+ expect(result.messageCategory).toBe('human_requested');
+ expect(AppointmentService.create).not.toHaveBeenCalled();
+});
+
+test('a status question cannot bypass eligibility for a corrected, unsupported service', async () => {
+ const j=journey('sms');
+ await j.turn('I need faucet replacement',true);
+ await j.turn('970 Sidney Marcus Atlanta GA 30324',true);
+ await j.turn('What is available?',true);
+ const result=await j.turn('Actually I need roof repair instead. Is my appointment confirmed?',true);
+ expect(result.reply).toMatch(/does not offer/);
+ expect(j.conversation().serviceEligibility.decision).toBe('unsupported');
+ expect(j.conversation().bookingState.offeredSlots || []).toHaveLength(0);
+ expect(AppointmentService.create).not.toHaveBeenCalled();
+});

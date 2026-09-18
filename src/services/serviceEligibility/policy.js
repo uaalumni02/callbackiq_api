@@ -26,7 +26,9 @@ export const isBroadService = service => {
 // Specific offerings supersede a broad offering of the same trade, never another trade.
 export const preferSpecificServices = services => services.filter(service => !isBroadService(service) ||
   !services.some(other => !isBroadService(other) && domainOf(other) === domainOf(service)));
-const activeText = value => String(value || '').replace(/^.*\b(?:instead|i meant|rather than that|forget that)\b[:, ]*/i, '').trim();
+// A trailing "instead" modifies the preceding request; it must not erase it.
+// Only discard the old clause when correction words introduce new text.
+const activeText = value => String(value || '').replace(/^.*\b(?:instead|i meant|rather than that|forget that)\b[:, ]*(?=[a-z0-9])/i, '').trim();
 // Negated clauses cannot supply positive eligibility evidence.
 const affirmedText = value => activeText(value).split(/\bbut\b|[;.!?]/i)
   .filter(part => !/\b(?:do not|don['’]?t|not|no longer|without)\s+(?:need|want|roof|plumb|repair|replace|install|service)/i.test(part)).join(' ');
