@@ -159,7 +159,7 @@ const fallbackSpeech = (session) => {
   if (session?.metadata?.callerIdUsable === false) {
     return "I could not safely complete this call, and your caller ID is unavailable. Please call again and say a callback number, or contact the business directly.";
   }
-  return "I could not complete the call, but I preserved the request for the team. If this number can receive texts and has not opted out, you may also receive a follow-up message.";
+  return "I could not complete the call, but I preserved the request for the team. Please contact the business directly if you need further assistance.";
 };
 
 const fallbackSmsResponse = ({ res, session, failureReason, message = "" }) => {
@@ -460,7 +460,7 @@ class VoiceWebhookController {
         session,
         failureReason: `The ${scenario} policy selected callback-first SMS recovery.`,
         message:
-          "Thanks for calling. I preserved your call for the team. If this number can receive texts and has not opted out, you may also receive a message.",
+          "Thanks for calling. I preserved your call for the team. Please contact the business directly if you need further assistance.",
       });
     } catch (error) {
       return gracefulVoiceFailure({

@@ -1,3 +1,4 @@
+import { ownerTextSuppressionReason } from "../services/messaging/ownerTextPolicy.service.js";
 import { evaluateDeterministicInboundGuardrails } from '../helpers/ai/aiGuardrails.js';
 import { buildMissedCallRecoveryText } from "../services/messaging/smsCompliance.service.js";
 import { reconcileConversationLead } from "../services/messaging/conversationLeadIdentity.service.js";
@@ -489,7 +490,7 @@ class VoiceSessionService {
       suppressionReason = 'A safety concern was recorded; no ordinary missed-call recovery text is appropriate.';
     } else if (session.metadata?.sharedRequestReadOnly) {
       suppressionReason = "Another call owns the shared request; no additional recovery text was sent.";
-    } else if (business.features?.missedCallSmsEnabled === false) {
+    } else if (Boolean(ownerTextSuppressionReason({ business, source: "voice_fallback" }))) {
       suppressionReason = "The business disabled missed-call SMS.";
     } else if (!isUsableCallerId(to) || !from) {
       suppressionReason = "A usable caller or business phone number was unavailable.";
