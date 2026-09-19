@@ -414,9 +414,23 @@ describe("completed manual intake uses the durable staff handoff", () => {
     Message.findByIdAndUpdate.mockResolvedValue({ ...outbound, providerMessageId: "SM_INTAKE_ACK" });
     sendSms.mockResolvedValue({ sid: "SM_INTAKE_ACK", status: "queued" });
     AlertService.createHumanHandoffAlert.mockResolvedValue({ _id: "intake-alert" });
-    generateAIReplyResult.mockResolvedValue({ decision: "send_fixed_response", actionType: "send_fixed_response", messageCategory: "appointment_preference", reply: "I've noted Wednesday at 9 AM as your preference.", preferredAppointmentTime: "Wednesday at 9 AM", serviceNeeded: activeLead.serviceNeeded, urgency: "high", guardrail: { usedFallback: false } });
+    generateAIReplyResult.mockResolvedValue({ decision: "send_fixed_response", actionType: "send_fixed_response", intakeReady: true, messageCategory: "appointment_preference", reply: "I've noted Wednesday at 9 AM as your preference.", preferredAppointmentTime: "Wednesday at 9 AM", serviceNeeded: activeLead.serviceNeeded, urgency: "high", guardrail: { usedFallback: false } });
   });
 
+
+  test.each([undefined, false])('does not mark intake complete without explicit readiness: %s', async intakeReady => {
+    generateAIReplyResult.mockResolvedValue({
+      decision: 'send_fixed_response', actionType: 'send_fixed_response',
+      messageCategory: 'service_request', intakeReady,
+      reply: 'Is the toilet clogged, leaking, or not flushing?',
+      preferredAppointmentTime: 'Wednesday at 9 AM',
+      serviceNeeded: 'My toilet is broken', guardrail: { usedFallback: false },
+    });
+    await processInboundSmsJob(job);
+    expect(activeConversation.orchestration.handoffReason).not.toBe('intake_complete');
+    expect(AlertService.createHumanHandoffAlert).not.toHaveBeenCalled();
+    expect(sendSms).toHaveBeenCalledWith(expect.objectContaining({ body: expect.stringContaining('Is the toilet') }));
+  });
 
   test('a safety message after intake updates its address before staff notification', async () => {
     activeConversation.orchestration = { handoffReason: 'intake_complete', handoffInboundMessage: 'previous' };

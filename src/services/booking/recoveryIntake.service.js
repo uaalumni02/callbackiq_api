@@ -87,7 +87,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   // Slot selections and confirmations still belong to the booking engine,
   // including expiry and availability rechecks. A missing intake memory is not
   // evidence that a numeric option is a newly supplied service fact.
-  if (bookingActive && !reviewOnly && !capturedAddress && !classification.entities?.serviceNeeded &&
+  if (bookingActive && !reviewOnly && !classification.intents?.availabilityInquiry && !capturedAddress && !classification.entities?.serviceNeeded &&
       (/^(?:option\s*)?\d+[.! ]*$/i.test(text) || /^(?:yes|yeah|yep|no|nope|confirm|okay|ok)[.! ]*$/i.test(text) || classification.intents?.scheduling)) return null;
   const checkActive = () => { assertDistributedLeaseActive(); if (channel === 'voice') assertVoiceTurnActive(); };
   const timezone = business.timezone || 'America/New_York';
@@ -182,7 +182,9 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   // An unanswered field is not proof the customer was unintelligible. Let the
   // existing semantic pipeline answer off-script questions or interpret novel
   // details before choosing a clarification. Do not consume retry budget here.
-  if (!understoodAnswer && !classification.intents?.pricing && !semanticAssessment &&
+  // Availability questions must still pass the qualification checks below,
+  // including follow-ups after a missing or unsupported coverage decision.
+  if (!understoodAnswer && !classification.intents?.pricing && !classification.intents?.availabilityInquiry && !semanticAssessment &&
       !(/^\d{5}(?:-\d{4})?$/.test(text) && known(lead.address)) && !state.problem?.asked) return null;
   let approvedEstimate = '';
   if (classification.intents?.pricing) {

@@ -112,6 +112,7 @@ import CallLog from "../../src/models/callLog.js";
 import Message from "../../src/models/message.js";
 import Appointment from "../../src/models/appointment.js";
 import AppointmentNotificationJob from "../../src/models/appointmentNotificationJob.js";
+import ServiceArea from "../../src/models/serviceArea.js";
 import ServiceOffering from "../../src/models/serviceOffering.js";
 import AvailabilityRule from "../../src/models/availabilityRule.js";
 import IntegrationConnection from "../../src/models/integrationConnection.js";
@@ -278,6 +279,14 @@ describe("CallBackIQ single-customer complete lifecycle", () => {
         ],
       });
 
+    // This journey offers and books a visit at ZIP 30318. Missing service-area
+    // configuration intentionally requires staff review in the real policy.
+    await ServiceArea.create({
+      business: business._id,
+      type: "zip_codes",
+      zipCodes: ["30318"],
+    });
+
     const futureDate =
       addDays(new Date(), 7);
 
@@ -361,6 +370,8 @@ describe("CallBackIQ single-customer complete lifecycle", () => {
       .mockResolvedValue({
         result: {
           decision: "reply",
+          // The orchestrator boundary represents completed, qualified intake.
+          intakeReady: true,
           messageCategory:
             "service_request",
           reply:

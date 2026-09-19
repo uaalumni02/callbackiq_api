@@ -2,6 +2,9 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 const root = fileURLToPath(new URL("../", import.meta.url));
 const suites = [
+  "tests/services/smsVoice.productionJourneys.test.js",
+  "tests/services/serviceEligibility.journey.test.js",
+  "tests/unit/requestQualification.policy.test.js",
   "tests/integration/schedulingConversationUx.regression.test.js",
   "tests/unit/staffReview.crossTrade.test.js",
   "tests/unit/interventionEscalation.test.js",

@@ -2,6 +2,7 @@ import { guardServiceRequest, assertServiceRequestEligible } from '../../src/ser
 import { generateAIReplyResult } from '../../src/services/aiReplyService.js';
 import VoiceAgent from '../../src/voice/voiceAgent.service.js';
 import VoiceUnderstanding from '../../src/voice/voiceUnderstanding.service.js';
+import ServiceArea from '../../src/models/serviceArea.js';
 import ServiceOffering from '../../src/models/serviceOffering.js';
 import Operations from '../../src/models/businessOperationsSettings.js';
 import Lead from '../../src/models/lead.js';
@@ -16,6 +17,7 @@ import { qualifyLeadWithAI } from '../../src/helpers/ai/qualifyLeadWithAI.js';
 import { reserveAiUsage } from '../../src/services/communicationUsage.service.js';
 import VoiceCallback from '../../src/voice/voiceCallback.service.js';
 
+jest.mock('../../src/models/serviceArea.js', () => ({ __esModule: true, default: { findOne: jest.fn() } }));
 jest.mock('../../src/models/serviceOffering.js', () => ({ __esModule: true, default: { find: jest.fn(), findOne: jest.fn() } }));
 jest.mock('../../src/models/businessOperationsSettings.js', () => ({ __esModule: true, default: { findOne: jest.fn() } }));
 jest.mock('../../src/models/lead.js', () => ({ __esModule: true, default: { findOne: jest.fn(), findOneAndUpdate: jest.fn() } }));
@@ -50,6 +52,7 @@ function journey(channel = 'sms') {
 }
 beforeEach(() => {
   jest.clearAllMocks(); business.features.aiBookingEnabled = false; services = [plumbing]; policy = { catalogComplete: true };
+  ServiceArea.findOne.mockReturnValue(query({ type: 'zip_codes', zipCodes: ['30324', '30326', '30303'] }));
   ServiceOffering.find.mockImplementation(filter => query(services.filter(s=>Object.entries(filter).every(([key,value])=>s[key]===value))));
   ServiceOffering.findOne.mockImplementation(filter=>query(services.find(s=>Object.entries(filter).every(([key,value])=>s[key]===value))));
   Operations.findOne.mockImplementation(() => query({ serviceEligibilityPolicy: policy }));
@@ -239,4 +242,36 @@ test('voice mixed selection and callback retains the chosen time and creates act
  expect(lead.preferredAppointmentTime).toBeTruthy();expect(VoiceCallback.handle).not.toHaveBeenCalled();
  expect(AlertService.createHumanHandoffAlert).toHaveBeenCalledWith(expect.objectContaining({result:expect.objectContaining({preferredAppointmentTime:lead.preferredAppointmentTime})}));
  expect(conversation.orchestration.handoffReason).toBe('scheduling_review');
+});
+
+// Keep the real service-area policy in these channel journeys; only persistence
+// is mocked. A missing fixture must never become implicit coverage permission.
+test.each(['sms', 'voice'].flatMap(channel => [
+ { channel, area: null, label: 'unconfigured', reply: /coverage.*team review/i },
+ { channel, area: { type: 'zip_codes', zipCodes: ['30303'] }, label: 'outside coverage', reply: /outside.*service area/i },
+]))('$channel blocks calendar reads for $label', async ({ channel, area, reply }) => {
+ ServiceArea.findOne.mockReturnValue(query(area));
+ const j = journey(channel);
+ await j.turn('I need faucet replacement', true);
+ const addressResult = await j.turn('123 Easy Street Bessemer AL 35022', true);
+ expect(addressResult.reply).toMatch(reply);
+ const result = await j.turn('What is available?', true);
+ expect(result.reply).toMatch(reply);
+ expect(getAvailability).not.toHaveBeenCalled();
+ expect(AppointmentService.create).not.toHaveBeenCalled();
+});
+
+test.each(['sms', 'voice'])('%s rechecks coverage before refreshing previously offered times', async channel => {
+ const j = journey(channel);
+ await j.turn('I need faucet replacement', true);
+ await j.turn('970 Sidney Marcus Atlanta GA 30324', true);
+ await j.turn('What is available?', true);
+ expect(j.conversation().bookingState.offeredSlots.length).toBeGreaterThan(0);
+ getAvailability.mockClear();
+ ServiceArea.findOne.mockReturnValue(query({ type: 'zip_codes', zipCodes: ['35022'] }));
+ const result = await j.turn('What is available?', true);
+ expect(result.reply).toMatch(/outside.*service area/i);
+ expect(j.conversation().bookingState.offeredSlots || []).toHaveLength(0);
+ expect(getAvailability).not.toHaveBeenCalled();
+ expect(AppointmentService.create).not.toHaveBeenCalled();
 });
