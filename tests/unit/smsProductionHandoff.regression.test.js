@@ -276,3 +276,10 @@ describe("manual intake completion boundaries", () => {
     expect(shouldCompleteManualIntake({ business, conversation, lead: ready, result })).toBe(true);
   });
 });
+
+
+test('pending acknowledgement is not proof of a durable review request', () => {
+ const result=buildHumanHandoffStatusResult({business,conversation:{orchestration:{handoffReason:'intake_complete',handoffStatus:'pending_ack'}}});
+ expect(result.reply).toMatch(/staff review has not been verified/);
+ expect(result.reply).not.toMatch(/saved for team review|flagged/);
+});

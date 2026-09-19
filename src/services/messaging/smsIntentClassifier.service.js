@@ -1,3 +1,4 @@
+import { requestQuestions } from '../booking/requestQuestionPolicy.service.js';
 import {
   findDateRange,
   hasAppointmentPreferenceHint,
@@ -184,7 +185,8 @@ export const classifySmsIntent = ({
 
   const serviceNeeded = extractService(text, { lead, conversation });
   const intents = {
-    pricing: any(PRICING, text),
+    pricing: requestQuestions(text).pricing,
+    completionQuestion: requestQuestions(text).ambiguous || requestQuestions(text).duration || requestQuestions(text).completionDate,
     human: any(HUMAN, text),
     callback: any(CALLBACK, text),
     status: any(STATUS, text),

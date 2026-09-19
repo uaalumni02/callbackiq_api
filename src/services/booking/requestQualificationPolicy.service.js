@@ -69,6 +69,7 @@ export function buildRequestReadiness({ lead, conversation, state, now = new Dat
   if (!lead.address || /^(unknown|not provided|n\/a)$/i.test(lead.address)) blockers.push('address_required');
   if (state.coverage?.supported !== true || state.coverage.address !== lead.address) blockers.push(state.coverage?.reason || 'coverage_not_evaluated');
   if (state.triagePending || state.clogPending) blockers.push('triage_unresolved');
+  if (state.unresolvedQuestions?.some(q => q.kind === 'completion_meaning')) blockers.push('question_meaning_unresolved');
   const readyForOptions = blockers.length === 0;
   const age = new Date(now).getTime() - new Date(state.availability?.checkedAt || 0).getTime();
   const availabilityVerified = readyForOptions && state.availability?.status === 'available' && state.availability.evidenceKey === evidenceKey && age >= 0 && age <= 5 * 60_000;

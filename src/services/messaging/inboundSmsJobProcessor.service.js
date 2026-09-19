@@ -692,7 +692,7 @@ export const processInboundSmsJob = async (job) => {
   const valuationTicket = await beginValuation(lead, business._id);
   const retryingCompletedIntake = handoffSource && conversation?.orchestration?.handoffReason === "intake_complete";
   const orchestration = retryingCompletedIntake
-    ? { result: buildCompletedIntakeResult({ business, result: { messageCategory: "service_request", serviceNeeded: lead.serviceNeeded, urgency: lead.urgency, address: lead.address, preferredAppointmentTime: lead.preferredAppointmentTime, summary: lead.summary } }), outcome: { intent: "service_request", outcome: "reply_ready" } }
+    ? { result: buildCompletedIntakeResult({ business, result: conversation.conversationMemory?.recoveryIntake?.preparedHandoffResult || { messageCategory: "service_request", serviceNeeded: lead.serviceNeeded, urgency: lead.urgency, address: lead.address, preferredAppointmentTime: lead.preferredAppointmentTime, summary: lead.summary } }), outcome: { intent: "service_request", outcome: "reply_ready" } }
     : await ConversationOrchestratorService.process({
         business, lead, conversation, messages, inboundMessage: effectiveInboundMessage,
       });
@@ -764,13 +764,20 @@ export const processInboundSmsJob = async (job) => {
   assertDistributedLeaseActive();
   updatedConversation = await Conversation.findByIdAndUpdate(
     updatedConversation._id,
-    { $set: { ...statePatch, ...revisionPatch, ...pendingHandoffPatch } },
+    { $set: { ...statePatch, ...revisionPatch, ...pendingHandoffPatch,
+      ...(handoffRequired && !revisionPatch['conversationMemory.recoveryIntake'] ? { 'conversationMemory.recoveryIntake.preparedHandoffResult': {
+        reply: result.reply, intakeCompletionReply: result.reply, intakeReview: result.intakeReview,
+        messageCategory: result.messageCategory, serviceNeeded: result.serviceNeeded, urgency: result.urgency,
+        address: result.address, preferredAppointmentTime: result.preferredAppointmentTime, summary: result.summary,
+        guardrail: result.guardrail,
+      } } : {}),
+    } },
     { returnDocument: "after", runValidators: true },
   );
   SocketService.emitConversationUpdated(business._id, updatedConversation);
 
   if (handoffRequired) {
-    await AlertService.createHumanHandoffAlert({
+    const savedReview = await AlertService.createHumanHandoffAlert({
       businessId: business._id,
       leadId: updatedLead._id,
       conversationId: updatedConversation._id,
@@ -782,6 +789,16 @@ export const processInboundSmsJob = async (job) => {
       result,
       lead: updatedLead,
     });
+    if (!savedReview?.alert?._id) throw Object.assign(new Error('Staff review was not saved.'), { code: 'STAFF_ACTION_NOT_SAVED' });
+    assertDistributedLeaseActive();
+    const reviewPatch = {
+      'conversationMemory.recoveryIntake.review': { status: 'queued', alertId: String(savedReview.alert._id),
+        queuedAt: new Date(), evidenceKey: updatedConversation.conversationMemory?.recoveryIntake?.readiness?.evidenceKey || '' },
+    };
+    updatedConversation = await Conversation.findByIdAndUpdate(updatedConversation._id,
+      { $set: reviewPatch }, { returnDocument: 'after', runValidators: true });
+    if (!updatedConversation) throw Object.assign(new Error('Review conversation was not persisted.'), { code: 'STAFF_ACTION_NOT_SAVED' });
+    SocketService.emitConversationUpdated(business._id, updatedConversation);
   } else if (result?.shouldAlertOwner === true) {
     await AlertService.createAIReviewAlert({
       businessId: business._id,

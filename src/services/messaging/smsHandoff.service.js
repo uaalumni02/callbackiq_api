@@ -275,7 +275,9 @@ export const buildHumanHandoffStatusResult = ({ business, conversation }) => ({
   decision: "send_fixed_response",
   actionType: "human_handoff_status",
   messageCategory: "human_handoff_status",
-  reply: conversation?.orchestration?.handoffReason === "intake_complete"
+  reply: conversation?.orchestration?.handoffStatus === "pending_ack" && conversation?.conversationMemory?.recoveryIntake?.review?.status !== 'queued'
+    ? "I have your message, but staff review has not been verified yet. The appointment is not confirmed, and I cannot guarantee a response time."
+    : conversation?.orchestration?.handoffReason === "intake_complete"
     ? "Your service request is saved for team review. The appointment is not confirmed, and I don’t have a confirmation timeframe."
     : buildHumanHandoffStatusAcknowledgement({ business }),
   shouldAlertOwner: false,
