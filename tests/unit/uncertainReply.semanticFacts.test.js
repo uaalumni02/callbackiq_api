@@ -54,3 +54,13 @@ test('no-reply and outbound safeguards retain priority over semantic facts', asy
   }
   expect(qualifiedIntakeFacts(null)).toEqual({});
 });
+
+test.each([true, false])('uncertain reply respects a current coverage blocker (same journey=%s)', async sameJourney => {
+ const c = conversation(); c.conversationMemory.uncertainTurns = 0;
+ c.orchestration = { recoveryJourneyKey: 'current' };
+ c.conversationMemory.recoveryIntake = { journeyKey: sameJourney ? 'current' : 'old', coverage: { supported: null, address: '123 Main St' } };
+ const result = await constrainUncertainReply({ result: weakReply, conversation: c,
+  lead: { serviceNeeded: 'faucet replacement', address: '123 Main St', preferredAppointmentTime: 'Monday 8 am' } });
+ if (sameJourney) { expect(result.reply).toMatch(/Coverage.*team review/); expect(result.handoff.required).toBe(true); }
+ else expect(result.reply).not.toMatch(/Coverage/);
+});

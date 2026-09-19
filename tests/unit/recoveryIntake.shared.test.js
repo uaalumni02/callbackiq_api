@@ -291,13 +291,14 @@ test.each(['sms', 'voice'])('%s clarifies a vague problem, keeps out-of-order fa
  expect(getAvailability).not.toHaveBeenCalled();
  expect(c.conversation.conversationMemory.recoveryIntake.readiness.readyForOptions).toBe(false);
 });
-test.each(['sms', 'voice'])('%s routes unknown coverage to review without asking for a day or calling the calendar', async channel => {
+test.each(['sms', 'voice'])('%s routes unknown coverage to review with an explicitly tentative preference and no calendar lookup', async channel => {
  const c = context(channel); await c.turn('Replace my faucet');
  validateServiceArea.mockResolvedValue({ supported: null, reason: 'service_area_not_configured' });
  const result = await c.turn('123 Easy Street Bessemer AL 35022');
  expect(result.intakeReady).toBe(false);
  expect(result.handoff.required).toBe(true);
- expect(result.reply).not.toMatch(/what day|what time|currently available/i);
+ expect(result.reply).toMatch(/preference for review/i);
+ expect(result.reply).not.toMatch(/currently available/i);
  expect(result.intakeReview.coverage.supported).toBeNull();
  expect(getAvailability).not.toHaveBeenCalled();
  if (channel === 'voice') expect(AlertService.createHumanHandoffAlert).toHaveBeenCalled();

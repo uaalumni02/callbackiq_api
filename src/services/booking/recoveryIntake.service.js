@@ -14,6 +14,7 @@ import searchServices from '../../helpers/ai/tools/searchServices.tool.js';
 import getAvailability from '../../helpers/ai/tools/getAvailability.tool.js';
 import validateServiceArea from '../../helpers/ai/tools/validateServiceArea.tool.js';
 import AlertService from '../alert.service.js';
+import { isCoverageQuestion, coverageReviewReply, currentCoverage } from './coverageConversation.service.js';
 import { isConfirmationQuestion } from './conversationQuestions.service.js';
 import { assertDistributedLeaseActive } from '../distributedLease.service.js';
 import { assertVoiceTurnActive } from '../voiceTurnContext.service.js';
@@ -42,8 +43,8 @@ const fixed = (reply, lead, extra = {}) => ({
   preferredAppointmentTime: lead.preferredAppointmentTime || '', shouldAlertOwner: false, riskFlags: [],
   guardrail: { skipAI: true, usedFallback: false, reason: 'shared_recovery_intake' }, intakeReady: false, ...extra,
 });
-export const confirmationTimingReply = ({ lead = {}, channel = 'sms' } = {}) =>
-  `The business must approve the appointment. I don't have a confirmation timeframe.${!known(lead.address) ? ' What is the service address?' : channel === 'voice' ? ' Please wait for confirmation before expecting a visit.' : ''}`;
+export const confirmationTimingReply = ({ lead = {}, conversation = {}, channel = 'sms' } = {}) =>
+  `No appointment is confirmed by this request. ${currentCoverage(conversation, lead)?.supported === null ? 'Service-area coverage still needs team review. ' : ''}The business must approve the appointment. I don't have a confirmation timeframe.${!known(lead.address) ? ' What is the service address?' : channel === 'voice' ? ' Please wait for confirmation before expecting a visit.' : ''}`;
 
 const slotLabel = (slot, timezone) => new Intl.DateTimeFormat('en-US', {
   timeZone: timezone, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
@@ -74,12 +75,13 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   if (serviceGuard) return serviceGuard;
   if (isConfirmationQuestion(text) && !/\b(?:cancel|reschedule|call me|human)\b/i.test(text)) {
     if (!conversation.bookingState?.appointment && !['offering_slots', 'awaiting_confirmation'].includes(conversation.bookingState?.status)) {
-      return fixed(confirmationTimingReply({ lead, channel }), lead, { messageCategory: 'appointment_status' });
+      return fixed(confirmationTimingReply({ lead, conversation, channel }), lead, { messageCategory: 'appointment_status' });
     }
   }
   // Persistence is mandatory; callers without a durable context use the established flow.
   if (typeof lead.save !== 'function' || typeof conversation.save !== 'function') return null;
   const classification = classifySmsIntent({ business, lead, conversation, customerMessage: text, now });
+  const coverageQuestion = isCoverageQuestion(text);
   if (controlMessage.test(text) || businessHoursQuestion.test(text) ||
       ['human', 'callback', 'cancel', 'reschedule', 'status'].some(intent => classification.intents?.[intent])) return null;
   if (channel === 'voice' && (session?.metadata?.callbackCapture?.status || session?.metadata?.currentUnderstanding?.language === 'es' || session?.metadata?.currentUnderstanding?.language === 'other')) return null;
@@ -131,7 +133,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   const incomingTime = parseTimePreference(schedulingText, timezone, now);
   if (incomingRange) state.date = incomingRange.startDate === incomingRange.endDate ? incomingRange.startDate : `${incomingRange.startDate} through ${incomingRange.endDate}`;
   if (incomingTime.targetMinutes !== null || incomingTime.timeOfDay) state.time = incomingTime.exactMinutes !== null ? `${Math.floor(incomingTime.exactMinutes / 60)}:${String(incomingTime.exactMinutes % 60).padStart(2, '0')}` : incomingTime.raw.slice(0, 300);
-  if (!bookingActive && (state.date || state.time)) lead.preferredAppointmentTime = [state.date, state.time].filter(Boolean).join(' at ');
+  if ((!bookingActive || (reviewOnly && !conversation.bookingState?.appointment)) && (state.date || state.time)) lead.preferredAppointmentTime = [state.date, state.time].filter(Boolean).join(' at ');
 
   // Keep new detail even if the canonical service remains unchanged. It is
   // bounded, scoped to this recovery journey, and explicitly customer evidence.
@@ -184,7 +186,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   // details before choosing a clarification. Do not consume retry budget here.
   // Availability questions must still pass the qualification checks below,
   // including follow-ups after a missing or unsupported coverage decision.
-  if (!understoodAnswer && !classification.intents?.pricing && !classification.intents?.availabilityInquiry && !semanticAssessment &&
+  if (!understoodAnswer && !classification.intents?.pricing && !classification.intents?.availabilityInquiry && !coverageQuestion && !semanticAssessment &&
       !(/^\d{5}(?:-\d{4})?$/.test(text) && known(lead.address)) && !state.problem?.asked) return null;
   let approvedEstimate = '';
   if (classification.intents?.pricing) {
@@ -248,7 +250,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
       qualificationReason: reason, intakeReview: { ...state.readiness, problem: state.problem,
         coverage: state.coverage, serviceNeeded: lead.serviceNeeded, address: lead.address,
         preferredAppointmentTime: lead.preferredAppointmentTime, triageAnswer: state.triageAnswer || '' },
-      summary: `${state.serviceDetail || lead.serviceNeeded}; ${lead.address || 'Address not supplied'}. Review required: ${reason}.`,
+      summary: `${state.serviceDetail || lead.serviceNeeded}; ${lead.address || 'Address not supplied'}; preferred time: ${lead.preferredAppointmentTime || 'not supplied'}; triage: ${state.triageAnswer || 'not supplied'}. Review required: ${reason}.`,
     });
     if (channel === 'voice') {
       checkActive();
@@ -280,11 +282,27 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
         state.reviewReady = false; state.submitted = false;
         return ask('coverage', 'That address is outside the configured service area, so I cannot offer appointment times there. If the address is incorrect, please send the correction.');
       }
-      return reviewQualification(state.coverage.reason,
-        "Coverage for this address needs team review. No new appointment or change to an existing appointment is confirmed by this message.");
+      state.coverageReviewPending = true;
+      return reviewQualification(state.coverage.reason, coverageReviewReply({
+        lead, conversation, state, coverageQuestion,
+        availabilityQuestion: classification.intents?.availabilityInquiry,
+        preferenceCaptured: Boolean(incomingRange || incomingTime.targetMinutes !== null || incomingTime.timeOfDay),
+      }));
     }
   } else {
     state.coverage = { supported: null, status: 'unknown', reason: 'zip_code_required', address: lead.address || '' };
+  }
+  if (state.coverage.supported === true && state.coverageReviewPending && !conversation.bookingState?.appointment) {
+    state.coverageReviewPending = false; state.reviewReady = false; state.submitted = false;
+  }
+  if (coverageQuestion) {
+    await persist();
+    if (state.coverage.supported === true) {
+      return fixed(`I rechecked the service area: ZIP ${postalCode} is covered. ${conversation.bookingState?.appointment
+        ? 'This check does not change your existing appointment.'
+        : 'Availability and business approval are still required; no appointment is confirmed.'}`, lead);
+    }
+    return ask('postal_code', known(lead.address) ? 'What is the ZIP code for that address so I can check coverage?' : 'What is the service address, including ZIP code, so I can check coverage?');
   }
   // Existing appointments remain manageable. New or unresolved details are
   // reviewed without changing their committed service, location, or time.

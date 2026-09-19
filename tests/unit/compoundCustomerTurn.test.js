@@ -124,3 +124,14 @@ test('address journal repairs interrupted lead persistence before replying',asyn
  expect(result.address).toBe('999 Oak Lane Atlanta GA 30309');expect(c.lead.address).toBe(result.address);
  expect(c.conversation.bookingState.offeredSlots).toEqual([]);
 });
+
+test('callback and confirmation reply retains unresolved coverage and complete staff facts', async () => {
+ const c = context(); c.conversation.bookingState = { status: 'not_started' };
+ c.lead.preferredAppointmentTime = 'Monday 8 am';
+ c.conversation.conversationMemory.recoveryIntake.coverage = { supported: null, address: c.lead.address };
+ const r = await handleCompoundCustomerTurn({ ...c, customerMessage: 'Will someone call me to confirm my appointment?' });
+ expect(r.reply).toMatch(/Coverage.*team review/);
+ expect(r.handoff.callbackRequested).toBe(true);
+ expect(r.summary).toContain(c.lead.address);
+ expect(r.summary).toContain('Monday 8 am');
+});

@@ -1,3 +1,4 @@
+jest.mock('../../src/helpers/ai/tools/validateServiceArea.tool.js', () => ({ __esModule: true, default: jest.fn().mockResolvedValue({ supported: null, reason: 'service_area_not_configured' }) }));
 jest.mock('../../src/models/serviceOffering.js', () => ({ __esModule: true, default: { find: jest.fn() } }));
 import EligibilityCatalog from '../../src/models/serviceOffering.js';
 import EligibilityOperations from '../../src/models/businessOperationsSettings.js';
@@ -417,6 +418,26 @@ describe("completed manual intake uses the durable staff handoff", () => {
     generateAIReplyResult.mockResolvedValue({ decision: "send_fixed_response", actionType: "send_fixed_response", intakeReady: true, messageCategory: "appointment_preference", reply: "I've noted Wednesday at 9 AM as your preference.", preferredAppointmentTime: "Wednesday at 9 AM", serviceNeeded: activeLead.serviceNeeded, urgency: "high", guardrail: { usedFallback: false } });
   });
 
+
+  test.each([false, true])('coverage review after completed intake persists an alert before reply (failure=%s)', async fail => {
+    activeConversation.orchestration = { handoffReason: 'intake_complete', handoffInboundMessage: 'previous' };
+    activeConversation.conversationMemory = {};
+    activeConversation.save = jest.fn().mockResolvedValue(null);
+    activeLead.save = jest.fn().mockResolvedValue(null);
+    activeInbound.body = 'Monday 8 am';
+    if (fail) AlertService.createHumanHandoffAlert.mockRejectedValueOnce(new Error('review storage unavailable'));
+    if (fail) {
+      await expect(processInboundSmsJob(job)).rejects.toThrow('review storage unavailable');
+      expect(sendSms).not.toHaveBeenCalled();
+    } else {
+      await processInboundSmsJob(job);
+      expect(AlertService.createHumanHandoffAlert).toHaveBeenCalledWith(expect.objectContaining({
+        result: expect.objectContaining({ qualificationReason: 'service_area_not_configured',
+          handoff: expect.objectContaining({ required: true, reason: 'intake_unclear' }) }) }));
+      expect(AlertService.createHumanHandoffAlert.mock.invocationCallOrder[0]).toBeLessThan(sendSms.mock.invocationCallOrder[0]);
+      expect(sendSms.mock.calls[0][0].body).toMatch(/preferred time/);
+    }
+  });
 
   test.each([undefined, false])('does not mark intake complete without explicit readiness: %s', async intakeReady => {
     generateAIReplyResult.mockResolvedValue({
