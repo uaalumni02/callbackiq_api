@@ -480,11 +480,11 @@ export const processInboundSmsJob = async (job) => {
       if (refreshedLead) Object.assign(lead, typeof refreshedLead.toObject === 'function' ? refreshedLead.toObject() : refreshedLead);
       await Conversation.findByIdAndUpdate(conversation._id, { $set: { ...buildSmsStatePatch({ conversation, classification,
         outcome: { intent: directResult.messageCategory }, hasCustomerReply: true }), ...revisionPatch } }, { runValidators: true });
-      if (Object.keys(revisionPatch).length && conversation.bookingState?.appointment) {
+      if (directResult.handoff?.required === true || (Object.keys(revisionPatch).length && conversation.bookingState?.appointment)) {
         await AlertService.createHumanHandoffAlert({ businessId: business._id, leadId: lead._id, conversationId: conversation._id,
           messageId: inboundMessage._id, providerMessageId: inboundMessage.providerMessageId,
           customerPhone: conversation.customerPhone, customerMessage: customerTurn.customerMessage, lead,
-          result: { ...directResult, handoff: { required: true, reason: 'scheduling_review' } } });
+          result: { ...directResult, handoff: directResult.handoff?.required ? directResult.handoff : { required: true, reason: 'scheduling_review' } } });
       }
       const delivery = await persistOutboundReply({ business, lead, conversation, inboundMessage, result: directResult });
       await Message.findByIdAndUpdate(inboundMessage._id, { $set: { aiOutcome: {

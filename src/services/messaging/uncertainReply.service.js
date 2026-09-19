@@ -61,7 +61,10 @@ export const constrainUncertainReply = async ({ result, lead, conversation, turn
     setMemory(conversation, 'uncertainTurnId', String(turnId));
     await conversation.save();
   }
-  const needsReview = count >= 2;
+  const intake = memory.recoveryIntake || {};
+  const coveragePending = intake.coverage?.supported === null && intake.coverage?.address === facts.address &&
+    (intake.journeyKey || '') === (conversation?.orchestration?.recoveryJourneyKey || '');
+  const needsReview = count >= 2 || coveragePending;
   const question = !facts.serviceNeeded
     ? 'What needs repair or service? A short description of the problem will help.'
     : !facts.address
@@ -72,7 +75,7 @@ export const constrainUncertainReply = async ({ result, lead, conversation, turn
   return {
     ...result, ...facts, decision: 'send_fixed_response', actionType: needsReview ? 'human_handoff' : 'request_information',
     messageCategory: facts.serviceNeeded ? 'service_details' : 'unknown', urgency: lead?.urgency || 'medium',
-    reply: needsReview ? 'A team member needs to review your request. You do not need to repeat the details already provided.' : question,
+    reply: coveragePending ? "Coverage for your address still needs team review before appointment times can be offered. Your saved details remain available; no appointment is confirmed by this message. What would you like the team to know?" : needsReview ? 'A team member needs to review your request. You do not need to repeat the details already provided.' : question,
     intakeReady: false, estimatedValue: 0, leadQualityScore: lead?.leadQualityScore || 0,
     shouldAlertOwner: needsReview || Boolean(result.shouldAlertOwner),
     ...(needsReview ? { handoff: { required: true, reason: 'intake_unclear', callbackRequested: false } } : { handoff: undefined }),

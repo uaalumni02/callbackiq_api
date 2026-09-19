@@ -15,6 +15,8 @@ const ARRIVAL_VERB =
   String.raw`(?:come(?:\s+out)?|arrive|get\s+here|be\s+here|visit|show\s+up)`;
 
 const AVAILABILITY_PATTERNS = [
+  /\b(?:what|which)\s+(?:are\s+)?(?:(?:some|the|your|available)\s+)*(?:appointment\s+times|time\s+slots|openings)\b/i,
+  /\b(?:show|list|offer|give)\s+(?:me\s+)?(?:(?:some|the|your|available)\s+)*(?:appointment\s+times|time\s+slots|openings)\b/i,
   /\bwhat(?:['’]s| is)\s+(?:available|open|free)\b/i,
   /\b(?:can|could|would)\s+you\s+(?:do|manage|make)\s+(?:today|tomorrow|tonight|this\s+(?:morning|afternoon|evening)|next\s+week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i,
   /\b(?:check|find|any|an?|something|anything)\b.{0,25}\bearlier\b(?:.{0,20}\b(?:appointment|opening|time|slot)\b)?/i,

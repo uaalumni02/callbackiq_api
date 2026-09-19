@@ -36,7 +36,7 @@ export function planCustomerTurn({ customerMessage, business, lead, conversation
   const classified = classifySmsIntent({ customerMessage: text, business, lead, conversation });
   const withdrawal = isRequestWithdrawal(text) || classified.intents.cancel;
   const callback = classified.intents.human || classified.intents.callback;
-  const confirmation = /\b(?:guarantee|guaranteed|confirmed|confirmation|approve|approved|booked|reserved)\b/i.test(text);
+  const confirmation = /\b(?:guarantee|guaranteed|confirm|confirmed|confirmation|approve|approved|approval|booked|reserved)\b/i.test(text);
   const additionalRequest = withdrawal ? '' : additionalServiceText(text, lead, conversation);
   const selectionReference = /\b(?:option\s*\d+|first option|second option|third option|that time|this time)\b/i.test(text);
   const selectionContext = ['offering_slots', 'awaiting_confirmation'].includes(conversation?.bookingState?.status);

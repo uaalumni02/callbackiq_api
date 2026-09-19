@@ -243,13 +243,14 @@ test.each(['sms', 'voice'])('%s actual entry point persists vague-problem clarif
  expect(Availability.getAvailability).not.toHaveBeenCalled();
  expect(AppointmentService.create).not.toHaveBeenCalled();
 });
-test.each(['sms', 'voice'])('%s actual entry point routes unknown coverage to review before dates', async channel => {
+test.each(['sms', 'voice'])('%s actual entry point routes unknown coverage to review with a tentative preference', async channel => {
  business.features.aiBookingEnabled = false;
  const j = journey(channel); await j.turn('Replace my faucet', true);
  validateServiceArea.mockResolvedValue({ supported: null, reason: 'service_area_not_configured' });
  const reply = await j.turn('123 Easy Street Bessemer AL 35022', true);
  expect(reply.reply).toMatch(/coverage.*review/i);
- expect(reply.reply).not.toMatch(/what day|what time|currently available/i);
+ expect(reply.reply).toMatch(/preference for review/i);
+ expect(reply.reply).not.toMatch(/currently available/i);
  expect(j.conversation().conversationMemory.recoveryIntake.readiness.readyForOptions).toBe(false);
  expect(Availability.getAvailability).not.toHaveBeenCalled();
  if (channel === 'voice') expect(AlertService.createHumanHandoffAlert).toHaveBeenCalled();
@@ -284,3 +285,23 @@ describe.each(['sms', 'voice'])('%s cross-trade qualification through actual ent
    expect(AppointmentService.create).not.toHaveBeenCalled();
  });
 });
+
+ test.each(['sms', 'voice'])('%s actual entry preserves coverage and preference across repeated questions and reloads', async channel => {
+  business.features.aiBookingEnabled = false;
+  const j = journey(channel);
+  await j.turn('Replace my faucet', true);
+  validateServiceArea.mockResolvedValue({ supported: null, reason: 'service_area_not_configured' });
+  await j.turn('123 Pine Street Atlanta GA 30324', true);
+  for (const text of ['When can someone come out?', 'What are some appointment times?']) {
+   const r = await j.turn(text, true);
+   expect(r.reply).toMatch(/cannot offer appointment times.*coverage/i);
+   expect(r.reply).not.toMatch(/What day and time/);
+  }
+  const preference = await j.turn('Monday 8 am', true);
+  expect(preference.reply).toMatch(/preferred time/);
+  expect(j.lead().preferredAppointmentTime).toMatch(/8:00/);
+  const review = await j.turn('Can you review your service area now?', true);
+  expect(review.reply).toMatch(/rechecked.*cannot verify/i);
+  expect(Availability.getAvailability).not.toHaveBeenCalled();
+  expect(AppointmentService.create).not.toHaveBeenCalled();
+ });

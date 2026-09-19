@@ -1,3 +1,4 @@
+import { currentCoverage } from '../booking/coverageConversation.service.js';
 import { applyCustomerAddressRevision } from './customerRequestRevision.service.js';
 import { planCustomerTurn } from './customerTurnPlan.service.js';
 import { selectOfferedSlot } from '../booking/bookingStateMachine.service.js';
@@ -77,12 +78,14 @@ export async function handleCompoundCustomerTurn({ business, lead, conversation,
     ? 'The team must verify your appointment status; this message does not change it. '
     : 'Not a confirmed appointment; business approval is required. ';
   const extra = boundary?.additionalRequest ? 'Your original service stays active. Additional work needs separate review and is not accepted. ' : '';
-  const reply = `${selectionReply}${approval}Callback requested; response time is not guaranteed. ${extra}${price}`.trim();
+  const coverage = currentCoverage(conversation, lead);
+  const coverageNote = coverage?.supported === null && coverage.address === lead.address ? 'Coverage for your address also needs team review. ' : '';
+  const reply = `${selectionReply}${coverageNote}${approval}Callback requested; response time is not guaranteed. ${extra}${price}`.trim();
   const result = { decision: 'send_fixed_response', actionType: 'human_handoff', messageCategory: 'human_requested',
     reply, compoundTurn: true, serviceNeeded: lead.serviceNeeded || '', address: lead.address || '',
     preferredAppointmentTime: preference, urgency: lead.urgency || 'medium', intakeReady: false, shouldAlertOwner: true,
     handoff: { required: true, reason: 'scheduling_review', callbackRequested: true },
-    summary: `Callback requested. ${selectionReply}${approval}${extra}`.trim(),
+    summary: `Callback requested. ${lead.serviceNeeded || ''}; ${lead.address || ''}; preferred time: ${preference || 'not supplied'}. ${selectionReply}${coverageNote}${approval}${extra}`.trim(),
     guardrail: { skipAI: true, usedFallback: false, reason: 'compound_customer_turn' } };
   const intake = conversation.conversationMemory?.recoveryIntake || {};
   const next = { ...intake, compoundTurn: { turnId: String(turnId), text: plan.text, result,
