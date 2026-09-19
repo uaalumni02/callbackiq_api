@@ -24,6 +24,19 @@ const error = (message, statusCode = 400) => Object.assign(new Error(message), {
 const cleanWindows = row => ({ ...row, windows: (row.windows || []).map(w => pick(w, ["startTime", "endTime"])) });
 const hash = value => crypto.createHash("sha256").update(JSON.stringify(value)).digest("hex");
 
+// Lean reads do not apply schema defaults to pre-existing records. Fill missing
+// fields in the response only, keeping explicit false/zero/empty values intact.
+const withDefaults = (defaults, stored) => {
+  const result = { ...defaults, ...stored };
+  for (const [key, fallback] of Object.entries(defaults)) {
+    if (stored?.[key] == null) result[key] = fallback;
+    else if (fallback && typeof fallback === "object" && !Array.isArray(fallback) && Object.getPrototypeOf(fallback) === Object.prototype) {
+      result[key] = withDefaults(fallback, stored[key]);
+    }
+  }
+  return result;
+};
+
 // Reads do not create defaults in the database or activate features.
 export async function readOwnerSettings(business, session = null) {
   const scoped = Model => Model.find({ business: business._id }).session(session).sort({ _id: 1 }).lean();
@@ -34,9 +47,9 @@ export async function readOwnerSettings(business, session = null) {
   const exceptions = await scoped(AvailabilityException);
   const policies = await scoped(SchedulingPolicy);
   const operations = await scoped(BusinessOperationsSettings);
-  const policy = policies[0] || plain(new SchedulingPolicy({ business: business._id }));
-  const ops = operations[0] || plain(new BusinessOperationsSettings({ business: business._id }));
-  const area = areas[0] || { type: "zip_codes", zipCodes: [], centerPostalCode: "", radiusMiles: 25 };
+  const policy = withDefaults(plain(new SchedulingPolicy({ business: business._id })), policies[0]);
+  const ops = withDefaults(plain(new BusinessOperationsSettings({ business: business._id })), operations[0]);
+  const area = withDefaults(plain(new ServiceArea({ business: business._id })), areas[0]);
   const voice = normalizeVoiceSettings(business);
   const sections = {
     business: pick(business, profileKeys),

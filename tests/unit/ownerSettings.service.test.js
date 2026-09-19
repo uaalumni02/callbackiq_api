@@ -84,3 +84,29 @@ test("rejects unsupported fields, malformed booleans and duplicate weekdays", as
   const before = await readOwnerSettings(business);
   await expect(save("hours", { rules: before.sections.hours.rules.map(r => ({ ...r, dayOfWeek: 1 })) })).rejects.toThrow(/each day/);
 });
+
+test.each([undefined, null, {}])("legacy lean records receive read-only defaults for missing policies (%p)", async missing => {
+  const operations = { _id: new mongoose.Types.ObjectId(), business: business._id, serviceEligibilityPolicy: missing, emergencyPolicy: missing };
+  rows.get(BusinessOperationsSettings).push(operations);
+  rows.get(SchedulingPolicy).push({ _id: new mongoose.Types.ObjectId(), business: business._id, allowSameDayBooking: false });
+  rows.get(ServiceArea).push({ _id: new mongoose.Types.ObjectId(), business: business._id, type: "radius", centerPostalCode: "30303" });
+  const before = JSON.stringify([...rows]);
+  const snapshot = await readOwnerSettings(business);
+  expect(snapshot.sections.services.serviceEligibilityPolicy).toEqual({ catalogComplete: false, excludedServices: [] });
+  expect(snapshot.sections.team.emergencyPolicy).toMatchObject({ enabled: true, afterHoursAction: "escalate", pauseAiOnEmergency: true });
+  expect(snapshot.sections.services.serviceArea).toMatchObject({ type: "radius", centerPostalCode: "30303", zipCodes: [], radiusMiles: 25 });
+  expect(snapshot.sections.hours.schedulingPolicy.minimumNoticeMinutes).toBe(1440);
+  for (const [section, values] of Object.entries(snapshot.sections)) await expect(validateOwnerSection(section, values)).resolves.toBeTruthy();
+  expect(JSON.stringify([...rows])).toBe(before);
+  expect((await readOwnerSettings(business)).revision).toBe(snapshot.revision);
+  expect(BusinessOperationsSettings.prototype.save).not.toHaveBeenCalled();
+});
+
+test("partial legacy policies preserve deliberate restrictions and disabled options", async () => {
+  rows.get(BusinessOperationsSettings).push({ business: business._id, serviceEligibilityPolicy: { catalogComplete: true, excludedServices: ["roof repair"] }, emergencyPolicy: { enabled: false, pauseAiOnEmergency: false, afterHoursAction: "collect_details" } });
+  rows.get(SchedulingPolicy).push({ business: business._id, minimumNoticeMinutes: 0, customerCancellationAllowed: false });
+  const snapshot = await readOwnerSettings(business);
+  expect(snapshot.sections.services.serviceEligibilityPolicy).toEqual({ catalogComplete: true, excludedServices: ["roof repair"] });
+  expect(snapshot.sections.team.emergencyPolicy).toMatchObject({ enabled: false, pauseAiOnEmergency: false, afterHoursAction: "collect_details" });
+  expect(snapshot.sections.hours.schedulingPolicy).toMatchObject({ minimumNoticeMinutes: 0, customerCancellationAllowed: false });
+});
