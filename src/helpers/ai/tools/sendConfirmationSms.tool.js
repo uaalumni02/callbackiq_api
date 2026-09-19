@@ -126,7 +126,7 @@ const sendConfirmationSmsTool = async ({
   let sent;
   try {
     assertVoiceTurnActive();
-    sent = await sendSms({ to, from, body });
+    sent = await sendSms({ to, from, body, source: "appointment_confirmation", usageCategory: "appointment_confirmation" });
   } catch (error) {
     await updateDelivery(voiceSessionId, {
       confirmationSmsStatus: "failed",
@@ -136,6 +136,9 @@ const sendConfirmationSmsTool = async ({
     throw error;
   }
 
+  if (sent?.suppressed || sent?.policyBlocked) {
+    return suppressDelivery({ voiceSessionId, reason: sent.reason || "Customer texts are disabled.", body });
+  }
   const providerMessageId = sent?.sid || "";
   await updateDelivery(voiceSessionId, {
     confirmationSmsStatus: "sent",

@@ -257,4 +257,18 @@ describe("central outbound SMS policy", () => {
       messagingServiceSid: "MG123",
     });
   });
+  test("latest owner text choice wins over a queued business snapshot", async () => {
+    Business.findById.mockResolvedValue({ ...business, customerMessaging: { automaticTextsEnabled: false } });
+    const result = await sendSms({ business, to: "+14045550101", body: "Queued reminder", source: "appointment_reminder" });
+    expect(result).toMatchObject({ suppressed: true, reason: "automatic_customer_texts_disabled" });
+    expect(mockMessagesCreate).not.toHaveBeenCalled();
+    expect(releaseCommunicationUsageReservation).toHaveBeenCalled();
+  });
+  test("manually sent replies still work with automatic customer texts off", async () => {
+    Business.findById.mockResolvedValue({ ...business, customerMessaging: { automaticTextsEnabled: false } });
+    const result = await sendSms({ business, to: "+14045550101", body: "A personal reply", usageCategory: "manual_sms" });
+    expect(result.suppressed).toBe(false);
+    expect(mockMessagesCreate).toHaveBeenCalledTimes(1);
+  });
+
 });

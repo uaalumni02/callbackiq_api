@@ -123,6 +123,8 @@ describe("voice booking confirmation SMS", () => {
       to: lead.phone,
       from: business.phone,
       body: expect.stringContaining("You’re confirmed"),
+      source: "appointment_confirmation",
+      usageCategory: "appointment_confirmation",
     });
     expect(VoiceSession.updateOne).toHaveBeenCalledWith(
       { _id: "voice-session-1" },
@@ -179,4 +181,13 @@ describe("voice booking confirmation SMS", () => {
       },
     );
   });
+  test("owner text suppression is not recorded as a delivered confirmation", async () => {
+    sendSms.mockResolvedValue({ suppressed: true, reason: "appointment_texts_disabled", sid: "" });
+    const result = await sendConfirmationSmsTool(baseInput);
+    expect(result).toMatchObject({ sent: false, suppressed: true, reason: "appointment_texts_disabled" });
+    expect(Message.create).not.toHaveBeenCalled();
+    expect(conversation.save).not.toHaveBeenCalled();
+    expect(VoiceSession.updateOne).toHaveBeenCalledWith({ _id: "voice-session-1" }, { $set: expect.objectContaining({ confirmationSmsStatus: "suppressed" }) });
+  });
+
 });

@@ -134,7 +134,7 @@ export const buildBusinessReadiness = async (
       checks.subscriptionActive &&
       checks.trackingNumberActive &&
       checks.smsMessagingReady &&
-      business.features?.missedCallSmsEnabled !== false,
+      business.features?.missedCallSmsEnabled !== false && business.customerMessaging?.automaticTextsEnabled !== false,
     calendarReady: checks.calendarConfigured,
     bookingConfigurationReady,
     bookingReady:
@@ -177,7 +177,7 @@ export const buildBusinessReadiness = async (
   );
   addMissing(
     missingRequirements.smsRecovery,
-    business.features?.missedCallSmsEnabled !== false,
+    business.features?.missedCallSmsEnabled !== false && business.customerMessaging?.automaticTextsEnabled !== false,
     "sms_recovery_disabled",
     "Turn on missed-call SMS recovery.",
     "/settings",

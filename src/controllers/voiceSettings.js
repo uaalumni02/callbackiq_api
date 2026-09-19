@@ -199,7 +199,7 @@ const voiceSettingsObject = (business) => ({
   ...(business.voiceSettings?.toObject?.() || business.voiceSettings || {}),
 });
 
-const assertNoDialLoops = ({ business, settings }) => {
+export const assertNoDialLoops = ({ business, settings }) => {
   const trackingPhone = normalizePhoneToE164(business?.phone);
   const staffPhone = normalizePhoneToE164(settings.transferPhone);
   const livePhone = normalizePhoneToE164(settings.liveTransferPhone);

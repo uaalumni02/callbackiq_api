@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { ownerTextSuppressionReason } from "./messaging/ownerTextPolicy.service.js";
 import twilio from "twilio";
 
 import Business from "../models/business.js";
@@ -435,6 +436,19 @@ export const sendSms = async ({
       }
     }
 
+    const currentTextPolicy = await Business.findById(resolvedBusinessId);
+    const ownerTextReason = currentTextPolicy
+      ? ownerTextSuppressionReason({ business: currentTextPolicy, source, usageCategory })
+      : "business_unavailable_before_send";
+    if (ownerTextReason) {
+      await releaseCommunicationUsageReservation({ reservation: lifecycle?.reservation, usage, reason: ownerTextReason });
+      await releaseSmsContactDisclosure({ claim: disclosure.claim });
+      await safeAudit({ businessId: resolvedBusinessId, actorId, actorType, source, usageCategory,
+        conversationId, leadId, from: configuredFrom, to: normalizedTo, body: normalizedBody,
+        status: "suppressed", reason: ownerTextReason, metadata: { ...metadata, operationKey } });
+      return { sid: "", status: "suppressed", suppressed: true, reason: ownerTextReason,
+        to: normalizedTo, from: configuredFrom, body: normalizedBody, usage, ...segment };
+    }
     assertDistributedLeaseActive();
     const client = getTwilioClient();
     const configuredMessagingServiceSid = String(messagingServiceSid || "").trim();

@@ -561,6 +561,13 @@ const BusinessSchema = new Schema(
       min: 0,
     },
 
+    customerMessaging: {
+      configured: { type: Boolean, default: false },
+      automaticTextsEnabled: { type: Boolean, default: true },
+      voiceTextsEnabled: { type: Boolean, default: true },
+      appointmentTextsEnabled: { type: Boolean, default: true },
+    },
+    ownerSettingsRevision: { type: Number, default: 0 },
     features: {
       type: FeatureSettingsSchema,
       default: () => ({}),

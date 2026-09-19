@@ -1,3 +1,4 @@
+import { ownerTextSuppressionReason } from "../services/messaging/ownerTextPolicy.service.js";
 import { staffReviewDueAt } from "../services/staffReviewPolicy.service.js";
 import mongoose from "mongoose";
 
@@ -507,7 +508,7 @@ const sendCallbackConfirmation = async ({ session, state }) => {
     return;
   }
   if (
-    business?.features?.missedCallSmsEnabled === false ||
+    Boolean(ownerTextSuppressionReason({ business, source: "voice_callback_capture" })) ||
     !from ||
     !isUsableCallerId(to)
   ) {

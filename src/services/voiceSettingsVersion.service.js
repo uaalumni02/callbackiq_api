@@ -7,7 +7,9 @@ const snapshot = (business) => ({
   features: {
     voiceAiEnabled: Boolean(business?.features?.voiceAiEnabled),
     aiBookingEnabled: Boolean(business?.features?.aiBookingEnabled),
+    missedCallSmsEnabled: business?.features?.missedCallSmsEnabled !== false,
   },
+  customerMessaging: business?.customerMessaging?.toObject?.() || { ...(business?.customerMessaging || {}) },
   voiceSettings:
     business?.voiceSettings?.toObject?.() || { ...(business?.voiceSettings || {}) },
 });
@@ -21,6 +23,8 @@ const applySnapshot = (business, value = {}) => {
     "features.aiBookingEnabled",
     Boolean(value?.features?.aiBookingEnabled),
   );
+  if (Object.hasOwn(value?.features || {}, "missedCallSmsEnabled")) business.set("features.missedCallSmsEnabled", value.features.missedCallSmsEnabled);
+  if (value.customerMessaging) business.set("customerMessaging", value.customerMessaging);
   business.set("voiceSettings", value?.voiceSettings || {});
 };
 
