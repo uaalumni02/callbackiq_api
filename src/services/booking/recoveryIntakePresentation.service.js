@@ -26,8 +26,10 @@ export const recoveryCompletionReply = ({ lead, state, channel = 'sms' }) => {
   const address = clean(lead.address);
   const opening = 'Request saved for team review. The appointment is not confirmed.';
   const availability = state.availability?.status === 'available' && state.readiness?.availabilityVerified === true
-    ? 'That time is currently available, subject to business approval.'
-    : 'Availability still needs review.';
+    ? 'Time currently available; business approval required.'
+    : state.availability?.status === 'no_matching_slot' ? 'The requested time is unavailable.'
+    : state.availability?.status === 'check_failed' ? 'Availability could not be checked; staff must verify it.'
+    : 'Availability needs staff review.';
   const ending = 'Please wait for confirmation before expecting a technician.';
   const compose = (serviceText, addressText) => `${opening} ${serviceText}${qualification}; ${addressText}. Requested: ${preference}. ${availability} ${ending}`;
   if (channel === 'voice') return compose(truncateText(service, 120), truncateText(address, 160));

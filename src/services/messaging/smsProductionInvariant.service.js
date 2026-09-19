@@ -47,7 +47,7 @@ const isConfirmedBooking = (conversation) => {
   return (
     appointment?.confirmed === true ||
     appointment?.approved === true ||
-    statuses.some((status) => /(?:confirmed|approved|booked|scheduled)/.test(status))
+    statuses.some((status) => ["confirmed", "approved", "booked", "scheduled"].includes(status))
   );
 };
 
@@ -240,7 +240,7 @@ const ensureMultiIntentCoverage = ({ reply, policy, lead, business }) => {
         `${text} I can't confirm availability for ${label} from this reply; that time still needs to be checked.`,
       );
       actions.push("added_availability_answer");
-    } else if (!policy?.intent?.availabilityInquiry && !SCHEDULING_ACK.test(text)) {
+    } else if (!policy?.intent?.availabilityInquiry && !SCHEDULING_ACK.test(text) && !/\b(?:no eligible openings|not available|isn.t available|couldn.t verify|currently available)\b/i.test(text)) {
       text = clean(`${text} ${safePreferenceAcknowledgement({
         business,
         preferenceLabel: policy?.preferenceLabel || clean(lead?.preferredAppointmentTime) || "that time",
@@ -309,14 +309,19 @@ export const applySmsProductionInvariants = ({
   if (sanitizedBooking !== reply) actions.push("removed_unverified_booking_commitment");
   reply = sanitizedBooking;
 
-  const knownFact = removeKnownFactReasks({ reply, lead, policy });
+  // The shared intake decision already answered scheduling and selected the
+  // missing field. Rewriting it can remove a legitimate alternative-date question
+  // or contradict a completed calendar check. Keep commitment/eligibility guards.
+  const authoritativeIntake = next.compoundTurn === true || next.guardrail?.reason === "shared_recovery_intake" ||
+    (next.guardrail?.reason === "sms_handoff_acknowledgement" && Boolean(next.intakeReview));
+  const knownFact = authoritativeIntake ? { reply, actions: [] } : removeKnownFactReasks({ reply, lead, policy });
   reply = knownFact.reply;
   actions.push(...knownFact.actions);
 
   const eligibilityDecision = lower(
     serviceEligibilityState({ result: next, lead, conversation })?.decision,
   );
-  if (!eligibilityDecision || eligibilityDecision === "supported") {
+  if (!authoritativeIntake && (!eligibilityDecision || eligibilityDecision === "supported")) {
     const multiIntent = ensureMultiIntentCoverage({
       reply,
       policy,

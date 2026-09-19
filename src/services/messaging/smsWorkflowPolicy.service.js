@@ -38,13 +38,13 @@ export function buildSmsRequestRevisionPatch({ result = {}, lead = {}, conversat
   const changed = factualFields.filter(field => known(result[field]) && clean(result[field]) !== clean(lead[field]));
   for (const field of changed) patch[`conversationMemory.${field}`] = result[field];
   if (interruptCategories.has(result.messageCategory) &&
-      changed.some(field => ['serviceNeeded', 'address'].includes(field)) && !conversation.bookingState?.appointment) {
+      changed.some(field => factualFields.includes(field)) && !conversation.bookingState?.appointment) {
     if (['offering_slots', 'awaiting_confirmation'].includes(conversation.bookingState?.status)) {
       Object.assign(patch, { 'bookingState.status': 'not_started', 'bookingState.offeredSlots': [],
         'bookingState.selectedSlot': null, 'bookingState.expiresAt': null });
     }
     const intake = conversation.conversationMemory?.recoveryIntake;
-    if (intake) patch['conversationMemory.recoveryIntake'] = { ...intake, submitted: false, reviewReady: false, availability: { status: 'unknown' } };
+    if (intake) patch['conversationMemory.recoveryIntake'] = { ...intake, submitted: false, reviewReady: false, availability: { status: 'not_checked', reason: 'request_changed' }, review: { status: 'update_required' }, activePreference: { label: result.preferredAppointmentTime || lead.preferredAppointmentTime || '' }, ...(changed.includes('preferredAppointmentTime') ? { date: '', time: '' } : {}) };
   }
   return patch;
 }

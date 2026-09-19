@@ -199,7 +199,7 @@ test.each(['sms', 'voice'])('%s never calls an unrelated sole service available'
  searchServices.mockResolvedValue([{ id: 'unrelated-service', score: 0 }]);
  const result = await c.turn('Sep 8 at 8 am');
  expect(getAvailability).not.toHaveBeenCalled();
- expect(result.intakeReview.availability.status).toBe('unknown');
+ expect(result.intakeReview.availability.status).toBe('not_checked');
  const reply = channel === 'voice' ? result.reply : buildCompletedIntakeResult({ business, result }).reply;
  expect(reply).toContain('87 Oak Lane');
  expect(reply).not.toContain('123 Main');
@@ -331,4 +331,63 @@ test('SMS handoff preserves the coverage blocker instead of claiming an unsolici
  expect(final.reply).toMatch(/coverage.*review/i);
  expect(final.reply).not.toMatch(/callback request|currently available/i);
  expect(final.handoff.required).toBe(true);
+});
+
+// Exercise the actual intake and final outbound guard together across turns.
+import { applySmsProductionInvariants } from '../../src/services/messaging/smsProductionInvariant.service.js';
+const finalReply = (ctx, result, customerMessage) => applySmsProductionInvariants({ ...ctx, result, customerMessage, now: ctx.now });
+test('unavailable Sunday then ambiguous Monday question retains one current preference and one coherent response', async () => {
+ const c = context(); c.now = new Date('2026-09-19T22:49:00Z');
+ c.turn = customerMessage => handleRecoveryIntake({ ...c, customerMessage });
+ await c.turn('Hi I need a bathtub installed');
+ await c.turn('6564 piedmont road Atlanta ga 30324');
+ getAvailability.mockResolvedValue({ supportedServiceArea: true, slots: [] });
+ const sunday = finalReply(c, await c.turn('Tomorrow at 3:00pm'), 'Tomorrow at 3:00pm');
+ expect(sunday.reply).toMatch(/no eligible openings/);
+ expect(sunday.reply).toMatch(/later day/);
+ expect(sunday.reply).not.toMatch(/still needs to be checked|preferred time|currently available/);
+ expect(c.conversation.conversationMemory.recoveryIntake.availability.status).toBe('no_matching_slot');
+ const message = 'Monday at 3:00pm. How much is the estimated job completion?';
+ const monday = finalReply(c, await c.turn(message), message);
+ expect(monday.reply).toMatch(/Do you mean how long/);
+ expect(monday.reply).not.toMatch(/confirmed price|saved for team review|currently available/);
+ expect(c.lead.preferredAppointmentTime).toBe('2026-09-21 at 15:00');
+ const state = c.conversation.conversationMemory.recoveryIntake;
+ expect(state.activePreference.label).toBe(c.lead.preferredAppointmentTime);
+ expect(state.availability.status).toBe('not_checked');
+ expect(state.unresolvedQuestions.map(q => q.kind)).toEqual(['completion_meaning']);
+ expect(state.reviewReady).toBe(false);
+ expect(c.lead.serviceNeeded).not.toMatch(/^Hi|^I need/);
+ expect(AlertService.createHumanHandoffAlert).not.toHaveBeenCalled();
+ const duration = finalReply(c, await c.turn('I mean how long'), 'I mean how long');
+ expect(duration.reply).toMatch(/assess the job scope/);
+ expect(c.conversation.conversationMemory.recoveryIntake.unresolvedQuestions.map(q => q.kind)).toEqual(['duration']);
+ expect(c.lead.preferredAppointmentTime).toBe('2026-09-21 at 15:00');
+});
+test('provider outage and an unchecked service match remain different states through final guard', async () => {
+ const c=context(); c.lead.serviceNeeded='toilet repair'; c.lead.address='970 Sidney Marcus Blvd NE Atlanta GA 30324';
+ getAvailability.mockRejectedValue(new Error('provider unavailable'));
+ const r=finalReply(c, await c.turn('Sep 8 at 8 am'), 'Sep 8 at 8 am');
+ expect(r.reply).toMatch(/couldn't verify/); expect(r.reply).not.toMatch(/no eligible openings|currently available/);
+ expect(c.conversation.conversationMemory.recoveryIntake.availability.status).toBe('check_failed');
+});
+test('revised preference plus question after handoff invalidates availability and queues current facts', async () => {
+ const c=context(); c.lead.serviceNeeded='toilet installation'; c.lead.address='970 Sidney Marcus Blvd NE Atlanta GA 30324';
+ await c.turn('Sep 8 at 8 am');
+ c.conversation.orchestration = { handoffReason: 'intake_complete' };
+ AlertService.create = jest.fn().mockResolvedValue({ alert: { _id: 'review2' } });
+ const r=await handleRecoveryIntake({ ...c, reviewOnly: true, turnId:'revision', customerMessage:'Sep 9 at 10 am. What is the estimated completion?' });
+ expect(r.reply).toMatch(/Do you mean/);
+ expect(c.lead.preferredAppointmentTime).toBe('2026-09-09 at 10:00');
+ expect(c.conversation.conversationMemory.recoveryIntake.review.status).toBe('queued');
+ expect(c.conversation.conversationMemory.recoveryIntake.availability.status).toBe('not_checked');
+ expect(AlertService.create).toHaveBeenCalledWith(expect.objectContaining({ actionRequired: true, metadata: expect.objectContaining({ intakeReview: expect.objectContaining({ preferredAppointmentTime: '2026-09-09 at 10:00' }) }) }));
+ AlertService.create.mockRejectedValue(new Error('write failed'));
+ await expect(handleRecoveryIntake({ ...c, reviewOnly:true, customerMessage:'Sep 10 at 11 am. Estimated completion?' })).rejects.toThrow('write failed');
+});
+test('failed persistence prevents a prepared completion from escaping', async () => {
+ const c=context(); c.lead.serviceNeeded='toilet repair'; c.lead.address='970 Sidney Marcus Blvd NE Atlanta GA 30324';
+ c.lead.save.mockRejectedValue(new Error('lead write failed'));
+ await expect(c.turn('Sep 8 at 8 am')).rejects.toThrow('lead write failed');
+ expect(AlertService.createHumanHandoffAlert).not.toHaveBeenCalled();
 });

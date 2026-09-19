@@ -135,7 +135,7 @@ describe.each(['sms', 'voice'])('%s complete trade intake', channel => {
   await c.turn(address);
   const result = await c.turn('Wed Sep 9 at 8 am');
   expect(result.intakeReady).toBe(true);
-  expect(c.conversation.conversationMemory.recoveryIntake.availability.status).toBe('unknown');
+  expect(c.conversation.conversationMemory.recoveryIntake.availability.status).toBe('check_failed');
   expect(result.intakeCompletionReply).toMatch(/not confirmed/);
   expect(result.intakeCompletionReply).not.toMatch(/is available|you.re booked/);
  });

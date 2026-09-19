@@ -42,5 +42,5 @@ export function planCustomerTurn({ customerMessage, business, lead, conversation
   const selectionContext = ['offering_slots', 'awaiting_confirmation'].includes(conversation?.bookingState?.status);
   return { text, classified, withdrawal, callback, confirmation, additionalRequest,
     compound: !withdrawal && callback &&
-      (selectionContext || selectionReference || confirmation || classified.intents.pricing || classified.intents.availabilityInquiry || classified.intents.reschedule) };
+      (selectionContext || selectionReference || confirmation || classified.intents.pricing || classified.intents.completionQuestion || classified.intents.availabilityInquiry || classified.intents.reschedule) };
 }

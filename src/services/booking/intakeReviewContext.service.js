@@ -11,6 +11,7 @@ export const intakeReviewVersion = (conversation, lead) => crypto.createHash('sh
   conversation?.conversationMemory?.recoveryIntake?.problem || null,
   conversation?.conversationMemory?.recoveryIntake?.coverage?.reason || '',
   conversation?.conversationMemory?.recoveryIntake?.coverage?.address || '',
+  conversation?.conversationMemory?.recoveryIntake?.unresolvedQuestions || [],
   Boolean(conversation?.conversationMemory?.recoveryIntake?.triagePending),
   Boolean(conversation?.conversationMemory?.recoveryIntake?.clogPending),
 ])).digest('hex');

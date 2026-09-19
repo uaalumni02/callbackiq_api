@@ -1,3 +1,4 @@
+import { completionClarification, updateRequestQuestions } from '../booking/requestQuestionPolicy.service.js';
 import { currentCoverage } from '../booking/coverageConversation.service.js';
 import { applyCustomerAddressRevision } from './customerRequestRevision.service.js';
 import { planCustomerTurn } from './customerTurnPlan.service.js';
@@ -80,7 +81,10 @@ export async function handleCompoundCustomerTurn({ business, lead, conversation,
   const extra = boundary?.additionalRequest ? 'Your original service stays active. Additional work needs separate review and is not accepted. ' : '';
   const coverage = currentCoverage(conversation, lead);
   const coverageNote = coverage?.supported === null && coverage.address === lead.address ? 'Coverage for your address also needs team review. ' : '';
-  const reply = `${selectionReply}${coverageNote}${approval}Callback requested; response time is not guaranteed. ${extra}${price}`.trim();
+  const questionState = { unresolvedQuestions: conversation.conversationMemory?.recoveryIntake?.unresolvedQuestions || [] };
+  const questionIntent = updateRequestQuestions(questionState, customerMessage, turnId);
+  const questionReply = questionIntent.ambiguous ? completionClarification : questionIntent.duration || questionIntent.completionDate ? 'Job duration and completion date need a staff assessment.' : '';
+  const reply = `${questionReply} ${selectionReply}${coverageNote}${approval}Callback requested; response time is not guaranteed. ${extra}${price}`.trim();
   const result = { decision: 'send_fixed_response', actionType: 'human_handoff', messageCategory: 'human_requested',
     reply, compoundTurn: true, serviceNeeded: lead.serviceNeeded || '', address: lead.address || '',
     preferredAppointmentTime: preference, urgency: lead.urgency || 'medium', intakeReady: false, shouldAlertOwner: true,
@@ -88,7 +92,10 @@ export async function handleCompoundCustomerTurn({ business, lead, conversation,
     summary: `Callback requested. ${lead.serviceNeeded || ''}; ${lead.address || ''}; preferred time: ${preference || 'not supplied'}. ${selectionReply}${coverageNote}${approval}${extra}`.trim(),
     guardrail: { skipAI: true, usedFallback: false, reason: 'compound_customer_turn' } };
   const intake = conversation.conversationMemory?.recoveryIntake || {};
-  const next = { ...intake, compoundTurn: { turnId: String(turnId), text: plan.text, result,
+  const next = { ...intake, unresolvedQuestions: questionState.unresolvedQuestions,
+    ...(preference !== lead.preferredAppointmentTime || requestChanged ? { date: '', time: '', preferredAppointmentTime: preference,
+      activePreference: { label: preference }, availability: { status: 'not_checked', reason: 'request_changed' },
+      submitted: false, reviewReady: false, review: { status: 'pending_persistence' } } : {}), compoundTurn: { turnId: String(turnId), text: plan.text, result,
     selectedSlot: selection ? { startAt: selection.startAt, endAt: selection.endAt } : null, recordedAt: now } };
   check();
   if (conversation.set) conversation.set('conversationMemory.recoveryIntake', next);

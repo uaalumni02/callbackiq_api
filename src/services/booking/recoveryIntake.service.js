@@ -1,3 +1,4 @@
+import { completionClarification, updateRequestQuestions, normalizeRequestService } from './requestQuestionPolicy.service.js';
 import { assessProblemClarity, buildRequestReadiness, requestEvidenceKey } from "./requestQualificationPolicy.service.js";
 import { extractCustomerAddress, addressFromTurn, isRepeatCorrection, extractCustomerPostalCode } from './customerAddress.service.js';
 import { isSoftOptOutPhrase } from '../messaging/smsCompliance.service.js';
@@ -19,7 +20,7 @@ import { isConfirmationQuestion } from './conversationQuestions.service.js';
 import { assertDistributedLeaseActive } from '../distributedLease.service.js';
 import { assertVoiceTurnActive } from '../voiceTurnContext.service.js';
 import { resetUncertainTurns } from '../messaging/uncertainReply.service.js';
-import { filterAutomatedSlots, automatedSchedulingNotice } from '../scheduling/automatedSchedulingPolicy.service.js';
+import { filterAutomatedSlots } from '../scheduling/automatedSchedulingPolicy.service.js';
 import { formatDateKey } from '../scheduling/timezone.service.js';
 
 const clean = value => String(value || '').replace(/\s+/g, ' ').trim();
@@ -95,7 +96,12 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   const timezone = business.timezone || 'America/New_York';
   const journeyKey = conversation.orchestration?.recoveryJourneyKey || '';
   const oldState = conversation.conversationMemory?.recoveryIntake;
-  const state = oldState?.journeyKey === journeyKey ? { ...oldState } : { journeyKey };
+  const state = oldState?.journeyKey === journeyKey ? structuredClone(oldState) : { journeyKey };
+  const questions = updateRequestQuestions(state, text, turnId);
+  const oldPreference = state.preferredAppointmentTime ?? lead.preferredAppointmentTime ?? '';
+  const oldService = state.serviceNeeded ?? lead.serviceNeeded ?? '';
+  const oldAddress = state.address || lead.address || '';
+  if (questions.clarificationAnswer) classification.intents.pricing = questions.pricing;
   // A prepared but unsent question is not a question the customer received.
   // Keep the outstanding triage field and ask again after transport recovers.
   if (channel === 'sms') {
@@ -113,7 +119,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
     (!semanticAssessment.decision || ['send', 'send_ai_response', 'send_fixed_response'].includes(semanticAssessment.decision))
     ? semanticAssessment : null;
   const contextualPriceQuestion = classification.intents?.pricing && known(lead.serviceNeeded) && !classification.entities?.serviceNeeded;
-  const service = classification.entities?.serviceNeeded || (!contextualPriceQuestion && typeof semantic?.serviceNeeded === 'string' ? clean(semantic.serviceNeeded).slice(0, 160) : '');
+  const service = questions.ambiguous || questions.duration || questions.completionDate || questions.clarificationAnswer ? '' : classification.entities?.serviceNeeded || (!contextualPriceQuestion && typeof semantic?.serviceNeeded === 'string' ? clean(semantic.serviceNeeded).slice(0, 160) : '');
   if (!state.started && !known(service) && !known(lead.serviceNeeded) && !classification.intents?.scheduling && !capturedAddress && !addressFrom(text)) return null;
   state.started = true;
   if (state.submitted && state.failures >= 2 && known(service)) { state.submitted = false; state.failures = 0; }
@@ -125,9 +131,16 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   }
   if (known(service) && (!known(lead.serviceNeeded) || classification.intents?.correction || classification.intents?.newService)) lead.serviceNeeded = service;
   if (!known(lead.serviceNeeded)) return null;
+  lead.serviceNeeded = normalizeRequestService(lead.serviceNeeded);
   const address = capturedAddress || addressFrom(text);
   if (address) lead.address = address;
 
+  // Lead is the current request projection, including edits made by interrupt
+  // and callback paths. Never resurrect an older intake date on a later turn.
+  const savedRange = findDateRange(lead.preferredAppointmentTime || '', timezone, now);
+  const savedTime = parseTimePreference(lead.preferredAppointmentTime || '', timezone, now);
+  state.date = savedRange ? savedRange.startDate === savedRange.endDate ? savedRange.startDate : `${savedRange.startDate} through ${savedRange.endDate}` : '';
+  state.time = savedTime.exactMinutes != null ? `${Math.floor(savedTime.exactMinutes / 60)}:${String(savedTime.exactMinutes % 60).padStart(2, '0')}` : savedTime.targetMinutes != null || savedTime.timeOfDay ? savedTime.raw.slice(0, 300) : '';
   const schedulingText = address ? clean(text.replace(address, '')) : text;
   const incomingRange = !/^\d{5}(?:-\d{4})?$/.test(schedulingText) ? findDateRange(schedulingText, timezone, now) : null;
   const incomingTime = parseTimePreference(schedulingText, timezone, now);
@@ -135,12 +148,20 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   if (incomingTime.targetMinutes !== null || incomingTime.timeOfDay) state.time = incomingTime.exactMinutes !== null ? `${Math.floor(incomingTime.exactMinutes / 60)}:${String(incomingTime.exactMinutes % 60).padStart(2, '0')}` : incomingTime.raw.slice(0, 300);
   if ((!bookingActive || (reviewOnly && !conversation.bookingState?.appointment)) && (state.date || state.time)) lead.preferredAppointmentTime = [state.date, state.time].filter(Boolean).join(' at ');
 
+  const requestChanged = oldPreference !== (lead.preferredAppointmentTime || '') || oldService !== lead.serviceNeeded || oldAddress !== (lead.address || '');
+  if (requestChanged) {
+    state.availability = { status: 'not_checked', reason: 'request_changed' };
+    state.reviewReady = false; state.submitted = false;
+    state.review = { status: conversation.orchestration?.handoffReason ? 'update_required' : 'not_requested' };
+    delete state.compoundTurn;
+  }
+
   // Keep new detail even if the canonical service remains unchanged. It is
   // bounded, scoped to this recovery journey, and explicitly customer evidence.
   const triageOnlyAnswer = state.triagePending && !classification.entities?.serviceNeeded &&
     (stopped.test(text) || /^(?:yes|yeah|yep|no|nope)[.! ]*$/i.test(text));
   if (known(service) && !triageOnlyAnswer) {
-    state.serviceDetail = service;
+    state.serviceDetail = normalizeRequestService(service);
     state.serviceSourceTurnId = String(turnId);
   }
   const activeEvidence = text.split(/\b(?:but|however)\b|[;.!?]/i).some(clause =>
@@ -186,7 +207,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   // details before choosing a clarification. Do not consume retry budget here.
   // Availability questions must still pass the qualification checks below,
   // including follow-ups after a missing or unsupported coverage decision.
-  if (!understoodAnswer && !classification.intents?.pricing && !classification.intents?.availabilityInquiry && !coverageQuestion && !semanticAssessment &&
+  if (!understoodAnswer && !classification.intents?.pricing && !classification.intents?.completionQuestion && !questions.clarificationAnswer && !classification.intents?.availabilityInquiry && !coverageQuestion && !semanticAssessment &&
       !(/^\d{5}(?:-\d{4})?$/.test(text) && known(lead.address)) && !state.problem?.asked) return null;
   let approvedEstimate = '';
   if (classification.intents?.pricing) {
@@ -195,10 +216,17 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
     catch (error) { logOperationalError('intake.price_lookup_failed', error, { businessId: business._id }); }
     checkActive();
   }
-  const pricingPrefix = classification.intents?.pricing ? `${approvedEstimate || "I don't have a confirmed price for that work."} ` : '';
+  if (approvedEstimate) state.unresolvedQuestions = state.unresolvedQuestions.filter(q => q.kind !== 'price');
+  const timingPrefix = questions.duration || questions.completionDate ? 'The team needs to assess the job scope before estimating how long the work will take or when it can be completed. ' : '';
+  const pricingPrefix = timingPrefix + (classification.intents?.pricing ? `${approvedEstimate || "I don't have a confirmed price for that work."} ` : '');
   const persist = async () => {
     checkActive(); await lead.save(); checkActive();
     if (understoodAnswer) { await resetUncertainTurns(conversation); checkActive(); }
+    state.serviceNeeded = lead.serviceNeeded; state.address = lead.address || '';
+    state.preferredAppointmentTime = lead.preferredAppointmentTime || '';
+    state.eligibility = conversation.serviceEligibility?.decision || 'not_checked';
+    state.scope = { detail: state.serviceDetail || lead.serviceNeeded, triageAnswer: state.triageAnswer || '', problem: state.problem || null };
+    state.activePreference = { date: state.date || '', time: state.time || '', label: lead.preferredAppointmentTime || '' };
     state.readiness = buildRequestReadiness({ lead, conversation, state, now });
     if (conversation.set) conversation.set('conversationMemory.recoveryIntake', state);
     else conversation.conversationMemory = { ...(conversation.conversationMemory || {}), recoveryIntake: state };
@@ -210,7 +238,20 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
     if (!turnId || state.lastTurnId !== String(turnId)) state.failures = !understoodAnswer && state.field === field && state.lastFacts === facts ? Math.min(2, (state.failures || 0) + 1) : 0;
     state.lastTurnId = String(turnId);
     state.field = field; state.lastFacts = facts;
+    state.decision = { action: field === 'available_preference' ? 'offer_alternatives' : 'clarify', field, turnId: String(turnId) };
     await persist();
+    if (reviewOnly) {
+      checkActive();
+      const saved = await AlertService.create({ businessId: business._id, leadId: lead._id, conversationId: conversation._id,
+        type: 'system', title: 'Customer request needs clarification', priority: 'high', actionRequired: true,
+        message: `${lead.serviceNeeded}; ${lead.preferredAppointmentTime || ''}; ${text}`.slice(0, 1000),
+        recommendedAction: 'Review the latest preference and unresolved customer questions before approval.',
+        metadata: { intakeReview: { ...state, reviewReady: false } },
+        dedupeKey: `intake-question:${conversation._id}:${String(turnId || text).slice(0, 200)}` });
+      if (!saved?.alert?._id) throw Object.assign(new Error('Customer clarification was not queued for review.'), { code: 'STAFF_ACTION_NOT_SAVED' });
+      state.review = { status: 'queued', alertId: String(saved.alert._id), queuedAt: now.toISOString() };
+      await persist();
+    }
     if (state.failures >= 2) {
       const result = fixed("I've saved your details for team review so you don't need to repeat them. I don't have a response timeframe.", lead, { actionType: 'human_handoff', handoff: { required: true, reason: 'intake_unclear', callbackRequested: false } });
       if (channel === 'voice') {
@@ -313,6 +354,9 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
     state.problem.asked = true;
     return ask('problem_detail', state.problem.question);
   }
+  if (questions.ambiguous || state.unresolvedQuestions.some(q => q.kind === 'completion_meaning')) {
+    return ask('question_meaning', completionClarification);
+  }
   if (classification.intents?.availabilityInquiry) { await persist(); return null; }
   // Facts remain writable during scheduling and review. Do not replace the
   // booking proposal or claim that an existing appointment has changed.
@@ -323,11 +367,14 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
       const savedUpdate = await AlertService.create({ businessId: business._id, leadId: lead._id, conversationId: conversation._id,
         type: 'system', title: activeEvidence ? 'Customer reports an ongoing leak' : 'Customer updated a scheduling request',
         message: `${lead.serviceNeeded}; ${text}`.slice(0, 1000), actionRequired: true,
+        metadata: { intakeReview: { ...state, reviewReady: false } },
         priority: activeEvidence ? 'high' : 'medium',
         recommendedAction: 'Review the new customer information before approving or dispatching. Existing appointment details have not been changed.',
         dedupeKey: `intake-update:${conversation._id}:${journeyKey}:${String(turnId || text).slice(0, 200)}` });
       if (!savedUpdate?.alert?._id) throw Object.assign(new Error('Customer update was not queued for review.'), { code: 'STAFF_ACTION_NOT_SAVED' });
       checkActive();
+      state.review = { status: 'queued', alertId: String(savedUpdate.alert._id), queuedAt: now.toISOString(), evidenceKey: requestEvidenceKey({ lead, conversation, state }) };
+      await persist();
     }
     const detail = activeEvidence ? 'I’ve noted that it is leaking continuously. Avoid using the affected equipment or area for now. ' : address ? 'I’ve saved the service address. ' : 'I’ve saved those additional details. ';
     const pending = conversation.bookingState?.status === 'offering_slots'
@@ -348,14 +395,14 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
     const reply = classification.intents?.pricing
       ? `${approvedEstimate || "I don't have an approved estimate for that request."} The service request still needs team review.`
       : 'Your additional details are saved with this conversation. The service request still needs team review.';
-    return fixed(reply, lead);
+    return fixed(timingPrefix + reply, lead);
   }
   // Pricing is a question within intake, not a reason to discard its facts.
   if (classification.intents?.pricing && !incomingRange && incomingTime.targetMinutes === null && !incomingTime.timeOfDay) {
     await persist();
     const priceResponse = pricingReply({ business, lead, triageResolved: state.triageResolved === true || state.clogResolved === true });
     const reply = approvedEstimate ? `${approvedEstimate} ${priceResponse.replace(`For ${clean(lead.serviceNeeded)}, I don't have a confirmed price yet.`, '').trim()}` : priceResponse;
-    return fixed(reply, lead, { messageCategory: 'pricing_request' });
+    return fixed(timingPrefix + reply, lead, { messageCategory: 'pricing_request' });
   }
   if (business.features?.aiBookingEnabled === true) {
     if (state.triagePending) return ask('leak_activity', 'Is water leaking right now?');
@@ -379,7 +426,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
 
   let availabilityNote = "I couldn't verify that time's availability; it needs team review.";
   let ready = true;
-  state.availability = { status: 'unknown', checkedAt: now.toISOString(), timezone };
+  state.availability = { status: 'not_checked', reason: 'service_match_unverified', checkedAt: now.toISOString(), timezone };
   try {
     const postalCode = extractCustomerPostalCode(lead.address);
     const area = state.coverage;
@@ -389,7 +436,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
       const services = await searchServices({ businessId: business._id, query: lead.serviceNeeded }); checkActive();
       if (services.length === 1 && Number.isFinite(services[0].score) && services[0].score > 0) {
         const available = await getAvailability({ business, leadId: lead._id, conversationId: conversation._id, serviceQuery: lead.serviceNeeded, serviceOfferingId: services[0].id, startDate: range.startDate, endDate: range.endDate, postalCode }); checkActive();
-        if (available.supportedServiceArea === false) { ready = false; availabilityNote = 'That address needs a service-area review before scheduling.'; }
+        if (available.supportedServiceArea === false) { state.availability = { status: 'not_checked', reason: 'coverage_unverified' }; ready = false; availabilityNote = 'That address needs a service-area review before scheduling.'; }
         else if (Array.isArray(available.slots)) {
           const future = filterAutomatedSlots(available.slots, now);
           const matches = filterSlotsByTimePreference(future, time, timezone);
@@ -401,14 +448,14 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
             ready = false;
             state.availability.status = 'no_matching_slot';
             const alternatives = future.slice(0, 2).map(slot => slotLabel(slot, timezone));
-            availabilityNote = alternatives.length ? `That time isn't available. Current openings: ${alternatives.join(' or ')}. Which works for you?` : `${automatedSchedulingNotice} There are no eligible openings in that window. What later day could work?`;
+            availabilityNote = alternatives.length ? `That time isn't available. Current openings: ${alternatives.join(' or ')}. Which works for you?` : 'There are no eligible openings for that requested time under the business scheduling rules. What later day could work?' ;
           }
         }
       }
     }
   } catch (error) {
     if (['VOICE_STALE_TURN', 'DISTRIBUTED_LEASE_LOST'].includes(error?.code)) throw error;
-    state.availability = { status: 'unknown', reason: 'availability_lookup_failed', checkedAt: now.toISOString(), timezone };
+    state.availability = { status: 'check_failed', reason: 'availability_lookup_failed', checkedAt: now.toISOString(), timezone };
     logOperationalError('intake.availability_lookup_failed', error, { businessId: business._id });
     // A provider failure is unknown availability, never an empty calendar or a confirmed slot.
   }
@@ -417,16 +464,18 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   }
   if (!ready) return ask('available_preference', availabilityNote);
   state.reviewReady = true;
+  state.decision = { action: 'request_staff_review', turnId: String(turnId) };
+  state.review = { status: 'pending_persistence' };
   state.serviceNeeded = lead.serviceNeeded;
   state.address = lead.address;
   state.preferredAppointmentTime = lead.preferredAppointmentTime;
   await persist();
-  const intakeReview = { reviewReady: true, journeyKey, serviceNeeded: state.serviceNeeded, serviceDetail: state.serviceDetail || '', address: state.address, preferredAppointmentTime: state.preferredAppointmentTime, triageAnswer: state.triageAnswer || '', availability: state.availability, problem: state.problem, coverage: state.coverage, readiness: state.readiness };
+  const intakeReview = { reviewReady: true, journeyKey, serviceNeeded: state.serviceNeeded, serviceDetail: state.serviceDetail || '', address: state.address, preferredAppointmentTime: state.preferredAppointmentTime, triageAnswer: state.triageAnswer || '', availability: state.availability, problem: state.problem, coverage: state.coverage, readiness: state.readiness, unresolvedQuestions: state.unresolvedQuestions, activePreference: state.activePreference, eligibility: state.eligibility, review: state.review };
   const result = fixed(pricingPrefix + availabilityNote, lead, { intakeReady: true, intakeReview, summary: `${state.serviceDetail || lead.serviceNeeded}; ${state.triageAnswer || ''}; ${lead.address}; requested ${lead.preferredAppointmentTime}`, messageCategory: 'appointment_preference', intakeCompletionReply: pricingPrefix + recoveryCompletionReply({ lead, state, channel }) });
   if (ready && channel === 'voice') {
     checkActive();
     await AlertService.createHumanHandoffAlert({ businessId: business._id, leadId: lead._id, conversationId: conversation._id, providerMessageId: `voice-intake:${session?._id || conversation._id}:${journeyKey}`, customerPhone: lead.phone || conversation.customerPhone, customerName: lead.customerName, customerMessage: text, lead, result: { ...result, handoff: { reason: 'intake_complete' } } });
-    checkActive(); state.submitted = true; await persist();
+    checkActive(); state.submitted = true; state.review = { status: 'queued', queuedAt: now.toISOString() }; await persist();
     result.reply = result.intakeCompletionReply;
     result.outcome = 'callback_saved';
   }

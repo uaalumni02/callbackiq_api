@@ -414,7 +414,7 @@ describe("completed manual intake uses the durable staff handoff", () => {
     Message.findOneAndUpdate.mockResolvedValue({ ...outbound, deliveryAttemptedAt: new Date() });
     Message.findByIdAndUpdate.mockResolvedValue({ ...outbound, providerMessageId: "SM_INTAKE_ACK" });
     sendSms.mockResolvedValue({ sid: "SM_INTAKE_ACK", status: "queued" });
-    AlertService.createHumanHandoffAlert.mockResolvedValue({ _id: "intake-alert" });
+    AlertService.createHumanHandoffAlert.mockResolvedValue({ alert: { _id: "intake-alert" } });
     generateAIReplyResult.mockResolvedValue({ decision: "send_fixed_response", actionType: "send_fixed_response", intakeReady: true, messageCategory: "appointment_preference", reply: "I've noted Wednesday at 9 AM as your preference.", preferredAppointmentTime: "Wednesday at 9 AM", serviceNeeded: activeLead.serviceNeeded, urgency: "high", guardrail: { usedFallback: false } });
   });
 
@@ -560,7 +560,7 @@ describe("completed manual intake uses the durable staff handoff", () => {
   ])("suppresses the prepared reply when %s changes during processing", async (field, value, reason) => {
     AlertService.createHumanHandoffAlert.mockImplementationOnce(async () => {
       activeConversation[field] = value;
-      return { _id: "intake-alert" };
+      return { alert: { _id: "intake-alert" } };
     });
     Message.findByIdAndUpdate.mockImplementation(async (_id, update) => ({ _id, ...update }));
     const result = await processInboundSmsJob(job);
@@ -575,7 +575,7 @@ describe("completed manual intake uses the durable staff handoff", () => {
   test("record mismatch suppresses dispatch and creates an actionable staff alert", async () => {
     AlertService.createHumanHandoffAlert.mockImplementationOnce(async () => {
       activeConversation.lead = "another-lead";
-      return { _id: "intake-alert" };
+      return { alert: { _id: "intake-alert" } };
     });
     Message.findByIdAndUpdate.mockImplementation(async (_id, update) => ({ _id, ...update }));
     const result = await processInboundSmsJob(job);
@@ -778,6 +778,26 @@ describe("completed manual intake uses the durable staff handoff", () => {
     expect(sendSms.mock.calls[0][0].body).toMatch(/Avoid using/);
     expect(sendSms.mock.calls[0][0].body).not.toMatch(/repeat|needs to review|confirmed appointment/);
     expect(generateAIReplyResult).not.toHaveBeenCalled();
+  });
+
+  test('missing durable alert blocks customer acknowledgement', async () => {
+    AlertService.createHumanHandoffAlert.mockResolvedValueOnce({});
+    await expect(processInboundSmsJob(job)).rejects.toMatchObject({code:'STAFF_ACTION_NOT_SAVED'});
+    expect(sendSms).not.toHaveBeenCalled();
+  });
+
+  test('review state write failure blocks acknowledgement and remains retryable', async () => {
+    const original = Conversation.findByIdAndUpdate.getMockImplementation();
+    Conversation.findByIdAndUpdate.mockImplementation(async (...args) => {
+      if (args[1]?.$set?.['conversationMemory.recoveryIntake.review']) throw new Error('review projection failed');
+      return original(...args);
+    });
+    await expect(processInboundSmsJob(job)).rejects.toThrow('review projection failed');
+    expect(sendSms).not.toHaveBeenCalled();
+    Conversation.findByIdAndUpdate.mockImplementation(original);
+    Message.findOne.mockReset().mockReturnValueOnce(leanQuery(null)).mockResolvedValue(null);
+    Message.find.mockReset().mockReturnValueOnce(leanQuery([activeInbound])).mockReturnValue(leanQuery([]));
+    await expect(processInboundSmsJob(job)).resolves.toMatchObject({sent:true});
   });
 
   test("answers an approved price question after intake without making a booking", async () => {
