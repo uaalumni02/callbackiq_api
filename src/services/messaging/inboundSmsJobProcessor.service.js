@@ -37,7 +37,7 @@ import {
   requiresHumanHandoff,
   shouldSendHumanHandoffStatusAcknowledgement,
 } from "./smsHandoff.service.js";
-import { sanitizeUnverifiedStaffCommitments } from "../customerCommitmentSafety.service.js";
+import { applySmsProductionInvariants } from "./smsProductionInvariant.service.js";
 import { getSmsAutomationSuppressionReason } from "./smsAutomationDispatchPolicy.service.js";
 import { assertDistributedLeaseActive } from "../distributedLease.service.js";
 import { describeSmsWorkflowDecision, preserveSmsInterruptFacts, buildSmsRequestRevisionPatch, reviewSmsAppointmentRevision } from './smsWorkflowPolicy.service.js';
@@ -108,13 +108,17 @@ const persistOutboundReply = async ({
   inboundMessage,
   result,
 }) => {
+  result = applySmsProductionInvariants({
+    result, business, lead, conversation,
+    customerMessage: inboundMessage?.body,
+  });
   const workflowDecision = describeSmsWorkflowDecision({ result, conversation });
   assertDistributedLeaseActive();
   await Message.updateOne({ _id: inboundMessage._id, business: business._id },
     { $set: { 'metadata.workflowDecision': workflowDecision } });
-  const reply = respectCustomerConstraints(sanitizeUnverifiedStaffCommitments(result?.reply, {
-    channel: "sms",
-  }), { conversation, customerMessage: inboundMessage?.body });
+  const reply = respectCustomerConstraints(result?.reply, {
+    conversation, customerMessage: inboundMessage?.body,
+  });
   if (!reply || result?.decision === "no_reply") return { sent: false, reason: "no_reply" };
   assertDistributedLeaseActive();
 
@@ -693,6 +697,10 @@ export const processInboundSmsJob = async (job) => {
         business, lead, conversation, messages, inboundMessage: effectiveInboundMessage,
       });
   let result = reviewSmsAppointmentRevision({ result: orchestration.result || {}, lead, conversation });
+  result = applySmsProductionInvariants({
+    result, business, lead, conversation,
+    customerMessage: customerTurn.customerMessage,
+  });
   assertDistributedLeaseActive();
   let handoffRequired = requiresHumanHandoff(result);
   const urgentOperational = isUrgentOperationalResult(result);

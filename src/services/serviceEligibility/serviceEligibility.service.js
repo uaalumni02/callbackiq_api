@@ -154,10 +154,9 @@ export async function guardServiceRequest({ business, lead, conversation, custom
     checkActive();
     if (lead) { lead.serviceEligibility = state; lead.markModified?.('serviceEligibility'); await lead.save?.(); }
     conversation.serviceEligibility = state; conversation.markModified?.('serviceEligibility'); await conversation.save?.();
-    const next = !known(lead?.address) ? ' What is the service address?' :
-      !/\b\d{5}(?:-\d{4})?\b/.test(lead.address) ? ' What is the ZIP code for that address?' :
-      !known(lead?.preferredAppointmentTime) ? ' What day would you prefer?' : '';
-    reply = `${intent.intents?.pricing ? "I don't have an approved estimate for this request yet. " : ''}Your request is saved for staff to review whether they can accept the work. No appointment is confirmed.${next}`;
+    const next = !known(lead?.address) ? ' If you want staff to review it, what is the service address?' :
+      !/\b\d{5}(?:-\d{4})?\b/.test(lead.address) ? ' What is the ZIP code for that address?' : '';
+    reply = `${intent.intents?.pricing ? "I don't have an approved estimate for this request yet. " : ''}Your request is saved for staff to review whether they can accept the work. Pricing and scheduling stay paused until staff confirms the service is accepted. No appointment is confirmed.${next}`;
   } else if (decliningReview) reply = "Understood. I won't submit a staff review request or arrange an appointment for this work.";
   return { decision: 'send_fixed_response', actionType: 'send_fixed_response', messageCategory: 'service_request',
     reply, serviceEligibility: state, serviceNeeded: lead?.serviceNeeded || request.slice(0, 200),
