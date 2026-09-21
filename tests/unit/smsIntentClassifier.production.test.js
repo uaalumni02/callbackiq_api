@@ -107,3 +107,22 @@ describe("production SMS intent classifier", () => {
     expect(result.intents.scheduling).toBe(true);
   });
 });
+
+describe('explicit service replacement versus pronoun symptom detail', () => {
+  const lead = { serviceNeeded: 'Washing machine is leaking from the wall' };
+  test.each([
+    ["It's actually a pipe in the wall that is leaking", 'pipe in the wall that is leaking'],
+    ['It is actually the roof that is leaking', 'roof that is leaking'],
+    ["Actually, it's my furnace that is broken", 'furnace that is broken'],
+    ['Correction: it is the outlet that is not working', 'outlet that is not working'],
+    ['I meant the pipe is leaking', 'the pipe is leaking'],
+  ])('%s replaces the subject without carrying forward the old service', (customerMessage, expected) => {
+    expect(classifySmsIntent({ customerMessage, lead }).entities.serviceNeeded).toBe(expected);
+  });
+  test.each(['It is leaking', "It's actually leaking only when used", 'It is not working'])('%s retains the existing referent', customerMessage => {
+    expect(classifySmsIntent({ customerMessage, lead }).entities.serviceNeeded).toContain(lead.serviceNeeded);
+  });
+  test.each(['Actually tomorrow at 3pm', "It's actually 979 Bob Ross Atlanta GA 30324", 'Actually how much will it cost?', 'Pm'])('%s does not replace service', customerMessage => {
+    expect(classifySmsIntent({ customerMessage, lead }).entities.serviceNeeded).toBe('');
+  });
+});

@@ -77,6 +77,10 @@ export async function guardServiceRequest({ business, lead, conversation, custom
   let eligibility;
   let semanticService = (current ? semanticAssessment?.serviceNeeded : '') || (prior?.request === request ? prior.semanticService : '') || '';
   let confidence = (current ? semanticAssessment?.confidence : 0) || (prior?.request === request ? prior.semanticConfidence : 0) || 0;
+  // Explicit customer corrections outrank a model's older interpretation,
+  // including corrections that still map to the same catalog offering.
+  const serviceCorrection = Boolean(current && intent.intents?.correction);
+  if (serviceCorrection) { semanticService = ''; confidence = 0; }
   try {
     eligibility = await evaluateServiceEligibility({ businessId: business._id, request,
       semanticService, confidence });
@@ -98,7 +102,7 @@ export async function guardServiceRequest({ business, lead, conversation, custom
     eligibility = { decision: 'needs_staff_review', reason: 'catalog_unavailable', request, serviceId: null };
   }
   checkActive();
-  const changed = Boolean(prior && (prior.serviceId !== eligibility.serviceId || prior.decision !== eligibility.decision ||
+  const changed = Boolean(serviceCorrection && known(lead?.serviceNeeded) && lead.serviceNeeded !== current) || Boolean(prior && (prior.serviceId !== eligibility.serviceId || prior.decision !== eligibility.decision ||
     (prior.request !== request && (eligibility.decision !== 'supported' || intent.intents?.correction || intent.intents?.newService))));
   const reviewSubmitted = !changed && prior?.reviewSubmitted === true;
   const state = { ...eligibility, semanticService, semanticConfidence: confidence, checkedAt: new Date(), reviewSubmitted };
@@ -107,13 +111,17 @@ export async function guardServiceRequest({ business, lead, conversation, custom
   if (lead) {
     lead.serviceEligibility = state;
     lead.markModified?.('serviceEligibility');
-    if (current && (!known(lead.serviceNeeded) || changed || eligibility.decision !== 'supported')) lead.serviceNeeded = (eligibility.decision === 'supported' && semanticService && confidence >= 80 ? semanticService : current).slice(0, 200);
+    if (current && (!known(lead.serviceNeeded) || changed || serviceCorrection || eligibility.decision !== 'supported')) lead.serviceNeeded = (!serviceCorrection && eligibility.decision === 'supported' && semanticService && confidence >= 80 ? semanticService : current).slice(0, 200);
   }
   if (changed || (!prior && eligibility.decision !== 'supported')) {
     // Invalidate stale proposals, never cancel an existing customer appointment.
     if (!conversation.bookingState?.appointment) conversation.bookingState = { status: 'not_started' };
     const memory = conversation.conversationMemory?.toObject?.() || conversation.conversationMemory || {};
     conversation.conversationMemory = { ...memory, recoveryIntake: current && prior?.request !== request ? {} : (memory.recoveryIntake || {}) };
+    if (current && prior?.request !== request) {
+      conversation.conversationMemory.serviceNeeded = lead?.serviceNeeded || current;
+      conversation.conversationMemory.summary = lead?.serviceNeeded || current;
+    }
     conversation.markModified?.('conversationMemory');
     if (conversation.lifecycle) conversation.lifecycle.nextRecoveryNudgeAt = null;
     if (lead && !lead.bookedAt && !lead.appointment) {

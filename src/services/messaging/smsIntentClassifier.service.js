@@ -86,6 +86,11 @@ const NON_SERVICE = /\b(?:appointment|booking|technician|crew|invoice|payment|cr
 const SERVICE_ACTION = /\b(?:repair(?:ed|ing)?|replac(?:e|ed|ement|ing)|install(?:ed|ation|ing)?|reseal(?:ed|ing)?|recaulk(?:ed|ing)?|clean(?:ed|ing)?|inspect(?:ed|ion|ing)?|maintain|maintenance|fix(?:ed|ing)?|remov(?:e|ed|al|ing)|paint(?:ed|ing)?|trim(?:med|ming)?|unblock(?:ed|ing)?|restoration|remediation)\b/i;
 const PROBLEM_STATE = /\b(?:clogged|blocked|leak(?:ing|s)?|broken|not working|won['’]t|will not|no heat|no power|damaged|cracked|peeling|loose|stuck|noisy|rattling|dripping|overflowing|needs?|stopped working|keeps? .{1,30}ing)\b/i;
 
+// A named subject after "it's the/a ..." supplies a referent, unlike "it's
+// leaking", which still describes the saved service. Strip only the former
+// before the normal fact checks; dates, prices and addresses remain excluded.
+const SERVICE_SUBJECT_PREFIX = /^(?:(?:actually|correction|instead|i meant)[,:]?\s+)*(?:it['’]s|it is|that['’]s|that is|this is)\s+(?:actually\s+)?(?:a|an|the|my|our)\s+(?=[a-z])/i;
+
 export const extractService = (text, { lead = null, conversation = null } = {}) => {
   const known = clean(lead?.serviceNeeded || conversation?.serviceNeeded || conversation?.bookingState?.serviceNeeded);
   // "It's the bathroom sink, not the kitchen sink" corrects part of the saved
@@ -109,6 +114,7 @@ export const extractService = (text, { lead = null, conversation = null } = {}) 
   // Keep each clause independent: a question about price cannot swallow a fact.
   const clauses = clean(text).split(/(?:[.!?;]\s*|,?\s+(?:and|but)\s+|\s+)(?=(?:how much|what (?:is|does|would|will|time)|when|how soon|can you|could you|will you|are you)\b)|[.!?;]\s*/i);
   for (let clause of clauses) {
+    clause = clean(clause).replace(SERVICE_SUBJECT_PREFIX, "");
     clause = clean(clause).replace(/^(?:actually|correction|instead|i meant)[,:]?\s*/i, "");
     if (!clause || clause.length > 200 || NON_SERVICE.test(clause)) continue;
     // Pricing-only, timing, control, and contact turns must not replace a fact.
@@ -197,7 +203,7 @@ export const classifySmsIntent = ({
     emergencyAvailability,
     scheduling,
     service: Boolean(serviceNeeded),
-    correction: any(CORRECTION, text),
+    correction: any(CORRECTION, text) || Boolean(serviceNeeded && SERVICE_SUBJECT_PREFIX.test(clean(text))),
     newService: any(NEW_SERVICE, text),
     greeting: GREETING.test(text),
     thanks: THANKS.test(text),

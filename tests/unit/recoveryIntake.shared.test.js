@@ -391,3 +391,31 @@ test('failed persistence prevents a prepared completion from escaping', async ()
  await expect(c.turn('Sep 8 at 8 am')).rejects.toThrow('lead write failed');
  expect(AlertService.createHumanHandoffAlert).not.toHaveBeenCalled();
 });
+
+test.each(['sms', 'voice'])('%s corrected service stays authoritative through triage, date collection, availability and final summary', async channel => {
+  const c = context(channel); c.now = new Date('2026-09-21T22:00:00Z');
+  c.turn = customerMessage => handleRecoveryIntake({ ...c, customerMessage });
+  getAvailability.mockResolvedValue({ supportedServiceArea: true, slots: [{ startAt: '2026-09-22T15:00:00-04:00', endAt: '2026-09-22T16:00:00-04:00' }] });
+  await c.turn('Washing machine is leaking from the wall');
+  // Previously answered appliance triage must not answer the new pipe question.
+  await c.turn('Only when I use it');
+  const corrected = await c.turn("It's actually a pipe in the wall that is leaking");
+  expect(corrected.reply).toMatch(/pipe leaking right now/i);
+  expect(c.conversation.conversationMemory.recoveryIntake.triagePending).toBe(true);
+  await c.turn('Only when I use it');
+  await c.turn('979 Bob Ross Atlanta, Ga 30324');
+  const result = await c.turn('Tomorrow at 3:00pm');
+  expect(result.intakeReady).toBe(true);
+  expect(result.serviceNeeded).toBe('pipe in the wall that is leaking');
+  expect(result.intakeReview.serviceDetail).toBe(result.serviceNeeded);
+  expect(result.summary).not.toMatch(/washing machine|actually/i);
+  const reply = channel === 'voice' ? result.reply : buildCompletedIntakeResult({ business, result }).reply;
+  expect(reply).toMatch(/pipe in the wall/);
+  expect(reply).not.toMatch(/washing machine|actually/i);
+  expect(reply).toContain('leaks during use');
+  expect(reply).toContain('Tue, Sep 22 at 3 PM');
+  expect(reply).toContain('not confirmed');
+  expect(getAvailability).toHaveBeenCalledWith(expect.objectContaining({ serviceQuery: 'pipe in the wall that is leaking' }));
+  if (channel === 'sms') expect(reply.length).toBeLessThanOrEqual(320);
+  else expect(AlertService.createHumanHandoffAlert).toHaveBeenCalledWith(expect.objectContaining({ result: expect.objectContaining({ serviceNeeded: result.serviceNeeded, summary: expect.not.stringMatching(/washing machine/i) }) }));
+});

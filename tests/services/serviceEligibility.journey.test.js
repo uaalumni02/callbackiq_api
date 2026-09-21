@@ -305,3 +305,64 @@ describe.each(['sms', 'voice'])('%s cross-trade qualification through actual ent
   expect(Availability.getAvailability).not.toHaveBeenCalled();
   expect(AppointmentService.create).not.toHaveBeenCalled();
  });
+
+test.each(['sms', 'voice'])('%s actual entry replaces an appliance interpretation with the corrected pipe across reloads', async channel => {
+  business.features.aiBookingEnabled = false;
+  policy = { catalogComplete: false };
+  const j = journey(channel);
+  expect((await j.turn('Washing machine is leaking from the wall', true)).reply).toMatch(/staff review/);
+  const correction = await j.turn("It's actually a pipe in the wall that is leaking", true);
+  expect(j.lead().serviceNeeded).toMatch(/^pipe in the wall that is leaking$/i);
+  expect(j.conversation().serviceEligibility).toMatchObject({ decision: 'supported', request: 'pipe in the wall that is leaking' });
+  expect(correction.reply).toMatch(/pipe.*leaking/i);
+  expect(correction.reply).not.toMatch(/washing machine/i);
+  await j.turn('Only when I use it', true);
+  await j.turn('979 Bob Ross Atlanta, Ga 30324', true);
+  expect(j.lead().serviceNeeded).toBe('pipe in the wall that is leaking');
+  expect(j.conversation().conversationMemory.recoveryIntake.serviceDetail).toBe('pipe in the wall that is leaking');
+});
+
+test('same offering correction clears stale proposals and semantic evidence without discarding contact or time', async () => {
+  const lead = { serviceNeeded: 'kitchen sink is leaking', address: '979 Bob Ross Atlanta GA 30324', preferredAppointmentTime: '2026-09-22 at 15:00', save: jest.fn() };
+  const conversation = { serviceEligibility: { decision: 'supported', request: lead.serviceNeeded, serviceId: 'plumbing', semanticService: lead.serviceNeeded, semanticConfidence: 99 }, bookingState: { status: 'offering_slots', offeredSlots: [{}] }, conversationMemory: { serviceNeeded: lead.serviceNeeded, summary: 'Kitchen sink leak', recoveryIntake: { serviceDetail: lead.serviceNeeded, triageResolved: true, submitted: true, availability: { status: 'available' } } }, save: jest.fn() };
+  await guardServiceRequest({ business, lead, conversation, customerMessage: "It's actually a pipe in the wall that is leaking", semanticAssessment: { serviceNeeded: 'kitchen sink is leaking', confidence: 99 } });
+  expect(lead.serviceNeeded).toBe('pipe in the wall that is leaking');
+  expect(conversation.serviceEligibility.request).toBe(lead.serviceNeeded);
+  expect(conversation.serviceEligibility.semanticService).not.toMatch(/sink/);
+  expect(conversation.bookingState).toEqual({ status: 'not_started' });
+  expect(conversation.conversationMemory.recoveryIntake).toEqual({});
+  expect(conversation.conversationMemory.serviceNeeded).toBe(lead.serviceNeeded);
+  expect(conversation.conversationMemory.summary).not.toMatch(/sink/i);
+  expect(lead.address).toBe('979 Bob Ross Atlanta GA 30324');
+  expect(lead.preferredAppointmentTime).toBe('2026-09-22 at 15:00');
+});
+
+test.each(['sms', 'voice'])('%s correction to unsupported work rechecks eligibility instead of keeping plumbing acceptance', async channel => {
+  const j = journey(channel); await j.turn('My pipe is leaking');
+  const result = await j.turn("It's actually the roof that is leaking", true);
+  expect(result.reply).toMatch(/does not offer/);
+  expect(j.lead().serviceNeeded).not.toMatch(/pipe/);
+  expect(j.conversation().serviceEligibility).toMatchObject({ decision: 'unsupported', request: 'roof that is leaking' });
+  expect(Availability.getAvailability).not.toHaveBeenCalled();
+  expect(AppointmentService.create).not.toHaveBeenCalled();
+});
+
+test('service correction preserves an existing appointment while invalidating request evidence', async () => {
+  const lead = { serviceNeeded: 'sink repair', save: jest.fn() };
+  const bookingState = { status: 'booked', appointment: 'existing', serviceNeeded: 'sink repair' };
+  const conversation = { serviceEligibility: { decision: 'supported', request: 'sink repair', serviceId: 'plumbing' }, bookingState, conversationMemory: { recoveryIntake: { submitted: true } }, save: jest.fn() };
+  await guardServiceRequest({ business, lead, conversation, customerMessage: "It's actually the roof that is leaking" });
+  expect(conversation.bookingState).toEqual(bookingState);
+  expect(conversation.serviceEligibility.decision).toBe('unsupported');
+  expect(conversation.conversationMemory.recoveryIntake.submitted).not.toBe(true);
+  expect(AppointmentService.create).not.toHaveBeenCalled();
+});
+
+test('legacy lead correction also invalidates proposals without prior eligibility metadata', async () => {
+  const lead = { serviceNeeded: 'sink repair', save: jest.fn() };
+  const conversation = { bookingState: { status: 'offering_slots', offeredSlots: [{}] }, conversationMemory: { recoveryIntake: { serviceDetail: 'sink repair', submitted: true } }, save: jest.fn() };
+  await guardServiceRequest({ business, lead, conversation, customerMessage: "It's the pipe that is leaking" });
+  expect(lead.serviceNeeded).toBe('pipe that is leaking');
+  expect(conversation.bookingState).toEqual({ status: 'not_started' });
+  expect(conversation.conversationMemory.recoveryIntake).toEqual({});
+});
