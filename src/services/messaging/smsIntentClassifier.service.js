@@ -112,7 +112,7 @@ export const extractService = (text, { lead = null, conversation = null } = {}) 
     }
   }
   // Keep each clause independent: a question about price cannot swallow a fact.
-  const clauses = clean(text).split(/(?:[.!?;]\s*|,?\s+(?:and|but)\s+|\s+)(?=(?:how much|what (?:is|does|would|will|time)|when|how soon|can you|could you|will you|are you)\b)|[.!?;]\s*/i);
+  const clauses = clean(text).split(/(?:[.!?;]\s*|,?\s+(?:and|but)\s+|\s+)(?=(?:how much|what (?:is|does|would|will|time)|when|how soon|can you|could you|will you|are you|aren['’]?t you|isn['’]?t this|do you|don['’]?t you)\b)|[.!?;]\s*/i);
   for (let clause of clauses) {
     clause = clean(clause).replace(SERVICE_SUBJECT_PREFIX, "");
     clause = clean(clause).replace(/^(?:actually|correction|instead|i meant)[,:]?\s*/i, "");

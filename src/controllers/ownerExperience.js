@@ -32,6 +32,7 @@ class OwnerExperienceController {
 
           return {
             ...dashboard,
+            observedAt: new Date().toISOString(),
             marketingSources,
           };
         },

@@ -1,3 +1,4 @@
+jest.mock('../../src/services/staffReviewReconciliation.service.js',()=>({maintainStaffReviewRecords:jest.fn().mockResolvedValue({skipped:true})}));
 jest.mock('../../src/services/serviceEligibility/policy.js',()=>({blocksServiceAutomation:jest.fn()}),{virtual:true});
 jest.mock('../../src/workers/staffNotification.worker.js',()=>({startStaffNotificationWorker:jest.fn(),stopStaffNotificationWorker:jest.fn()}));
 jest.mock('../../src/services/smsStaffReviewRecovery.service.js',()=>({recoverFailedSmsStaffReviews:jest.fn()}));

@@ -55,7 +55,7 @@ const corsOrigin = (origin, callback) => {
     return callback(null, true);
   }
 
-  return callback(new Error(`CORS blocked origin: ${origin}`));
+  return callback(Object.assign(new Error(`CORS blocked origin: ${origin}`), { statusCode: 403, code: "CORS_ORIGIN_DENIED" }));
 };
 
 const expressCorsOptions = {

@@ -18,3 +18,15 @@ export function finishPage(rows, limit, scope, field = 'createdAt') {
   return { items, pagination: { limit, hasMore, nextCursor: hasMore ? encodePage({ scope, at: last[field], id: String(last._id) }) : null } };
 }
 export const queryFailure = error => error?.code === 50 || error?.codeName === 'MaxTimeMSExpired';
+
+// Driver connectivity failures are unavailable reads, never empty query results.
+export const databaseUnavailable = error => {
+  const names = new Set(['MongoNetworkError', 'MongoNetworkTimeoutError', 'MongoServerSelectionError',
+    'MongooseServerSelectionError', 'MongoPoolClearedError', 'PoolClearedError', 'MongoWaitQueueTimeoutError']);
+  const seen = new Set();
+  for (let current = error; current && !seen.has(current); current = current.cause) {
+    seen.add(current);
+    if (names.has(current.name)) return true;
+  }
+  return false;
+};

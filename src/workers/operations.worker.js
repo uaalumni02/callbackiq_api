@@ -1,3 +1,4 @@
+import { maintainStaffReviewRecords } from '../services/staffReviewReconciliation.service.js';
 import { reconcileOpsAlerts, dispatchOpsEvents, setOpsIncident } from '../services/opsPaging.service.js';
 import { readScaleHealth } from '../services/scaleHealth.service.js';
 import { recoverFailedSmsStaffReviews, recoverFailedWebhookReviews } from '../services/smsStaffReviewRecovery.service.js';
@@ -13,6 +14,7 @@ export function startOperationsWorker() {
       // Recovery remains useful even when the paging provider is unavailable.
       await recoverFailedSmsStaffReviews({ limit: 250 });
       await recoverFailedWebhookReviews({ limit: 250 });
+      await maintainStaffReviewRecords().catch(error => logOperationalError('staff_review.maintenance_failed', error));
       await reconcileOpsAlerts({ limit: 250 });
       const health = await readScaleHealth();
       await setOpsIncident({ key: 'fleet-health', active: !health.healthy, reason: 'fleet_health_requires_review' });

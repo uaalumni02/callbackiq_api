@@ -32,7 +32,7 @@ class MessageController {
     return handleConversationManualMessage(req, res, next);
   }
 
-  static async getMessagesByConversation(req, res) {
+  static async getMessagesByConversation(req, res, next) {
     try {
       const ownerId = req.user?.userId;
       const { conversationId } = req.params;
@@ -101,6 +101,7 @@ class MessageController {
       return Response.responseOk(res, page.items, "Messages fetched");
     } catch (error) {
       if (queryFailure(error)) return res.status(503).set("Retry-After", "2").json({ success: false, code: "QUERY_BUDGET_EXCEEDED", message: "This view is busy. Please retry or narrow your search." });
+      if (typeof next === "function") return next(error);
       safeConsole.error("Error in getMessagesByConversation:", error);
       return Response.responseServerError(res);
     }
