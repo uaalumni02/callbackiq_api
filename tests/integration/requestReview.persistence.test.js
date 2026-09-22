@@ -1,0 +1,33 @@
+import '../../src/models/business.js';
+import '../../src/models/lead.js';
+import mongoose from 'mongoose';
+import Alert from '../../src/models/alert.js';
+import Conversation from '../../src/models/conversation.js';
+import Message from '../../src/models/message.js';
+import AlertService from '../../src/services/alert.service.js';
+import { connectTestDB, clearTestDB, closeTestDB } from '../setup/testDb.js';
+jest.mock('../../src/services/socket.service.js',()=>({__esModule:true,default:{emitAlertCreated:jest.fn(),emitAlertUpdated:jest.fn()}}));
+beforeAll(async()=>{await connectTestDB();await Alert.init();},120000);
+afterEach(clearTestDB);afterAll(closeTestDB);
+const oid=()=>new mongoose.Types.ObjectId();
+test('parallel SMS turns, replay, staff ownership, completed intake, and resolution share one durable review',async()=>{
+ const business=oid(),conversation=oid(),owner=oid();
+ await Conversation.collection.insertOne({_id:conversation,business,orchestration:{recoveryJourneyKey:'request-1'}});
+ const inputs=[];
+ for(let i=0;i<3;i++) {const message=oid();await Message.collection.insertOne({_id:message,business,conversation,createdAt:new Date(1000+i*1000)});inputs.push({businessId:business,conversationId:conversation,messageId:message,providerMessageId:`SM${i}`,customerPhone:'+14045550123',result:{urgency:'high',summary:`Turn ${i}`}});}
+ await Promise.all(inputs.map(input=>AlertService.createAIReviewAlert(input)));
+ await Promise.all(inputs.map(input=>AlertService.createAIReviewAlert(input)));
+ expect(await Alert.countDocuments({business})).toBe(1);
+ let review=await Alert.findOne({business});expect(review.reviewEvents).toHaveLength(3);
+ const acknowledgedAt=new Date();await Alert.updateOne({_id:review._id},{$set:{assignedTo:owner,acknowledgedAt,status:'acknowledged'}});
+ await AlertService.createHumanHandoffAlert({...inputs[2],result:{handoff:{reason:'intake_complete'},serviceNeeded:'Toilet repair',address:'907 Run Rd Atlanta GA 30324'}});
+ review=await Alert.findById(review._id);expect(review.status).toBe('acknowledged');expect(String(review.assignedTo)).toBe(String(owner));expect(review.reviewEvents).toHaveLength(4);expect(review.title).toBe('Service request ready for team review');
+ await AlertService.createAIReviewAlert(inputs[0]);expect((await Alert.findById(review._id)).title).toBe('Service request ready for team review');
+ await Alert.updateOne({_id:review._id},{$set:{status:'resolved',resolvedAt:new Date()}});
+ await AlertService.createAIReviewAlert(inputs[2]);expect((await Alert.findById(review._id)).status).toBe('resolved');
+ await AlertService.createAIReviewAlert({...inputs[2],providerMessageId:'SAFETY',result:{messageCategory:'emergency'}});
+ expect(await Alert.countDocuments({business,type:'safety_emergency'})).toBe(1);
+ await Conversation.updateOne({_id:conversation},{$set:{'orchestration.recoveryJourneyKey':'request-2'}});
+ await AlertService.createAIReviewAlert({...inputs[0],providerMessageId:'NEW'});
+ expect(await Alert.countDocuments({business,type:'human_requested'})).toBe(2);
+});

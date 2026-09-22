@@ -1,3 +1,4 @@
+import Conversation from '../models/conversation.js';
 import mongoose from "mongoose";
 import Alert from "../models/alert.js";
 import getOwnedBusiness from "../services/businessScope.service.js";
@@ -106,6 +107,22 @@ const resolveAssignableUserId = ({ business, requestedAssignee }) => {
   }
 
   return ownerId;
+};
+
+// Retriable second step: a saved acknowledgment is never rolled back if the
+// conversation write fails. The UI reports failure and can retry this action.
+const pauseOwnedReview = async (req, business, alert) => {
+  if (req.body.pauseAutomation !== true || !alert.conversation) return;
+  let conversation;
+  try {
+    conversation = await Conversation.findOneAndUpdate({
+      _id: normalizeId(alert.conversation), business: business._id,
+    }, { $set: { humanTakeover: true, aiEnabled: false } }, { returnDocument: 'after' });
+  } catch (cause) {
+    throw Object.assign(new Error('Review accepted, but AI pause could not be verified. Refresh and retry takeover.'), { statusCode: 503, cause });
+  }
+  if (!conversation) throw Object.assign(new Error('Review accepted, but the conversation could not be paused. Retry takeover.'), { statusCode: 409 });
+  SocketService.emitConversationUpdated(business._id, conversation);
 };
 
 class InterventionController {
@@ -276,6 +293,7 @@ class InterventionController {
           }),
         );
 
+        await pauseOwnedReview(req, business, current);
         return res.status(200).json({ success: true, data: current });
       }
 
@@ -312,6 +330,7 @@ class InterventionController {
       if (!alert) return sendStateConflict(res);
 
       SocketService.emitAlertUpdated(business._id, alert);
+      await pauseOwnedReview(req, business, alert);
 
       return res.status(200).json({
         success: true,

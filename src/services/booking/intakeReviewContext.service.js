@@ -2,7 +2,7 @@ import crypto from 'crypto';
 export const intakeReviewVersion = (conversation, lead) => crypto.createHash('sha256').update(JSON.stringify([
   String(conversation?._id || ''), conversation?.orchestration?.recoveryJourneyKey || '',
   String(conversation?.orchestration?.lastInboundMessage || ''), lead?.status || '',
-  conversation?.customerPhone || '', lead?.phone || '',
+  conversation?.customerPhone || '', lead?.phone || '', lead?.customerName || '', conversation?.customerName || '',
   lead?.serviceNeeded || '', lead?.address || '', lead?.preferredAppointmentTime || '',
   conversation?.conversationMemory?.recoveryIntake?.serviceDetail || '',
   conversation?.conversationMemory?.recoveryIntake?.triageAnswer || '',

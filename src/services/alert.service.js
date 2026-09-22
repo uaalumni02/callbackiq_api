@@ -1,3 +1,4 @@
+import { isRequestReview, saveRequestReview } from './requestReview.service.js';
 import { staffReviewDueAt, staffReviewSlaMinutes } from "./staffReviewPolicy.service.js";
 import { safeConsole } from "../helpers/logging/safeLogger.js";
 import { moneyAmount } from "./valuation/opportunityValue.js";
@@ -85,6 +86,9 @@ class AlertService {
     if (!businessId) {
       throw new Error("businessId is required to create an alert");
     }
+
+    const requestPayload = { businessId, leadId, conversationId, type, channel, title, message, priority, status, metadata, dedupeKey, actionRequired, dueAt, reason, recommendedAction, aiSummary, lastCustomerMessage };
+    if (isRequestReview(requestPayload)) return saveRequestReview(requestPayload, payload => this.create(payload));
 
     const now = new Date();
     const normalizedStatus =

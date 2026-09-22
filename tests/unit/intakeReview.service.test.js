@@ -8,9 +8,9 @@ import { withDistributedLease } from '../../src/services/distributedLease.servic
 import { approveIntake, intakeReviewVersion } from '../../src/services/booking/intakeReview.service.js';
 jest.mock('../../src/models/voiceSession.js', () => ({ __esModule:true, default:{exists:jest.fn()} }));
 jest.mock('../../src/models/conversation.js', () => ({ __esModule:true, default:{findOne:jest.fn(),updateOne:jest.fn()} }));
-jest.mock('../../src/models/lead.js', () => ({ __esModule:true, default:{findOne:jest.fn()} }));
+jest.mock('../../src/models/lead.js', () => ({ __esModule:true, default:{findOne:jest.fn(),updateOne:jest.fn()} }));
 jest.mock('../../src/models/alert.js', () => ({ __esModule:true, default:{exists:jest.fn()} }));
-jest.mock('../../src/models/appointmentNotificationJob.js', () => ({ __esModule:true, default:{findOne:jest.fn()} }));
+jest.mock('../../src/models/appointmentNotificationJob.js', () => ({ __esModule:true, default:{findOne:jest.fn(),updateOne:jest.fn()} }));
 jest.mock('../../src/services/scheduling/appointment.service.js', () => ({ __esModule:true, default:{create:jest.fn(),confirm:jest.fn()},ensureBusinessApprovalNotice:jest.fn() }));
 jest.mock('../../src/services/distributedLease.service.js', () => ({ withDistributedLease:jest.fn(),assertDistributedLeaseActive:jest.fn() }));
 const business={_id:'a'.repeat(24),timezone:'America/New_York'};
@@ -19,9 +19,9 @@ beforeEach(()=>{
  jest.clearAllMocks();
  VoiceSession.exists.mockResolvedValue(null);
  conversation={_id:'b'.repeat(24),lead:'c'.repeat(24),status:'open',customerPhone:'+14045550123',orchestration:{recoveryJourneyKey:'journey'},conversationMemory:{recoveryIntake:{submitted:true}}};
- lead={_id:conversation.lead,serviceNeeded:'Bathtub resealing',address:'970 Sidney Marcus Blvd NE Atlanta GA 30324',preferredAppointmentTime:'2026-09-09 at 08:00'};
+ lead={_id:conversation.lead,customerName:'Jordan Lee',serviceNeeded:'Bathtub resealing',address:'970 Sidney Marcus Blvd NE Atlanta GA 30324',preferredAppointmentTime:'2026-09-09 at 08:00'};
  input={serviceOfferingId:'d'.repeat(24),startAt:'2026-09-09T12:00:00.000Z',intakeReviewVersion:intakeReviewVersion(conversation,lead)};
- appointment={_id:'e'.repeat(24),customerPhone:conversation.customerPhone,conversation:conversation._id,lead:lead._id,address:{street:lead.address,postalCode:'30324'},serviceOffering:input.serviceOfferingId,startAt:new Date(input.startAt),status:'confirmed',requiresBusinessApproval:true};
+ appointment={_id:'e'.repeat(24),customerName:lead.customerName,customerPhone:conversation.customerPhone,conversation:conversation._id,lead:lead._id,address:{street:lead.address,postalCode:'30324'},serviceOffering:input.serviceOfferingId,startAt:new Date(input.startAt),status:'confirmed',requiresBusinessApproval:true};
  Conversation.findOne.mockResolvedValue(conversation); Lead.findOne.mockResolvedValue(lead);Alert.exists.mockResolvedValue({_id:'alert'});
  withDistributedLease.mockImplementation(async(key,fn)=>({acquired:true,value:await fn()}));
  AppointmentService.create.mockResolvedValue(appointment);AppointmentService.confirm.mockResolvedValue(appointment);
@@ -132,4 +132,16 @@ test('records an optional staff qualification note but rejects malformed notes b
  input.qualificationReviewNote = 'Reviewed the symptom uncertainty and approved a diagnostic visit.';
  expect((await run()).appointment.status).toBe('confirmed');
  expect(AppointmentService.create.mock.calls[0][0].input.notes).toContain(input.qualificationReviewNote);
+});
+
+test('requires a real customer name before creating or confirming an appointment', async () => {
+ lead.customerName='Missed Call Lead'; input.intakeReviewVersion=intakeReviewVersion(conversation,lead);
+ await expect(run()).rejects.toMatchObject({code:'INTAKE_CUSTOMER_NAME_REQUIRED'});
+ expect(AppointmentService.create).not.toHaveBeenCalled();
+});
+test('uses the staff-confirmed name on the appointment and saves it after confirmation', async () => {
+ lead.customerName='Missed Call Lead'; input.customerName='Jordan Lee'; input.intakeReviewVersion=intakeReviewVersion(conversation,lead);
+ await run();
+ expect(AppointmentService.create).toHaveBeenCalledWith(expect.objectContaining({input:expect.objectContaining({customerName:'Jordan Lee'})}));
+ expect(Lead.updateOne).toHaveBeenCalledWith(expect.objectContaining({customerName:'Missed Call Lead'}),{$set:{customerName:'Jordan Lee'}});
 });

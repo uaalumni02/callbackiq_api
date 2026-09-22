@@ -70,6 +70,10 @@ export const approveIntake = async ({ business, conversationId, input, approvedB
     await assertVoiceReviewIdle(business._id, conversation._id);
     const customerPhone = normalizePhoneToE164(conversation.customerPhone);
     if (!customerPhone) throw fail('Confirm a usable customer phone number before approving this request.', 'INTAKE_CONTACT_REQUIRED');
+    const customerName = String(input.customerName ?? lead.customerName ?? conversation.customerName ?? '').trim();
+    if ((input.customerName !== undefined && typeof input.customerName !== 'string') || !customerName || customerName.length > 120 || /^(missed call lead|new sms lead|unknown|customer)$/i.test(customerName)) {
+      throw fail('Ask the customer for their name and enter it before confirming the appointment.', 'INTAKE_CUSTOMER_NAME_REQUIRED', 400);
+    }
     const address = String(lead.address || '').trim();
     const postalCode = extractCustomerPostalCode(address);
     if (!address || !postalCode || !lead.serviceNeeded) throw fail('Review the service and complete address before scheduling.', 'INTAKE_INCOMPLETE');
@@ -78,7 +82,7 @@ export const approveIntake = async ({ business, conversationId, input, approvedB
     assertDistributedLeaseActive();
     const appointment = await runScheduling(() => AppointmentService.create({ business, idempotencyKey: key, confirm: false, ownerValuationAuthorized: true, input: {
       serviceOfferingId: input.serviceOfferingId, startAt: input.startAt, ...(input.endAt ? { endAt: input.endAt } : {}),
-      lead: lead._id, conversation: conversation._id, customerName: lead.customerName || conversation.customerName,
+      lead: lead._id, conversation: conversation._id, customerName,
       customerPhone, customerEmail: lead.email || '', address: { street: address, postalCode },
       timezone: business.timezone || 'America/New_York', source: 'manual', bookedBy: 'staff', requiresBusinessApproval: true,
       notes: `Reviewed service request: ${lead.serviceNeeded}. Customer preference: ${lead.preferredAppointmentTime || ''}${unresolvedQualification ? `. Staff approved with unresolved intake details: ${reviewState.problem?.reason || 'triage_unresolved'}.${qualificationReviewNote ? ` Review note: ${qualificationReviewNote}` : ''}` : ''}`,
@@ -91,7 +95,7 @@ export const approveIntake = async ({ business, conversationId, input, approvedB
     } });
     assertDistributedLeaseActive();
     if (normalizePhoneToE164(appointment.customerPhone) !== customerPhone || String(appointment.conversation) !== String(conversation._id) || String(appointment.lead) !== String(lead._id) ||
-      appointment.address?.street !== address || appointment.address?.postalCode !== postalCode ||
+      appointment.customerName !== customerName || appointment.address?.street !== address || appointment.address?.postalCode !== postalCode ||
       String(appointment.serviceOffering) !== String(input.serviceOfferingId) || new Date(appointment.startAt).getTime() !== Date.parse(input.startAt) ||
       (input.endAt && new Date(appointment.endAt).getTime() !== Date.parse(input.endAt))) {
       throw fail('This request already has a different appointment operation. Review that appointment before changing it.', 'INTAKE_APPOINTMENT_MISMATCH');
@@ -124,6 +128,11 @@ export const approveIntake = async ({ business, conversationId, input, approvedB
       'bookingState.status': 'booked', 'bookingState.appointment': confirmed._id,
       'bookingState.expiresAt': null, 'bookingState.lastError': '',
     } });
+    // Update only the name staff actually reviewed; do not overwrite a concurrent correction.
+    await Lead.updateOne({ _id: lead._id, business: business._id, customerName: lead.customerName ?? null },
+      { $set: { customerName } });
+    await Conversation.updateOne({ _id: conversation._id, business: business._id, customerName: conversation.customerName ?? null },
+      { $set: { customerName } });
     return { appointment: confirmed, confirmationNoticeStatus };
   });
   if (!lease.acquired) throw fail('This conversation is being updated. Try again shortly.', 'INTAKE_BUSY');

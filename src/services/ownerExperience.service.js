@@ -713,7 +713,7 @@ class OwnerExperienceService {
         lead: lead._id,
       })
         .select(
-          "lead serviceEligibility customerName customerPhone status humanTakeover bookingState conversationMemory lastMessage lastMessageAt createdAt updatedAt",
+          "lead serviceEligibility customerName customerPhone status humanTakeover bookingState orchestration conversationMemory lastMessage lastMessageAt createdAt updatedAt",
         )
         .sort({ lastMessageAt: -1, updatedAt: -1 })
         .lean(),

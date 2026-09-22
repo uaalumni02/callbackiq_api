@@ -1,3 +1,4 @@
+import { requestReviewKey } from './requestReview.service.js';
 import { logOperationalError } from '../helpers/logging/safeLogger.js';
 import crypto from 'node:crypto';
 import Conversation from '../models/conversation.js';
@@ -38,7 +39,7 @@ export async function reconcileConversationStaffReview({ conversationId, busines
     const inbound = inboundId ? await Message.findOne({ _id: inboundId, business: businessId, conversation: conversationId })
       .select('_id providerMessageId').maxTimeMS(queryBudgetMs()).lean() : null;
     const originalKey = inbound ? `human_handoff:${inbound.providerMessageId || inbound._id}` : null;
-    const matches = [{ dedupeKey: key }, { actionRequired: true, resolvedAt: null }];
+    const matches = [{ dedupeKey: requestReviewKey(conversation._id, conversation.orchestration?.recoveryJourneyKey) }, { dedupeKey: key }, { actionRequired: true, resolvedAt: null }];
     if (intake.review?.alertId) matches.push({ _id: intake.review.alertId });
     if (originalKey) matches.push({ dedupeKey: originalKey });
     if (!inboundId && !conversation.orchestration?.handoffRequestedAt && !intake.review?.alertId) {

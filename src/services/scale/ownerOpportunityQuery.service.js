@@ -67,7 +67,7 @@ export async function queryOwnerOpportunities({ business, interventionFilter, vi
     ...(needsFlags(view) ? flags : []), { $match: viewFilter(view) }];
   const rows = await execute([...filtered, ...(offset ? [{ $skip: offset }] : []), { $limit: size + 1 },
     opportunityLookup(Conversation, businessId, '_conversation', {}, { lastMessageAt: -1, updatedAt: -1, _id: -1 },
-      { lead: 1, serviceEligibility: 1, customerName: 1, customerPhone: 1, status: 1, humanTakeover: 1, bookingState: 1, conversationMemory: 1, lastMessage: 1, lastMessageAt: 1, createdAt: 1, updatedAt: 1 }),
+      { lead: 1, serviceEligibility: 1, customerName: 1, customerPhone: 1, status: 1, humanTakeover: 1, bookingState: 1, orchestration: 1, conversationMemory: 1, lastMessage: 1, lastMessageAt: 1, createdAt: 1, updatedAt: 1 }),
     opportunityLookup(Appointment, businessId, '_appointment', {}, { createdAt: -1, _id: -1 },
       { lead: 1, status: 1, startAt: 1, endAt: 1, timezone: 1, source: 1, bookedBy: 1, provider: 1, confirmedAt: 1, customerConfirmedAt: 1, estimatedValue: 1, valuation: 1, actualRevenue: 1, requiresBusinessApproval: 1, failureReason: 1, createdAt: 1 }),
     ...(!needsFlags(view) ? [opportunityLookup(Alert, businessId, '_interventions', interventionFilter)] : []),
