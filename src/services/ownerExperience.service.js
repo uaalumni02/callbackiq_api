@@ -1,3 +1,4 @@
+import { queryBudgetMs } from "./scale/queryBudget.js";
 import { queryOwnerOpportunities } from "./scale/ownerOpportunityQuery.service.js";
 import { intakeReviewVersion, manualIntakeSubmitted } from "./booking/intakeReviewContext.service.js";
 import mongoose from "mongoose";
@@ -485,41 +486,60 @@ const serializeOpportunity = ({
 };
 
 
-const attentionPreview = async (businessId, limit = 5) => {
-  const alerts = await Alert.find(ownerInterventionFilter(businessId))
-    .populate("lead", "customerName phone serviceNeeded urgency estimatedValue valuation status summary serviceEligibility")
-    .populate("conversation", "customerName customerPhone lastMessage lastMessageAt status")
-    .populate("appointment", "startAt endAt timezone status provider")
-    .sort({ dueAt: 1, createdAt: -1 })
-    .limit(250)
-    .lean();
+// Group before limiting: repeated issues must not crowd other customers out.
+// Conversation is the actionable unit; unlinked issues retain their identity.
+export const ownerAttentionPipeline = (businessId, limit = 5) => [
+  { $match: ownerInterventionFilter(new mongoose.Types.ObjectId(String(businessId))) },
+  { $addFields: {
+    attentionKey: { $cond: [ { $ne: [{ $ifNull: ["$conversation", null] }, null] },
+      { conversation: "$conversation" },
+      { $cond: [ { $ne: [{ $ifNull: ["$lead", null] }, null] },
+        { lead: "$lead" }, { alert: "$_id" } ] } ] },
+    attentionPriority: { $switch: { branches: [
+      { case: { $eq: ["$priority", "critical"] }, then: 4 },
+      { case: { $eq: ["$priority", "high"] }, then: 3 },
+      { case: { $eq: ["$priority", "medium"] }, then: 2 },
+      { case: { $eq: ["$priority", "low"] }, then: 1 },
+    ], default: 0 } },
+    attentionDue: { $ifNull: ["$dueAt", new Date("9999-12-31T00:00:00.000Z")] },
+  } },
+  { $sort: { attentionPriority: -1, attentionDue: 1, createdAt: -1, _id: 1 } },
+  { $group: { _id: "$attentionKey", representative: { $first: "$$ROOT" }, issueCount: { $sum: 1 } } },
+  { $sort: { "representative.attentionPriority": -1, "representative.attentionDue": 1,
+    "representative.createdAt": -1, "representative._id": 1 } },
+  { $facet: {
+    totals: [{ $group: { _id: null, count: { $sum: 1 }, issueCount: { $sum: "$issueCount" } } }],
+    preview: [{ $limit: Math.min(Math.max(Number(limit) || 5, 1), 20) },
+      { $project: { _id: 0, representative: 1, issueCount: 1 } }],
+  } },
+];
 
-  const priorityRank = { critical: 4, high: 3, medium: 2, low: 1 };
-  alerts.sort((a, b) => {
-    const severity = (priorityRank[b.priority] || 0) - (priorityRank[a.priority] || 0);
-    if (severity) return severity;
-    const aDue = a.dueAt ? new Date(a.dueAt).getTime() : Number.MAX_SAFE_INTEGER;
-    const bDue = b.dueAt ? new Date(b.dueAt).getTime() : Number.MAX_SAFE_INTEGER;
-    return aDue - bDue;
-  });
-
-  return alerts.slice(0, Math.min(Math.max(Number(limit) || 5, 1), 20)).map((item) => ({
-    id: String(item._id),
-    type: item.type,
-    priority: item.priority,
-    title: item.title,
-    customerName:
-      item.lead?.customerName || item.conversation?.customerName || "Customer",
-    phone: item.lead?.phone || item.conversation?.customerPhone || "",
-    serviceNeeded: item.lead?.serviceNeeded || "",
-    estimatedValue: item.lead?.estimatedValue ?? null,
-    valuation: item.lead?.valuation,
-    reason: item.reason || item.message || "",
-    recommendedAction: item.recommendedAction || "Review and contact the customer.",
-    conversationId: item.conversation?._id ? String(item.conversation._id) : null,
-    appointmentId: item.appointment?._id ? String(item.appointment._id) : null,
-    dueAt: item.dueAt || null,
-  }));
+export const attentionSummary = async (businessId, limit = 5) => {
+  const [result] = await Alert.aggregate(ownerAttentionPipeline(businessId, limit))
+    .option({ maxTimeMS: queryBudgetMs() });
+  const groups = result?.preview || [];
+  const alerts = await Alert.populate(groups.map(group => group.representative), [
+    { path: "lead", select: "customerName phone serviceNeeded urgency estimatedValue valuation status summary serviceEligibility" },
+    { path: "conversation", select: "customerName customerPhone lastMessage lastMessageAt status" },
+    { path: "appointment", select: "startAt endAt timezone status provider" },
+  ]);
+  return {
+    count: result?.totals?.[0]?.count || 0,
+    issueCount: result?.totals?.[0]?.issueCount || 0,
+    preview: alerts.map((item, index) => ({
+      id: String(item._id), issueCount: groups[index].issueCount,
+      type: item.type, priority: item.priority, title: item.title,
+      customerName: item.lead?.customerName || item.conversation?.customerName || "Customer",
+      phone: item.lead?.phone || item.conversation?.customerPhone || "",
+      serviceNeeded: item.lead?.serviceNeeded || "",
+      estimatedValue: item.lead?.estimatedValue ?? null, valuation: item.lead?.valuation,
+      reason: item.reason || item.message || "",
+      recommendedAction: item.recommendedAction || "Review and contact the customer.",
+      conversationId: item.conversation?._id ? String(item.conversation._id) : null,
+      appointmentId: item.appointment?._id ? String(item.appointment._id) : null,
+      dueAt: item.dueAt || null,
+    })),
+  };
 };
 
 class OwnerExperienceService {
@@ -535,9 +555,8 @@ class OwnerExperienceService {
     const [
       revenue,
       openCustomerCount,
-      openInterventionCount,
       pipelineRows,
-      preview,
+      attention,
     ] = await Promise.all([
       RevenueRecoveryService.summary({
         businessId: business._id,
@@ -548,7 +567,6 @@ class OwnerExperienceService {
         business: business._id,
         status: { $in: ["new", "contacted"] },
       }),
-      Alert.countDocuments(ownerInterventionFilter(business._id)),
       Conversation.aggregate([
         {
           $match: {
@@ -626,7 +644,7 @@ class OwnerExperienceService {
           },
         },
       ]),
-      attentionPreview(business._id, 5),
+      attentionSummary(business._id, 5),
     ]);
 
     const pipeline = pipelineRows[0] || {
@@ -672,10 +690,11 @@ class OwnerExperienceService {
       },
       rightNow: {
         openCustomers: openCustomerCount,
-        needsAttention: openInterventionCount,
+        needsAttention: attention.count,
+        openReviewItems: attention.issueCount,
         ...pipeline,
       },
-      attentionPreview: preview,
+      attentionPreview: attention.preview,
     };
   }
 
