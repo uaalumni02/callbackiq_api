@@ -1,3 +1,4 @@
+import { listBusinessRequests, readRequestWorkflow, updateRequestWorkflow } from '../services/businessRequestWorkflow.service.js';
 import Conversation from '../models/conversation.js';
 import mongoose from "mongoose";
 import Alert from "../models/alert.js";
@@ -133,6 +134,11 @@ class InterventionController {
         requestedBusinessId: req.query.businessId,
       });
 
+      if (req.query.view === 'requests') {
+        const result = await listBusinessRequests({ businessId: business._id, query: req.query });
+        return res.status(200).json({ success: true, ...result });
+      }
+
       const filter = {
         business: business._id,
         $or: [
@@ -262,6 +268,16 @@ class InterventionController {
     } catch (error) {
       return next(error);
     }
+  }
+
+  static async workflow(req, res, next) {
+    try {
+      const business = await getOwnedBusiness({ user: req.user, requestedBusinessId: req.body?.businessId || req.query.businessId });
+      const data = req.method === 'GET'
+        ? await readRequestWorkflow({ businessId: business._id, alertId: req.params.id })
+        : await updateRequestWorkflow({ business, userId: req.user.userId, alertId: req.params.id, input: req.body || {} });
+      return res.status(200).json({ success: true, data });
+    } catch (error) { return next(error); }
   }
 
   static async acknowledge(req, res, next) {

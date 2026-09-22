@@ -5,6 +5,8 @@ import checkSubscription from "../middleware/check-subscription.js";
 const router = express.Router();
 router.use(checkAuth, checkSubscription);
 router.get("/", InterventionController.list);
+router.get("/:id/workflow", InterventionController.workflow);
+router.post("/:id/workflow", InterventionController.workflow);
 router.post("/:id/acknowledge", InterventionController.acknowledge);
 router.post("/:id/resolve", InterventionController.resolve);
 router.patch("/:id/assign", InterventionController.assign);
