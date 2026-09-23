@@ -1,3 +1,4 @@
+import { normalizeEmergencyNumberForSpeech } from "./voiceSpeech.service.js";
 import {
   normalizePhoneToE164,
   phoneNumbersEqual,
@@ -260,7 +261,7 @@ export const emptyTwiml = () => xml("<Response></Response>");
 export const sayTwiml = (message, { hangup = true, voice = "" } = {}) => {
   const voiceAttribute = voice ? ` voice="${escapeXml(voice)}"` : "";
   return xml(
-    `<Response><Say${voiceAttribute}>${escapeXml(message)}</Say>${
+    `<Response><Say${voiceAttribute}>${escapeXml(normalizeEmergencyNumberForSpeech(message))}</Say>${
       hangup ? "<Hangup/>" : ""
     }</Response>`,
   );
@@ -320,7 +321,7 @@ export const conversationRelayTwiml = ({
   return xml(
     `<Response><Connect action="${escapeXml(action)}"><ConversationRelay url="${escapeXml(
       websocketUrl,
-    )}" welcomeGreeting="${escapeXml(resolvedGreeting)}" language="${escapeXml(getConversationRelayLanguage())}" interruptible="any" interruptSensitivity="medium" dtmfDetection="true" reportInputDuringAgentSpeech="any" ignoreBackchannel="true" speechTimeout="1200"${voiceAttribute}>${parameters}</ConversationRelay></Connect></Response>`,
+    )}" welcomeGreeting="${escapeXml(normalizeEmergencyNumberForSpeech(resolvedGreeting))}" language="${escapeXml(getConversationRelayLanguage())}" interruptible="any" interruptSensitivity="medium" dtmfDetection="true" reportInputDuringAgentSpeech="any" ignoreBackchannel="true" speechTimeout="1200"${voiceAttribute}>${parameters}</ConversationRelay></Connect></Response>`,
   );
 };
 

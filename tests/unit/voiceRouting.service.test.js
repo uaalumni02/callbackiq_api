@@ -119,7 +119,7 @@ describe("Phase 9 voice routing settings", () => {
       voiceSessionId: "voice-session-atlanta",
     });
     expect(twiml).toContain(
-      'welcomeGreeting="Thanks for calling Atlanta Pro Plumbing &amp; Drain. This is their automated assistant. How can I help you today? This service does not monitor emergencies or dispatch emergency help. For immediate danger, call 911."',
+      'welcomeGreeting="Thanks for calling Atlanta Pro Plumbing &amp; Drain. This is their automated assistant. How can I help you today? This service does not monitor emergencies or dispatch emergency help. For immediate danger, call nine one one."',
     );
   });
 });

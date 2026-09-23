@@ -1,3 +1,4 @@
+import { normalizeEmergencyNumberForSpeech } from "./voiceSpeech.service.js";
 import { sanitizeUnverifiedStaffCommitments } from "../services/customerCommitmentSafety.service.js";
 const escapeXml = (value = "") =>
   String(value)
@@ -81,7 +82,7 @@ export const buildSmsRecoveryVoicePrompt = ({
       "may respond when staff are available",
     );
 
-  return escapeXml(safeMessage);
+  return escapeXml(normalizeEmergencyNumberForSpeech(safeMessage));
 };
 
 export default buildSmsRecoveryVoicePrompt;

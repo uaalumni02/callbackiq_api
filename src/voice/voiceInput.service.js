@@ -1,3 +1,4 @@
+import { normalizeEmergencyNumberForSpeech } from "./voiceSpeech.service.js";
 import { extractCustomerPostalCode } from '../services/booking/customerAddress.service.js';
 import {
   digitsOnly,
@@ -179,7 +180,7 @@ export const toSpokenReply = (value) => {
     );
 
   text = spaceLikelyZipCodes(text);
-  return cleanVoiceText(text, 4000);
+  return cleanVoiceText(normalizeEmergencyNumberForSpeech(text), 4000);
 };
 
 export const parseCorrection = (value) => {
