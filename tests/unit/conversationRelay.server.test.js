@@ -368,3 +368,39 @@ describe("ConversationRelay caller interruption fencing", () => {
     }
   });
 });
+
+describe('caller recovery when submission cannot be verified', () => {
+ test.each(['lead write failed', 'handoff write failed', 'notification unavailable'])('%s produces spoken recovery and bounded termination', async failure => {
+  const previousLoadMode=process.env.VOICE_LOAD_TEST_MODE; process.env.VOICE_LOAD_TEST_MODE='true';
+  const session={_id:'voice-write-failure',business:{_id:'business-1'},status:'active'};
+  const handlePrompt=jest.fn().mockRejectedValue(new Error(failure));
+  const server=await startServer({
+   signatureValidator:()=>true, voiceAgentService:{handlePrompt},
+   voiceSessionService:{activateFromSetup:jest.fn().mockResolvedValue(session),touchActivity:jest.fn(),sendFallbackSms:jest.fn().mockRejectedValue(new Error('recovery unavailable'))},
+   voiceTranscriptService:{append:jest.fn().mockResolvedValue(undefined)},
+   voiceOutcomeService:{commitVoiceOutcome:jest.fn(),inferVoiceOutcome:jest.fn().mockReturnValue(null),recoverAbandonedVoiceCall:jest.fn().mockResolvedValue(null)},
+   voiceMetricsService:{recordVoiceMetric:jest.fn().mockResolvedValue(undefined)},
+   failureEndDelayMs:10,failureCloseDelayMs:200,
+  });
+  const socket=new WebSocket(server.url);
+  try {
+   await new Promise((resolve,reject)=>{socket.once('open',resolve);socket.once('error',reject);});
+   const ready=collectUntil(socket,m=>m.type==='callbackiq_setup_ready');
+   socket.send(JSON.stringify({type:'setup',callSid:'CA-failure',sessionId:'relay-failure',customParameters:{voiceSessionId:session._id}})); await ready;
+   for(let i=0;i<2;i++){
+    const response=collectUntil(socket,m=>m.type==='text'&&m.last&&/could not complete|try once more/i.test(m.token||''));
+    socket.send(JSON.stringify({type:'prompt',voicePrompt:'Yes, submit my callback request',last:true}));
+    const messages=await response;
+    expect(messages.map(m=>m.token||'').join(' ')).toMatch(/could not complete|try once more/i);
+   }
+   const ended=collectUntil(socket,m=>m.type==='end');
+   socket.send(JSON.stringify({type:'prompt',voicePrompt:'Please try again',last:true}));
+   const messages=await ended;
+   const spoken=messages.filter(m=>m.type==='text').map(m=>m.token||'').join(' ');
+   expect(spoken).toMatch(/cannot verify that your request reached the team/);
+   expect(spoken).toMatch(/contact the business directly/);
+   expect(spoken).not.toMatch(/request (?:was|is) saved|team (?:was|has been) notified/i);
+   expect(handlePrompt).toHaveBeenCalledTimes(3);
+  } finally {socket.terminate();await server.close();if(previousLoadMode===undefined)delete process.env.VOICE_LOAD_TEST_MODE;else process.env.VOICE_LOAD_TEST_MODE=previousLoadMode;}
+ });
+});

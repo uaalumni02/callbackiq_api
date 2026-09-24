@@ -21,6 +21,7 @@ import {
   isBusinessHoursQuestion,
   isCancelIntent,
   isNo,
+  isPlausibleCallbackName,
   isRepeatIntent,
   isServiceAreaQuestion,
   isSkipIntent,
@@ -88,7 +89,7 @@ const SPANISH_PROMPTS = Object.freeze({
   phone: "No aparece su número. Diga los diez dígitos, uno por uno.",
 });
 const promptFor = (state, field) =>
-  (state?.language === "es" ? SPANISH_PROMPTS : PROMPTS)[field] || promptFor(state, field);
+  (state?.language === "es" ? SPANISH_PROMPTS : PROMPTS)[field] || PROMPTS.service;
 
 const normalizeId = (value) => value?._id || value?.id || value || null;
 const clean = (value, maximum = 1000) => cleanVoiceText(value, maximum);
@@ -195,7 +196,7 @@ const createState = ({
     confirmationSmsProviderMessageId: "",
   };
   if (!state.serviceNeeded && seedServiceFromMessage) {
-    state.serviceNeeded = clean(customerMessage, 200);
+    if (extractCallbackDetails(customerMessage).service) state.serviceNeeded = clean(customerMessage, 200);
   }
   return state;
 };
@@ -213,16 +214,24 @@ const setStateValue = (state, field, value) => {
   const normalized = clean(value, 500);
   if (field === "service") state.serviceNeeded = normalized.slice(0, 200);
   if (field === "name") state.customerName = normalizeName(normalized).slice(0, 120);
-  if (field === "location") state.location = normalized.slice(0, 500);
+  if (field === 'location') {
+    state.location = /^\d{5}$/.test(normalized) && state.location && !/^\d{5}$/.test(state.location) && !skippedValue(state.location)
+      ? (state.location.replace(/\b\d{5}(?:-\d{4})?$/, '').trim() + ' ' + normalized).slice(0, 500)
+      : normalized.slice(0, 500);
+  }
   if (field === "urgency") {
     state.urgency = normalizeUrgency(normalized);
     state.urgencyDetail = normalized.slice(0, 200);
   }
-  if (field === "preference") state.preferredTime = normalized.slice(0, 500);
+  if (field === 'preference') {
+    const day = state.preferredTime?.match(/\b(?:(?:next|this) )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|today)\b/i)?.[0];
+    state.preferredTime = day && /^(?:at )?\d{1,2}(?::\d{2})?\s*(?:[ap]\.?m\.?)?[.!]*$/i.test(normalized)
+      ? `${day} at ${normalized.replace(/^at /i, '')}` : normalized.slice(0, 500);
+  }
   if (field === "phone") state.phone = extractPhoneNumber(normalized);
 };
 const nextMissingField = (state) =>
-  state.requiredFields.find((field) => !stateValue(state, field)) || null;
+  state.requiredFields.find((field) => !validFieldValue(state, field)) || null;
 
 const applyExtractedDetails = (state, details, { forceField = "" } = {}) => {
   const mapping = {
@@ -238,7 +247,8 @@ const applyExtractedDetails = (state, details, { forceField = "" } = {}) => {
     const value = details?.[source];
     if (!value) continue;
     if (forceField && source !== forceField) continue;
-    if (!forceField && state[target]) continue;
+    if (!forceField && state[target] && !['service', 'location', 'preference', 'name'].includes(source)) continue;
+    if (source === 'location' || source === 'preference') { setStateValue(state, source, value); continue; }
     if (source === "name") state[target] = normalizeName(value).slice(0, 120);
     else if (source === "phone") state[target] = normalizePhoneToE164(value);
     else state[target] = clean(value, target === "serviceNeeded" ? 200 : 500);
@@ -250,9 +260,10 @@ const validFieldValue = (state, field) => {
   if (!value) return false;
   if (skippedValue(value)) return field !== "phone";
   if (field === "phone") return isUsableCallerId(value);
-  if (field === "name") return value.length >= 2 && value.length <= 120;
-  if (field === "location") return value.length >= 5;
+  if (field === "name") return isPlausibleCallbackName(value);
+  if (field === 'location') return Boolean(extractCallbackDetails(value, { currentField: 'location' }).location);
   if (field === "service") return value.length >= 3;
+  if (field === 'preference') return Boolean(extractCallbackDetails(value, { currentField: 'preference' }).preference);
   return true;
 };
 
@@ -301,11 +312,43 @@ const persistSessionSet = async (session, set = {}) => {
   return session;
 };
 
+const leadFields = { serviceNeeded: 'serviceNeeded', customerName: 'customerName', location: 'address', preferredTime: 'preferredAppointmentTime' };
+const leadSnapshot = session => Object.fromEntries(Object.entries(leadFields).map(([key, field]) => [key, clean(session.lead?.[field], 500)]));
+const reconcileLead = (session, state) => {
+  const current = leadSnapshot(session);
+  let changed = false;
+  for (const [key, value] of Object.entries(current)) {
+    const field = { serviceNeeded: 'service', customerName: 'name', location: 'location', preferredTime: 'preference' }[key];
+    if (state.leadSnapshot?.[key] && !value && state[key]) {
+      state[key] = ''; changed = true; continue;
+    }
+    // Legacy callback states have no baseline: retain a more complete durable
+    // field until the caller explicitly corrects it in this flow.
+    if (value && !/^(?:unknown|voice caller|not provided)$/i.test(value) &&
+        (!state.leadSnapshot || value !== state.leadSnapshot[key]) && state[key] !== value &&
+        validFieldValue({ ...state, [key]: value }, field)) {
+      state[key] = value; changed = true;
+    }
+  }
+  return changed;
+};
+
 const saveState = async (session, state, status = "capturing_callback") => {
   assertVoiceTurnActive();
   const persistedStatus = ["completed", "canceled"].includes(state.status)
     ? status
     : "capturing_callback";
+  if (ACTIVE_STATUSES.has(state.status) && session.lead?.save) {
+    let changed = false;
+    for (const [key, field] of Object.entries(leadFields)) {
+      const label = { serviceNeeded: 'service', customerName: 'name', location: 'location', preferredTime: 'preference' }[key];
+      if (validFieldValue(state, label) && !skippedValue(state[key]) && state[key] !== session.lead[field]) {
+        session.lead[field] = state[key]; changed = true;
+      }
+    }
+    if (changed) { assertVoiceTurnActive(); await session.lead.save(); assertVoiceTurnActive(); }
+  }
+  state.leadSnapshot = leadSnapshot(session);
   session.metadata = { ...(session.metadata || {}), callbackCapture: state };
   session.lastActivityAt = new Date();
   if (!["completed", "failed", "canceled"].includes(session.status)) {
@@ -727,19 +770,11 @@ const applyCurrentField = (state, customerMessage) => {
     return { captured: true };
   }
 
-  const details = extractCallbackDetails(customerMessage, { currentField: field });
+  const details = extractCallbackDetails(customerMessage, { currentField: field, knownService: state.serviceNeeded });
   applyExtractedDetails(state, details, { forceField: field });
-  if (field === "service" && !state.serviceNeeded) {
+  if (field === 'name' && !validFieldValue(state, 'name') && isPlausibleCallbackName(customerMessage)) {
     setStateValue(state, field, customerMessage);
-  } else if (field === "name" && !state.customerName) {
-    setStateValue(state, field, customerMessage);
-  } else if (field === "location" && !state.location) {
-    setStateValue(state, field, customerMessage);
-  } else if (field === "urgency" && !state.urgency) {
-    setStateValue(state, field, customerMessage);
-  } else if (field === "preference" && !state.preferredTime) {
-    setStateValue(state, field, customerMessage);
-  } else if (field === "phone" && !state.phone) {
+  } else if (field === 'phone' && !state.phone) {
     setStateValue(state, field, customerMessage);
   }
   return validFieldValue(state, field)
@@ -767,8 +802,11 @@ const correctionFromDeclaration = (value) => {
 
 const applyCorrection = (state, correction) => {
   if (!correction?.field || !ALL_FIELDS.includes(correction.field)) return false;
-  setStateValue(state, correction.field, correction.value);
-  return validFieldValue(state, correction.field);
+  const candidate = { ...state };
+  setStateValue(candidate, correction.field, correction.value);
+  if (!validFieldValue(candidate, correction.field)) return false;
+  Object.assign(state, candidate);
+  return true;
 };
 
 const handleQuestionDetour = async ({ session, state, customerMessage }) => {
@@ -850,7 +888,21 @@ class VoiceCallbackService {
           seedServiceFromMessage,
         });
 
+    const factsChanged = active && reconcileLead(session, state);
+    if (factsChanged && !immediate && state.status === 'awaiting_confirmation') {
+      const missing = nextMissingField(state);
+      state.currentField = missing || '';
+      state.status = missing ? `collecting_${missing}` : 'awaiting_confirmation';
+      state.lastPrompt = missing ? promptFor(state, missing) : buildReadback(state);
+      await saveState(session, state);
+      return { reply: `The request details changed. ${state.lastPrompt}`, callbackCaptured: false };
+    }
+
     if (immediate) {
+      if (active && alertType === 'safety_emergency') {
+        Object.assign(state, { reason, alertType, priority: 'critical', urgency: 'emergency',
+          urgencyDetail: clean(seed.urgencyDetail || text, 200) });
+      }
       return complete({
         session,
         state,
@@ -871,6 +923,10 @@ class VoiceCallbackService {
     });
     if (detour) return detour;
 
+    const declaredCorrection = parseCorrection(text) || correctionFromDeclaration(text);
+    if (declaredCorrection?.field && !['awaiting_confirmation', 'awaiting_correction'].includes(state.status)) {
+      applyCorrection(state, declaredCorrection);
+    }
     if (state.status === "awaiting_confirmation") {
       if (isYes(text)) {
         return complete({
@@ -880,7 +936,10 @@ class VoiceCallbackService {
           sendConfirmationSms,
         });
       }
-      const correction = parseCorrection(text) || correctionFromDeclaration(text);
+      const parsed = parseCorrection(text) || correctionFromDeclaration(text);
+      const details = extractCallbackDetails(text, { knownService: state.serviceNeeded });
+      const suppliedField = ['service', 'location', 'preference', 'name', 'phone'].filter(field => details[field]);
+      const correction = parsed?.field ? parsed : suppliedField.length === 1 ? { field: suppliedField[0], value: details[suppliedField[0]] } : null;
       if (correction && applyCorrection(state, correction)) {
         state.status = "awaiting_confirmation";
         state.currentField = "";
@@ -909,7 +968,10 @@ class VoiceCallbackService {
     }
 
     if (state.status === "awaiting_correction") {
-      const correction = parseCorrection(text) || correctionFromDeclaration(text);
+      const parsed = parseCorrection(text) || correctionFromDeclaration(text);
+      const details = extractCallbackDetails(text, { knownService: state.serviceNeeded });
+      const suppliedField = ['service', 'location', 'preference', 'name', 'phone'].filter(field => details[field]);
+      const correction = parsed?.field ? parsed : suppliedField.length === 1 ? { field: suppliedField[0], value: details[suppliedField[0]] } : null;
       if (!correction || !applyCorrection(state, correction)) {
         state.retryCounts.correction = (state.retryCounts.correction || 0) + 1;
         state.lastPrompt =
@@ -929,14 +991,16 @@ class VoiceCallbackService {
       // current-field fallback. This shortens callback capture without re-asks.
       applyExtractedDetails(
         state,
-        extractCallbackDetails(text, { currentField: state.currentField }),
+        extractCallbackDetails(text, { currentField: state.currentField, knownService: state.serviceNeeded }),
       );
+      const supplied = extractCallbackDetails(text, { knownService: state.serviceNeeded });
+      const otherFact = Object.keys(supplied).some(key => key !== state.currentField && key !== 'urgencyDetail');
       const result = validFieldValue(state, state.currentField)
         ? { captured: true }
         : applyCurrentField(state, text);
       if (result.invalid) {
         const field = state.currentField;
-        state.retryCounts[field] = (state.retryCounts[field] || 0) + 1;
+        state.retryCounts[field] = (state.retryCounts[field] || 0) + (otherFact ? 0 : 1);
         if (state.retryCounts[field] >= 2) {
           if (field === "phone") {
             state.phone = "Not provided";
@@ -957,7 +1021,7 @@ class VoiceCallbackService {
     } else if (!active && text) {
       applyExtractedDetails(
         state,
-        extractCallbackDetails(text, { currentField: "service" }),
+        ({ ...extractCallbackDetails(text, { currentField: "service", knownService: state.serviceNeeded }), ...(state.serviceNeeded ? { service: null } : {}) }),
       );
     }
 

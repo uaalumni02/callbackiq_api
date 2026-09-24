@@ -1,3 +1,4 @@
+import { resolveServiceReference } from './serviceReference.service.js';
 import { requestQuestions } from '../booking/requestQuestionPolicy.service.js';
 import {
   findDateRange,
@@ -93,6 +94,8 @@ const SERVICE_SUBJECT_PREFIX = /^(?:(?:actually|correction|instead|i meant)[,:]?
 
 export const extractService = (text, { lead = null, conversation = null } = {}) => {
   const known = clean(lead?.serviceNeeded || conversation?.serviceNeeded || conversation?.bookingState?.serviceNeeded);
+  const reference = resolveServiceReference(text, known);
+  if (reference !== null) return reference;
   // "It's the bathroom sink, not the kitchen sink" corrects part of the saved
   // request. Apply it only when the replaced words are actually in that request.
   if (known && !/^unknown$/i.test(known)) {
@@ -134,10 +137,10 @@ export const extractService = (text, { lead = null, conversation = null } = {}) 
     if (any(HUMAN, clause) || any(CANCEL, clause) || any(RESCHEDULE, clause) || any(STATUS, clause)) continue;
     if (/^(?:stop|start|unstop|help|yes|no|okay|ok|thanks?|hello|hi)[!. ]*$/i.test(clause) || /^(?:\d|https?:|[^ ]+@)/i.test(clause)) continue;
     // A request to act on "it" describes an intent, not a replacement job.
-    if (/\b(?:fix|repair|replace|inspect|install|service)\s+(?:it|that|this|the same thing)(?=$|[?.!,;]|\s+(?:today|tomorrow|next|on|at|for me|please|and|when|soon|now)\b)/i.test(clause)) continue;
+    if (/\b(?:fix|repair|replace|inspect|install|service)\s+(?:it|that|this|the same thing)(?=$|[?.!,;]|\s+(?:today|tomorrow|next|on|at|for me|please|and|when|soon|now|instead|rather)\b)/i.test(clause)) continue;
     // Anaphoric price/action questions refer to the existing request. They are
     // not service objects ("fix something like this", "repair the issue").
-    if (/\b(?:fix|repair|replace|inspect|install|service|resolve|address|handle)\s+(?:(?:something|anything)\s+(?:like|similar to)\s+(?:this|that|it)|(?:this|that|the|my|our|same)\s+(?:issue|problem|work|job)|(?:it|this|that))(?:[?.!,;]|$|\s+(?:please|today|tomorrow|now|for|at|on|and|would|will|cost)\b)/i.test(clause)) continue;
+    if (/\b(?:fix|repair|replace|inspect|install|service|resolve|address|handle)\s+(?:(?:something|anything)\s+(?:like|similar to)\s+(?:this|that|it)|(?:this|that|the|my|our|same)\s+(?:same\s+)?(?:issue|problem|work|job)|(?:it|this|that))(?:[?.!,;]|$|\s+(?:please|today|tomorrow|now|for|at|on|and|would|will|cost)\b)/i.test(clause)) continue;
     const prefixed = clause.match(SERVICE_PREFIX);
     let candidate = clean(prefixed?.[1] || clause).replace(SERVICE_TAIL, "").replace(/[?,.!]+$/, "");
     const explicitRequest = /^(?:i|we)\s+(?:need|want|would like)\s+(?!to (?:know|book|schedule|cancel|reschedule)\b)/i.test(candidate);
@@ -149,6 +152,7 @@ export const extractService = (text, { lead = null, conversation = null } = {}) 
     // Pronoun-only updates need an existing referent, not a guessed appliance.
     if (/^(?:it|that|this)\b/i.test(candidate)) {
       if (!known || /^unknown$/i.test(known)) continue;
+      if (known.toLowerCase().includes(candidate.toLowerCase())) return known;
       candidate = `${known}: ${candidate}`;
     }
     // Preserve the customer's words; only resolve this typo with explicit context.

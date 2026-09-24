@@ -54,3 +54,38 @@ test('safety worker persists urgency and one actionable alert across retries dur
  const saved=await reload();const alerts=await Alert.find({business:business._id,dedupeKey:'voice-safety:safety-replay-test'});
  expect(alerts).toHaveLength(1);expect(alerts[0].priority).toBe('critical');expect(alerts[0].actionRequired).toBe(true);expect(saved.lead.urgency).toBe('emergency');expect(saved.conversation.humanTakeover).toBe(true);expect(saved.lead.preferredAppointmentTime).toBe('Friday at 10 AM');
 });
+
+test('callback partial facts survive session reload and final alert uses exact corrected fields', async () => {
+ await Lead.updateOne({_id:lead._id},{$set:{customerName:'Voice Caller',serviceNeeded:'Unknown',address:'',preferredAppointmentTime:''}});
+ const turn=async text=>VoiceCallback.handle({session:await reload(),customerMessage:text,sendConfirmationSms:false});
+ await turn('I need drain cleaning');
+ await turn('Actually I need my kitchen faucet replaced');
+ await turn('970 Sidney Marcus Atlanta GA 30324');
+ await turn('Friday at 10 am');
+ let saved=await reload();
+ expect(saved.lead.serviceNeeded).toBe('my kitchen faucet replaced');
+ expect(saved.lead.customerName).toBe('Voice Caller');
+ expect(saved.lead.address).toBe('970 Sidney Marcus Atlanta GA 30324');
+ expect(saved.lead.preferredAppointmentTime).toBe('Friday at 10 am');
+ expect(await Alert.countDocuments({conversation:conversation._id})).toBe(0);
+ await turn('Pat Smith');
+ await turn('Actually my ZIP is 30326');
+ expect((await turn('yes')).callbackCaptured).toBe(true);
+ saved=await reload();
+ expect(saved.lead.address).toBe('970 Sidney Marcus Atlanta GA 30326');
+ const alert=await Alert.findOne({conversation:conversation._id});
+ expect(alert.metadata.callbackDetails).toMatchObject({serviceNeeded:'my kitchen faucet replaced',customerName:'Pat Smith',location:'970 Sidney Marcus Atlanta GA 30326',preferredTime:'Friday at 10 am'});
+});
+
+test('separate durable writer invalidates a stale callback readback after reload', async () => {
+ await Lead.updateOne({_id:lead._id},{$set:{customerName:'Pat Smith'}});
+ const turn=async text=>VoiceCallback.handle({session:await reload(),customerMessage:text,sendConfirmationSms:false});
+ await turn('Please call me');
+ await Lead.updateOne({_id:lead._id},{$set:{serviceNeeded:'Furnace repair',address:'456 Oak St Atlanta GA 30326'}});
+ expect((await turn('yes')).callbackCaptured).toBe(false);
+ expect(await Alert.countDocuments({conversation:conversation._id})).toBe(0);
+ expect((await turn('yes')).callbackCaptured).toBe(true);
+ const saved=await reload();
+ expect(saved.lead.serviceNeeded).toBe('Furnace repair');
+ expect(saved.lead.address).toBe('456 Oak St Atlanta GA 30326');
+});

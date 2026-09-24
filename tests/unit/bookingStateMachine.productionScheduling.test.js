@@ -237,6 +237,24 @@ describe("production scheduling regression: exact urgent availability journey", 
     expect(result.result.reply).toMatch(/pending business approval/i);
     expect(result.result.reply).not.toMatch(/you're booked/i);
   });
+  test.each(['voice','sms'])('enabled %s booking offers, selects, and creates exactly the accepted hold', async channel => {
+    const conversation=makeConversation();
+    const lead={_id:'lead-1',customerName:'Pat Smith',phone:'+14045550100',serviceNeeded:'Drain clearing',address:'125 Main Street Atlanta GA 30303',urgency:'high',save:jest.fn()};
+    const turn=customerMessage=>BookingStateMachineService.handle({business,lead,conversation,customerMessage,channel});
+    await turn('What times are available?');
+    expect(conversation.bookingState.status).toBe('offering_slots');
+    const chosen=conversation.bookingState.offeredSlots[1];
+    await turn('Option 2');
+    expect(conversation.bookingState.status).toBe('awaiting_confirmation');
+    expect(createAppointmentTool).not.toHaveBeenCalled();
+    createAppointmentTool.mockResolvedValue({_id:'held-exact',status:'held',requiresBusinessApproval:true,heldExpiresAt:new Date('2026-09-05T17:00:00Z'),startAt:chosen.startAt,endAt:chosen.endAt,timezone:'America/New_York'});
+    const result=await turn('Yes');
+    expect(createAppointmentTool).toHaveBeenCalledTimes(1);
+    expect(createAppointmentTool.mock.calls[0][0].input).toMatchObject({startAt:chosen.startAt,endAt:chosen.endAt,customerName:'Pat Smith',source:channel});
+    expect(conversation.bookingState).toMatchObject({status:'pending_business_confirmation',appointment:'held-exact'});
+    expect(result.result.reply).toMatch(/not confirmed until the team accepts/i);
+  });
+
 });
 
 describe.each(['sms', 'voice'])('reported read-only journey (%s)', (channel) => {

@@ -56,7 +56,11 @@ export async function guardServiceRequest({ business, lead, conversation, custom
   // Symptom updates answer triage; they do not request an unidentified new service.
   if (!hasDomain && (prior?.request || known(lead?.serviceNeeded)) &&
       /^(?:(?:it |the leak )?(?:has )?)?(?:not|no longer|stopped|only when|only during)\b/i.test(text)) current = '';
-  if (!current && hasDomain && !isAddressOnlyTurn(text)) current = text;
+  const triageAnswer = /^(?:no|nope|yes|yeah|yep)[, ]|^(?:only|just) (?:the|my|this) /i.test(text) &&
+    (conversation.conversationMemory?.recoveryIntake?.clogPending ||
+      conversation.conversationMemory?.recoveryIntake?.triageAnswer === text ||
+      /^(?:no[, ]+)?(?:only|just) (?:the|my|this) /i.test(text) && known(lead?.serviceNeeded)) && !current;
+  if (!current && hasDomain && !isAddressOnlyTurn(text) && !triageAnswer) current = text;
   const clarificationAnswer = prior?.decision === 'needs_clarification' &&
     !['cancel', 'reschedule', 'status', 'human', 'callback'].some(key => intent.intents?.[key]);
   if (clarificationAnswer && /\b(?:unsure|not sure|don['’]?t know)\b/i.test(text)) current = `unsure: ${prior.request}`;

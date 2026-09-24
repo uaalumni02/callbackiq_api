@@ -1,5 +1,7 @@
+import { findDateRange, parseTimePreference } from '../services/booking/appointmentPreferenceParser.service.js';
+import { extractService } from '../services/messaging/smsIntentClassifier.service.js';
 import { normalizeEmergencyNumberForSpeech } from "./voiceSpeech.service.js";
-import { extractCustomerPostalCode } from '../services/booking/customerAddress.service.js';
+import { extractCustomerAddress, extractCustomerPostalCode } from '../services/booking/customerAddress.service.js';
 import {
   digitsOnly,
   normalizePhoneToE164,
@@ -36,7 +38,7 @@ const SKIP_PATTERN = /\b(?:skip(?:\s+(?:it|that|this|one))?|rather not say|prefe
 const REPEAT_PATTERN = /\b(?:repeat that|say that again|what did you say|come again|could you repeat|repeat the question)\b/i;
 const HUMAN_PATTERN = /(?:\b(?:human|person|representative|agent|operator|someone|somebody|owner|manager|dispatcher|technician|staff(?:\s+member)?)\b|\b(?:transfer|connect|put)\s+me(?:\s+through)?\b|\b(?:talk|speak)(?:\s+to|\s+with)\s+(?:(?:a|an|the)\s+)?(?:person|human|representative|agent|operator|someone|somebody|staff(?:\s+member)?|owner|manager|dispatcher|technician)\b)/i;
 const BOOKING_PATTERN = /\b(?:book|booking|schedule|appointment|available|availability|come out|service visit|send someone|reserve|confirm a time|cancel|reschedule)\b|\bchange\b.{0,20}\b(?:time|day|appointment)\b/i;
-const CALLBACK_FORWARD_PATTERN = /\b(?:please\s+)?(?:call me back|give me a call back|have (?:the )?team call me|ask (?:the )?team to call me|leave (?:a )?message|request (?:a )?callback)\b/i;
+const CALLBACK_FORWARD_PATTERN = /\b(?:please\s+)?(?:call me(?: back)?|give me a call(?: back)?|have (?:the )?team call me|ask (?:the )?team to call me|leave (?:a )?message|request (?:a )?callback)\b/i;
 const CALLBACK_PAST_PATTERN = /\b(?:i|we)\s+(?:called|call)\s+back\b|\breturning (?:your|a) call\b/i;
 const HOURS_CONTEXT_PATTERN = /\b(?:when|today|tomorrow|tonight|weekend|weekday|saturday|sunday|day|days|time|hours|currently|right now)\b/i;
 const OPEN_CLOSE_PATTERN = /\b(?:open|close|closed|closing|opening)\b/i;
@@ -82,7 +84,8 @@ export const isBookingIntent = (value) => {
 };
 export const isCallbackRequest = (value) => {
   const text = cleanVoiceText(value, 500);
-  return CALLBACK_FORWARD_PATTERN.test(text) && !CALLBACK_PAST_PATTERN.test(text);
+  return CALLBACK_FORWARD_PATTERN.test(text) && !CALLBACK_PAST_PATTERN.test(text) &&
+    !/\b(?:do not|don['’]t|never|stop)\s+(?:please\s+)?call\s+me\b/i.test(text);
 };
 export const isBusinessHoursQuestion = (value) => {
   const text = cleanVoiceText(value, 500);
@@ -223,46 +226,44 @@ export const normalizeUrgency = (value) => {
   return "medium";
 };
 
-const NAME_PATTERN = /\b(?:my name is|this is|i am|i'm)\s+([a-z][a-z' -]{1,60})/i;
-const LOCATION_PATTERN = /\b(?:at|address is|located at|location is)\s+([^,;.]{5,120})/i;
-const PREFERENCE_PATTERN = /\b(?:(?:today|tomorrow)(?:\s+(?:morning|afternoon|evening|night))?|tonight|this (?:morning|afternoon|evening|weekend)|next (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|week)|(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?:\s+(?:morning|afternoon|evening))?|\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?)\b/i;
+// Only a plausible name can answer the name field. Scheduling, service and
+// contact statements must not be accepted simply because that question was last.
+export const isPlausibleCallbackName = value => {
+  const text = cleanVoiceText(value, 120).replace(/^(?:my name is|this is|i am|i'm)\s+/i, '');
+  return /^[\p{L}][\p{L}’' .-]{1,79}$/u.test(text) && text.split(/\s+/).length <= 6 &&
+    !/\b(?:actually|need|want|please|call|callback|instead|address|zip|tomorrow|today|monday|tuesday|wednesday|thursday|friday|saturday|sunday|morning|afternoon|evening|repair|replace|replaced|replacement|install|leak|leaking|sink|faucet|toilet|furnace|roof|clogged|help|yes|no|skip|unknown|thing|doing|is|are|sure|know|maybe|later|repeat|what|where|when|how|why)\b/i.test(text);
+};
+const NAME_PATTERN = /\b(?:my name is|this is|i am|i'm)\s+([\p{L}][\p{L}'’ .-]{1,79}?)(?=,|;|\s+and\s+|$)/iu;
+const DAY = '(?:day after tomorrow|today|tomorrow|tonight|(?:this|next) (?:week|weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday)|monday|tuesday|wednesday|thursday|friday|saturday|sunday)';
+const TIME = '(?:\\d{1,2}(?::\\d{2})?\\s*(?:a\\.?m\\.?|p\\.?m\\.?)|\\d{1,2}:\\d{2})';
+const PREFERENCE_PATTERN = new RegExp(`\\b(?:${DAY}(?:\\s+(?:morning|afternoon|evening|night))?(?:\\s+(?:(?:at|after|before|between|from)\\s+)?(?:${TIME}|\\d{1,2})(?:\\s*(?:to|and|-)\\s*${TIME})?)?|${TIME}|(?:morning|afternoon|evening)|flexible|anytime)\\b`, 'i');
 
-export const extractCallbackDetails = (value, { currentField = "" } = {}) => {
+export const extractCallbackDetails = (value, { currentField = '', knownService = '' } = {}) => {
   const text = cleanVoiceText(value, 1200);
   const result = {};
   const name = text.match(NAME_PATTERN)?.[1];
+  const address = extractCustomerAddress(text, { expected: currentField === 'location' });
   const postalCode = extractPostalCode(text);
   const phone = extractPhoneNumber(text);
-  const location = text.match(LOCATION_PATTERN)?.[1];
-  const preference = text.match(PREFERENCE_PATTERN)?.[0];
-
-  if (name) result.name = cleanVoiceText(name, 120);
-  if (postalCode) result.location = postalCode;
-  else if (location) result.location = cleanVoiceText(location, 500);
+  if (name && isPlausibleCallbackName(name)) result.name = cleanVoiceText(name, 120);
+  if (address) result.location = address;
+  else if (postalCode) result.location = postalCode;
   if (phone) result.phone = phone;
+  // Remove contact/location numbers before interpreting a time preference.
+  const schedulingText = text.replace(address || /$^/, '').replace(phone || /$^/, '');
+  const preference = schedulingText.match(PREFERENCE_PATTERN)?.[0];
   if (preference) result.preference = cleanVoiceText(preference, 300);
+  if (currentField === 'preference' && !address && !phone && !/[?]|\b(?:cost|price|repair|replace|install|leaking|my name|call me)\b/i.test(text)) {
+    const time = parseTimePreference(text);
+    if (findDateRange(text) || time.targetMinutes != null || time.timeOfDay || /^(?:flexible|anytime)$/i.test(text)) result.preference = cleanVoiceText(text, 300);
+  }
   if (/\b(?:urgent|asap|today|right now|emergency|flexible|no rush|not urgent)\b/i.test(text)) {
     result.urgency = normalizeUrgency(text);
     result.urgencyDetail = cleanVoiceText(text, 200);
   }
-
-  const serviceLead = text
-    .replace(NAME_PATTERN, "")
-    .replace(LOCATION_PATTERN, "")
-    .replace(PREFERENCE_PATTERN, "")
-    .replace(/\b\d{5}(?:-\d{4})?\b/g, "")
-    .replace(/\b(?:need|want|looking for|help with|my name is|this is|i am|i'm)\b/gi, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (
-    currentField === "service" ||
-    /\b(?:leak|clog|drain|water heater|air conditioner|a\/?c|furnace|roof|electrical|plumbing|repair|install|replace|maintenance|inspection|broken|not working|no hot water|no heat|no cooling)\b/i.test(
-      text,
-    )
-  ) {
-    if (serviceLead.length >= 3) result.service = cleanVoiceText(serviceLead, 200);
-  }
-
+  const serviceText = text.replace(NAME_PATTERN, '').replace(address || /$^/, '').replace(preference || /$^/, '').replace(/^[,; ]*(?:and )?/, '').trim();
+  const service = extractService(serviceText, { lead: { serviceNeeded: knownService } });
+  if (service) result.service = service;
   return result;
 };
 

@@ -119,7 +119,9 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
     (!semanticAssessment.decision || ['send', 'send_ai_response', 'send_fixed_response'].includes(semanticAssessment.decision))
     ? semanticAssessment : null;
   const contextualPriceQuestion = classification.intents?.pricing && known(lead.serviceNeeded) && !classification.entities?.serviceNeeded;
-  const service = questions.ambiguous || questions.duration || questions.completionDate || questions.clarificationAnswer ? '' : classification.entities?.serviceNeeded || (!contextualPriceQuestion && typeof semantic?.serviceNeeded === 'string' ? clean(semantic.serviceNeeded).slice(0, 160) : '');
+  const triageFieldAnswer = (state.triagePending || state.clogPending || state.triageAnswer === text) &&
+    !classification.entities?.serviceNeeded && /^(?:yes|yeah|yep|no|nope|only|just)\b/i.test(text);
+  const service = triageFieldAnswer || questions.ambiguous || questions.duration || questions.completionDate || questions.clarificationAnswer ? '' : classification.entities?.serviceNeeded || (!contextualPriceQuestion && typeof semantic?.serviceNeeded === 'string' ? clean(semantic.serviceNeeded).slice(0, 160) : '');
   if (!state.started && !known(service) && !known(lead.serviceNeeded) && !classification.intents?.scheduling && !capturedAddress && !addressFrom(text)) return null;
   state.started = true;
   if (state.submitted && state.failures >= 2 && known(service)) { state.submitted = false; state.failures = 0; }
@@ -158,8 +160,8 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
 
   // Keep new detail even if the canonical service remains unchanged. It is
   // bounded, scoped to this recovery journey, and explicitly customer evidence.
-  const triageOnlyAnswer = state.triagePending && !classification.entities?.serviceNeeded &&
-    (stopped.test(text) || /^(?:yes|yeah|yep|no|nope)[.! ]*$/i.test(text));
+  const triageOnlyAnswer = (state.triagePending || state.clogPending) && !classification.entities?.serviceNeeded &&
+    (stopped.test(text) || /^(?:yes|yeah|yep|no|nope)\b|^(?:only|just)\b/i.test(text));
   if (known(service) && !triageOnlyAnswer) {
     state.serviceDetail = normalizeRequestService(service);
     state.serviceSourceTurnId = String(turnId);

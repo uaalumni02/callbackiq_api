@@ -313,3 +313,75 @@ test('callback acknowledgment does not imply staff acceptance',async()=>{
  expect(payload.acknowledgedBy).toBeUndefined();
  expect(payload.assignedTo).toBeUndefined();
 });
+
+describe('callback fact ownership and recovery', () => {
+  beforeEach(() => {
+    jest.clearAllMocks(); Alert.findOneAndUpdate.mockResolvedValue({ _id: 'alert-1' });
+  });
+  const turn = (session, customerMessage, extra = {}) => VoiceCallbackService.handle({ session, customerMessage, sendConfirmationSms: false, ...extra });
+  const fresh = () => { const session = makeSession(); session.business.features.missedCallSmsEnabled = false; return session; };
+  test('out-of-order details never become the requested name and survive readback and confirmation', async () => {
+    const s = fresh();
+    await turn(s, 'I need drain cleaning');
+    await turn(s, 'Actually I need my kitchen faucet replaced');
+    expect(s.metadata.callbackCapture.customerName).toBe('');
+    await turn(s, '970 Sidney Marcus Atlanta GA 30324');
+    await turn(s, 'Friday at 10 am');
+    expect(s.metadata.callbackCapture.currentField).toBe('name');
+    const readback = await turn(s, 'DeMeco Bell');
+    expect(readback.reply).toMatch(/kitchen faucet replaced/);
+    expect(readback.reply).toContain('970 Sidney Marcus Atlanta GA 3 0 3 2 4');
+    expect(readback.reply).toContain('Friday at 10 am');
+    expect(Alert.findOneAndUpdate).not.toHaveBeenCalled();
+    const result = await turn(s, 'Yes');
+    expect(result.callbackCaptured).toBe(true);
+    expect(s.lead).toMatchObject({ serviceNeeded: 'my kitchen faucet replaced', customerName: 'DeMeco Bell', address: '970 Sidney Marcus Atlanta GA 30324', preferredAppointmentTime: 'Friday at 10 am' });
+    expect(Alert.findOneAndUpdate.mock.calls[0][1].$setOnInsert.aiSummary).toContain('Friday at 10 am');
+  });
+  test('a newer durable edit requires a fresh readback before confirmation after reload', async () => {
+    const s = fresh(); Object.assign(s.lead, { customerName: 'Pat Smith', serviceNeeded: 'Sink replacement', address: '123 Main St Atlanta GA 30324', preferredAppointmentTime: 'Friday at 10 am' });
+    await turn(s, 'Please call me');
+    s.metadata = JSON.parse(JSON.stringify(s.metadata));
+    s.lead.address = '456 Oak St Atlanta GA 30326';
+    s.lead.serviceNeeded = 'Furnace repair';
+    const changed = await turn(s, 'Yes');
+    expect(changed.callbackCaptured).toBe(false);
+    expect(changed.reply).toContain('456 Oak St Atlanta GA 3 0 3 2 6');
+    expect(changed.reply).toContain('Furnace repair');
+    expect(Alert.findOneAndUpdate).not.toHaveBeenCalled();
+    expect((await turn(s, 'Yes')).callbackCaptured).toBe(true);
+    expect(s.lead.address).toBe('456 Oak St Atlanta GA 30326');
+  });
+  test('a cleared durable field is collected again instead of resurrecting the old value', async () => {
+    const s = fresh(); Object.assign(s.lead, { customerName:'Pat Smith', serviceNeeded:'Sink replacement', address:'123 Main St Atlanta GA 30324', preferredAppointmentTime:'Friday at 10 am' });
+    await turn(s,'Please call me'); s.lead.address='';
+    const result=await turn(s,'Yes');
+    expect(result.callbackCaptured).toBe(false);
+    expect(s.lead.address).toBe('');
+    expect(s.metadata.callbackCapture.currentField).toBe('location');
+    expect(Alert.findOneAndUpdate).not.toHaveBeenCalled();
+  });
+  test('ZIP and time corrections retain street and day and trigger another readback', async () => {
+    const s = fresh(); Object.assign(s.lead, { customerName: 'Pat Smith', serviceNeeded: 'Sink replacement', address: '123 Main St Atlanta GA 30324', preferredAppointmentTime: 'Friday at 10 am' });
+    await turn(s, 'Please call me');
+    await turn(s, 'Actually my ZIP is 30326');
+    const result = await turn(s, 'Actually my time is 2 pm');
+    expect(result.callbackCaptured).toBe(false);
+    expect(result.reply).toContain('123 Main St Atlanta GA 3 0 3 2 6');
+    expect(result.reply).toContain('Friday at 2 pm');
+    await turn(s, 'yes');
+    expect(s.lead.preferredAppointmentTime).toBe('Friday at 2 pm');
+  });
+  test.each(['Actually I need a furnace repaired', 'Friday at 10 am', 'Maybe later', 'What are your hours?'])('unrelated name answer is not accepted: %s', async text => {
+    const s = fresh(); await turn(s, 'I need drain cleaning'); await turn(s, text);
+    expect(s.lead.customerName).toBe('Voice Caller');
+    expect(s.metadata.callbackCapture.customerName).toBe('');
+  });
+  test('emergency interrupts active callback with critical priority and current evidence', async () => {
+    const s = fresh(); await turn(s, 'I need drain cleaning');
+    const result = await turn(s, 'I smell gas and feel dizzy', { immediate: true, reason: 'safety_emergency:gas', alertType: 'safety_emergency', seed: { urgencyDetail: 'I smell gas and feel dizzy' }, completionReply: 'Call 911. Do not wait for a callback.' });
+    expect(result.callbackCaptured).toBe(true);
+    expect(Alert.findOneAndUpdate.mock.calls[0][1].$setOnInsert).toMatchObject({ type: 'safety_emergency', priority: 'critical' });
+    expect(s.lead.urgency).toBe('emergency');
+  });
+});

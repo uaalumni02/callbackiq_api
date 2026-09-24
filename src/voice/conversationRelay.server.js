@@ -569,7 +569,7 @@ export const initializeConversationRelayServer = (
       });
       if (speak) {
         await sendAssistantText(
-          "I’m sorry, I’m having trouble continuing this call. I’m preserving the call record so the configured recovery workflow can follow up.",
+          "I’m sorry, I’m having trouble continuing this call. I cannot verify that your request reached the team. Please contact the business directly. No appointment is confirmed by this call.",
           { interruptible: false, preemptible: true },
         );
       }
