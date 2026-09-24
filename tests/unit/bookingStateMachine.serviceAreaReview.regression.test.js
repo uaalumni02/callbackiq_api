@@ -211,8 +211,8 @@ describe.each([
     });
     expect(result.handled).toBe(true);
     expect(result.result.messageCategory).toBe('service_area_question');
-    expect(result.result.reply).toMatch(/no appointment is confirmed/i);
-    expect(result.result.reply).toMatch(supported === false ? /outside the configured service area/i : /couldn't verify coverage/i);
+    expect(result.result.reply).toMatch(/review this location before scheduling/i);
+    expect(result.result.reply).toMatch(supported === false ? /outside the area this team normally serves/i : /couldn't verify coverage/i);
     expect(conversation.bookingState.status).toBe(status);
     expect(getAvailabilityTool).not.toHaveBeenCalled();
     expect(createAppointmentTool).not.toHaveBeenCalled();

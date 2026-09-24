@@ -129,6 +129,7 @@ describe("AvailabilityService", () => {
           startAt: "2026-07-27T17:00:00.000Z",
           endAt: "2026-07-27T18:30:00.000Z",
           metadata: "keep",
+      requiresBusinessApproval: true,
         },
       ]),
     };
@@ -154,6 +155,7 @@ describe("AvailabilityService", () => {
       startAt: "formatted:2026-07-27T17:00:00.000Z",
       endAt: "formatted:2026-07-27T18:30:00.000Z",
       metadata: "keep",
+      requiresBusinessApproval: true,
     });
   });
 });

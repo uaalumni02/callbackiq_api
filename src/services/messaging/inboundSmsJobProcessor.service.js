@@ -1,3 +1,4 @@
+import { handleAppointmentReply } from '../scheduling/appointmentReply.service.js';
 import { captureTurnFacts } from '../booking/turnFactCapture.service.js';
 import { handleConversationControl, isRequestWithdrawal } from '../conversationControl.service.js';
 import { guardServiceRequest, blocksServiceAutomation } from '../serviceEligibility/serviceEligibility.service.js';
@@ -385,6 +386,12 @@ export const processInboundSmsJob = async (job) => {
     conversationId: conversation._id,
     anchorMessage: inboundMessage,
   });
+  const appointmentReply = await handleAppointmentReply({ business, conversation, inboundMessage, text: customerTurn.customerMessage });
+  if (appointmentReply?.handled) {
+    await completeCoalescedJobs({ conversationId: conversation._id, primaryJobId: job._id,
+      primaryMessageId: inboundMessage._id, turnMessageIds: customerTurn.turnMessageIds });
+    return { decision: 'appointment_reply', ...appointmentReply };
+  }
   const messages = customerTurn.historyMessages;
   const effectiveInboundMessage = customerTurn.primaryInboundMessage;
   const turnPlan = planCustomerTurn({ business, lead, conversation, customerMessage: customerTurn.customerMessage });

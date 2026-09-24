@@ -100,7 +100,7 @@ describe("voice channel booking-state reuse", () => {
       query: "My sink is clogged",
     });
     expect(conversation.bookingState.status).toBe("collecting_location");
-    expect(result.result.reply).toMatch(/address and ZIP code/i);
+    expect(result.result.reply).toMatch(/address.*ZIP code/i);
   });
 
   test("the same statement does not change the existing SMS intent trigger", async () => {

@@ -139,13 +139,13 @@ export default sendPasswordResetEmail;
 
 // Notification content deliberately excludes customer text and contact details.
 // Provider acceptance is not proof of inbox delivery or owner acknowledgment.
-export const sendStaffReviewEmail = ({ email, businessName, alertId, stage }) => {
+export const sendStaffReviewEmail = ({ email, businessName, alertId, appointmentId, stage }) => {
   const clientUrl = new URL(getClientUrl());
   if (!["https:", "http:"].includes(clientUrl.protocol)) throw new Error("Invalid CLIENT_URL");
-  const link = new URL("/intervention-center", clientUrl);
-  link.searchParams.set("alertId", alertId);
+  const link = new URL(appointmentId ? "/appointments" : "/intervention-center", clientUrl);
+  link.searchParams.set(appointmentId ? "appointmentId" : "alertId", appointmentId || alertId);
   return sendEmail({ to: email,
-    subject: stage === "overdue" ? "CallBackIQ: staff review is overdue" : "CallBackIQ: customer request needs review",
+    subject: stage === "expired" ? "CallBackIQ: appointment request needs an availability recheck" : stage === "overdue" ? "CallBackIQ: staff review is overdue" : "CallBackIQ: customer request needs review",
     text: `${businessName || "Your business"} has a customer request requiring staff review.\n\nOpen Needs Attention and acknowledge the request: ${link}\n\nThis email does not confirm that anyone has accepted the request or booked an appointment.`,
   });
 };

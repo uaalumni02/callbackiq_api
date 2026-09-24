@@ -77,6 +77,8 @@ class AlertService {
     metadata = {},
     dedupeKey = null,
     actionRequired = false,
+    assignedTo = null,
+    appointmentId = null,
     dueAt = null,
     reason = "",
     recommendedAction = "",
@@ -107,6 +109,8 @@ class AlertService {
       metadata,
       dedupeKey: dedupeKey || null,
       actionRequired: Boolean(actionRequired),
+      ...(assignedTo ? { assignedTo, assignedAt: now } : {}),
+      ...(appointmentId ? { appointment: appointmentId } : {}),
       dueAt: dueAt || (actionRequired ? staffReviewDueAt(normalizePriority(priority), now) : null),
       reason: truncate(reason, 1000),
       recommendedAction: truncate(recommendedAction, 1000),
@@ -497,6 +501,7 @@ class AlertService {
 
   static async createSystemAlert({
     businessId,
+    actionRequired = false, assignedTo = null, appointmentId = null, leadId = null, conversationId = null, dueAt = null,
     title,
     message,
     priority = "medium",
@@ -506,6 +511,7 @@ class AlertService {
     return this.createAutomatic({
       businessId,
       type: "system",
+      actionRequired, assignedTo, appointmentId, leadId, conversationId, dueAt,
       title,
       message,
       priority: normalizePriority(priority),

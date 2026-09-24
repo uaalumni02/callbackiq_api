@@ -23,9 +23,10 @@ const publish = async (job) => {
 };
 export async function enqueueStaffNotifications({ now = new Date(), limit = 100 } = {}) {
   if (!enabled()) return;
-  for (const stage of ["initial", "overdue"]) {
-    const stageFilter = stage === "overdue" ? { dueAt: { $ne: null, $lte: now } } : { $or: [{ dueAt: null }, { dueAt: { $gt: now } }] };
-    const alerts = await Alert.find({ ...unresolved, priority: { $in: ["high", "critical"] },
+  for (const stage of ["initial", "overdue", "expired"]) {
+    const stageFilter = stage === "expired" ? { "metadata.approvalState": "needs_recheck" } : stage === "overdue" ? { dueAt: { $ne: null, $lte: now } } : { $or: [{ dueAt: null }, { dueAt: { $gt: now } }] };
+    const alerts = await Alert.find({ ...unresolved,  $and: [{ $or: [{ priority: { $in: ["high", "critical"] } }, { "metadata.approvalRequest": true }] }],
+      ...(stage === 'expired' ? {} : { 'metadata.approvalState': { $ne: 'needs_recheck' } }),
       ...stageFilter, [`metadata.staffNotification.${stage}`]: { $exists: false },
     }).sort({ createdAt: 1, _id: 1 }).limit(limit).select("_id business").lean();
     for (const alert of alerts) {
@@ -81,7 +82,7 @@ export async function runStaffNotificationsOnce({ now = new Date(), limit = 100,
         if (!stillOpen) status = "canceled";
         else {
           const result = await send({ email: owner.email, businessName: business.businessName,
-            alertId: String(alert._id), stage: job.stage });
+            alertId: String(alert._id), appointmentId: alert.metadata?.approvalRequest ? String(alert.appointment || alert.metadata.appointmentId || "") : null, stage: job.stage });
           providerMessageId = result?.messageId;
           status = result?.accepted?.length ? "accepted" : "uncertain";
           if (status === "uncertain") errorCode = "PROVIDER_ACCEPTANCE_UNVERIFIED";

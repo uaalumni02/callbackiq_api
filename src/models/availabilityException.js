@@ -35,6 +35,7 @@ const AvailabilityExceptionSchema = new Schema(
       ],
       required: true,
     },
+    appliesTo: { type: String, enum: ["both", "appointments", "answering"], default: "both" },
     name: { type: String, trim: true, maxlength: 120, default: "" },
     allDay: { type: Boolean, default: true },
     windows: { type: [ExceptionWindowSchema], default: [] },

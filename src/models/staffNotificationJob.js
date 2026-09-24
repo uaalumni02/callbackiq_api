@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 const schema = new mongoose.Schema({
   business: { type: mongoose.Schema.Types.ObjectId, ref: "Business", required: true },
   alert: { type: mongoose.Schema.Types.ObjectId, ref: "Alert", required: true },
-  stage: { type: String, enum: ["initial", "overdue"], required: true },
+  stage: { type: String, enum: ["initial", "overdue", "expired"], required: true },
   status: { type: String, enum: ["pending", "sending", "accepted", "uncertain", "failed", "canceled"], default: "pending" },
   revision: { type: Number, default: 0 },
   published: { type: Boolean, default: false },

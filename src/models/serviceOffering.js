@@ -112,6 +112,7 @@ const ServiceOfferingSchema = new Schema(
       type: Boolean,
       default: false,
     },
+    diagnosticFallback: { type: Boolean, default: false },
     requiresHumanReview: {
       type: Boolean,
       default: false,

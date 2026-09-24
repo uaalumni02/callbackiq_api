@@ -99,8 +99,30 @@ describe("AI appointment business-approval invariant", () => {
       expect.objectContaining({
         businessId: "business-1",
         title: "Appointment approval required",
+        actionRequired: true,
+        appointmentId: "appointment-1",
+        metadata: expect.objectContaining({ approvalRequest: true }),
         dedupeKey: "appointment_approval_required:appointment-1",
       }),
     );
   });
+});
+
+
+describe('explicit automatic confirmation choice', () => {
+ beforeEach(() => { jest.clearAllMocks();
+  getSchedulingPolicy.mockResolvedValue({ aiBookingConfirmationMode: 'auto', automaticConfirmationAuthorized: true });
+  getBookableService.mockResolvedValue({ _id: 'service-1', requiresHumanReview: false, aiCanBook: true });
+  AppointmentService.create.mockResolvedValue({ _id: 'a1', status: 'confirmed', automaticConfirmationAuthorized: true });
+ });
+ test('enabled business and explicit owner choice allow an eligible service to confirm', async () => {
+  await createAppointmentTool({ business: { _id: 'b1', features: { aiBookingEnabled: true } }, input: { serviceOfferingId: 'service-1' } });
+  expect(AppointmentService.create).toHaveBeenCalledWith(expect.objectContaining({ confirm: true, input: expect.objectContaining({ requiresBusinessApproval: false, automaticConfirmationAuthorized: true }) }));
+  expect(AlertService.createSystemAlert).not.toHaveBeenCalled();
+ });
+ test.each([true, false])('review requirement or disabled AI cannot authorize confirmation (%s)', async review => {
+  getBookableService.mockResolvedValue({ _id: 'service-1', requiresHumanReview: review, aiCanBook: true });
+  await createAppointmentTool({ business: { _id: 'b1', features: { aiBookingEnabled: review } }, input: { serviceOfferingId: 'service-1' } });
+  expect(AppointmentService.create).toHaveBeenCalledWith(expect.objectContaining({ confirm: false, input: expect.objectContaining({ requiresBusinessApproval: true }) }));
+ });
 });

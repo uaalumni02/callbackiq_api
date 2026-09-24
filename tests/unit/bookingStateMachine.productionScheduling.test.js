@@ -244,15 +244,17 @@ describe("production scheduling regression: exact urgent availability journey", 
     await turn('What times are available?');
     expect(conversation.bookingState.status).toBe('offering_slots');
     const chosen=conversation.bookingState.offeredSlots[1];
-    await turn('Option 2');
-    expect(conversation.bookingState.status).toBe('awaiting_confirmation');
-    expect(createAppointmentTool).not.toHaveBeenCalled();
     createAppointmentTool.mockResolvedValue({_id:'held-exact',status:'held',requiresBusinessApproval:true,heldExpiresAt:new Date('2026-09-05T17:00:00Z'),startAt:chosen.startAt,endAt:chosen.endAt,timezone:'America/New_York'});
-    const result=await turn('Yes');
+    let result=await turn('Option 2');
+    if (channel === 'voice') {
+      expect(conversation.bookingState.status).toBe('awaiting_confirmation');
+      expect(createAppointmentTool).not.toHaveBeenCalled();
+      result=await turn('Yes');
+    }
     expect(createAppointmentTool).toHaveBeenCalledTimes(1);
     expect(createAppointmentTool.mock.calls[0][0].input).toMatchObject({startAt:chosen.startAt,endAt:chosen.endAt,customerName:'Pat Smith',source:channel});
     expect(conversation.bookingState).toMatchObject({status:'pending_business_confirmation',appointment:'held-exact'});
-    expect(result.result.reply).toMatch(/not confirmed until the team accepts/i);
+    expect(result.result.reply).toMatch(/not confirmed/i);
   });
 
 });

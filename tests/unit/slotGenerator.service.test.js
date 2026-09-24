@@ -80,8 +80,8 @@ describe("generateInternalSlots", () => {
     expect(Appointment.find).toHaveBeenCalledWith({
       business: "b1",
       status: { $in: ["held", "confirmed"] },
-      startAt: { $lt: new Date("2026-07-28T00:00:00.000Z") },
-      endAt: { $gt: new Date("2026-07-27T00:00:00.000Z") },
+      startAt: { $lt: new Date("2026-07-29T00:00:00.000Z") },
+      endAt: { $gt: new Date("2026-07-26T00:00:00.000Z") },
       $or: [
         { status: "confirmed" },
         { status: "held", heldExpiresAt: { $gt: now } },
@@ -140,7 +140,7 @@ describe("generateInternalSlots", () => {
 
   test.each([
     [{ type: "special_hours", windows: [{ startTime: "12:00", endTime: "13:00" }] }],
-    [{ type: "other", allDay: false, windows: [{ startTime: "12:00", endTime: "13:00" }] }],
+    [{ type: "special_hours", allDay: false, windows: [{ startTime: "12:00", endTime: "13:00" }] }],
   ])("uses exception windows %#", async (exception) => {
     AvailabilityException.find.mockReturnValue(leanResult([{ date: "2026-07-27", ...exception }]));
     const slots = await generateInternalSlots({

@@ -1,4 +1,8 @@
-import { currentStaffSchedulingException } from './staffSchedulingException.service.js';
+import { runApprovalSms } from './approvalSms.service.js';
+import { arrivalWindow, customerAppointmentLabel } from './customerAppointmentPresentation.service.js';
+import { reconcileApprovalRequests, resolveApprovalReview } from './approvalLifecycle.service.js';
+import { withDistributedLease, assertDistributedLeaseActive } from '../distributedLease.service.js';
+import { currentStaffSchedulingException, withStaffSchedulingException } from './staffSchedulingException.service.js';
 import { assertServiceRequestEligible } from '../serviceEligibility/serviceEligibility.service.js';
 import { safeConsole } from "../../helpers/logging/safeLogger.js";
 import { resolveOpportunityValue, ownerEstimate, moneyAmount } from "../valuation/opportunityValue.js";
@@ -21,6 +25,7 @@ import {
   getAiBookableService,
   getBookableService,
   getSlotCapacity,
+  getSchedulingPolicy,
 } from "./appointmentPolicy.service.js";
 import SchedulingProviderFactory from "./schedulingProviderFactory.js";
 import { businessCalendarProviderName } from "./calendarProviderName.service.js";
@@ -50,19 +55,13 @@ const normalizeAddress = (address = {}) => ({
   postalCode: String(address?.postalCode || "").trim(),
 });
 
-const formatCustomerAppointmentTime = (appointment, business) =>
-  new Intl.DateTimeFormat("en-US", {
-    timeZone:
-      appointment.timezone || business.timezone || "America/New_York",
-    weekday: "long",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(appointment.startAt));
+const formatCustomerAppointmentTime = (appointment, business) => customerAppointmentLabel(appointment, appointment.timezone || business.timezone);
 
 export const ensureBusinessApprovalNotice = async ({ appointment, business, service = null }) => {
-  if (appointment.status !== "confirmed" || !appointment.requiresBusinessApproval) return null;
+  if (appointment.status !== "confirmed" || (!appointment.requiresBusinessApproval && !appointment.automaticConfirmationAuthorized)) return null;
+  // The durable SMS turn already delivers the immediate automatic confirmation.
+  // Manual approval and voice bookings still need their separate customer notice.
+  if (appointment.automaticConfirmationAuthorized && appointment.source === 'sms' && !appointment.requiresBusinessApproval) return null;
   const offering = service || await ServiceOffering.findById(appointment.serviceOffering);
   return scheduleAppointmentChangeNotice({ appointment, key: "business_approval_confirmed",
     body: `${business.businessName || "The service team"}: Confirmed — your ${offering?.name || "service"} appointment is scheduled for ${formatCustomerAppointmentTime(appointment, business)}. Reply here if you need to reschedule or cancel.`,
@@ -170,10 +169,11 @@ const exactSlotAvailable = async ({
   postalCode,
   excludeAppointmentId,
   providerNameOverride = null,
+  approvedExistingRequest = false,
 }) => {
   const timeZone = business.timezone || "America/New_York";
   const dateKey = formatDateKey(startAt, timeZone);
-  const result = await AvailabilityService.getAvailability({
+  const lookup = () => AvailabilityService.getAvailability({
     business,
     serviceOfferingId,
     startDate: dateKey,
@@ -182,6 +182,13 @@ const exactSlotAvailable = async ({
     excludeAppointmentId,
     providerNameOverride,
   });
+  // The customer satisfied notice when requesting this exact time. A staff
+  // decision must recheck current capacity, hours and calendar conflicts without
+  // invalidating notice merely because time elapsed while awaiting approval.
+  const result = approvedExistingRequest ? await withStaffSchedulingException({
+    businessId: String(business._id), serviceOfferingId: String(serviceOfferingId), startAt,
+    reason: 'Existing customer request: notice was checked when the slot was requested.',
+  }, lookup) : await lookup();
 
   return result.slots.some(
     (slot) =>
@@ -325,6 +332,8 @@ const createHold = async ({
     actualRevenue: input.actualRevenue || 0,
     idempotencyKey,
     heldExpiresAt: addMinutes(new Date(), Number(input.holdMinutes || 5)),
+    automaticConfirmationAuthorized: input.automaticConfirmationAuthorized === true,
+    ...arrivalWindow(startAt, timeZone, await getSchedulingPolicy(businessId)),
     requiresBusinessApproval: input.requiresBusinessApproval === true,
     approvalRequestedAt:
       input.requiresBusinessApproval === true ? new Date() : null,
@@ -449,15 +458,54 @@ class AppointmentService {
       ...(businessId ? { business: businessId } : {}),
     };
 
-    return Appointment.updateMany(query, {
+    const result = await Appointment.updateMany(query, {
       $set: {
         status: "failed",
         activeSlotKey: null,
         slotClaimKeys: [],
         capacityLane: null,
         failureReason: "Appointment hold expired before confirmation.",
+        "approvalRecovery.reconciled": false,
+        "approvalRecovery.expiredAt": new Date(),
       },
     });
+    await reconcileApprovalRequests({ businessId });
+    await runApprovalSms();
+    return result;
+  }
+
+  static async recheckAndConfirm({ business, appointmentId, approvedBy }) {
+    if (!approvedBy) throw Object.assign(new Error('Staff approval is required.'), { statusCode: 403 });
+    const lease = await withDistributedLease(`appointment-approval:${appointmentId}`, async () => {
+      let appointment = await getAppointmentForBusiness(business._id, appointmentId);
+      if (appointment.status === 'confirmed') return appointment;
+      if (!(appointment.status === 'held' || (appointment.requiresBusinessApproval === true && appointment.status === 'failed' && /hold expired/i.test(appointment.failureReason)))) {
+        throw Object.assign(new Error('This appointment is not awaiting approval.'), { statusCode: 409 });
+      }
+      if (appointment.status === 'held' && appointment.heldExpiresAt > new Date()) return this.confirm({ business, appointmentId, approvedBy });
+      const available = await exactSlotAvailable({ business, serviceOfferingId: appointment.serviceOffering,
+        startAt: appointment.startAt, endAt: appointment.endAt, postalCode: appointment.address?.postalCode, excludeAppointmentId: appointment._id, approvedExistingRequest: true });
+      if (!available) throw Object.assign(new Error('That time is no longer available. Contact the customer to agree another time.'), { statusCode: 409, code: 'SLOT_UNAVAILABLE' });
+      const capacity = await getSlotCapacity({ businessId: business._id, startAt: appointment.startAt, timeZone: appointment.timezone });
+      let claimed = false;
+      for (let lane = 1; lane <= capacity; lane++) {
+        try {
+          assertDistributedLeaseActive();
+          appointment = await Appointment.findOneAndUpdate({ _id: appointment._id, business: business._id,
+            status: appointment.status }, { $set: { status: 'held', heldExpiresAt: addMinutes(new Date(), 5),
+            failureReason: '', capacityLane: lane, activeSlotKey: `${getSlotKey(appointment.startAt, appointment.endAt)}|lane:${lane}`,
+            slotClaimKeys: getSlotClaimKeys({ ...appointment.toObject(), capacityLane: lane }),
+            'approvalRecovery.reconciled': false, 'approvalRecovery.state': 'pending',
+          } }, { new: true, runValidators: true });
+          if (!appointment) throw Object.assign(new Error('The request changed. Reload it before approving.'), { statusCode: 409 });
+          claimed = true; break;
+        } catch (error) { if (error.code !== 11000) throw error; }
+      }
+      if (!claimed) throw Object.assign(new Error('Another customer claimed that time.'), { statusCode: 409 });
+      return this.confirm({ business, appointmentId, approvedBy });
+    });
+    if (!lease.acquired) throw Object.assign(new Error('Another approval is being processed. Reload this request.'), { statusCode: 409 });
+    return lease.value;
   }
 
   static async create({ business, input, idempotencyKey, confirm = true, ownerValuationAuthorized = false }) {
@@ -553,6 +601,7 @@ class AppointmentService {
       appointment.slotClaimKeys = [];
       appointment.capacityLane = null;
       appointment.failureReason = "The appointment hold expired before confirmation.";
+      appointment.approvalRecovery = { ...(appointment.approvalRecovery?.toObject?.() || appointment.approvalRecovery || {}), reconciled: false, expiredAt: new Date() };
       await appointment.save();
       const error = new Error("The appointment hold expired.");
       error.statusCode = 409;
@@ -570,6 +619,7 @@ class AppointmentService {
       endAt: appointment.endAt,
       postalCode: appointment.address?.postalCode,
       excludeAppointmentId: appointment._id,
+      approvedExistingRequest: Boolean(approvedBy),
     });
 
     if (!stillAvailable) {
@@ -594,6 +644,7 @@ class AppointmentService {
     let providerResult = null;
 
     try {
+      assertDistributedLeaseActive();
       providerResult = await provider.createAppointment({
         appointment,
         service,
@@ -604,6 +655,7 @@ class AppointmentService {
       appointment.externalCalendarId =
         providerResult.externalCalendarId || null;
       appointment.status = "confirmed";
+      appointment.approvalRecovery = { state: "resolved", reconciled: false };
       appointment.confirmedAt = new Date();
       appointment.heldExpiresAt = null;
       appointment.failureReason = "";
@@ -674,9 +726,10 @@ class AppointmentService {
       throw error;
     }
 
+    await resolveApprovalReview(appointment).catch(() => {});
     // Confirmation is durable at this point. Secondary notifications and
     // analytics must never roll the appointment back if they fail.
-    if (appointment.requiresBusinessApproval) {
+    if (appointment.requiresBusinessApproval || appointment.automaticConfirmationAuthorized) {
       await runNonBlockingAppointmentSideEffect({
         appointment,
         businessId: business._id,
@@ -770,7 +823,7 @@ class AppointmentService {
     );
 
     if (
-      appointment.status !== "held" ||
+      (appointment.status !== "held" && !(appointment.status === "failed" && /hold expired/i.test(appointment.failureReason || ""))) ||
       appointment.requiresBusinessApproval !== true
     ) {
       const error = new Error(
@@ -786,12 +839,14 @@ class AppointmentService {
     appointment.slotClaimKeys = [];
     appointment.capacityLane = null;
     appointment.heldExpiresAt = null;
+    appointment.approvalRecovery = { state: "resolved", reconciled: false };
     appointment.approvalDecisionAt = new Date();
     appointment.approvalDecisionBy = declinedBy || null;
     appointment.approvalDeclineReason = String(reason || "").trim();
     appointment.failureReason =
       appointment.approvalDeclineReason || "Appointment request declined.";
     await appointment.save();
+    await resolveApprovalReview(appointment).catch(() => {});
 
     if (appointment.conversation) {
       await Conversation.updateOne(
@@ -844,6 +899,7 @@ class AppointmentService {
     // A retry after the durable local transition replays idempotent side
     // effects instead of silently skipping anything that previously failed.
     if (appointment.status === "canceled") {
+      await resolveApprovalReview(appointment).catch(() => {});
       await runNonBlockingAppointmentSideEffect({
         appointment,
         businessId: business._id,
@@ -886,6 +942,7 @@ class AppointmentService {
     }
 
     appointment.status = "canceled";
+    appointment.approvalRecovery = { state: "resolved", reconciled: false };
     appointment.canceledAt = appointment.canceledAt || new Date();
     appointment.activeSlotKey = null;
     appointment.slotClaimKeys = [];
@@ -901,6 +958,7 @@ class AppointmentService {
     // locally confirmed. Retrying the endpoint is safe because provider
     // cancellation is idempotent and will reach this save again.
     await appointment.save();
+    await resolveApprovalReview(appointment).catch(() => {});
 
     await runNonBlockingAppointmentSideEffect({
       appointment,

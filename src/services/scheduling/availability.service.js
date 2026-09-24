@@ -1,3 +1,4 @@
+import { arrivalWindow } from './customerAppointmentPresentation.service.js';
 import { effectiveSchedulingPolicy } from "./effectiveSchedulingPolicy.service.js";
 import ServiceOffering from "../../models/serviceOffering.js";
 import {
@@ -104,6 +105,8 @@ class AvailabilityService {
       allowSameDayBooking,
       slots: policySafeSlots.map((slot) => ({
         ...slot,
+        ...arrivalWindow(slot.startAt, timeZone, policy),
+        requiresBusinessApproval: !(policy.aiBookingConfirmationMode === 'auto' && policy.automaticConfirmationAuthorized === true && business.features?.aiBookingEnabled === true && service?.requiresHumanReview !== true),
         startAt: formatZonedIso(slot.startAt, timeZone),
         endAt: formatZonedIso(slot.endAt, timeZone),
       })),

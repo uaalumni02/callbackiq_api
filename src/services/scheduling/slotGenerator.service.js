@@ -1,3 +1,4 @@
+import { dateWindows, shiftDate } from './availabilityWindows.service.js';
 import { effectiveSchedulingPolicy } from "./effectiveSchedulingPolicy.service.js";
 import Appointment from "../../models/appointment.js";
 import AvailabilityException from "../../models/availabilityException.js";
@@ -18,46 +19,6 @@ import {
 
 const overlaps = (firstStart, firstEnd, secondStart, secondEnd) =>
   firstStart < secondEnd && firstEnd > secondStart;
-
-const normalizeWindows = (windows = []) =>
-  (Array.isArray(windows) ? windows : [])
-    .map((window) => ({
-      startTime: String(window?.startTime || "").trim(),
-      endTime: String(window?.endTime || "").trim(),
-    }))
-    .filter((window) => window.startTime && window.endTime);
-
-const getDateWindows = ({ rule, exception, service }) => {
-  const closedTypes = new Set([
-    "holiday",
-    "closure",
-    "fully_booked",
-    "technician_meeting",
-  ]);
-
-  if (closedTypes.has(exception?.type)) {
-    return [];
-  }
-
-  if (exception?.type === "emergency_only" && !service?.emergencyEligible) {
-    return [];
-  }
-
-  if (exception?.type === "special_hours" || exception?.allDay === false) {
-    return normalizeWindows(exception.windows);
-  }
-
-  if (!rule?.enabled) {
-    return [];
-  }
-
-  return normalizeWindows(rule.windows);
-};
-
-const getExceptionDateKey = (exception) => {
-  const value = String(exception?.date || "").trim();
-  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
-};
 
 const appointmentBlocksSlot = ({ appointment, startAt, endAt }) => {
   const busyStart = addMinutes(
@@ -113,8 +74,8 @@ export const generateInternalSlots = async ({
   const appointmentQuery = {
     business: businessId,
     status: { $in: ["held", "confirmed"] },
-    startAt: { $lt: queryEnd },
-    endAt: { $gt: queryStart },
+    startAt: { $lt: addMinutes(queryEnd, 1440) },
+    endAt: { $gt: addMinutes(queryStart, -1440) },
     $or: [
       { status: "confirmed" },
       { status: "held", heldExpiresAt: { $gt: now } },
@@ -126,35 +87,28 @@ export const generateInternalSlots = async ({
   }
 
   const appointments = await Appointment.find(appointmentQuery).lean();
-  const rulesByDay = new Map(rules.map((rule) => [Number(rule.dayOfWeek), rule]));
-  const exceptionsByDate = new Map(
-    exceptions
-      .map((exception) => [getExceptionDateKey(exception), exception])
-      .filter(([dateKey]) => Boolean(dateKey)),
-  );
   const slots = [];
 
   for (const dateKey of dateKeys) {
-    const dayOfWeek = getUtcDayOfWeekForDateKey(dateKey);
-    const rule = rulesByDay.get(dayOfWeek);
-    const exception = exceptionsByDate.get(dateKey);
-    const windows = getDateWindows({ rule, exception, service });
+    const rule = rules.find(r => Number(r.dayOfWeek) === getUtcDayOfWeekForDateKey(dateKey));
+    const exception = exceptions.find(e => e.date === dateKey && e.type === 'special_hours' && e.appliesTo !== 'answering');
+    const windows = dateWindows({ dateKey, rules, exceptions, emergencyEligible: service.emergencyEligible });
+    const tomorrow = dateWindows({ dateKey: shiftDate(dateKey, 1), rules, exceptions, emergencyEligible: service.emergencyEligible });
     const capacity = Number(exception?.capacity || rule?.capacity || 1);
-
-    for (const window of windows) {
-      const windowStartMinutes = minutesFromTimeKey(window.startTime);
-      const windowEndMinutes = minutesFromTimeKey(window.endTime);
-
+    const atMinute = minute => zonedDateTimeToUtc({ dateKey: shiftDate(dateKey, Math.floor(minute / 1440)), timeKey: timeKeyFromMinutes(minute % 1440), timeZone });
+    for (const [windowStartMinutes, close] of windows) {
+      const windowEndMinutes = close === 1440 && tomorrow[0]?.[0] === 0 ? 1440 + tomorrow[0][1] : close;
       for (
         let cursor = windowStartMinutes;
-        cursor + durationMinutes <= windowEndMinutes;
+        cursor < 1440 && cursor + durationMinutes <= windowEndMinutes;
         cursor += intervalMinutes
       ) {
-        const startAt = zonedDateTimeToUtc({
-          dateKey,
-          timeKey: timeKeyFromMinutes(cursor),
-          timeZone,
-        });
+        let startAt;
+        try { startAt = atMinute(cursor); } catch (error) {
+          // A nonexistent DST wall time must never become a different appointment.
+          if (/nonexistent|does not exist|daylight|local time/i.test(error.message)) continue;
+          throw error;
+        }
         const endAt = addMinutes(startAt, durationMinutes);
         const bufferedStartAt = addMinutes(startAt, -bufferBeforeMinutes);
         const bufferedEndAt = addMinutes(endAt, bufferAfterMinutes);

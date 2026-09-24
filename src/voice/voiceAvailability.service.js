@@ -1,3 +1,4 @@
+import { dateWindows, shiftDate } from '../services/scheduling/availabilityWindows.service.js';
 import AvailabilityException from "../models/availabilityException.js";
 import AvailabilityRule from "../models/availabilityRule.js";
 import { logOperationalWarning } from "../helpers/logging/safeLogger.js";
@@ -116,57 +117,12 @@ const describeWindow = (window) => {
 class VoiceAvailabilityService {
   static async isBusinessOpen(business, at = new Date()) {
     if (!business?._id) return false;
-    const timeZone = resolveBusinessTimeZone(business);
-    const local = getLocalParts(at, timeZone);
-    const priorDate = previousDateKey(local.dateKey);
-    const priorDay = (local.dayOfWeek + 6) % 7;
-
-    const [currentException, priorException] = await Promise.all([
-      AvailabilityException.findOne({
-        business: business._id,
-        date: local.dateKey,
-        active: true,
-      }).sort({ createdAt: -1 }),
-      AvailabilityException.findOne({
-        business: business._id,
-        date: priorDate,
-        active: true,
-        type: "special_hours",
-      }).sort({ createdAt: -1 }),
+    const local = getLocalParts(at, resolveBusinessTimeZone(business));
+    const [rules, exceptions] = await Promise.all([
+      AvailabilityRule.find({ business: business._id }),
+      AvailabilityException.find({ business: business._id, active: { $ne: false }, date: { $gte: shiftDate(local.dateKey, -1), $lte: local.dateKey } }),
     ]);
-
-    if (exceptionClosesDate(currentException)) return false;
-
-    if (
-      priorException?.type === "special_hours" &&
-      anySpilloverWindowOpen(priorException.windows, local.minutes)
-    ) {
-      return true;
-    }
-
-    if (currentException?.type === "special_hours") {
-      return anyCurrentWindowOpen(currentException.windows, local.minutes);
-    }
-
-    const [currentRule, priorRule] = await Promise.all([
-      AvailabilityRule.findOne({
-        business: business._id,
-        dayOfWeek: local.dayOfWeek,
-      }),
-      AvailabilityRule.findOne({
-        business: business._id,
-        dayOfWeek: priorDay,
-      }),
-    ]);
-
-    if (
-      priorRule?.enabled &&
-      anySpilloverWindowOpen(priorRule.windows, local.minutes)
-    ) {
-      return true;
-    }
-    if (!currentRule?.enabled) return false;
-    return anyCurrentWindowOpen(currentRule.windows, local.minutes);
+    return dateWindows({ dateKey: local.dateKey, rules, exceptions, scope: 'answering' }).some(([s,e])=>local.minutes >= s && local.minutes < e);
   }
 
   static async hasPublishedHours(business) {
@@ -174,49 +130,36 @@ class VoiceAvailabilityService {
     return Boolean(
       await AvailabilityRule.exists({
         business: business._id,
-        enabled: true,
-        "windows.0": { $exists: true },
+        $or: [
+          { separateAnsweringHours: { $ne: true }, enabled: true, "windows.0": { $exists: true } },
+          { separateAnsweringHours: true, answeringEnabled: true, "answeringWindows.0": { $exists: true } },
+        ],
       }),
     );
   }
 
   static async describeBusinessHours(business, at = new Date()) {
-    if (!business?._id) {
-      return "The business has not published verified operating hours yet, so I’ll have the team confirm them directly.";
-    }
-    const timeZone = resolveBusinessTimeZone(business);
-    const local = getLocalParts(at, timeZone);
-    const [rules, currentException] = await Promise.all([
-      AvailabilityRule.find({ business: business._id }).sort({ dayOfWeek: 1 }),
-      AvailabilityException.findOne({ business: business._id, date: local.dateKey, active: true }).sort({ createdAt: -1 }),
+    if (!business?._id) return 'The team needs to confirm its answering hours.';
+    const local = getLocalParts(at, resolveBusinessTimeZone(business));
+    const [rules, exceptions] = await Promise.all([
+      AvailabilityRule.find({ business: business._id }),
+      AvailabilityException.find({ business: business._id, active: { $ne: false }, date: { $gte: shiftDate(local.dateKey, -1), $lte: shiftDate(local.dateKey, 14) } }),
     ]);
-    const todayRule = rules.find((rule) => rule.dayOfWeek === local.dayOfWeek);
-    const active = exceptionClosesDate(currentException)
-      ? []
-      : currentException?.type === "special_hours"
-        ? currentException.windows || []
-        : todayRule?.enabled && Array.isArray(todayRule.windows)
-          ? todayRule.windows
-          : [];
-    const current = active.find((window) => withinTimeWindow(local.minutes, window));
-    if (current) {
-      return `We’re open now until ${formatClockTimeForSpeech(...String(current.endTime).split(":"))}.`;
-    }
-    const later = active.find((window) => timeToMinutes(window.startTime) > local.minutes);
-    if (later) {
-      return `We’re closed right now and reopen today at ${formatClockTimeForSpeech(...String(later.startTime).split(":"))}.`;
-    }
-    for (let offset = 1; offset <= 7; offset += 1) {
-      const day = (local.dayOfWeek + offset) % 7;
-      const rule = rules.find((item) => item.dayOfWeek === day && item.enabled && item.windows?.length);
-      if (rule) {
-        const first = rule.windows[0];
-        const label = offset === 1 ? "tomorrow" : DAY_NAMES[day];
-        return `Published hours show the business reopening ${label} at ${formatClockTimeForSpeech(...String(first.startTime).split(":"))}.`;
+    const say = minutes => minutes === 1440 ? 'midnight' : formatClockTimeForSpeech(Math.floor(minutes/60), minutes%60);
+    for (let offset=0;offset<=14;offset++) {
+      const key=shiftDate(local.dateKey,offset);
+      const windows=dateWindows({ dateKey:key, rules, exceptions, scope:'answering' });
+      for (const [start,end] of windows) {
+        if (!offset && local.minutes >= start && local.minutes < end) return `We’re open now until ${say(end)}.`;
+        if (offset || start > local.minutes) {
+          const label=offset===0?'today':offset===1?'tomorrow':new Intl.DateTimeFormat('en-US',{weekday:'long',month:'short',day:'numeric',timeZone:'UTC'}).format(new Date(`${key}T12:00:00Z`));
+          return `We’re closed right now and reopen ${label} at ${say(start)}.`;
+        }
       }
     }
-    return "The business has not published verified operating hours yet, so I’ll have the team confirm them directly.";
+    return 'No answering hours are published for the next two weeks. The team will need to confirm when it reopens.';
   }
+
 }
 
 export default VoiceAvailabilityService;

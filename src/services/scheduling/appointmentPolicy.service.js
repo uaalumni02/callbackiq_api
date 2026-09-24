@@ -163,6 +163,8 @@ export const getSlotCapacity = async ({ businessId, startAt, timeZone }) => {
     AvailabilityException.findOne({
       business: businessId,
       date: dateKey,
+      type: "special_hours",
+      appliesTo: { $ne: "answering" },
       active: { $ne: false },
     }).lean(),
   ]);

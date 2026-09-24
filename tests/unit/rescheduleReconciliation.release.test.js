@@ -25,6 +25,7 @@ jest.mock("../../src/services/scheduling/appointmentPolicy.service.js", () => ({
   __esModule: true,
   getAiBookableService: jest.fn(),
   getBookableService: jest.fn(),
+  getSchedulingPolicy: jest.fn().mockResolvedValue({}),
   getSlotCapacity: jest.fn(),
 }));
 jest.mock("../../src/services/scheduling/schedulingProviderFactory.js", () => ({

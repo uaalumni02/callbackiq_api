@@ -347,7 +347,7 @@ describe("BookingStateMachineService complete behavior", () => {
     expect(conversation.bookingState).toMatchObject({ status: "collecting_location", serviceOffering: "s1" });
     expect(lead.serviceNeeded).toBe("HVAC diagnostic");
     expect(lead.save).toHaveBeenCalled();
-    expect(result.result.reply).toContain("address and ZIP code");
+    expect(result.result.reply).toMatch(/street address.*ZIP code/);
   });
 
   test("does not replace an existing lead service", async () => {
@@ -501,7 +501,7 @@ describe("BookingStateMachineService complete behavior", () => {
     const conversation = makeConversation({ bookingState: { status: "offering_slots", offeredSlots: [SLOT_1] } });
     const result = await handle({ conversation, message: "2026-08-03" });
     expect(getAvailabilityTool).toHaveBeenCalled();
-    expect(result.result.reply).toContain("Which option");
+    expect(result.result.reply).toMatch(/Which.*works|Choose an option/);
   });
 
   test("asks for a day when a new time has no stored date", async () => {
@@ -1060,7 +1060,7 @@ describe("CALLBACKIQ_DIFF_COVERAGE_BOOKING_RELEASE", () => {
       ).toBeGreaterThan(0);
 
       expect(result.result.reply).toMatch(
-        /which option/i,
+        /choose an option/i,
       );
     },
   );

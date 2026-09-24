@@ -1,6 +1,8 @@
 // Central outbound policy. Manual replies and compliance commands are deliberate exceptions.
 export const ownerTextSuppressionReason = ({ business, source = "", usageCategory = "" }) => {
   if (usageCategory === "manual_sms" || usageCategory === "compliance") return "";
+  // Staff approval notices require a separate explicit business opt-in at dispatch.
+  if (source === 'staff_approval_notice') return '';
   const policy = business?.customerMessaging || {};
   if (policy.automaticTextsEnabled === false) return "automatic_customer_texts_disabled";
   if ((source.startsWith("voice_") || usageCategory.startsWith("voice_")) && (policy.voiceTextsEnabled === false || !policy.configured && business?.features?.missedCallSmsEnabled === false)) return "voice_texts_disabled";

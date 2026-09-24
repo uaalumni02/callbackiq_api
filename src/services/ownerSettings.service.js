@@ -1,3 +1,4 @@
+import { validateWindows } from './scheduling/availabilityWindows.service.js';
 import crypto from "node:crypto";
 import mongoose from "mongoose";
 import Business from "../models/business.js";
@@ -16,10 +17,10 @@ import { recordVoiceSettingsVersion } from "./voiceSettingsVersion.service.js";
 const plain = value => value?.toObject?.() || value;
 const pick = (object, keys) => Object.fromEntries(keys.filter(key => object?.[key] !== undefined).map(key => [key, object[key]]));
 const profileKeys = ["businessName", "businessType", "forwardingPhone", "email", "website", "address", "city", "state", "zipCode", "timezone"];
-const serviceKeys = ["_id", "name", "category", "description", "active", "aiCanDiscuss", "aiCanBook", "durationMinutes", "bufferBeforeMinutes", "bufferAfterMinutes", "estimatedValue", "priceEstimateMin", "priceEstimateMax", "disclosePriceEstimate", "priceEstimateDisclaimer", "diagnosticFee", "discloseDiagnosticFee", "emergencyEligible", "requiresHumanReview", "keywords", "excludedKeywords", "intakePolicy"];
-const ruleKeys = ["dayOfWeek", "enabled", "windows", "timezone", "capacity"];
-const exceptionKeys = ["_id", "date", "type", "name", "allDay", "windows", "capacity", "reason", "active"];
-const policyKeys = ["minimumNoticeMinutes", "maximumAdvanceDays", "slotIntervalMinutes", "defaultDurationMinutes", "requireAddressBeforeBooking", "requireServiceBeforeBooking", "allowSameDayBooking", "allowAfterHoursBooking", "aiBookingConfirmationMode", "manualApprovalHoldMinutes", "customerCancellationAllowed", "cancellationNoticeMinutes", "confirmationMessageTemplate", "cancellationMessageTemplate", "rescheduleMessageTemplate"];
+const serviceKeys = ["diagnosticFallback", "_id", "name", "category", "description", "active", "aiCanDiscuss", "aiCanBook", "durationMinutes", "bufferBeforeMinutes", "bufferAfterMinutes", "estimatedValue", "priceEstimateMin", "priceEstimateMax", "disclosePriceEstimate", "priceEstimateDisclaimer", "diagnosticFee", "discloseDiagnosticFee", "emergencyEligible", "requiresHumanReview", "keywords", "excludedKeywords", "intakePolicy"];
+const ruleKeys = ["dayOfWeek", "enabled", "windows", "timezone", "capacity", "separateAnsweringHours", "answeringEnabled", "answeringWindows"];
+const exceptionKeys = ["_id", "date", "type", "name", "allDay", "windows", "capacity", "reason", "active", "appliesTo"];
+const policyKeys = ["approvalSmsEnabled", "approvalSmsPhone", "automaticConfirmationAuthorized", "appointmentStyle", "arrivalWindowMinutes", "minimumNoticeMinutes", "maximumAdvanceDays", "slotIntervalMinutes", "defaultDurationMinutes", "requireAddressBeforeBooking", "requireServiceBeforeBooking", "allowSameDayBooking", "allowAfterHoursBooking", "aiBookingConfirmationMode", "manualApprovalHoldMinutes", "customerCancellationAllowed", "cancellationNoticeMinutes", "confirmationMessageTemplate", "cancellationMessageTemplate", "rescheduleMessageTemplate"];
 const error = (message, statusCode = 400) => Object.assign(new Error(message), { statusCode });
 const cleanWindows = row => ({ ...row, windows: (row.windows || []).map(w => pick(w, ["startTime", "endTime"])) });
 const hash = value => crypto.createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -62,7 +63,7 @@ export async function readOwnerSettings(business, session = null) {
       rules: Array.from({ length: 7 }, (_, dayOfWeek) => cleanWindows(pick(rules.find(r => r.dayOfWeek === dayOfWeek) || { dayOfWeek, enabled: false, windows: [], timezone: business.timezone || "America/New_York", capacity: 1 }, ruleKeys))),
       exceptions: exceptions.filter(e => e.active).map(e => cleanWindows(pick(e, exceptionKeys))), removedExceptionIds: [],
       schedulingPolicy: pick(policy, policyKeys),
-      bookingMode: business.features?.aiBookingEnabled ? policy.aiBookingConfirmationMode === "auto" ? "automatic" : "approval" : "callback",
+      bookingMode: business.features?.aiBookingEnabled ? policy.aiBookingConfirmationMode === "auto" && policy.automaticConfirmationAuthorized === true ? "automatic" : "approval" : "callback",
     },
     calls: {
       ...pick(voice, ["answerMode", "transferPhone", "overflowRingSeconds", "liveTransferEnabled", "liveTransferPhone"]),
@@ -86,7 +87,7 @@ export async function readOwnerSettings(business, session = null) {
       { section: "team", label: "Choose who receives customer requests", complete: Boolean(ops.humanHandoffContacts?.some(c => c.active && (c.phone || c.email))) },
     ] : []),
   ];
-  return JSON.parse(JSON.stringify({ businessId: String(business._id), sections, revision, checklist, trackingPhone: business.phone || "", voiceEnabled: voice.voiceAiEnabled,
+  return JSON.parse(JSON.stringify({ businessId: String(business._id), sections, revision, checklist, notificationReadiness: { smsEnabled: process.env.STAFF_APPROVAL_SMS_ENABLED === 'true', emailEnabled: process.env.STAFF_NOTIFICATION_EMAIL_ENABLED === 'true', warning: process.env.STAFF_NOTIFICATION_EMAIL_ENABLED === 'true' ? 'Approval email requires a verified owner email. Provider acceptance does not prove delivery.' : 'Approval email is disabled on this server. An administrator must enable STAFF_NOTIFICATION_EMAIL_ENABLED and configure email delivery. Use the appointment queue until notifications are verified.' }, trackingPhone: business.phone || "", voiceEnabled: voice.voiceAiEnabled,
     customRouting: voice.routingPolicy,
     bookingRestrictedServices: services.filter(s => s.active && (!s.aiCanBook || s.requiresHumanReview)).map(s => s.name),
   }));
@@ -146,13 +147,23 @@ export async function saveOwnerSettings({ ownerId, section, payload, revision })
         if (values.rules.length !== 7 || new Set(values.rules.map(r => r.dayOfWeek)).size !== 7) throw error("Provide each day of the week once.");
         for (const rule of values.rules) {
           if (rule.enabled && !rule.windows.length) throw error("Add opening and closing times for each open day.");
-          const windows = [...rule.windows].sort((a, b) => a.startTime.localeCompare(b.startTime));
-          if (windows.some((w, i) => w.startTime >= w.endTime || i > 0 && windows[i - 1].endTime > w.startTime)) throw error("Business hours must end after they start and cannot overlap.");
+          validateWindows(rule.windows);
+          if (rule.separateAnsweringHours) {
+            if (rule.answeringEnabled && !rule.answeringWindows?.length) throw error('Add answering hours or mark the office closed.');
+            validateWindows(rule.answeringWindows || []);
+          }
           await AvailabilityRule.findOneAndUpdate({ business: id, dayOfWeek: rule.dayOfWeek }, { $set: { ...rule, timezone: business.timezone } }, { upsert: true, runValidators: true, session });
         }
+        for (const exception of values.exceptions) {
+          if (exception.type === 'special_hours' || exception.allDay === false) {
+            if (!exception.windows?.length) throw error('Add hours for the temporary change.');
+            validateWindows(exception.windows);
+          }
+        }
         await saveRows(AvailabilityException, id, values.exceptions, values.removedExceptionIds, session);
+        if (values.schedulingPolicy.approvalSmsEnabled && !/^\+1\d{10}$/.test(values.schedulingPolicy.approvalSmsPhone || '')) throw error('Enter a US mobile number including +1 for approval texts.');
         const booking = values.bookingMode !== "callback";
-        await saveDocument(SchedulingPolicy, id, { ...values.schedulingPolicy, aiBookingConfirmationMode: values.bookingMode === "automatic" ? "auto" : "manual" }, session);
+        await saveDocument(SchedulingPolicy, id, { ...values.schedulingPolicy, automaticConfirmationAuthorized: values.bookingMode === "automatic", aiBookingConfirmationMode: values.bookingMode === "automatic" ? "auto" : "manual" }, session);
         const ops = await BusinessOperationsSettings.findOne({ business: id }).session(session) || new BusinessOperationsSettings({ business: id });
         // Translate a deliberate booking choice, while leaving unrelated business permissions intact.
         ops.set("aiPermissions.canBookEligibleServices", booking);

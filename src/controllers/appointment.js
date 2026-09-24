@@ -1,3 +1,4 @@
+import { runStaffSchedulingRequest } from '../services/scheduling/staffSchedulingException.service.js';
 import getOwnedBusiness from "../services/businessScope.service.js";
 import AppointmentService from "../services/scheduling/appointment.service.js";
 import {
@@ -12,13 +13,13 @@ class AppointmentController {
   static async create(req, res, next) {
     try {
       const business = await getOwnedBusiness({ user: req.user, requestedBusinessId: req.body.businessId });
-      const appointment = await AppointmentService.create({
+      const appointment = await runStaffSchedulingRequest({ business, userId: req.user?.userId, input: req.body }, () => AppointmentService.create({
         business,
         input: req.body,
         ownerValuationAuthorized: true,
         idempotencyKey: getIdempotencyKey(req),
         confirm: req.body.confirm !== false,
-      });
+      }));
       return res.status(appointment.status === "confirmed" ? 201 : 202).json({
         success: true,
         data: appointment,
@@ -71,7 +72,7 @@ class AppointmentController {
   static async confirm(req, res, next) {
     try {
       const business = await getOwnedBusiness({ user: req.user, requestedBusinessId: req.body.businessId });
-      const appointment = await AppointmentService.confirm({
+      const appointment = await AppointmentService.recheckAndConfirm({
         business,
         appointmentId: req.params.id,
         approvedBy: req.user?.userId || null,

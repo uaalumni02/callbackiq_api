@@ -1,3 +1,4 @@
+import { customerAppointmentLabel } from './customerAppointmentPresentation.service.js';
 import crypto from 'crypto';
 import { safeConsole } from "../../helpers/logging/safeLogger.js";
 import Appointment from "../../models/appointment.js";
@@ -14,16 +15,7 @@ const instanceId =
     .toString(36)
     .slice(2, 10)}`;
 
-const formatAppointmentTime = (appointment, business) =>
-  new Intl.DateTimeFormat("en-US", {
-    timeZone:
-      appointment.timezone || business.timezone || "America/New_York",
-    weekday: "long",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(appointment.startAt));
+const formatAppointmentTime = (appointment, business) => customerAppointmentLabel(appointment, appointment.timezone || business.timezone);
 
 const addressText = (appointment) =>
   [
@@ -181,7 +173,7 @@ export const scheduleAppointmentChangeNotice = async ({
       key: `change_notice:${String(key || "provider_change").slice(0, 60)}`,
     },
     {
-      [key === "business_approval_confirmed" ? "$setOnInsert" : "$set"]: {
+      [(["business_approval_confirmed", "approval_hold_expired"].includes(key) || String(key).startsWith("reply_")) ? "$setOnInsert" : "$set"]: {
         attempts: 0,
         lead: appointment.lead || null,
         conversation: appointment.conversation || null,
@@ -358,13 +350,14 @@ export const processNextAppointmentNotification = async () => {
   const requiredStatus =
     job.type === "follow_up"
       ? "completed"
-      : job.type === "reminder" || job.key === "change_notice:business_approval_confirmed"
+      : job.type === "reminder" || job.key === "change_notice:business_approval_confirmed" || String(job.key).startsWith("change_notice:reply_")
         ? "confirmed"
         : null;
 
   if (
     !appointment ||
     !business ||
+    (job.key === "change_notice:approval_hold_expired" && !(appointment.status === "failed" && /hold expired/i.test(appointment.failureReason || ""))) ||
     (requiredStatus && appointment.status !== requiredStatus)
   ) {
     job.status = "canceled";

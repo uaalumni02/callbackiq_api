@@ -64,6 +64,9 @@ const AppointmentSchema = new Schema(
 
     startAt: { type: Date, required: true },
     endAt: { type: Date, required: true },
+    automaticConfirmationAuthorized: { type: Boolean, default: false },
+    arrivalStartAt: Date,
+    arrivalEndAt: Date,
     timezone: { type: String, required: true, default: "America/New_York" },
     bufferBeforeMinutes: { type: Number, min: 0, default: 0 },
     bufferAfterMinutes: { type: Number, min: 0, default: 0 },
@@ -166,6 +169,7 @@ const AppointmentSchema = new Schema(
     failureReason: { type: String, trim: true, default: "", maxlength: 2000 },
 
     confirmedAt: { type: Date, default: null },
+    approvalRecovery: { state: { type: String, enum: ['pending', 'needs_recheck', 'resolved'] }, reconciled: Boolean, expiredAt: Date, lastError: String },
     customerConfirmedAt: { type: Date, default: null },
     customerRescheduleRequestedAt: { type: Date, default: null },
     pendingProviderChange: {
@@ -240,6 +244,7 @@ AppointmentSchema.index(
   },
 );
 AppointmentSchema.index({ business: 1, heldExpiresAt: 1, status: 1 });
+AppointmentSchema.index({ requiresBusinessApproval: 1, "approvalRecovery.reconciled": 1, status: 1, updatedAt: 1 });
 AppointmentSchema.index({
   business: 1,
   requiresBusinessApproval: 1,

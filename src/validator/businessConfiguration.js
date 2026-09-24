@@ -6,7 +6,7 @@ const zipPattern = /^\d{5}(?:-\d{4})?$/;
 
 const timeWindowSchema = Joi.object({
   startTime: Joi.string().pattern(timePattern).required(),
-  endTime: Joi.string().pattern(timePattern).required(),
+  endTime: Joi.string().pattern(/^(?:([01]\d|2[0-3]):[0-5]\d|24:00)$/).required(),
 });
 
 const serviceFields = {
@@ -27,6 +27,7 @@ const serviceFields = {
   diagnosticFee: Joi.number().min(0).allow(null),
   discloseDiagnosticFee: Joi.boolean(),
   emergencyEligible: Joi.boolean(),
+  diagnosticFallback: Joi.boolean(),
   requiresHumanReview: Joi.boolean(),
   intakePolicy: Joi.object({
     requireClarification: Joi.boolean(),
@@ -52,6 +53,9 @@ export const availabilityRulesSchema = Joi.object({
         enabled: Joi.boolean().required(),
         windows: Joi.array().items(timeWindowSchema).max(12).default([]),
         timezone: Joi.string().trim().max(100).default("America/New_York"),
+        separateAnsweringHours: Joi.boolean(),
+        answeringEnabled: Joi.boolean(),
+        answeringWindows: Joi.array().items(timeWindowSchema).max(12),
         capacity: Joi.number().integer().min(1).max(100).default(1),
       }),
     )
@@ -72,6 +76,7 @@ export const createAvailabilityExceptionSchema = Joi.object({
       "emergency_only",
     )
     .required(),
+  appliesTo: Joi.string().valid("both", "appointments", "answering"),
   name: Joi.string().allow("").trim().max(120),
   allDay: Joi.boolean().default(true),
   windows: Joi.array().items(timeWindowSchema).max(12).default([]),
@@ -87,6 +92,11 @@ export const updateAvailabilityExceptionSchema =
   ).min(1);
 
 export const schedulingPolicySchema = Joi.object({
+  approvalSmsEnabled: Joi.boolean(),
+  approvalSmsPhone: Joi.string().pattern(/^\+1\d{10}$/).allow(''),
+  automaticConfirmationAuthorized: Joi.boolean(),
+  appointmentStyle: Joi.string().valid('exact', 'arrival_window'),
+  arrivalWindowMinutes: Joi.number().valid(60, 120, 240),
   minimumNoticeMinutes: Joi.number().integer().min(0).max(43200),
   maximumAdvanceDays: Joi.number().integer().min(1).max(730),
   slotIntervalMinutes: Joi.number().integer().min(5).max(240),

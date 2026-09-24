@@ -21,9 +21,11 @@ export const createAppointmentTool = async ({
     }),
   ]);
 
-  // Production invariant: AI may submit an appointment request, but only a
-  // business approval can create the final customer commitment.
-  const requiresBusinessApproval = true;
+  // Automatic commitment requires explicit owner authorization and an eligible
+  // service. Existing policies remain manual until the owner opts in again.
+  const automaticConfirmationAuthorized = policy.aiBookingConfirmationMode === 'auto' &&
+    policy.automaticConfirmationAuthorized === true && service?.requiresHumanReview !== true && business.features?.aiBookingEnabled === true;
+  const requiresBusinessApproval = !automaticConfirmationAuthorized;
   const holdMinutes = Number(policy.manualApprovalHoldMinutes || 30);
 
   const appointment = await AppointmentService.create({
@@ -33,6 +35,7 @@ export const createAppointmentTool = async ({
       source: input?.source || "sms",
       bookedBy: "ai",
       requiresBusinessApproval,
+      automaticConfirmationAuthorized,
       holdMinutes,
       notes: [
         String(input?.notes || "").trim(),
@@ -44,7 +47,7 @@ export const createAppointmentTool = async ({
         .join("\n"),
     },
     idempotencyKey,
-    confirm: false,
+    confirm: automaticConfirmationAuthorized,
   });
 
   if (
@@ -54,6 +57,12 @@ export const createAppointmentTool = async ({
     await AlertService.createSystemAlert({
       businessId: business._id,
       title: "Appointment approval required",
+      actionRequired: true,
+      assignedTo: business.owner || null,
+      leadId: input?.lead || null,
+      conversationId: input?.conversation || null,
+      appointmentId: appointment._id,
+      dueAt: appointment.heldExpiresAt ? new Date(Math.min(new Date(appointment.heldExpiresAt).getTime(), Date.now() + 15 * 60000)) : null,
       message:
         "A customer selected a real available time. Review and approve the held appointment before the customer is told it is confirmed.",
       priority:
@@ -61,6 +70,7 @@ export const createAppointmentTool = async ({
           ? "high"
           : "medium",
       metadata: {
+        approvalRequest: true,
         appointmentId: String(appointment._id),
         leadId: input?.lead ? String(input.lead) : "",
         conversationId: input?.conversation ? String(input.conversation) : "",

@@ -30,7 +30,10 @@ export const searchServicesTool = async ({ businessId, query }) => {
   const preferred = new Set(preferSpecificServices(positive.map(item => item.service)));
   const matches = positive.filter(item => preferred.has(item.service));
 
-  return matches.slice(0, 5).map(({ service, score }) => ({
+  // Only a positively matched, explicitly authorized diagnostic can resolve ambiguity.
+  const diagnostics = matches.filter(({ service }) => service.diagnosticFallback === true);
+  const chosen = matches.length > 1 && diagnostics.length === 1 ? diagnostics : matches;
+  return chosen.slice(0, 5).map(({ service, score }) => ({
     id: String(service._id),
     name: service.name,
     category: service.category,

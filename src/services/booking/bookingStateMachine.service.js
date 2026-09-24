@@ -1,3 +1,4 @@
+import { customerAppointmentLabel, renderAppointmentResponse } from '../scheduling/customerAppointmentPresentation.service.js';
 import { handleConversationControl } from '../conversationControl.service.js';
 import { extractCustomerAddress, normalizeSpokenAddress, extractCustomerPostalCode, withoutCustomerPostalCode } from './customerAddress.service.js';
 import { getApprovedServiceEstimate } from './approvedServiceEstimate.service.js';
@@ -118,15 +119,7 @@ const buildAvailabilityPricingNote = async ({
   return "I don’t have a business-approved price range for that service, so I don’t want to guess. Final pricing depends on the actual scope and technician evaluation.";
 };
 
-const formatSlot = (slot, timeZone) =>
-  new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    weekday: "long",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(slot.startAt));
+const formatSlot = customerAppointmentLabel;
 
 const spreadSlotOptions = (slots, maximum = 3) => {
   if (slots.length <= maximum) return slots;
@@ -138,7 +131,12 @@ const spreadSlotOptions = (slots, maximum = 3) => {
 };
 
 const selectSlotOptions = (slots, urgency = "medium", maximum = 3) => {
-  const chronological = [...(Array.isArray(slots) ? slots : [])].sort(
+  const unique = new Map();
+  for (const slot of Array.isArray(slots) ? slots : []) {
+    const key = slot.arrivalStartAt ? String(slot.arrivalStartAt) : String(slot.startAt);
+    if (!unique.has(key)) unique.set(key, slot);
+  }
+  const chronological = [...unique.values()].sort(
     (left, right) =>
       new Date(left.startAt).getTime() - new Date(right.startAt).getTime(),
   );
@@ -355,6 +353,9 @@ const handleReadOnlyAvailabilityInquiry = async ({
           endAt: new Date(slot.endAt),
           timezone: timeZone,
           label: formatSlot(slot, timeZone),
+          arrivalStartAt: slot.arrivalStartAt, arrivalEndAt: slot.arrivalEndAt,
+          requiresBusinessApproval: slot.requiresBusinessApproval !== false,
+          selectionSubmits: false,
         })),
         selectedSlot: null,
         availabilityInquiry: true,
@@ -370,7 +371,7 @@ const handleReadOnlyAvailabilityInquiry = async ({
     return {
       handled: true,
       result: fixedResult({
-        reply: `${pricingNote ? `${pricingNote} ` : ""}${alternativeNote}${optionsLabel}: ${options}. Which option works best? Not a confirmed appointment; business approval required.`,
+        reply: `${pricingNote ? `${pricingNote} ` : ""}${alternativeNote}${optionsLabel}: ${options}. Which option works best? ${offeredSlots.some(slot => slot.requiresBusinessApproval !== false) ? 'Not a confirmed appointment; business approval required.' : 'Your choice will be checked before it is confirmed.'}`,
         category: "availability_inquiry",
       }),
     };
@@ -766,7 +767,7 @@ class BookingStateMachineService {
 
     let status = currentStatus;
     const offerExpired = Boolean(
-      activeConversation.bookingState?.expiresAt &&
+      activeConversation.bookingState?.status !== 'pending_business_confirmation' && activeConversation.bookingState?.expiresAt &&
         activeConversation.bookingState.expiresAt < new Date(),
     );
 
@@ -824,7 +825,7 @@ class BookingStateMachineService {
           handled: true,
           result: fixedResult({
             reply: smsIntent.entities.serviceNeeded || (lead?.serviceNeeded && lead.serviceNeeded !== "Unknown")
-            ? `I understand the reported issue, but need to match it to a bookable service.${choices} ${matches.length ? "Which listed service should I check first?" : "What type of equipment or fixture needs service?"}`
+            ? `I want to make sure we arrange the right visit.${choices} ${matches.length ? "Which of these best describes the visit you need?" : "What type of equipment or fixture needs service?"}`
             : `What service would you like to schedule?${choices}`,
           }),
         };
@@ -854,7 +855,7 @@ class BookingStateMachineService {
       return {
         handled: true,
         result: fixedResult({
-          reply: `${compoundPricingNote ? `${compoundPricingNote} ` : ""}I can check times for ${selectedService.name}. I need the address and ZIP code in two steps. First, what is the street address for the service visit?`,
+          reply: `${compoundPricingNote ? `${compoundPricingNote} ` : ""}I can check times for ${selectedService.name}. What’s the street address for the visit, including the ZIP code?`,
         }),
       };
     }
@@ -918,8 +919,8 @@ class BookingStateMachineService {
           result: fixedResult({
             reply:
               area.supported === false
-                ? "That ZIP code is outside the configured service area. The request needs direct team review; no appointment is confirmed."
-                : "I couldn't verify coverage for that address. The request needs direct team review; no appointment is confirmed.",
+                ? "That ZIP code is outside the area this team normally serves. The team needs to review this location before scheduling."
+                : "I couldn't verify coverage for that address. The team needs to review this location before scheduling.",
             category: "service_area_question",
           }),
         };
@@ -979,8 +980,8 @@ class BookingStateMachineService {
           result: fixedResult({
             reply:
               area.supported === false
-                ? "That ZIP code is outside the configured service area. The request needs direct team review; no appointment is confirmed."
-                : "I couldn't verify coverage for that address. The request needs direct team review; no appointment is confirmed.",
+                ? "That ZIP code is outside the area this team normally serves. The team needs to review this location before scheduling."
+                : "I couldn't verify coverage for that address. The team needs to review this location before scheduling.",
             category: "service_area_question",
           }),
         };
@@ -1161,11 +1162,14 @@ class BookingStateMachineService {
             offeredSlots: alternatives.map((slot) => ({
               startAt: new Date(slot.startAt), endAt: new Date(slot.endAt), timezone: timeZone,
               label: formatSlot(slot, timeZone),
+          arrivalStartAt: slot.arrivalStartAt, arrivalEndAt: slot.arrivalEndAt,
+          requiresBusinessApproval: slot.requiresBusinessApproval !== false,
+          selectionSubmits: true,
             })),
             expiresAt: new Date(Date.now() + 30 * 60_000),
           });
           return { handled: true, result: fixedResult({
-            reply: `That requested time is outside the current bookable availability or is already taken, but I found ${options}. Which works best?`,
+            reply: `That time isn’t available. ${renderAppointmentResponse({ kind: 'offer', options: `I have ${options}`, requiresApproval: alternatives.some(slot => slot.requiresBusinessApproval !== false) }, bookingChannel)}`,
           }) };
         }
 
@@ -1191,6 +1195,9 @@ class BookingStateMachineService {
           endAt: new Date(slot.endAt),
           timezone: timeZone,
           label: formatSlot(slot, timeZone),
+          arrivalStartAt: slot.arrivalStartAt, arrivalEndAt: slot.arrivalEndAt,
+          requiresBusinessApproval: slot.requiresBusinessApproval !== false,
+          selectionSubmits: true,
         })),
         selectedSlot: null,
         negotiationAttempts: 0,
@@ -1237,7 +1244,7 @@ class BookingStateMachineService {
       return {
         handled: true,
         result: fixedResult({
-          reply: `${compoundPricingNote ? `${compoundPricingNote} ` : ""}I have ${options}. Which option works best?`,
+          reply: `${compoundPricingNote ? `${compoundPricingNote} ` : ""}${renderAppointmentResponse({ kind: 'offer', options: `I have ${options}`, requiresApproval: offeredSlots.some(slot => slot.requiresBusinessApproval !== false) }, bookingChannel)}`,
         }),
       };
     }
@@ -1279,6 +1286,12 @@ class BookingStateMachineService {
         expiresAt: new Date(Date.now() + 15 * 60_000),
       });
 
+      if (bookingChannel === 'sms' && slot.selectionSubmits === true &&
+          activeConversation.bookingState.streetAddress && activeConversation.bookingState.postalCode &&
+          activeConversation.bookingState.lastError !== 'reschedule_requested' &&
+          /^(?:option\s*)?[12]\s*[.!]?$/i.test(text)) {
+        return this.handleTurn({ business, lead, conversation: activeConversation, customerMessage: 'YES', channel: bookingChannel, source: bookingSource });
+      }
       const serviceName = lead?.serviceNeeded || "the requested service";
       const address = [
         activeConversation.bookingState.streetAddress || lead?.address,
@@ -1290,10 +1303,7 @@ class BookingStateMachineService {
       return {
         handled: true,
         result: fixedResult({
-          reply: `You selected ${formatSlot(
-            slot,
-            business.timezone || "America/New_York",
-          )} for ${serviceName} at ${address}. Would you like me to submit this appointment request for business approval? It is not confirmed yet. Reply YES to submit it.`,
+          reply: renderAppointmentResponse({ kind: 'review', label: formatSlot(slot, business.timezone || 'America/New_York'), service: serviceName, address, requiresApproval: slot.requiresBusinessApproval !== false }, bookingChannel),
         }),
       };
     }
@@ -1412,8 +1422,8 @@ class BookingStateMachineService {
 
         assertVoiceTurnActive();
         if (
-          appointment.status !== "held" ||
-          appointment.requiresBusinessApproval !== true
+          !(appointment.status === 'confirmed' && appointment.automaticConfirmationAuthorized === true) &&
+          (appointment.status !== "held" || appointment.requiresBusinessApproval !== true)
         ) {
           const invariantError = new Error(
             "AI appointment creation bypassed the required business-approval hold.",
@@ -1424,6 +1434,10 @@ class BookingStateMachineService {
           throw invariantError;
         }
 
+        if (appointment.status === 'confirmed' && appointment.automaticConfirmationAuthorized === true) {
+          await updateState(activeConversation, { status: 'booked', appointment: appointment._id, expiresAt: null, lastError: '' });
+          return { handled: true, result: fixedResult({ reply: renderAppointmentResponse({ kind: 'confirmed', label: formatSlot(appointment, appointment.timezone) }, bookingChannel) }) };
+        }
         await updateState(activeConversation, {
           status: "pending_business_confirmation",
           appointment: appointment._id,
@@ -1434,10 +1448,7 @@ class BookingStateMachineService {
         return {
           handled: true,
           result: fixedResult({
-            reply: `I’ve submitted ${formatSlot(
-              appointment,
-              appointment.timezone,
-            )} for ${lead?.serviceNeeded || "your service request"} pending business approval. The appointment is not confirmed until the team accepts it.`,
+            reply: renderAppointmentResponse({ kind: 'submitted', label: formatSlot(appointment, appointment.timezone) }, bookingChannel),
           }),
         };
       } catch (error) {
@@ -1467,6 +1478,10 @@ class BookingStateMachineService {
           })
         : null;
 
+      if (appointment?.status === 'failed' && /hold expired/i.test(appointment.failureReason || '')) {
+        await updateState(activeConversation, { expiresAt: null, lastError: 'approval_needs_recheck' });
+        return { handled: true, result: fixedResult({ reply: renderAppointmentResponse({ kind: 'expired' }, bookingChannel) }) };
+      }
       if (appointment?.status === "confirmed") {
         await updateState(activeConversation, {
           status: "booked",

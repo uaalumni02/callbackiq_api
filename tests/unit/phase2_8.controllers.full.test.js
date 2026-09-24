@@ -1,3 +1,4 @@
+jest.mock('../../src/models/availabilityException.js', () => ({ __esModule: true, default: { findOneAndUpdate: jest.fn(), updateMany: jest.fn() } }));
 import mongoose from "mongoose";
 import Alert from "../../src/models/alert.js";
 import AutomationJob from "../../src/models/automationJob.js";
@@ -34,6 +35,7 @@ import {
 jest.mock("mongoose", () => ({
   __esModule: true,
   default: {
+    ...jest.requireActual("mongoose").default,
     Types: {
       ObjectId: jest.fn(function ObjectId(value) {
         return { value: `oid:${value}` };
@@ -101,7 +103,7 @@ jest.mock("../../src/services/scheduling/appointment.service.js", () => ({
     list: jest.fn(),
     get: jest.fn(),
     update: jest.fn(),
-    confirm: jest.fn(),
+    recheckAndConfirm: jest.fn(), confirm: jest.fn(),
     cancel: jest.fn(),
     reschedule: jest.fn(),
   },
@@ -375,7 +377,7 @@ describe("Phase 2-8 controllers", () => {
         _id: "a1",
         notes: "updated",
       });
-      AppointmentService.confirm.mockResolvedValue({
+      AppointmentService.recheckAndConfirm.mockResolvedValue({
         _id: "a1",
         status: "confirmed",
       });
@@ -407,7 +409,7 @@ describe("Phase 2-8 controllers", () => {
         appointmentId: "a1",
         changes: base.body,
       });
-      expect(AppointmentService.confirm).toHaveBeenCalledWith({
+      expect(AppointmentService.recheckAndConfirm).toHaveBeenCalledWith({
         business,
         appointmentId: "a1",
         approvedBy: "u1",

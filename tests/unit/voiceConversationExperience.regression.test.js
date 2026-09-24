@@ -26,10 +26,10 @@ describe("voice conversation experience regression", () => {
 
     expect(source).toContain("We’re open now until ");
     expect(source).toContain(
-      "We’re closed right now and reopen today at ",
+      "We’re closed right now and reopen ${label} at ",
     );
     expect(source).toContain(
-      "Published hours show the business reopening ",
+      "No answering hours are published for the next two weeks.",
     );
 
     const spokenReturns = Array.from(

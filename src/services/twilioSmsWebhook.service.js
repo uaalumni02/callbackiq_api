@@ -1,3 +1,4 @@
+import { isAppointmentReply } from './scheduling/appointmentReply.service.js';
 import Business from "../models/business.js";
 import Lead from "../models/lead.js";
 import { durableWebhookWorkEnabled, enqueueWebhookWork } from "./webhooks/webhookWork.service.js";
@@ -604,7 +605,7 @@ export const handleInboundSmsWebhook = async (req, res) => {
     const processingRequired =
       !commandClassification.handled &&
       !mediaOnly &&
-      (safetyReviewRequired || postHandoffStatusEligible ||
+      (isAppointmentReply(body) || safetyReviewRequired || postHandoffStatusEligible ||
         (conversation.aiEnabled !== false &&
           conversation.humanTakeover !== true &&
           conversation.status !== "closed" &&
