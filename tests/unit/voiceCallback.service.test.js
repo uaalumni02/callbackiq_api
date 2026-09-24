@@ -385,3 +385,35 @@ describe('callback fact ownership and recovery', () => {
     expect(s.lead.urgency).toBe('emergency');
   });
 });
+
+describe('same-call address recovery', () => {
+ test('callback entry reuses an earlier ASR address instead of asking again', async () => {
+  const session = makeSession();
+  session.lead.serviceNeeded = 'Faucet replacement';
+  session.lead.customerName = 'Test Caller';
+  session.transcript.push({role:'customer', isFinal:true, text:'9 70 Roswell Road, Atlanta, Georgia 3 0 3 2 4.'});
+  const result = await VoiceCallbackService.handle({session, customerMessage:'Scheduling.', requiredFields:['service','name','location','preference']});
+  expect(session.lead.address).toBe('970 Roswell Road, Atlanta, Georgia 30324');
+  expect(session.metadata.callbackCapture.currentField).toBe('preference');
+  expect(result.reply).not.toMatch(/what is the service address/i);
+ });
+ test('already-provided response repairs an active empty callback location', async () => {
+  const session = makeSession();
+  session.lead.serviceNeeded = 'Faucet replacement';
+  session.lead.customerName = 'Test Caller';
+  await VoiceCallbackService.handle({session, customerMessage:'Please call me', requiredFields:['service','name','location','preference']});
+  expect(session.metadata.callbackCapture.currentField).toBe('location');
+  session.transcript.push({role:'customer', text:'9 70 Roswell Road, Atlanta, Georgia 3 0 3 2 4.'});
+  await VoiceCallbackService.handle({session, customerMessage:'I already gave you that information.'});
+  expect(session.metadata.callbackCapture.currentField).toBe('preference');
+  expect(session.metadata.callbackCapture.retryCounts.location || 0).toBe(0);
+ });
+ test('assistant and unfinished transcript text are not customer location evidence', async () => {
+  const session = makeSession();
+  session.lead.serviceNeeded = 'Faucet replacement';
+  session.lead.customerName = 'Test Caller';
+  session.transcript.push({role:'assistant', text:'125 Main Street 30324'}, {role:'customer', isFinal:false, text:'87 Oak Lane 30060'});
+  await VoiceCallbackService.handle({session, customerMessage:'Please call me', requiredFields:['service','name','location']});
+  expect(session.metadata.callbackCapture.currentField).toBe('location');
+ });
+});

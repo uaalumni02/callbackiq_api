@@ -18,8 +18,20 @@ const numberWords = words => {
 };
 export const normalizeSpokenAddress = value => {
   let text = clean(value);
+  // ASR can split a house number or postal code into digit groups. Never
+  // collapse arbitrary phone-length runs into a location.
+  text = text.replace(/^(\d+(?: +\d+)+)(?= +[a-z])/i, (run) => {
+    const joined = run.replace(/ /g, '');
+    return joined.length <= 7 ? joined : run;
+  });
+  text = text.replace(/\b\d+(?: +\d+)+\b/g, run => {
+    const joined = run.replace(/ /g, '');
+    return joined.length === 5 ? joined : run;
+  });
   text = text.replace(/\b(?:zip(?: code)?|postal code)\s*(?:is\s*)?((?:(?:zero|oh|one|two|three|four|five|six|seven|eight|nine)[ -]+){4}(?:zero|oh|one|two|three|four|five|six|seven|eight|nine))\b/gi,
     (_, words) => words.toLowerCase().split(/[ -]+/).map(word => digits[word]).join(''));
+  const postalDigits = text.toLowerCase().replace(/[.!]$/, '').split(/[ -]+/);
+  if (postalDigits.length === 5 && postalDigits.every(word => Object.hasOwn(digits, word))) return postalDigits.map(word => digits[word]).join('');
   const tokens = text.split(' '); let count = 0;
   while (count < tokens.length && (Object.hasOwn(numbers, tokens[count].toLowerCase()) || ['hundred', 'thousand', 'and'].includes(tokens[count].toLowerCase()))) count++;
   if (count && count < tokens.length) {
@@ -57,7 +69,7 @@ export const extractCustomerAddress = (value, options = {}) => {
   const direct = parseAddressCandidate(text, options);
   if (direct) return direct;
   const candidates = [];
-  const boundaries = /(?:[,;.!?]\s*|\b(?:address is|located at|i am at|i'm at|we are at|we're at|at)\s+)(?=\d{1,7}[a-z]?(?:-\d+)?\s+[a-z])/gi;
+  const boundaries = /(?:[,;.!?]\s*|\b(?:address is|located at|i am at|i'm at|we are at|we're at|at)\s+)(?=\d{1,7}[a-z]?(?:-\d+)?(?:\s+\d+)*\s+[a-z])/gi;
   for (const match of text.matchAll(boundaries)) {
     const candidate = parseAddressCandidate(text.slice(match.index + match[0].length), options);
     if (candidate && !candidates.includes(candidate)) candidates.push(candidate);
@@ -84,7 +96,7 @@ export const withoutCustomerPostalCode = value => {
 export const addressFromTurn = ({ customerMessage, recentMessages = [], conversation = null, knownAddress = '' } = {}) => {
   const field = conversation?.conversationMemory?.recoveryIntake?.field;
   const expected = field === 'address' || ['collecting_location', 'collecting_street_address'].includes(conversation?.bookingState?.status);
-  const zip = clean(customerMessage).match(/^(?:(?:no|actually|correction)[, ]+)?(?:(?:the |my )?(?:zip(?: code)?|postal code)(?: is)?[: ]+)?(\d{5}(?:-\d{4})?)[.! ]*$/i)?.[1];
+  const zip = normalizeSpokenAddress(customerMessage).match(/^(?:(?:no|actually|correction)[, ]+)?(?:(?:the |my )?(?:zip(?: code)?|postal code)(?: is)?[: ]+)?(\d{5}(?:-\d{4})?)[.! ]*$/i)?.[1];
   if (zip && knownAddress && (!extractCustomerPostalCode(knownAddress) || /^(?:no|actually|correction|(?:the |my )?(?:zip|postal))\b/i.test(clean(customerMessage)))) {
     const match = postalMatch(knownAddress);
     return match ? knownAddress.slice(0, match.index) + zip + knownAddress.slice(match.index + match[0].length) : `${knownAddress}, ${zip}`;
@@ -100,4 +112,22 @@ export const addressFromTurn = ({ customerMessage, recentMessages = [], conversa
     if (address) return address;
   }
   return '';
+};
+
+
+// The lead is the current request projection. Repair the older split storage
+// only when the saved street agrees; never attach an old ZIP to a new address.
+export const resolveRequestAddress = ({ customerMessage = '', lead = {}, conversation = {} } = {}) => {
+  const booking = conversation.bookingState || {};
+  const savedStreet = extractCustomerAddress(booking.streetAddress || '', { expected: true });
+  let knownAddress = extractCustomerAddress(lead.address || '', { expected: true }) || savedStreet;
+  const sameStreet = (a,b) => withoutCustomerPostalCode(a).replace(/[^a-z0-9]/gi,'').toLowerCase() === withoutCustomerPostalCode(b).replace(/[^a-z0-9]/gi,'').toLowerCase();
+  if (knownAddress && !extractCustomerPostalCode(knownAddress) && savedStreet && sameStreet(knownAddress,savedStreet) && /^\d{5}(?:-\d{4})?$/.test(booking.postalCode || '')) {
+    knownAddress = `${knownAddress}, ${booking.postalCode}`;
+  }
+  let incoming = addressFromTurn({ customerMessage, conversation, knownAddress });
+  // A ZIP supplied before the first street belongs to this same collection step.
+  if (incoming && !knownAddress && !extractCustomerPostalCode(incoming) &&
+      ['collecting_location', 'collecting_street_address'].includes(booking.status) && /^\d{5}(?:-\d{4})?$/.test(booking.postalCode || '')) incoming = `${incoming}, ${booking.postalCode}`;
+  return incoming || knownAddress;
 };

@@ -96,3 +96,7 @@ test("concurrent abandonment recovery claims send one SMS and one alert", async 
   expect(VoiceSessionService.sendFallbackSms).toHaveBeenCalledTimes(1);
   expect(AlertService.createAutomatic).toHaveBeenCalledTimes(1);
 });
+
+test('pending business approval is a durable request outcome, not a confirmed booking', () => {
+ expect(inferVoiceOutcome({metadata:{bookingRequestSubmittedAt:'2026-09-24T02:46:00Z'}})).toBe('appointment_requested');
+});

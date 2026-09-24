@@ -1,6 +1,6 @@
 import { customerAppointmentLabel, renderAppointmentResponse } from '../scheduling/customerAppointmentPresentation.service.js';
 import { handleConversationControl } from '../conversationControl.service.js';
-import { extractCustomerAddress, normalizeSpokenAddress, extractCustomerPostalCode, withoutCustomerPostalCode } from './customerAddress.service.js';
+import { extractCustomerAddress, resolveRequestAddress, normalizeSpokenAddress, extractCustomerPostalCode, withoutCustomerPostalCode } from './customerAddress.service.js';
 import { getApprovedServiceEstimate } from './approvedServiceEstimate.service.js';
 import { guardServiceRequest } from '../serviceEligibility/serviceEligibility.service.js';
 import { requestStaffSchedulingReview } from "./staffSchedulingReview.service.js";
@@ -835,8 +835,10 @@ class BookingStateMachineService {
       await updateState(activeConversation, {
         status: "collecting_location",
         serviceOffering: selectedService.id,
-        streetAddress: "",
-        postalCode: "",
+        ...(() => {
+          const address = resolveRequestAddress({ customerMessage: text, lead, conversation: activeConversation });
+          return { streetAddress: cleanStreetAddress(address), postalCode: extractCustomerPostalCode(address) };
+        })(),
         availabilityInquiry: smsIntent.intents.availabilityInquiry,
       });
 
@@ -852,23 +854,22 @@ class BookingStateMachineService {
         await lead.save();
       }
 
-      return {
+      if (!activeConversation.bookingState?.streetAddress) return {
         handled: true,
         result: fixedResult({
           reply: `${compoundPricingNote ? `${compoundPricingNote} ` : ""}I can check times for ${selectedService.name}. What’s the street address for the visit, including the ZIP code?`,
         }),
       };
+      status = "collecting_location";
     }
 
     if (
       status === "collecting_street_address" ||
       status === "collecting_location"
     ) {
-      const { street, valid } = parseStreetAddress(text);
-      const suppliedZip =
-        extractCustomerPostalCode(text) ||
-        activeConversation.bookingState?.postalCode ||
-        "";
+      const address = resolveRequestAddress({ customerMessage: text, lead, conversation: activeConversation });
+      const { street, valid } = parseStreetAddress(address);
+      const suppliedZip = extractCustomerPostalCode(address);
 
       if (!valid) {
         await updateState(activeConversation, {
@@ -885,7 +886,7 @@ class BookingStateMachineService {
       }
 
       if (lead) {
-        lead.address = street;
+        lead.address = address;
         await lead.save();
       }
 
@@ -953,7 +954,8 @@ class BookingStateMachineService {
     }
 
     if (status === "collecting_postal_code") {
-      const zip = text.match(ZIP_PATTERN)?.[1];
+      const address = resolveRequestAddress({ customerMessage: text, lead, conversation: activeConversation });
+      const zip = extractCustomerPostalCode(address) || extractCustomerPostalCode(normalizeSpokenAddress(text));
       if (!zip) {
         return {
           handled: true,
@@ -987,8 +989,13 @@ class BookingStateMachineService {
         };
       }
 
+      if (lead && address) {
+        lead.address = extractCustomerPostalCode(address) ? address : `${address}, ${zip}`;
+        await lead.save();
+      }
       await updateState(activeConversation, {
         status: "collecting_preference",
+        ...(address ? { streetAddress: cleanStreetAddress(address) } : {}),
         postalCode: zip,
       });
 

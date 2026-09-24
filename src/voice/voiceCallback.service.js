@@ -1,3 +1,4 @@
+import { extractCustomerAddress, resolveRequestAddress } from '../services/booking/customerAddress.service.js';
 import { ownerTextSuppressionReason } from "../services/messaging/ownerTextPolicy.service.js";
 import { staffReviewDueAt } from "../services/staffReviewPolicy.service.js";
 import mongoose from "mongoose";
@@ -138,6 +139,19 @@ const callerPhone = (session) =>
     session?.metadata?.callbackCapture?.phone || session?.from || session?.lead?.phone,
   );
 
+// Recover evidence from this call only when the durable request has no
+// location. Final caller turns are authoritative; assistant guesses are not.
+const recoverCallAddress = session => {
+  const saved = resolveRequestAddress({ lead: session.lead, conversation: session.conversation });
+  if (saved) return saved;
+  const turns = (session.transcript || []).filter(turn => turn.role === 'customer' && turn.isFinal !== false);
+  for (const turn of [...turns].reverse()) {
+    const address = extractCustomerAddress(turn.text);
+    if (address) return address;
+  }
+  return '';
+};
+
 const createState = ({
   session,
   reason,
@@ -177,7 +191,7 @@ const createState = ({
     customerName:
       clean(seed?.customerName, 120) ||
       (!PLACEHOLDER_NAME.test(existingName) ? existingName : ""),
-    location: clean(seed?.location || lead?.address, 500),
+    location: clean(seed?.location || recoverCallAddress(session) || lead?.address, 500),
     urgency: clean(seed?.urgency, 40),
     urgencyDetail: clean(seed?.urgencyDetail, 200),
     preferredTime: clean(
@@ -889,6 +903,7 @@ class VoiceCallbackService {
         });
 
     const factsChanged = active && reconcileLead(session, state);
+    if (!state.location) state.location = recoverCallAddress(session);
     if (factsChanged && !immediate && state.status === 'awaiting_confirmation') {
       const missing = nextMissingField(state);
       state.currentField = missing || '';

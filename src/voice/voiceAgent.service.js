@@ -913,6 +913,17 @@ class VoiceAgentService {
     await conversation.populate("bookingState.appointment");
     assertVoiceTurnActive();
     const appointmentId = conversation.bookingState?.appointment;
+    if (appointmentId && conversation.bookingState?.status === 'pending_business_confirmation') {
+      session.metadata = { ...(session.metadata || {}),
+        bookingRequestSubmittedAt: new Date().toISOString(),
+        requestedAppointmentId: String(appointmentId._id || appointmentId),
+      };
+      session.markModified?.('metadata');
+      assertVoiceTurnActive();
+      await session.save();
+      assertVoiceTurnActive();
+      return { reply: spokenBookingReply, outcome: 'appointment_requested' };
+    }
     let confirmationOutcome = null;
     if (
       appointmentId &&

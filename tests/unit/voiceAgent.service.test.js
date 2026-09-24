@@ -425,6 +425,21 @@ describe("VoiceAgentService callback-first recovery", () => {
     expect(result.reply).toMatch(/please say yes to confirm/i);
   });
 
+  test('records pending approval as an appointment request without booking or fallback', async () => {
+    const session = makeSession();
+    session.conversation.bookingState.status = 'awaiting_confirmation';
+    BookingStateMachineService.handle.mockImplementation(async () => {
+      session.conversation.bookingState = {status:'pending_business_confirmation', appointment:'appointment-1'};
+      return {handled:true, result:{reply:'Your request is awaiting business approval.'}};
+    });
+    const result = await VoiceAgentService.handlePrompt({session, customerMessage:'Yes'});
+    expect(result.outcome).toBe('appointment_requested');
+    expect(session.metadata.requestedAppointmentId).toBe('appointment-1');
+    expect(session.metadata.bookingRequestSubmittedAt).toBeTruthy();
+    expect(session.lead.recovered).not.toBe(true);
+    expect(sendConfirmationSmsTool).not.toHaveBeenCalled();
+  });
+
   test("marks a confirmed voice booking recovered", async () => {
     const session = makeSession();
     session.conversation.bookingState.status = "awaiting_confirmation";

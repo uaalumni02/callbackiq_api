@@ -1,6 +1,6 @@
 import { ownerTextSuppressionReason } from "../services/messaging/ownerTextPolicy.service.js";
 import { evaluateDeterministicInboundGuardrails } from '../helpers/ai/aiGuardrails.js';
-import { buildMissedCallRecoveryText } from "../services/messaging/smsCompliance.service.js";
+import { voiceRecoveryMessage, COMPLETED_REQUEST_OUTCOMES } from './voiceRecoveryMessage.service.js';
 import { reconcileConversationLead } from "../services/messaging/conversationLeadIdentity.service.js";
 import { claimRecoveryIntroduction } from "../services/messaging/recoveryIntroduction.service.js";
 import { recordCallAnswer } from "../services/callAnswerEvidence.service.js";
@@ -452,6 +452,7 @@ class VoiceSessionService {
       {
         _id: sessionId,
         fallbackSmsStatus: { $in: ["pending", "failed"] },
+        outcome: { $nin: COMPLETED_REQUEST_OUTCOMES },
         status: { $nin: ["completed", "canceled"] },
       },
       {
@@ -480,12 +481,13 @@ class VoiceSessionService {
     const callLog = session.callLog;
     const from = normalizePhoneToE164(session.to || business.phone);
     const to = normalizePhoneToE164(session.from || lead?.phone);
-    const body = buildMissedCallRecoveryText({ business });
+    const recoveryMessage = voiceRecoveryMessage(session);
+    const body = recoveryMessage.body;
 
     const latestCustomerTurn = [...(session.transcript || [])].reverse().find((entry) => entry.role === "customer");
     const lastSafety = evaluateDeterministicInboundGuardrails({ customerMessage: latestCustomerTurn?.text || "" });
     const transcriptSafety = lastSafety.handled && (["emergency", "hazardous_diy_request"].includes(lastSafety.category) || lastSafety.reason === "safety_clarification_required");
-    let suppressionReason = "";
+    let suppressionReason = recoveryMessage.reason || "";
     if (session.metadata?.safetyConcernReportedAt || session.outcome === 'safety_guidance' || transcriptSafety) {
       suppressionReason = 'A safety concern was recorded; no ordinary missed-call recovery text is appropriate.';
     } else if (session.metadata?.sharedRequestReadOnly) {
@@ -527,6 +529,7 @@ class VoiceSessionService {
           fallbackSmsStatus: "suppressed",
           status: "failed",
           "metadata.fallbackSmsSuppressionReason": suppressionReason,
+          "metadata.recoveryMessageKind": recoveryMessage.kind,
         },
       });
     } else {
@@ -553,6 +556,7 @@ class VoiceSessionService {
               fallbackSmsStatus: "suppressed",
               status: "failed",
               "metadata.fallbackSmsSuppressionReason": suppressionReason,
+              "metadata.recoveryMessageKind": recoveryMessage.kind,
             },
           });
         } else {
@@ -561,6 +565,7 @@ class VoiceSessionService {
             $set: {
               fallbackSmsStatus: "sent",
               fallbackSmsSentAt: new Date(),
+              "metadata.recoveryMessageKind": recoveryMessage.kind,
               fallbackSmsProviderMessageId: providerMessageId,
               status: "failed",
             },

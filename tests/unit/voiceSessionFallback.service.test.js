@@ -138,6 +138,28 @@ describe("VoiceSessionService fallback", () => {
     expect(callLog.missedCallTextSent).toBe(false);
   });
 
+  test('sends continuation through the real fallback path after an engaged call', async () => {
+    await VoiceSessionService.sendFallbackSms({sessionId: session._id, failureReason:'caller disconnected'});
+    expect(sendSms).toHaveBeenCalledTimes(1);
+    const body = sendSms.mock.calls[0][0].body;
+    expect(body).toContain('Thanks for speaking with Peachtree Plumbing');
+    expect(body).toContain('continue your request');
+    expect(body).not.toMatch(/missed your call|what service do you need/i);
+  });
+
+  test.each(['booked', 'pending_business_confirmation'])('suppresses recovery for a durable %s request', async status => {
+    conversation.bookingState = {status, appointment:'appointment-1'};
+    await VoiceSessionService.sendFallbackSms({sessionId: session._id, failureReason:'caller disconnected'});
+    expect(sendSms).not.toHaveBeenCalled();
+    expect(claimRecoveryIntroduction).not.toHaveBeenCalled();
+  });
+
+  test('a genuinely unanswered call keeps the configured introduction', async () => {
+    session.transcript = [];
+    await VoiceSessionService.sendFallbackSms({sessionId: session._id, failureReason:'transport unavailable'});
+    expect(sendSms.mock.calls[0][0].body).toContain('Sorry we missed your call');
+  });
+
   test("marks delivery sent before local persistence work", async () => {
     await VoiceSessionService.sendFallbackSms({
       sessionId: session._id,

@@ -396,7 +396,7 @@ describe("BookingStateMachineService complete behavior", () => {
       businessId: "b1",
       postalCode: "30318",
     });
-    expect(lead.address).toBe("125 Main Street");
+    expect(lead.address).toBe("125 Main Street, 30318");
     expect(conversation.bookingState.status).toBe("collecting_preference");
     expect(result.result.reply).toMatch(/what day and time work best/i);
   });

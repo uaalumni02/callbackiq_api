@@ -262,6 +262,7 @@ export const getVoicePilotMetrics = async ({
     outcomeCounts: Object.fromEntries(
       [
         "booked",
+        "appointment_requested",
         "callback_saved",
         "transfer_accepted",
         "direct_answer_resolved",

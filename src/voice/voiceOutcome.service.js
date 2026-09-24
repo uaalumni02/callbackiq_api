@@ -8,6 +8,7 @@ import { logOperationalError } from "../helpers/logging/safeLogger.js";
 
 export const VOICE_OUTCOMES = Object.freeze([
   "booked",
+  "appointment_requested",
   "callback_saved",
   "transfer_accepted",
   "direct_answer_resolved",
@@ -33,6 +34,7 @@ export const inferVoiceOutcome = (session) => {
   if (session?.appointment || session?.metadata?.bookingCompletedAt) {
     return "booked";
   }
+  if (session?.metadata?.bookingRequestSubmittedAt) return "appointment_requested";
   const callback = session?.metadata?.callbackCapture;
   if (callback?.completedAt || callback?.status === "completed") {
     return String(callback?.reason || "").startsWith("safety_emergency") ||

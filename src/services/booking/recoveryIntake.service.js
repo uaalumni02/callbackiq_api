@@ -1,6 +1,6 @@
 import { completionClarification, updateRequestQuestions, normalizeRequestService } from './requestQuestionPolicy.service.js';
 import { assessProblemClarity, buildRequestReadiness, requestEvidenceKey } from "./requestQualificationPolicy.service.js";
-import { extractCustomerAddress, addressFromTurn, isRepeatCorrection, extractCustomerPostalCode } from './customerAddress.service.js';
+import { extractCustomerAddress, addressFromTurn, resolveRequestAddress, isRepeatCorrection, extractCustomerPostalCode } from './customerAddress.service.js';
 import { isSoftOptOutPhrase } from '../messaging/smsCompliance.service.js';
 import { guardServiceRequest } from '../serviceEligibility/serviceEligibility.service.js';
 import { patternHasAffirmedSafetyMatch } from '../../helpers/ai/aiGuardrails.js';
@@ -57,7 +57,12 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   const text = clean(customerMessage);
   if (isSoftOptOutPhrase(text)) return null;
   if (!text || !lead || !conversation || conversation.humanTakeover || conversation.aiEnabled === false || ['closed', 'archived'].includes(conversation.status)) return null;
-  const capturedAddress = addressFromTurn({ customerMessage: text, recentMessages, conversation, knownAddress: known(lead.address) ? lead.address : '' });
+  const existingAddress = resolveRequestAddress({ lead, conversation });
+  const capturedAddress = addressFromTurn({ customerMessage: text, recentMessages, conversation, knownAddress: existingAddress });
+  if (!capturedAddress && existingAddress && existingAddress !== lead.address) {
+    assertDistributedLeaseActive(); assertVoiceTurnActive();
+    lead.address = existingAddress; await lead.save?.();
+  }
   if (capturedAddress) {
     assertDistributedLeaseActive(); assertVoiceTurnActive();
     if (known(lead.address) && capturedAddress !== lead.address && !conversation.bookingState?.appointment) {

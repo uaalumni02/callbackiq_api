@@ -108,6 +108,7 @@ const VoiceSessionSchema = new Schema(
       type: String,
       enum: [
         "booked",
+        "appointment_requested",
         "callback_saved",
         "transfer_accepted",
         "direct_answer_resolved",
