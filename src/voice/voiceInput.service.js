@@ -175,10 +175,15 @@ export const toSpokenReply = (value) => {
     .replace(/\bReply here\b/gi, "Tell me")
     .replace(/\bsend another day\b/gi, "say another day")
     .replace(/\bby SMS\b/gi, "by text")
-    .replace(MILITARY_TIME_PATTERN, (_match, hours, minutes) =>
-      formatClockTimeForSpeech(hours, minutes),
+    .replace(/\b(1[0-2]|0?[1-9]):([0-5]\d)\s*([ap])\.?m\.?(?![a-z])/gi,
+      (_match, hours, minutes, period) => `${Number(hours)}${minutes === "00" ? "" : `:${minutes}`} ${period.toLowerCase()}.m.`)
+    .replace(MILITARY_TIME_PATTERN, (match, hours, minutes, offset, source) =>
+      // Already spoken 12-hour times must survive repeated normalization.
+      /^\s*[ap]\.?m\.?/i.test(source.slice(offset + match.length))
+        ? match : formatClockTimeForSpeech(hours, minutes),
     );
 
+  text = text.replace(/([ap]\.m\.)\.+/gi, "$1");
   text = spaceLikelyZipCodes(text);
   return cleanVoiceText(normalizeEmergencyNumberForSpeech(text), 4000);
 };

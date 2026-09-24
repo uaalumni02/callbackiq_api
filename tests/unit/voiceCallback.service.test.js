@@ -274,3 +274,42 @@ test('failed callback alert does not persist completed callback state', async ()
  expect(session.metadata.callbackCapture?.completedAt).toBeFalsy();
  expect(session.conversation.orchestration?.handoffStatus).not.toBe('acknowledged');
 });
+
+describe('callback truthfulness under dependency failures',()=>{
+ beforeEach(()=>{jest.clearAllMocks();Alert.findOneAndUpdate.mockResolvedValue({_id:'alert-1'});sendSms.mockResolvedValue({sid:'SM123',status:'sent'});Message.create.mockResolvedValue({_id:'message-1'});});
+ const submit=session=>VoiceCallbackService.handle({session,customerMessage:'Please call me',reason:'customer_requested_human',immediate:true,requiredFields:[],sendConfirmationSms:true,seed:{serviceNeeded:'Drain cleaning',customerName:'Customer',location:'123 Main St Atlanta GA 30324',preferredTime:'Friday 10 AM'}});
+ test('missing alert result cannot report a saved request',async()=>{
+  const session=makeSession();Alert.findOneAndUpdate.mockResolvedValueOnce(null);
+  await expect(submit(session)).rejects.toMatchObject({code:'STAFF_ACTION_NOT_SAVED'});
+  expect(session.metadata.callbackCapture?.completedAt).toBeFalsy();expect(sendSms).not.toHaveBeenCalled();
+ });
+ test('lead write failure stops alert and confirmation',async()=>{
+  const session=makeSession();session.lead.save.mockRejectedValueOnce(new Error('lead write failed'));
+  await expect(submit(session)).rejects.toThrow('lead write failed');expect(Alert.findOneAndUpdate).not.toHaveBeenCalled();expect(sendSms).not.toHaveBeenCalled();
+ });
+ test('conversation write failure cannot emit a successful confirmation',async()=>{
+  const session=makeSession();session.conversation.save.mockRejectedValueOnce(new Error('conversation write failed'));
+  await expect(submit(session)).rejects.toThrow('conversation write failed');expect(session.metadata.callbackCapture?.completedAt).toBeFalsy();expect(sendSms).not.toHaveBeenCalled();
+ });
+ test('SMS delivery failure preserves saved request and discloses failed text',async()=>{
+  const session=makeSession();sendSms.mockRejectedValueOnce(new Error('provider unavailable'));
+  const result=await submit(session);expect(result.callbackCaptured).toBe(true);expect(session.confirmationSmsStatus).toBe('failed');expect(result.reply).toMatch(/confirmation text could not be sent/i);expect(Alert.findOneAndUpdate).toHaveBeenCalledTimes(1);
+ });
+});
+
+
+test('callback acknowledgment does not imply staff acceptance',async()=>{
+ jest.clearAllMocks();
+ Alert.findOneAndUpdate.mockResolvedValue({_id:'alert-1'});
+ const session=makeSession();
+ const result=await VoiceCallbackService.handle({session,customerMessage:'Please call me',reason:'customer_requested_human',requiredFields:[],immediate:true,sendConfirmationSms:false});
+ expect(result.callbackCaptured).toBe(true);
+ expect(session.conversation.orchestration).toMatchObject({phase:'handoff_pending',handoffStatus:'acknowledged'});
+ expect(session.conversation.humanTakeover).toBe(false);
+ expect(session.conversation.aiEnabled).toBe(true);
+ const payload=Alert.findOneAndUpdate.mock.calls[0][1].$setOnInsert;
+ expect(payload).toMatchObject({status:'pending',actionRequired:true});
+ expect(payload.acknowledgedAt).toBeUndefined();
+ expect(payload.acknowledgedBy).toBeUndefined();
+ expect(payload.assignedTo).toBeUndefined();
+});

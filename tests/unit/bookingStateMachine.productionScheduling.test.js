@@ -227,6 +227,12 @@ describe("production scheduling regression: exact urgent availability journey", 
       source: "voice_booking_state_machine",
     });
 
+    expect(createAppointmentTool).toHaveBeenCalledTimes(1);
+    const submitted = createAppointmentTool.mock.calls[0][0];
+    expect(new Date(submitted.input.startAt).toISOString()).toBe("2026-09-07T14:00:00.000Z");
+    expect(new Date(submitted.input.endAt).toISOString()).toBe("2026-09-07T15:30:00.000Z");
+    expect(submitted.idempotencyKey).toContain("2026-09-07T14:00:00.000Z");
+    expect(conversation.bookingState.appointment).toBe("appointment-1");
     expect(conversation.bookingState.status).toBe("pending_business_confirmation");
     expect(result.result.reply).toMatch(/pending business approval/i);
     expect(result.result.reply).not.toMatch(/you're booked/i);

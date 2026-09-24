@@ -98,17 +98,23 @@ export const extractService = (text, { lead = null, conversation = null } = {}) 
   if (known && !/^unknown$/i.test(known)) {
     const NOUN = "([a-z][a-z'’/-]*(?:\\s+[a-z][a-z'’/-]*){0,3}?)";
     const DET = "(?:the |my |our |a |an )?";
-    const forward = clean(text).match(new RegExp(`\\b(?:(?:it['’]?s|it is|i meant|i mean|make that|actually)[,]?\\s+)+${DET}${NOUN}\\s*(?:,|\\band\\b|\\bbut\\b)?\\s*\\bnot\\s+${DET}${NOUN}(?=\\s*(?:[.,;!?]|$))`, "i"));
-    const reverse = forward ? null : clean(text).match(new RegExp(`\\bnot\\s+${DET}${NOUN}\\s*(?:[,;-]|\\bbut\\b)\\s*(?:it['’]?s|it is|rather|i meant)?\\s*${DET}${NOUN}(?=\\s*(?:[.,;!?]|$))`, "i"));
+    const forward = clean(text).match(new RegExp(`(?:\\b(?:(?:it['’]?s|it is|i meant|i mean|make that|actually)[,]?\\s+)+|^)${DET}${NOUN}\\s*(?:,|\\band\\b|\\bbut\\b)?\\s*\\bnot\\s+${DET}${NOUN}(?=\\s*(?:[.,;!?]|$))`, "i"));
+    const reverse = forward ? null : clean(text).match(new RegExp(`\\bnot\\s+${DET}${NOUN}\\s*(?:[,;-]\\s*(?:but\\s+)?|\\bbut\\b)\\s*(?:it['’]?s|it is|rather|i meant)?\\s*${DET}${NOUN}(?=\\s*(?:[.,;!?]|$))`, "i"));
     const replacement = clean(forward?.[1] || reverse?.[2]);
     const replaced = clean(forward?.[2] || reverse?.[1]);
     if (replacement && replaced && replacement.toLowerCase() !== replaced.toLowerCase()) {
       const escaped = replaced.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const target = new RegExp(`\\b${escaped}\\b`, "i");
+      const accepted = new RegExp(`\\b${replacement.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+      // Preserve replay, including overlapping names such as garage door/opener.
+      // Do not mistake the accepted phrase inside a longer rejected subject.
+      if (accepted.test(known) && (!target.test(known) ||
+          (replacement.toLowerCase().includes(replaced.toLowerCase()) && !target.test(known.replace(accepted, ''))))) return known;
       if (target.test(known)) {
         const corrected = clean(known.replace(target, replacement));
         if (corrected.length >= 3 && corrected.length <= 160) return corrected;
       }
+
     }
   }
   // Keep each clause independent: a question about price cannot swallow a fact.

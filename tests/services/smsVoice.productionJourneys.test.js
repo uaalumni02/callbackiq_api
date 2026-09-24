@@ -247,7 +247,7 @@ test('voice mixed selection and callback retains the chosen time and creates act
 // Keep the real service-area policy in these channel journeys; only persistence
 // is mocked. A missing fixture must never become implicit coverage permission.
 test.each(['sms', 'voice'].flatMap(channel => [
- { channel, area: null, label: 'unconfigured', reply: /coverage.*team review/i },
+ { channel, area: null, label: 'unconfigured', reply: /team.*review.*coverage/i },
  { channel, area: { type: 'zip_codes', zipCodes: ['30303'] }, label: 'outside coverage', reply: /outside.*service area/i },
 ]))('$channel blocks calendar reads for $label', async ({ channel, area, reply }) => {
  ServiceArea.findOne.mockReturnValue(query(area));

@@ -458,7 +458,8 @@ const createCallbackAlert = async ({ session, state, canceled = false }) => {
     },
     { upsert: true, returnDocument: "after" },
   );
-  if (alert) emit("emitAlertCreated", businessId, alert);
+  if (!alert?._id) throw Object.assign(new Error("Callback alert was not persisted."), { code: "STAFF_ACTION_NOT_SAVED" });
+  emit("emitAlertCreated", businessId, alert);
   return alert;
 };
 

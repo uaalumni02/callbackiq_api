@@ -62,3 +62,12 @@ test.each(['takeover','overlap','busy','database_down'])('safety event survives 
  expect(enqueueWebhookWork).toHaveBeenCalledWith(expect.objectContaining({kind:'voice_safety_review',businessId:'b',payload:expect.objectContaining({conversationId:'c'})}));
  expect(withDistributedLease).not.toHaveBeenCalled();expect(operation).not.toHaveBeenCalled();
 });
+
+test('queue failure still gives emergency guidance without a delivery promise',async()=>{
+ const {enqueueWebhookWork}=require('../../src/services/webhooks/webhookWork.service.js');
+ enqueueWebhookWork.mockRejectedValueOnce(new Error('queue unavailable'));
+ const result=await runVoiceConversationTurn({session,customerMessage:'I smell gas',operation,turnId:'queue-failure'});
+ expect(result.reply).toMatch(/911/);expect(result.reply).toMatch(/does not monitor emergencies or dispatch emergency help/i);
+ expect(result.reply).not.toMatch(/(?:team|staff) (?:has been|was) (?:notified|alerted)|help is on the way|dispatching/i);
+ expect(operation).not.toHaveBeenCalled();
+});

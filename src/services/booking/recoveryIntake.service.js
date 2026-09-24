@@ -27,7 +27,7 @@ const clean = value => String(value || '').replace(/\s+/g, ' ').trim();
 const known = value => clean(value) && !/^(unknown|not provided|n\/a)$/i.test(clean(value));
 const leak = /\b(?:leak(?:ing|s)?|overflow(?:ing)?|water spreading)\b/i;
 const active = /\b(?:(?:actively|still|currently) (?:leaking|overflowing)|(?:leaking|overflowing) (?:right now|constantly|continuously|nonstop|all the time)|(?:constantly|continuously) (?:leaking|overflowing)|won't stop leaking|will not stop leaking|overflowing|spreading|gushing|flooding)\b/i;
-const stopped = /\b(?:(?:not|no longer|stopped) (?:leaking|overflowing|flooding|spreading|gushing)|no (?:active )?(?:leak|overflow|flooding)|(?:leak(?:ing)?|overflow(?:ing)?) (?:has )?stopped|only when|only (?:leaks|leaking|overflows|overflowing))\b/i;
+const stopped = /\b(?:(?:not|isn['’]?t|aren['’]?t|no longer|stopped) (?:(?:actively|currently|still) )?(?:leaking|overflowing|flooding|spreading|gushing)|(?:doesn['’]?t|does not) (?:leak|overflow)|no (?:active )?(?:leak(?:ing|s)?|overflow(?:ing)?|flooding)|(?:leak(?:ing)?|overflow(?:ing)?) (?:has )?stopped|only when|only (?:leaks|leaking|overflows|overflowing))\b/i;
 const controlMessage = /^(?:stop|unsubscribe|help|start|unstop)[.! ]*$/i;
 const clogQuestion = 'Is water overflowing or backing up into other fixtures?';
 // Do not re-ask what the customer already answered ("it is not overflowing").
