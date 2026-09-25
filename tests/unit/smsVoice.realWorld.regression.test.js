@@ -93,7 +93,12 @@ test('expired read-only options are refreshed and never submitted',async()=>{
 });
 test('negative time replies cannot select a slot',async()=>{
  const c=context(1);c.lead.serviceNeeded='sink clearing';await c.turn("What's available?");
- await c.turn('not 9 am');expect(Alert.createSystemAlert).not.toHaveBeenCalled();expect(c.conversation.bookingState.status).toBe('offering_slots');
+ const reply=await c.turn('not 9 am');
+ expect(Alert.createSystemAlert).not.toHaveBeenCalled();
+ expect(reply.reply).toMatch(/work instead/i);
+ expect(c.conversation.bookingState.status).toBe('not_started');
+ expect(c.conversation.bookingState.offeredSlots).toEqual([]);
+ expect(c.conversation.bookingState.selectedSlot).toBeNull();
 });
 test('failed availability and failed alert do not claim empty calendar or successful notification',async()=>{
  const c=context(1);c.lead.serviceNeeded='sink clearing';getAvailability.mockRejectedValue(new Error('503'));Alert.createSystemAlert.mockRejectedValue(new Error('database unavailable'));

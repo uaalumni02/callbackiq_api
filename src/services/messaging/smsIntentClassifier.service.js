@@ -175,7 +175,7 @@ export const classifySmsIntent = ({
   let timePreference = null;
   try {
     range = text ? findDateRange(text, timeZone, now) : null;
-    timePreference = text ? parseTimePreference(text, timeZone) : null;
+    timePreference = text ? parseTimePreference(text, timeZone, now) : null;
   } catch {
     range = null;
     timePreference = null;

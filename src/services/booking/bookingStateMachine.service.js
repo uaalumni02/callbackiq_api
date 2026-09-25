@@ -1,3 +1,4 @@
+import { schedulingEvidence } from './schedulingEvidence.service.js';
 import { customerAppointmentLabel, renderAppointmentResponse } from '../scheduling/customerAppointmentPresentation.service.js';
 import { handleConversationControl } from '../conversationControl.service.js';
 import { extractCustomerAddress, resolveRequestAddress, normalizeSpokenAddress, extractCustomerPostalCode, withoutCustomerPostalCode } from './customerAddress.service.js';
@@ -560,6 +561,33 @@ class BookingStateMachineService {
 
     const questionReply = bookingQuestionReply({ customerMessage: text, conversation });
     if (questionReply) return { handled: true, result: fixedResult({ reply: questionReply, category: "appointment_status" }) };
+
+    const evidence = schedulingEvidence(text);
+    const timezone = business.timezone || 'America/New_York';
+    const acceptedTime = parseTimePreference(text, timezone);
+    if ((evidence.rejectedDate && !findDateRange(text, timezone)) ||
+        (evidence.rejectedTime && acceptedTime.targetMinutes === null && !acceptedTime.timeOfDay)) {
+      // Rejected proposals must not remain selectable on the next "yes".
+      if (lead?.save && !conversation?.bookingState?.appointment) {
+        const range = evidence.rejectedDate ? findDateRange(text, timezone) : findDateRange(lead.preferredAppointmentTime, timezone);
+        const time = evidence.rejectedTime ? acceptedTime : parseTimePreference(lead.preferredAppointmentTime, timezone);
+        const day = range ? range.startDate === range.endDate ? range.startDate : `${range.startDate} through ${range.endDate}` : '';
+        const clock = time.exactMinutes !== null ? `${Math.floor(time.exactMinutes / 60)}:${String(time.exactMinutes % 60).padStart(2, '0')}`
+          : time.targetMinutes !== null || time.timeOfDay ? time.raw : '';
+        assertVoiceTurnActive(); assertDistributedLeaseActive();
+        lead.preferredAppointmentTime = [day, clock].filter(Boolean).join(' at ');
+        await lead.save();
+      }
+      if (conversation?.set && !conversation.bookingState?.appointment) {
+        await updateState(conversation, { offeredSlots: [], selectedSlot: null,
+          status: enabled ? 'collecting_preference' : 'not_started', expiresAt: null,
+          searchStartDate: null, searchEndDate: null, lastCustomerPreference: '',
+          lastError: 'customer_rejected_preference' });
+      }
+      return { handled: true, result: fixedResult({ reply:
+        `What day and time would work instead?${conversation?.bookingState?.appointment ? ' Your existing appointment has not been changed.' : ' No appointment is confirmed.'}`,
+        category: 'appointment_preference' }) };
+    }
 
     if (!enabled) {
       const smsIntent = classifySmsIntent({

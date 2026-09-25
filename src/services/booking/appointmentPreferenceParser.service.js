@@ -1,3 +1,4 @@
+import { schedulingEvidence } from './schedulingEvidence.service.js';
 const DAY_MS = 86_400_000;
 
 const MONTHS = {
@@ -217,6 +218,7 @@ const parseExplicitCalendarDate = (text, todayKey) => {
 };
 
 export const findDateRange = (message, timeZone = "America/New_York", now = new Date()) => {
+  message = schedulingEvidence(message).text;
   // FIX: explicit ISO booking date ranges
   const explicitIsoRangeForBookingWindow = String(message || "")
     .trim()
@@ -464,7 +466,7 @@ export const parseTimePreference = (
   timeZone = "America/New_York",
   now = new Date(),
 ) => {
-  const text = normalizeText(message);
+  const text = normalizeText(schedulingEvidence(message).text);
   // Dates must not accidentally become clock ranges (2026-09-09 -> 09-09).
   const timeText = normalizeTimeWords(text.replace(/\b20\d{2}-\d{1,2}-\d{1,2}\b/g, '').replace(/\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/g, ''));
   const lower = text.toLowerCase();

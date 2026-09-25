@@ -1,3 +1,4 @@
+import { schedulingEvidence } from './schedulingEvidence.service.js';
 import { extractCustomerAddress } from "./customerAddress.service.js";
 import { findDateRange, parseTimePreference } from "./appointmentPreferenceParser.service.js";
 
@@ -31,8 +32,9 @@ export const captureTurnFacts = ({ customerMessage, classification = null, lead 
     const time = parseTimePreference(schedulingText, timezone, now);
     const priorRange = findDateRange(lead?.preferredAppointmentTime || '', timezone, now);
     const priorTime = parseTimePreference(lead?.preferredAppointmentTime || '', timezone, now);
-    const resolvedRange = range || priorRange;
-    const resolvedTime = time?.targetMinutes !== null || time?.timeOfDay ? time : priorTime;
+    const evidence = schedulingEvidence(schedulingText);
+    const resolvedRange = range || (evidence.rejectedDate ? null : priorRange);
+    const resolvedTime = time?.targetMinutes !== null || time?.timeOfDay ? time : evidence.rejectedTime ? null : priorTime;
     const date = resolvedRange
       ? resolvedRange.startDate === resolvedRange.endDate ? resolvedRange.startDate : `${resolvedRange.startDate} through ${resolvedRange.endDate}`
       : "";

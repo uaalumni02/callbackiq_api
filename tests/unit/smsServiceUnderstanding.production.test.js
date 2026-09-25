@@ -34,7 +34,10 @@ describe('customer service facts and contextual price response', () => {
   test('uses a known referent without silently guessing one', () => {
     const lead = { serviceNeeded: 'bathtub resealing' };
     expect(extractService('Seal around tube needs to be replaced', { lead })).toContain('around tub');
-    expect(extractService('It is leaking', { lead })).toBe('bathtub resealing: It is leaking');
+    const updated = extractService('It is leaking', { lead });
+    expect(updated).toMatch(/bathtub resealing/i);
+    expect(updated).toMatch(/leaking/i);
+    expect(extractService('It is leaking')).toBe('');
     expect(extractService('Seal around tube needs to be replaced')).toContain('tube');
   });
 

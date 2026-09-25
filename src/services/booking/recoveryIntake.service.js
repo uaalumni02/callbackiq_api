@@ -1,3 +1,4 @@
+import { schedulingEvidence } from './schedulingEvidence.service.js';
 import { completionClarification, updateRequestQuestions, normalizeRequestService } from './requestQuestionPolicy.service.js';
 import { assessProblemClarity, buildRequestReadiness, requestEvidenceKey } from "./requestQualificationPolicy.service.js";
 import { extractCustomerAddress, addressFromTurn, resolveRequestAddress, isRepeatCorrection, extractCustomerPostalCode } from './customerAddress.service.js';
@@ -151,9 +152,14 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   const schedulingText = address ? clean(text.replace(address, '')) : text;
   const incomingRange = !/^\d{5}(?:-\d{4})?$/.test(schedulingText) ? findDateRange(schedulingText, timezone, now) : null;
   const incomingTime = parseTimePreference(schedulingText, timezone, now);
+  const evidence = schedulingEvidence(schedulingText);
+  const rejectedDateOnly = evidence.rejectedDate && !incomingRange;
+  const rejectedTimeOnly = evidence.rejectedTime && incomingTime.targetMinutes === null && !incomingTime.timeOfDay;
+  if (rejectedDateOnly) state.date = '';
+  if (rejectedTimeOnly) state.time = '';
   if (incomingRange) state.date = incomingRange.startDate === incomingRange.endDate ? incomingRange.startDate : `${incomingRange.startDate} through ${incomingRange.endDate}`;
   if (incomingTime.targetMinutes !== null || incomingTime.timeOfDay) state.time = incomingTime.exactMinutes !== null ? `${Math.floor(incomingTime.exactMinutes / 60)}:${String(incomingTime.exactMinutes % 60).padStart(2, '0')}` : incomingTime.raw.slice(0, 300);
-  if ((!bookingActive || (reviewOnly && !conversation.bookingState?.appointment)) && (state.date || state.time)) lead.preferredAppointmentTime = [state.date, state.time].filter(Boolean).join(' at ');
+  if ((!bookingActive || (reviewOnly && !conversation.bookingState?.appointment)) && (state.date || state.time || evidence.rejected.length)) lead.preferredAppointmentTime = [state.date, state.time].filter(Boolean).join(' at ');
 
   const requestChanged = oldPreference !== (lead.preferredAppointmentTime || '') || oldService !== lead.serviceNeeded || oldAddress !== (lead.address || '');
   if (requestChanged) {
@@ -206,7 +212,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
     if (stoppedEvidence || activeEvidence) { state.triageResolved = true; if (!stoppedEvidence && lead.urgency !== 'emergency') lead.urgency = 'high'; }
     else state.triagePending = true;
   }
-  const understoodAnswer = Boolean((!oldState?.started && known(lead.serviceNeeded)) || known(service) || address || incomingRange ||
+  const understoodAnswer = Boolean(evidence.rejected.length || (!oldState?.started && known(lead.serviceNeeded)) || known(service) || address || incomingRange ||
     incomingTime.targetMinutes !== null || incomingTime.timeOfDay ||
     state.triageResolved !== wasTriageResolved || state.clogResolved !== wasClogResolved || stopped.test(text) || active.test(text));
   // An unanswered field is not proof the customer was unintelligible. Let the
@@ -309,6 +315,20 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
     }
     return result;
   };
+  if (rejectedDateOnly || rejectedTimeOnly) {
+    if (!conversation.bookingState?.appointment) {
+      lead.preferredAppointmentTime = [state.date, state.time].filter(Boolean).join(' at ');
+      conversation.bookingState = { ...conversation.bookingState,
+        offeredSlots: [], selectedSlot: null, expiresAt: null,
+        searchStartDate: null, searchEndDate: null, lastCustomerPreference: '',
+        status: business.features?.aiBookingEnabled ? 'collecting_preference' : 'not_started',
+        lastError: 'customer_rejected_preference' };
+      conversation.markModified?.('bookingState');
+    }
+    state.availability = { status: 'not_checked', reason: 'customer_rejected_preference' };
+    state.reviewReady = false; state.submitted = false;
+    return ask('scheduling_correction', `What ${rejectedDateOnly ? 'day' : 'time'} would work instead?${conversation.bookingState?.appointment ? ' Your existing appointment has not been changed.' : ' No appointment is confirmed.'}`);
+  }
   const postalCode = extractCustomerPostalCode(lead.address);
   if (known(lead.address) && postalCode) {
     try {

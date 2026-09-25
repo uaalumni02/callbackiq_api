@@ -77,6 +77,7 @@ const usageReservation = {
 const disclosureClaim = { _id: "disclosure-claim-1" };
 
 describe("central outbound SMS policy", () => {
+  afterEach(() => jest.useRealTimers());
   const business = {
     _id: "64f000000000000000000001",
     phone: "+14045550100",
@@ -84,6 +85,8 @@ describe("central outbound SMS policy", () => {
   };
 
   beforeEach(() => {
+    jest.useFakeTimers({ doNotFake: ["nextTick", "setImmediate"] });
+    jest.setSystemTime(new Date("2026-09-23T16:00:00Z"));
     jest.clearAllMocks();
     resetTwilioClient();
     process.env.TWILIO_ACCOUNT_SID = "AC_test";

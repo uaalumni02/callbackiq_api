@@ -140,6 +140,22 @@ const handle = ({ conversation = makeConversation(), lead = makeLead(), message 
   });
 
 describe("BookingStateMachineService complete behavior", () => {
+  test.each([true, false])('rejected proposals cannot be confirmed later (automatic booking %s)', async enabled => {
+    const conversation=makeConversation({bookingState:{status:'offering_slots',offeredSlots:[SLOT_1],selectedSlot:SLOT_1}});
+    const result=await handle({conversation,message:"Monday doesn't work",customBusiness:{...business,features:{aiBookingEnabled:enabled}}});
+    expect(result.result.reply).toMatch(/what day and time would work instead/i);
+    expect(conversation.bookingState.offeredSlots).toEqual([]);
+    expect(conversation.bookingState.selectedSlot).toBeNull();
+    expect(createAppointmentTool).not.toHaveBeenCalled();
+  });
+  test('rejecting a date does not silently change an existing appointment', async()=>{
+    const conversation=makeConversation({bookingState:{status:'booked',appointment:'existing'}});
+    const result=await handle({conversation,message:"Monday doesn't work"});
+    expect(result.result.reply).toMatch(/existing appointment has not been changed/i);
+    expect(conversation.bookingState.appointment).toBe('existing');
+    expect(cancelAppointmentTool).not.toHaveBeenCalled();
+    expect(rescheduleAppointmentTool).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     jest.clearAllMocks();
     buildBusinessReadiness.mockResolvedValue({

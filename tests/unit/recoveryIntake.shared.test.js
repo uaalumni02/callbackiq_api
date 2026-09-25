@@ -419,3 +419,34 @@ test.each(['sms', 'voice'])('%s corrected service stays authoritative through tr
   if (channel === 'sms') expect(reply.length).toBeLessThanOrEqual(320);
   else expect(AlertService.createHumanHandoffAlert).toHaveBeenCalledWith(expect.objectContaining({ result: expect.objectContaining({ serviceNeeded: result.serviceNeeded, summary: expect.not.stringMatching(/washing machine/i) }) }));
 });
+
+// Rejected dates are never queried or persisted as accepted preferences.
+test.each(['sms', 'voice'])('%s applies accepted scheduling corrections across turns', async channel => {
+ const c=context(channel); c.now=new Date('2026-09-23T14:00:00Z');
+ c.lead.serviceNeeded='faucet replacement'; c.lead.address='970 Sidney Marcus Blvd NE Atlanta GA 30324';
+ getAvailability.mockResolvedValue({supportedServiceArea:true,slots:[]});
+ await c.turn("I can't do Monday. Friday at 10 am works");
+ expect(c.lead.preferredAppointmentTime).toBe('2026-09-25 at 10:00');
+ expect(getAvailability).toHaveBeenLastCalledWith(expect.objectContaining({startDate:'2026-09-25',endDate:'2026-09-25'}));
+ getAvailability.mockClear();
+ const rejected=await c.turn("Friday doesn't work");
+ expect(rejected.reply).toMatch(/what day would work instead/i);
+ expect(rejected.intakeReady).toBe(false);
+ expect(getAvailability).not.toHaveBeenCalled();
+ expect(c.lead.preferredAppointmentTime).not.toContain('2026-09-25');
+ await c.turn('Next Tuesday at 11 am');
+ expect(c.lead.preferredAppointmentTime).toBe('2026-09-29 at 11:00');
+});
+
+test.each(['sms', 'voice'])('%s clears rejected transient offers in review-only intake', async channel => {
+ const c=context(channel); c.now=new Date('2026-09-23T14:00:00Z');
+ c.lead.serviceNeeded='faucet replacement'; c.lead.address='970 Sidney Marcus Blvd NE Atlanta GA 30324';
+ c.lead.preferredAppointmentTime='2026-09-25 at 10:00';
+ c.conversation.bookingState={status:'offering_slots',offeredSlots:[slot],selectedSlot:slot};
+ AlertService.create=jest.fn().mockResolvedValue({alert:{_id:'review-alert'}});
+ await handleRecoveryIntake({...c,customerMessage:"Friday doesn't work",reviewOnly:true});
+ expect(c.conversation.bookingState.offeredSlots).toEqual([]);
+ expect(c.conversation.bookingState.selectedSlot).toBeNull();
+ expect(c.lead.preferredAppointmentTime).not.toContain('2026-09-25');
+ expect(getAvailability).not.toHaveBeenCalled();
+});

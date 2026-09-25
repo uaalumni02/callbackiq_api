@@ -1,3 +1,5 @@
+import { maintainStaffReviewRecords } from '../../src/services/staffReviewReconciliation.service.js';
+jest.mock('../../src/services/staffReviewReconciliation.service.js', () => ({ maintainStaffReviewRecords: jest.fn().mockResolvedValue({ scanned: 0 }) }));
 import { startOperationsWorker, stopOperationsWorker } from '../../src/workers/operations.worker.js';
 import { readScaleHealth } from '../../src/services/scaleHealth.service.js';
 import { dispatchOpsEvents, setOpsIncident } from '../../src/services/opsPaging.service.js';
@@ -10,6 +12,7 @@ beforeEach(() => { jest.useFakeTimers(); readScaleHealth.mockResolvedValue({ hea
 afterEach(async () => { await stopOperationsWorker(); jest.clearAllMocks(); jest.useRealTimers(); });
 test('independent operations loop recovers work and dispatches through bounded lanes', async () => {
  startOperationsWorker(); startOperationsWorker(); await jest.advanceTimersByTimeAsync(1);
+ expect(maintainStaffReviewRecords).toHaveBeenCalledTimes(1);
  expect(recoverFailedSmsStaffReviews).toHaveBeenCalledTimes(1); expect(dispatchOpsEvents).toHaveBeenCalledTimes(4);
  expect(setOpsIncident).toHaveBeenCalledWith(expect.objectContaining({ active:true, key:'fleet-health' }));
  await stopOperationsWorker(); await jest.advanceTimersByTimeAsync(6000); expect(dispatchOpsEvents).toHaveBeenCalledTimes(4);

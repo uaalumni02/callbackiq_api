@@ -1,3 +1,4 @@
+import { renderAppointmentResponse } from '../../src/services/scheduling/customerAppointmentPresentation.service.js';
 import fs from "fs";
 import path from "path";
 
@@ -19,6 +20,13 @@ describe("Conversation Orchestration v2 contract", () => {
     const booking = read("src/services/booking/bookingStateMachine.service.js");
     expect(booking).toMatch(/AVAILABILITY_HINT/);
     expect(booking).toMatch(/scheduling_no_match_after_three_attempts/);
-    expect(booking).toMatch(/Which works best/);
+    expect(booking).toMatch(/renderAppointmentResponse/);
+    for (const channel of ['sms', 'voice']) {
+      const response = renderAppointmentResponse({kind:'offer',options:'1. Friday at 10 am; 2. Friday at 11 am',requiresApproval:true}, channel);
+      expect(response).toContain('Friday at 10 am');
+      expect(response).toContain('Friday at 11 am');
+      expect(response).toMatch(/approval/i);
+      expect(response).toMatch(channel === 'sms' ? /choose an option/i : /which works/i);
+    }
   });
 });
