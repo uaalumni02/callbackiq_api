@@ -1,5 +1,5 @@
 import { safeConsole } from "../helpers/logging/safeLogger.js";
-import { randomUUID } from "node:crypto";
+import { claimAnalysis, analysisIdentity, analysisUpdate, updateAnalyzedLead } from "../services/conversationIntelligence.persistence.js";
 import { beginValuation, finishValuation } from "../services/valuation/opportunityValuation.service.js";
 import mongoose from "mongoose";
 
@@ -44,7 +44,7 @@ class ConversationIntelligenceController {
         return Response.responseInvalidInput(res, "Invalid conversation ID");
       }
 
-      const { force } = await analyzeConversationSchema.validateAsync(
+      await analyzeConversationSchema.validateAsync(
         req.body || {},
       );
 
@@ -70,18 +70,6 @@ class ConversationIntelligenceController {
         );
       }
 
-      const existing = await Db.getConversationIntelligenceDocument(
-        ConversationIntelligence,
-        conversationId,
-      );
-
-      if (existing?.status === "processing" && !force) {
-        return Response.responseInvalidInput(
-          res,
-          "Conversation analysis is already in progress",
-        );
-      }
-
       const lead = conversation.lead
         ? await Db.getLeadById(Lead, conversation.lead._id || conversation.lead)
         : null;
@@ -95,33 +83,30 @@ class ConversationIntelligenceController {
         );
       }
 
-      const analysisRequestId = randomUUID();
-      await Db.saveConversationIntelligence(ConversationIntelligence, {
-        analysisRequestId,
-        business: business._id,
-        conversation: conversation._id,
-        lead: lead?._id || null,
-        status: "processing",
-        errorMessage: "",
-      });
+      const claim = await claimAnalysis({ businessId: business._id,
+        conversationId: conversation._id, leadId: lead?._id });
+      if (!claim) return Response.responseInvalidInput(res, "Conversation analysis is already in progress");
 
       try {
         const valuationTicket = await beginValuation(lead, business._id);
+        // Reservation itself changes updatedAt. Read a fresh snapshot for guarded lead writes.
+        const analysisLead = lead ? await Db.getLeadById(Lead, lead._id) : null;
         const analysis = await ConversationIntelligenceService.analyze({
           business,
           conversation,
-          lead,
+          lead: analysisLead,
           messages,
         });
 
         const intelligence = await ConversationIntelligence.findOneAndUpdate(
-          { conversation: conversation._id, business: business._id, analysisRequestId },
+          analysisIdentity(claim),
           { $set: {
-            ...analysis,
+            ...analysisUpdate(analysis),
             business: business._id,
             conversation: conversation._id,
             lead: lead?._id || null,
             status: "completed",
+            analysisLeaseExpiresAt: null,
             sourceMessageCount: messages.length,
             lastMessageAnalyzedAt:
               messages[messages.length - 1]?.createdAt || new Date(),
@@ -130,17 +115,11 @@ class ConversationIntelligenceController {
         );
         if (!intelligence) return Response.responseOk(res, null, "A newer analysis superseded this result");
 
-        if (lead) {
-          await Db.updateLead(Lead, lead._id, {
-            summary: intelligence.summary,
-            leadQualityScore: intelligence.buyingLikelihood.score,
-            urgency:
-              intelligence.urgency.level === "normal"
-                ? "medium"
-                : intelligence.urgency.level === "unknown"
-                  ? lead.urgency
-                  : intelligence.urgency.level,
-          });
+        try {
+          await updateAnalyzedLead({ lead: analysisLead, businessId: business._id, analysis });
+        } catch (error) {
+          // The analysis is already durable; ancillary failure must not relabel it failed.
+          safeConsole.error("conversation_intelligence.lead_update_failed", { code: error.code || error.name });
         }
 
         await finishValuation(valuationTicket, { businessId: business._id,
@@ -165,9 +144,10 @@ class ConversationIntelligenceController {
         );
       } catch (analysisError) {
         await ConversationIntelligence.findOneAndUpdate(
-          { conversation: conversationId, business: business._id, analysisRequestId },
+          analysisIdentity(claim),
           {
             status: "failed",
+            analysisLeaseExpiresAt: null,
             errorMessage: "Unable to analyze conversation",
           },
         );

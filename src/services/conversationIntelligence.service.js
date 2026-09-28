@@ -1,3 +1,4 @@
+import { VALID_INTENT_CATEGORIES, VALID_SENTIMENT_LABELS, VALID_URGENCY_LEVELS, VALID_ACTION_TYPES, LEGACY_ACTION_TYPE_ALIASES, VALID_ACTION_PRIORITIES, VALID_OBJECTION_CATEGORIES, VALID_RISK_TYPES, VALID_RISK_SEVERITIES, ANALYSIS_TEXT_LIMITS } from "./conversationIntelligence.contract.js";
 import { safeConsole } from "../helpers/logging/safeLogger.js";
 import ServiceOffering from "../models/serviceOffering.js";
 import { resolveOpportunityValue } from "./valuation/opportunityValue.js";
@@ -20,93 +21,19 @@ const getOpenAIClient = () => {
   if (!openai) {
     openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
+      timeout: 60000,
+      maxRetries: 1,
     });
   }
 
   return openai;
 };
 
-const VALID_INTENT_CATEGORIES = [
-  "repair",
-  "replacement",
-  "maintenance",
-  "inspection",
-  "estimate",
-  "emergency",
-  "appointment",
-  "support",
-  "complaint",
-  "cancellation",
-  "other",
-  "unknown",
-];
 
-const VALID_SENTIMENT_LABELS = [
-  "very_positive",
-  "positive",
-  "neutral",
-  "concerned",
-  "frustrated",
-  "angry",
-  "urgent",
-  "unknown",
-];
 
-const VALID_URGENCY_LEVELS = ["low", "normal", "high", "emergency", "unknown"];
 
-const VALID_ACTION_TYPES = [
-  "call_now",
-  "call_soon",
-  "send_message",
-  "prepare_estimate_for_review",
-  "collect_appointment_preference",
-  "request_appointment_confirmation",
-  "request_information",
-  "assign_team_member",
-  "escalate",
-  "follow_up_later",
-  "close_lead",
-  "none",
-];
 
-const LEGACY_ACTION_TYPE_ALIASES = {
-  send_estimate: "prepare_estimate_for_review",
-  schedule_appointment: "request_appointment_confirmation",
-};
 
-const VALID_ACTION_PRIORITIES = ["low", "medium", "high", "critical"];
-
-const VALID_OBJECTION_CATEGORIES = [
-  "price",
-  "availability",
-  "trust",
-  "timing",
-  "comparison_shopping",
-  "financing",
-  "service_area",
-  "other",
-];
-
-const VALID_RISK_TYPES = [
-  "angry_customer",
-  "safety_hazard",
-  "hazardous_diy_request",
-  "possible_spam",
-  "automation_loop",
-  "legal_threat",
-  "cancellation_risk",
-  "competitor_comparison",
-  "payment_concern",
-  "sensitive_data",
-  "privacy_concern",
-  "service_area_issue",
-  "prompt_injection",
-  "off_topic",
-  "unverified_commitment",
-  "other",
-];
-
-const VALID_RISK_SEVERITIES = ["low", "medium", "high", "critical"];
 
 const toBoundedInteger = (value, fallback, minimum, maximum) => {
   const parsedValue = Number.parseInt(value, 10);
@@ -149,29 +76,16 @@ const normalizePercentageScore = (value) => {
     return 0;
   }
 
-  /*
-   * AI models may occasionally return probabilities on a 0–1 scale
-   * even when instructed to return percentages. Convert fractional
-   * probability values to CallBackIQ's required 0–100 scale.
-   *
-   * Examples:
-   * 0.8 becomes 80
-   * 1 becomes 100
-   * 85 remains 85
-   */
-  if (numericValue > 0 && numericValue <= 1) {
-    return Math.round(numericValue * 100);
-  }
-
+  // The structured-output contract specifies percentages, including 0 and 1.
   return Math.round(Math.min(100, Math.max(0, numericValue)));
 };
 
-const cleanString = (value, fallback = "") => {
+const cleanString = (value, fallback = "", maximum = ANALYSIS_TEXT_LIMITS.explanation) => {
   if (typeof value !== "string") {
     return fallback;
   }
 
-  return value.trim();
+  return value.trim().slice(0, maximum);
 };
 
 const cleanStringArray = (value, maximumItems = 10) => {
@@ -181,7 +95,7 @@ const cleanStringArray = (value, maximumItems = 10) => {
 
   return value
     .filter((item) => typeof item === "string")
-    .map((item) => item.trim())
+    .map((item) => cleanString(item))
     .filter(Boolean)
     .slice(0, maximumItems);
 };
@@ -231,7 +145,7 @@ const getLikelihoodLevel = (score) => {
 const getUrgencyScore = (level, proposedScore) => {
   const score = normalizePercentageScore(proposedScore);
 
-  if (score > 0) {
+  if (proposedScore !== null && proposedScore !== undefined && Number.isFinite(Number(proposedScore))) {
     return score;
   }
 
@@ -247,7 +161,7 @@ const getUrgencyScore = (level, proposedScore) => {
 };
 
 const buildReadableAction = (action, actionType) => {
-  const cleanedAction = cleanString(action);
+  const cleanedAction = cleanString(action, "", ANALYSIS_TEXT_LIMITS.action);
 
   /*
    * The AI may occasionally place the enum classification in the
@@ -375,7 +289,6 @@ const buildBusinessContext = (business) => {
     state: cleanString(business?.state),
 
 
-
     capabilities: buildBusinessCapabilities(business),
 
     verifiedFacts: buildVerifiedBusinessFacts(business),
@@ -395,7 +308,6 @@ const buildLeadContext = (lead) => {
     urgency: cleanString(lead.urgency),
 
     preferredAppointmentTime: cleanString(lead.preferredAppointmentTime),
-
 
 
     status: cleanString(lead.status),
@@ -738,6 +650,7 @@ const normalizeAnalysis = (analysis, business) => {
     : [];
 
   if (sanitizedSuggestedMessage.usedFallback) {
+    normalizedRiskFlags.splice(9);
     normalizedRiskFlags.push({
       type: "unverified_commitment",
       severity: "medium",
@@ -746,10 +659,10 @@ const normalizeAnalysis = (analysis, business) => {
   }
 
   return {
-    summary: cleanString(analysis?.summary),
+    summary: cleanString(analysis?.summary, "", ANALYSIS_TEXT_LIMITS.summary),
 
     customerIntent: {
-      primary: cleanString(analysis?.customerIntent?.primary, "Unknown"),
+      primary: cleanString(analysis?.customerIntent?.primary, "Unknown", ANALYSIS_TEXT_LIMITS.intent),
 
       category: enumValue(
         analysis?.customerIntent?.category,
@@ -757,7 +670,7 @@ const normalizeAnalysis = (analysis, business) => {
         "unknown",
       ),
 
-      serviceType: cleanString(analysis?.customerIntent?.serviceType),
+      serviceType: cleanString(analysis?.customerIntent?.serviceType, "", ANALYSIS_TEXT_LIMITS.intent),
     },
 
     sentiment: {
@@ -821,16 +734,13 @@ const normalizeAnalysis = (analysis, business) => {
               ),
             ),
 
-      suggestedMessage: sanitizedSuggestedMessage.reply,
+      suggestedMessage: cleanString(sanitizedSuggestedMessage.reply, "", ANALYSIS_TEXT_LIMITS.suggestedMessage),
 
       suggestedMessageGuardrail: {
         usedFallback: sanitizedSuggestedMessage.usedFallback,
         violations: sanitizedSuggestedMessage.violations,
       },
 
-      completed: false,
-      completedAt: null,
-      outcome: "",
     },
 
     objections: Array.isArray(analysis?.objections)
@@ -872,27 +782,8 @@ const validateMeaningfulAnalysis = (analysis) => {
     errors.push("summary is missing");
   }
 
-  if (
-    !analysis.customerIntent.primary ||
-    analysis.customerIntent.primary === "Unknown"
-  ) {
-    errors.push("customer intent is missing");
-  }
-
-  if (analysis.customerIntent.category === "unknown") {
-    errors.push("customer intent category is unknown");
-  }
-
   if (!analysis.nextBestAction.action) {
     errors.push("next best action is missing");
-  }
-
-  if (analysis.nextBestAction.actionType === "none") {
-    errors.push("next best action type is missing");
-  }
-
-  if (analysis.overallConfidence <= 0) {
-    errors.push("overall confidence is invalid");
   }
 
   if (errors.length > 0) {
@@ -1109,7 +1000,7 @@ NEXT BEST ACTION RULES:
     const supported = ["owner", "service_catalog", "historical"].includes(valuation.valuation.source);
     normalizedAnalysis.estimatedRevenue = { minimum: supported ? valuation.valuation.minimum : null,
       maximum: supported ? valuation.valuation.maximum : null, likely: supported ? valuation.estimatedValue : null,
-      currency: "USD", confidence: 0, basis: valuation.valuation.basis, source: valuation.valuation.source };
+      currency: "USD", confidence: 0, basis: cleanString(valuation.valuation.basis), source: valuation.valuation.source };
     validateMeaningfulAnalysis(normalizedAnalysis);
 
     return normalizedAnalysis;

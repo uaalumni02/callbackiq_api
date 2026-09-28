@@ -1,3 +1,4 @@
+import { VALID_INTENT_CATEGORIES, VALID_SENTIMENT_LABELS, VALID_URGENCY_LEVELS, STORED_ACTION_TYPES, VALID_ACTION_PRIORITIES, VALID_OBJECTION_CATEGORIES, VALID_RISK_TYPES, VALID_RISK_SEVERITIES, ANALYSIS_TEXT_LIMITS } from "../services/conversationIntelligence.contract.js";
 import mongoose from "mongoose";
 
 import * as validate from "../helpers/model/conversationIntelligence.js";
@@ -26,6 +27,7 @@ const ConversationIntelligenceSchema = new Schema(
     },
 
     analysisRequestId: { type: String, default: null },
+    analysisLeaseExpiresAt: { type: Date, default: null },
     status: {
       type: String,
       enum: ["pending", "processing", "completed", "failed"],
@@ -37,7 +39,7 @@ const ConversationIntelligenceSchema = new Schema(
       type: String,
       trim: true,
       default: "",
-      maxlength: 2000,
+      maxlength: ANALYSIS_TEXT_LIMITS.summary,
     },
 
     customerIntent: {
@@ -45,25 +47,12 @@ const ConversationIntelligenceSchema = new Schema(
         type: String,
         trim: true,
         default: "Unknown",
-        maxlength: 200,
+        maxlength: ANALYSIS_TEXT_LIMITS.intent,
       },
 
       category: {
         type: String,
-        enum: [
-          "repair",
-          "replacement",
-          "maintenance",
-          "inspection",
-          "estimate",
-          "emergency",
-          "appointment",
-          "support",
-          "complaint",
-          "cancellation",
-          "other",
-          "unknown",
-        ],
+        enum: VALID_INTENT_CATEGORIES,
         default: "unknown",
         validate: [validate.isValidIntentCategory, "Invalid intent category"],
       },
@@ -72,23 +61,14 @@ const ConversationIntelligenceSchema = new Schema(
         type: String,
         trim: true,
         default: "",
-        maxlength: 200,
+        maxlength: ANALYSIS_TEXT_LIMITS.intent,
       },
     },
 
     sentiment: {
       label: {
         type: String,
-        enum: [
-          "very_positive",
-          "positive",
-          "neutral",
-          "concerned",
-          "frustrated",
-          "angry",
-          "urgent",
-          "unknown",
-        ],
+        enum: VALID_SENTIMENT_LABELS,
         default: "unknown",
         validate: [validate.isValidSentiment, "Invalid sentiment label"],
       },
@@ -104,7 +84,7 @@ const ConversationIntelligenceSchema = new Schema(
         type: String,
         trim: true,
         default: "",
-        maxlength: 500,
+        maxlength: ANALYSIS_TEXT_LIMITS.explanation,
       },
     },
 
@@ -146,7 +126,7 @@ const ConversationIntelligenceSchema = new Schema(
     urgency: {
       level: {
         type: String,
-        enum: ["low", "normal", "high", "emergency", "unknown"],
+        enum: VALID_URGENCY_LEVELS,
         default: "unknown",
         validate: [validate.isValidUrgency, "Invalid intelligence urgency"],
       },
@@ -162,7 +142,7 @@ const ConversationIntelligenceSchema = new Schema(
         type: String,
         trim: true,
         default: "",
-        maxlength: 500,
+        maxlength: ANALYSIS_TEXT_LIMITS.explanation,
       },
     },
 
@@ -205,7 +185,7 @@ const ConversationIntelligenceSchema = new Schema(
         type: String,
         trim: true,
         default: "",
-        maxlength: 500,
+        maxlength: ANALYSIS_TEXT_LIMITS.explanation,
       },
     },
 
@@ -219,19 +199,7 @@ const ConversationIntelligenceSchema = new Schema(
 
       actionType: {
         type: String,
-        enum: [
-          "call_now",
-          "call_soon",
-          "send_message",
-          "send_estimate",
-          "schedule_appointment",
-          "request_information",
-          "assign_team_member",
-          "escalate",
-          "follow_up_later",
-          "close_lead",
-          "none",
-        ],
+        enum: STORED_ACTION_TYPES,
         default: "none",
         validate: [
           validate.isValidActionType,
@@ -241,7 +209,7 @@ const ConversationIntelligenceSchema = new Schema(
 
       priority: {
         type: String,
-        enum: ["low", "medium", "high", "critical"],
+        enum: VALID_ACTION_PRIORITIES,
         default: "medium",
         validate: [
           validate.isValidActionPriority,
@@ -259,7 +227,12 @@ const ConversationIntelligenceSchema = new Schema(
         type: String,
         trim: true,
         default: "",
-        maxlength: 1500,
+        maxlength: ANALYSIS_TEXT_LIMITS.suggestedMessage,
+      },
+
+      suggestedMessageGuardrail: {
+        usedFallback: { type: Boolean, default: false },
+        violations: { type: [String], default: [] },
       },
 
       completed: {
@@ -284,16 +257,7 @@ const ConversationIntelligenceSchema = new Schema(
       {
         category: {
           type: String,
-          enum: [
-            "price",
-            "availability",
-            "trust",
-            "timing",
-            "comparison_shopping",
-            "financing",
-            "service_area",
-            "other",
-          ],
+          enum: VALID_OBJECTION_CATEGORIES,
           required: true,
         },
 
@@ -301,7 +265,7 @@ const ConversationIntelligenceSchema = new Schema(
           type: String,
           trim: true,
           required: true,
-          maxlength: 500,
+          maxlength: ANALYSIS_TEXT_LIMITS.explanation,
         },
       },
     ],
@@ -315,23 +279,13 @@ const ConversationIntelligenceSchema = new Schema(
       {
         type: {
           type: String,
-          enum: [
-            "angry_customer",
-            "safety_hazard",
-            "possible_spam",
-            "legal_threat",
-            "cancellation_risk",
-            "competitor_comparison",
-            "payment_concern",
-            "service_area_issue",
-            "other",
-          ],
+          enum: VALID_RISK_TYPES,
           required: true,
         },
 
         severity: {
           type: String,
-          enum: ["low", "medium", "high", "critical"],
+          enum: VALID_RISK_SEVERITIES,
           required: true,
         },
 
@@ -339,7 +293,7 @@ const ConversationIntelligenceSchema = new Schema(
           type: String,
           trim: true,
           required: true,
-          maxlength: 500,
+          maxlength: ANALYSIS_TEXT_LIMITS.explanation,
         },
       },
     ],
@@ -394,7 +348,7 @@ const ConversationIntelligenceSchema = new Schema(
         type: String,
         trim: true,
         default: "",
-        maxlength: 200,
+        maxlength: ANALYSIS_TEXT_LIMITS.intent,
       },
 
       correctedUrgency: {
