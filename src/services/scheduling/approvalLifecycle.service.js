@@ -1,3 +1,4 @@
+import { repairConfirmedApproval } from './appointmentConfirmation.service.js';
 import Appointment from '../../models/appointment.js';
 import Alert from '../../models/alert.js';
 import Business from '../../models/business.js';
@@ -37,7 +38,7 @@ export async function ensureApprovalReview(appointment, { expired = false } = {}
 }
 
 export async function reconcileApprovalRequests({ businessId = null, limit = 100 } = {}) {
-  const appointments = await Appointment.find({ requiresBusinessApproval: true,
+  const appointments = await Appointment.find({ $and: [{ $or: [{ requiresBusinessApproval: true }, { automaticConfirmationAuthorized: true, source: { $ne: 'sms' } }] }],
     ...(businessId ? { business: businessId } : {}),
     $or: [{ status: { $in: ['confirmed', 'canceled', 'completed', 'no_show', 'rescheduled'] }, 'approvalRecovery.reconciled': { $ne: true } },
       { status: 'failed', approvalDecisionAt: { $ne: null }, 'approvalRecovery.reconciled': { $ne: true } },
@@ -49,6 +50,7 @@ export async function reconcileApprovalRequests({ businessId = null, limit = 100
     const expired = appointment.status === 'failed';
     try {
       if (appointment.status !== 'held' && !(appointment.status === 'failed' && !appointment.approvalDecisionAt && /hold expired/i.test(appointment.failureReason || ''))) {
+        if (appointment.status === 'confirmed') await repairConfirmedApproval({ appointment });
         await resolveApprovalReview(appointment);
         await Appointment.updateOne({ _id: appointment._id, status: appointment.status }, { $set: { 'approvalRecovery.reconciled': true, 'approvalRecovery.state': 'resolved' } });
         repaired++; continue;

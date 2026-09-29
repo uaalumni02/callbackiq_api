@@ -1,3 +1,4 @@
+import ServiceOffering from '../../src/models/serviceOffering.js';
 import Appointment from '../../src/models/appointment.js';
 import Alert from '../../src/models/alert.js';
 import Business from '../../src/models/business.js';
@@ -10,9 +11,10 @@ jest.mock('../../src/models/business.js',()=>({__esModule:true,default:{findById
 jest.mock('../../src/models/conversation.js',()=>({__esModule:true,default:{updateOne:jest.fn()}}));
 jest.mock('../../src/services/socket.service.js',()=>({__esModule:true,default:{emitAlertUpdated:jest.fn()}}));
 jest.mock('../../src/services/scheduling/appointmentNotification.service.js',()=>({scheduleAppointmentChangeNotice:jest.fn()}));
+jest.mock('../../src/models/serviceOffering.js',()=>({__esModule:true,default:{findById:jest.fn()}}));
 let request;
 beforeEach(()=>{
- jest.clearAllMocks();request={_id:'a1',business:'b1',conversation:'c1',requiresBusinessApproval:true,status:'failed',failureReason:'Appointment hold expired before confirmation.',heldExpiresAt:new Date(Date.now()-60000),approvalRecovery:{expiredAt:new Date()}};
+ jest.clearAllMocks();ServiceOffering.findById.mockResolvedValue({name:'Inspection'});request={_id:'a1',business:'b1',conversation:'c1',requiresBusinessApproval:true,status:'failed',failureReason:'Appointment hold expired before confirmation.',heldExpiresAt:new Date(Date.now()-60000),approvalRecovery:{expiredAt:new Date()}};
  Appointment.find.mockImplementation(()=>({sort:()=>({limit:()=>({lean:async()=>[request]})})}));
  Appointment.findById.mockImplementation(()=>({lean:async()=>request}));Appointment.updateOne.mockResolvedValue({modifiedCount:1});
  Business.findById.mockReturnValue({select:()=>({lean:async()=>({owner:'u1'})})});
@@ -35,5 +37,21 @@ test('old reservations recovered after an outage do not send stale customer text
  request.heldExpiresAt=new Date(Date.now()-3*86400000);await reconcileApprovalRequests();expect(scheduleAppointmentChangeNotice).not.toHaveBeenCalled();expect(Alert.findOneAndUpdate).toHaveBeenCalled();
 });
 test('terminal decision repairs unresolved approval alerts',async()=>{
- request.status='confirmed';await reconcileApprovalRequests();expect(Alert.updateMany).toHaveBeenCalledWith(expect.anything(),expect.objectContaining({$set:expect.objectContaining({actionRequired:false,'metadata.approvalState':'confirmed'})}));expect(scheduleAppointmentChangeNotice).not.toHaveBeenCalled();
+ request.status='canceled';await reconcileApprovalRequests();expect(Alert.updateMany).toHaveBeenCalledWith(expect.anything(),expect.objectContaining({$set:expect.objectContaining({actionRequired:false,'metadata.approvalState':'canceled'})}));expect(scheduleAppointmentChangeNotice).not.toHaveBeenCalled();
+});
+
+test('crash after confirmed save repairs the same notice before resolving recovery',async()=>{
+ request.status='confirmed';request.startAt=new Date(Date.now()+86400000);
+ expect(await reconcileApprovalRequests()).toEqual({repaired:1});
+ expect(scheduleAppointmentChangeNotice).toHaveBeenCalledWith(expect.objectContaining({key:'business_approval_confirmed'}));
+ expect(scheduleAppointmentChangeNotice.mock.invocationCallOrder[0]).toBeLessThan(Appointment.updateOne.mock.invocationCallOrder[0]);
+ expect(Conversation.updateOne).toHaveBeenCalledWith(expect.objectContaining({business:'b1','bookingState.appointment':'a1'}),expect.anything());
+});
+test('confirmed notice enqueue failure cannot mark recovery complete',async()=>{
+ request.status='confirmed';request.startAt=new Date(Date.now()+86400000);
+ scheduleAppointmentChangeNotice.mockRejectedValueOnce(new Error('outbox unavailable'));
+ expect(await reconcileApprovalRequests()).toEqual({repaired:0});
+ expect(Alert.updateMany).not.toHaveBeenCalled();
+ expect(Appointment.updateOne).toHaveBeenCalledWith({_id:'a1'},{$set:{'approvalRecovery.lastError':'outbox unavailable'}});
+ expect(await reconcileApprovalRequests()).toEqual({repaired:1});
 });

@@ -1,3 +1,4 @@
+import { confirmationNoticeState } from './scheduling/appointmentConfirmationState.js';
 import crypto from 'node:crypto';
 import mongoose from 'mongoose';
 import Alert from '../models/alert.js';
@@ -60,7 +61,7 @@ export async function listBusinessRequests({ businessId, query }) {
   }
   if(query.resolved==='true') match.resolvedAt={$ne:null}; else if(query.resolved!=='all') match.resolvedAt=null;
   match.type={$in:['human_requested','safety_emergency','angry_customer','low_ai_confidence','booking_conflict','integration_failure','message_delivery_failure','unanswered_hot_lead','appointment_canceled','appointment_change_review','system','hot_lead']};
-  match.$or=[{type:{$nin:['system','hot_lead']}},{type:'hot_lead',priority:'critical'},{type:'system',priority:'critical',$or:[{'metadata.messageCategory':'emergency'},{'metadata.riskFlags':{$in:['safety_hazard','hazardous_diy_request']}}]}];
+  match.$or=[{'metadata.approvalRequest':true},{type:{$nin:['system','hot_lead']}},{type:'hot_lead',priority:'critical'},{type:'system',priority:'critical',$or:[{'metadata.messageCategory':'emergency'},{'metadata.riskFlags':{$in:['safety_hazard','hazardous_diy_request']}}]}];
   const ordinary = {$and:[{$eq:['$type','human_requested']},{$regexMatch:{input:{$ifNull:['$dedupeKey','']},regex:'^(ai_review|human_handoff|request_review):'}},
     {$not:[{$in:['$metadata.messageCategory',['emergency','hazardous_diy_request']]}]},
     {$eq:[{$size:{$setIntersection:[{$ifNull:['$metadata.riskFlags',[]]},['safety_hazard','hazardous_diy_request']]}},0]}]};
@@ -100,19 +101,20 @@ export async function readRequestWorkflow({businessId,alertId,session=null}) {
     if(candidates.length>250) throw fail('This conversation has too many legacy reviews for automatic consolidation. Review it with support.');
     members=candidates.filter(row=>reviewJourney(row,conversation)===journey && id(row.lead)===id(alert.lead));
   }
-  const apptId=conversation?.bookingState?.appointment || alert.appointment;
+  const apptId=alert.metadata?.approvalRequest ? alert.appointment : conversation?.bookingState?.appointment || alert.appointment;
   const appointment=apptId?await Appointment.findOne({_id:apptId,business:businessId,conversation:alert.conversation}).session(session).lean():null;
   const latestOutbound=conversation?await Message.findOne({business:businessId,conversation:conversation._id,direction:'outbound'}).sort({createdAt:-1,_id:-1})
     .select('body status deliveryStatus deliveryUncertain createdAt').session(session).lean():null;
   const confirmationJob=appointment?await AppointmentNotificationJob.findOne({business:businessId,appointment:appointment._id,key:'change_notice:business_approval_confirmed'}).session(session).lean():null;
   const confirmationMessage=confirmationJob?.providerMessageId?await Message.findOne({business:businessId,conversation:alert.conversation,direction:'outbound',providerMessageId:confirmationJob.providerMessageId}).select('status deliveryStatus deliveryUncertain createdAt').session(session).lean():null;
-  const confirmationNotice=confirmationJob?{status:confirmationJob.status,deliveryStatus:confirmationMessage?.deliveryUncertain?'unverified':confirmationMessage?.deliveryStatus||confirmationMessage?.status||'unverified',sentAt:confirmationJob.sentAt}:null;
+  const confirmationNotice=appointment?confirmationNoticeState(appointment,confirmationJob,confirmationMessage):null;
   const data={review:combinedReview(members),members,conversation,lead,appointment,latestOutbound,confirmationNotice,journey};
   data.version=workflowVersion(data);
   return data;
 }
 
 export function validateOutcome(input, snapshot, now=new Date()) {
+  if (snapshot.review.metadata?.approvalRequest) throw fail('Approve or decline the appointment before closing its review.');
   const allowed=ordinaryReview(snapshot.review)?['booked','customer_declined','unable_to_service','follow_up']:['issue_resolved','follow_up'];
   if(!allowed.includes(input.outcome)) throw fail('Choose an outcome for this type of request.',400);
   if(typeof input.reason!=='string'||input.reason.trim().length<5||input.reason.trim().length>1000) throw fail('Enter a reason of 5–1000 characters.',400);

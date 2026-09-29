@@ -1,3 +1,4 @@
+import { ensureBusinessApprovalNotice, repairConfirmedApproval } from './appointmentConfirmation.service.js';
 import { runApprovalSms } from './approvalSms.service.js';
 import { arrivalWindow, customerAppointmentLabel } from './customerAppointmentPresentation.service.js';
 import { reconcileApprovalRequests, resolveApprovalReview } from './approvalLifecycle.service.js';
@@ -57,16 +58,7 @@ const normalizeAddress = (address = {}) => ({
 
 const formatCustomerAppointmentTime = (appointment, business) => customerAppointmentLabel(appointment, appointment.timezone || business.timezone);
 
-export const ensureBusinessApprovalNotice = async ({ appointment, business, service = null }) => {
-  if (appointment.status !== "confirmed" || (!appointment.requiresBusinessApproval && !appointment.automaticConfirmationAuthorized)) return null;
-  // The durable SMS turn already delivers the immediate automatic confirmation.
-  // Manual approval and voice bookings still need their separate customer notice.
-  if (appointment.automaticConfirmationAuthorized && appointment.source === 'sms' && !appointment.requiresBusinessApproval) return null;
-  const offering = service || await ServiceOffering.findById(appointment.serviceOffering);
-  return scheduleAppointmentChangeNotice({ appointment, key: "business_approval_confirmed",
-    body: `${business.businessName || "The service team"}: Confirmed — your ${offering?.name || "service"} appointment is scheduled for ${formatCustomerAppointmentTime(appointment, business)}. Reply here if you need to reschedule or cancel.`,
-  });
-};
+export { ensureBusinessApprovalNotice } from './appointmentConfirmation.service.js';
 
 const getSlotKey = (startAt, endAt) =>
   `${new Date(startAt).toISOString()}|${new Date(endAt).toISOString()}`;
@@ -478,7 +470,10 @@ class AppointmentService {
     if (!approvedBy) throw Object.assign(new Error('Staff approval is required.'), { statusCode: 403 });
     const lease = await withDistributedLease(`appointment-approval:${appointmentId}`, async () => {
       let appointment = await getAppointmentForBusiness(business._id, appointmentId);
-      if (appointment.status === 'confirmed') return appointment;
+      if (appointment.status === 'confirmed') {
+        await repairConfirmedApproval({ appointment, business });
+        return appointment;
+      }
       if (!(appointment.status === 'held' || (appointment.requiresBusinessApproval === true && appointment.status === 'failed' && /hold expired/i.test(appointment.failureReason)))) {
         throw Object.assign(new Error('This appointment is not awaiting approval.'), { statusCode: 409 });
       }

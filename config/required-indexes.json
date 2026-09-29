@@ -438,6 +438,16 @@
   {
     "collection": "appointments",
     "key": {
+      "requiresBusinessApproval": 1,
+      "approvalRecovery.reconciled": 1,
+      "status": 1,
+      "updatedAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "appointments",
+    "key": {
       "business": 1,
       "requiresBusinessApproval": 1,
       "status": 1,
@@ -485,6 +495,37 @@
     "key": {
       "business": 1,
       "completedAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "appointments",
+    "key": {
+      "business": 1,
+      "startAt": 1,
+      "_id": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "appointments",
+    "key": {
+      "business": 1,
+      "requiresBusinessApproval": 1,
+      "approvalDecisionAt": 1,
+      "status": 1,
+      "startAt": 1,
+      "_id": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "appointments",
+    "key": {
+      "automaticConfirmationAuthorized": 1,
+      "approvalRecovery.reconciled": 1,
+      "status": 1,
+      "updatedAt": 1
     },
     "options": {}
   },

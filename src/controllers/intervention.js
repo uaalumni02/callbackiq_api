@@ -142,6 +142,7 @@ class InterventionController {
       const filter = {
         business: business._id,
         $or: [
+          { 'metadata.approvalRequest': true, actionRequired: true },
           { type: { $in: INTERVENTION_TYPES } },
           {
             type: "system",
@@ -370,6 +371,11 @@ class InterventionController {
       });
 
       if (!existing) return sendNotFound(res);
+      if (existing.metadata?.approvalRequest && !existing.resolvedAt) {
+        return res.status(409).json({ success: false,
+          message: "Approve or decline the appointment before closing its review." });
+      }
+
 
       if (existing.resolvedAt) {
         const current = await populate(

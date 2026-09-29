@@ -79,7 +79,7 @@ describe("authoritative owner journey", () => {
     });
   });
 
-  test("held approval remains in Appointments instead of Needs Attention", () => {
+  test("held approval requires owner attention until decided", () => {
     const action = nextActionFor({
       business: { features: { aiBookingEnabled: true } },
       lead: { status: "contacted" },
@@ -94,7 +94,7 @@ describe("authoritative owner journey", () => {
 
     expect(action).toMatchObject({
       kind: "approval",
-      requiresOwner: false,
+      requiresOwner: true,
       actionRequired: true,
     });
   });

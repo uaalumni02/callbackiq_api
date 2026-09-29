@@ -322,7 +322,7 @@ describe("Phase 9 completion gate using production voice orchestration", () => {
       customerMessage: "first",
     });
 
-    expect(selectionReply.reply).toMatch(/say yes to submit/i);
+    expect(selectionReply.reply).toMatch(/business approval required.*is that correct/i);
 
     const bookingReply = await VoiceAgentService.handlePrompt({
       session,

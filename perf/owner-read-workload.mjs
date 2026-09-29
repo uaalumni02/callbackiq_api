@@ -2,17 +2,26 @@ import crypto from 'node:crypto';
 const missingSearch = encodeURIComponent(`scale-no-match-${crypto.randomUUID()}`);
 // Response correctness checks shared by the mixed workload. Manifest IDs refer
 // only to dedicated staging fixtures; never write returned customer data to logs.
-export const OWNER_READ_ROUTES = ['opportunities-ready', 'opportunities-waiting', 'opportunities-needs-me', 'opportunities', 'customer-detail', 'lead-search', 'call-search', 'conversation-search', 'customer-history', 'lead-search-miss', 'call-search-miss', 'conversation-search-miss'];
+export const OWNER_READ_ROUTES = ['requests', 'appointments', 'opportunities-ready', 'opportunities-waiting', 'opportunities-needs-me', 'opportunities', 'customer-detail', 'lead-search', 'call-search', 'conversation-search', 'customer-history', 'lead-search-miss', 'call-search-miss', 'conversation-search-miss'];
 export async function exerciseOwnerReads({ get, tenant, observe }) {
   const leadId = tenant.probeLeadId, search = encodeURIComponent(tenant.probeSearch);
   if (!/^[a-f0-9]{24}$/i.test(leadId || '') || !tenant.probeSearch) throw new Error('Each staging tenant needs probeLeadId and probeSearch');
-  const probe = async (name, path, check) => {
+  const probe = async (name, path, check, envelope = false) => {
     const start = performance.now();
-    try { const result = await get(path, tenant.token); check(result.data); observe(name, performance.now() - start, true); return result.data; }
+    try { const result = await get(path, tenant.token); check(envelope ? result : result.data); observe(name, performance.now() - start, true); return envelope ? result : result.data; }
     catch (error) { observe(name, performance.now() - start, false); throw error; }
   };
   const assert = value => { if (!value) throw new Error('Owner read correctness check failed'); };
   const owned = record => String(record.business?._id || record.business) === tenant.businessId;
+  await probe('requests', '/api/interventions?view=requests&resolved=false', result => {
+    assert(Array.isArray(result.data) && result.data.length <= 50 && result.data.every(owned) && Number.isFinite(result.total));
+  }, true);
+  const appointmentPage = await probe('appointments', '/api/appointments?view=all&pageSize=25', result => {
+    assert(Array.isArray(result.data) && result.data.length <= 25 && result.data.every(owned) && result.pagination && Number.isFinite(result.summary?.pendingApprovals));
+  }, true);
+  if (appointmentPage.pagination.nextCursor) await probe('appointments', `/api/appointments?view=all&pageSize=25&cursor=${encodeURIComponent(appointmentPage.pagination.nextCursor)}`, result => {
+    assert(Array.isArray(result.data) && result.data.length <= 25 && result.data.every(owned) && !result.data.some(item => appointmentPage.data.some(first => first._id === item._id)));
+  }, true);
   const page = await probe('opportunities', '/api/owner/opportunities?view=all&limit=20', data => {
     assert(Array.isArray(data?.items) && data.items.length <= 20 && data.pagination && Number(data.pagination.total) >= Math.max(1000, Number(tenant.minimumLeadCount || 1000)));
   });

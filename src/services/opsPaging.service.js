@@ -47,18 +47,20 @@ export async function setOpsIncident({ key, active, reason, alert, business }) {
 
 export async function reconcileOpsAlerts({ now = new Date(), limit = 100 } = {}) {
   if (!enabled()) return;
-  const alerts = await Alert.find({ ...unresolved, priority: { $in: ['high', 'critical'] },
-    'metadata.opsNotification': { $exists: false }, $or: [
+  const alerts = await Alert.find({ ...unresolved, $and: [{ $or: [{ priority: { $in: ['high', 'critical'] } }, { 'metadata.approvalRequest': true }] },
+      { $or: [{ 'metadata.opsNotification': { $exists: false } }, { 'metadata.opsNotification.action': 'resolve' }] }], $or: [
       { dueAt: { $ne: null, $lte: now } },
       { dueAt: null, createdAt: { $lte: new Date(now - 300000) } },
       { 'metadata.staffNotification.initial.status': { $in: ['failed', 'uncertain'] } },
       { 'metadata.staffNotification.overdue.status': { $in: ['failed', 'uncertain'] } },
+      { 'metadata.staffNotification.expired.status': { $in: ['failed', 'uncertain'] } },
+      ...['initial', 'overdue', 'expired'].map(stage => ({ [`metadata.approvalSms.${stage}.state`]: { $in: ['failed', 'uncertain'] } })),
     ],
   }).sort({ dueAt: 1, _id: 1 }).limit(limit).select('_id business').lean();
   for (const alert of alerts) {
     await setOpsIncident({ key: `review:${alert._id}`, active: true, reason: 'unacknowledged_customer_review', alert: alert._id, business: alert.business });
-    await Alert.updateOne({ _id: alert._id, ...unresolved, 'metadata.opsNotification': { $exists: false } },
-      { $set: { 'metadata.opsNotification': { status: 'pending', updatedAt: now } } });
+    await Alert.updateOne({ _id: alert._id, ...unresolved,  $or: [{ 'metadata.opsNotification': { $exists: false } }, { 'metadata.opsNotification.action': 'resolve' }] },
+      { $set: { 'metadata.opsNotification': { status: 'pending', action: 'trigger', updatedAt: now } } });
   }
   // Rotate fairly through open incidents, including ones whose page was accepted.
   const incidents = await Incident.find({ desiredAction: 'trigger', alert: { $ne: null } }).sort({ checkedAt: 1, _id: 1 }).limit(limit).lean();

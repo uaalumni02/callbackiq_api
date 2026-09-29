@@ -34,17 +34,21 @@ jest.mock("../../src/services/scheduling/schedulingProviderFactory.js", () => ({
   },
 }));
 
-jest.mock("../../src/services/alert.service.js", () => ({
+jest.mock("../../src/services/alert.service.js", () => {
+  const RealAlertService = jest.requireActual("../../src/services/alert.service.js").default;
+  return {
   __esModule: true,
   default: {
     createMissedCallAlert: jest.fn(),
     createCustomerReplyAlert: jest.fn(),
-    createHumanHandoffAlert: jest.fn().mockResolvedValue(null),
+    // Persist the real review: the processor must never acknowledge an unsaved handoff.
+    createHumanHandoffAlert: jest.fn(input => RealAlertService.createHumanHandoffAlert(input)),
     createAIReviewAlert: jest.fn(),
     createBookedJobAlert: jest.fn(),
     createSystemAlert: jest.fn(() => Promise.resolve({})),
   },
-}));
+  };
+});
 
 jest.mock("../../src/services/socket.service.js", () => ({
   __esModule: true,
@@ -105,6 +109,7 @@ jest.mock("../../src/helpers/businessFeatures.js", () => ({
   isBusinessFeatureEnabled: jest.fn(() => true),
 }));
 
+import Alert from "../../src/models/alert.js";
 import Business from "../../src/models/business.js";
 import Lead from "../../src/models/lead.js";
 import Conversation from "../../src/models/conversation.js";
@@ -204,6 +209,7 @@ describe("CallBackIQ single-customer complete lifecycle", () => {
     mongo = await MongoMemoryServer.create();
 
     await mongoose.connect(mongo.getUri());
+    await Alert.init();
 
     ownerId = new mongoose.Types.ObjectId();
 
@@ -638,6 +644,15 @@ describe("CallBackIQ single-customer complete lifecycle", () => {
       }
       expect(inboundRes.statusCode)
         .toBe(200);
+
+      const reviewConversation = await Conversation.findById(conversation._id).lean();
+      const reviewId = reviewConversation.conversationMemory?.recoveryIntake?.review?.alertId;
+      expect(reviewId).toBeTruthy();
+      const savedReview = await Alert.findOne({
+        _id: reviewId, business: business._id, conversation: conversation._id, lead: lead._id,
+      }).lean();
+      expect(savedReview).toMatchObject({ actionRequired: true, type: "human_requested" });
+      expect(reviewConversation.conversationMemory.recoveryIntake.review.status).toBe("queued");
 
       const leadsAfterReply =
         await Lead.find({

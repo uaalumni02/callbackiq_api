@@ -88,6 +88,7 @@ const ownerInterventionFilter = (businessId) => ({
   business: businessId,
   resolvedAt: null,
   $or: [
+    { 'metadata.approvalRequest': true, actionRequired: true },
     { type: { $in: OWNER_INTERVENTION_TYPES } },
     {
       type: "system",
@@ -221,14 +222,13 @@ const nextActionFor = ({
   const autoBookingEnabled = Boolean(business?.features?.aiBookingEnabled);
   const appointmentStatus = String(appointment?.status || "");
 
-  // Needs Attention is exception-only. A customer ready for ordinary staff
-  // scheduling belongs in the normal Appointments workflow.
+  // Open approval requests and unresolved exceptions both need owner action.
   if (hasOpenIntervention) {
     return {
       kind: "exception",
       label: "Staff action required",
       detail:
-        "CallBackIQ hit an exception that automation cannot safely finish. Review the required action.",
+        "Review the pending request, approval, or exception and record the required action.",
       requiresOwner: true,
       actionRequired: true,
     };
@@ -280,7 +280,7 @@ const nextActionFor = ({
       label: "Appointment approval ready",
       detail:
         "CallBackIQ held a real slot. Review the request and accept or decline it from Appointments.",
-      requiresOwner: false,
+      requiresOwner: true,
       actionRequired: true,
     };
   }
@@ -290,7 +290,7 @@ const nextActionFor = ({
       kind: "appointment",
       label: "Appointment confirmed",
       detail:
-        "The customer and calendar are confirmed. Manage the visit from Appointments.",
+        "The appointment is confirmed. Check customer-message delivery before assuming the customer was notified.",
       requiresOwner: false,
       actionRequired: false,
     };

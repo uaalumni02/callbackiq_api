@@ -1,3 +1,5 @@
+import { listAppointmentPage } from '../services/scheduling/appointmentList.service.js';
+import { presentAppointment, presentAppointments } from '../services/scheduling/appointmentPresentation.service.js';
 import { runStaffSchedulingRequest } from '../services/scheduling/staffSchedulingException.service.js';
 import getOwnedBusiness from "../services/businessScope.service.js";
 import AppointmentService from "../services/scheduling/appointment.service.js";
@@ -22,7 +24,7 @@ class AppointmentController {
       }));
       return res.status(appointment.status === "confirmed" ? 201 : 202).json({
         success: true,
-        data: appointment,
+        data: await presentAppointment(appointment, business._id),
       });
     } catch (error) {
       return next(error);
@@ -32,8 +34,11 @@ class AppointmentController {
   static async list(req, res, next) {
     try {
       const business = await getOwnedBusiness({ user: req.user, requestedBusinessId: req.query.businessId });
+      if (req.query.view || req.query.pageSize || req.query.cursor) {
+        return res.status(200).json({ success: true, ...await listAppointmentPage({ businessId: business._id, query: req.query }) });
+      }
       const appointments = await AppointmentService.list({ businessId: business._id, query: req.query });
-      return res.status(200).json({ success: true, data: appointments });
+      return res.status(200).json({ success: true, data: await presentAppointments(appointments, business._id) });
     } catch (error) {
       return next(error);
     }
@@ -49,7 +54,7 @@ class AppointmentController {
       if (!appointment) {
         return res.status(404).json({ success: false, message: "Appointment not found." });
       }
-      return res.status(200).json({ success: true, data: appointment });
+      return res.status(200).json({ success: true, data: await presentAppointment(appointment, business._id) });
     } catch (error) {
       return next(error);
     }
@@ -63,7 +68,7 @@ class AppointmentController {
         appointmentId: req.params.id,
         changes: req.body,
       });
-      return res.status(200).json({ success: true, data: appointment });
+      return res.status(200).json({ success: true, data: await presentAppointment(appointment, business._id) });
     } catch (error) {
       return next(error);
     }
@@ -77,7 +82,7 @@ class AppointmentController {
         appointmentId: req.params.id,
         approvedBy: req.user?.userId || null,
       });
-      return res.status(200).json({ success: true, data: appointment });
+      return res.status(200).json({ success: true, data: await presentAppointment(appointment, business._id) });
     } catch (error) {
       return next(error);
     }
@@ -95,7 +100,7 @@ class AppointmentController {
         reason: req.body.reason || "",
         declinedBy: req.user?.userId || null,
       });
-      return res.status(200).json({ success: true, data: appointment });
+      return res.status(200).json({ success: true, data: await presentAppointment(appointment, business._id) });
     } catch (error) {
       return next(error);
     }
@@ -109,7 +114,7 @@ class AppointmentController {
         appointmentId: req.params.id,
         reason: req.body.reason || "",
       });
-      return res.status(200).json({ success: true, data: appointment });
+      return res.status(200).json({ success: true, data: await presentAppointment(appointment, business._id) });
     } catch (error) {
       return next(error);
     }
@@ -125,7 +130,7 @@ class AppointmentController {
         ownerValuationAuthorized: true,
         idempotencyKey: getIdempotencyKey(req),
       });
-      return res.status(200).json({ success: true, data: appointment });
+      return res.status(200).json({ success: true, data: await presentAppointment(appointment, business._id) });
     } catch (error) {
       return next(error);
     }
@@ -141,7 +146,7 @@ class AppointmentController {
         appointmentId: req.params.id,
         reviewedBy: req.user.userId,
       });
-      return res.status(200).json({ success: true, data: appointment });
+      return res.status(200).json({ success: true, data: await presentAppointment(appointment, business._id) });
     } catch (error) {
       return next(error);
     }
@@ -158,7 +163,7 @@ class AppointmentController {
         appointmentId: req.params.id,
         reviewedBy: req.user.userId,
       });
-      return res.status(200).json({ success: true, data: appointment });
+      return res.status(200).json({ success: true, data: await presentAppointment(appointment, business._id) });
     } catch (error) {
       return next(error);
     }

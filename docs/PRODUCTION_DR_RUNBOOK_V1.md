@@ -11,6 +11,8 @@ an isolated non-production database.
 - Disable outbound Twilio, Stripe, email, OpenAI, and webhook side effects while
   validating restored data.
 
+See [the concrete backup and manifest verification commands](READINESS_REPAIR_ROLLOUT.md#backup-and-restore). `BACKUP_DIR` and a verified write pause are required; `RESTORE_MANIFEST` is required for restore verification.
+
 ## Rehearsal
 
 1. Create a fresh production-like backup using the existing command:

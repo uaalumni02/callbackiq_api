@@ -168,7 +168,7 @@ test('real voice agent with booking enabled offers, selects, and submits exact s
  expect(createAppointment).toHaveBeenCalledTimes(1);
  expect(new Date(createAppointment.mock.calls[0][0].input.startAt).toISOString()).toBe('2026-09-25T18:00:00.000Z');
  expect(j.conversation().bookingState).toMatchObject({status:'pending_business_confirmation',appointment:'held-voice'});
- expect(result.reply).toMatch(/not confirmed until the team accepts/i);
+ expect(result.reply).toMatch(/pending business approval|not confirmed yet/i);
  record.status='passed';
 });
 jest.mock('../../src/services/automation/automationTrigger.service.js',()=>({__esModule:true,default:{schedule:jest.fn()}}));

@@ -262,6 +262,11 @@ AppointmentSchema.index({ business: 1, conversation: 1, createdAt: -1 });
 AppointmentSchema.index({ business: 1, confirmedAt: -1 });
 AppointmentSchema.index({ business: 1, completedAt: -1 });
 
+// Stable keyset pagination and approval recovery, without changing uniqueness.
+AppointmentSchema.index({ business: 1, startAt: 1, _id: 1 });
+AppointmentSchema.index({ business: 1, requiresBusinessApproval: 1, approvalDecisionAt: 1, status: 1, startAt: 1, _id: 1 });
+AppointmentSchema.index({ automaticConfirmationAuthorized: 1, "approvalRecovery.reconciled": 1, status: 1, updatedAt: 1 });
+
 const Appointment =
   mongoose.models.Appointment || mongoose.model("Appointment", AppointmentSchema);
 

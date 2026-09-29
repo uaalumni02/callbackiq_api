@@ -2,6 +2,7 @@
 // Transport-only simulation: never a production capacity certificate.
 import '../tests/setup/externalProviderSafety.js';
 import http from 'node:http';
+import { normalizeEmergencyNumberForSpeech } from '../src/voice/voiceSpeech.service.js';
 import fs from 'node:fs/promises';
 import { performance } from 'node:perf_hooks';
 import { WebSocket } from 'ws';
@@ -156,7 +157,7 @@ const runClient = async ({ index, socket }) => {
       const reply = waitFor(socket, 'message', raw => {
         const message = JSON.parse(raw.toString());
         if (message.type !== 'text' || !String(message.token).startsWith('Load test reply:')) return false;
-        if (message.token !== `Load test reply: ${prompt}`) throw new Error('Reply identity mismatch');
+        if (message.token !== normalizeEmergencyNumberForSpeech(`Load test reply: ${prompt}`)) throw new Error('Reply identity mismatch');
         return true;
       });
       socket.send(JSON.stringify({ type: 'prompt', voicePrompt: prompt, last: true }));

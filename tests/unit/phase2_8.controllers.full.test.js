@@ -1,3 +1,4 @@
+jest.mock('../../src/services/scheduling/appointmentPresentation.service.js', () => ({ presentAppointment: jest.fn(async item => item), presentAppointments: jest.fn(async items => items) }));
 jest.mock('../../src/models/availabilityException.js', () => ({ __esModule: true, default: { findOneAndUpdate: jest.fn(), updateMany: jest.fn() } }));
 import mongoose from "mongoose";
 import Alert from "../../src/models/alert.js";

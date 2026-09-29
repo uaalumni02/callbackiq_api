@@ -10,7 +10,7 @@ beforeEach(() => {
  jest.spyOn(Work, 'findOne').mockImplementation(() => query(null));
  jest.spyOn(Heartbeat, 'aggregate').mockReturnValue({ option: async () => [] });
  jest.spyOn(Incident, 'countDocuments').mockReturnValue({ maxTimeMS: async () => 0 });
- jest.spyOn(Notification, 'countDocuments').mockReturnValue({ maxTimeMS: async () => 0 });
+ jest.spyOn(Notification, 'aggregate').mockReturnValue({ option: () => Promise.resolve([]) });
 });
 afterEach(() => { jest.restoreAllMocks(); delete process.env.SCALE_PROFILE; });
 test('queue age reflects original receipt time rather than the latest retry', async () => {
@@ -34,4 +34,11 @@ test('fleet health reports unique deployment identities and exposes unrecorded o
   { _id: 'voice', count: 1, releases: ['release'] },
  ] });
  expect(await readScaleHealth()).toMatchObject({capacityPlans:['plan','unrecorded'],images:['image','unrecorded']});
+});
+
+test('unresolved failed approval email is unhealthy even with empty queues', async () => {
+ Notification.aggregate.mockReturnValue({ option: () => Promise.resolve([{count:1}]) });
+ expect(await readScaleHealth()).toMatchObject({ healthy:false, uncertainEmail:1 });
+ const pipeline=Notification.aggregate.mock.calls[0][0];
+ expect(pipeline[1].$lookup.pipeline[0].$match).toMatchObject({actionRequired:true,acknowledgedAt:null,resolvedAt:null});
 });

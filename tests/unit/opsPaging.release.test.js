@@ -59,3 +59,14 @@ test('ordinary database insertion failure is surfaced', async () => {
  Incident.updateOne.mockRejectedValueOnce(new Error('database unavailable'));
  await expect(setOpsIncident({ key:'a', active:true })).rejects.toThrow('database unavailable');
 });
+
+test('medium approval failures and expired notices are eligible for operations paging', async () => {
+ process.env.OPS_PAGING_ENABLED='true';
+ Alert.find.mockReturnValue({sort:()=>({limit:()=>({select:()=>({lean:async()=>[]})})})});
+ Incident.find.mockReturnValue({sort:()=>({limit:()=>({lean:async()=>[]})})});
+ await reconcileOpsAlerts();
+ const filter=Alert.find.mock.calls.at(-1)[0];
+ expect(filter.$and[0].$or).toContainEqual({'metadata.approvalRequest':true});
+ expect(filter.$or).toContainEqual({'metadata.staffNotification.expired.status':{$in:['failed','uncertain']}});
+ expect(filter.$and[1].$or).toContainEqual({'metadata.opsNotification.action':'resolve'});
+});
