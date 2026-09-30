@@ -1,6 +1,6 @@
 import { schedulingEvidence } from './schedulingEvidence.service.js';
 import { extractCustomerAddress } from "./customerAddress.service.js";
-import { findDateRange, parseTimePreference } from "./appointmentPreferenceParser.service.js";
+import { findDateRange, parseTimePreference, formatTimePreferenceLabel } from "./appointmentPreferenceParser.service.js";
 
 const clean = (value) => String(value || "").replace(/\s+/g, " ").trim();
 const known = (value) => clean(value) && !/^(unknown|not provided|n\/a)$/i.test(clean(value));
@@ -39,11 +39,7 @@ export const captureTurnFacts = ({ customerMessage, classification = null, lead 
       ? resolvedRange.startDate === resolvedRange.endDate ? resolvedRange.startDate : `${resolvedRange.startDate} through ${resolvedRange.endDate}`
       : "";
     const hasTime = resolvedTime && (resolvedTime.targetMinutes !== null || resolvedTime.timeOfDay);
-    const timeLabel = hasTime
-      ? resolvedTime.exactMinutes !== null
-        ? `${Math.floor(resolvedTime.exactMinutes / 60)}:${String(resolvedTime.exactMinutes % 60).padStart(2, "0")}`
-        : clean(resolvedTime.raw).slice(0, 300)
-      : "";
+    const timeLabel = hasTime ? formatTimePreferenceLabel(resolvedTime) : "";
     if ((range || time?.targetMinutes !== null || time?.timeOfDay) && (date || timeLabel)) facts.preferredAppointmentTime = [date, timeLabel].filter(Boolean).join(" at ");
   } catch {
     // Timing is optional evidence; never let parsing block a safety reply.

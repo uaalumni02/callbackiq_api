@@ -1,0 +1,60 @@
+{
+  "anchorNow": "2026-09-29T16:00:00-04:00",
+  "timezone": "America/New_York",
+  "scheduling": [
+    {"text":"this Friday at 10","date":"2026-10-02","time":"10:00 AM"},
+    {"text":"next Friday at 10","date":"2026-10-09","time":"10:00 AM"},
+    {"text":"Friday next week at 10","date":"2026-10-09","time":"10:00 AM"},
+    {"text":"Friday of next week at 10","date":"2026-10-09","time":"10:00 AM"},
+    {"text":"the Friday after next at 10","date":"2026-10-16","time":"10:00 AM"},
+    {"text":"next Tuesday after 3","date":"2026-10-06","time":"after 3:00 PM"},
+    {"text":"tomorrow at 3","date":"2026-09-30","time":"3:00 PM"},
+    {"text":"day after tomorrow at 4","date":"2026-10-01","time":"4:00 PM"},
+    {"text":"Monday late afternoon","date":"2026-10-05","time":"afternoon"},
+    {"text":"Tuesday before 10 am","date":"2026-10-06","time":"before 10:00 AM"},
+    {"text":"Tuesday around 3","date":"2026-10-06","time":"around 3:00 PM"},
+    {"text":"Wednesday between 2 and 4","date":"2026-09-30","time":"between 2:00 PM and 4:00 PM"},
+    {"text":"Thursday after 5","date":"2026-10-01","time":"after 5:00 PM"},
+    {"text":"first thing Monday","date":"2026-10-05","time":"morning"}
+  ],
+  "callback": [
+    {"text":"Don't call me","requested":false,"declined":true,"human":false},
+    {"text":"Do not call me","requested":false,"declined":true,"human":false},
+    {"text":"No need to call me","requested":false,"declined":true,"human":false},
+    {"text":"Please don't phone me","requested":false,"declined":true,"human":false},
+    {"text":"I don't want a callback","requested":false,"declined":true,"human":false},
+    {"text":"Text me instead","requested":false,"declined":true,"human":false},
+    {"text":"Stop calling me","requested":false,"declined":true,"human":false},
+    {"text":"No callback please","requested":false,"declined":true,"human":false},
+    {"text":"Please call me back","requested":true,"declined":false,"human":true},
+    {"text":"Can someone call me","requested":true,"declined":false,"human":true},
+    {"text":"Give me a call","requested":true,"declined":false,"human":true},
+    {"text":"Have the team call me","requested":true,"declined":false,"human":true},
+    {"text":"Returning your call","requested":false,"declined":false,"human":false},
+    {"text":"I called back already","requested":false,"declined":false,"human":false},
+    {"text":"Don't call me, but connect me with a human here.","requested":false,"declined":true,"human":true}
+  ],
+  "safety": [
+    {"text":"No fire, just a burning smell.","hazard":"fire"},
+    {"text":"No sparks, but the outlet smells burned.","hazard":"fire"},
+    {"text":"No flooding, just water pouring across the kitchen floor.","hazard":"flood"},
+    {"text":"There is no flooding.","hazard":""},
+    {"text":"I don't smell gas.","hazard":""},
+    {"text":"I smell gas right now.","hazard":"gas"},
+    {"text":"There was smoke earlier but there is none now.","hazard":""},
+    {"text":"There was smoke earlier but now it is worse.","hazard":"fire"},
+    {"text":"There was smoke earlier.","hazard":""},
+    {"text":"There was no flooding earlier, but now it is.","hazard":"flood"},
+    {"text":"I smelled gas earlier but I still smell it now.","hazard":"gas"},
+    {"text":"I smelled gas earlier but there is none now.","hazard":""},
+    {"text":"Sewage is backing up into the tub.","hazard":"sewage"}
+  ],
+  "compound": [
+    {
+      "text":"It is my bathroom sink at 123 Pine Street Atlanta GA 30324 and Tuesday after 4 would be great.",
+      "addressIncludes":"123 Pine Street",
+      "preference":"2026-10-06 at after 4:00 PM",
+      "preferenceMustNotMatch":"bathroom|sink|pine|atlanta"
+    }
+  ]
+}

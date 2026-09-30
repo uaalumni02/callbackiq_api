@@ -11,7 +11,7 @@ import { getApprovedServiceEstimate } from './approvedServiceEstimate.service.js
 import { logOperationalError } from '../../helpers/logging/safeLogger.js';
 import { pricingReply } from '../messaging/smsTurnPolicy.service.js';
 import { classifySmsIntent } from '../messaging/smsIntentClassifier.service.js';
-import { findDateRange, parseTimePreference, filterSlotsByTimePreference } from './appointmentPreferenceParser.service.js';
+import { findDateRange, parseTimePreference, formatTimePreferenceLabel, filterSlotsByTimePreference } from './appointmentPreferenceParser.service.js';
 import searchServices from '../../helpers/ai/tools/searchServices.tool.js';
 import getAvailability from '../../helpers/ai/tools/getAvailability.tool.js';
 import validateServiceArea from '../../helpers/ai/tools/validateServiceArea.tool.js';
@@ -103,6 +103,11 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   const journeyKey = conversation.orchestration?.recoveryJourneyKey || '';
   const oldState = conversation.conversationMemory?.recoveryIntake;
   const state = oldState?.journeyKey === journeyKey ? structuredClone(oldState) : { journeyKey };
+  if (classification.intents?.callbackDeclined) {
+    state.contactPreference = { callback: 'declined', preferredChannel: /\btext\s+me\s+instead\b/i.test(text) ? 'sms' : (state.contactPreference?.preferredChannel || ''), sourceTurnId: String(turnId || '') };
+  } else if (classification.intents?.callback) {
+    state.contactPreference = { callback: 'requested', preferredChannel: 'phone', sourceTurnId: String(turnId || '') };
+  }
   const questions = updateRequestQuestions(state, text, turnId);
   const oldPreference = state.preferredAppointmentTime ?? lead.preferredAppointmentTime ?? '';
   const oldService = state.serviceNeeded ?? lead.serviceNeeded ?? '';
@@ -148,7 +153,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   const savedRange = findDateRange(lead.preferredAppointmentTime || '', timezone, now);
   const savedTime = parseTimePreference(lead.preferredAppointmentTime || '', timezone, now);
   state.date = savedRange ? savedRange.startDate === savedRange.endDate ? savedRange.startDate : `${savedRange.startDate} through ${savedRange.endDate}` : '';
-  state.time = savedTime.exactMinutes != null ? `${Math.floor(savedTime.exactMinutes / 60)}:${String(savedTime.exactMinutes % 60).padStart(2, '0')}` : savedTime.targetMinutes != null || savedTime.timeOfDay ? savedTime.raw.slice(0, 300) : '';
+  state.time = savedTime.targetMinutes != null || savedTime.timeOfDay ? formatTimePreferenceLabel(savedTime) : '';
   const schedulingText = address ? clean(text.replace(address, '')) : text;
   const incomingRange = !/^\d{5}(?:-\d{4})?$/.test(schedulingText) ? findDateRange(schedulingText, timezone, now) : null;
   const incomingTime = parseTimePreference(schedulingText, timezone, now);
@@ -158,7 +163,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   if (rejectedDateOnly) state.date = '';
   if (rejectedTimeOnly) state.time = '';
   if (incomingRange) state.date = incomingRange.startDate === incomingRange.endDate ? incomingRange.startDate : `${incomingRange.startDate} through ${incomingRange.endDate}`;
-  if (incomingTime.targetMinutes !== null || incomingTime.timeOfDay) state.time = incomingTime.exactMinutes !== null ? `${Math.floor(incomingTime.exactMinutes / 60)}:${String(incomingTime.exactMinutes % 60).padStart(2, '0')}` : incomingTime.raw.slice(0, 300);
+  if (incomingTime.targetMinutes !== null || incomingTime.timeOfDay) state.time = formatTimePreferenceLabel(incomingTime);
   if ((!bookingActive || (reviewOnly && !conversation.bookingState?.appointment)) && (state.date || state.time || evidence.rejected.length)) lead.preferredAppointmentTime = [state.date, state.time].filter(Boolean).join(' at ');
 
   const requestChanged = oldPreference !== (lead.preferredAppointmentTime || '') || oldService !== lead.serviceNeeded || oldAddress !== (lead.address || '');

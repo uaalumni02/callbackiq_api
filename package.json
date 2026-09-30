@@ -93,7 +93,7 @@
     "coverage:targets:report": "node scripts/report-coverage-gap.mjs",
     "verify:coverage-targets": "node scripts/verify-coverage-targets.mjs",
     "test:coverage:targets": "npm run test:coverage && npm run verify:coverage-targets",
-    "test:ci:core": "npm run audit:repository-hygiene && npm run test:coverage && npm run coverage:risk-report && npm run verify:coverage-ratchet && npm run verify:diff-coverage && npm run test:hardening && npm run build",
+    "test:ci:core": "npm run audit:repository-hygiene && npm run benchmark:customer-truth && npm run test:coverage && npm run coverage:risk-report && npm run verify:coverage-ratchet && npm run verify:diff-coverage && npm run test:hardening && npm run build",
     "test:sms-market-readiness": "jest tests/unit/smsTurnPolicy.marketReadiness.test.js --runInBand --no-cache",
     "start:worker": "node build/worker.js",
     "migrate:indexes": "node scripts/migrate-production-indexes.mjs",
@@ -156,7 +156,8 @@
     "prepare:scale-evidence": "node scripts/prepare-scale-evidence.mjs",
     "verify:sms-production-acceptance": "node scripts/verify-sms-production-acceptance.mjs",
     "test:sms-production-acceptance": "jest --runInBand --no-cache tests/unit/smsProductionAcceptanceMatrix.test.js tests/unit/smsGoldenCorpus.production.test.js tests/unit/smsTurnPolicy.marketReadiness.test.js tests/unit/smsTurnPolicy.commitmentSafety.production.test.js tests/unit/recoveryIntake.shared.test.js",
-    "certify:sms-production": "npm run verify:sms-production-acceptance && npm run test:sms-production-acceptance && npm run build"
+    "certify:sms-production": "npm run verify:sms-production-acceptance && npm run test:sms-production-acceptance && npm run build",
+    "benchmark:customer-truth": "node scripts/customer-truth-benchmark.mjs"
   },
   "keywords": [],
   "author": "",

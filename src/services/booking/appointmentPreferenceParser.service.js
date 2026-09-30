@@ -303,6 +303,17 @@ export const findDateRange = (message, timeZone = "America/New_York", now = new 
   if (/\b(?:late\s+next\s+week|end\s+of\s+next\s+week)\b/i.test(text)) {
     return { startDate: shiftDateKey(nextWeekStart, 3), endDate: shiftDateKey(nextWeekStart, 6) };
   }
+  const weekdayNamedForRelativeWeek = WEEKDAYS.find(({ pattern }) => pattern.test(text));
+  if (weekdayNamedForRelativeWeek && /\b(?:sun|sunday|mon|monday|tue|tues|tuesday|wed|weds|wednesday|thu|thur|thurs|thursday|fri|friday|sat|saturday)\s+(?:of\s+)?next\s+(?:wk|week)\b/i.test(text)) {
+    const mondayIndexed = (weekdayNamedForRelativeWeek.index + 6) % 7;
+    const resolved = shiftDateKey(nextWeekStart, mondayIndexed);
+    return { startDate: resolved, endDate: resolved };
+  }
+  if (weekdayNamedForRelativeWeek && /\b(?:the\s+)?(?:sun|sunday|mon|monday|tue|tues|tuesday|wed|weds|wednesday|thu|thur|thurs|thursday|fri|friday|sat|saturday)\s+after\s+next\b/i.test(text)) {
+    const mondayIndexed = (weekdayNamedForRelativeWeek.index + 6) % 7;
+    const resolved = shiftDateKey(nextWeekStart, 7 + mondayIndexed);
+    return { startDate: resolved, endDate: resolved };
+  }
   if (/\bnext\s+(?:wk|week)\b/i.test(text)) {
     return { startDate: nextWeekStart, endDate: shiftDateKey(nextWeekStart, 6) };
   }
@@ -584,6 +595,42 @@ export const parseTimePreference = (
   };
 };
 
+export const formatTimePreferenceLabel = (preference = {}) => {
+  const formatMinutes = (minutes) => {
+    if (!Number.isFinite(minutes)) return "";
+    const bounded = ((Math.floor(minutes) % (24 * 60)) + 24 * 60) % (24 * 60);
+    const hour24 = Math.floor(bounded / 60);
+    const minute = bounded % 60;
+    const meridiem = hour24 >= 12 ? "PM" : "AM";
+    const hour12 = hour24 % 12 || 12;
+    return `${hour12}:${String(minute).padStart(2, "0")} ${meridiem}`;
+  };
+
+  const exact = preference?.exactMinutes;
+  const target = preference?.targetMinutes;
+  const start = preference?.windowStartMinutes;
+  const end = preference?.windowEndMinutes;
+  const dayPart = normalizeText(preference?.timeOfDay);
+
+  if (Number.isFinite(exact)) return formatMinutes(exact);
+  if (Number.isFinite(target) && Number.isFinite(start) && start === target && end === 24 * 60) {
+    return `after ${formatMinutes(target)}`;
+  }
+  if (Number.isFinite(target) && start === 0 && end === target) {
+    return `before ${formatMinutes(target)}`;
+  }
+  if (dayPart && !Number.isFinite(target)) return dayPart;
+  if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
+    const inclusiveEnd = Math.max(start, end - 1);
+    return `between ${formatMinutes(start)} and ${formatMinutes(inclusiveEnd)}`;
+  }
+  if (Number.isFinite(target) && Number(preference?.toleranceMinutes || 0) > 0) {
+    return `around ${formatMinutes(target)}`;
+  }
+  if (Number.isFinite(target)) return formatMinutes(target);
+  return dayPart;
+};
+
 export const findTimeOfDay = (message) => parseTimePreference(message).timeOfDay;
 export const findRequestedClockMinutes = (message) => parseTimePreference(message).exactMinutes;
 
@@ -672,6 +719,7 @@ export default {
   findTimeOfDay,
   findRequestedClockMinutes,
   parseTimePreference,
+  formatTimePreferenceLabel,
   localClockMinutes,
   filterSlotsByTimePreference,
   rankSlotsByTimePreference,

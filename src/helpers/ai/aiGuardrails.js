@@ -83,8 +83,9 @@ const SAFETY_HAZARD_PATTERN_GROUPS = [
     patterns: [
       /\b(?:electrical|wiring|outlet|panel) (?:fire|smoke|burning)\b/i,
       /\b(?:smoke|fire|flames?)\b/i,
-      /\b(?:burning|electrical) smell\b/i,
-      /\bsmell (?:something )?burning\b/i,
+      /\b(?:burning|burned|burnt|electrical) smell\b/i,
+      /\bsmells? (?:something )?(?:burning|burned|burnt)\b/i,
+      /\b(?:outlet|wiring|panel|breaker)[^.!?;]{0,30}\bsmells?\s+(?:burned|burnt|burning)\b/i,
       /\bsomething(?:['\u2019]s| is) burning\b/i,
       /\bexplo(?:sion|ded|de|ding)\b/i,
     ],
@@ -648,7 +649,7 @@ const splitSafetyClauses = (text, preserveSubjectLinks = false) =>
     // ("no smoke, fire or sparks") together, but separate independent reports.
     .replace(/(?:,\s*|\band\s+)(?=(?:(?:the|my|our|your|his|her)\s+[a-z]+(?:\s+[a-z]+){0,2}|water|smoke|flames?|it|there|i|we|he|she|they)\s+(?:is|are|has|have|was|were|keeps?|comes?|pours?|flows?|smells?|started)\b)/gi, boundary => preserveSubjectLinks ? boundary : "; ")
     .split(
-      /(?:[.!?;]+|\b(?:but|however|although|though|yet|except)\b)/i,
+      /(?:[.!?;]+|,\s*(?=(?:just|actually|instead|rather)\b)|\b(?:but|however|although|though|yet|except)\b)/i,
     )
     .map((clause) => clause.replace(LEADING_ANSWER_NO, "").trim())
     .filter(Boolean);
@@ -736,19 +737,66 @@ export const patternHasAffirmedSafetyMatch = (pattern, text) => {
 };
 
 /*
+ * Safety state is about current danger, not a bag of keywords. Normalize the
+ * small amount of cross-clause discourse that deterministic patterns cannot
+ * infer on their own: historical hazards are not active unless the customer
+ * says they remain current, while "now it is" can affirm a previously named
+ * hazard even when the noun is omitted.
+ */
+const SAFETY_REFERENCE_GROUPS = [
+  { type: "medical", pattern: /\b(?:heart attack|stroke|seizure|unconscious|unresponsive|passed out|not breathing|trouble breathing|injured|bleeding)\b/i, canonical: "medical emergency" },
+  { type: "gas", pattern: /\b(?:gas|propane|carbon monoxide|rotten eggs?)\b/i, canonical: "smell gas" },
+  { type: "fire", pattern: /\b(?:smoke|fire|flames?|burning smell|burned smell|burnt smell)\b/i, canonical: "smoke" },
+  { type: "electrical", pattern: /\b(?:sparks?|sparking|arcing|live wire|electrical shock)\b/i, canonical: "electrical sparking" },
+  { type: "structural", pattern: /\b(?:collapse|collapsing|sagging|bulging|caving|unstable)\b/i, canonical: "structural collapse" },
+  { type: "trapped", pattern: /\b(?:trapped|locked inside|stuck inside)\b/i, canonical: "person trapped" },
+  { type: "flood", pattern: /\b(?:flood(?:ed|ing)?|gushing water|burst pipe|water pouring|water spreading|uncontrolled water)\b/i, canonical: "active flooding" },
+  { type: "sewage", pattern: /\b(?:sewage|sewer backup|sewer overflow)\b/i, canonical: "sewage backup" },
+];
+
+const HISTORICAL_SAFETY_TIME = /\b(?:earlier|before|previously|yesterday|last (?:night|week|month|year)|years? ago|used to|was|were|had been)\b/i;
+const CURRENT_SAFETY_TIME = /\b(?:now|still|again|currently|right now|today|at the moment)\b/i;
+const CURRENT_RESOLUTION = /\b(?:there (?:is|are) none|there isn['’]?t any|none now|no longer|not anymore|not now|has stopped|have stopped|stopped|is gone|are gone|cleared|resolved|fixed|all clear|safe now)\b/i;
+const ANAPHORIC_CURRENT_AFFIRMATION = /(?:\b(?:now|still|currently|right now)\s+(?:(?:it|that|this)\s+(?:is|isn['’]?t|has|hasn['’]?t)|there\s+(?:is|are))\b|\b(?:i|we)\s+(?:still|currently)\s+(?:smell|see|hear|feel)\s+(?:it|that)\b|\b(?:still|currently)\s+(?:smell|see|hear|feel)\s+(?:it|that)\b)(?![^.!?;]{0,18}\b(?:none|no longer|not|gone|stopped|resolved|fixed|clear|safe)\b)/i;
+
+const normalizeSafetyDiscourse = (value) => {
+  const segments = cleanText(value)
+    .split(/(?:[.!?;]+|\b(?:but|however|although|though|yet)\b)/i)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  let lastReference = null;
+  return segments.map((segment) => {
+    const reference = SAFETY_REFERENCE_GROUPS.find(({ pattern }) => pattern.test(segment));
+    if (reference) lastReference = reference;
+
+    const historical = HISTORICAL_SAFETY_TIME.test(segment);
+    const current = CURRENT_SAFETY_TIME.test(segment);
+    if (reference && historical && !current) {
+      // Preserve the referent for later anaphora, but do not treat a clearly
+      // historical observation as a current emergency by itself.
+      return "historical condition";
+    }
+
+    if (lastReference && CURRENT_RESOLUTION.test(segment)) {
+      return "resolved condition";
+    }
+
+    if (!reference && lastReference && ANAPHORIC_CURRENT_AFFIRMATION.test(segment)) {
+      return `${lastReference.canonical} ${segment}`;
+    }
+
+    return segment;
+  }).join('; ');
+};
+
+/*
  * Returns the hazard type ("gas", "fire", "electrical", "flood", "sewage",
  * "other") when the message describes a safety hazard, or an empty string
  * when it does not. The first matching group wins, and groups are ordered by
  * severity so gas and fire outrank flooding when a message mentions both.
  */
 export const detectSafetyHazardType = (value) => {
-  const text = cleanText(value).split(/([.!?;]|\b(?:but|however|and)\b)/).map(clause => {
-    // Mask only explicitly resolved historical events, retaining other clauses.
-    const historical = /\b(?:yesterday|last week|last month|last year|years? ago)\b/i.test(clause);
-    const resolved = /\b(?:repaired|resolved|fixed|stopped|replaced)\b/i.test(clause);
-    const current = /\b(?:now|still|again|currently|today)\b/i.test(clause);
-    return historical && resolved && !current ? "resolved historical service" : clause;
-  }).join("");
+  const text = normalizeSafetyDiscourse(value);
 
   if (!text) {
     return "";

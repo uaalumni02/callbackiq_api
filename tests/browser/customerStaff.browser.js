@@ -145,8 +145,8 @@ test('no-response escalation is visible and owner acknowledgment persists withou
   await escalateOverdueInterventions();
   await visit(`/intervention-center?leadId=${lead._id}`);
   await visible(page.getByText('Escalated: the staff acknowledgment deadline passed.'));
-  await page.getByRole('button',{name:'Accept review & assign owner'}).first().click();
-  await visible(page.getByText('Review acknowledged and assigned to the business owner.',{exact:false}));
+  await page.getByRole('button',{name:'Accept request & take over'}).first().click();
+  await visible(page.getByText('Request accepted. You own the next action and AI is paused.',{exact:false}));
   expect(await Alert.countDocuments({business:business._id,acknowledgedAt:{$ne:null}})).toBeGreaterThan(0);
   expect(await Appointment.countDocuments({business:business._id})).toBe(0);
 });

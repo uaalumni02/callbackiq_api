@@ -90,6 +90,8 @@ const isObviousPlaceholder = (name, rawValue) => {
       "test_openai_key",
       "openai-example",
       "openai_example",
+      "offline-test-placeholder",
+      "offline_test_placeholder",
     ].includes(value);
   }
 

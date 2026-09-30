@@ -1,4 +1,5 @@
 import { resolveServiceReference } from './serviceReference.service.js';
+import { isCallbackDeclinedText, isCallbackRequestText } from './customerContactIntent.service.js';
 import { requestQuestions } from '../booking/requestQuestionPolicy.service.js';
 import {
   findDateRange,
@@ -21,15 +22,10 @@ const PRICING = [
   /\bwhat (?:will|would|does|do) (?:it|this|that|you) cost\b/i,
 ];
 
-const HUMAN = [
+const HUMAN_DIRECT = [
   /\b(?:real\s+person|human|representative|live\s+agent|manager|owner|staff member)\b/i,
   /\b(?:talk|speak|connect|transfer)\s+(?:me\s+)?(?:to|with)\s+(?:a\s+)?(?:person|human|representative|agent|manager|owner|staff member)\b/i,
-  /\b(?:call me|have (?:a )?(?:person|someone|the team) call me|can (?:a )?(?:person|someone) call me)\b/i,
   /\b(?:not a bot|stop texting me (?:a )?(?:bot|robot)|get me (?:a )?(?:person|human))\b/i,
-];
-
-const CALLBACK = [
-  /\b(?:call me|give me a call|can you call|have (?:the team|someone|a person) call)\b/i,
 ];
 
 const STATUS = [
@@ -134,7 +130,7 @@ export const extractService = (text, { lead = null, conversation = null } = {}) 
       if (!pricedService || !SERVICE_ACTION.test(pricedService) || pricedService.split(/\s+/).length < 2) continue;
       clause = clean(pricedService).replace(/\s+cost$/i, "");
     }
-    if (any(HUMAN, clause) || any(CANCEL, clause) || any(RESCHEDULE, clause) || any(STATUS, clause)) continue;
+    if (isCallbackDeclinedText(clause) || any(HUMAN_DIRECT, clause) || isCallbackRequestText(clause) || any(CANCEL, clause) || any(RESCHEDULE, clause) || any(STATUS, clause)) continue;
     if (/^(?:stop|start|unstop|help|yes|no|okay|ok|thanks?|hello|hi)[!. ]*$/i.test(clause) || /^(?:\d|https?:|[^ ]+@)/i.test(clause)) continue;
     // A request to act on "it" describes an intent, not a replacement job.
     if (/\b(?:fix|repair|replace|inspect|install|service)\s+(?:it|that|this|the same thing)(?=$|[?.!,;]|\s+(?:today|tomorrow|next|on|at|for me|please|and|when|soon|now|instead|rather)\b)/i.test(clause)) continue;
@@ -200,11 +196,14 @@ export const classifySmsIntent = ({
   );
 
   const serviceNeeded = extractService(text, { lead, conversation });
+  const callbackDeclined = isCallbackDeclinedText(text);
+  const callbackRequested = isCallbackRequestText(text);
   const intents = {
     pricing: requestQuestions(text).pricing,
     completionQuestion: requestQuestions(text).ambiguous || requestQuestions(text).duration || requestQuestions(text).completionDate,
-    human: any(HUMAN, text),
-    callback: any(CALLBACK, text),
+    human: any(HUMAN_DIRECT, text) || callbackRequested,
+    callback: callbackRequested,
+    callbackDeclined,
     status: any(STATUS, text),
     cancel: any(CANCEL, text),
     reschedule: any(RESCHEDULE, text),
@@ -228,6 +227,8 @@ export const classifySmsIntent = ({
   ) {
     intents.human = false;
   }
+
+  if (callbackDeclined && !serviceNeeded) intents.correction = false;
 
   const destructive = intents.cancel || intents.reschedule;
   const response = {

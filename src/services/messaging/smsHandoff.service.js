@@ -1,4 +1,5 @@
 import { respectCustomerConstraints, currentConstraints } from '../conversationCondition.service.js';
+import { isCallbackRequestText } from './customerContactIntent.service.js';
 // CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1
 // Delivery-safe human handoff helpers for production SMS conversations.
 import {
@@ -23,8 +24,7 @@ const IMMEDIATE_SAFETY_FLAGS = new Set([
   "emergency_services",
 ]);
 
-const EXPLICIT_CALLBACK_PATTERN =
-  /\b(?:call me|call us|have (?:someone|a person|the team) call|can (?:someone|a person|the team) call|please call|phone me|ring me)\b/i;
+
 
 const HANDOFF_STATUS_PATTERNS = [
   /\b(?:did|has).{0,35}(?:callback|call back|request|message).{0,25}(?:go through|come through|arrive|send|sent|receive|received)\b/i,
@@ -188,9 +188,7 @@ export const buildHumanHandoffAcknowledgement = ({
   customerMessage = "",
 }) => {
   const name = businessName(business);
-  const explicitCallback =
-    clean(result?.messageCategory).toLowerCase() === "human_requested" ||
-    EXPLICIT_CALLBACK_PATTERN.test(clean(customerMessage));
+  const explicitCallback = isCallbackRequestText(customerMessage);
   const service = clean(result?.serviceNeeded || lead?.serviceNeeded);
   const details =
     service && service.toLowerCase() !== "unknown"
@@ -217,9 +215,7 @@ export const ensureHumanHandoffResult = ({
   customerMessage = "",
 }) => {
   const originalReply = clean(result?.reply);
-  const explicitCallback =
-    clean(result?.messageCategory).toLowerCase() === "human_requested" ||
-    EXPLICIT_CALLBACK_PATTERN.test(clean(customerMessage));
+  const explicitCallback = isCallbackRequestText(customerMessage);
   const safety = hasSafetyRisk(result);
   const needsCombinedReply =
     safety ||
