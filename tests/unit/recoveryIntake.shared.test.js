@@ -30,13 +30,13 @@ function context(channel = 'sms') {
   ctx.turn = customerMessage => handleRecoveryIntake({ ...ctx, customerMessage });
   return ctx;
 }
-beforeEach(() => { jest.clearAllMocks(); getApprovedServiceEstimate.mockResolvedValue(''); validateServiceArea.mockResolvedValue({ supported: true }); searchServices.mockResolvedValue([{ id: 's1', score: 1 }]); getAvailability.mockResolvedValue({ supportedServiceArea: true, slots: [slot] }); AlertService.createHumanHandoffAlert.mockResolvedValue({ _id: 'a1' }); });
+beforeEach(() => { jest.clearAllMocks(); getApprovedServiceEstimate.mockResolvedValue(''); validateServiceArea.mockResolvedValue({ supported: true }); searchServices.mockResolvedValue([{ id: 's1', score: 1 }]); getAvailability.mockResolvedValue({ supportedServiceArea: true, slots: [slot] }); AlertService.createHumanHandoffAlert.mockResolvedValue({ alert: { _id: 'a1' } }); });
 test.each(['sms', 'voice'])('%s captures the toilet transcript without reasking a supplied time', async channel => {
   const c = context(channel);
   expect((await c.turn('Hi my toilet is stopped up and leaking around the seal')).reply).toMatch(/right now/);
   expect((await c.turn('Only when the toilet is used')).reply).toMatch(/service address/);
   await c.turn('Sep 8'); await c.turn('8 am');
-  expect(c.lead.preferredAppointmentTime).toBe('2026-09-08 at 8:00');
+  expect(c.lead.preferredAppointmentTime).toBe('2026-09-08 at 8:00 AM');
   expect((await c.turn('When will it be confirmed')).reply).toMatch(/don't have a confirmation timeframe/);
   const result = await c.turn('My address is 970 Sidney Marcus blvd ne Atlanta , ga 30324');
   expect(result.reply).not.toMatch(/preferred.*still|what.*time|pause automated/i);
@@ -49,7 +49,7 @@ test.each(['sms', 'voice'])('%s captures the toilet transcript without reasking 
 test('voice facts remain available when SMS supplies the address', async () => {
  const c = context('voice'); await c.turn('My toilet is clogged and leaking'); await c.turn('No'); await c.turn('Sep 8 at 8 am');
  const result = await handleRecoveryIntake({ ...c, channel: 'sms', customerMessage: '970 Sidney Marcus Blvd NE, Atlanta GA 30324' });
- expect(result.intakeReady).toBe(true); expect(c.lead.preferredAppointmentTime).toBe('2026-09-08 at 8:00');
+ expect(result.intakeReady).toBe(true); expect(c.lead.preferredAppointmentTime).toBe('2026-09-08 at 8:00 AM');
 });
 test('an address or date cannot answer an unresolved leak question', async () => {
  const c = context(); await c.turn('My toilet is leaking'); await c.turn('Sep 8'); await c.turn('8 am');
@@ -182,7 +182,7 @@ test.each(['sms', 'voice'])('%s preserves the reported bathtub request in a trut
  const result = await c.turn('8 am');
  const reply = channel === 'voice' ? result.reply : buildCompletedIntakeResult({ business, result }).reply;
  expect(reply).toContain('970 Sidney Marcus Blvd NE Atlanta GA 30324');
- expect(reply).toContain('Wed, Sep 9 at 8 AM');
+ expect(reply).toContain('Wed, Sep 9 at 8:00 AM');
  expect(reply).toMatch(/bathtub/);
  expect(reply).toContain('leaks during use');
  expect(reply).toContain('not confirmed');
@@ -245,7 +245,7 @@ test.each(['sms', 'voice'])('%s preserves the sink through compound price/time a
   expect(c.lead.serviceNeeded).toMatch(/sink/i);
   expect(c.lead.serviceNeeded).not.toMatch(/fix something/);
   expect(c.lead.address).toBe('979 Walk Rd Atlanta GA 30324');
-  expect(c.lead.preferredAppointmentTime).toBe('2026-09-08 at 21:00');
+  expect(c.lead.preferredAppointmentTime).toBe('2026-09-08 at 9:00 PM');
   expect(r.reply).toMatch(/150/);
   expect(r.reply).toMatch(/isn't available/);
   expect(r.intakeReady).toBe(false);
@@ -351,7 +351,7 @@ test('unavailable Sunday then ambiguous Monday question retains one current pref
  const monday = finalReply(c, await c.turn(message), message);
  expect(monday.reply).toMatch(/Do you mean how long/);
  expect(monday.reply).not.toMatch(/confirmed price|saved for team review|currently available/);
- expect(c.lead.preferredAppointmentTime).toBe('2026-09-21 at 15:00');
+ expect(c.lead.preferredAppointmentTime).toBe('2026-09-21 at 3:00 PM');
  const state = c.conversation.conversationMemory.recoveryIntake;
  expect(state.activePreference.label).toBe(c.lead.preferredAppointmentTime);
  expect(state.availability.status).toBe('not_checked');
@@ -362,7 +362,7 @@ test('unavailable Sunday then ambiguous Monday question retains one current pref
  const duration = finalReply(c, await c.turn('I mean how long'), 'I mean how long');
  expect(duration.reply).toMatch(/assess the job scope/);
  expect(c.conversation.conversationMemory.recoveryIntake.unresolvedQuestions.map(q => q.kind)).toEqual(['duration']);
- expect(c.lead.preferredAppointmentTime).toBe('2026-09-21 at 15:00');
+ expect(c.lead.preferredAppointmentTime).toBe('2026-09-21 at 3:00 PM');
 });
 test('provider outage and an unchecked service match remain different states through final guard', async () => {
  const c=context(); c.lead.serviceNeeded='toilet repair'; c.lead.address='970 Sidney Marcus Blvd NE Atlanta GA 30324';
@@ -378,10 +378,10 @@ test('revised preference plus question after handoff invalidates availability an
  AlertService.create = jest.fn().mockResolvedValue({ alert: { _id: 'review2' } });
  const r=await handleRecoveryIntake({ ...c, reviewOnly: true, turnId:'revision', customerMessage:'Sep 9 at 10 am. What is the estimated completion?' });
  expect(r.reply).toMatch(/Do you mean/);
- expect(c.lead.preferredAppointmentTime).toBe('2026-09-09 at 10:00');
+ expect(c.lead.preferredAppointmentTime).toBe('2026-09-09 at 10:00 AM');
  expect(c.conversation.conversationMemory.recoveryIntake.review.status).toBe('queued');
  expect(c.conversation.conversationMemory.recoveryIntake.availability.status).toBe('not_checked');
- expect(AlertService.create).toHaveBeenCalledWith(expect.objectContaining({ actionRequired: true, metadata: expect.objectContaining({ intakeReview: expect.objectContaining({ preferredAppointmentTime: '2026-09-09 at 10:00' }) }) }));
+ expect(AlertService.create).toHaveBeenCalledWith(expect.objectContaining({ actionRequired: true, metadata: expect.objectContaining({ intakeReview: expect.objectContaining({ preferredAppointmentTime: '2026-09-09 at 10:00 AM' }) }) }));
  AlertService.create.mockRejectedValue(new Error('write failed'));
  await expect(handleRecoveryIntake({ ...c, reviewOnly:true, customerMessage:'Sep 10 at 11 am. Estimated completion?' })).rejects.toThrow('write failed');
 });
@@ -413,7 +413,7 @@ test.each(['sms', 'voice'])('%s corrected service stays authoritative through tr
   expect(reply).toMatch(/pipe in the wall/);
   expect(reply).not.toMatch(/washing machine|actually/i);
   expect(reply).toContain('leaks during use');
-  expect(reply).toContain('Tue, Sep 22 at 3 PM');
+  expect(reply).toContain('Tue, Sep 22 at 3:00 PM');
   expect(reply).toContain('not confirmed');
   expect(getAvailability).toHaveBeenCalledWith(expect.objectContaining({ serviceQuery: 'pipe in the wall that is leaking' }));
   if (channel === 'sms') expect(reply.length).toBeLessThanOrEqual(320);
@@ -426,7 +426,7 @@ test.each(['sms', 'voice'])('%s applies accepted scheduling corrections across t
  c.lead.serviceNeeded='faucet replacement'; c.lead.address='970 Sidney Marcus Blvd NE Atlanta GA 30324';
  getAvailability.mockResolvedValue({supportedServiceArea:true,slots:[]});
  await c.turn("I can't do Monday. Friday at 10 am works");
- expect(c.lead.preferredAppointmentTime).toBe('2026-09-25 at 10:00');
+ expect(c.lead.preferredAppointmentTime).toBe('2026-09-25 at 10:00 AM');
  expect(getAvailability).toHaveBeenLastCalledWith(expect.objectContaining({startDate:'2026-09-25',endDate:'2026-09-25'}));
  getAvailability.mockClear();
  const rejected=await c.turn("Friday doesn't work");
@@ -435,13 +435,13 @@ test.each(['sms', 'voice'])('%s applies accepted scheduling corrections across t
  expect(getAvailability).not.toHaveBeenCalled();
  expect(c.lead.preferredAppointmentTime).not.toContain('2026-09-25');
  await c.turn('Next Tuesday at 11 am');
- expect(c.lead.preferredAppointmentTime).toBe('2026-09-29 at 11:00');
+ expect(c.lead.preferredAppointmentTime).toBe('2026-09-29 at 11:00 AM');
 });
 
 test.each(['sms', 'voice'])('%s clears rejected transient offers in review-only intake', async channel => {
  const c=context(channel); c.now=new Date('2026-09-23T14:00:00Z');
  c.lead.serviceNeeded='faucet replacement'; c.lead.address='970 Sidney Marcus Blvd NE Atlanta GA 30324';
- c.lead.preferredAppointmentTime='2026-09-25 at 10:00';
+ c.lead.preferredAppointmentTime='2026-09-25 at 10:00 AM';
  c.conversation.bookingState={status:'offering_slots',offeredSlots:[slot],selectedSlot:slot};
  AlertService.create=jest.fn().mockResolvedValue({alert:{_id:'review-alert'}});
  await handleRecoveryIntake({...c,customerMessage:"Friday doesn't work",reviewOnly:true});
@@ -449,4 +449,23 @@ test.each(['sms', 'voice'])('%s clears rejected transient offers in review-only 
  expect(c.conversation.bookingState.selectedSlot).toBeNull();
  expect(c.lead.preferredAppointmentTime).not.toContain('2026-09-25');
  expect(getAvailability).not.toHaveBeenCalled();
+});
+
+test.each(['sms', 'voice'])('%s confirmation follow-up preserves facts and does not repeat scheduling or alert creation', async channel => {
+ const c=context(channel); c.lead.serviceNeeded='toilet repair'; c.lead.address='123 Lenox Rd Atlanta GA 30324';
+ c.lead.preferredAppointmentTime='2026-10-02 at 12:00 PM';
+ c.conversation.conversationMemory.recoveryIntake={review:{status:'queued',alertId:'a1'}};
+ const before=JSON.stringify(c.lead);
+ const result=await c.turn('How long will it take for appointment confirmation?');
+ expect(result.reply).toContain('Fri, Oct 2 at 12:00 PM');
+ expect(result.reply).toContain('call me'); expect(result.shouldAlertOwner).toBe(false);
+ expect(c.lead).toMatchObject(JSON.parse(before));
+ expect(getAvailability).not.toHaveBeenCalled();expect(AlertService.createHumanHandoffAlert).not.toHaveBeenCalled();
+});
+test('voice cannot claim review is queued when the alert result lacks a durable ID', async () => {
+ const c=context('voice');c.lead.serviceNeeded='toilet repair';c.lead.address='123 Lenox Rd Atlanta GA 30324';
+ AlertService.createHumanHandoffAlert.mockResolvedValueOnce({});
+ await expect(c.turn('Sep 8 at 8 am')).rejects.toMatchObject({code:'STAFF_ACTION_NOT_SAVED'});
+ expect(c.conversation.conversationMemory.recoveryIntake.review.status).toBe('pending_persistence');
+ expect(c.conversation.conversationMemory.recoveryIntake.submitted).not.toBe(true);
 });

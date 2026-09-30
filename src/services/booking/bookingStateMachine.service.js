@@ -559,7 +559,7 @@ class BookingStateMachineService {
     const schedulingReply = schedulingQuestionReply({ customerMessage: text, business, lead });
     if (schedulingReply) return { handled: true, result: fixedResult({ reply: schedulingReply, category: "availability_inquiry" }) };
 
-    const questionReply = bookingQuestionReply({ customerMessage: text, conversation });
+    const questionReply = bookingQuestionReply({ customerMessage: text, conversation, lead, channel });
     if (questionReply) return { handled: true, result: fixedResult({ reply: questionReply, category: "appointment_status" }) };
 
     const evidence = schedulingEvidence(text);

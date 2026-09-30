@@ -1,3 +1,4 @@
+import { confirmationFollowUpReply } from './confirmationFollowUp.service.js';
 import { schedulingEvidence } from './schedulingEvidence.service.js';
 import { completionClarification, updateRequestQuestions, normalizeRequestService } from './requestQuestionPolicy.service.js';
 import { assessProblemClarity, buildRequestReadiness, requestEvidenceKey } from "./requestQualificationPolicy.service.js";
@@ -45,8 +46,11 @@ const fixed = (reply, lead, extra = {}) => ({
   preferredAppointmentTime: lead.preferredAppointmentTime || '', shouldAlertOwner: false, riskFlags: [],
   guardrail: { skipAI: true, usedFallback: false, reason: 'shared_recovery_intake' }, intakeReady: false, ...extra,
 });
-export const confirmationTimingReply = ({ lead = {}, conversation = {}, channel = 'sms' } = {}) =>
-  `No appointment is confirmed by this request. ${currentCoverage(conversation, lead)?.supported === null ? 'Service-area coverage still needs team review. ' : ''}The business must approve the appointment. I don't have a confirmation timeframe.${!known(lead.address) ? ' What is the service address?' : channel === 'voice' ? ' Please wait for confirmation before expecting a visit.' : ''}`;
+export const confirmationTimingReply = ({ lead = {}, conversation = {}, channel = 'sms' } = {}) => {
+  const reply = confirmationFollowUpReply({ lead, conversation, channel });
+  return reply + (currentCoverage(conversation, lead)?.supported === null ? ' Service-area coverage still needs team review.' : '') +
+    (!known(lead.address) ? ' What is the service address?' : '');
+};
 
 const slotLabel = (slot, timezone) => new Intl.DateTimeFormat('en-US', {
   timeZone: timezone, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
@@ -506,8 +510,9 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   const result = fixed(pricingPrefix + availabilityNote, lead, { intakeReady: true, intakeReview, summary: `${state.serviceDetail || lead.serviceNeeded}; ${state.triageAnswer || ''}; ${lead.address}; requested ${lead.preferredAppointmentTime}`, messageCategory: 'appointment_preference', intakeCompletionReply: pricingPrefix + recoveryCompletionReply({ lead, state, channel }) });
   if (ready && channel === 'voice') {
     checkActive();
-    await AlertService.createHumanHandoffAlert({ businessId: business._id, leadId: lead._id, conversationId: conversation._id, providerMessageId: `voice-intake:${session?._id || conversation._id}:${journeyKey}`, customerPhone: lead.phone || conversation.customerPhone, customerName: lead.customerName, customerMessage: text, lead, result: { ...result, handoff: { reason: 'intake_complete' } } });
-    checkActive(); state.submitted = true; state.review = { status: 'queued', queuedAt: now.toISOString() }; await persist();
+    const savedReview = await AlertService.createHumanHandoffAlert({ businessId: business._id, leadId: lead._id, conversationId: conversation._id, providerMessageId: `voice-intake:${session?._id || conversation._id}:${journeyKey}`, customerPhone: lead.phone || conversation.customerPhone, customerName: lead.customerName, customerMessage: text, lead, result: { ...result, handoff: { reason: 'intake_complete' } } });
+    if (!savedReview?.alert?._id) throw Object.assign(new Error('Staff review was not saved.'), { code: 'STAFF_ACTION_NOT_SAVED' });
+    checkActive(); state.submitted = true; state.review = { status: 'queued', alertId: String(savedReview.alert._id), queuedAt: now.toISOString() }; await persist();
     result.reply = result.intakeCompletionReply;
     result.outcome = 'callback_saved';
   }

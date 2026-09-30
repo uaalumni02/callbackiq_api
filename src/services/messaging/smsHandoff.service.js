@@ -1,3 +1,4 @@
+import { confirmationFollowUpReply } from '../booking/confirmationFollowUp.service.js';
 import { respectCustomerConstraints, currentConstraints } from '../conversationCondition.service.js';
 import { isCallbackRequestText } from './customerContactIntent.service.js';
 // CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1
@@ -274,7 +275,7 @@ export const buildHumanHandoffStatusResult = ({ business, conversation }) => ({
   reply: conversation?.orchestration?.handoffStatus === "pending_ack" && conversation?.conversationMemory?.recoveryIntake?.review?.status !== 'queued'
     ? "I have your message, but staff review has not been verified yet. The appointment is not confirmed, and I cannot guarantee a response time."
     : conversation?.orchestration?.handoffReason === "intake_complete"
-    ? "Your service request is saved for team review. The appointment is not confirmed, and I don’t have a confirmation timeframe."
+    ? confirmationFollowUpReply({ conversation })
     : buildHumanHandoffStatusAcknowledgement({ business }),
   shouldAlertOwner: false,
   alertPriority: "low",
