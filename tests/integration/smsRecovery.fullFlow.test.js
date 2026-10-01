@@ -611,7 +611,7 @@ describe("completed manual intake uses the durable staff handoff", () => {
         deliveryErrorCode: "ETIMEDOUT" }));
   });
 
-  test.each([{ humanTakeover: true }, { status: "closed" }, { aiEnabled: false }])(
+  test.each([{ status: "closed" }, { status: "archived" }, { aiEnabled: false }])(
     "handoff status questions do not bypass ownership: %p", async (state) => {
       Object.assign(activeConversation, state, { orchestration: { handoffStatus: "acknowledged" } });
       activeInbound.body = "Did you receive my callback request?";
@@ -621,6 +621,143 @@ describe("completed manual intake uses the durable staff handoff", () => {
       expect(generateAIReplyResult).not.toHaveBeenCalled();
     },
   );
+
+  describe('customer contact controls across the conversation lifecycle', () => {
+    function arrangeContact(text = 'Call me', overrides = {}) {
+      activeInbound.body = text;
+      activeLead.preferredAppointmentTime = '2026-10-01 at 10:00';
+      activeConversation.orchestration = { handoffReason: 'intake_complete', handoffInboundMessage: 'earlier', handoffStatus: 'acknowledged' };
+      activeConversation.conversationMemory = { recoveryIntake: { review: { status: 'queued', alertId: 'original-review' }, date: '2026-10-01', time: '10:00' } };
+      Object.assign(activeConversation, overrides);
+    }
+    test.each([
+      ['Call me', {}], ['Please call me back', {}], ['Can someone call me?', {}],
+      ['I want to speak to a person', {}], ['Call me', { humanTakeover: true, aiEnabled: false }],
+      ['Call me', { orchestration: {} }],
+      ['Call me', { bookingState: { status: 'booked', appointment: 'appointment-1' } }],
+      ['Call me', { serviceEligibility: { decision: 'unsupported' } }],
+    ])('durably records %s without changing facts or ownership (%p)', async (text, overrides) => {
+      arrangeContact(text, overrides);
+      const before = JSON.stringify({ lead: activeLead, booking: activeConversation.bookingState,
+        human: activeConversation.humanTakeover, ai: activeConversation.aiEnabled });
+      const result = await processInboundSmsJob(job);
+      expect(result).toMatchObject({ decision: 'contact_control', sent: true });
+      expect(generateAIReplyResult).not.toHaveBeenCalled();
+      expect(JSON.stringify({ lead: activeLead, booking: activeConversation.bookingState,
+        human: activeConversation.humanTakeover, ai: activeConversation.aiEnabled })).toBe(before);
+      expect(sendSms.mock.calls[0][0].body).toMatch(/saved for (?:the team|review)/);
+      expect(sendSms.mock.calls[0][0].body).not.toMatch(/appointment is not confirmed|keep helping|will call|will respond/i);
+      expect(AlertService.createHumanHandoffAlert.mock.invocationCallOrder[0]).toBeLessThan(sendSms.mock.invocationCallOrder[0]);
+      expect(activeConversation.conversationMemory.recoveryIntake.contactControl.request.alertId).toBe('intake-alert');
+      expect(AlertService.createHumanHandoffAlert).toHaveBeenCalledWith(expect.objectContaining({
+        result: expect.objectContaining({ handoff: expect.objectContaining({ callbackRequested: /call/i.test(text) }) }),
+        lead: expect.objectContaining({ preferredAppointmentTime: '2026-10-01 at 10:00' }),
+      }));
+    });
+    test.each(['Did you get my text?', 'Did you receive my message?', 'Are you still there?'])('acknowledges %s during staff ownership without AI', async text => {
+      arrangeContact(text, { humanTakeover: true, aiEnabled: false });
+      expect(await processInboundSmsJob(job)).toMatchObject({ sent: true, decision: 'contact_control' });
+      expect(sendSms.mock.calls[0][0].body).toMatch(/your message was received/i);
+      expect(sendSms.mock.calls[0][0].body).not.toMatch(/saved for review|team received|team has read/i);
+      expect(AlertService.createHumanHandoffAlert).not.toHaveBeenCalled();
+      expect(generateAIReplyResult).not.toHaveBeenCalled();
+      expect(activeConversation.humanTakeover).toBe(true);
+      expect(activeConversation.aiEnabled).toBe(false);
+    });
+    test.each(['Did you get my text?', 'Call me'])('enqueues %s during staff takeover at the webhook', async text => {
+      arrangeContact(text, { humanTakeover: true, aiEnabled: false });
+      getOrCreateSmsLeadAndConversation.mockResolvedValue({ lead: activeLead, conversation: activeConversation });
+      const req = { body: { From: activeConversation.customerPhone, To: business.phone, Body: text, MessageSid: 'SM_CONTROL' } };
+      const res = { type: jest.fn().mockReturnThis(), status: jest.fn().mockReturnThis(), send: jest.fn() };
+      await handleInboundSmsWebhook(req, res);
+      expect(enqueueInboundSmsJob).toHaveBeenCalled();
+    });
+    test('does not restart AI for ordinary staff-owned follow-up', async () => {
+      arrangeContact('Please change my address to 12 Oak St', { humanTakeover: true, aiEnabled: false });
+      expect(await processInboundSmsJob(job)).toMatchObject({ reason: 'ai_ineligible' });
+      expect(sendSms).not.toHaveBeenCalled();
+      expect(generateAIReplyResult).not.toHaveBeenCalled();
+    });
+    test('callback followed by receipt check preserves Thursday preference and has no silent turn', async () => {
+      arrangeContact();
+      expect(await processInboundSmsJob(job)).toMatchObject({ sent: true });
+      activeInbound.body = 'Did you get my text?';
+      activeInbound._id = 'message-in-2';
+      Message.findOne.mockReset().mockReturnValueOnce(leanQuery(null)).mockResolvedValue(null);
+      Message.find.mockReset().mockReturnValueOnce(leanQuery([activeInbound])).mockReturnValue(leanQuery([]));
+      expect(await processInboundSmsJob({ ...job, inboundMessage: activeInbound._id })).toMatchObject({ sent: true });
+      expect(sendSms).toHaveBeenCalledTimes(2);
+      expect(sendSms.mock.calls[1][0].body).toMatch(/message was received.*saved for review/i);
+      expect(AlertService.createHumanHandoffAlert).toHaveBeenCalledTimes(1);
+      expect(activeLead.preferredAppointmentTime).toBe('2026-10-01 at 10:00');
+      expect(activeConversation.orchestration.handoffReason).toBe('intake_complete');
+    });
+    test('callback plus a receipt check coalesced into one turn receives one callback acknowledgement', async () => {
+      arrangeContact('Call me\nDid you get my text?');
+      expect(await processInboundSmsJob(job)).toMatchObject({ sent: true });
+      expect(sendSms).toHaveBeenCalledTimes(1);
+      expect(sendSms.mock.calls[0][0].body).toMatch(/callback request is saved/);
+    });
+    test('callback retry after provider acceptance does not resend', async () => {
+      arrangeContact();
+      Message.findOne.mockReset().mockReturnValueOnce(leanQuery(null)).mockResolvedValue({ _id: 'already-sent', providerMessageId: 'SM_ALREADY' });
+      expect(await processInboundSmsJob(job)).toMatchObject({ sent: true, outboundMessageId: 'already-sent' });
+      expect(sendSms).not.toHaveBeenCalled();
+      expect(AlertService.createHumanHandoffAlert).toHaveBeenCalledWith(expect.objectContaining({ messageId: activeInbound._id, providerMessageId: activeInbound.providerMessageId }));
+    });
+    test('callback task failure never produces a false saved acknowledgement', async () => {
+      arrangeContact();
+      AlertService.createHumanHandoffAlert.mockRejectedValueOnce(new Error('contact write failed'));
+      await expect(processInboundSmsJob(job)).rejects.toThrow('contact write failed');
+      expect(sendSms).not.toHaveBeenCalled();
+      expect(activeConversation.conversationMemory.recoveryIntake.contactControl).toBeUndefined();
+    });
+    test('callback projection failure remains retryable before sending', async () => {
+      arrangeContact();
+      Conversation.findByIdAndUpdate.mockResolvedValueOnce(null);
+      await expect(processInboundSmsJob(job)).rejects.toMatchObject({ code: 'STAFF_ACTION_NOT_SAVED' });
+      expect(sendSms).not.toHaveBeenCalled();
+    });
+    test('receipt acknowledgement is throttled independently from the callback acknowledgement', async () => {
+      arrangeContact('Did you get my text?');
+      activeConversation.conversationMemory.recoveryIntake.contactControl = {
+        request: { alertId: 'callback-alert' }, receiptReply: { at: new Date(), inboundMessageId: 'previous-receipt' },
+      };
+      expect(await processInboundSmsJob(job)).toMatchObject({ reason: 'human_handoff_status_throttled' });
+      expect(sendSms).not.toHaveBeenCalled();
+    });
+    test('same receipt retry reaches durable outbound deduplication despite throttle', async () => {
+      arrangeContact('Did you get my text?');
+      activeConversation.conversationMemory.recoveryIntake.contactControl = {
+        receiptReply: { at: new Date(), inboundMessageId: activeInbound._id },
+      };
+      Message.findOne.mockReset().mockReturnValueOnce(leanQuery(null)).mockResolvedValue({ _id: 'already-sent', providerMessageId: 'SM_ALREADY' });
+      expect(await processInboundSmsJob(job)).toMatchObject({ sent: true, outboundMessageId: 'already-sent' });
+      expect(sendSms).not.toHaveBeenCalled();
+    });
+    test('provider uncertainty keeps the callback durable and does not promise delivery', async () => {
+      arrangeContact();
+      sendSms.mockRejectedValueOnce(Object.assign(new Error('timeout'), { deliveryUncertain: true }));
+      expect(await processInboundSmsJob(job)).toMatchObject({ sent: false });
+      expect(activeConversation.conversationMemory.recoveryIntake.contactControl.request.alertId).toBe('intake-alert');
+      expect(AlertService.createSystemAlert).toHaveBeenCalled();
+    });
+    test('consent suppression does not start the receipt throttle', async () => {
+      arrangeContact('Did you get my text?');
+      sendSms.mockResolvedValueOnce({ suppressed: true, reason: 'customer_opted_out' });
+      expect(await processInboundSmsJob(job)).toMatchObject({ sent: false, suppressed: true });
+      expect(activeConversation.conversationMemory.recoveryIntake.contactControl?.receiptReply).toBeUndefined();
+    });
+    test('closure during callback persistence suppresses the acknowledgement at dispatch', async () => {
+      arrangeContact();
+      AlertService.createHumanHandoffAlert.mockImplementationOnce(async () => {
+        activeConversation.status = 'closed'; return { alert: { _id: 'contact-alert' } };
+      });
+      Message.findByIdAndUpdate.mockImplementation(async (_id, update) => ({ _id, ...update }));
+      expect(await processInboundSmsJob(job)).toMatchObject({ sent: false, suppressed: true });
+      expect(sendSms).not.toHaveBeenCalled();
+    });
+  });
 
   test("an alert write failure prevents a false acknowledgement and the retry reuses the handoff", async () => {
     AlertService.createHumanHandoffAlert.mockRejectedValueOnce(new Error("alert storage unavailable"));

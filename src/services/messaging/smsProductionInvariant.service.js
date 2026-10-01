@@ -289,7 +289,8 @@ export const applySmsProductionInvariants = ({
     // still apply without multi-intent enrichment.
   }
 
-  const eligibility = enforceEligibilityBoundary({
+  const contactControl = next.guardrail?.reason === "sms_contact_control" && Boolean(next.contactControl);
+  const eligibility = contactControl ? { reply, changed: false } : enforceEligibilityBoundary({
     result: next,
     reply,
     lead,
@@ -312,7 +313,7 @@ export const applySmsProductionInvariants = ({
   // The shared intake decision already answered scheduling and selected the
   // missing field. Rewriting it can remove a legitimate alternative-date question
   // or contradict a completed calendar check. Keep commitment/eligibility guards.
-  const authoritativeIntake = next.compoundTurn === true || next.guardrail?.reason === "shared_recovery_intake" ||
+  const authoritativeIntake = contactControl || next.compoundTurn === true || next.guardrail?.reason === "shared_recovery_intake" ||
     (next.guardrail?.reason === "sms_handoff_acknowledgement" && Boolean(next.intakeReview));
   const knownFact = authoritativeIntake ? { reply, actions: [] } : removeKnownFactReasks({ reply, lead, policy });
   reply = knownFact.reply;

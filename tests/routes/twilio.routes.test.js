@@ -1,3 +1,4 @@
+import Alert from '../../src/models/alert.js';
 import ServiceOffering from '../../src/models/serviceOffering.js';
 
 import request from "supertest";
@@ -216,7 +217,11 @@ describe("Twilio Routes", () => {
       expect(updatedLead.status).toBe("booked");
     });
 
-    test("does not send a reply when human takeover is active", async () => {
+    test.each([
+      ['Can someone call me?', 'callback'],
+      ['Did you get my text?', 'receipt'],
+      ['The pipe is under the kitchen sink', 'ordinary'],
+    ])('staff takeover preserves ownership for %s (%s)', async (body, kind) => {
       const business = await createBusiness();
 
       const lead = await Lead.create({
@@ -229,7 +234,7 @@ describe("Twilio Routes", () => {
         source: "manual",
       });
 
-      await Conversation.create({
+      const ownedConversation = await Conversation.create({
         business: business._id,
         lead: lead._id,
         customerPhone: "4045559999",
@@ -245,20 +250,51 @@ describe("Twilio Routes", () => {
         .send({
           From: "4045559999",
           To: "4045551234",
-          Body: "Can someone call me?",
+          Body: body,
           MessageSid: "SM_HUMAN_123",
         });
 
       expect(response.status).toBe(200);
       expect(generateAIReplyResult).not.toHaveBeenCalled();
-      expect(sendSms).not.toHaveBeenCalled();
+      const expectedReplies = kind === 'ordinary' ? 0 : 1;
+      expect(sendSms).toHaveBeenCalledTimes(expectedReplies);
+      expect(await Message.countDocuments({
+        business: business._id,
+        direction: 'outbound',
+      })).toBe(expectedReplies);
 
-      expect(
-        await Message.countDocuments({
-          business: business._id,
-          direction: "outbound",
-        }),
-      ).toBe(0);
+      const updatedConversation = await Conversation.findById(ownedConversation._id);
+      const updatedLead = await Lead.findById(lead._id);
+      expect(updatedConversation.humanTakeover).toBe(true);
+      expect(updatedConversation.aiEnabled).toBe(false);
+      expect(String(updatedConversation.lead)).toBe(String(lead._id));
+      expect(updatedLead.serviceNeeded).toBe('Pipe repair');
+      expect(updatedLead.status).toBe('contacted');
+
+      if (kind !== 'ordinary') {
+        const sent = sendSms.mock.calls[0][0];
+        expect(sent).toMatchObject({ actorType: 'webhook', directResponse: true,
+          metadata: { aiGenerated: false, generatedBy: 'guardrail' } });
+        expect(sent.body).toContain('A response time is not guaranteed.');
+        expect(sent.body).not.toMatch(/keep helping|will call you|appointment is confirmed/i);
+      }
+      const contact = updatedConversation.conversationMemory?.recoveryIntake?.contactControl;
+      if (kind === 'callback') {
+        expect(sendSms.mock.calls[0][0].body).toMatch(/callback request is saved/);
+        expect(contact.request.kind).toBe('callback');
+        expect(contact.request.alertId).toBeTruthy();
+        const staffTask = await Alert.findById(contact.request.alertId);
+        expect(staffTask).not.toBeNull();
+        expect(staffTask.actionRequired).toBe(true);
+        expect(staffTask.metadata.callbackRequested).toBe(true);
+        expect(String(staffTask.business)).toBe(String(business._id));
+        expect(String(staffTask.conversation)).toBe(String(ownedConversation._id));
+      } else if (kind === 'receipt') {
+        expect(sendSms.mock.calls[0][0].body).toMatch(/your message was received/i);
+        expect(sendSms.mock.calls[0][0].body).not.toMatch(/saved for review/);
+        expect(contact?.request).toBeUndefined();
+        expect(contact?.receiptReply?.at).toBeTruthy();
+      }
     });
 
     test("honors intentional spam no_reply decisions", async () => {

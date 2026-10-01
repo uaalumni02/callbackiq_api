@@ -1,3 +1,4 @@
+import { smsContactControlKind } from './smsContactControl.service.js';
 import { confirmationFollowUpReply } from '../booking/confirmationFollowUp.service.js';
 import { respectCustomerConstraints, currentConstraints } from '../conversationCondition.service.js';
 import { isCallbackRequestText } from './customerContactIntent.service.js';
@@ -26,12 +27,6 @@ const IMMEDIATE_SAFETY_FLAGS = new Set([
 ]);
 
 
-
-const HANDOFF_STATUS_PATTERNS = [
-  /\b(?:did|has).{0,35}(?:callback|call back|request|message).{0,25}(?:go through|come through|arrive|send|sent|receive|received)\b/i,
-  /\b(?:will|is|when).{0,25}(?:someone|a person|the team|staff).{0,20}(?:call|contact|respond|reply)\b/i,
-  /\b(?:did you get (?:that|my message)|are you (?:still )?there|callback request)\b/i,
-];
 
 const DEFAULT_STATUS_REPLY_THROTTLE_MS = 10 * 60 * 1000;
 
@@ -162,12 +157,7 @@ export const isHumanHandoffSource = ({ conversation, inboundMessageId }) => {
   return Boolean(stored && incoming && stored === incoming);
 };
 
-export const isHumanHandoffStatusQuestion = (message) => {
-  const text = clean(message);
-  return Boolean(
-    text && HANDOFF_STATUS_PATTERNS.some((pattern) => pattern.test(text)),
-  );
-};
+export const isHumanHandoffStatusQuestion = message => smsContactControlKind(message) === 'receipt';
 
 export const shouldSendHumanHandoffStatusAcknowledgement = ({
   conversation,

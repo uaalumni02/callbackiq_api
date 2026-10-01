@@ -1,3 +1,4 @@
+import { smsContactControlKind, canAcknowledgeSmsContactControl } from './messaging/smsContactControl.service.js';
 import { isAppointmentReply } from './scheduling/appointmentReply.service.js';
 import Business from "../models/business.js";
 import Lead from "../models/lead.js";
@@ -605,7 +606,8 @@ export const handleInboundSmsWebhook = async (req, res) => {
     const processingRequired =
       !commandClassification.handled &&
       !mediaOnly &&
-      (isAppointmentReply(body) || safetyReviewRequired || postHandoffStatusEligible ||
+      ((smsContactControlKind(body) && canAcknowledgeSmsContactControl(conversation)) ||
+        isAppointmentReply(body) || safetyReviewRequired || postHandoffStatusEligible ||
         (conversation.aiEnabled !== false &&
           conversation.humanTakeover !== true &&
           conversation.status !== "closed" &&

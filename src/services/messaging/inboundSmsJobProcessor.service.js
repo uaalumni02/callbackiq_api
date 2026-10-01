@@ -1,3 +1,4 @@
+import { smsContactControlKind, canAcknowledgeSmsContactControl, contactControlReply } from './smsContactControl.service.js';
 import { handleAppointmentReply } from '../scheduling/appointmentReply.service.js';
 import { captureTurnFacts } from '../booking/turnFactCapture.service.js';
 import { handleConversationControl, isRequestWithdrawal } from '../conversationControl.service.js';
@@ -28,12 +29,10 @@ import {
   shouldCompleteManualIntake,
   buildFailedHumanHandoffUpdate,
   buildFinalizedHumanHandoffUpdate,
-  buildHumanHandoffStatusResult,
   buildPendingHumanHandoffUpdate,
   ensureHumanHandoffResult,
   ensureUrgentOperationalResult,
   isHumanHandoffSource,
-  isHumanHandoffStatusQuestion,
   isUrgentOperationalResult,
   requiresHumanHandoff,
   shouldSendHumanHandoffStatusAcknowledgement,
@@ -242,6 +241,7 @@ const persistOutboundReply = async ({
     const suppressionReason = await getSmsAutomationSuppressionReason({
       businessId: business._id, conversationId: conversation._id,
       leadId: lead._id, to: conversation.customerPhone, isAiGenerated,
+      contactControl: result?.contactControl || '', customerMessage: inboundMessage?.body,
     });
     if (suppressionReason) {
       outbound = await Message.findByIdAndUpdate(claimed._id, {
@@ -435,9 +435,9 @@ export const processInboundSmsJob = async (job) => {
   }
 
   /*
-   * Once a person owns the conversation, CallBackIQ does not restart the AI.
-   * It may send one deterministic, throttled status acknowledgement when the
-   * customer asks whether the callback request was received.
+   * Staff ownership never restarts AI. Explicit contact requests and receipt
+   * checks use the deterministic, persistence-first control route below.
+   * Receipt acknowledgements are throttled independently of callback requests.
    */
   const classification = classifySmsIntent({
     customerMessage: customerTurn.customerMessage,
@@ -451,20 +451,75 @@ export const processInboundSmsJob = async (job) => {
     activityWindowStartAt:
       conversation?.orchestration?.recoveryJourneyStartedAt || null,
   });
-  const handoffLifecycleActive =
-    conversation.humanTakeover === true ||
-    conversation?.orchestration?.phase === "handoff_pending" ||
-    Boolean(conversation?.orchestration?.handoffStatus);
-  const handoffStatusQuestion =
-    handoffLifecycleActive &&
-    isHumanHandoffStatusQuestion(customerTurn.customerMessage);
-
   const safetyReviewRequired = deterministicAssessment.handled &&
     (["emergency", "hazardous_diy_request"].includes(deterministicAssessment.category) ||
       deterministicAssessment.reason === "safety_clarification_required");
   const automationPaused = conversation.humanTakeover === true || conversation.aiEnabled === false ||
     ["closed", "archived"].includes(conversation.status);
   // Safety evidence still updates the staff queue; it cannot resume automation.
+  const contactKind = smsContactControlKind(customerTurn.customerMessage);
+  // This route precedes both completed intake and staff ownership suppression.
+  // Mixed factual/booking turns stay with the existing orchestration below.
+  if (contactKind && !deterministicAssessment.handled && canAcknowledgeSmsContactControl(conversation)) {
+    const state = conversation.conversationMemory?.recoveryIntake?.contactControl || {};
+    const priorReceipt = state.receiptReply;
+    const replay = String(priorReceipt?.inboundMessageId || '') === String(inboundMessage._id);
+    if (contactKind === 'receipt' && !replay && !shouldSendHumanHandoffStatusAcknowledgement({
+      conversation: { orchestration: { handoffStatusReplyAt: priorReceipt?.at } },
+    })) {
+      await completeCoalescedJobs({ conversationId: conversation._id, primaryJobId: job._id,
+        primaryMessageId: inboundMessage._id, turnMessageIds: customerTurn.turnMessageIds });
+      return { decision: 'skipped', reason: 'human_handoff_status_throttled' };
+    }
+    const requested = contactKind !== 'receipt';
+    if (requested) {
+      assertDistributedLeaseActive();
+      const saved = await AlertService.createHumanHandoffAlert({
+        businessId: business._id, leadId: lead._id, conversationId: conversation._id,
+        messageId: inboundMessage._id, providerMessageId: inboundMessage.providerMessageId,
+        customerName: lead.customerName, customerPhone: conversation.customerPhone,
+        customerMessage: customerTurn.customerMessage, lead,
+        result: { messageCategory: 'human_requested', urgency: lead.urgency,
+          handoff: { required: true, reason: 'human_requested', callbackRequested: contactKind === 'callback',
+            callbackPhone: conversation.customerPhone } },
+      });
+      if (!saved?.alert?._id) throw Object.assign(new Error('Staff contact request was not saved.'), { code: 'STAFF_ACTION_NOT_SAVED' });
+      assertDistributedLeaseActive();
+      const updated = await Conversation.findByIdAndUpdate(conversation._id, { $set: {
+        'conversationMemory.recoveryIntake.contactControl.request': {
+          kind: contactKind, alertId: String(saved.alert._id), inboundMessageId: String(inboundMessage._id),
+          requestedAt: new Date(), callbackPhone: conversation.customerPhone,
+        },
+      } }, { returnDocument: 'after', runValidators: true });
+      if (!updated) throw Object.assign(new Error('Staff contact request projection was not saved.'), { code: 'STAFF_ACTION_NOT_SAVED' });
+      SocketService.emitConversationUpdated(business._id, updated);
+    }
+    const result = { decision: 'send_fixed_response', actionType: 'human_handoff_status',
+      messageCategory: requested ? 'human_requested' : 'human_handoff_status', contactControl: contactKind,
+      reply: contactControlReply({ kind: contactKind, conversation, savedRequest: requested }),
+      guardrail: { skipAI: true, reason: 'sms_contact_control' },
+      handoff: { required: requested, statusAcknowledgement: !requested } };
+    const delivery = await persistOutboundReply({ business, lead, conversation,
+      inboundMessage: { ...(inboundMessage.toObject?.() || inboundMessage), body: customerTurn.customerMessage }, result });
+    // Only an accepted send starts throttling. Same-message retries still reach
+    // outbound idempotency, including retries after provider acceptance.
+    if (contactKind === 'receipt' && delivery.sent === true) {
+      assertDistributedLeaseActive();
+      await Conversation.findByIdAndUpdate(conversation._id, { $set: {
+        'conversationMemory.recoveryIntake.contactControl.receiptReply': {
+          at: new Date(), inboundMessageId: String(inboundMessage._id),
+        },
+      } }, { runValidators: true });
+    }
+    if (!delivery.sent && !delivery.suppressed && delivery.reason !== 'delivery_uncertain') {
+      throw Object.assign(new Error('Contact acknowledgement has no durable delivery outcome.'), { code: 'SMS_HANDOFF_ACK_REQUIRED' });
+    }
+    await completeCoalescedJobs({ conversationId: conversation._id, primaryJobId: job._id,
+      primaryMessageId: inboundMessage._id, turnMessageIds: customerTurn.turnMessageIds });
+    return { decision: 'contact_control', messageCategory: result.messageCategory,
+      sent: delivery.sent === true, suppressed: delivery.suppressed === true,
+      outboundMessageId: delivery.message?._id || null };
+  }
   if (automationPaused && !safetyReviewRequired) {
     await completeCoalescedJobs({
       conversationId: conversation._id, primaryJobId: job._id,
@@ -511,66 +566,6 @@ export const processInboundSmsJob = async (job) => {
     }
   }
 
-  if (handoffStatusQuestion && !deterministicAssessment.handled && !turnPlan.compound && !turnPlan.additionalRequest) {
-    if (!shouldSendHumanHandoffStatusAcknowledgement({ conversation })) {
-      await completeCoalescedJobs({
-        conversationId: conversation._id,
-        primaryJobId: job._id,
-        primaryMessageId: inboundMessage._id,
-        turnMessageIds: customerTurn.turnMessageIds,
-      });
-      return {
-        decision: "skipped",
-        reason: "human_handoff_status_throttled",
-      };
-    }
-
-    const statusResult = buildHumanHandoffStatusResult({ business, conversation });
-    const delivery = await persistOutboundReply({
-      business,
-      lead,
-      conversation,
-      inboundMessage,
-      result: statusResult,
-    });
-
-    if (
-      delivery?.sent === true ||
-      delivery?.suppressed === true ||
-      delivery?.reason === "delivery_uncertain"
-    ) {
-      const statusUpdatedConversation = await Conversation.findByIdAndUpdate(
-        conversation._id,
-        {
-          $set: {
-            "orchestration.handoffStatusReplyAt": new Date(),
-            "orchestration.lastOutboundMessage": delivery?.message?._id || null,
-          },
-        },
-        { returnDocument: "after", runValidators: true },
-      );
-      SocketService.emitConversationUpdated(
-        business._id,
-        statusUpdatedConversation,
-      );
-    }
-
-    await completeCoalescedJobs({
-      conversationId: conversation._id,
-      primaryJobId: job._id,
-      primaryMessageId: inboundMessage._id,
-      turnMessageIds: customerTurn.turnMessageIds,
-    });
-
-    return {
-      decision: statusResult.decision,
-      messageCategory: statusResult.messageCategory,
-      outboundMessageId: delivery?.message?._id || null,
-      sent: delivery?.sent === true,
-      suppressed: delivery?.suppressed === true,
-    };
-  }
-
   if (!deterministicAssessment.handled && !automationPaused && !turnPlan.compound) {
     const eligibilityResult = await guardServiceRequest({ business, lead, conversation,
       customerMessage: customerTurn.customerMessage, turnId: String(inboundMessage._id) });
@@ -587,7 +582,8 @@ export const processInboundSmsJob = async (job) => {
 
   // Completed manual intake stays in the staff queue. New messages are already
   // durable; attach an action-required alert instead of restarting AI intake.
-  if ((conversation?.orchestration?.handoffReason === "intake_complete" && !handoffSource && !turnPlan.compound) ||
+  if ((conversation?.orchestration?.handoffReason === "intake_complete" && !handoffSource && !turnPlan.compound &&
+      !classification.intents?.human && !classification.intents?.callback) ||
       (automationPaused && safetyReviewRequired)) {
     const safety = deterministicAssessment.handled &&
       (["emergency", "hazardous_diy_request"].includes(deterministicAssessment.category) ||
