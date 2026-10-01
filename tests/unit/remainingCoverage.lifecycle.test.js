@@ -28,3 +28,18 @@ test('staff notification shutdown is awaited even when lifecycle polling is disa
  let release;stopStaffNotificationWorker.mockImplementationOnce(()=>new Promise(r=>{release=r;}));let done=false;
  const stopping=stopConversationLifecycleWorker().then(()=>{done=true;});await Promise.resolve();expect(done).toBe(false);release();await stopping;expect(done).toBe(true);
 });
+
+ test.each([
+ {humanTakeover:true,aiEnabled:false,humanTakeoverAt:null},
+ {humanTakeover:true,aiEnabled:false,humanTakeoverAt:new Date('2026-09-01T12:00:00Z')},
+ {humanTakeover:false,aiEnabled:false},
+ ])('quiet staff-owned conversations never resume automatically: %j',async flags=>{
+ jest.clearAllMocks();
+ const conversation={_id:'owned',status:'open',lastMessageAt:new Date('2026-09-01T10:00:00Z'),...flags};
+ Conversation.find.mockReturnValue({sort:()=>({limit:async()=>[conversation]})});
+ Conversation.findOneAndUpdate.mockResolvedValue(conversation);
+ const result=await runConversationLifecycleOnce({now:new Date('2026-09-30T23:55:00Z')});
+ expect(result.outcomes).toEqual({noop:1});
+ expect(Conversation.findOneAndUpdate).toHaveBeenCalledTimes(1);
+ expect(Message.findOne).not.toHaveBeenCalled();
+ });

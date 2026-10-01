@@ -186,7 +186,7 @@ export async function updateRequestWorkflow({business,userId,alertId,input}) {
           if(snapshot.review.assignedTo&&id(snapshot.review.assignedTo)!==id(business.owner)) throw fail('This review already belongs to another staff member.');
           Object.assign(alertSet,{status:'acknowledged',assignedTo:business.owner||userId,assignedBy:snapshot.review.assignedBy||userId,assignedAt:snapshot.review.assignedAt||now,
             acknowledgedAt:snapshot.review.acknowledgedAt||now,acknowledgedBy:snapshot.review.acknowledgedBy||userId});
-          Object.assign(conversationSet,{humanTakeover:true,aiEnabled:false});
+          Object.assign(conversationSet,{humanTakeover:true,aiEnabled:false,humanTakeoverAt:now,humanTakeoverBy:userId,"orchestration.phase":"human_takeover"});
         }
         if(changes) {
           const serviceChanged=changes.serviceNeeded!==undefined&&changes.serviceNeeded!==snapshot.lead.serviceNeeded;

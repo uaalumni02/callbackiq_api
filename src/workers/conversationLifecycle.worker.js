@@ -7,11 +7,9 @@ import { recoverFailedSmsStaffReviews } from "../services/smsStaffReviewRecovery
 import { escalateOverdueInterventions } from "../services/interventionEscalation.service.js";
 import Conversation from "../models/conversation.js";
 import Message from "../models/message.js";
-import AlertService from "../services/alert.service.js";
 import { sendSms } from "../services/twilioSmsService.js";
 import { withDistributedLease } from "../services/distributedLease.service.js";
 import { logOperationalError, logOperationalEvent } from "../helpers/logging/safeLogger.js";
-import { deriveSmsConversationPhase } from "../services/messaging/smsConversationState.service.js";
 
 let timer = null;
 let running = false;
@@ -23,8 +21,6 @@ const positive = (value, fallback, min = 1000, max = 86400000) => {
 
 const intervalMs = () =>
   positive(process.env.SMS_LIFECYCLE_INTERVAL_MS, 60000, 15000, 15 * 60000);
-const humanTakeoverTtlMs = () =>
-  positive(Number(process.env.SMS_HUMAN_TAKEOVER_TTL_MINUTES || 60) * 60000, 60 * 60000, 5 * 60000, 24 * 60 * 60000);
 const recoveryNudgeDelayMs = () =>
   positive(process.env.SMS_RECOVERY_NUDGE_DELAY_MS, 30 * 60000, 5 * 60000, 6 * 60 * 60000);
 
@@ -79,47 +75,6 @@ const sendLifecycleSms = async ({ conversation, body, event, idempotencySuffix }
   });
   await saveLifecycleOutbound({ conversation, body, sent, event });
   return sent;
-};
-
-const releaseStaleHumanTakeover = async (conversation, now) => {
-  if (conversation.humanTakeover !== true) return false;
-  const activityAt = new Date(conversation.lastMessageAt || conversation.humanTakeoverAt || 0);
-  if (!Number.isFinite(activityAt.getTime())) return false;
-  if (now.getTime() - activityAt.getTime() < humanTakeoverTtlMs()) return false;
-
-  const updated = await Conversation.findOneAndUpdate(
-    {
-      _id: conversation._id,
-      humanTakeover: true,
-      status: "open",
-      lastMessageAt: conversation.lastMessageAt,
-    },
-    {
-      $set: {
-        humanTakeover: false,
-        humanTakeoverAt: null,
-        humanTakeoverBy: null,
-        aiEnabled: true,
-        "orchestration.phase": deriveSmsConversationPhase({
-          ...(conversation.toObject?.() || conversation),
-          humanTakeover: false,
-        }),
-        "orchestration.lastStateTransitionAt": now,
-      },
-    },
-    { returnDocument: "after" },
-  );
-  if (!updated) return false;
-
-  await AlertService.createSystemAlert({
-    businessId: conversation.business,
-    title: "SMS human takeover expired",
-    message: "Automated SMS assistance is eligible to resume because the human takeover window expired.",
-    priority: "low",
-    metadata: { conversationId: String(conversation._id) },
-    dedupeKey: `sms_human_takeover_expired:${conversation._id}:${activityAt.toISOString()}`,
-  });
-  return true;
 };
 
 export const expireBookingOffer = async (conversation, now) => {
@@ -242,7 +197,8 @@ const processConversation = async (conversation, now) => {
       );
       if (!fresh) return "noop";
       conversation = fresh;
-      if (await releaseStaleHumanTakeover(conversation, now)) return "takeover_released";
+      // Staff ownership has no timer. Only an explicit owner action may resume AI.
+      if (conversation.humanTakeover === true || conversation.aiEnabled === false) return "noop";
       if (await expireBookingOffer(conversation, now)) return "offer_expired";
       if (await nudgeAbandonedRecovery(conversation, now)) return "recovery_nudged";
       return "noop";

@@ -28,7 +28,7 @@ const act=async(action,extra={})=>{const snapshot=await read();return updateRequ
 test('groups four legacy reviews before pagination; atomically accepts and consolidates with history',async()=>{
  const safety=await Alert.create({business:business._id,conversation,lead,type:'safety_emergency',actionRequired:true,title:'Safety',message:'Separate safety concern',priority:'critical'});
  const list=await listBusinessRequests({businessId:business._id,query:{}});expect(list.total).toBe(2);expect(list.data.find(row=>row.type==='human_requested').memberIds).toHaveLength(4);
- const result=await act('accept');expect(result.review.assignedTo.toString()).toBe(business.owner.toString());expect(result.conversation.humanTakeover).toBe(true);expect(result.conversation.aiEnabled).toBe(false);
+ const result=await act('accept');expect(result.review.assignedTo.toString()).toBe(business.owner.toString());expect(result.conversation.humanTakeover).toBe(true);expect(result.conversation.aiEnabled).toBe(false);expect(result.conversation.humanTakeoverAt).toBeTruthy();expect(String(result.conversation.humanTakeoverBy)).toBe(String(business.owner));
  expect(await Alert.countDocuments({business:business._id,type:'human_requested',resolvedAt:null})).toBe(1);expect(result.review.reviewEvents.filter(event=>event.key.startsWith('legacy:'))).toHaveLength(4);
  expect((await Alert.findById(safety._id)).resolvedAt).toBeNull();
  expect(await Alert.countDocuments({'metadata.supersededBy':result.review._id.toString()})).toBe(3);
