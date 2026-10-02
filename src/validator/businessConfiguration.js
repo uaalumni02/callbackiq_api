@@ -94,6 +94,8 @@ export const updateAvailabilityExceptionSchema =
   ).min(1);
 
 export const schedulingPolicySchema = Joi.object({
+  staffSmsEnabled: Joi.boolean(),
+  staffSmsPhone: Joi.string().pattern(/^\+1\d{10}$/).allow(''),
   approvalSmsEnabled: Joi.boolean(),
   approvalSmsPhone: Joi.string().pattern(/^\+1\d{10}$/).allow(''),
   automaticConfirmationAuthorized: Joi.boolean(),

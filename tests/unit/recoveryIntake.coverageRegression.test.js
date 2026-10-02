@@ -38,7 +38,7 @@ beforeEach(() => {
   searchServices.mockResolvedValue([{ id: 'offering-coverage', score: 1 }]);
   validateServiceArea.mockResolvedValue({ supported: true });
   getAvailability.mockResolvedValue({ supportedServiceArea: true, slots: [{ startAt: '2026-09-08T12:00:00Z', endAt: '2026-09-08T13:00:00Z' }] });
-  AlertService.createHumanHandoffAlert.mockResolvedValue({ _id: 'alert-coverage' });
+  AlertService.createHumanHandoffAlert.mockResolvedValue({ alert: { _id: 'alert-coverage' }, created: true });
 });
 
 describe.each(['sms', 'voice'])('%s recovery intake regression', channel => {

@@ -340,31 +340,36 @@ export const handleSmsRecoveryVoiceWebhook = async (req, res) => {
       // CallSid initializes a new conversation only; repeat calls preserve its request.
       recoveryJourneyKey: callSid,
     });
+    const bookkeeping = [];
     if (
       numberContext?.trackingNumber ||
       numberContext?.marketingSource
     ) {
-      await syncLatestAttribution({
+      bookkeeping.push(syncLatestAttribution({
         businessId: business._id,
         leadId: lead._id,
         conversationId: conversation._id,
         trackingNumber: numberContext?.trackingNumber || null,
         marketingSource: numberContext?.marketingSource || null,
         calledPhone: twilioNumber,
-      });
+      }));
     }
-    await CallLog.findByIdAndUpdate(callLog._id, {
+    bookkeeping.push(CallLog.findByIdAndUpdate(callLog._id, {
       lead: lead._id,
       conversation: conversation._id,
-    });
-    await AlertService.createMissedCallAlert({
+    }));
+    bookkeeping.push(AlertService.createMissedCallAlert({
       businessId: business._id,
       leadId: lead._id,
       customerName: lead.customerName,
       customerPhone,
       callLogId: callLog._id,
       providerCallId: callSid,
-    });
+    }));
+
+    const persisted = await Promise.allSettled(bookkeeping);
+    const failedWrite = persisted.find(result => result.status === "rejected");
+    if (failedWrite) throw failedWrite.reason;
 
     const smsFeatureEnabled = isBusinessFeatureEnabled(business, "missedCallSmsEnabled");
     // CALLBACKIQ_SMS_TAKEOVER_LIFECYCLE

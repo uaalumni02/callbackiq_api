@@ -1,3 +1,5 @@
+import { withDeadline } from '../services/boundedRedis.service.js';
+import { markAutomationStarted, markAutomationStopped, markAutomationTick } from '../services/automationReadiness.service.js';
 import { safeConsole } from "../helpers/logging/safeLogger.js";
 import AutomationJob from "../models/automationJob.js";
 import AppointmentService from "../services/scheduling/appointment.service.js";
@@ -13,7 +15,7 @@ import {
 import { processQueuedIntegrationWebhooks } from "./integrationWebhook.worker.js";
 
 const POLL_INTERVAL_MS = Math.max(
-  Number(process.env.AUTOMATION_WORKER_INTERVAL_MS) || 30_000,
+  Number(process.env.AUTOMATION_WORKER_INTERVAL_MS) || 5_000,
   5_000,
 );
 const STALE_LOCK_MINUTES = Math.max(
@@ -32,6 +34,8 @@ const instanceId =
 let timer = null;
 let running = false;
 let lastWatchMaintenanceAt = 0;
+let maintenanceActive = null;
+let activeTick = null;
 
 const recoverStaleLocks = async () => {
   const staleBefore = new Date(Date.now() - STALE_LOCK_MINUTES * 60_000);
@@ -108,15 +112,24 @@ const maintainGoogleWatches = async () => {
   }
 };
 
-const tick = async ({ includeIntegrationMaintenance = true } = {}) => {
+const performTick = async ({ includeIntegrationMaintenance = true } = {}) => {
   if (running) return;
   running = true;
   try {
-    await AppointmentService.releaseExpiredHolds();
-    await processDueAppointmentNotifications(25);
-    if (includeIntegrationMaintenance) {
-      await processQueuedIntegrationWebhooks(25);
-      await maintainGoogleWatches();
+    // A maintenance failure must not prevent already-queued confirmations.
+    try { await AppointmentService.releaseExpiredHolds(); }
+    catch (error) { safeConsole.error('Appointment maintenance failed:', error); }
+    await processDueAppointmentNotifications(
+      Math.max(1, Math.min(500, Number(process.env.APPOINTMENT_NOTIFICATION_BATCH_SIZE) || 100)),
+      { concurrency: Math.max(1, Math.min(10, Number(process.env.APPOINTMENT_NOTIFICATION_CONCURRENCY) || 3)) },
+    );
+    markAutomationTick(true);
+    if (includeIntegrationMaintenance && !maintenanceActive) {
+      maintenanceActive = (async () => {
+        await processQueuedIntegrationWebhooks(25);
+        await maintainGoogleWatches();
+      })().catch(error => safeConsole.error('Integration maintenance failed:', error))
+        .finally(() => { maintenanceActive = null; });
     }
 
     let processed = 0;
@@ -126,26 +139,41 @@ const tick = async ({ includeIntegrationMaintenance = true } = {}) => {
       processed += 1;
     }
   } catch (error) {
+    markAutomationTick(false);
     safeConsole.error("Automation worker tick failed:", error);
   } finally {
     running = false;
   }
 };
 
+export const runAutomationTick = options => {
+  if (activeTick) return activeTick;
+  activeTick = performTick(options).finally(() => { activeTick = null; });
+  return activeTick;
+};
+
 export const startAutomationWorker = async () => {
-  if (timer || process.env.AUTOMATION_WORKER_ENABLED !== "true") return;
+  if (timer) return;
+  if (process.env.AUTOMATION_WORKER_ENABLED === "false") {
+    if (process.env.PROCESS_ROLE === 'worker-automation') throw new Error('The automation worker role cannot run with automation disabled.');
+    return;
+  }
   await recoverStaleLocks();
   await recoverStaleAppointmentNotificationLocks();
   // Run core scheduling work immediately. Optional integration maintenance starts
   // on the normal polling interval so worker startup is deterministic and does
   // not block on webhook/watch infrastructure.
-  await tick({ includeIntegrationMaintenance: false });
-  timer = setInterval(() => void tick(), POLL_INTERVAL_MS);
+  markAutomationStarted();
+  await runAutomationTick({ includeIntegrationMaintenance: false });
+  timer = setInterval(() => void runAutomationTick(), POLL_INTERVAL_MS);
   timer.unref?.();
   safeConsole.log(`Automation worker started as ${instanceId}.`);
 };
 
-export const stopAutomationWorker = () => {
+export const stopAutomationWorker = async () => {
+  markAutomationStopped();
   if (timer) clearInterval(timer);
   timer = null;
+  if (activeTick) await withDeadline(activeTick, 120000, "AUTOMATION_DRAIN_TIMEOUT");
+  if (maintenanceActive) await withDeadline(maintenanceActive, 120000, "INTEGRATION_MAINTENANCE_DRAIN_TIMEOUT");
 };

@@ -1,3 +1,4 @@
+import AppointmentNotice from '../../src/models/appointmentNotificationJob.js';
 import Sms from '../../src/models/smsProcessingJob.js';
 import Work from '../../src/models/webhookWork.js';
 import Heartbeat from '../../src/models/processHeartbeat.js';
@@ -6,6 +7,7 @@ import Notification from '../../src/models/staffNotificationJob.js';
 import { readScaleHealth } from '../../src/services/scaleHealth.service.js';
 const query = result => ({ sort: () => query(result), select: () => query(result), maxTimeMS: () => query(result), lean: async () => result });
 beforeEach(() => {
+ jest.spyOn(AppointmentNotice, 'findOne').mockImplementation(() => query(null));
  jest.spyOn(Sms, 'findOne').mockImplementation(() => query(null));
  jest.spyOn(Work, 'findOne').mockImplementation(() => query(null));
  jest.spyOn(Heartbeat, 'aggregate').mockReturnValue({ option: async () => [] });
@@ -41,4 +43,16 @@ test('unresolved failed approval email is unhealthy even with empty queues', asy
  expect(await readScaleHealth()).toMatchObject({ healthy:false, uncertainEmail:1 });
  const pipeline=Notification.aggregate.mock.calls[0][0];
  expect(pipeline[1].$lookup.pipeline[0].$match).toMatchObject({actionRequired:true,acknowledgedAt:null,resolvedAt:null});
+});
+
+test('stalled customer booking notices make fleet health unhealthy', async () => {
+ const now = new Date();
+ AppointmentNotice.findOne.mockImplementation(() => query({scheduledFor:new Date(now-121000)}));
+ expect(await readScaleHealth({now})).toMatchObject({healthy:false,appointmentNoticeOldestAgeMs:121000});
+});
+
+test('non-scale delivery readiness requires a fresh automation heartbeat',async()=>{
+ expect(await readScaleHealth()).toMatchObject({healthy:false,automationWorkerReady:false});
+ Heartbeat.aggregate.mockReturnValue({option:async()=>[{_id:'all',count:1,releases:['release'],capacityPlans:[],images:[]}]});
+ expect(await readScaleHealth()).toMatchObject({healthy:true,automationWorkerReady:true});
 });

@@ -1,3 +1,4 @@
+import { automationReadiness } from '../services/automationReadiness.service.js';
 import { isDraining, getVoiceSnapshot } from "../services/runtimeState.service.js";
 import { socketRedisReady } from "../services/socketRedisAdapter.service.js";
 import mongoose from "mongoose";
@@ -34,7 +35,7 @@ class HealthController {
       throwOnError: false,
     });
     const database = databaseState();
-    const ready = environment.valid && database === "connected" && !isDraining() && socketRedisReady();
+    const ready = environment.valid && database === "connected" && !isDraining() && socketRedisReady() && automationReadiness().ready;
 
     return res.status(ready ? 200 : 503).json({
       success: ready,
@@ -45,6 +46,7 @@ class HealthController {
         draining: isDraining(),
         realtime: socketRedisReady() ? "ok" : "unavailable",
         voice: getVoiceSnapshot(),
+        automation: automationReadiness().ready ? "ok" : "not_processing",
       },
       requestId: req.context?.requestId || "",
       timestamp: new Date().toISOString(),

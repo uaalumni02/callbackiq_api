@@ -21,7 +21,7 @@ test.each([
 ])('uses accepted date/time together: %s', (text, date, minutes) => {
  expect(findDateRange(text,zone,now)).toEqual({startDate:date,endDate:date});
  expect(parseTimePreference(text,zone,now).exactMinutes).toBe(minutes);
- expect(captureTurnFacts({customerMessage:text,now,business:{timezone:zone}}).preferredAppointmentTime).toBe(`${date} at ${Math.floor(minutes/60)}:00`);
+ expect(captureTurnFacts({customerMessage:text,now,business:{timezone:zone}}).preferredAppointmentTime).toBe(`${date} at ${Math.floor(minutes/60)}:00 AM`);
 });
 test.each(['Not tomorrow', "Monday doesn't work", 'Monday is not good', "I can't do Monday or Tuesday", 'Not Monday at 9 am'])('a rejected date is not an accepted preference: %s',text=>{
  expect(findDateRange(text,zone,now)).toBeNull();

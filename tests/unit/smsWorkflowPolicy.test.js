@@ -10,7 +10,7 @@ test.each(['plumbing', 'hvac', 'electrical', 'roofing', 'restoration', 'garage_d
       customerMessage: 'Please call me. My address is 123 Main St, Atlanta GA 30303. Tomorrow at 3pm works.',
       result: { messageCategory: 'human_requested', reply: 'Your callback request needs review.', serviceNeeded: '', address: '', preferredAppointmentTime: '' } });
     expect(result.address).toContain('123 Main');
-    expect(result.preferredAppointmentTime).toContain('15:00');
+    expect(result.preferredAppointmentTime).toContain('3:00 PM');
     expect(result.serviceNeeded).toBe(lead.serviceNeeded);
     expect(result.reply).toBe('Your callback request needs review.');
     expect(lead.address).toBeUndefined();

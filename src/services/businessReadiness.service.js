@@ -94,7 +94,7 @@ export const buildBusinessReadiness = async (
     ? providerConnections.find((item) => item.provider === expectedProvider)
     : null;
   const calendarReady =
-    provider === "internal" || providerConnection?.status === "connected";
+    provider === "internal" || (["google_calendar", "google", "jobber"].includes(provider) && providerConnection?.status === "connected");
 
   const checks = {
     accountRegistered: true,

@@ -21,7 +21,7 @@ const profileKeys = ["businessName", "businessType", "forwardingPhone", "email",
 const serviceKeys = ["diagnosticFallback", "_id", "name", "category", "description", "active", "aiCanDiscuss", "aiCanBook", "durationMinutes", "bufferBeforeMinutes", "bufferAfterMinutes", "estimatedValue", "priceEstimateMin", "priceEstimateMax", "disclosePriceEstimate", "priceEstimateDisclaimer", "diagnosticFee", "discloseDiagnosticFee", "emergencyEligible", "requiresHumanReview", "keywords", "excludedKeywords", "intakePolicy"];
 const ruleKeys = ["dayOfWeek", "enabled", "windows", "timezone", "capacity", "separateAnsweringHours", "answeringEnabled", "answeringWindows"];
 const exceptionKeys = ["_id", "date", "type", "name", "allDay", "windows", "capacity", "reason", "active", "appliesTo"];
-const policyKeys = ["approvalSmsEnabled", "approvalSmsPhone", "automaticConfirmationAuthorized", "appointmentStyle", "arrivalWindowMinutes", "minimumNoticeMinutes", "maximumAdvanceDays", "slotIntervalMinutes", "defaultDurationMinutes", "requireAddressBeforeBooking", "requireServiceBeforeBooking", "allowSameDayBooking", "allowAfterHoursBooking", "aiBookingConfirmationMode", "manualApprovalHoldMinutes", "customerCancellationAllowed", "cancellationNoticeMinutes", "confirmationMessageTemplate", "cancellationMessageTemplate", "rescheduleMessageTemplate"];
+const policyKeys = ["staffSmsEnabled", "staffSmsPhone", "approvalSmsEnabled", "approvalSmsPhone", "automaticConfirmationAuthorized", "appointmentStyle", "arrivalWindowMinutes", "minimumNoticeMinutes", "maximumAdvanceDays", "slotIntervalMinutes", "defaultDurationMinutes", "requireAddressBeforeBooking", "requireServiceBeforeBooking", "allowSameDayBooking", "allowAfterHoursBooking", "aiBookingConfirmationMode", "manualApprovalHoldMinutes", "customerCancellationAllowed", "cancellationNoticeMinutes", "confirmationMessageTemplate", "cancellationMessageTemplate", "rescheduleMessageTemplate"];
 const error = (message, statusCode = 400) => Object.assign(new Error(message), { statusCode });
 const cleanWindows = row => ({ ...row, windows: (row.windows || []).map(w => pick(w, ["startTime", "endTime"])) });
 const hash = value => crypto.createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -88,7 +88,7 @@ export async function readOwnerSettings(business, session = null) {
       { section: "team", label: "Choose who receives customer requests", complete: Boolean(ops.humanHandoffContacts?.some(c => c.active && (c.phone || c.email))) },
     ] : []),
   ];
-  return JSON.parse(JSON.stringify({ businessId: String(business._id), sections, revision, checklist, tradeSetup: getTradeSetup(business.businessType, services, policy), notificationReadiness: { smsEnabled: process.env.STAFF_APPROVAL_SMS_ENABLED === 'true', emailEnabled: process.env.STAFF_NOTIFICATION_EMAIL_ENABLED === 'true', warning: process.env.STAFF_NOTIFICATION_EMAIL_ENABLED === 'true' ? 'Approval email requires a verified owner email. Provider acceptance does not prove delivery.' : 'Approval email is disabled on this server. An administrator must enable STAFF_NOTIFICATION_EMAIL_ENABLED and configure email delivery. Use the appointment queue until notifications are verified.' }, trackingPhone: business.phone || "", voiceEnabled: voice.voiceAiEnabled,
+  return JSON.parse(JSON.stringify({ businessId: String(business._id), sections, revision, checklist, tradeSetup: getTradeSetup(business.businessType, services, policy), notificationReadiness: { staffSmsEnabled: process.env.STAFF_NOTIFICATION_SMS_ENABLED !== 'false', smsEnabled: process.env.STAFF_APPROVAL_SMS_ENABLED === 'true', emailEnabled: process.env.STAFF_NOTIFICATION_EMAIL_ENABLED === 'true', warning: process.env.STAFF_NOTIFICATION_EMAIL_ENABLED === 'true' ? 'Approval email requires a verified owner email. Provider acceptance does not prove delivery.' : 'Email alerts are not available yet. Contact support to activate them. Check your customer inbox until delivery is verified.' }, trackingPhone: business.phone || "", voiceEnabled: voice.voiceAiEnabled,
     customRouting: voice.routingPolicy,
     bookingRestrictedServices: services.filter(s => s.active && (!s.aiCanBook || s.requiresHumanReview)).map(s => s.name),
   }));
@@ -162,6 +162,7 @@ export async function saveOwnerSettings({ ownerId, section, payload, revision })
           }
         }
         await saveRows(AvailabilityException, id, values.exceptions, values.removedExceptionIds, session);
+        if (values.schedulingPolicy.staffSmsEnabled && !/^\+1\d{10}$/.test(values.schedulingPolicy.staffSmsPhone || '')) throw error('Enter a US mobile number including +1 for customer request texts.');
         if (values.schedulingPolicy.approvalSmsEnabled && !/^\+1\d{10}$/.test(values.schedulingPolicy.approvalSmsPhone || '')) throw error('Enter a US mobile number including +1 for approval texts.');
         const booking = values.bookingMode !== "callback";
         await saveDocument(SchedulingPolicy, id, { ...values.schedulingPolicy, automaticConfirmationAuthorized: values.bookingMode === "automatic", aiBookingConfirmationMode: values.bookingMode === "automatic" ? "auto" : "manual" }, session);

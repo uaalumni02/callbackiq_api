@@ -1,3 +1,5 @@
+// Heartbeat I/O is tested separately; boot-matrix fixtures must not start live timers.
+jest.mock('../../src/services/processHeartbeat.service.js', () => ({startProcessHeartbeat: jest.fn(), stopProcessHeartbeat: jest.fn().mockResolvedValue(undefined)}));
 describe("production PROCESS_ROLE boot matrix", () => {
   const originalEnv = { ...process.env };
 

@@ -43,6 +43,7 @@ SmsProcessingJobSchema.index({
   priority: -1,
   createdAt: 1,
 });
+SmsProcessingJobSchema.index({ priority: -1, availableAt: 1, createdAt: 1 }, { name: 'sms_claim_order_v2', partialFilterExpression: { status: { $in: ['queued', 'retry', 'processing'] } } });
 SmsProcessingJobSchema.index({ status: 1, leaseExpiresAt: 1 });
 SmsProcessingJobSchema.index({ status: 1, createdAt: 1 });
 SmsProcessingJobSchema.index({ status: 1, 'result.staffReviewAlertRecorded': 1, deadAt: 1, _id: 1 });

@@ -67,12 +67,12 @@ test.each([
 test('a date-only correction preserves the previously supplied clock time', () => {
  const facts = captureTurnFacts({ customerMessage: 'Actually next Wednesday instead', business: { timezone: 'America/New_York' },
   lead: { preferredAppointmentTime: '2026-09-22 at 14:00' }, now: new Date('2026-09-17T21:00:00-04:00') });
- expect(facts.preferredAppointmentTime).toBe('2026-09-23 at 14:00');
+ expect(facts.preferredAppointmentTime).toBe('2026-09-23 at 2:00 PM');
 });
 test('a time-only correction preserves the previously supplied day', () => {
  const facts = captureTurnFacts({ customerMessage: 'Actually 4 pm instead', business: { timezone: 'America/New_York' },
   lead: { preferredAppointmentTime: '2026-09-22 at 14:00' }, now: new Date('2026-09-17T21:00:00-04:00') });
- expect(facts.preferredAppointmentTime).toBe('2026-09-22 at 16:00');
+ expect(facts.preferredAppointmentTime).toBe('2026-09-22 at 4:00 PM');
 });
 test('handoff refuses to report success when no durable alert is returned', async () => {
  jest.spyOn(AlertService, 'create').mockResolvedValue({ alert: null, created: false });

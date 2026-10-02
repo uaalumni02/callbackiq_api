@@ -11,6 +11,8 @@ const SchedulingPolicySchema = new Schema(
       unique: true,
       index: true,
     },
+    staffSmsEnabled: { type: Boolean, default: false },
+    staffSmsPhone: { type: String, default: '', trim: true },
     approvalSmsEnabled: { type: Boolean, default: false },
     approvalSmsPhone: { type: String, default: '', trim: true },
     automaticConfirmationAuthorized: { type: Boolean, default: false },

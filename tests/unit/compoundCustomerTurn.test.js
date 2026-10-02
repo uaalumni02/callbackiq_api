@@ -94,7 +94,7 @@ test('rescheduling plus callback leaves the existing appointment unchanged',asyn
  const result=await handleCompoundCustomerTurn({...c,customerMessage:'Reschedule my appointment to Friday afternoon. Call me at noon.'});
  expect(result.reply).toMatch(/rescheduling request needs staff review/);
  expect(result.reply).toMatch(/Callback requested/);
- expect(c.lead.preferredAppointmentTime).toMatch(/friday afternoon/i);
+ expect(c.lead.preferredAppointmentTime).toBe('2026-10-02 at afternoon');
  expect(c.lead.preferredAppointmentTime).not.toMatch(/\bnoon\b|12:00/);
  expect(c.conversation.bookingState).toEqual({status:'booked',appointment:'existing'});
 });

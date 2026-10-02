@@ -2310,6 +2310,26 @@
   {
     "collection": "smsprocessingjobs",
     "key": {
+      "priority": -1,
+      "availableAt": 1,
+      "createdAt": 1
+    },
+    "options": {
+      "name": "sms_claim_order_v2",
+      "partialFilterExpression": {
+        "status": {
+          "$in": [
+            "queued",
+            "retry",
+            "processing"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "collection": "smsprocessingjobs",
+    "key": {
       "status": 1,
       "leaseExpiresAt": 1
     },

@@ -433,6 +433,7 @@ export const processNextAppointmentNotification = async () => {
       return job;
     }
 
+    if (!result?.sid) throw new Error('SMS provider acceptance could not be verified.');
     await storeOutboundMessage({ appointment, business, body, result, job });
     job.status = "sent";
     job.sentAt = new Date();
@@ -453,12 +454,21 @@ export const processNextAppointmentNotification = async () => {
   }
 };
 
-export const processDueAppointmentNotifications = async (limit = 25) => {
+export const processDueAppointmentNotifications = async (limit = 25, { concurrency = 1 } = {}) => {
   const results = [];
-  while (results.length < limit) {
-    const job = await processNextAppointmentNotification();
-    if (!job) break;
-    results.push(job);
-  }
+  let remaining = Math.max(1, Math.min(500, Number(limit) || 25));
+  const lanes = Math.max(1, Math.min(10, Number(concurrency) || 1));
+  // Atomic claims assign each job to one lane. Existing send identities remain
+  // unchanged, so recovery continues to reuse provider receipts.
+  const outcomes = await Promise.allSettled(Array.from({ length: lanes }, async () => {
+    while (remaining > 0) {
+      remaining--;
+      const job = await processNextAppointmentNotification();
+      if (!job) break;
+      results.push(job);
+    }
+  }));
+  const failed = outcomes.find(result => result.status === 'rejected');
+  if (failed) throw failed.reason;
   return results;
 };

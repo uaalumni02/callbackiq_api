@@ -1,3 +1,4 @@
+import { emailConfiguration } from '../helpers/email/emailConfiguration.js';
 // Opt-in release contract. Values are declarations to validate, not a capacity
 // certificate or a substitute for measured provider limits.
 export function validateScaleProfile(env = process.env) {
@@ -33,7 +34,8 @@ export function validateScaleProfile(env = process.env) {
   if (env.PROCESS_ROLE === 'api' && env.VOICE_RELAY_ENABLED !== 'false') errors.push('Disable voice relay on API instances');
   if (env.PROCESS_ROLE === 'voice' && env.VOICE_RELAY_ENABLED !== 'true') errors.push('Enable voice relay on voice instances');
   if (env.RECOVERY_SMS_ASYNC_ENABLED === 'false') errors.push('Durable recovery must remain enabled');
-  if (env.STAFF_NOTIFICATION_EMAIL_ENABLED !== 'true' || !env.GMAIL_ADDRESS || !env.GMAIL_PASSWORD) errors.push('Configure owner email notifications');
+  if (env.STAFF_NOTIFICATION_EMAIL_ENABLED !== 'true' || !emailConfiguration(env).configured) errors.push('Configure owner email notifications');
+  if (env.PROCESS_ROLE === 'worker-automation' && env.AUTOMATION_WORKER_ENABLED === 'false') errors.push('Enable appointment notification processing on the automation worker');
   if (env.OPS_PAGING_ENABLED !== 'true' || !env.PAGERDUTY_ROUTING_KEY) errors.push('Configure the operations escalation destination');
   if (env.PROCESS_ROLE === 'voice' && !(n('DEPLOY_TERMINATION_GRACE_MS') >= (Number(env.VOICE_DRAIN_TIMEOUT_MS) || 610000) + 30000)) errors.push('Hosting termination grace must exceed voice drain plus cleanup');
   return { enabled: true, errors };

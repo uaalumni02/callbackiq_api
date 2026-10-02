@@ -283,7 +283,7 @@ describe.each(['sms', 'voice'])('reported read-only journey (%s)', (channel) => 
     expect(conversation.bookingState.expiresAt).toBeNull();
     expect(conversation.bookingState.offeredSlots).toEqual([]);
     const followup = await BookingStateMachineService.handle({ business, lead, conversation, channel, customerMessage: 'Will someone call to confirm?' });
-    expect(followup.result.reply).toMatch(/can't guarantee a confirmation call/);
+    expect(followup.result.reply).toMatch(/callback time is not guaranteed/i);
     expect(followup.result.reply).not.toMatch(/choose|option numbers/);
     expect(conversation.bookingState.status).toBe('human_takeover');
   });

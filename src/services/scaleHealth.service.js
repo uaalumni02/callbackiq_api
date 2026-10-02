@@ -1,3 +1,4 @@
+import AppointmentNotice from '../models/appointmentNotificationJob.js';
 import SmsJob from '../models/smsProcessingJob.js';
 import WebhookWork from '../models/webhookWork.js';
 import Heartbeat from '../models/processHeartbeat.js';
@@ -5,7 +6,7 @@ import Incident from '../models/opsIncident.js';
 import Notification from '../models/staffNotificationJob.js';
 const age = (date, now) => date ? Math.max(0, now - new Date(date).getTime()) : 0;
 export async function readScaleHealth({ now = new Date() } = {}) {
-  const [sms, recovery, heartbeats, failedPages, uncertainEmail] = await Promise.all([
+  const [sms, recovery, heartbeats, failedPages, uncertainEmail, appointmentNotice] = await Promise.all([
     SmsJob.findOne({ status: { $in: ['queued', 'retry', 'processing'] } }).sort({ createdAt: 1 }).select('createdAt').maxTimeMS(3000).lean(),
     WebhookWork.findOne({ status: { $in: ['queued', 'processing'] } }).sort({ createdAt: 1 }).select('createdAt').maxTimeMS(3000).lean(),
     Heartbeat.aggregate([{ $match: { ready: true, seenAt: { $gte: new Date(now - 45000) } } }, { $group: { _id: '$role', count: { $sum: 1 }, releases: { $addToSet: '$release' }, capacityPlans: { $addToSet: '$capacityPlan' }, images: { $addToSet: '$image' } } }]).option({ maxTimeMS: 3000 }),
@@ -19,6 +20,7 @@ export async function readScaleHealth({ now = new Date() } = {}) {
       ], as: 'openReview' } },
       { $match: { 'openReview.0': { $exists: true } } }, { $count: 'count' },
     ]).option({ maxTimeMS: 3000 }).then(rows => rows[0]?.count || 0),
+    AppointmentNotice.findOne({ status: { $in: ['scheduled', 'processing'] }, scheduledFor: { $lte: now } }).sort({ scheduledFor: 1 }).select('scheduledFor').maxTimeMS(3000).lean(),
   ]);
   const roles = Object.fromEntries(heartbeats.map(row => [row._id, row.count]));
   const required = process.env.SCALE_PROFILE ? { api: Number(process.env.API_INSTANCE_COUNT),
@@ -27,10 +29,12 @@ export async function readScaleHealth({ now = new Date() } = {}) {
     'worker-lifecycle': 1, 'worker-voice-usage': 1 } : {};
   const missingRoles = Object.entries(required).filter(([role, count]) => !(roles[role] >= count)).map(([role]) => role);
   const smsOldestAgeMs = age(sms?.createdAt, now), recoveryOldestAgeMs = age(recovery?.createdAt, now);
-  const unhealthy = missingRoles.length > 0 || failedPages > 0 || uncertainEmail > 0 || smsOldestAgeMs > 60000 || recoveryOldestAgeMs > 30000;
-  return { timestamp: now.toISOString(), healthy: !unhealthy, roles, required, missingRoles,
+  const appointmentNoticeOldestAgeMs = age(appointmentNotice?.scheduledFor, now);
+  const automationWorkerReady = ['all', 'worker', 'worker-automation'].some(role => roles[role] > 0);
+  const unhealthy = !automationWorkerReady || appointmentNoticeOldestAgeMs > 120000 || missingRoles.length > 0 || failedPages > 0 || uncertainEmail > 0 || smsOldestAgeMs > 60000 || recoveryOldestAgeMs > 30000;
+  return { timestamp: now.toISOString(), healthy: !unhealthy, automationWorkerReady, roles, required, missingRoles,
     releases: [...new Set(heartbeats.flatMap(x => x.releases))],
     capacityPlans: [...new Set(heartbeats.flatMap(x => x.capacityPlans || ['unrecorded']))],
     images: [...new Set(heartbeats.flatMap(x => x.images || ['unrecorded']))],
-    smsOldestAgeMs, recoveryOldestAgeMs, failedPages, uncertainEmail };
+    smsOldestAgeMs, recoveryOldestAgeMs, appointmentNoticeOldestAgeMs, failedPages, uncertainEmail };
 }

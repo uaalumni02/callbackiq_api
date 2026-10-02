@@ -22,6 +22,6 @@ test('voice queues the review before acknowledging and propagates persistence fa
 test('a new same-day request replaces an older requested day while retaining its clock preference', async () => {
  const c = context(); c.lead.preferredAppointmentTime = '2026-09-22 at 14:00';
  const result = await requestStaffSchedulingReview({ ...c, customerMessage: 'Can someone come today?', now: new Date('2026-09-17T21:00:00-04:00') });
- expect(result.preferredAppointmentTime).toBe('2026-09-17 at 14:00');
+ expect(result.preferredAppointmentTime).toBe('2026-09-17 at 2:00 PM');
  expect(c.lead.preferredAppointmentTime).toBe(result.preferredAppointmentTime);
 });

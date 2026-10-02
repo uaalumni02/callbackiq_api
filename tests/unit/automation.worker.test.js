@@ -105,3 +105,15 @@ describe("automation worker", () => {
     stopAutomationWorker();
   });
 });
+
+test('automation defaults on and the dedicated role rejects an explicit disable', async () => {
+  delete process.env.AUTOMATION_WORKER_ENABLED;
+  AutomationJob.findOneAndUpdate.mockResolvedValue(null);
+  await startAutomationWorker();
+  expect(AppointmentService.releaseExpiredHolds).toHaveBeenCalled();
+  stopAutomationWorker();
+  process.env.PROCESS_ROLE = 'worker-automation';
+  process.env.AUTOMATION_WORKER_ENABLED = 'false';
+  try { await expect(startAutomationWorker()).rejects.toThrow(/cannot run/); }
+  finally { delete process.env.PROCESS_ROLE; delete process.env.AUTOMATION_WORKER_ENABLED; }
+});

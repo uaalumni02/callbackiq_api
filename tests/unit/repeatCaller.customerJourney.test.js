@@ -29,7 +29,7 @@ jest.mock('../../src/services/booking/approvedServiceEstimate.service.js', () =>
 jest.mock('../../src/helpers/ai/tools/searchServices.tool.js', () => ({ __esModule: true, default: jest.fn() }));
 jest.mock('../../src/helpers/ai/tools/getAvailability.tool.js', () => ({ __esModule: true, default: jest.fn() }));
 jest.mock('../../src/helpers/ai/tools/validateServiceArea.tool.js', () => ({ __esModule: true, default: jest.fn() }));
-jest.mock('../../src/services/alert.service.js', () => ({ __esModule: true, default: { createHumanHandoffAlert: jest.fn() } }));
+jest.mock('../../src/services/alert.service.js', () => ({ __esModule: true, default: { createHumanHandoffAlert: jest.fn().mockResolvedValue({ alert: { _id: 'voice-review' }, created: true }) } }));
 
 const now = new Date('2026-09-07T14:00:00Z');
 let lead, conversation, business, sessions;

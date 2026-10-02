@@ -1,3 +1,4 @@
+import {markAutomationStarted,markAutomationStopped,markAutomationTick} from '../../src/services/automationReadiness.service.js';
 import fs from 'node:fs/promises';
 import mongoose from 'mongoose';
 import Heartbeat from '../../src/models/processHeartbeat.js';
@@ -30,4 +31,13 @@ test('non-scale execution is unchanged; API heartbeat writes no worker file', as
 test('heartbeat persistence failure is caught and retried on the next tick', async () => {
  Heartbeat.updateOne.mockReturnValueOnce({ maxTimeMS: async () => { throw new Error('unavailable'); } });
  startProcessHeartbeat(); await jest.advanceTimersByTimeAsync(10001); expect(Heartbeat.updateOne).toHaveBeenCalledTimes(2);
+});
+
+test('non-scale automation publishes only after a completed processing tick', async()=>{
+ delete process.env.SCALE_PROFILE;process.env.PROCESS_ROLE='worker-automation';
+ markAutomationStopped();startProcessHeartbeat();await jest.advanceTimersByTimeAsync(1);
+ expect(Heartbeat.updateOne).not.toHaveBeenCalled();
+ markAutomationStarted();markAutomationTick(true);await jest.advanceTimersByTimeAsync(10000);
+ expect(Heartbeat.updateOne).toHaveBeenCalledTimes(1);
+ markAutomationStopped();
 });

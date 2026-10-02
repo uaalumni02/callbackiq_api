@@ -1,17 +1,9 @@
+import { emailConfiguration } from './emailConfiguration.js';
 import nodemailer from "nodemailer";
 
 const getClientUrl = () => process.env.CLIENT_URL || "http://localhost:3001";
 
-const createTransporter = () =>
-  nodemailer.createTransport({
-    service: "gmail",
-    connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 20000,
-    disableFileAccess: true, disableUrlAccess: true,
-    auth: {
-      user: process.env.GMAIL_ADDRESS,
-      pass: process.env.GMAIL_PASSWORD,
-    },
-  });
+const createTransporter = () => nodemailer.createTransport(emailConfiguration().transport);
 
 const sendEmail = async ({ to, subject, text, testMessageId }) => {
   if (!to) return null;
@@ -23,16 +15,16 @@ const sendEmail = async ({ to, subject, text, testMessageId }) => {
     };
   }
 
-  if (!process.env.GMAIL_ADDRESS || !process.env.GMAIL_PASSWORD) {
+  if (!emailConfiguration().configured) {
     const error = new Error(
-      "GMAIL_ADDRESS and GMAIL_PASSWORD are required to send CallBackIQ email.",
+      "Configure SMTP credentials and a sender address, or the existing Gmail credentials, to send email.",
     );
     error.code = "EMAIL_NOT_CONFIGURED";
     throw error;
   }
 
   return createTransporter().sendMail({
-    from: `"${process.env.EMAIL_SENDER_NAME || "CallBackIQ"}" <${process.env.GMAIL_ADDRESS}>`,
+    from: `"${process.env.EMAIL_SENDER_NAME || "CallBackIQ"}" <${emailConfiguration().from}>`,
     to,
     subject,
     text,

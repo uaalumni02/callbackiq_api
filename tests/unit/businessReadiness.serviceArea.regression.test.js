@@ -44,4 +44,12 @@ describe('business readiness respects explicit service-area configuration', () =
     expect(Business.updateOne).not.toHaveBeenCalled();
     expect(ServiceArea.findOne).toHaveBeenCalledWith({ business: 'b1' });
   });
+  test.each(['housecall_pro', 'servicetitan'])('a saved connection does not advertise unimplemented %s scheduling as ready', async provider => {
+    ServiceArea.findOne.mockReturnValue({lean:async()=>({type:'unrestricted'})});
+    IntegrationConnection.find.mockReturnValue({lean:async()=>[{provider,status:'connected'}]});
+    const result=await buildBusinessReadiness({_id:'b1',features:{aiBookingEnabled:true,calendarProvider:provider}},{persist:false});
+    expect(result.checks.calendarConfigured).toBe(false);
+    expect(result.states.bookingConfigurationReady).toBe(false);
+  });
+
 });
