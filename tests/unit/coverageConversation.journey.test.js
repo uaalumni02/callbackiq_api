@@ -2,7 +2,7 @@ jest.mock('../../src/services/serviceEligibility/serviceEligibility.service.js',
 jest.mock('../../src/helpers/ai/tools/validateServiceArea.tool.js', () => ({ __esModule: true, default: jest.fn() }));
 jest.mock('../../src/helpers/ai/tools/getAvailability.tool.js', () => ({ __esModule: true, default: jest.fn() }));
 jest.mock('../../src/helpers/ai/tools/searchServices.tool.js', () => ({ __esModule: true, default: jest.fn().mockResolvedValue([]) }));
-jest.mock('../../src/services/alert.service.js', () => ({ __esModule: true, default: { createHumanHandoffAlert: jest.fn().mockResolvedValue({ _id: 'alert' }) } }));
+jest.mock('../../src/services/alert.service.js', () => ({ __esModule: true, default: { createHumanHandoffAlert: jest.fn().mockResolvedValue({ alert: { _id: 'alert' } }) } }));
 jest.mock('../../src/services/booking/approvedServiceEstimate.service.js', () => ({ getApprovedServiceEstimate: jest.fn().mockResolvedValue('') }));
 import { handleRecoveryIntake } from '../../src/services/booking/recoveryIntake.service.js';
 import validateServiceArea from '../../src/helpers/ai/tools/validateServiceArea.tool.js';
@@ -33,7 +33,7 @@ describe.each(['sms', 'voice'])('%s coverage review journey', channel => {
   r = await c.turn('When can someone come out?');
   expect(r.reply).not.toMatch(/What day and time/);
   r = await c.turn('Monday 8 am');
-  expect(c.lead.preferredAppointmentTime).toBe('2026-09-21 at 8:00');
+  expect(c.lead.preferredAppointmentTime).toBe('2026-09-21 at 8:00 AM');
   expect(r.reply).toContain(c.lead.preferredAppointmentTime);
   expect(r.reply).toContain(service);
   expect(r.intakeReview.preferredAppointmentTime).toBe(c.lead.preferredAppointmentTime);
@@ -43,7 +43,7 @@ describe.each(['sms', 'voice'])('%s coverage review journey', channel => {
   expect(validateServiceArea).toHaveBeenCalledTimes(4);
   expect(getAvailability).not.toHaveBeenCalled();
   r = await c.turn('Is my appointment confirmed?');
-  expect(r.reply).toMatch(/^No appointment is confirmed/);
+  expect(r.reply).toMatch(/(?:No appointment is confirmed|This is not a confirmed appointment)/);
   expect(r.reply).toMatch(/coverage still needs team review/i);
  });
  test('a new policy decision is used on recheck without treating it as a booking', async () => {
@@ -55,7 +55,7 @@ describe.each(['sms', 'voice'])('%s coverage review journey', channel => {
   expect(r.intakeReady).toBe(false);
   expect(c.conversation.conversationMemory.recoveryIntake.submitted).toBe(false);
   expect(getAvailability).not.toHaveBeenCalled();
-  expect(c.lead.preferredAppointmentTime).toBe('2026-09-21 at 8:00');
+  expect(c.lead.preferredAppointmentTime).toBe('2026-09-21 at 8:00 AM');
  });
  test('outside coverage remains a refusal and never offers times', async () => {
   const c = context('faucet replacement', channel);

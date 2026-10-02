@@ -157,7 +157,9 @@
     "verify:sms-production-acceptance": "node scripts/verify-sms-production-acceptance.mjs",
     "test:sms-production-acceptance": "jest --runInBand --no-cache tests/unit/smsProductionAcceptanceMatrix.test.js tests/unit/smsGoldenCorpus.production.test.js tests/unit/smsTurnPolicy.marketReadiness.test.js tests/unit/smsTurnPolicy.commitmentSafety.production.test.js tests/unit/recoveryIntake.shared.test.js",
     "certify:sms-production": "npm run verify:sms-production-acceptance && npm run test:sms-production-acceptance && npm run build",
-    "benchmark:customer-truth": "node scripts/customer-truth-benchmark.mjs"
+    "benchmark:customer-truth": "node scripts/customer-truth-benchmark.mjs",
+    "test:multi-trade": "jest --runInBand tests/unit/multiTrade.policy.test.js tests/unit/multiTrade.journeys.test.js tests/services/multiTrade.channels.test.js tests/unit/customerScenarioMatrix.followthrough.test.js tests/integration/smsRecovery.fullFlow.test.js tests/unit/voiceCallback.service.test.js tests/unit/approvalDelivery.release.test.js tests/unit/approvalLifecycle.release.test.js tests/unit/appointmentNotification.deliveryReplay.test.js tests/unit/smsDeliveryStatus.service.test.js tests/unit/smsContactControl.test.js tests/services/smsVoice.productionJourneys.test.js tests/unit/coverageConversation.journey.test.js",
+    "verify:multi-trade-pilot": "node scripts/verify-multi-trade-pilot.mjs"
   },
   "keywords": [],
   "author": "",

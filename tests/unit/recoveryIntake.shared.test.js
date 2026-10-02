@@ -118,7 +118,8 @@ test('a semantic service can start shared intake without a deterministic keyword
  const c = context();
  const result = await handleRecoveryIntake({ ...c, customerMessage: 'The little whirly thing just gives a sad hum', semanticAssessment: { confidence: 88, isInScope: true, serviceNeeded: 'appliance making a humming sound' } });
  expect(c.lead.serviceNeeded).toBe('appliance making a humming sound');
- expect(result.reply).toMatch(/service address/);
+ expect(result.reply).toMatch(/Which appliance/);
+ expect(result.intakeReady).toBe(false);
 });
 
 test('low-confidence semantic guesses cannot populate intake', async () => {

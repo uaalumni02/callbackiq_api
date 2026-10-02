@@ -1,3 +1,4 @@
+import { DETAIL_FIELD_KEYS } from '../services/trades/tradeQualification.service.js';
 import Joi from "joi";
 
 const timePattern = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -30,6 +31,7 @@ const serviceFields = {
   diagnosticFallback: Joi.boolean(),
   requiresHumanReview: Joi.boolean(),
   intakePolicy: Joi.object({
+    detailFields: Joi.array().items(Joi.string().valid(...DETAIL_FIELD_KEYS)).unique().max(8),
     requireClarification: Joi.boolean(),
     clarificationQuestion: Joi.string().trim().allow('').max(240),
     detailKeywords: Joi.array().items(Joi.string().trim().min(2).max(80)).max(30),

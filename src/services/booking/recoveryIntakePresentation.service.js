@@ -1,7 +1,10 @@
+import { tradeLeakQuestion } from '../trades/tradeProfiles.service.js';
 import { SMS_MAX_LENGTH, truncateText } from '../../helpers/ai/aiGuardrails.js';
 
 const clean = value => String(value || '').replace(/\s+/g, ' ').trim();
 export const recoveryLeakQuestion = service => {
+  const contextual = tradeLeakQuestion(service);
+  if (contextual) return contextual;
   const fixture = clean(service).match(/\b(bathtub|tub|toilet|shower|sink|water heater|dishwasher|washing machine|pipe)\b/i)?.[1]?.toLowerCase();
   return fixture
     ? `Is the ${fixture === 'tub' ? 'bathtub' : fixture} leaking right now, or only when you use it?`

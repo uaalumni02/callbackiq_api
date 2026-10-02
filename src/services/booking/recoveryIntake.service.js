@@ -1,3 +1,5 @@
+import { assessTradeQualification, tradeReviewReply } from '../trades/tradeQualification.service.js';
+import { leakContext } from '../trades/tradeProfiles.service.js';
 import { confirmationFollowUpReply } from './confirmationFollowUp.service.js';
 import { schedulingEvidence } from './schedulingEvidence.service.js';
 import { completionClarification, updateRequestQuestions, normalizeRequestService } from './requestQuestionPolicy.service.js';
@@ -5,7 +7,7 @@ import { assessProblemClarity, buildRequestReadiness, requestEvidenceKey } from 
 import { extractCustomerAddress, addressFromTurn, resolveRequestAddress, isRepeatCorrection, extractCustomerPostalCode } from './customerAddress.service.js';
 import { isSoftOptOutPhrase } from '../messaging/smsCompliance.service.js';
 import { guardServiceRequest } from '../serviceEligibility/serviceEligibility.service.js';
-import { patternHasAffirmedSafetyMatch } from '../../helpers/ai/aiGuardrails.js';
+import { patternHasAffirmedSafetyMatch, getEmergencyReply } from '../../helpers/ai/aiGuardrails.js';
 import { requestStaffSchedulingReview } from "./staffSchedulingReview.service.js";
 import { recoveryLeakQuestion, recoveryCompletionReply } from './recoveryIntakePresentation.service.js';
 import { getApprovedServiceEstimate } from './approvedServiceEstimate.service.js';
@@ -123,7 +125,8 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
     const lastOutbound = recentMessages.filter(message => message.direction === 'outbound').at(-1);
     if (lastOutbound && ['suppressed', 'failed', 'undelivered'].includes(lastOutbound.deliveryStatus || lastOutbound.status)) {
       if (state.clogPending && /(?:overflowing or backing up into other fixtures|backing up into any other)/i.test(lastOutbound.body || '')) state.clogAsked = false;
-      if (state.triagePending && /(?:leaking right now|is water leaking)/i.test(lastOutbound.body || '')) state.triageAsked = false;
+      if (state.triagePending && /(?:leak|water coming|substance)/i.test(lastOutbound.body || '')) state.triageAsked = false;
+      if (state.tradeQualification?.pending && lastOutbound.body === state.tradeQualification.question) state.tradeQualification.asked = false;
     }
   }
   // Semantic evidence uses the existing metered, schema-validated qualification.
@@ -143,7 +146,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   if (known(service) && known(lead.serviceNeeded) && clean(service).toLowerCase() !== clean(lead.serviceNeeded).toLowerCase() &&
       (classification.intents?.correction || classification.intents?.newService)) {
     state.triageResolved = false; state.triagePending = false; state.triageAsked = false;
-    delete state.triageAnswer; delete state.leakPattern;
+    delete state.triageAnswer; delete state.leakPattern; delete state.leakSubstance;
     delete state.clogAsked; delete state.clogPending; delete state.clogResolved;
   }
   if (known(service) && (!known(lead.serviceNeeded) || classification.intents?.correction || classification.intents?.newService)) lead.serviceNeeded = service;
@@ -188,7 +191,8 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   }
   const activeEvidence = text.split(/\b(?:but|however)\b|[;.!?]/i).some(clause =>
     !stopped.test(clause) && patternHasAffirmedSafetyMatch(active, clause));
-  const stoppedEvidence = stopped.test(text) && !activeEvidence;
+  const roofCondition = leakContext(lead.serviceNeeded) === 'roof' && /\b(?:only (?:when|during|in) (?:it )?(?:rain|rains|raining|storms?)|when it rains)\b/i.test(text);
+  const stoppedEvidence = (stopped.test(text) || roofCondition) && !activeEvidence;
   const shortTriageAnswer = state.triagePending && ['leak_activity', 'constraint_condition'].includes(state.field);
   if (state.field === 'constraint_condition' && /^(?:no|nope)[.! ]*$/i.test(text)) state.constraintQuestion = '';
   const wasTriageResolved = state.triageResolved;
@@ -202,7 +206,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   const triageRelevant = state.triagePending || leak.test(`${lead.serviceNeeded} ${text}`);
   if (triageRelevant && (stoppedEvidence || activeEvidence || (shortTriageAnswer && /^(?:yes|yeah|yep|no|nope)[.! ]*$/i.test(text)))) {
     state.triageAnswer = text.slice(0, 250);
-    state.leakPattern = !activeEvidence && /\bonly (?:when|during)\b/i.test(text) ? 'during_use' : stoppedEvidence || /^(?:no|nope)[.! ]*$/i.test(text) ? 'not_active' : 'active';
+    state.leakPattern = !activeEvidence && /\bonly (?:when|during)\b/i.test(text) ? (roofCondition ? 'during_rain' : 'during_use') : stoppedEvidence || /^(?:no|nope)[.! ]*$/i.test(text) ? 'not_active' : 'active';
   }
   if (activeEvidence) {
     state.triageResolved = true;
@@ -211,6 +215,12 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   } else if (state.triageResolved && /\b(?:now|again|started|worse)\b/i.test(text) && leak.test(text) && !stoppedEvidence) {
     state.triageResolved = false;
     state.triageAsked = false;
+  }
+  if (state.triagePending && leakContext(lead.serviceNeeded) === 'unknown_fluid' && /^(?:it(?:'s| is) )?(?:water|refrigerant|freon|coolant|oil|fuel|gas|propane|chemical|unknown|unsure|not sure)[.! ]*$/i.test(text)) {
+    state.leakSubstance = text;
+    state.triageAnswer = text;
+    state.serviceDetail = `${lead.serviceNeeded}; leaking substance: ${text}`;
+    if (/water/i.test(text)) state.triageAsked = false;
   }
   const contextHasLeak = leak.test(`${lead.serviceNeeded} ${text}`);
   if (state.triagePending) {
@@ -221,7 +231,8 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
     if (stoppedEvidence || activeEvidence) { state.triageResolved = true; if (!stoppedEvidence && lead.urgency !== 'emergency') lead.urgency = 'high'; }
     else state.triagePending = true;
   }
-  const understoodAnswer = Boolean(evidence.rejected.length || (!oldState?.started && known(lead.serviceNeeded)) || known(service) || address || incomingRange ||
+  if (contextHasLeak && leakContext(lead.serviceNeeded) === 'unknown_fluid' && !state.leakSubstance) { state.triagePending = true; state.triageResolved = false; }
+  const understoodAnswer = Boolean(state.leakSubstance && state.triageAnswer === text || evidence.rejected.length || (!oldState?.started && known(lead.serviceNeeded)) || known(service) || address || incomingRange ||
     incomingTime.targetMinutes !== null || incomingTime.timeOfDay ||
     state.triageResolved !== wasTriageResolved || state.clogResolved !== wasClogResolved || stopped.test(text) || active.test(text));
   // An unanswered field is not proof the customer was unintelligible. Let the
@@ -230,7 +241,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   // Availability questions must still pass the qualification checks below,
   // including follow-ups after a missing or unsupported coverage decision.
   if (!understoodAnswer && !classification.intents?.pricing && !classification.intents?.completionQuestion && !questions.clarificationAnswer && !classification.intents?.availabilityInquiry && !coverageQuestion && !semanticAssessment &&
-      !(/^\d{5}(?:-\d{4})?$/.test(text) && known(lead.address)) && !state.problem?.asked) return null;
+      !(/^\d{5}(?:-\d{4})?$/.test(text) && known(lead.address)) && !state.problem?.asked && !state.tradeQualification?.pending && !(state.tradeQualification && /\b(?:actually|correction|now|instead|no longer)\b/i.test(text))) return null;
   let approvedEstimate = '';
   if (classification.intents?.pricing) {
     checkActive();
@@ -247,7 +258,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
     state.serviceNeeded = lead.serviceNeeded; state.address = lead.address || '';
     state.preferredAppointmentTime = lead.preferredAppointmentTime || '';
     state.eligibility = conversation.serviceEligibility?.decision || 'not_checked';
-    state.scope = { detail: state.serviceDetail || lead.serviceNeeded, triageAnswer: state.triageAnswer || '', problem: state.problem || null };
+    state.scope = { tradeQualification: state.tradeQualification || null, detail: state.serviceDetail || lead.serviceNeeded, triageAnswer: state.triageAnswer || '', problem: state.problem || null };
     state.activePreference = { date: state.date || '', time: state.time || '', label: lead.preferredAppointmentTime || '' };
     state.readiness = buildRequestReadiness({ lead, conversation, state, now });
     if (conversation.set) conversation.set('conversationMemory.recoveryIntake', state);
@@ -303,6 +314,11 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
       state.problem.evidence && state.problem.evidence !== lead.serviceNeeded) {
     state.serviceDetail = `${lead.serviceNeeded}; ${state.problem.evidence}`.slice(0, 500);
   }
+  state.tradeQualification = assessTradeQualification({ service: lead.serviceNeeded, category: conversation.serviceEligibility?.category, text: state.leakSubstance && !/water/i.test(state.leakSubstance) ? `${text}; leak substance: ${state.leakSubstance}` : text, previous: state.tradeQualification, policy: conversation.serviceEligibility?.intakePolicy || {}, turnId, interrupt: problemInterrupt, factualTurn: Boolean(address || incomingRange || incomingTime.targetMinutes !== null || incomingTime.timeOfDay), correction: Boolean(classification.intents?.correction && known(service)) });
+  if (oldState?.tradeQualification && JSON.stringify(oldState.tradeQualification.answers) !== JSON.stringify(state.tradeQualification.answers)) {
+    state.availability = { status: 'not_checked', reason: 'job_details_changed' };
+    state.reviewReady = false; state.submitted = false;
+  }
   const reviewQualification = async (reason, reply) => {
     state.reviewReady = true;
     state.availability = { status: 'unknown' };
@@ -310,20 +326,26 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
     const result = fixed(pricingPrefix + reply, lead, {
       actionType: 'human_handoff', messageCategory: 'service_request',
       handoff: { required: true, reason: 'intake_unclear', callbackRequested: false },
+      ...(state.tradeQualification?.hazardType ? { messageCategory: 'emergency', riskFlags: ['safety_hazard'], alertPriority: 'critical' } : {}),
       qualificationReason: reason, intakeReview: { ...state.readiness, problem: state.problem,
-        coverage: state.coverage, serviceNeeded: lead.serviceNeeded, address: lead.address,
+        tradeQualification: state.tradeQualification, coverage: state.coverage, serviceNeeded: lead.serviceNeeded, address: lead.address,
         preferredAppointmentTime: lead.preferredAppointmentTime, triageAnswer: state.triageAnswer || '' },
       summary: `${state.serviceDetail || lead.serviceNeeded}; ${lead.address || 'Address not supplied'}; preferred time: ${lead.preferredAppointmentTime || 'not supplied'}; triage: ${state.triageAnswer || 'not supplied'}. Review required: ${reason}.`,
     });
     if (channel === 'voice') {
       checkActive();
-      await AlertService.createHumanHandoffAlert({ businessId: business._id, leadId: lead._id, conversationId: conversation._id,
+      const savedQualification = await AlertService.createHumanHandoffAlert({ businessId: business._id, leadId: lead._id, conversationId: conversation._id,
         providerMessageId: `voice-qualification:${session?._id || conversation._id}:${journeyKey}:${state.readiness.evidenceKey}:${reason}`,
         customerPhone: lead.phone || conversation.customerPhone, customerMessage: text, lead, result });
+      if (!savedQualification?.alert?._id) throw Object.assign(new Error('Trade qualification review was not saved.'), { code: 'STAFF_ACTION_NOT_SAVED' });
       checkActive(); state.submitted = true; await persist(); result.outcome = 'callback_saved';
     }
     return result;
   };
+  if (state.tradeQualification.status === 'needs_staff_review') {
+    if (state.tradeQualification.hazardType) lead.urgency = 'emergency';
+    return reviewQualification(state.tradeQualification.reason, state.tradeQualification.hazardType ? getEmergencyReply(state.tradeQualification.hazardType) : tradeReviewReply(state.tradeQualification.reason));
+  }
   if (rejectedDateOnly || rejectedTimeOnly) {
     if (!conversation.bookingState?.appointment) {
       lead.preferredAppointmentTime = [state.date, state.time].filter(Boolean).join(' at ');
@@ -390,6 +412,14 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
     state.problem.asked = true;
     return ask('problem_detail', state.problem.question);
   }
+  if (state.tradeQualification.status === 'needs_clarification' && !conversation.bookingState?.appointment && incomingRange?.startDate === formatDateKey(now, timezone)) {
+    await persist();
+    return requestStaffSchedulingReview({ business, lead, conversation, customerMessage: text, channel, now });
+  }
+  if (state.tradeQualification.status === 'needs_clarification' && !conversation.bookingState?.appointment) {
+    state.tradeQualification.asked = true;
+    return ask('trade_detail', state.tradeQualification.question);
+  }
   if (questions.ambiguous || state.unresolvedQuestions.some(q => q.kind === 'completion_meaning')) {
     return ask('question_meaning', completionClarification);
   }
@@ -420,7 +450,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   }
   if (state.triagePending && !state.triageAsked) {
     state.triageAsked = true; await persist();
-    return ask('leak_activity', recoveryLeakQuestion(state.serviceDetail || lead.serviceNeeded));
+    return ask(leakContext(state.serviceDetail || lead.serviceNeeded) === 'unknown_fluid' ? 'leak_substance' : 'leak_activity', recoveryLeakQuestion(state.serviceDetail || lead.serviceNeeded));
   }
   if (state.clogPending && !state.clogAsked) {
     state.clogAsked = true;
@@ -441,7 +471,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
     return fixed(timingPrefix + reply, lead, { messageCategory: 'pricing_request' });
   }
   if (business.features?.aiBookingEnabled === true) {
-    if (state.triagePending) return ask('leak_activity', 'Is water leaking right now?');
+    if (state.triagePending) return ask(leakContext(state.serviceDetail || lead.serviceNeeded) === 'unknown_fluid' ? 'leak_substance' : 'leak_activity', recoveryLeakQuestion(state.serviceDetail || lead.serviceNeeded));
     if (state.clogPending) return ask('clog_scope', clogQuestionFor(`${lead.serviceNeeded} ${state.serviceDetail || ''} ${text}`));
     await persist(); return null;
   }
@@ -457,7 +487,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
     return requestStaffSchedulingReview({ business, lead, conversation, customerMessage: text, channel, now });
   }
   if (time.targetMinutes === null && !time.timeOfDay) return ask('time', 'What time works best that day?');
-  if (state.triagePending) return ask('leak_activity', 'Before I finish, is water leaking right now?');
+  if (state.triagePending) return ask(leakContext(state.serviceDetail || lead.serviceNeeded) === 'unknown_fluid' ? 'leak_substance' : 'leak_activity', recoveryLeakQuestion(state.serviceDetail || lead.serviceNeeded));
   if (state.clogPending) return ask('clog_scope', clogQuestionFor(`${lead.serviceNeeded} ${state.serviceDetail || ''} ${text}`));
 
   let availabilityNote = "I couldn't verify that time's availability; it needs team review.";
@@ -506,8 +536,8 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   state.address = lead.address;
   state.preferredAppointmentTime = lead.preferredAppointmentTime;
   await persist();
-  const intakeReview = { reviewReady: true, journeyKey, serviceNeeded: state.serviceNeeded, serviceDetail: state.serviceDetail || '', address: state.address, preferredAppointmentTime: state.preferredAppointmentTime, triageAnswer: state.triageAnswer || '', availability: state.availability, problem: state.problem, coverage: state.coverage, readiness: state.readiness, unresolvedQuestions: state.unresolvedQuestions, activePreference: state.activePreference, eligibility: state.eligibility, review: state.review };
-  const result = fixed(pricingPrefix + availabilityNote, lead, { intakeReady: true, intakeReview, summary: `${state.serviceDetail || lead.serviceNeeded}; ${state.triageAnswer || ''}; ${lead.address}; requested ${lead.preferredAppointmentTime}`, messageCategory: 'appointment_preference', intakeCompletionReply: pricingPrefix + recoveryCompletionReply({ lead, state, channel }) });
+  const intakeReview = { tradeQualification: state.tradeQualification, reviewReady: true, journeyKey, serviceNeeded: state.serviceNeeded, serviceDetail: state.serviceDetail || '', address: state.address, preferredAppointmentTime: state.preferredAppointmentTime, triageAnswer: state.triageAnswer || '', availability: state.availability, problem: state.problem, coverage: state.coverage, readiness: state.readiness, unresolvedQuestions: state.unresolvedQuestions, activePreference: state.activePreference, eligibility: state.eligibility, review: state.review };
+  const result = fixed(pricingPrefix + availabilityNote, lead, { intakeReady: true, intakeReview, summary: `${state.serviceDetail || lead.serviceNeeded}; ${Object.entries(state.tradeQualification?.answers || {}).map(([key,value]) => `${key}: ${value}`).join('; ')}; ${state.triageAnswer || ''}; ${lead.address}; requested ${lead.preferredAppointmentTime}`, messageCategory: 'appointment_preference', intakeCompletionReply: pricingPrefix + recoveryCompletionReply({ lead, state, channel }) });
   if (ready && channel === 'voice') {
     checkActive();
     const savedReview = await AlertService.createHumanHandoffAlert({ businessId: business._id, leadId: lead._id, conversationId: conversation._id, providerMessageId: `voice-intake:${session?._id || conversation._id}:${journeyKey}`, customerPhone: lead.phone || conversation.customerPhone, customerName: lead.customerName, customerMessage: text, lead, result: { ...result, handoff: { reason: 'intake_complete' } } });

@@ -29,7 +29,7 @@ beforeEach(() => {
  jest.clearAllMocks(); getApprovedServiceEstimate.mockResolvedValue('');
  validateServiceArea.mockResolvedValue({supported:true}); searchServices.mockResolvedValue([{id:'s1',score:1}]);
  getAvailability.mockResolvedValue({slots:[{startAt:'2026-09-09T08:00:00-04:00',endAt:'2026-09-09T09:00:00-04:00'}]});
- AlertService.createHumanHandoffAlert.mockResolvedValue({_id:'a1'});
+ AlertService.createHumanHandoffAlert.mockResolvedValue({alert:{_id:'a1'}});
 });
 const scenarios = [
  ['HVAC','My AC is blowing warm air. How much does a repair cost?','AC repair'],
@@ -63,7 +63,7 @@ describe.each(['sms','voice'])('%s customer scenario matrix', channel => {
  test('time correction preserves previously supplied day',async()=>{
   const c=context(channel); await c.turn('My kitchen sink needs replacing'); await c.turn('Wed Sep 9 at 8 am');
   await c.turn('Actually make that 10 am');
-  expect(c.lead.preferredAppointmentTime).toBe('2026-09-09 at 10:00');
+  expect(c.lead.preferredAppointmentTime).toBe('2026-09-09 at 10:00 AM');
  });
  test.each(['No longer leaking','Only when I use the shower','It stopped leaking'])('leak negation avoids emergency and preserves observed pattern: %s',async text=>{
   const c=context(channel); await c.turn('My shower is leaking'); const result=await c.turn(text);
@@ -110,7 +110,7 @@ test.each(['sms','voice'])('%s captures a date/time appended to a street address
  const c=context(channel); await c.turn('My kitchen sink needs replacing');
  const result=await c.turn(`${address}, Wed Sep 9 at 8 am`);
  expect(c.lead.address).toBe(address);
- expect(c.lead.preferredAppointmentTime).toBe('2026-09-09 at 8:00');
+ expect(c.lead.preferredAppointmentTime).toBe('2026-09-09 at 8:00 AM');
  expect(result.intakeReady).toBe(true);
 });
 
@@ -119,6 +119,8 @@ describe.each(['sms', 'voice'])('%s complete trade intake', channel => {
  test.each(scenarios)('%s retains service, location, and preference through staff review', async (trade, text, service) => {
   const c = context(channel, trade);
   await c.turn(`I need help with ${service}`, { isInScope: true, confidence: 95, serviceNeeded: service });
+  if (trade === 'restoration') await c.turn('The source is stopped');
+  if (trade === 'garage_door') await c.turn('The door is closed');
   await c.turn(address);
   const result = await c.turn('Wed Sep 9 at 8 am');
   expect(c.lead.serviceNeeded).toBeTruthy();
@@ -132,6 +134,8 @@ describe.each(['sms', 'voice'])('%s complete trade intake', channel => {
   const c = context(channel, trade);
   getAvailability.mockRejectedValue(new Error('calendar unavailable'));
   await c.turn(`I need help with ${service}`, { isInScope: true, confidence: 95, serviceNeeded: service });
+  if (trade === 'restoration') await c.turn('The source is stopped');
+  if (trade === 'garage_door') await c.turn('The door is closed');
   await c.turn(address);
   const result = await c.turn('Wed Sep 9 at 8 am');
   expect(result.intakeReady).toBe(true);

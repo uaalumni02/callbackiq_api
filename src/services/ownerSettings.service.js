@@ -1,3 +1,4 @@
+import { getTradeSetup } from './trades/tradeSetup.service.js';
 import { validateWindows } from './scheduling/availabilityWindows.service.js';
 import crypto from "node:crypto";
 import mongoose from "mongoose";
@@ -87,7 +88,7 @@ export async function readOwnerSettings(business, session = null) {
       { section: "team", label: "Choose who receives customer requests", complete: Boolean(ops.humanHandoffContacts?.some(c => c.active && (c.phone || c.email))) },
     ] : []),
   ];
-  return JSON.parse(JSON.stringify({ businessId: String(business._id), sections, revision, checklist, notificationReadiness: { smsEnabled: process.env.STAFF_APPROVAL_SMS_ENABLED === 'true', emailEnabled: process.env.STAFF_NOTIFICATION_EMAIL_ENABLED === 'true', warning: process.env.STAFF_NOTIFICATION_EMAIL_ENABLED === 'true' ? 'Approval email requires a verified owner email. Provider acceptance does not prove delivery.' : 'Approval email is disabled on this server. An administrator must enable STAFF_NOTIFICATION_EMAIL_ENABLED and configure email delivery. Use the appointment queue until notifications are verified.' }, trackingPhone: business.phone || "", voiceEnabled: voice.voiceAiEnabled,
+  return JSON.parse(JSON.stringify({ businessId: String(business._id), sections, revision, checklist, tradeSetup: getTradeSetup(business.businessType, services, policy), notificationReadiness: { smsEnabled: process.env.STAFF_APPROVAL_SMS_ENABLED === 'true', emailEnabled: process.env.STAFF_NOTIFICATION_EMAIL_ENABLED === 'true', warning: process.env.STAFF_NOTIFICATION_EMAIL_ENABLED === 'true' ? 'Approval email requires a verified owner email. Provider acceptance does not prove delivery.' : 'Approval email is disabled on this server. An administrator must enable STAFF_NOTIFICATION_EMAIL_ENABLED and configure email delivery. Use the appointment queue until notifications are verified.' }, trackingPhone: business.phone || "", voiceEnabled: voice.voiceAiEnabled,
     customRouting: voice.routingPolicy,
     bookingRestrictedServices: services.filter(s => s.active && (!s.aiCanBook || s.requiresHumanReview)).map(s => s.name),
   }));

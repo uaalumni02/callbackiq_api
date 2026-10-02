@@ -128,6 +128,7 @@ const ServiceOfferingSchema = new Schema(
       default: null,
     },
     intakePolicy: {
+      detailFields: { type: [String], default: undefined, enum: ['hvac_equipment', 'appliance_type', 'appliance_model', 'electrical_scope', 'damage_activity', 'door_position', 'lockout_target', 'job_frequency'] },
       requireClarification: { type: Boolean, default: false },
       clarificationQuestion: { type: String, trim: true, maxlength: 240, default: '' },
       detailKeywords: { type: [String], default: [] },

@@ -1,3 +1,4 @@
+import { detectServiceTrades } from '../trades/tradeProfiles.service.js';
 import { resolveServiceReference } from './serviceReference.service.js';
 import { isCallbackDeclinedText, isCallbackRequestText } from './customerContactIntent.service.js';
 import { requestQuestions } from '../booking/requestQuestionPolicy.service.js';
@@ -80,8 +81,8 @@ const SERVICE_TAIL = /\s*(?:[,.;!?]|\band\b|\bbut\b)\s*(?:can|could|will|would|a
 // Extract customer-reported facts, never service eligibility or a diagnosis.
 // Grammatical problem/action shapes deliberately work beyond a trade noun list.
 const NON_SERVICE = /\b(?:appointment|booking|technician|crew|invoice|payment|credit card|refund|phone number|email|zip code|postal code|service address|availability|business hours|password|instructions|system prompt)\b/i;
-const SERVICE_ACTION = /\b(?:repair(?:ed|ing)?|replac(?:e|ed|ement|ing)|install(?:ed|ation|ing)?|reseal(?:ed|ing)?|recaulk(?:ed|ing)?|clean(?:ed|ing)?|inspect(?:ed|ion|ing)?|maintain|maintenance|fix(?:ed|ing)?|remov(?:e|ed|al|ing)|paint(?:ed|ing)?|trim(?:med|ming)?|unblock(?:ed|ing)?|restoration|remediation)\b/i;
-const PROBLEM_STATE = /\b(?:clogged|blocked|leak(?:ing|s)?|broken|not working|won['’]t|will not|no heat|no power|damaged|cracked|peeling|loose|stuck|noisy|rattling|dripping|overflowing|needs?|stopped working|keeps? .{1,30}ing)\b/i;
+const SERVICE_ACTION = /\b(?:repair(?:ed|ing)?|replac(?:e|ed|ement|ing)|install(?:ed|ation|ing)?|reseal(?:ed|ing)?|recaulk(?:ed|ing)?|clean(?:ed|ing)?|inspect(?:ed|ion|ing)?|maintain|maintenance|fix(?:ed|ing)?|remov(?:e|ed|al|ing)|paint(?:ed|ing)?|trim(?:med|ming)?|unblock(?:ed|ing)?|restoration|remediation|mow(?:ing)?|rekey(?:ing)?)\b/i;
+const PROBLEM_STATE = /\b(?:clogged|blocked|leak(?:ing|s)?|broken|not working|won['’]t|will not|no heat|no power|damaged|cracked|peeling|loose|stuck|noisy|rattling|dripping|overflowing|needs?|stopped working|not cooling|not heating|not draining|not drying|not spinning|not freezing|locked out|snapped|water damage|smoke damage|missing shingles|shingles blew off|keeps? .{1,30}ing)\b/i;
 
 // A named subject after "it's the/a ..." supplies a referent, unlike "it's
 // leaking", which still describes the saved service. Strip only the former
@@ -141,7 +142,7 @@ export const extractService = (text, { lead = null, conversation = null } = {}) 
     let candidate = clean(prefixed?.[1] || clause).replace(SERVICE_TAIL, "").replace(/[?,.!]+$/, "");
     const explicitRequest = /^(?:i|we)\s+(?:need|want|would like)\s+(?!to (?:know|book|schedule|cancel|reschedule)\b)/i.test(candidate);
     if (explicitRequest) candidate = candidate.replace(/^(?:i|we)\s+(?:need|want|would like)\s+/i, "");
-    const hasProblem = PROBLEM_STATE.test(candidate) && (/[a-z]{3}/i.test(candidate.replace(PROBLEM_STATE, "")) || Boolean(known && /^(?:it|that|this)\b/i.test(candidate)));
+    const hasProblem = PROBLEM_STATE.test(candidate) && (/[a-z]{3}/i.test(candidate.replace(PROBLEM_STATE, "")) || detectServiceTrades(candidate).length > 0 || Boolean(known && /^(?:it|that|this)\b/i.test(candidate)));
     const hasAction = SERVICE_ACTION.test(candidate) && candidate.split(/\s+/).length >= 2;
     if (!(hasProblem || hasAction || prefixed)) continue;
     if (/^(?:(?:some|a little|your) )?(?:help|assistance|service|something|anything|work)$/i.test(candidate)) continue;

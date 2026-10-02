@@ -1,3 +1,4 @@
+import { TRADE_CLARIFICATION } from '../trades/tradeProfiles.service.js';
 import crypto from 'node:crypto';
 import { serviceDomains } from '../serviceEligibility/policy.js';
 
@@ -6,17 +7,8 @@ const clean = value => String(value || '').replace(/\s+/g, ' ').trim();
 const vague = /\b(?:broken|broke|not working|doesn['’]?t work|does not work|won['’]?t work|will not work|problem|issue|something wrong|damage|damaged|acting up|messed up)\b/i;
 const unsure = /\b(?:not sure|unsure|don['’]?t know|do not know|can['’]?t tell|cannot tell|no idea)\b/i;
 const explicitWork = /\b(?:install|installation|replace|replacement|inspect|inspection|maintenance|tune[ -]?up|cleaning|reseal|rekey|mow|mowing|trim|trimming)\b/i;
-const symptoms = /\b(?:leak\w*|overflow\w*|clogg?\w*|blocked|back(?:ing)? up|stopped up|won['’]?t flush|not flushing|doesn['’]?t flush|won['’]?t start|not starting|won['’]?t turn on|not turning on|not cooling|no cooling|not heating|no heat|no power|without power|lost power|tripp?\w*|spark\w*|smok\w*|burn\w*|hot to (?:the )?touch|humm?\w*|rattl\w*|nois\w*|crack\w*|loose|handle|flapper|running constantly|keeps running|stuck|off (?:the )?track|won['’]?t (?:open|close)|locked out|lockout|missing shingles?|fallen|falling|standing water|water damage|mold|uneven|brown patches|dead grass|key (?:broke|broken)|water stain\w*)\b/i;
-const questions = {
-  plumbing: 'What is happening—leaking or overflowing, a blockage, not operating, or something else?',
-  hvac: 'Is it not heating or cooling, not turning on, leaking, making an unusual noise, or something else?',
-  electrical: 'Is there no power, physical damage, heat, a burning smell, or sparking?',
-  roofing: 'What roof damage have you noticed, and is water coming inside now?',
-  restoration: 'What area is damaged, what caused it if known, and is the damage still spreading?',
-  garage_door: 'Is the door stuck open or closed, visibly damaged, or is the opener not responding?',
-  locksmith: 'Are you locked out, is the lock or key damaged, or do you need a lock changed?',
-  landscaping: 'What part of the yard or equipment needs attention, and what is happening?',
-};
+const symptoms = /\b(?:leak\w*|overflow\w*|clogg?\w*|blocked|back(?:ing)? up|stopped up|won['’]?t flush|not flushing|doesn['’]?t flush|won['’]?t start|not starting|won['’]?t turn on|not turning on|not cooling|no cooling|not heating|no heat|no power|without power|lost power|tripp?\w*|spark\w*|smok\w*|burn\w*|hot to (?:the )?touch|humm?\w*|rattl\w*|nois\w*|crack\w*|loose|handle|flapper|running constantly|keeps running|stuck|off (?:the )?track|won['’]?t (?:open|close)|locked out|lockout|missing shingles?|fallen|falling|standing water|water damage|mold|uneven|brown patches|dead grass|key (?:broke|broken)|snapped|not draining|not drying|not spinning|not freezing|water stain\w*)\b/i;
+const questions = TRADE_CLARIFICATION;
 
 // This is intake clarity, not a diagnosis or a service acceptance decision.
 // Unrecognized answers remain uncertain; the model cannot grant permission.
@@ -58,7 +50,7 @@ export function assessProblemClarity({ service, text, previous, policy = {}, cat
 
 export const requestEvidenceKey = ({ lead = {}, conversation = {}, state = {} }) => crypto.createHash('sha256').update(JSON.stringify([
   conversation.orchestration?.recoveryJourneyKey || '', lead.serviceNeeded || '', lead.address || '',
-  lead.preferredAppointmentTime || '', conversation.serviceEligibility?.serviceId || '', state.problem?.evidence || '',
+  lead.preferredAppointmentTime || '', conversation.serviceEligibility?.serviceId || '', state.problem?.evidence || '', state.tradeQualification?.answers || {}, state.tradeQualification?.requiresStaffReview || '',
 ])).digest('hex');
 
 export function buildRequestReadiness({ lead, conversation, state, now = new Date() }) {
@@ -68,6 +60,7 @@ export function buildRequestReadiness({ lead, conversation, state, now = new Dat
   if (state.problem?.status !== 'clear') blockers.push(state.problem?.reason || 'problem_not_evaluated');
   if (!lead.address || /^(unknown|not provided|n\/a)$/i.test(lead.address)) blockers.push('address_required');
   if (state.coverage?.supported !== true || state.coverage.address !== lead.address) blockers.push(state.coverage?.reason || 'coverage_not_evaluated');
+  if (state.tradeQualification && state.tradeQualification.status !== 'clear') blockers.push(state.tradeQualification.reason || 'trade_details_required');
   if (state.triagePending || state.clogPending) blockers.push('triage_unresolved');
   if (state.unresolvedQuestions?.some(q => q.kind === 'completion_meaning')) blockers.push('question_meaning_unresolved');
   const readyForOptions = blockers.length === 0;

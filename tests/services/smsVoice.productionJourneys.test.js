@@ -93,7 +93,10 @@ beforeEach(()=> {
 test.each(cases)('durable channel journey %# $channel $trade $address $question pricing=$pricing', async ({trade,request,address,question,channel,pricing})=> {
  services=[{...plumbing,_id:trade,name:trade==='garage_door'?'Garage door service':`${trade} service`,category:trade,keywords:[],disclosePriceEstimate:pricing}];
  const j=journey(channel);
- expect((await j.turn(request,true)).reply).toMatch(/service address/);
+ let first=await j.turn(request,true);
+ if(trade==='restoration'){expect(first.reply).toMatch(/spreading/);first=await j.turn('The source is stopped',true);}
+ if(trade==='garage_door'){expect(first.reply).toMatch(/open.*closed/);first=await j.turn('The door is closed',true);}
+ expect(first.reply).toMatch(/service address/);
  const savedService=j.lead().serviceNeeded;
  const captured=await j.turn(address,true);
  expect(captured.reply).not.toMatch(/what is the service address|can't verify|needs to review/i);
@@ -166,7 +169,7 @@ test.each(trades)('%s callback interruption preserves compound facts through the
  await j.turn(request,true);
  const result=await j.turn('Please call me. My address is 123 Main St, Atlanta GA 30303. Tomorrow at 3pm works.',true);
  expect(result.address).toContain('123 Main St');
- expect(result.preferredAppointmentTime).toContain('15:00');
+ expect(result.preferredAppointmentTime).toContain('3:00 PM');
  expect(result.serviceNeeded).toBe(j.lead().serviceNeeded);
  expect(result.messageCategory).toBe('human_requested');
  expect(AppointmentService.create).not.toHaveBeenCalled();
@@ -193,7 +196,10 @@ const compoundSelections = [
 test.each(trades.flatMap(([trade,request])=>compoundSelections.map(text=>({trade,request,text}))))(
  '$trade retains the offered preference and answers callback plus confirmation: $text', async ({trade,request,text})=>{
  services=[{...plumbing,_id:trade,name:trade==='garage_door'?'Garage door service':`${trade} service`,category:trade,keywords:[]}];
- const j=journey('sms'); await j.turn(request,true); await j.turn('970 Sidney Marcus Atlanta GA 30324',true);
+ const j=journey('sms'); await j.turn(request,true);
+ if(trade==='restoration') await j.turn('The source is stopped',true);
+ if(trade==='garage_door') await j.turn('The door is closed',true);
+ await j.turn('970 Sidney Marcus Atlanta GA 30324',true);
  await j.turn('What is available?',true);
  const offered=j.conversation().bookingState.offeredSlots[0];
  const result=await j.turn(text,true);

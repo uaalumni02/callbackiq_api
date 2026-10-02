@@ -1,3 +1,4 @@
+import { multiTradeCases } from '../fixtures/multiTradeCases.js';
 import Alert from "../../src/models/alert.js";
 import Message from "../../src/models/message.js";
 import SocketService from "../../src/services/socket.service.js";
@@ -415,5 +416,19 @@ describe('same-call address recovery', () => {
   session.transcript.push({role:'assistant', text:'125 Main Street 30324'}, {role:'customer', isFinal:false, text:'87 Oak Lane 30060'});
   await VoiceCallbackService.handle({session, customerMessage:'Please call me', requiredFields:['service','name','location']});
   expect(session.metadata.callbackCapture.currentField).toBe('location');
+ });
+});
+
+describe.each(multiTradeCases)('$trade callback preservation and failure recovery', row=>{
+ beforeEach(()=>{jest.clearAllMocks();Alert.findOneAndUpdate.mockResolvedValue({_id:'alert-1'});sendSms.mockResolvedValue({sid:'SM123',status:'sent'});Message.create.mockResolvedValue({_id:'message-1'});});
+ const setup=()=>{const s=makeSession();s.business.businessType=row.trade;s.lead.serviceNeeded=row.request;s.lead.address='123 Main Street Atlanta GA 30324';s.lead.preferredAppointmentTime='2026-10-06 at 10:00 AM';return s;};
+ const submit=session=>VoiceCallbackService.handle({session,customerMessage:'Please call me',reason:'customer_requested_human',immediate:true,requiredFields:[],sendConfirmationSms:true});
+ test('callback saves the original facts and exposes failed confirmation delivery',async()=>{
+  const session=setup();sendSms.mockRejectedValueOnce(new Error('provider unavailable'));
+  const r=await submit(session);expect(r.callbackCaptured).toBe(true);expect(session.lead.serviceNeeded).toBe(row.request);expect(session.lead.address).toContain('123 Main');expect(session.lead.preferredAppointmentTime).toBe('2026-10-06 at 10:00 AM');expect(session.confirmationSmsStatus).toBe('failed');expect(r.reply).toMatch(/could not be sent/i);
+ });
+ test('failed alert creation never reports callback completion',async()=>{
+  const session=setup();Alert.findOneAndUpdate.mockRejectedValueOnce(new Error('write failed'));
+  await expect(submit(session)).rejects.toThrow('write failed');expect(session.metadata.callbackCapture?.completedAt).toBeFalsy();expect(sendSms).not.toHaveBeenCalled();
  });
 });

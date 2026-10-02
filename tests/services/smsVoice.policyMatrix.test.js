@@ -11,7 +11,9 @@ test.each(cases)('catalog authorization %# %j', ({businessTrade,requestTrade,req
  const policy={catalogComplete:complete,excludedServices:mode==='business_exclusion'?[request]:[]};
  const result=evaluateServicePolicy({request,services:[service],policy});
  const excluded=mode==='business_exclusion'||mode==='offering_exclusion';
- const matched=businessTrade===requestTrade&&mode!=='inactive'&&!excluded;
+ // A repair-only offering does not authorize explicit replacement or trimming.
+ const operationMismatch=name==='repair' && ['plumbing','locksmith','landscaping'].includes(requestTrade);
+ const matched=businessTrade===requestTrade&&mode!=='inactive'&&!excluded&&!operationMismatch;
  if(excluded) expect(result.decision).toBe('unsupported');
  else if(!matched) expect(result.decision).toBe(complete?'unsupported':'needs_staff_review');
  else if(['human_review','no_discussion'].includes(mode)) expect(result.decision).toBe('needs_staff_review');

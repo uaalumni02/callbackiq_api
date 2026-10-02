@@ -1,3 +1,4 @@
+import { multiTradeCases } from '../fixtures/multiTradeCases.js';
 jest.mock('../../src/helpers/ai/tools/validateServiceArea.tool.js', () => ({ __esModule: true, default: jest.fn().mockResolvedValue({ supported: null, reason: 'service_area_not_configured' }) }));
 jest.mock('../../src/models/serviceOffering.js', () => ({ __esModule: true, default: { find: jest.fn() } }));
 import EligibilityCatalog from '../../src/models/serviceOffering.js';
@@ -826,6 +827,17 @@ describe("completed manual intake uses the durable staff handoff", () => {
   });
 
 
+  test.each(multiTradeCases)("$trade: callback after completed intake is durable and preserves customer facts", async row => {
+    Business.findById.mockResolvedValue({...business,businessType:row.trade});
+    activeLead.serviceNeeded=row.request;activeLead.address="123 Main Street Atlanta GA 30324";activeLead.preferredAppointmentTime="2026-10-06 at 10:00 AM";
+    activeConversation.orchestration={handoffReason:"intake_complete",handoffInboundMessage:"previous"};
+    activeInbound.body="Please call me";
+    await processInboundSmsJob(job);
+    expect(AlertService.createHumanHandoffAlert).toHaveBeenCalledWith(expect.objectContaining({result:expect.objectContaining({handoff:expect.objectContaining({callbackRequested:true})})}));
+    expect(sendSms).toHaveBeenCalledWith(expect.objectContaining({body:expect.stringMatching(/callback request is saved/i)}));
+    expect(activeLead.serviceNeeded).toBe(row.request);expect(activeLead.address).toContain("123 Main");expect(activeLead.preferredAppointmentTime).toBe("2026-10-06 at 10:00 AM");
+  });
+
   const tradeCases = [
     ["plumbing", "Bathtub drain repair", "My house is flooding", "Can you also check the kitchen tap?"],
     ["hvac", "AC repair", "No AC and dangerously hot with a newborn", "The AC is blowing warm air"],
@@ -835,9 +847,11 @@ describe("completed manual intake uses the durable staff handoff", () => {
     ["garage_door", "Garage door repair", "Someone is trapped under the garage door", "The garage door will not open"],
     ["locksmith", "Lock repair", "A child is locked inside", "I need the front door lock replaced"],
     ["landscaping", "Tree trimming", "A tree fell onto my house", "Can you trim the hedges as well?"],
+    ["appliance_repair", "Dryer repair", "My dryer is on fire", "My dryer is not heating"],
+    ["other", "Fence repair", "Someone is unconscious", "The fence is damaged"],
   ];
   test.each(tradeCases)("%s: distinguishes a routine follow-up from a safety escalation", async (trade, service, danger, routine) => {
-    EligibilityCatalog.find.mockReturnValue(catalogQuery([approvedOffering('service-1', trade, ['smoke detector', 'hedges', 'tap', 'lock repair'])]));
+    EligibilityCatalog.find.mockReturnValue(catalogQuery([approvedOffering('service-1', trade, ['smoke detector', 'hedges', 'tap', 'lock repair', 'fence'])]));
     Business.findById.mockResolvedValue({ ...business, businessType: trade });
     activeLead.serviceNeeded = service; activeLead.urgency = "medium";
     activeLead.preferredAppointmentTime = "2026-09-09 at 14:00";
@@ -853,7 +867,7 @@ describe("completed manual intake uses the durable staff handoff", () => {
     expect(activeLead.serviceNeeded).toBe(service);
   });
   test.each(tradeCases)("%s: urgent follow-up is retained during staff takeover with no AI reply", async (trade, service, danger) => {
-    EligibilityCatalog.find.mockReturnValue(catalogQuery([approvedOffering('service-1', trade, ['smoke detector', 'hedges', 'tap', 'lock repair'])]));
+    EligibilityCatalog.find.mockReturnValue(catalogQuery([approvedOffering('service-1', trade, ['smoke detector', 'hedges', 'tap', 'lock repair', 'fence'])]));
     Business.findById.mockResolvedValue({ ...business, businessType: trade });
     activeLead.serviceNeeded = service; activeLead.urgency = "medium";
     activeLead.preferredAppointmentTime = "2026-09-09 at 14:00";
