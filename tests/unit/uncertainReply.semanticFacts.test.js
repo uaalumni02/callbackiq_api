@@ -64,3 +64,12 @@ test.each([true, false])('uncertain reply respects a current coverage blocker (s
  if (sameJourney) { expect(result.reply).toMatch(/Coverage.*team review/); expect(result.handoff.required).toBe(true); }
  else expect(result.reply).not.toMatch(/Coverage/);
 });
+
+test.each(['', '123 Main St'])('missing address/ZIP is not a coverage review: %s', async address => {
+ const c = conversation(); c.conversationMemory.uncertainTurns = 0;
+ c.conversationMemory.recoveryIntake = { journeyKey: '', coverage: { supported: null, reason: 'zip_code_required', address } };
+ const result = await constrainUncertainReply({ result: weakReply, conversation: c, lead: { serviceNeeded: 'sink repair', address } });
+ expect(result.reply).toMatch(address ? /ZIP code/ : /service address/);
+ expect(result.reply).not.toMatch(/coverage.*team review/i);
+ expect(result.handoff).toBeUndefined();
+});

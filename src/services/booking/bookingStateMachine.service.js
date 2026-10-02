@@ -972,13 +972,19 @@ class BookingStateMachineService {
         });
       }
 
-      return {
-        handled: true,
-        result: fixedResult({
-          reply:
-            "What day and time work best? You can text naturally—for example: tomorrow at 2, day after tomorrow around 3ish, Friday morning, Aug 10 at 2:30, or after work.",
-        }),
-      };
+      // Shared intake may already have collected the location before this
+      // booking turn. Consume a date/time supplied now instead of asking again.
+      if (hasBookingAvailabilityHint(text, business.timezone || "America/New_York")) {
+        status = "collecting_preference";
+      } else {
+        return {
+          handled: true,
+          result: fixedResult({
+            reply:
+              "What day and time work best? You can text naturally—for example: tomorrow at 2, day after tomorrow around 3ish, Friday morning, Aug 10 at 2:30, or after work.",
+          }),
+        };
+      }
     }
 
     if (status === "collecting_postal_code") {
@@ -1038,13 +1044,19 @@ class BookingStateMachineService {
         });
       }
 
-      return {
-        handled: true,
-        result: fixedResult({
-          reply:
-            "What day and time work best? You can text naturally—for example: tomorrow at 2, day after tomorrow around 3ish, Friday morning, Aug 10 at 2:30, or after work.",
-        }),
-      };
+      // Shared intake may already have collected the location before this
+      // booking turn. Consume a date/time supplied now instead of asking again.
+      if (hasBookingAvailabilityHint(text, business.timezone || "America/New_York")) {
+        status = "collecting_preference";
+      } else {
+        return {
+          handled: true,
+          result: fixedResult({
+            reply:
+              "What day and time work best? You can text naturally—for example: tomorrow at 2, day after tomorrow around 3ish, Friday morning, Aug 10 at 2:30, or after work.",
+          }),
+        };
+      }
     }
 
     if (status === "collecting_preference") {

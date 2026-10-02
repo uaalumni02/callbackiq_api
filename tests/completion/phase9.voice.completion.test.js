@@ -1,3 +1,4 @@
+import { generateAIReplyResult } from '../../src/services/aiReplyService.js';
 import EligibilityCatalog from '../../src/models/serviceOffering.js';
 import EligibilityOperations from '../../src/models/businessOperationsSettings.js';
 import { approvedOffering, catalogQuery } from '../helpers/approvedServiceCatalog.js';
@@ -278,35 +279,29 @@ describe("Phase 9 completion gate using production voice orchestration", () => {
     expect(route).toBe(VOICE_ROUTE.RELAY);
   });
 
-  test("gates 2-6: identifies service, validates area, offers real slots, books, and texts confirmation", async () => {
+  test.each(["sms", "voice"])("%s gates 2-6: captures intake, offers real slots, and submits an unconfirmed approval request", async channel => {
     const session = makeSession();
+    let n = 0;
+    const turn = customerMessage => channel === 'voice'
+      ? VoiceAgentService.handlePrompt({ session, customerMessage })
+      : generateAIReplyResult({ business: session.business, lead: session.lead, conversation: session.conversation,
+          customerMessage, messages: [{ _id: String(++n), direction: 'inbound', body: customerMessage }] });
 
-    const serviceReply = await VoiceAgentService.handlePrompt({
-      session,
-      customerMessage: "I need drain cleaning",
-    });
+    const serviceReply = await turn("I need drain cleaning");
 
-    expect(serviceReply.reply).toMatch(/drain cleaning/i);
-    expect(searchServicesTool).toHaveBeenCalledWith({
-      businessId: "business-1",
-      query: "I need drain cleaning",
-    });
+    expect(serviceReply.reply).toMatch(/service address/i);
+    expect(session.lead.serviceNeeded).toMatch(/drain cleaning/i);
+    expect(searchServicesTool).not.toHaveBeenCalled();
 
-    const areaReply = await VoiceAgentService.handlePrompt({
-      session,
-      customerMessage: "123 Main Street, Atlanta GA 30303",
-    });
+    const areaReply = await turn("123 Main Street, Atlanta GA 30303");
 
-    expect(areaReply.reply).toMatch(/what day and time work best/i);
+    expect(areaReply.reply).toMatch(/what day.*prefer/i);
     expect(validateServiceAreaTool).toHaveBeenCalledWith({
       businessId: "business-1",
       postalCode: "30303",
     });
 
-    const slotsReply = await VoiceAgentService.handlePrompt({
-      session,
-      customerMessage: "2026-08-03",
-    });
+    const slotsReply = await turn("2026-08-03");
 
     expect(slotsReply.reply).toMatch(/1\)/);
     expect(getAvailabilityTool).toHaveBeenCalledWith(
@@ -317,22 +312,16 @@ describe("Phase 9 completion gate using production voice orchestration", () => {
       }),
     );
 
-    const selectionReply = await VoiceAgentService.handlePrompt({
-      session,
-      customerMessage: "first",
-    });
+    const selectionReply = await turn("first");
 
-    expect(selectionReply.reply).toMatch(/business approval required.*is that correct/i);
+    expect(selectionReply.reply).toMatch(/business approval|not confirmed/i);
 
-    const bookingReply = await VoiceAgentService.handlePrompt({
-      session,
-      customerMessage: "yes",
-    });
+    const bookingReply = await turn("yes");
 
     expect(bookingReply.reply).toMatch(/pending business approval|not confirmed/i);
     expect(createAppointmentTool).toHaveBeenCalledWith(
       expect.objectContaining({
-        input: expect.objectContaining({ source: "voice" }),
+        input: expect.objectContaining({ source: channel }),
       }),
     );
     expect(session.conversation.bookingState).toMatchObject({

@@ -5,9 +5,9 @@ export const DETAIL_FIELDS = Object.freeze({
  hvac_equipment: { question:'Is this an air conditioner, furnace, heat pump, or another system?', answer:/\b(?:ac|a\/?c|air condition(?:er|ing)|furnace|heat pump|boiler|thermostat|duct)\b/i },
  appliance_type: { question:'Which appliance needs service?', answer:/\b(?:refrigerator|fridge|freezer|dishwasher|washer|washing machine|dryer|oven|stove|cooktop|microwave)\b/i },
  appliance_model: { question:'What is the appliance brand and model, if you know it? You can say unsure.', answer:/\b(?:whirlpool|ge|lg|samsung|bosch|kenmore|maytag|frigidaire|kitchenaid|miele|amana)\b|\b[a-z]{1,6}\d[a-z0-9-]{2,}\b/i, optional:true },
- electrical_scope: { question:'Is the problem limited to one outlet or circuit, several areas, or the whole property?', answer:/\b(?:(?:one|single|only|several|multiple) (?:outlet|circuit|room|area)|(?:whole|entire) (?:house|home|property|building)|throughout (?:the )?(?:house|home|building))\b|^(?:only one|just one|several|multiple|whole property)[.! ]*$/i },
+ electrical_scope: { question:'Is the problem limited to one outlet or circuit, several areas, or the whole property?', answer:/\b(?:(?:one|single|only|several|multiple) (?:outlet|circuit|room|area)|(?:whole|entire) (?:house|home|property|building)|throughout (?:the )?(?:house|home|building))\b|^(?:only one|just one|just this one|only this one|just that one|several|multiple|whole property)[.! ]*$/i },
  damage_activity: { question:'Is the damage still spreading or is the source stopped? What caused it, if known?', answer:/\b(?:still|spreading|stopped|dry now|no longer|shut off|turned off|only when|active|not spreading)\b/i },
- door_position: { question:'Is the garage door open, closed, or partly open? Please do not force a damaged door.', answer:/\b(?:stuck (?:open|closed|shut)|(?:is|sitting|left) (?:partly )?(?:open|closed)|halfway|half way|partly open)\b|^(?:open|closed|shut)[.! ]*$/i },
+ door_position: { question:'Is the garage door open, closed, or partly open? Please do not force a damaged door.', answer:/\b(?:stuck (?:open|closed|shut)|(?:is|sitting|left) (?:partly )?(?:open|closed)|halfway|half way|half(?:way)? open|partly open|partially open)\b|^(?:open|closed|shut)[.! ]*$/i },
  lockout_target: { question:'Are you locked out of a home, business, or vehicle?', answer:/\b(?:home|house|apartment|condo|business|office|shop|vehicle|car|truck|van)\b/i },
  job_frequency: { question:'Is this a one-time yard service, or are you asking about recurring service?', answer:/\b(?:one[ -]?time|once|single visit|recurring|weekly|monthly|every|ongoing|regular)\b/i },
 });
@@ -27,6 +27,10 @@ export function assessTradeQualification({ service, category='', text='', previo
  const key=clean(service).toLowerCase();
  const trade=detectServiceTrades(service)[0] || canonicalTrade(category);
  const state=previous?.serviceKey===key && !correction ? structuredClone(previous) : { version:1, serviceKey:key, trade, answers:{}, attempts:0 };
+ // Mongoose's default minimization can omit an empty answers object on save.
+ // Rehydrate optional ledger fields before reading or updating a saved request.
+ state.answers = state.answers && typeof state.answers === 'object' && !Array.isArray(state.answers) ? state.answers : {};
+ state.attempts = Number.isFinite(state.attempts) ? state.attempts : 0;
  const answer=clean(text);
  const hypothetical=/\b(?:what if|suppose|could it|is it|would it)\b/i.test(answer);
  const pendingMatch=state.pending && DETAIL_FIELDS[state.pending]?.answer.test(answer);

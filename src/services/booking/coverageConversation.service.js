@@ -23,6 +23,7 @@ export function coverageReviewReply({ lead, conversation, state, coverageQuestio
 
 export const currentCoverage = (conversation = {}, lead = {}) => {
   const state = conversation.conversationMemory?.recoveryIntake || {};
+  if (!String(lead.address || '').trim() || state.coverage?.reason === 'zip_code_required') return null;
   return (state.journeyKey || '') === (conversation.orchestration?.recoveryJourneyKey || '') &&
     state.coverage?.address === lead.address ? state.coverage : null;
 };

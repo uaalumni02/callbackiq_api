@@ -218,12 +218,19 @@ describe("bookingEligibility target coverage", () => {
 
   test.each([
     ["Drain Cleaning", "drain"],
-    ["Plumbing", "plumbing"],
     ["clog", "clog"],
   ])("matches service by %s", async (_kind, query) => {
     arrange();
     const result = await evaluate({ serviceQuery: query });
     expect(result.matchedService).toEqual(BASE_SERVICE);
+  });
+
+  test("a trade name alone does not select a specific service", async () => {
+    arrange();
+    const result = await evaluate({ serviceQuery: "plumbing" });
+    expect(result.matchedService).toBeNull();
+    expect(result.servicePerformed).toBe(false);
+    expect(result.reasons).toContain("service_not_matched");
   });
 
   test("disabled service AI booking blocks automation", async () => {

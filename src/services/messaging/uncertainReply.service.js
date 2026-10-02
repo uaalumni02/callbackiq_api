@@ -1,3 +1,5 @@
+import { currentCoverage } from '../booking/coverageConversation.service.js';
+import { extractCustomerPostalCode } from '../booking/customerAddress.service.js';
 const clean = value => typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
 const known = value => clean(value) && !/^(unknown|not provided|n\/a)$/i.test(clean(value));
 const FACT_CATEGORIES = new Set(['new_service_request', 'service_request', 'service_details', 'appointment_preference', 'pricing_request']);
@@ -61,14 +63,14 @@ export const constrainUncertainReply = async ({ result, lead, conversation, turn
     setMemory(conversation, 'uncertainTurnId', String(turnId));
     await conversation.save();
   }
-  const intake = memory.recoveryIntake || {};
-  const coveragePending = intake.coverage?.supported === null && intake.coverage?.address === facts.address &&
-    (intake.journeyKey || '') === (conversation?.orchestration?.recoveryJourneyKey || '');
+  const coveragePending = currentCoverage(conversation, facts)?.supported === null;
   const needsReview = count >= 2 || coveragePending;
   const question = !facts.serviceNeeded
     ? 'What needs repair or service? A short description of the problem will help.'
     : !facts.address
       ? 'I have the service details. What is the service address?'
+      : !extractCustomerPostalCode(facts.address)
+        ? 'What is the ZIP code for that address so I can check coverage?'
       : !facts.preferredAppointmentTime
         ? 'I have the service and address. What day would you prefer? This is a preference only.'
         : 'I have your service details, address, and preferred time. What would you like to clarify or change?';

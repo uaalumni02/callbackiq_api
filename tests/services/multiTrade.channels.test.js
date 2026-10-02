@@ -73,3 +73,86 @@ describe.each(['sms','voice'])('%s actual channel trade entry',channel=>{
   expect(j.lead().serviceNeeded).not.toBe('Unknown');expect(r.reply).not.toMatch(/does not offer|cannot verify that this business/i);
  });
 });
+
+describe.each([['sms', false], ['voice', false], ['sms', true], ['voice', true]])('%s contextual leak answer regression (booking=%s)', (channel, bookingEnabled) => {
+  test.each(['When I use it', 'When we use the sink', 'While using it', 'During use', 'When I run the water', 'It leaks when I use it'])('%s advances to address collection', async answer => {
+    business.features.aiBookingEnabled = bookingEnabled;
+    const j = journey(channel);
+    const first = await j.turn('My kitchen sink pipes are leaking', true);
+    expect(first.reply).toMatch(/leaking right now.*only when/i);
+    const result = await j.turn(answer, true);
+    expect(result.reply).toMatch(/service address/i);
+    expect(result.reply).not.toMatch(/coverage|team review/i);
+    expect(j.conversation().conversationMemory.recoveryIntake).toMatchObject({
+      triageResolved: true, triagePending: false, triageAnswer: answer, leakPattern: 'during_use',
+    });
+    expect(j.lead().serviceNeeded).toMatch(/kitchen sink/i);
+    expect(validateServiceArea).not.toHaveBeenCalled();
+    expect(AlertService.createHumanHandoffAlert).not.toHaveBeenCalled();
+    expect(qualifyLeadWithAI).not.toHaveBeenCalled();
+  });
+});
+
+
+describe.each([['sms', false], ['voice', false], ['sms', true], ['voice', true]])('%s availability prerequisites (booking=%s)', (channel, bookingEnabled) => {
+ test('asking for times during triage does not turn missing facts into a provider failure', async () => {
+  business.features.aiBookingEnabled = bookingEnabled;
+  const j = journey(channel);
+  await j.turn('My kitchen sink pipes are leaking', true);
+  const triage = await j.turn('What times are available?', true);
+  expect(triage.reply).toMatch(/leaking right now/i);
+  expect(triage.reply).not.toMatch(/failed|trouble|team review/i);
+  await j.turn('When I use it', true);
+  const address = await j.turn('What times are available?', true);
+  expect(address.reply).toMatch(/service address/i);
+  expect(Availability.getAvailability).not.toHaveBeenCalled();
+  expect(AlertService.createHumanHandoffAlert).not.toHaveBeenCalled();
+ });
+});
+
+const intakeTrades = [
+ ['plumbing', 'Faucet repair', 'My faucet is leaking', ['When I use it']],
+ ['hvac', 'AC repair', 'My AC is not cooling', []],
+ ['roofing', 'Roof repair', 'My roof is leaking', ['When it rains']],
+ ['electrical', 'Outlet repair', 'My outlet has no power', ['Just this one']],
+ ['restoration', 'Water damage assessment', 'I need a water damage assessment', ['The source is stopped']],
+ ['garage_door', 'Garage door repair', 'My garage door spring snapped', ['Half open']],
+ ['locksmith', 'Home lockout', 'I am locked out of my home', []],
+ ['landscaping', 'Lawn mowing', 'I need lawn mowing', ['Just once']],
+ ['appliance_repair', 'Refrigerator repair', 'My fridge is not cooling', []],
+ ['other', 'Fence repair', 'I need fence repair', []],
+];
+describe.each([['sms', false], ['voice', false], ['sms', true], ['voice', true]])('%s full trade intake (booking=%s)', (channel, bookingEnabled) => {
+ test.each(intakeTrades)('%s preserves qualification and advances through address to date', async (trade, name, request, answers) => {
+  business.features.aiBookingEnabled = bookingEnabled;
+  services = [{ ...plumbing, _id: trade, name, category: 'general', keywords: [] }];
+  const j = journey(channel);
+  let result = await j.turn(request, true);
+  for (const answer of answers) result = await j.turn(answer, true);
+  expect(result.reply).toMatch(/service address/i);
+  const service = j.lead().serviceNeeded;
+  result = await j.turn('123 Main Street Atlanta GA 30324', true);
+  expect(result.reply).toMatch(/what day/i);
+  expect(j.lead().address).toContain('123 Main Street');
+  expect(j.lead().serviceNeeded).toBe(service);
+  expect(j.conversation().conversationMemory.recoveryIntake.tradeQualification.status).toBe('clear');
+  expect(AppointmentService.create).not.toHaveBeenCalled();
+  expect(AlertService.createHumanHandoffAlert).not.toHaveBeenCalled();
+ });
+});
+
+describe.each(['sms', 'voice'])('%s short activity answers', channel => {
+ test.each([
+  ['Right now', 'active', 'high'], ['All the time', 'active', 'high'], ['Constantly', 'active', 'high'],
+  ['Not right now', 'not_active', 'low'], ['Not anymore', 'not_active', 'low'], ['It stopped', 'not_active', 'low'],
+ ])('%s resolves the pending question without a model fallback', async (answer, pattern, urgency) => {
+  business.features.aiBookingEnabled = false;
+  const j = journey(channel);
+  await j.turn('My kitchen sink pipes are leaking', true);
+  const result = await j.turn(answer, true);
+  expect(result.reply).toMatch(/service address/i);
+  expect(j.conversation().conversationMemory.recoveryIntake).toMatchObject({ triageAnswer: answer, triageResolved: true, leakPattern: pattern });
+  if (pattern === 'active') expect(j.lead().urgency).toBe(urgency);
+  else expect(['high', 'emergency']).not.toContain(j.lead().urgency);
+ });
+});

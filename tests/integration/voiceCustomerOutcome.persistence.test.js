@@ -89,3 +89,33 @@ test('separate durable writer invalidates a stale callback readback after reload
  expect(saved.lead.serviceNeeded).toBe('Furnace repair');
  expect(saved.lead.address).toBe('456 Oak St Atlanta GA 30326');
 });
+
+describe.each([['sms', false], ['voice', false], ['sms', true], ['voice', true]])('%s intake survives document reload (booking=%s)', (channel, aiBookingEnabled) => {
+ test('service → short activity answer → address has no premature review and retains exact facts', async () => {
+  const { default: ServiceOffering } = await import('../../src/models/serviceOffering.js');
+  const { default: ServiceArea } = await import('../../src/models/serviceArea.js');
+  const { default: Operations } = await import('../../src/models/businessOperationsSettings.js');
+  const { handleRecoveryIntake } = await import('../../src/services/booking/recoveryIntake.service.js');
+  await ServiceOffering.create({ business: business._id, name: 'Sink repair', nameKey: 'sink repair', category: 'plumbing', active: true, aiCanBook: true, aiCanDiscuss: true });
+  await Operations.create({ business: business._id, serviceEligibilityPolicy: { catalogComplete: true } });
+  await ServiceArea.create({ business: business._id, type: 'zip_codes', zipCodes: ['30324'] });
+  await Business.updateOne({ _id: business._id }, { $set: { 'features.aiBookingEnabled': aiBookingEnabled } });
+  await Lead.updateOne({ _id: lead._id }, { $set: { serviceNeeded: 'Unknown', address: '', preferredAppointmentTime: '' } });
+  const turn = async (customerMessage, turnId) => {
+   const saved = await reload();
+   return handleRecoveryIntake({ business: saved.business, lead: saved.lead, conversation: saved.conversation, channel, customerMessage, turnId });
+  };
+  expect((await turn('My kitchen sink pipes are leaking', 'first')).reply).toMatch(/leaking right now/);
+  expect((await turn('When I use it', 'second')).reply).toMatch(/service address/);
+  let saved = await reload();
+  expect(saved.conversation.conversationMemory.recoveryIntake).toMatchObject({ triageResolved: true, leakPattern: 'during_use', triageAnswer: 'When I use it' });
+  expect(saved.lead.address).toBe('');
+  expect(await Alert.countDocuments({ conversation: conversation._id })).toBe(0);
+  expect((await turn('123 Main Street Atlanta GA 30324', 'third')).reply).toMatch(/what day/i);
+  saved = await reload();
+  expect(saved.lead.address).toBe('123 Main Street Atlanta GA 30324');
+  expect(saved.lead.serviceNeeded).toMatch(/kitchen sink/);
+  expect(saved.conversation.conversationMemory.recoveryIntake.coverage.supported).toBe(true);
+  expect(saved.conversation.bookingState.appointment).toBeFalsy();
+ });
+});

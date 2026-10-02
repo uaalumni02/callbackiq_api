@@ -101,7 +101,7 @@ test('negative time replies cannot select a slot',async()=>{
  expect(c.conversation.bookingState.selectedSlot).toBeNull();
 });
 test('failed availability and failed alert do not claim empty calendar or successful notification',async()=>{
- const c=context(1);c.lead.serviceNeeded='sink clearing';getAvailability.mockRejectedValue(new Error('503'));Alert.createSystemAlert.mockRejectedValue(new Error('database unavailable'));
+ const c=context(1);c.lead.serviceNeeded='sink clearing';c.lead.address='123 Main Street Atlanta GA 30324';getAvailability.mockRejectedValue(new Error('503'));Alert.createSystemAlert.mockRejectedValue(new Error('database unavailable'));
  const r=await c.turn("What's available?");expect(r.reply).toMatch(/can’t verify/);expect(r.reply).not.toMatch(/alerted|no openings|no eligible/);
 });
 test('an interrupted voice turn cannot persist an availability offer',async()=>{

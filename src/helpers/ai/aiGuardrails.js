@@ -754,7 +754,9 @@ const SAFETY_REFERENCE_GROUPS = [
   { type: "sewage", pattern: /\b(?:sewage|sewer backup|sewer overflow)\b/i, canonical: "sewage backup" },
 ];
 
-const HISTORICAL_SAFETY_TIME = /\b(?:earlier|before|previously|yesterday|last (?:night|week|month|year)|years? ago|used to|was|were|had been)\b/i;
+// Past-tense grammar alone does not establish that danger has ended (for
+// example, 'the technician was injured' or 'a child was trapped').
+const HISTORICAL_SAFETY_TIME = /\b(?:earlier|before|previously|yesterday|last (?:night|week|month|year)|years? ago|used to)\b/i;
 const CURRENT_SAFETY_TIME = /\b(?:now|still|again|currently|right now|today|at the moment)\b/i;
 const CURRENT_RESOLUTION = /\b(?:there (?:is|are) none|there isn['’]?t any|none now|no longer|not anymore|not now|has stopped|have stopped|stopped|is gone|are gone|cleared|resolved|fixed|all clear|safe now)\b/i;
 const ANAPHORIC_CURRENT_AFFIRMATION = /(?:\b(?:now|still|currently|right now)\s+(?:(?:it|that|this)\s+(?:is|isn['’]?t|has|hasn['’]?t)|there\s+(?:is|are))\b|\b(?:i|we)\s+(?:still|currently)\s+(?:smell|see|hear|feel)\s+(?:it|that)\b|\b(?:still|currently)\s+(?:smell|see|hear|feel)\s+(?:it|that)\b)(?![^.!?;]{0,18}\b(?:none|no longer|not|gone|stopped|resolved|fixed|clear|safe)\b)/i;
@@ -765,12 +767,18 @@ const normalizeSafetyDiscourse = (value) => {
     .map((part) => part.trim())
     .filter(Boolean);
   let lastReference = null;
-  return segments.map((segment) => {
+  return segments.map((segment, index) => {
     const reference = SAFETY_REFERENCE_GROUPS.find(({ pattern }) => pattern.test(segment));
     if (reference) lastReference = reference;
 
     const historical = HISTORICAL_SAFETY_TIME.test(segment);
     const current = CURRENT_SAFETY_TIME.test(segment);
+    // A clear resolution in the next clause can refer back to the hazard:
+    // "There was smoke, but there is none now." Bare past tense alone cannot.
+    const next = segments[index + 1] || '';
+    const resolvedNext = /^(?:there (?:is|are) none(?: now)?|there isn['’]?t any(?: now)?|(?:it|that) (?:has stopped|is gone|is resolved|is fixed))(?:[,. ]*)$/i.test(next);
+    if (reference && !current && resolvedNext) return "resolved condition";
+
     if (reference && historical && !current) {
       // Preserve the referent for later anaphora, but do not treat a clearly
       // historical observation as a current emergency by itself.

@@ -46,16 +46,20 @@ describe.each(['sms','voice'])('%s shared conversation journey',channel=>{
  test('leak → availability → delayed answer → selection → acceptance question → address → help → withdrawal',async()=>{
   const c=context(channel);
   expect((await c.turn('My bathroom sink is leaking')).reply).toMatch(/right now|only when/);
+  expect((await c.turn('When can someone come out')).reply).toMatch(/right now|only when/);
+  await c.turn('When I use it');
+  await c.turn('970 Sidney Marcus Atlanta GA 30324');
   expect((await c.turn('When can someone come out')).reply).toMatch(/Current openings/);
   const offers=c.conversation.bookingState.offeredSlots;
   const triage=await c.turn("It's leaking constantly");
   expect(triage.reply).toMatch(/continuously/);expect(c.lead.urgency).toBe('high');
   expect(c.conversation.conversationMemory.recoveryIntake.triageAnswer).toBe("It's leaking constantly");
   expect(c.conversation.bookingState.offeredSlots).toEqual(offers);
-  expect((await c.turn('1')).reply).toMatch(/not confirmed.*address/);
+  expect((await c.turn('1')).reply).toMatch(/not confirmed/);
   expect(Alert.create).toHaveBeenCalledWith(expect.objectContaining({title:'Customer selected an appointment time'}));
   expect((await c.turn("When will I know it's accepted?")).reply).toMatch(/response time|timeframe/);
-  expect((await c.turn('1234 Link Street Atlanta GA 30324')).reply).toMatch(/saved.*address/);
+  Alert.createHumanHandoffAlert.mockResolvedValue({ alert: { _id: 'updated-review' } });
+  expect((await c.turn('1234 Link Street Atlanta GA 30324')).reply).toMatch(/subject to business approval|saved for team review/);
   expect(c.lead.address).toMatch(/1234 Link Street/);
   expect((await c.turn('What can I do about the sink for right now')).reply).toMatch(/Avoid using/);
   expect((await c.turn("Never mind. I don't need your service. You're not helpful")).reply).toMatch(/withdrawn/);
@@ -85,7 +89,7 @@ test('database failure prevents withdrawal acknowledgement',async()=>{
 });
 
 test('missing staff-task acknowledgement cannot become a submitted slot request', async () => {
- const c=context();await c.turn('My bathroom sink is leaking');await c.turn('When can someone come out');
+ const c=context();await c.turn('My bathroom sink is leaking');await c.turn('When I use it');await c.turn('970 Sidney Marcus Atlanta GA 30324');await c.turn('When can someone come out');
  Alert.create.mockResolvedValueOnce({alert:null});
  const r=await c.turn('1');expect(r.reply).not.toMatch(/sent your request|submitted your request/);
  expect(c.conversation.bookingState.status).toBe('offering_slots');

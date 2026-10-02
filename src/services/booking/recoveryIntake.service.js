@@ -1,3 +1,4 @@
+import { classifyLeakActivityAnswer } from './leakActivityAnswer.service.js';
 import { assessTradeQualification, tradeReviewReply } from '../trades/tradeQualification.service.js';
 import { leakContext } from '../trades/tradeProfiles.service.js';
 import { confirmationFollowUpReply } from './confirmationFollowUp.service.js';
@@ -137,7 +138,9 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
     (!semanticAssessment.decision || ['send', 'send_ai_response', 'send_fixed_response'].includes(semanticAssessment.decision))
     ? semanticAssessment : null;
   const contextualPriceQuestion = classification.intents?.pricing && known(lead.serviceNeeded) && !classification.entities?.serviceNeeded;
-  const triageFieldAnswer = (state.triagePending || state.clogPending || state.triageAnswer === text) &&
+  const leakActivityAnswer = classifyLeakActivityAnswer({ text, state, service: lead.serviceNeeded });
+  const useDependentAnswer = leakActivityAnswer === 'during_use';
+  const triageFieldAnswer = Boolean(leakActivityAnswer) || (state.triagePending || state.clogPending || state.triageAnswer === text) &&
     !classification.entities?.serviceNeeded && /^(?:yes|yeah|yep|no|nope|only|just)\b/i.test(text);
   const service = triageFieldAnswer || questions.ambiguous || questions.duration || questions.completionDate || questions.clarificationAnswer ? '' : classification.entities?.serviceNeeded || (!contextualPriceQuestion && typeof semantic?.serviceNeeded === 'string' ? clean(semantic.serviceNeeded).slice(0, 160) : '');
   if (!state.started && !known(service) && !known(lead.serviceNeeded) && !classification.intents?.scheduling && !capturedAddress && !addressFrom(text)) return null;
@@ -189,10 +192,10 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
     state.serviceDetail = normalizeRequestService(service);
     state.serviceSourceTurnId = String(turnId);
   }
-  const activeEvidence = text.split(/\b(?:but|however)\b|[;.!?]/i).some(clause =>
+  const activeEvidence = leakActivityAnswer === 'active' || text.split(/\b(?:but|however)\b|[;.!?]/i).some(clause =>
     !stopped.test(clause) && patternHasAffirmedSafetyMatch(active, clause));
-  const roofCondition = leakContext(lead.serviceNeeded) === 'roof' && /\b(?:only (?:when|during|in) (?:it )?(?:rain|rains|raining|storms?)|when it rains)\b/i.test(text);
-  const stoppedEvidence = (stopped.test(text) || roofCondition) && !activeEvidence;
+  const roofCondition = leakActivityAnswer === 'during_rain' || leakContext(lead.serviceNeeded) === 'roof' && /\b(?:only (?:when|during|in) (?:it )?(?:rain|rains|raining|storms?)|when it rains)\b/i.test(text);
+  const stoppedEvidence = (stopped.test(text) || roofCondition || useDependentAnswer || leakActivityAnswer === 'not_active') && !activeEvidence;
   const shortTriageAnswer = state.triagePending && ['leak_activity', 'constraint_condition'].includes(state.field);
   if (state.field === 'constraint_condition' && /^(?:no|nope)[.! ]*$/i.test(text)) state.constraintQuestion = '';
   const wasTriageResolved = state.triageResolved;
@@ -206,7 +209,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   const triageRelevant = state.triagePending || leak.test(`${lead.serviceNeeded} ${text}`);
   if (triageRelevant && (stoppedEvidence || activeEvidence || (shortTriageAnswer && /^(?:yes|yeah|yep|no|nope)[.! ]*$/i.test(text)))) {
     state.triageAnswer = text.slice(0, 250);
-    state.leakPattern = !activeEvidence && /\bonly (?:when|during)\b/i.test(text) ? (roofCondition ? 'during_rain' : 'during_use') : stoppedEvidence || /^(?:no|nope)[.! ]*$/i.test(text) ? 'not_active' : 'active';
+    state.leakPattern = !activeEvidence && (useDependentAnswer || roofCondition || /\bonly (?:when|during)\b/i.test(text)) ? (roofCondition ? 'during_rain' : 'during_use') : stoppedEvidence || /^(?:no|nope)[.! ]*$/i.test(text) ? 'not_active' : 'active';
   }
   if (activeEvidence) {
     state.triageResolved = true;
@@ -315,7 +318,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
     state.serviceDetail = `${lead.serviceNeeded}; ${state.problem.evidence}`.slice(0, 500);
   }
   state.tradeQualification = assessTradeQualification({ service: lead.serviceNeeded, category: conversation.serviceEligibility?.category, text: state.leakSubstance && !/water/i.test(state.leakSubstance) ? `${text}; leak substance: ${state.leakSubstance}` : text, previous: state.tradeQualification, policy: conversation.serviceEligibility?.intakePolicy || {}, turnId, interrupt: problemInterrupt, factualTurn: Boolean(address || incomingRange || incomingTime.targetMinutes !== null || incomingTime.timeOfDay), correction: Boolean(classification.intents?.correction && known(service)) });
-  if (oldState?.tradeQualification && JSON.stringify(oldState.tradeQualification.answers) !== JSON.stringify(state.tradeQualification.answers)) {
+  if (oldState?.tradeQualification && JSON.stringify(oldState.tradeQualification.answers || {}) !== JSON.stringify(state.tradeQualification.answers || {})) {
     state.availability = { status: 'not_checked', reason: 'job_details_changed' };
     state.reviewReady = false; state.submitted = false;
   }
@@ -423,7 +426,18 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   if (questions.ambiguous || state.unresolvedQuestions.some(q => q.kind === 'completion_meaning')) {
     return ask('question_meaning', completionClarification);
   }
-  if (classification.intents?.availabilityInquiry) { await persist(); return null; }
+  if (classification.intents?.availabilityInquiry) {
+    // A request for times is not an answer to an outstanding intake question.
+    // Resolve customer-supplied prerequisites before invoking provider tools;
+    // otherwise missing facts are misreported as calendar/coverage failures.
+    if (!conversation.bookingState?.appointment) {
+      if (state.triagePending) return ask(leakContext(state.serviceDetail || lead.serviceNeeded) === 'unknown_fluid' ? 'leak_substance' : 'leak_activity', recoveryLeakQuestion(state.serviceDetail || lead.serviceNeeded));
+      if (state.clogPending) return ask('clog_scope', clogQuestionFor(`${lead.serviceNeeded} ${state.serviceDetail || ''} ${text}`));
+      if (!known(lead.address)) return ask('address', 'What is the service address so I can check appointment times?');
+      if (!postalCode) return ask('postal_code', 'What is the ZIP code for that address so I can check appointment times?');
+    }
+    await persist(); return null;
+  }
   // Facts remain writable during scheduling and review. Do not replace the
   // booking proposal or claim that an existing appointment has changed.
   if (bookingActive) {
@@ -470,11 +484,6 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
     const reply = approvedEstimate ? `${approvedEstimate} ${priceResponse.replace(`For ${clean(lead.serviceNeeded)}, I don't have a confirmed price yet.`, '').trim()}` : priceResponse;
     return fixed(timingPrefix + reply, lead, { messageCategory: 'pricing_request' });
   }
-  if (business.features?.aiBookingEnabled === true) {
-    if (state.triagePending) return ask(leakContext(state.serviceDetail || lead.serviceNeeded) === 'unknown_fluid' ? 'leak_substance' : 'leak_activity', recoveryLeakQuestion(state.serviceDetail || lead.serviceNeeded));
-    if (state.clogPending) return ask('clog_scope', clogQuestionFor(`${lead.serviceNeeded} ${state.serviceDetail || ''} ${text}`));
-    await persist(); return null;
-  }
   await persist();
   if (!known(lead.address)) return ask('address', 'What is the service address?');
   if (!extractCustomerPostalCode(lead.address)) return ask('postal_code', 'What is the ZIP code for that address?');
@@ -485,6 +494,15 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   const sameDayRequest = range.startDate === formatDateKey(now, timezone) && range.endDate === range.startDate;
   if (sameDayRequest && time.targetMinutes === null && !time.timeOfDay) {
     return requestStaffSchedulingReview({ business, lead, conversation, customerMessage: text, channel, now });
+  }
+  // The booking engine can offer times for a supplied date; manual intake
+  // collects a preference. Both modes share address and qualification rules.
+  if (business.features?.aiBookingEnabled === true && !state.triagePending && !state.clogPending) {
+    if (!conversation.bookingState?.status || conversation.bookingState.status === 'not_started') {
+      conversation.bookingState = { ...conversation.bookingState, status: 'collecting_service' };
+      conversation.markModified?.('bookingState');
+    }
+    await persist(); return null;
   }
   if (time.targetMinutes === null && !time.timeOfDay) return ask('time', 'What time works best that day?');
   if (state.triagePending) return ask(leakContext(state.serviceDetail || lead.serviceNeeded) === 'unknown_fluid' ? 'leak_substance' : 'leak_activity', recoveryLeakQuestion(state.serviceDetail || lead.serviceNeeded));
