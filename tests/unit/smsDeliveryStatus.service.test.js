@@ -94,3 +94,14 @@ describe("Twilio SMS delivery transitions", () => {
     expect(conflictEvent).toMatchObject({ applied: false, conflict: true });
   });
 });
+
+test('manual appointment without a conversation tracks provider delivery on its notice', async () => {
+ const Notice = (await import('../../src/models/appointmentNotificationJob.js')).default;
+ const update = jest.spyOn(Notice, 'findOneAndUpdate').mockResolvedValue({ _id: 'notice', deliveryStatus: 'delivered' });
+ Message.findOneAndUpdate.mockResolvedValue(null);CallLog.findOneAndUpdate.mockResolvedValue(null);
+ try {
+  const result = await processTwilioMessageStatus({ businessId: '64b000000000000000000001', payload: { MessageSid: 'SMmanual', MessageStatus: 'delivered' }, skipReconciliationPersistence: true });
+  expect(result.appointmentNotice.deliveryStatus).toBe('delivered');
+  expect(update).toHaveBeenCalledWith(expect.objectContaining({ business: '64b000000000000000000001', providerMessageId: 'SMmanual' }), expect.objectContaining({ $set: expect.objectContaining({ deliveryStatus: 'delivered' }) }), expect.anything());
+ } finally { update.mockRestore(); }
+});

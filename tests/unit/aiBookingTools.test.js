@@ -166,7 +166,7 @@ describe("AI booking tools", () => {
     AppointmentService.cancel.mockResolvedValue({ status: "canceled" });
     const business = { _id: "b1" };
     await cancelAppointmentTool({ business, appointmentId: "a1", reason: "customer" });
-    expect(AppointmentService.cancel).toHaveBeenCalledWith({ business, appointmentId: "a1", reason: "customer" });
+    expect(AppointmentService.cancel).toHaveBeenCalledWith({ business, appointmentId: "a1", reason: "customer", notifyCustomer: false });
   });
 
   test("escalates booking to a human and records the event", async () => {

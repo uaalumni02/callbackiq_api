@@ -1,3 +1,5 @@
+jest.mock('../../src/services/scheduling/appointmentLifecycle.service.js', () => ({ ...jest.requireActual('../../src/services/scheduling/appointmentLifecycle.service.js'), tryRepairAppointmentLifecycle: jest.fn(), repairPendingAppointmentLifecycles: jest.fn() }));
+jest.mock('../../src/services/scheduling/rescheduleRequest.service.js', () => ({ repairRescheduleReviews: jest.fn() }));
 jest.mock('../../src/services/scheduling/approvalLifecycle.service.js', () => ({ reconcileApprovalRequests: jest.fn().mockResolvedValue({ repaired: 0 }), resolveApprovalReview: jest.fn().mockResolvedValue(null) }));
 // This suite isolates downstream orchestration. The actual catalog/tenant gate is
 // exercised by serviceEligibility.journey.test.js and the configured channel journeys.

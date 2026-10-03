@@ -11,6 +11,7 @@ router.patch("/:id", AppointmentController.update);
 router.post("/:id/confirm", AppointmentController.confirm);
 router.post("/:id/decline", AppointmentController.decline);
 router.post("/:id/cancel", AppointmentController.cancel);
+router.post("/:id/reschedule-request/decline", AppointmentController.declineReschedule);
 router.post("/:id/reschedule", AppointmentController.reschedule);
 router.post("/:id/provider-change/approve", AppointmentController.approveProviderChange);
 router.post("/:id/provider-change/reject", AppointmentController.rejectProviderChange);

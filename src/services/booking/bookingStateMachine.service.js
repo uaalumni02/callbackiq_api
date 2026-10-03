@@ -1,3 +1,5 @@
+import { submitRescheduleRequest } from '../scheduling/rescheduleRequest.service.js';
+import { isRequestWithdrawal } from '../conversationControlPolicy.js';
 import { schedulingEvidence } from './schedulingEvidence.service.js';
 import { customerAppointmentLabel, renderAppointmentResponse } from '../scheduling/customerAppointmentPresentation.service.js';
 import { handleConversationControl } from '../conversationControl.service.js';
@@ -1422,26 +1424,14 @@ class BookingStateMachineService {
             selectedSlot,
             business.timezone || "America/New_York",
           );
-          await AlertService.createSystemAlert({
-            businessId: business._id,
-            title: "Appointment reschedule approval required",
-            message:
-              "The customer selected a replacement time. The existing confirmed appointment remains in place until the business approves and performs the reschedule.",
-            priority: ["high", "emergency"].includes(String(lead?.urgency || ""))
-              ? "high"
-              : "medium",
-            metadata: {
-              appointmentId: String(
-                activeConversation.bookingState.appointment,
-              ),
-              leadId: lead?._id ? String(lead._id) : "",
-              conversationId: String(activeConversation._id),
-              requestedStartAt: selectedSlot.startAt,
-              requestedEndAt: selectedSlot.endAt,
-              channel: bookingChannel,
-            },
-            dedupeKey: `ai_reschedule_approval:${activeConversation.bookingState.appointment}:${new Date(selectedSlot.startAt).toISOString()}`,
-          });
+          try {
+            await submitRescheduleRequest({ business, appointmentId: activeConversation.bookingState.appointment,
+              conversationId: activeConversation._id, startAt: selectedSlot.startAt, endAt: selectedSlot.endAt,
+              channel: bookingChannel });
+          } catch (error) {
+            if (['VOICE_STALE_TURN', 'DISTRIBUTED_LEASE_LOST'].includes(error?.code)) throw error;
+            return { handled: true, result: fixedResult({ reply: 'I could not verify that your change request reached the team. Your existing appointment has not been changed. Please contact the business directly or try again.' }) };
+          }
 
           await updateState(activeConversation, {
             status: "booked",
@@ -1578,7 +1568,7 @@ class BookingStateMachineService {
 
       // Destructive or schedule-changing intent takes precedence over a casual
       // affirmative word (for example, "sure, but I need to reschedule").
-      if (/\bcancel\b/i.test(text)) {
+      if (isRequestWithdrawal(text)) {
         try {
           await cancelAppointmentTool({
             business,

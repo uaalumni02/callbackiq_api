@@ -1,0 +1,63 @@
+import mongoose from 'mongoose';
+import { MongoMemoryServer } from 'mongodb-memory-server';
+import Appointment from '../../src/models/appointment.js';
+import Business from '../../src/models/business.js';
+import Conversation from '../../src/models/conversation.js';
+import Lead from '../../src/models/lead.js';
+import '../../src/models/user.js';
+import '../../src/models/serviceOffering.js';
+import Alert from '../../src/models/alert.js';
+import Job from '../../src/models/appointmentNotificationJob.js';
+import { submitRescheduleRequest } from '../../src/services/scheduling/rescheduleRequest.service.js';
+import { lifecycleMarker, repairAppointmentLifecycle, declineRescheduleRequest } from '../../src/services/scheduling/appointmentLifecycle.service.js';
+import { listAppointmentPage } from '../../src/services/scheduling/appointmentList.service.js';
+jest.mock('../../src/services/socket.service.js', () => ({ __esModule: true, default: { emitToBusiness: jest.fn(), emitAlertCreated: jest.fn() } }));
+let mongo, business, conversation, lead, appointment;
+const oid = () => new mongoose.Types.ObjectId();
+beforeAll(async () => {
+  mongo = await MongoMemoryServer.create();
+  await mongoose.connect(mongo.getUri());
+  await Promise.all([Appointment.init(), Alert.init(), Job.init()]);
+}, 60000);
+afterAll(async () => { await mongoose.disconnect(); await mongo?.stop(); });
+beforeEach(async () => {
+  for (const collection of Object.values(mongoose.connection.collections)) await collection.deleteMany({});
+  business = { _id: oid(), owner: oid(), businessName: 'Lifecycle shop', timezone: 'America/New_York' };
+  lead = oid(); conversation = oid();
+  appointment = { _id: oid(), business: business._id, conversation, lead, serviceOffering: oid(), customerName: 'Test Customer', customerPhone: '+14045550123', status: 'confirmed', bookedBy: 'staff', source: 'manual', startAt: new Date(Date.now() + 72 * 3600000), endAt: new Date(Date.now() + 73 * 3600000), timezone: business.timezone, idempotencyKey: 'original' };
+  await Business.collection.insertOne(business);
+  await Lead.collection.insertOne({ _id: lead, business: business._id, appointment: appointment._id });
+  await Conversation.collection.insertOne({ _id: conversation, business: business._id, lead, bookingState: { status: 'booked', appointment: appointment._id } });
+  await Appointment.collection.insertOne(appointment);
+});
+test('confirmed write without outbox recovers exactly one notice without resetting receipt', async () => {
+  appointment.lifecycleNotice = lifecycleMarker('confirmed');
+  await Appointment.updateOne({ _id: appointment._id }, { $set: { lifecycleNotice: appointment.lifecycleNotice } });
+  await repairAppointmentLifecycle(appointment, business);
+  await Job.updateOne({ appointment: appointment._id }, { $set: { status: 'sent', providerMessageId: 'SMreceipt' } });
+  await repairAppointmentLifecycle(appointment, business);
+  expect(await Job.countDocuments({ appointment: appointment._id })).toBe(1);
+  expect(await Job.findOne({ appointment: appointment._id }).lean()).toMatchObject({ status: 'sent', providerMessageId: 'SMreceipt' });
+});
+test('saved customer change appears in approval list with actionable linked alert and decline is replayable', async () => {
+  const next = { startAt: new Date(+appointment.startAt + 86400000), endAt: new Date(+appointment.endAt + 86400000) };
+  const requested = await submitRescheduleRequest({ business, appointmentId: appointment._id, conversationId: conversation, ...next, channel: 'voice' });
+  expect(await Alert.findOne({ appointment: appointment._id }).lean()).toMatchObject({ actionRequired: true, metadata: expect.objectContaining({ approvalRequest: true }) });
+  const page = await listAppointmentPage({ businessId: business._id, query: { view: 'approvals' } });
+  expect(page.data).toHaveLength(1);
+  const input = { business, appointmentId: appointment._id, requestId: requested.rescheduleRequest.id };
+  await declineRescheduleRequest(input); await declineRescheduleRequest(input);
+  expect((await Appointment.findById(appointment._id)).status).toBe('confirmed');
+  expect(await Job.countDocuments({ appointment: appointment._id })).toBe(1);
+  expect(await Alert.countDocuments({ appointment: appointment._id, actionRequired: true })).toBe(0);
+});
+test('replacement repair fixes conversation and lead without modifying another tenant', async () => {
+  const replacement = { ...appointment, _id: oid(), idempotencyKey: 'replacement', rescheduledFrom: appointment._id, lifecycleNotice: lifecycleMarker('rescheduled') };
+  await Appointment.collection.insertOne(replacement);
+  await Appointment.updateOne({ _id: appointment._id }, { $set: { status: 'rescheduled', rescheduledTo: replacement._id } });
+  await repairAppointmentLifecycle(replacement, business);
+  expect(String((await Conversation.findById(conversation)).bookingState.appointment)).toBe(String(replacement._id));
+  expect(String((await Lead.findById(lead)).appointment)).toBe(String(replacement._id));
+  expect(await Job.countDocuments({ appointment: replacement._id })).toBe(1);
+  await expect(submitRescheduleRequest({ business: { _id: oid() }, appointmentId: replacement._id, conversationId: conversation, startAt: replacement.startAt, endAt: replacement.endAt })).rejects.toMatchObject({ statusCode: 409 });
+});

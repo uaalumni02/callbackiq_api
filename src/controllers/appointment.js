@@ -1,3 +1,4 @@
+import { declineRescheduleRequest } from '../services/scheduling/appointmentLifecycle.service.js';
 import { listAppointmentPage } from '../services/scheduling/appointmentList.service.js';
 import { presentAppointment, presentAppointments } from '../services/scheduling/appointmentPresentation.service.js';
 import { runStaffSchedulingRequest } from '../services/scheduling/staffSchedulingException.service.js';
@@ -134,6 +135,13 @@ class AppointmentController {
     } catch (error) {
       return next(error);
     }
+  }
+  static async declineReschedule(req, res, next) {
+    try {
+      const business = await getOwnedBusiness({ user: req.user, requestedBusinessId: req.body.businessId });
+      const appointment = await declineRescheduleRequest({ business, appointmentId: req.params.id, requestId: req.body.requestId, reason: req.body.reason });
+      return res.status(200).json({ success: true, data: await presentAppointment(appointment, business._id) });
+    } catch (error) { return next(error); }
   }
   static async approveProviderChange(req, res, next) {
     try {

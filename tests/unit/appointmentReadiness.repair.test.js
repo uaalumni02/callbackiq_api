@@ -22,7 +22,7 @@ test('keyset cursors are tied to tenant and filters and order ties by ID',()=>{
 });
 test('upcoming and approvals retain expired undecided holds, without an age cutoff',()=>{
  const result=appointmentPageQuery({businessId:business,query:{view:'approvals'}});
- expect(result.filter.$and[0]).toMatchObject({requiresBusinessApproval:true,approvalDecisionAt:null,$or:expect.arrayContaining([{status:'failed',failureReason:/hold expired/i}])});
+ expect(result.filter.$and[0].$or[0]).toMatchObject({requiresBusinessApproval:true,approvalDecisionAt:null,$or:expect.arrayContaining([{status:'failed',failureReason:/hold expired/i}])});
  expect(JSON.stringify(result.filter)).not.toContain('updatedAt');
 });
 test('page is bounded, reads one extra record and returns cursor plus global approval count',async()=>{

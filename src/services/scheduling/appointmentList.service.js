@@ -4,9 +4,11 @@ import Appointment from '../../models/appointment.js';
 import { queryBudgetMs, decodePage, encodePage } from '../scale/queryBudget.js';
 import { presentAppointments } from './appointmentPresentation.service.js';
 
-export const pendingApprovalFilter = () => ({ requiresBusinessApproval: true, approvalDecisionAt: null,
-  $or: [{ status: 'held' }, { status: 'failed', failureReason: /hold expired/i }],
-});
+export const pendingApprovalFilter = () => ({ $or: [
+  { requiresBusinessApproval: true, approvalDecisionAt: null,
+    $or: [{ status: 'held' }, { status: 'failed', failureReason: /hold expired/i }] },
+  { status: 'confirmed', 'rescheduleRequest.status': 'pending' },
+] });
 const bad = message => Object.assign(new Error(message), { statusCode: 400 });
 const statuses = new Set(['held', 'confirmed', 'canceled', 'completed', 'no_show', 'rescheduled', 'failed']);
 export function appointmentPageQuery({ businessId, query = {}, now = new Date() }) {

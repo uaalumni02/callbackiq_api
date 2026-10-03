@@ -1,3 +1,5 @@
+import mongoose from 'mongoose';
+import AppointmentNotice from '../../models/appointmentNotificationJob.js';
 import CallLog from "../../models/callLog.js";
 import {
   enqueueSmsDeliveryReconciliationEvent,
@@ -236,9 +238,18 @@ export const processTwilioMessageStatus = async ({
     }),
   ]);
 
-  if (reconciliationEvent && (message || callLog)) {
+  let appointmentNotice = null;
+  if (!message && !callLog && canonicalStatus && mongoose.isValidObjectId(businessId)) {
+    appointmentNotice = await AppointmentNotice.findOneAndUpdate({ business: businessId, providerMessageId,
+      $or: [{ deliveryStatus: { $in: ['', ...(ALLOWED_CURRENT_STATUSES[canonicalStatus] || [])] } }, { deliveryStatus: { $exists: false } }],
+    }, { $set: { deliveryStatus: canonicalStatus, deliveryErrorMessage: errorMessage } }, { returnDocument: 'after' });
+    // An out-of-order callback is still matched; do not downgrade final delivery.
+    if (!appointmentNotice) appointmentNotice = await AppointmentNotice.findOne({ business: businessId, providerMessageId });
+  }
+
+  if (reconciliationEvent && (message || callLog || appointmentNotice)) {
     await markSmsDeliveryReconciliationApplied(reconciliationEvent._id);
-  } else if (reconciliationEvent && !message && !callLog) {
+  } else if (reconciliationEvent && !message && !callLog && !appointmentNotice) {
     logOperationalEvent("twilio.sms.delivery_status_pending_reconciliation", {
       businessId,
       providerMessageId,
@@ -249,7 +260,7 @@ export const processTwilioMessageStatus = async ({
 
   if (message) SocketService.emitMessageUpdated(businessId, message);
   if (callLog) SocketService.emitCallUpdated(businessId, callLog);
-  if (message || callLog) {
+  if (message || callLog || appointmentNotice) {
     SocketService.emitDashboardRefresh(businessId, `sms_status_${providerStatus}`);
   }
   if (FINAL_FAILURES.has(providerStatus)) {
@@ -264,10 +275,11 @@ export const processTwilioMessageStatus = async ({
   return {
     message,
     callLog,
+    appointmentNotice,
     deliveryStatus: providerStatus,
     canonicalStatus,
     reconciliationPending: Boolean(
-      reconciliationEvent && !message && !callLog,
+      reconciliationEvent && !message && !callLog && !appointmentNotice,
     ),
     reconciliationEventId: reconciliationEvent?._id || null,
   };

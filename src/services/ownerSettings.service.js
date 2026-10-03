@@ -1,3 +1,4 @@
+import { refreshUpcomingAppointmentNotifications } from './scheduling/appointmentNotification.service.js';
 import { getTradeSetup } from './trades/tradeSetup.service.js';
 import { validateWindows } from './scheduling/availabilityWindows.service.js';
 import crypto from "node:crypto";
@@ -21,7 +22,7 @@ const profileKeys = ["businessName", "businessType", "forwardingPhone", "email",
 const serviceKeys = ["diagnosticFallback", "_id", "name", "category", "description", "active", "aiCanDiscuss", "aiCanBook", "durationMinutes", "bufferBeforeMinutes", "bufferAfterMinutes", "estimatedValue", "priceEstimateMin", "priceEstimateMax", "disclosePriceEstimate", "priceEstimateDisclaimer", "diagnosticFee", "discloseDiagnosticFee", "emergencyEligible", "requiresHumanReview", "keywords", "excludedKeywords", "intakePolicy"];
 const ruleKeys = ["dayOfWeek", "enabled", "windows", "timezone", "capacity", "separateAnsweringHours", "answeringEnabled", "answeringWindows"];
 const exceptionKeys = ["_id", "date", "type", "name", "allDay", "windows", "capacity", "reason", "active", "appliesTo"];
-const policyKeys = ["staffSmsEnabled", "staffSmsPhone", "approvalSmsEnabled", "approvalSmsPhone", "automaticConfirmationAuthorized", "appointmentStyle", "arrivalWindowMinutes", "minimumNoticeMinutes", "maximumAdvanceDays", "slotIntervalMinutes", "defaultDurationMinutes", "requireAddressBeforeBooking", "requireServiceBeforeBooking", "allowSameDayBooking", "allowAfterHoursBooking", "aiBookingConfirmationMode", "manualApprovalHoldMinutes", "customerCancellationAllowed", "cancellationNoticeMinutes", "confirmationMessageTemplate", "cancellationMessageTemplate", "rescheduleMessageTemplate"];
+const policyKeys = ["customerRemindersEnabled", "reminderHours", "postAppointmentFollowUpEnabled", "postAppointmentFollowUpDelayHours", "staffSmsEnabled", "staffSmsPhone", "approvalSmsEnabled", "approvalSmsPhone", "automaticConfirmationAuthorized", "appointmentStyle", "arrivalWindowMinutes", "minimumNoticeMinutes", "maximumAdvanceDays", "slotIntervalMinutes", "defaultDurationMinutes", "requireAddressBeforeBooking", "requireServiceBeforeBooking", "allowSameDayBooking", "allowAfterHoursBooking", "aiBookingConfirmationMode", "manualApprovalHoldMinutes", "customerCancellationAllowed", "cancellationNoticeMinutes", "confirmationMessageTemplate", "cancellationMessageTemplate", "rescheduleMessageTemplate"];
 const error = (message, statusCode = 400) => Object.assign(new Error(message), { statusCode });
 const cleanWindows = row => ({ ...row, windows: (row.windows || []).map(w => pick(w, ["startTime", "endTime"])) });
 const hash = value => crypto.createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -123,12 +124,14 @@ export async function saveOwnerSettings({ ownerId, section, payload, revision })
   const session = await mongoose.startSession();
   try {
     let response;
+    let savedBusinessId;
     await session.withTransaction(async () => {
       const business = await Business.findOne({ owner: ownerId }).session(session);
       if (!business) throw error("Business not found.", 404);
       const before = await readOwnerSettings(business, session);
       if (before.revision !== revision) throw error("Settings changed in another window. Your edits are still here. Reload saved settings before trying again.", 409);
       const id = business._id;
+      savedBusinessId = id;
       if (section === "business") {
         try { new Intl.DateTimeFormat("en", { timeZone: values.timezone }); } catch { throw error("Choose a valid time zone."); }
         business.set(values);
@@ -207,6 +210,10 @@ export async function saveOwnerSettings({ ownerId, section, payload, revision })
       }
       response = await readOwnerSettings(business, session);
     });
+    if (section === 'hours') {
+      try { await refreshUpcomingAppointmentNotifications({ businessId: savedBusinessId }); }
+      catch { response.notificationRefreshWarning = 'Settings saved. Existing reminder schedules could not be refreshed; check upcoming visits.'; }
+    }
     return response;
   } finally { await session.endSession(); }
 }

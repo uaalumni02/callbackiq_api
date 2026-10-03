@@ -35,3 +35,12 @@ test('uncertain provider result never records a sent confirmation',async()=>{
  sendSms.mockRejectedValue(Object.assign(new Error('provider outcome uncertain'),{deliveryUncertain:true}));
  expect((await processNextAppointmentNotification()).status).toBe('scheduled');expect(Message.findOneAndUpdate).not.toHaveBeenCalled();
 });
+test('old staff confirmation cannot send after a newer cancellation event',async()=>{
+ job.key='change_notice:lifecycle_confirmed';job.appointment.lifecycleNotice={key:'lifecycle_canceled'};job.appointment.status='canceled';
+ expect((await processNextAppointmentNotification()).status).toBe('canceled');expect(sendSms).not.toHaveBeenCalled();
+});
+test('staff cancellation notice sends once using the shared delivery identity',async()=>{
+ job.key='change_notice:lifecycle_canceled';job.appointment.lifecycleNotice={key:'lifecycle_canceled'};job.appointment.status='canceled';
+ expect((await processNextAppointmentNotification()).status).toBe('sent');
+ expect(sendSms).toHaveBeenCalledWith(expect.objectContaining({source:'appointment_change_notice',metadata:expect.objectContaining({appointmentNotificationKey:job.key})}));
+});

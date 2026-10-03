@@ -1,3 +1,4 @@
+import SchedulingPolicy from '../../models/schedulingPolicy.js';
 import { customerAppointmentLabel } from './customerAppointmentPresentation.service.js';
 import crypto from 'crypto';
 import { safeConsole } from "../../helpers/logging/safeLogger.js";
@@ -33,7 +34,14 @@ const getNotificationSettings = async (businessId) => {
     provider: "google_calendar",
   });
 
-  return connection ? getGoogleSettings(connection) : null;
+  const policy = await SchedulingPolicy.findOne({ business: businessId }).lean();
+  const legacy = connection ? getGoogleSettings(connection) : {};
+  return {
+    customerRemindersEnabled: policy?.customerRemindersEnabled ?? legacy.customerRemindersEnabled ?? false,
+    reminderHours: policy?.reminderHours ?? legacy.reminderHours ?? [24, 2],
+    postAppointmentFollowUpEnabled: policy?.postAppointmentFollowUpEnabled ?? legacy.postAppointmentFollowUpEnabled ?? false,
+    postAppointmentFollowUpDelayHours: policy?.postAppointmentFollowUpDelayHours ?? legacy.postAppointmentFollowUpDelayHours ?? 2,
+  };
 };
 
 export const cancelAppointmentNotifications = async ({
@@ -170,10 +178,10 @@ export const scheduleAppointmentChangeNotice = async ({
     {
       business: appointment.business,
       appointment: appointment._id,
-      key: `change_notice:${String(key || "provider_change").slice(0, 60)}`,
+      key: `change_notice:${String(key || "provider_change").slice(0, 66)}`,
     },
     {
-      [(["business_approval_confirmed", "approval_hold_expired"].includes(key) || String(key).startsWith("reply_")) ? "$setOnInsert" : "$set"]: {
+      [(["business_approval_confirmed", "approval_hold_expired"].includes(key) || (String(key).startsWith("reply_") || String(key).startsWith("lifecycle_"))) ? "$setOnInsert" : "$set"]: {
         attempts: 0,
         lead: appointment.lead || null,
         conversation: appointment.conversation || null,
@@ -357,6 +365,12 @@ export const processNextAppointmentNotification = async () => {
   if (
     !appointment ||
     !business ||
+    (String(job.key).startsWith('change_notice:lifecycle_') &&
+      (job.key !== `change_notice:${appointment.lifecycleNotice?.key}` ||
+        (['lifecycle_confirmed', 'lifecycle_rescheduled'].includes(appointment.lifecycleNotice?.key) && appointment.status !== 'confirmed') ||
+        (appointment.lifecycleNotice?.key === 'lifecycle_canceled' && appointment.status !== 'canceled') ||
+        (appointment.lifecycleNotice?.key === 'lifecycle_declined' && appointment.status !== 'failed') ||
+        (appointment.lifecycleNotice?.key?.startsWith('lifecycle_change_declined_') && appointment.status !== 'confirmed'))) ||
     (job.key === "change_notice:approval_hold_expired" && !(appointment.status === "failed" && /hold expired/i.test(appointment.failureReason || ""))) ||
     (requiredStatus && appointment.status !== requiredStatus)
   ) {
@@ -379,6 +393,15 @@ export const processNextAppointmentNotification = async () => {
     job.failureReason = "Appointment start time passed before reminder delivery.";
     await job.save();
     return job;
+  }
+
+  if (job.type === 'reminder' || job.type === 'follow_up') {
+    const settings = await getNotificationSettings(business._id);
+    if (!(job.type === 'reminder' ? settings.customerRemindersEnabled : settings.postAppointmentFollowUpEnabled)) {
+      job.status = 'canceled'; job.canceledAt = new Date(); job.lockedAt = null; job.lockedBy = '';
+      job.failureReason = 'Customer notification disabled in scheduling preferences.';
+      await job.save(); return job;
+    }
   }
 
   const body =

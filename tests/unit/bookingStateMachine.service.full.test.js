@@ -1,3 +1,5 @@
+import { submitRescheduleRequest } from '../../src/services/scheduling/rescheduleRequest.service.js';
+jest.mock('../../src/services/scheduling/rescheduleRequest.service.js', () => ({ submitRescheduleRequest: jest.fn().mockResolvedValue({}) }));
 // This suite isolates downstream orchestration. The actual catalog/tenant gate is
 // exercised by serviceEligibility.journey.test.js and the configured channel journeys.
 jest.mock('../../src/services/serviceEligibility/serviceEligibility.service.js', () => ({
@@ -140,6 +142,22 @@ const handle = ({ conversation = makeConversation(), lead = makeLead(), message 
   });
 
 describe("BookingStateMachineService complete behavior", () => {
+  test.each(['sms', 'voice'].flatMap(channel => ["Don't cancel my appointment", "What if I cancel my appointment?", "How can I cancel my appointment?", "I don't want to cancel", "I cannot cancel", "If I cancel my appointment, is there a fee?", "What happens when I cancel my appointment?", "I might cancel my appointment"].map(message => [channel, message])))("preserves appointment for %s non-authorizing wording: %s", async (channel, message) => {
+    const conversation = makeConversation({ bookingState: { status: 'booked', appointment: 'a1' } });
+    const result = await BookingStateMachineService.handle({ business, lead: makeLead(), conversation, customerMessage: message, channel });
+    expect(cancelAppointmentTool).not.toHaveBeenCalled();
+    expect(conversation.bookingState.appointment).toBe('a1');
+    expect(result.result.reply).toMatch(/have not canceled/i);
+  });
+  test('does not claim submission when the durable reschedule handoff fails', async () => {
+    submitRescheduleRequest.mockRejectedValueOnce(new Error('database unavailable'));
+    const conversation = makeConversation({ bookingState: { status: 'awaiting_confirmation', selectedSlot: SLOT_1, appointment: 'old-a1', lastError: 'reschedule_requested' } });
+    const result = await handle({ conversation, message: 'confirm' });
+    expect(result.result.reply).toMatch(/could not verify/i);
+    expect(result.result.reply).not.toMatch(/submitted|sent your request/i);
+    expect(conversation.bookingState.appointment).toBe('old-a1');
+  });
+
   test.each([true, false])('rejected proposals cannot be confirmed later (automatic booking %s)', async enabled => {
     const conversation=makeConversation({bookingState:{status:'offering_slots',offeredSlots:[SLOT_1],selectedSlot:SLOT_1}});
     const result=await handle({conversation,message:"Monday doesn't work",customBusiness:{...business,features:{aiBookingEnabled:enabled}}});
@@ -585,14 +603,7 @@ describe("BookingStateMachineService complete behavior", () => {
     });
     const result = await handle({ conversation, message: "confirm" });
 
-    expect(AlertService.createSystemAlert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: "Appointment reschedule approval required",
-        metadata: expect.objectContaining({
-          appointmentId: "old-a1",
-        }),
-      }),
-    );
+    expect(submitRescheduleRequest).toHaveBeenCalledWith(expect.objectContaining({ business: expect.objectContaining({ _id: 'b1' }), conversationId: 'c1', appointmentId: expect.any(String), startAt: expect.any(String), endAt: expect.any(String) }));
     expect(rescheduleAppointmentTool).not.toHaveBeenCalled();
     expect(createAppointmentTool).not.toHaveBeenCalled();
     expect(conversation.bookingState).toMatchObject({
@@ -998,22 +1009,7 @@ describe("CALLBACKIQ_DIFF_COVERAGE_BOOKING_RELEASE", () => {
         message: "yes",
       });
 
-      expect(
-        AlertService.createSystemAlert,
-      ).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title:
-            "Appointment reschedule approval required",
-          priority: "medium",
-          metadata: expect.objectContaining({
-            appointmentId:
-              "existing-appointment",
-            conversationId: "c1",
-            requestedStartAt:
-              SLOT_2.startAt,
-          }),
-        }),
-      );
+      expect(submitRescheduleRequest).toHaveBeenCalledWith(expect.objectContaining({ business: expect.objectContaining({ _id: 'b1' }), conversationId: 'c1', appointmentId: expect.any(String), startAt: expect.any(String), endAt: expect.any(String) }));
 
       expect(
         createAppointmentTool,
@@ -1545,21 +1541,7 @@ describe("CALLBACKIQ_FINAL_FULL_SUITE_BRANCH_TOP_OFF", () => {
 
       expect(result.handled).toBe(true);
 
-      expect(
-        AlertService.createSystemAlert,
-      ).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title:
-            "Appointment reschedule approval required",
-          priority: "high",
-          metadata:
-            expect.objectContaining({
-              leadId: "",
-              appointmentId:
-                "existing-appointment",
-            }),
-        }),
-      );
+      expect(submitRescheduleRequest).toHaveBeenCalledWith(expect.objectContaining({ business: expect.objectContaining({ _id: 'b1' }), conversationId: 'c1', appointmentId: expect.any(String), startAt: expect.any(String), endAt: expect.any(String) }));
 
       expect(
         createAppointmentTool,
@@ -1622,19 +1604,7 @@ describe("CALLBACKIQ_LAST_BOOKING_BRANCH", () => {
 
       expect(result.handled).toBe(true);
 
-      expect(
-        AlertService.createSystemAlert,
-      ).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title:
-            "Appointment reschedule approval required",
-          priority: "medium",
-          metadata: expect.objectContaining({
-            appointmentId:
-              "existing-appointment",
-          }),
-        }),
-      );
+      expect(submitRescheduleRequest).toHaveBeenCalledWith(expect.objectContaining({ business: expect.objectContaining({ _id: 'b1' }), conversationId: 'c1', appointmentId: expect.any(String), startAt: expect.any(String), endAt: expect.any(String) }));
 
       expect(
         createAppointmentTool,

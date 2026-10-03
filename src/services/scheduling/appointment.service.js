@@ -1,3 +1,5 @@
+import { lifecycleMarker, tryRepairAppointmentLifecycle, repairPendingAppointmentLifecycles } from './appointmentLifecycle.service.js';
+import { repairRescheduleReviews } from './rescheduleRequest.service.js';
 import { normalizeAppointmentAddress as normalizeAddress } from './appointmentAddress.service.js';
 import { ensureBusinessApprovalNotice, repairConfirmedApproval } from './appointmentConfirmation.service.js';
 import { runApprovalSms } from './approvalSms.service.js';
@@ -33,7 +35,6 @@ import SchedulingProviderFactory from "./schedulingProviderFactory.js";
 import { businessCalendarProviderName } from "./calendarProviderName.service.js";
 import {
   cancelAppointmentNotifications,
-  scheduleAppointmentChangeNotice,
   scheduleAppointmentReminders,
   schedulePostAppointmentFollowUp,
 } from "./appointmentNotification.service.js";
@@ -52,7 +53,6 @@ const VALID_TRANSITIONS = {
 
 
 
-const formatCustomerAppointmentTime = (appointment, business) => customerAppointmentLabel(appointment, appointment.timezone || business.timezone);
 
 export { ensureBusinessApprovalNotice } from './appointmentConfirmation.service.js';
 
@@ -458,6 +458,8 @@ class AppointmentService {
       },
     });
     await reconcileApprovalRequests({ businessId });
+    await repairPendingAppointmentLifecycles({ businessId });
+    await repairRescheduleReviews({ businessId });
     await runApprovalSms();
     return result;
   }
@@ -518,7 +520,7 @@ class AppointmentService {
       idempotencyKey: key,
     });
     if (existing) {
-      if (existing.status === "confirmed") return existing;
+      if (existing.status === "confirmed") { await tryRepairAppointmentLifecycle(existing, business); return existing; }
 
       if (existing.status === "held") {
         if (existing.requiresBusinessApproval === true || !confirm) {
@@ -584,7 +586,7 @@ class AppointmentService {
       appointmentId,
     );
 
-    if (appointment.status === "confirmed") return appointment;
+    if (appointment.status === "confirmed") { await tryRepairAppointmentLifecycle(appointment, business); return appointment; }
     assertTransition(appointment.status, "confirmed");
 
     if (appointment.heldExpiresAt && appointment.heldExpiresAt <= new Date()) {
@@ -647,6 +649,7 @@ class AppointmentService {
       appointment.externalCalendarId =
         providerResult.externalCalendarId || null;
       appointment.status = "confirmed";
+      if (!appointment.requiresBusinessApproval && !appointment.automaticConfirmationAuthorized && appointment.bookedBy !== "ai") appointment.lifecycleNotice = lifecycleMarker("confirmed");
       appointment.approvalRecovery = { state: "resolved", reconciled: false };
       appointment.confirmedAt = new Date();
       appointment.heldExpiresAt = null;
@@ -718,6 +721,7 @@ class AppointmentService {
       throw error;
     }
 
+    await tryRepairAppointmentLifecycle(appointment, business);
     await resolveApprovalReview(appointment).catch(() => {});
     // Confirmation is durable at this point. Secondary notifications and
     // analytics must never roll the appointment back if they fail.
@@ -814,6 +818,10 @@ class AppointmentService {
       appointmentId,
     );
 
+    if (appointment.status === 'failed' && appointment.approvalDecisionAt && appointment.lifecycleNotice?.key === 'lifecycle_declined') {
+      await tryRepairAppointmentLifecycle(appointment, business);
+      return appointment;
+    }
     if (
       (appointment.status !== "held" && !(appointment.status === "failed" && /hold expired/i.test(appointment.failureReason || ""))) ||
       appointment.requiresBusinessApproval !== true
@@ -826,6 +834,7 @@ class AppointmentService {
       throw error;
     }
 
+    appointment.lifecycleNotice = lifecycleMarker("declined");
     appointment.status = "failed";
     appointment.activeSlotKey = null;
     appointment.slotClaimKeys = [];
@@ -840,35 +849,7 @@ class AppointmentService {
     await appointment.save();
     await resolveApprovalReview(appointment).catch(() => {});
 
-    if (appointment.conversation) {
-      await Conversation.updateOne(
-        { _id: appointment.conversation, business: business._id },
-        {
-          $set: {
-            "bookingState.status": "failed",
-            "bookingState.lastError": "business_declined",
-            "bookingState.expiresAt": null,
-          },
-        },
-      );
-    }
-
-    await runNonBlockingAppointmentSideEffect({
-      appointment,
-      businessId: business._id,
-      label: "business decline customer notice",
-      task: () =>
-        scheduleAppointmentChangeNotice({
-          appointment,
-          key: "business_approval_declined",
-          body: `${
-            business.businessName || "The service team"
-          }: We couldn't confirm ${formatCustomerAppointmentTime(
-            appointment,
-            business,
-          )}. Reply with another day or time and we'll help find the next available option.`,
-        }),
-    });
+    await tryRepairAppointmentLifecycle(appointment, business);
 
     SocketService.emitToBusiness(
       business._id,
@@ -882,7 +863,7 @@ class AppointmentService {
     return appointment;
   }
 
-  static async cancel({ business, appointmentId, reason = "" }) {
+  static async cancel({ business, appointmentId, reason = "", notifyCustomer = true }) {
     const appointment = await getAppointmentForBusiness(
       business._id,
       appointmentId,
@@ -891,6 +872,7 @@ class AppointmentService {
     // A retry after the durable local transition replays idempotent side
     // effects instead of silently skipping anything that previously failed.
     if (appointment.status === "canceled") {
+      await tryRepairAppointmentLifecycle(appointment, business);
       await resolveApprovalReview(appointment).catch(() => {});
       await runNonBlockingAppointmentSideEffect({
         appointment,
@@ -901,6 +883,7 @@ class AppointmentService {
             businessId: business._id,
             appointmentId: appointment._id,
             reason: "Appointment canceled.",
+            types: ["reminder", "follow_up"],
           }),
       });
       await ensureCancellationSideEffects({
@@ -933,6 +916,11 @@ class AppointmentService {
       throw error;
     }
 
+    if (notifyCustomer) appointment.lifecycleNotice = lifecycleMarker("canceled");
+    if (appointment.rescheduleRequest?.status === 'pending') {
+      appointment.rescheduleRequest.status = 'canceled';
+      appointment.rescheduleRequest.alertPending = true;
+    }
     appointment.status = "canceled";
     appointment.approvalRecovery = { state: "resolved", reconciled: false };
     appointment.canceledAt = appointment.canceledAt || new Date();
@@ -950,6 +938,7 @@ class AppointmentService {
     // locally confirmed. Retrying the endpoint is safe because provider
     // cancellation is idempotent and will reach this save again.
     await appointment.save();
+    await tryRepairAppointmentLifecycle(appointment, business);
     await resolveApprovalReview(appointment).catch(() => {});
 
     await runNonBlockingAppointmentSideEffect({
@@ -961,6 +950,7 @@ class AppointmentService {
           businessId: business._id,
           appointmentId: appointment._id,
           reason: "Appointment canceled.",
+            types: ["reminder", "follow_up"],
         }),
     });
 
@@ -993,6 +983,12 @@ class AppointmentService {
       business._id,
       appointmentId,
     );
+    if (input.requestId && (original.rescheduleRequest?.id !== input.requestId ||
+        !['pending', 'approved'].includes(original.rescheduleRequest?.status) ||
+        +new Date(original.rescheduleRequest.startAt) !== +new Date(input.startAt) ||
+        +new Date(original.rescheduleRequest.endAt) !== +new Date(input.endAt))) {
+      throw Object.assign(new Error('The customer request changed. Reload before approving.'), { statusCode: 409 });
+    }
     const key = String(
       idempotencyKey ||
         input.idempotencyKey ||
@@ -1025,6 +1021,11 @@ class AppointmentService {
     const reconcileOriginal = async () => {
       if (original.status === "rescheduled") return;
       assertTransition(original.status, "rescheduled");
+      if (original.rescheduleRequest?.status === 'pending') {
+        original.rescheduleRequest.status = 'approved';
+        original.rescheduleRequest.decidedAt = new Date();
+        original.rescheduleRequest.alertPending = true;
+      }
       original.status = "rescheduled";
       original.rescheduledTo = replacement._id;
       original.activeSlotKey = null;
@@ -1037,6 +1038,7 @@ class AppointmentService {
 
     if (replacement?.status === "confirmed") {
       await reconcileOriginal();
+      await tryRepairAppointmentLifecycle(replacement, business);
       return replacement;
     }
 
@@ -1055,7 +1057,7 @@ class AppointmentService {
           _id: original.rescheduledTo,
           business: business._id,
         });
-        if (existingReplacement) return existingReplacement;
+        if (existingReplacement) { await tryRepairAppointmentLifecycle(existingReplacement, business); return existingReplacement; }
       }
       const error = new Error(
         "The appointment was already rescheduled but its replacement could not be resolved.",
@@ -1234,6 +1236,7 @@ class AppointmentService {
         await original.save();
       }
 
+      replacement.lifecycleNotice = lifecycleMarker("rescheduled");
       replacement.status = "confirmed";
       replacement.confirmedAt = replacement.confirmedAt || new Date();
       replacement.heldExpiresAt = null;
@@ -1347,6 +1350,7 @@ class AppointmentService {
       throw error;
     }
 
+    await tryRepairAppointmentLifecycle(replacement, business);
     await runNonBlockingAppointmentSideEffect({
       appointment: original,
       businessId: business._id,

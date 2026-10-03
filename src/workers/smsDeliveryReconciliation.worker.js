@@ -54,7 +54,7 @@ export const drainSmsDeliveryReconciliationOnce = async () => {
           skipReconciliationPersistence: true,
         });
 
-        if (result?.message || result?.callLog) {
+        if (result?.message || result?.callLog || result?.appointmentNotice) {
           await completeSmsDeliveryReconciliationEvent({
             eventId: event._id,
             leaseToken: event.leaseToken,

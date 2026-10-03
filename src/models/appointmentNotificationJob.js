@@ -39,6 +39,8 @@ const AppointmentNotificationJobSchema = new Schema(
     lockedBy: { type: String, trim: true, default: "" },
     sentAt: { type: Date, default: null },
     canceledAt: { type: Date, default: null },
+    deliveryStatus: { type: String, default: '' },
+    deliveryErrorMessage: { type: String, default: '' },
     providerMessageId: { type: String, trim: true, default: "" },
     failureReason: { type: String, trim: true, maxlength: 1000, default: "" },
   },
@@ -49,6 +51,7 @@ AppointmentNotificationJobSchema.index(
   { business: 1, appointment: 1, key: 1 },
   { unique: true },
 );
+AppointmentNotificationJobSchema.index({ business: 1, providerMessageId: 1 });
 AppointmentNotificationJobSchema.index({
   status: 1,
   scheduledFor: 1,

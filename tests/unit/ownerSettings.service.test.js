@@ -1,3 +1,4 @@
+jest.mock('../../src/services/scheduling/appointmentNotification.service.js', () => ({ refreshUpcomingAppointmentNotifications: jest.fn().mockResolvedValue({ refreshed: 0 }) }));
 import mongoose from "mongoose";
 import Business from "../../src/models/business.js";
 import ServiceOffering from "../../src/models/serviceOffering.js";

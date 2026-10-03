@@ -13,16 +13,16 @@ export async function presentAppointments(appointments, businessId) {
   if (!appointments.length) return [];
   try {
     const jobs = await AppointmentNotificationJob.find({ business: businessId,
-      appointment: { $in: appointments.map(row => row._id) }, key: 'change_notice:business_approval_confirmed',
-    }).select('appointment status providerMessageId sentAt failureReason').maxTimeMS(queryBudgetMs()).lean();
+      appointment: { $in: appointments.map(row => row._id) }, key: { $in: [...new Set(['change_notice:business_approval_confirmed', ...appointments.filter(row => row.lifecycleNotice?.key).map(row => `change_notice:${row.lifecycleNotice.key}`)])] },
+    }).select('appointment key status providerMessageId sentAt failureReason deliveryStatus deliveryErrorMessage').maxTimeMS(queryBudgetMs()).lean();
     const receipts = jobs.map(job => job.providerMessageId).filter(Boolean);
     const messages = receipts.length ? await Message.find({ business: businessId, direction: 'outbound',
       provider: 'twilio', providerMessageId: { $in: receipts },
     }).select('providerMessageId deliveryStatus deliveryUncertain status').maxTimeMS(queryBudgetMs()).lean() : [];
-    const byAppointment = new Map(jobs.map(job => [id(job.appointment), job]));
+    const byAppointment = new Map(jobs.map(job => [`${id(job.appointment)}:${job.key || 'change_notice:business_approval_confirmed'}`, job]));
     const byReceipt = new Map(messages.map(message => [message.providerMessageId, message]));
     return appointments.map(row => {
-      const appointment = plain(row), job = byAppointment.get(id(row));
+      const appointment = plain(row), job = byAppointment.get(`${id(row)}:change_notice:${row.lifecycleNotice?.key || 'business_approval_confirmed'}`);
       const receipt = job && byReceipt.get(job.providerMessageId);
       const notice = confirmationNoticeState(appointment, job, receipt);
       return { ...appointment, confirmationNotice: notice, confirmationNoticeStatus: notice.status };

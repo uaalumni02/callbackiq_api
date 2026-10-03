@@ -109,7 +109,7 @@ export async function readRequestWorkflow({businessId,alertId,session=null}) {
   const appointment=apptId?await Appointment.findOne({_id:apptId,business:businessId,conversation:alert.conversation}).session(session).lean():null;
   const latestOutbound=conversation?await Message.findOne({business:businessId,conversation:conversation._id,direction:'outbound'}).sort({createdAt:-1,_id:-1})
     .select('body status deliveryStatus deliveryUncertain createdAt').session(session).lean():null;
-  const confirmationJob=appointment?await AppointmentNotificationJob.findOne({business:businessId,appointment:appointment._id,key:'change_notice:business_approval_confirmed'}).session(session).lean():null;
+  const confirmationJob=appointment?await AppointmentNotificationJob.findOne({business:businessId,appointment:appointment._id,key:`change_notice:${appointment.lifecycleNotice?.key || 'business_approval_confirmed'}`}).session(session).lean():null;
   const confirmationMessage=confirmationJob?.providerMessageId?await Message.findOne({business:businessId,conversation:alert.conversation,direction:'outbound',providerMessageId:confirmationJob.providerMessageId}).select('status deliveryStatus deliveryUncertain createdAt').session(session).lean():null;
   const confirmationNotice=appointment?confirmationNoticeState(appointment,confirmationJob,confirmationMessage):null;
   const data={review:combinedReview(members),members,conversation,lead,appointment,latestOutbound,confirmationNotice,journey};

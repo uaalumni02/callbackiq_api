@@ -66,6 +66,9 @@ export async function handleConversationControl({ business, lead, conversation, 
     if (lead?.save) { lead.status = 'lost'; await lead.save(); check(); }
     return result(appointmentId ? 'Your appointment has been canceled. I’m sorry we weren’t helpful.' : 'Your service request has been withdrawn. I’m sorry we weren’t helpful.', lead, { messageCategory: 'appointment_status' });
   }
+  if (/\bcancel(?:lation)?\b/i.test(text) && !isRequestWithdrawal(text)) {
+    return result('I have not canceled your appointment. If you want to cancel it, say “cancel my appointment.” For cancellation policies or fees, please contact the team.', lead, { messageCategory: 'appointment_status' });
+  }
   if (requestWasWithdrawn(conversation)) return result(conversation.bookingState?.appointment
     ? 'Your cancellation request is pending staff review. Appointment cancellation is not confirmed; please contact the business directly.'
     : 'Your earlier request is withdrawn. Please contact the business if you want to arrange service again.', lead);

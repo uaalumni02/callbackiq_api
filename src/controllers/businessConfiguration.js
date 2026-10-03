@@ -1,3 +1,4 @@
+import { refreshUpcomingAppointmentNotifications } from '../services/scheduling/appointmentNotification.service.js';
 import { safeConsole } from "../helpers/logging/safeLogger.js";
 import Business from "../models/business.js";
 import AvailabilityException from "../models/availabilityException.js";
@@ -316,8 +317,12 @@ class BusinessConfigurationController {
           setDefaultsOnInsert: true,
         },
       );
+      let notificationRefreshWarning;
+      try { await refreshUpcomingAppointmentNotifications({ businessId: business._id }); }
+      catch { notificationRefreshWarning = 'Settings saved, but existing reminder schedules need review.'; }
       return res.status(200).json({
         success: true,
+        notificationRefreshWarning,
         message: "Scheduling policy saved",
         data: policy,
       });
