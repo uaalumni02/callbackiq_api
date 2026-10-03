@@ -54,8 +54,8 @@ test('attribution qualification excludes unsupported work and low or absent scor
  Source.find.mockReturnValue({lean:async()=>[{_id:'source',monthlySpend:0}]});
  Call.find.mockReturnValue({lean:async()=>ids.map(lead=>({lead,marketingSource:'source'}))});
  Lead.aggregate.mockResolvedValue([
- {_id:ids[0],leadQualityScore:90,serviceEligibility:{decision:'unsupported'}},
- {_id:ids[1],leadQualityScore:60}, {_id:ids[2],leadQualityScore:59}, {_id:ids[3]},
+ {_id:ids[0],firstMarketingSource:'source',leadQualityScore:90,serviceEligibility:{decision:'unsupported'}},
+ {_id:ids[1],firstMarketingSource:'source',leadQualityScore:60}, {_id:ids[2],firstMarketingSource:'source',leadQualityScore:59}, {_id:ids[3],firstMarketingSource:'source'},
  ]);
  const [report]=await getAttributionReport({businessId});
  expect(report).toMatchObject({leads:4,qualifiedLeads:1});

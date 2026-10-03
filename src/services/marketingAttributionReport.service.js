@@ -21,7 +21,6 @@ export const getAttributionReport = async ({
   const [sources, calls] = await Promise.all([
     MarketingSource.find({
       business: businessId,
-      status: { $ne: "archived" },
     }).lean(),
     CallLog.find({
       business: businessId,
@@ -46,30 +45,50 @@ export const getAttributionReport = async ({
       ])
     : [];
 
-  const leadMap = new Map(
-    leads.map((lead) => [String(lead._id), lead]),
-  );
+  // Acquisition credit is write-once, matching Lead.firstMarketingSource.
+  // Calls remain per source; a lead and its value belong to only one source.
+  const sourceIds = new Set(sources.map(source => String(source._id)));
+  const callsBySource = new Map();
+  const eligibleLeadIds = new Set();
+  for (const call of calls) {
+    const sourceId = String(call.marketingSource);
+    if (!sourceIds.has(sourceId)) continue;
+    if (!callsBySource.has(sourceId)) callsBySource.set(sourceId, []);
+    callsBySource.get(sourceId).push(call);
+    if (call.lead) eligibleLeadIds.add(String(call.lead));
+  }
+  const eligibleLeads = leads.filter(lead => eligibleLeadIds.has(String(lead._id)));
+  const legacyIds = eligibleLeads
+    .filter(lead => !sourceIds.has(String(lead.firstMarketingSource || "")))
+    .map(lead => lead._id);
+  // Resolve legacy acquisition across all history, not just the report window.
+  // Retained soft-deleted calls are evidence, but never increase visible calls.
+  const earliestCalls = legacyIds.length ? await CallLog.aggregate([
+    { $match: {
+      business: new mongoose.Types.ObjectId(String(businessId)),
+      lead: { $in: legacyIds },
+      marketingSource: { $in: sources.map(source => source._id) },
+    } },
+    { $sort: { createdAt: 1, _id: 1 } },
+    { $group: { _id: "$lead", source: { $first: "$marketingSource" } } },
+  ]) : [];
+  const legacySource = new Map(earliestCalls.map(call => [String(call._id), String(call.source)]));
+  const leadsBySource = new Map();
+  for (const lead of eligibleLeads) {
+    const first = String(lead.firstMarketingSource || "");
+    const sourceId = sourceIds.has(first) ? first : legacySource.get(String(lead._id));
+    if (!sourceId) continue;
+    if (!leadsBySource.has(sourceId)) leadsBySource.set(sourceId, []);
+    leadsBySource.get(sourceId).push(lead);
+  }
 
-  return sources.map((source) => {
-    const sourceCalls = calls.filter(
-      (call) =>
-        String(call.marketingSource) === String(source._id),
-    );
-
-    const uniqueCallers = new Set(
-      sourceCalls.map((call) => call.from).filter(Boolean),
-    );
-
-    const linkedLeads = [
-      ...new Map(
-        sourceCalls
-          .map((call) => [
-            String(call.lead || ""),
-            leadMap.get(String(call.lead || "")),
-          ])
-          .filter(([, lead]) => Boolean(lead)),
-      ).values(),
-    ];
+  return sources.filter(source => source.status !== "archived" ||
+    callsBySource.has(String(source._id)) || leadsBySource.has(String(source._id))
+  ).map((source) => {
+    const sourceId = String(source._id);
+    const sourceCalls = callsBySource.get(sourceId) || [];
+    const uniqueCallers = new Set(sourceCalls.map(call => call.from).filter(Boolean));
+    const linkedLeads = leadsBySource.get(sourceId) || [];
 
     const bookedJobs = linkedLeads.filter(
       (lead) => lead.status === "booked",
