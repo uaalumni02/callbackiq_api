@@ -31,7 +31,11 @@ export function reviewJourney(row, conversation) {
   return journey && started && new Date(row.createdAt) >= new Date(started) ? journey : null;
 }
 export const workflowVersion = data => crypto.createHash('sha256').update(JSON.stringify([
-  data.conversation, data.lead, data.appointment, data.latestOutbound, data.confirmationNotice,
+  data.conversation, data.lead, data.appointment,
+  // Delivery receipts do not change the owner's requested action. Preserve
+  // message identity/content fences and all booking/confirmation evidence.
+  data.latestOutbound ? { _id: data.latestOutbound._id, body: data.latestOutbound.body, createdAt: data.latestOutbound.createdAt } : null,
+  data.confirmationNotice,
   data.members.map(row => [id(row), row.updatedAt, row.resolvedAt, row.assignedTo, row.metadata?.workflow]).sort((a,b)=>a[0].localeCompare(b[0])),
 ])).digest('hex');
 export function combinedReview(members) {

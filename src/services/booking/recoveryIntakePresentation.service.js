@@ -17,7 +17,8 @@ export const recoveryPreferenceLabel = state => {
     : clean(state?.date);
   const clock = clean(state?.time).match(/^(\d{1,2}):(\d{2})$/);
   const time = clock ? `${Number(clock[1]) % 12 || 12}${clock[2] === '00' ? '' : `:${clock[2]}`} ${Number(clock[1]) >= 12 ? 'PM' : 'AM'}` : clean(state?.time);
-  return [date, time].filter(Boolean).join(' at ') || clean(state?.preferredAppointmentTime);
+  const separator = /^(?:morning|afternoon|evening)$/.test(time) ? ' in the ' : ' at ';
+  return [date, time].filter(Boolean).join(separator) || clean(state?.preferredAppointmentTime);
 };
 
 // The caller must only send this text after the durable review alert succeeds.
@@ -25,7 +26,7 @@ export const recoveryPreferenceLabel = state => {
 export const recoveryCompletionReply = ({ lead, state, channel = 'sms' }) => {
   const preference = truncateText(recoveryPreferenceLabel(state), 55);
   const qualification = state.leakPattern === 'during_use' ? ' (leaks during use)' : '';
-  const service = clean(state.serviceDetail || lead.serviceNeeded);
+  const service = clean(lead.serviceNeeded || state.serviceNeeded || state.serviceDetail);
   const address = clean(lead.address);
   const opening = 'Request saved for team review. The appointment is not confirmed.';
   const availability = state.availability?.status === 'available' && state.readiness?.availabilityVerified === true

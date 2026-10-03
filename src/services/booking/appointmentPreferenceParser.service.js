@@ -294,6 +294,14 @@ export const findDateRange = (message, timeZone = "America/New_York", now = new 
   }
 
   const nextWeekStart = startOfNextWeek(todayKey);
+  const namedWeekdays = WEEKDAYS.filter(({ pattern }) => pattern.test(text));
+  const weekdayNamedForRelativeWeek = namedWeekdays.length === 1 ? namedWeekdays[0] : null;
+  // A named day narrows a relative week, regardless of which is spoken first.
+  if (weekdayNamedForRelativeWeek && /\bnext\s+(?:wk|week)\b/i.test(text)) {
+    const resolved = shiftDateKey(nextWeekStart, (weekdayNamedForRelativeWeek.index + 6) % 7);
+    return { startDate: resolved, endDate: resolved };
+  }
+
   if (/\b(?:early\s+next\s+week|beginning\s+of\s+next\s+week)\b/i.test(text)) {
     return { startDate: nextWeekStart, endDate: shiftDateKey(nextWeekStart, 2) };
   }
@@ -302,12 +310,6 @@ export const findDateRange = (message, timeZone = "America/New_York", now = new 
   }
   if (/\b(?:late\s+next\s+week|end\s+of\s+next\s+week)\b/i.test(text)) {
     return { startDate: shiftDateKey(nextWeekStart, 3), endDate: shiftDateKey(nextWeekStart, 6) };
-  }
-  const weekdayNamedForRelativeWeek = WEEKDAYS.find(({ pattern }) => pattern.test(text));
-  if (weekdayNamedForRelativeWeek && /\b(?:sun|sunday|mon|monday|tue|tues|tuesday|wed|weds|wednesday|thu|thur|thurs|thursday|fri|friday|sat|saturday)\s+(?:of\s+)?next\s+(?:wk|week)\b/i.test(text)) {
-    const mondayIndexed = (weekdayNamedForRelativeWeek.index + 6) % 7;
-    const resolved = shiftDateKey(nextWeekStart, mondayIndexed);
-    return { startDate: resolved, endDate: resolved };
   }
   if (weekdayNamedForRelativeWeek && /\b(?:the\s+)?(?:sun|sunday|mon|monday|tue|tues|tuesday|wed|weds|wednesday|thu|thur|thurs|thursday|fri|friday|sat|saturday)\s+after\s+next\b/i.test(text)) {
     const mondayIndexed = (weekdayNamedForRelativeWeek.index + 6) % 7;

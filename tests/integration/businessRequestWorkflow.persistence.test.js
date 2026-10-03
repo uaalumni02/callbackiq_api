@@ -78,3 +78,14 @@ test('two simultaneous staff edits cannot overwrite each other',async()=>{
  expect(results.filter(result=>result.status==='rejected')).toHaveLength(1);
  const saved=await Lead.findById(lead);expect(['Jordan','Taylor']).toContain(saved.customerName);
 });
+
+test('delivery receipt between owner read and follow-up does not block outcome',async()=>{
+ await act('accept');
+ const message=await Message.create({business:business._id,conversation,lead,direction:'outbound',from:'+14045550200',to:'+14045550100',body:'Owner received your request',status:'sent'});
+ const snapshot=await read();
+ await Message.updateOne({_id:message._id},{$set:{status:'delivered'}});
+ const result=await updateRequestWorkflow({business,userId:business.owner,alertId:alerts[0]._id,input:{action:'outcome',version:snapshot.version,operationId:`receipt-${oid()}`,outcome:'follow_up',reason:'Call to arrange the requested repair',followUpAt:new Date(Date.now()+86400000).toISOString()}});
+ expect(result.review.metadata.workflow.outcome).toBe('follow_up');
+ expect(result.review.actionRequired).toBe(true);
+ expect(result.conversation.humanTakeover).toBe(true);
+});
