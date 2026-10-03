@@ -21,7 +21,7 @@ export function renderAppointmentResponse({ kind, label, service, address, optio
   const voice = channel === 'voice';
   if (kind === 'address') return 'What’s the address for the visit, including the ZIP code?';
   if (kind === 'offer') return `${options}. ${requiresApproval ? 'These times need team approval. ' : ''}${voice ? 'Which works for you?' : 'Choose an option to submit your request.'}`;
-  if (kind === 'review') return `Appointment request: ${label}, for ${service} at ${address}. ${requiresApproval ? 'Business approval required. ' : ''}${voice ? 'Is that correct?' : 'Reply YES if those details are correct.'}`;
+  if (kind === 'review') return `Appointment request: ${label}, for ${service} at ${address}. ${requiresApproval ? 'Business approval required. ' : ''}${voice ? 'Is that correct?' : 'Reply CONFIRM if those details are correct.'}`;
   if (kind === 'submitted') return `Your request for ${label} is pending business approval. It is not confirmed yet.`;
   if (kind === 'confirmed') return `Your appointment is confirmed for ${label}.`;
   if (kind === 'expired') return 'Your request is still open for the team. The earlier time is no longer reserved, so availability needs to be checked again.';

@@ -137,7 +137,7 @@ test('toilet intake passes through the actual SMS reply pipeline with persistent
   const first=await turn('My toilet is stopped up and leaking around the seal'); expect(first.reply).toMatch(/right now/);
   await turn('Only when the toilet is used'); await turn('Sep 8'); await turn('8 am');
   const status=await turn('When will it be confirmed'); expect(status.reply).toMatch(/confirmation timeframe/);
-  expect(lead.preferredAppointmentTime).toBe('2026-09-08 at 8:00');
+  expect(lead.preferredAppointmentTime).toBe('2026-09-08 at 8:00 AM');
   expect(create).not.toHaveBeenCalled(); expect(createAppointment).not.toHaveBeenCalled();
 });
 

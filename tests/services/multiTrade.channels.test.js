@@ -143,7 +143,7 @@ describe.each([['sms', false], ['voice', false], ['sms', true], ['voice', true]]
 
 describe.each(['sms', 'voice'])('%s short activity answers', channel => {
  test.each([
-  ['Right now', 'active', 'high'], ['All the time', 'active', 'high'], ['Constantly', 'active', 'high'],
+  ['Leaking now', 'active', 'high'], ['It is leaking now', 'active', 'high'], ['The sink is still leaking', 'active', 'high'], ['Right now', 'active', 'high'], ['All the time', 'active', 'high'], ['Constantly', 'active', 'high'],
   ['Not right now', 'not_active', 'low'], ['Not anymore', 'not_active', 'low'], ['It stopped', 'not_active', 'low'],
  ])('%s resolves the pending question without a model fallback', async (answer, pattern, urgency) => {
   business.features.aiBookingEnabled = false;
@@ -152,7 +152,30 @@ describe.each(['sms', 'voice'])('%s short activity answers', channel => {
   const result = await j.turn(answer, true);
   expect(result.reply).toMatch(/service address/i);
   expect(j.conversation().conversationMemory.recoveryIntake).toMatchObject({ triageAnswer: answer, triageResolved: true, leakPattern: pattern });
+  expect(j.lead().preferredAppointmentTime || '').toBe('');
   if (pattern === 'active') expect(j.lead().urgency).toBe(urgency);
   else expect(['high', 'emergency']).not.toContain(j.lead().urgency);
+ });
+});
+
+describe.each(['sms', 'voice'])('%s urgent plumbing repair', channel => {
+ test.each(['My toilet is overflowing', 'The pipe burst'])('%s creates urgent review and continues intake', async text => {
+  business.features.aiBookingEnabled = false;
+  const j = journey(channel);
+  const result = await j.turn(text, true);
+  expect(result.reply).toMatch(/service address/i);
+  expect(result.reply).not.toMatch(/contact a qualified professional|do not wait for a callback/i);
+  expect(j.lead().urgency).toBe('high');
+  expect(AlertService.create).toHaveBeenCalledWith(expect.objectContaining({ title: 'Urgent plumbing repair requested', priority: 'high' }));
+  expect(AppointmentService.create).not.toHaveBeenCalled();
+ });
+ test('repeated unrecognized answers produce a staff handoff', async () => {
+  business.features.aiBookingEnabled = false;
+  const j = journey(channel);
+  await j.turn('My kitchen sink pipes are leaking', true);
+  await j.turn('banana', true);
+  const result = await j.turn('banana', true);
+  expect(result.reply).toMatch(/team review|repeat/i);
+  expect(result.actionType || result.outcome).toMatch(/human_handoff|callback_saved/);
  });
 });

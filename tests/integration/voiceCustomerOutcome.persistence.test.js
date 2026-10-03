@@ -91,7 +91,7 @@ test('separate durable writer invalidates a stale callback readback after reload
 });
 
 describe.each([['sms', false], ['voice', false], ['sms', true], ['voice', true]])('%s intake survives document reload (booking=%s)', (channel, aiBookingEnabled) => {
- test('service → short activity answer → address has no premature review and retains exact facts', async () => {
+ test.each([['When I use it', 'during_use'], ['Leaking now', 'active']])('service → %s → address retains exact facts', async (answer, leakPattern) => {
   const { default: ServiceOffering } = await import('../../src/models/serviceOffering.js');
   const { default: ServiceArea } = await import('../../src/models/serviceArea.js');
   const { default: Operations } = await import('../../src/models/businessOperationsSettings.js');
@@ -106,9 +106,9 @@ describe.each([['sms', false], ['voice', false], ['sms', true], ['voice', true]]
    return handleRecoveryIntake({ business: saved.business, lead: saved.lead, conversation: saved.conversation, channel, customerMessage, turnId });
   };
   expect((await turn('My kitchen sink pipes are leaking', 'first')).reply).toMatch(/leaking right now/);
-  expect((await turn('When I use it', 'second')).reply).toMatch(/service address/);
+  expect((await turn(answer, 'second')).reply).toMatch(/service address/);
   let saved = await reload();
-  expect(saved.conversation.conversationMemory.recoveryIntake).toMatchObject({ triageResolved: true, leakPattern: 'during_use', triageAnswer: 'When I use it' });
+  expect(saved.conversation.conversationMemory.recoveryIntake).toMatchObject({ triageResolved: true, leakPattern, triageAnswer: answer });
   expect(saved.lead.address).toBe('');
   expect(await Alert.countDocuments({ conversation: conversation._id })).toBe(0);
   expect((await turn('123 Main Street Atlanta GA 30324', 'third')).reply).toMatch(/what day/i);
@@ -118,4 +118,25 @@ describe.each([['sms', false], ['voice', false], ['sms', true], ['voice', true]]
   expect(saved.conversation.conversationMemory.recoveryIntake.coverage.supported).toBe(true);
   expect(saved.conversation.bookingState.appointment).toBeFalsy();
  });
+});
+
+test('service review is durable without YES and repeated replies do not duplicate the alert', async () => {
+ const { default: Operations } = await import('../../src/models/businessOperationsSettings.js');
+ const { guardServiceRequest } = await import('../../src/services/serviceEligibility/serviceEligibility.service.js');
+ await Operations.create({ business: business._id, serviceEligibilityPolicy: { catalogComplete: false } });
+ await Lead.updateOne({ _id: lead._id }, { $set: { serviceNeeded: 'Unknown', address: '' } });
+ const turn = async (customerMessage, turnId) => {
+  const saved = await reload();
+  return guardServiceRequest({ business: saved.business, lead: saved.lead, conversation: saved.conversation, customerMessage, turnId });
+ };
+ expect((await turn('I need roof repair', 'one')).reply).toMatch(/saved for staff/);
+ expect(await Alert.countDocuments({ conversation: conversation._id })).toBe(1);
+ await turn('yes', 'two');
+ expect((await turn('I can explain it to the team', 'three')).reply).not.toMatch(/can't verify|what is the service address/i);
+ await turn('123 Main Street Atlanta GA 30324', 'four');
+ const saved = await reload();
+ expect(saved.lead.address).toContain('30324');
+ expect(saved.lead.serviceNeeded).toMatch(/roof repair/);
+ expect(saved.conversation.serviceEligibility.reviewSubmitted).toBe(true);
+ expect(await Alert.countDocuments({ conversation: conversation._id })).toBe(1);
 });

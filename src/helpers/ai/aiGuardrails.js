@@ -803,6 +803,11 @@ const normalizeSafetyDiscourse = (value) => {
  * when it does not. The first matching group wins, and groups are ordered by
  * severity so gas and fire outrank flooding when a message mentions both.
  */
+// A fixture overflow or burst pipe alone establishes urgent repair work, not
+// danger to people. Only complete, bounded statements qualify; extra hazard
+// clauses continue through the normal safety detector.
+export const isUrgentPlumbingRequest = value => /^(?:(?:hi[,!]?|help[,!]?)\s+)?(?:(?:my|our|the|a)\s+)?(?:(?:kitchen |bathroom )?(?:toilet|sink|tub|washer|dishwasher)(?: is|'s)? (?:overflowing|spilling)|(?:water )?pipe (?:has |just |has just )?burst|burst (?:water )?pipe)[.! ]*$/i.test(String(value || '').trim());
+
 export const detectSafetyHazardType = (value) => {
   const text = normalizeSafetyDiscourse(value);
 
@@ -823,6 +828,7 @@ export const detectSafetyHazardType = (value) => {
     ),
   );
 
+  if (matchedGroup?.type === "flood" && isUrgentPlumbingRequest(text)) return "";
   return matchedGroup ? matchedGroup.type : "";
 };
 

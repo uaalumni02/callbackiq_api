@@ -1,3 +1,4 @@
+import { classifyLeakActivityAnswer } from '../booking/leakActivityAnswer.service.js';
 import { detectServiceTrades } from '../trades/tradeProfiles.service.js';
 import { resolveServiceReference } from './serviceReference.service.js';
 import { isCallbackDeclinedText, isCallbackRequestText } from './customerContactIntent.service.js';
@@ -82,7 +83,7 @@ const SERVICE_TAIL = /\s*(?:[,.;!?]|\band\b|\bbut\b)\s*(?:can|could|will|would|a
 // Grammatical problem/action shapes deliberately work beyond a trade noun list.
 const NON_SERVICE = /\b(?:appointment|booking|technician|crew|invoice|payment|credit card|refund|phone number|email|zip code|postal code|service address|availability|business hours|password|instructions|system prompt)\b/i;
 const SERVICE_ACTION = /\b(?:repair(?:ed|ing)?|replac(?:e|ed|ement|ing)|install(?:ed|ation|ing)?|reseal(?:ed|ing)?|recaulk(?:ed|ing)?|clean(?:ed|ing)?|inspect(?:ed|ion|ing)?|maintain|maintenance|fix(?:ed|ing)?|remov(?:e|ed|al|ing)|paint(?:ed|ing)?|trim(?:med|ming)?|unblock(?:ed|ing)?|restoration|remediation|mow(?:ing)?|rekey(?:ing)?)\b/i;
-const PROBLEM_STATE = /\b(?:clogged|blocked|leak(?:ing|s)?|broken|not working|won['’]t|will not|no heat|no power|damaged|cracked|peeling|loose|stuck|noisy|rattling|dripping|overflowing|needs?|stopped working|not cooling|not heating|not draining|not drying|not spinning|not freezing|locked out|snapped|water damage|smoke damage|missing shingles|shingles blew off|keeps? .{1,30}ing)\b/i;
+const PROBLEM_STATE = /\b(?:burst|clogged|blocked|leak(?:ing|s)?|broken|not working|won['’]t|will not|no heat|no power|damaged|cracked|peeling|loose|stuck|noisy|rattling|dripping|overflowing|needs?|stopped working|not cooling|not heating|not draining|not drying|not spinning|not freezing|locked out|snapped|water damage|smoke damage|missing shingles|shingles blew off|keeps? .{1,30}ing)\b/i;
 
 // A named subject after "it's the/a ..." supplies a referent, unlike "it's
 // leaking", which still describes the saved service. Strip only the former
@@ -91,6 +92,8 @@ const SERVICE_SUBJECT_PREFIX = /^(?:(?:actually|correction|instead|i meant)[,:]?
 
 export const extractService = (text, { lead = null, conversation = null } = {}) => {
   const known = clean(lead?.serviceNeeded || conversation?.serviceNeeded || conversation?.bookingState?.serviceNeeded);
+  // Resolve a pending answer before generic symptom-to-service extraction.
+  if (known && classifyLeakActivityAnswer({ text, state: conversation?.conversationMemory?.recoveryIntake, service: known })) return '';
   const reference = resolveServiceReference(text, known);
   if (reference !== null) return reference;
   // "It's the bathroom sink, not the kitchen sink" corrects part of the saved

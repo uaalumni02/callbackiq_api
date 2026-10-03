@@ -15,7 +15,7 @@ describe("Twilio opt-out ownership classification", () => {
     },
   );
 
-  test.each(["START", "UNSTOP", "YES"])(
+  test.each(["START", "UNSTOP"])(
     "treats %s as provider-managed opt-in",
     (keyword) => {
       expect(classifyInboundSmsCommand(keyword)).toMatchObject({

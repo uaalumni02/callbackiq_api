@@ -128,9 +128,9 @@ test.each(['sms','voice'])('%s exact reported transcript retains faucet and addr
 test.each(['sms','voice'])('%s staff review remains actionable and retains additional facts',async channel=>{
  services=[]; policy={catalogComplete:false}; const j=journey(channel);
  await j.turn('I need faucet replacement',true);
- expect(AlertService.create).not.toHaveBeenCalled();
- await j.turn('How much?',true); expect(AlertService.create).not.toHaveBeenCalled();
- expect((await j.turn('Can I schedule an appointment?',true)).reply).toMatch(/saved for staff/);
+ expect(AlertService.create).toHaveBeenCalledWith(expect.objectContaining({actionRequired:true}));
+ await j.turn('How much?',true);
+ expect((await j.turn('Can I schedule an appointment?',true)).reply).toMatch(/details are saved/);
  await j.turn('970 Sidney Marcus Atlanta GA 30324',true);
  await j.turn('next Tuesday afternoon',true);
  expect((await j.turn('How much?',true)).reply).toMatch(/approved estimate/);

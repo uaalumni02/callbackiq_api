@@ -20,7 +20,7 @@ const hazards = [
   ['My baby is locked inside the car', 'trapped'],
   ['My dog got locked in the hot car', 'trapped'],
   ['Water is flowing onto the carpet', 'flood'],
-  ['The pipe burst', 'flood'],
+  ['The pipe burst and my kitchen is flooding', 'flood'],
   ['Raw sewage is coming up in the shower', 'sewage'],
   ['The furnace has stopped working and we have a newborn', 'temperature'],
   ['The oxygen concentrator has lost power', 'temperature'],

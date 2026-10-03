@@ -78,12 +78,12 @@ test('out of area does not become a ready appointment request', async () => {
 test.each(["We'll confirm availability soon.","Our team will review and confirm the appointment as soon as possible.","We’ll confirm it soon."] )('shared output guard removes unsupported promise: %s', reply => {
  const safe=sanitizeUnverifiedStaffCommitments(reply); expect(safe).not.toMatch(/soon|as soon as possible/); expect(safe).not.toMatch(/flagged|sent|submitted/);
 });
-test.each(['sms','voice'])('%s defers unfamiliar answers and off-script questions to semantic understanding', async channel => {
+test.each(['sms','voice'])('%s bounds unfamiliar answers while allowing off-script questions', async channel => {
  const c=context(channel); await c.turn('My toilet is clogged');
- for (const text of ['purple elephants', 'the moon tastes blue', 'Is that work covered under warranty?']) {
-   expect(await c.turn(text)).toBeNull();
- }
- expect(c.conversation.conversationMemory.recoveryIntake.failures).toBe(0);
+ expect(await c.turn('Is that work covered under warranty?')).toBeNull();
+ expect((await c.turn('purple elephants')).reply).toMatch(/overflowing/);
+ expect((await c.turn('the moon tastes blue')).actionType).toBe('human_handoff');
+ expect(c.conversation.conversationMemory.recoveryIntake.failures).toBe(2);
 });
 
 test.each(['sms', 'voice'])('%s understands the exact bathtub sequence without losing pricing or service context', async channel => {

@@ -48,7 +48,7 @@ test.each(['How much to replace a water heater?', 'How much to repair my furnace
 test.each([
   'The water is now spilling out to the floor',
   'Water is running onto the carpet',
-  'My toilet is overflowing',
+  'My toilet is overflowing and water is reaching the electrical panel',
   'No flooding earlier, but water is now spilling onto the floor',
 ])('escaping water precedes eligibility: %s', text => {
   expect(evaluateDeterministicInboundGuardrails({ customerMessage: text, recentMessages: [] })).toMatchObject({ handled: true, category: 'emergency' });

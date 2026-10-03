@@ -1,4 +1,4 @@
-import { detectSafetyHazardType, patternHasAffirmedSafetyMatch } from "../../helpers/ai/aiGuardrails.js";
+import { detectSafetyHazardType, patternHasAffirmedSafetyMatch, isUrgentPlumbingRequest } from "../../helpers/ai/aiGuardrails.js";
 // CallBackIQ production scheduling language policy.
 // Shared by SMS and Voice so customer wording cannot route differently by channel.
 
@@ -136,6 +136,7 @@ export const classifyOperationalUrgency = (value) => {
   // safety preflight separately handles any immediate danger to people.
   if (hazard === "sewage") return "high";
   if (hazard) return "emergency";
+  if (isUrgentPlumbingRequest(text)) return "high";
   if (HIGH_URGENCY.some((pattern) => patternHasAffirmedSafetyMatch(pattern, text))) return "high";
   return "";
 };

@@ -316,7 +316,7 @@ export const assessInboundSafety = async ({
     });
   }
 
-  if (!allowAIClassifier) {
+  if (!allowAIClassifier || Guardrails.isUrgentPlumbingRequest?.(message)) {
     return buildNoEmergencyAssessment({
       source: "deterministic",
       confidence: 100,

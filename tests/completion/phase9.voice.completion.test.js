@@ -316,7 +316,7 @@ describe("Phase 9 completion gate using production voice orchestration", () => {
 
     expect(selectionReply.reply).toMatch(/business approval|not confirmed/i);
 
-    const bookingReply = await turn("yes");
+    const bookingReply = await turn(channel === "sms" ? "CONFIRM" : "yes");
 
     expect(bookingReply.reply).toMatch(/pending business approval|not confirmed/i);
     expect(createAppointmentTool).toHaveBeenCalledWith(

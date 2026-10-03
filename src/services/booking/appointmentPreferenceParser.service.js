@@ -48,7 +48,7 @@ const TOMORROW_PATTERN = /\b(?:tomorrow|tmrw|tmr|tmw|2moro|2morrow|tomo|tomm?orr
 const DAY_AFTER_TOMORROW_PATTERN = /\b(?:day after tomorrow|day after tmrw|day after tmr|day after next|overmorrow|two days from now|2 days from now|in two days|in 2 days)\b/i;
 const ASAP_PATTERN = /\b(?:asap|a\.?s\.?a\.?p\.?|as soon as possible|soonest|earliest(?: available)?|first available|next available|whenever you can|whenever(?: is)? possible)\b/i;
 // Bare timing answers only: "not now" or "it leaks now" are not scheduling consent.
-export const isImmediatePreference = value => /^(?:(?:right\s+)?now|immediately|asap|as soon as possible|(?:the\s+)?(?:earliest|soonest|first|next)\s+available)(?:\s+please)?[.! ]*$/i.test(normalizeText(value));
+export const isImmediatePreference = value => /^(?:(?:right\s+)?now|immediately|asap|as soon as possible|(?:the\s+)?(?:earliest|soonest)(?:\s+available)?|(?:first|next)\s+available)(?:\s+please)?[.! ]*$/i.test(normalizeText(value));
 
 const normalizeText = (value) =>
   String(value || "")
@@ -490,7 +490,7 @@ export const parseTimePreference = (
   let toleranceMinutes = 0;
 
   if (isImmediatePreference(text)) {
-    return { timeOfDay: '', exactMinutes: null, targetMinutes: 0,
+    return { timeOfDay: 'as soon as possible', exactMinutes: null, targetMinutes: null,
       toleranceMinutes: 0, windowStartMinutes: null, windowEndMinutes: null, raw: lower };
   }
 
@@ -583,6 +583,8 @@ export const parseTimePreference = (
     exactMinutes = 0;
     targetMinutes = 0;
   }
+
+  if (!timeOfDay && targetMinutes === null && ASAP_PATTERN.test(text)) timeOfDay = 'as soon as possible';
 
   return {
     timeOfDay,

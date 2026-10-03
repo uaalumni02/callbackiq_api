@@ -166,7 +166,7 @@ export const toSpokenReply = (value) => {
   let text = cleanVoiceText(value, 4000)
     .replace(URL_PATTERN, "the website link")
     .replace(EMAIL_PATTERN, "the email address")
-    .replace(/\bReply YES\b/gi, "Say yes")
+    .replace(/\bReply (?:YES|CONFIRM)\b/gi, "Say yes")
     .replace(/\bPlease reply\b/gi, "Please say")
     .replace(/\bPlease send\b/gi, "Please say")
     .replace(/\bYou can reply with\b/gi, "You can say")

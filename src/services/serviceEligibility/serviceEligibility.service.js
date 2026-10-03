@@ -1,3 +1,4 @@
+import { classifyLeakActivityAnswer } from '../booking/leakActivityAnswer.service.js';
 import { assessTradeQualification } from '../trades/tradeQualification.service.js';
 import { assessProblemClarity } from "../booking/requestQualificationPolicy.service.js";
 import { isRequestWithdrawal, requestWasWithdrawn } from '../conversationControlPolicy.js';
@@ -57,7 +58,8 @@ export async function guardServiceRequest({ business, lead, conversation, custom
   // Symptom updates answer triage; they do not request an unidentified new service.
   if (!hasDomain && (prior?.request || known(lead?.serviceNeeded)) &&
       /^(?:(?:it |the leak )?(?:has )?)?(?:not|no longer|stopped|only when|only during)\b/i.test(text)) current = '';
-  const triageAnswer = /^(?:no|nope|yes|yeah|yep)[, ]|^(?:only|just) (?:the|my|this) /i.test(text) &&
+  const pendingLeakAnswer = classifyLeakActivityAnswer({ text, state: conversation.conversationMemory?.recoveryIntake, service: lead?.serviceNeeded || prior?.request });
+  const triageAnswer = Boolean(pendingLeakAnswer) || /^(?:no|nope|yes|yeah|yep)[, ]|^(?:only|just) (?:the|my|this) /i.test(text) &&
     (conversation.conversationMemory?.recoveryIntake?.clogPending ||
       conversation.conversationMemory?.recoveryIntake?.triageAnswer === text ||
       /^(?:no[, ]+)?(?:only|just) (?:the|my|this) /i.test(text) && known(lead?.serviceNeeded)) && !current;
@@ -110,7 +112,8 @@ export async function guardServiceRequest({ business, lead, conversation, custom
   const changed = Boolean(serviceCorrection && known(lead?.serviceNeeded) && lead.serviceNeeded !== current) || Boolean(prior && (prior.serviceId !== eligibility.serviceId || prior.decision !== eligibility.decision ||
     (prior.request !== request && (eligibility.decision !== 'supported' || intent.intents?.correction || intent.intents?.newService))));
   const reviewSubmitted = !changed && prior?.reviewSubmitted === true;
-  const state = { ...eligibility, semanticService, semanticConfidence: confidence, checkedAt: new Date(), reviewSubmitted };
+  const state = { ...eligibility, semanticService, semanticConfidence: confidence, checkedAt: new Date(), reviewSubmitted,
+    reviewDeclined: !changed && (decliningReview || prior?.reviewDeclined === true) && !acceptingReview };
   conversation.serviceEligibility = state;
   conversation.markModified?.('serviceEligibility');
   if (lead) {
@@ -154,23 +157,25 @@ export async function guardServiceRequest({ business, lead, conversation, custom
   if (typeof conversation.save === 'function') await conversation.save();
   if (eligibility.decision === 'supported') return null;
   let reply = eligibilityReply(eligibility, business.businessName);
-  if (eligibility.decision === 'needs_staff_review' && (acceptingReview || reviewSubmitted)) {
+  if (eligibility.decision === 'needs_staff_review' && !state.reviewDeclined) {
     // Stable key makes a retry repair an interrupted alert write without duplicating it.
     checkActive();
     const reviewAlert = await AlertService.create({ businessId: business._id, leadId: lead?._id, conversationId: conversation._id, type: 'system',
       actionRequired: true, dueAt: staffReviewDueAt('medium'), reason: eligibility.reason, recommendedAction: 'Determine whether this business accepts the requested service before quoting or scheduling.', title: 'Service eligibility needs review',
-      message: `Determine whether this business accepts the requested work: ${request.slice(0, 300)}. Reason: ${eligibility.reason}. No appointment or callback time was promised.`,
+      message: `Determine whether this business accepts the requested work: ${request.slice(0, 300)}. Reason: ${eligibility.reason}. Latest customer message: ${text.slice(0, 300)}. No appointment or callback time was promised.`,
       priority: 'medium', dedupeKey: `service-eligibility:${conversation._id}:${crypto.createHash('sha256').update(request).digest('hex').slice(0, 32)}`,
       metadata: { leadId: String(lead?._id || ''), conversationId: String(conversation._id), serviceEligibilityReason: eligibility.reason, channel } });
     if (!reviewAlert?.alert?._id) throw Object.assign(new Error('Service review could not be saved.'), { code: 'SERVICE_REVIEW_NOT_SAVED' });
     state.reviewSubmitted = true;
+    state.reviewPromptCount = Math.min(2, (!changed ? Number(prior?.reviewPromptCount || 0) : 0) + 1);
     checkActive();
     if (lead) { lead.serviceEligibility = state; lead.markModified?.('serviceEligibility'); await lead.save?.(); }
     conversation.serviceEligibility = state; conversation.markModified?.('serviceEligibility'); await conversation.save?.();
-    const next = !known(lead?.address) ? ' If you want staff to review it, what is the service address?' :
+    const next = reviewSubmitted && prior?.reviewPromptCount >= 2 ? '' : !known(lead?.address) ? ' What is the service address?' :
       !/\b\d{5}(?:-\d{4})?\b/.test(lead.address) ? ' What is the ZIP code for that address?' : '';
     reply = `${intent.intents?.pricing ? "I don't have an approved estimate for this request yet. " : ''}Your request is saved for staff to review whether they can accept the work. Pricing and scheduling stay paused until staff confirms the service is accepted. No appointment is confirmed.${next}`;
-  } else if (decliningReview) reply = "Understood. I won't submit a staff review request or arrange an appointment for this work.";
+    if (reviewSubmitted) reply = `${intent.intents?.pricing ? "I don't have an approved estimate for this request yet. " : ''}Your additional details are saved for the team's review. No appointment is confirmed.${next}`;
+  } else if (state.reviewDeclined) reply = "Understood. I won't arrange an appointment for this work.";
   return { decision: 'send_fixed_response', actionType: 'send_fixed_response', messageCategory: 'service_request',
     reply, serviceEligibility: state, serviceNeeded: lead?.serviceNeeded || request.slice(0, 200),
     address: lead?.address || '', preferredAppointmentTime: lead?.preferredAppointmentTime || '',

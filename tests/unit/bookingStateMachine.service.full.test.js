@@ -485,7 +485,7 @@ describe("BookingStateMachineService complete behavior", () => {
     const result = await handle({ conversation, message });
     expect(new Date(conversation.bookingState.selectedSlot.startAt).toISOString()).toBe(expected.startAt);
     expect(conversation.bookingState.status).toBe("awaiting_confirmation");
-    expect(result.result.reply).toContain("Reply YES");
+    expect(result.result.reply).toContain("Reply CONFIRM");
   });
 
   test("selects a slot using a stored label", async () => {
@@ -540,7 +540,7 @@ describe("BookingStateMachineService complete behavior", () => {
       conversation: makeConversation({ bookingState: { status: "awaiting_confirmation", selectedSlot: SLOT_1 } }),
       message: "maybe",
     });
-    expect(result.result.reply).toContain("reply YES");
+    expect(result.result.reply).toContain("reply CONFIRM");
   });
 
   test("affirmative confirmation submits an appointment for business approval", async () => {

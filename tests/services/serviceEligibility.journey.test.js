@@ -70,12 +70,12 @@ test.each(['sms', 'voice'])('%s actual channel declines roof repair without side
   expect(j.lead()).toMatchObject({ qualifiedAt: null, estimatedValue: null, leadQualityScore: 0 });
   expect(Availability.getAvailability).not.toHaveBeenCalled(); expect(AppointmentService.create).not.toHaveBeenCalled(); expect(AlertService.create).not.toHaveBeenCalled();
 });
-test.each(['sms', 'voice'])('%s reloads uncertainty and respects staff-review consent', async channel => {
+test.each(['sms', 'voice'])('%s queues uncertainty immediately and preserves the review on follow-up', async channel => {
   const j = journey(channel);
   expect((await j.turn('Water is leaking through my ceiling', true)).reply).toMatch(/pipe.*roof/);
-  expect((await j.turn('I am unsure', true)).reply).toMatch(/staff review/);
-  expect(AlertService.create).not.toHaveBeenCalled();
-  expect((await j.turn('yes', true)).reply).toMatch(/saved for staff/);
+  expect((await j.turn('I am unsure', true)).reply).toMatch(/saved for staff/);
+  expect(AlertService.create).toHaveBeenCalled();
+  expect((await j.turn('yes', true)).reply).toMatch(/details are saved/);
   expect(AlertService.create).toHaveBeenCalledWith(expect.objectContaining({ title: 'Service eligibility needs review' }));
   expect(j.conversation().serviceEligibility.reviewSubmitted).toBe(true);
   expect(AppointmentService.create).not.toHaveBeenCalled(); expect(Availability.getAvailability).not.toHaveBeenCalled();
@@ -153,9 +153,9 @@ test('bookability is checked independently at the tool boundary', async () => {
   await expect(assertServiceRequestEligible({ businessId: 'b', leadId: 'l', serviceOfferingId: 'plumbing', request: 'toilet repair' })).rejects.toMatchObject({ code: 'SERVICE_ELIGIBILITY_REQUIRED' });
 });
 test('review persistence failure never claims submission succeeded', async () => {
-  policy = {}; const j = journey(); await j.turn('roof repair');
+  policy = {}; const j = journey();
   AlertService.create.mockResolvedValue({ alert: null });
-  await expect(j.turn('yes')).rejects.toMatchObject({ code: 'SERVICE_REVIEW_NOT_SAVED' });
+  await expect(j.turn('roof repair')).rejects.toMatchObject({ code: 'SERVICE_REVIEW_NOT_SAVED' });
   expect(j.conversation().serviceEligibility.reviewSubmitted).toBe(false);
 });
 test('configuration changed after intake is enforced at the booking boundary', async () => {
@@ -310,7 +310,7 @@ test.each(['sms', 'voice'])('%s actual entry replaces an appliance interpretatio
   business.features.aiBookingEnabled = false;
   policy = { catalogComplete: false };
   const j = journey(channel);
-  expect((await j.turn('Washing machine is leaking from the wall', true)).reply).toMatch(/staff review/);
+  expect((await j.turn('Washing machine is leaking from the wall', true)).reply).toMatch(/staff (?:to )?review/);
   const correction = await j.turn("It's actually a pipe in the wall that is leaking", true);
   expect(j.lead().serviceNeeded).toMatch(/^pipe in the wall that is leaking$/i);
   expect(j.conversation().serviceEligibility).toMatchObject({ decision: 'supported', request: 'pipe in the wall that is leaking' });

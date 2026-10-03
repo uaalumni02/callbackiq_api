@@ -90,6 +90,8 @@ test('availability plus callback acknowledges the unanswered availability questi
  expect(result.reply).toMatch(/no opening is verified/);
 });
 test('rescheduling plus callback leaves the existing appointment unchanged',async()=>{
+ jest.useFakeTimers().setSystemTime(new Date('2026-10-01T16:00:00Z'));
+ try {
  const c=context();c.conversation.bookingState={status:'booked',appointment:'existing'};
  const result=await handleCompoundCustomerTurn({...c,customerMessage:'Reschedule my appointment to Friday afternoon. Call me at noon.'});
  expect(result.reply).toMatch(/rescheduling request needs staff review/);
@@ -97,6 +99,7 @@ test('rescheduling plus callback leaves the existing appointment unchanged',asyn
  expect(c.lead.preferredAppointmentTime).toBe('2026-10-02 at afternoon');
  expect(c.lead.preferredAppointmentTime).not.toMatch(/\bnoon\b|12:00/);
  expect(c.conversation.bookingState).toEqual({status:'booked',appointment:'existing'});
+ } finally { jest.useRealTimers(); }
 });
 test.each(['Also call me','Can you also tell me how much?','Also tomorrow afternoon'])('an extra conversational intent is not a second service: %s',text=>{
  expect(additionalServiceText(text,{serviceNeeded:'faucet replacement'})).toBe('');

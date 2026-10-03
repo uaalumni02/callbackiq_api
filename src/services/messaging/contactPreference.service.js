@@ -13,7 +13,8 @@ const TWILIO_STOP_KEYWORDS = new Set([
   "REVOKE",
   "OPTOUT",
 ]);
-const TWILIO_START_KEYWORDS = new Set(["START", "UNSTOP", "YES"]);
+// YES is an ordinary conversation answer unless Twilio supplies OptOutType=START.
+const TWILIO_START_KEYWORDS = new Set(["START", "UNSTOP"]);
 const TWILIO_HELP_KEYWORDS = new Set(["HELP", "INFO"]);
 
 const normalizeKeyword = (value) =>

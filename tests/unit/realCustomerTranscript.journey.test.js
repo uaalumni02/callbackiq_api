@@ -73,7 +73,9 @@ test('a real emergency still wins the turn and the address is kept for staff', a
 test('"around 5ish" with a morning-only calendar is answered honestly', async () => {
   const c = context();
   c.lead.serviceNeeded = 'toilet is clogged'; c.lead.address = '56566 Road Way Atlanta Ga 30323';
-  const result = await c.turn('Do you have anything available around 5ish');
+  const clarification = await c.turn('Do you have anything available around 5ish');
+  expect(clarification.reply).toMatch(/overflowing|backing up/i);
+  const result = await c.turn('No, only the toilet');
   expect(result.reply).not.toMatch(/business scheduling rules/i);
   expect(result.reply).toMatch(/don.t see an opening at that time/i);
   expect(result.reply).toMatch(/Closest openings: 1\)/);

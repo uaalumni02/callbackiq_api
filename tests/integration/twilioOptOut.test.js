@@ -425,3 +425,28 @@ describe("Twilio SMS opt-out handling", () => {
     expect(String(emergencyAlerts[0]._id)).toBe(String(criticalAlert._id));
   });
 });
+
+test('a plain YES reaches conversation handling and produces an outbound reply', async () => {
+  await createBusiness();
+  const response = await sendSmsWebhook('YES', 'SM_PLAIN_YES');
+  expect(response.status).toBe(200);
+  expect(generateAIReplyResult).toHaveBeenCalledWith(expect.objectContaining({ customerMessage: 'YES' }));
+  expect(mockTwilioMessageCreate).toHaveBeenCalledTimes(1);
+});
+test('a plain YES after STOP cannot reactivate SMS', async () => {
+  const business = await createBusiness();
+  await sendSmsWebhook('STOP', 'SM_STOP_BEFORE_YES');
+  await sendSmsWebhook('YES', 'SM_BLOCKED_YES');
+  expect((await ContactPreference.findOne({ business: business._id })).smsStatus).toBe('opted_out');
+  expect(generateAIReplyResult).not.toHaveBeenCalled();
+  expect(mockTwilioMessageCreate).not.toHaveBeenCalled();
+});
+test('stop please persists opt-out and blocks later ordinary messages', async () => {
+  const business = await createBusiness();
+  await sendSmsWebhook('stop please', 'SM_SOFT_STOP_PLEASE');
+  expect((await ContactPreference.findOne({ business: business._id })).smsStatus).toBe('opted_out');
+  const confirmations = mockTwilioMessageCreate.mock.calls.length;
+  await sendSmsWebhook('My sink is leaking', 'SM_AFTER_SOFT_STOP_PLEASE');
+  expect(generateAIReplyResult).not.toHaveBeenCalled();
+  expect(mockTwilioMessageCreate).toHaveBeenCalledTimes(confirmations);
+});

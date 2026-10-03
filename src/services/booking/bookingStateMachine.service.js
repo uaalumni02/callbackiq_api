@@ -1377,7 +1377,7 @@ class BookingStateMachineService {
           handled: true,
           result: fixedResult({
             reply:
-              "Please reply YES to submit that exact time for business approval, or NO to choose another day.",
+              "Please reply CONFIRM to submit that exact time for business approval, or NO to choose another day.",
           }),
         };
       }
