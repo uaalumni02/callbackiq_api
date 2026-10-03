@@ -142,7 +142,7 @@ const handle = ({ conversation = makeConversation(), lead = makeLead(), message 
   });
 
 describe("BookingStateMachineService complete behavior", () => {
-  test.each(['sms', 'voice'].flatMap(channel => ["Don't cancel my appointment", "What if I cancel my appointment?", "How can I cancel my appointment?", "I don't want to cancel", "I cannot cancel", "If I cancel my appointment, is there a fee?", "What happens when I cancel my appointment?", "I might cancel my appointment"].map(message => [channel, message])))("preserves appointment for %s non-authorizing wording: %s", async (channel, message) => {
+  test.each(['sms', 'voice'].flatMap(channel => ["Don't cancel my appointment", "What if I cancel my appointment?", "How can I cancel my appointment?", "I don't want to cancel", "I cannot cancel", "If I cancel my appointment, is there a fee?", "What happens when I cancel my appointment?", "I might cancel my appointment", "I didn't ask you to cancel my appointment", "I didn't say cancel my appointment", "My wife said cancel my appointment, but I want to keep it", "Cancel my appointment? No, keep it please", "I was going to cancel my appointment, but I changed my mind", "My wife said cancel my appointment", "Cancel my appointment if there is no fee"].map(message => [channel, message])))("preserves appointment for %s non-authorizing wording: %s", async (channel, message) => {
     const conversation = makeConversation({ bookingState: { status: 'booked', appointment: 'a1' } });
     const result = await BookingStateMachineService.handle({ business, lead: makeLead(), conversation, customerMessage: message, channel });
     expect(cancelAppointmentTool).not.toHaveBeenCalled();
