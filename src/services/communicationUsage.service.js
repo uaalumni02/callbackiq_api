@@ -262,7 +262,7 @@ const rollback = async (documents, amount = 1, mongoSession = null) => {
               },
             },
           ],
-          mongoSession ? { session: mongoSession } : undefined,
+          { updatePipeline: true, ...(mongoSession ? { session: mongoSession } : {}) },
         ),
       ),
   );
