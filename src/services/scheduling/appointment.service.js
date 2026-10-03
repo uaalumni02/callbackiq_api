@@ -1,3 +1,4 @@
+import { normalizeAppointmentAddress as normalizeAddress } from './appointmentAddress.service.js';
 import { ensureBusinessApprovalNotice, repairConfirmedApproval } from './appointmentConfirmation.service.js';
 import { runApprovalSms } from './approvalSms.service.js';
 import { arrivalWindow, customerAppointmentLabel } from './customerAppointmentPresentation.service.js';
@@ -49,12 +50,7 @@ const VALID_TRANSITIONS = {
   rescheduled: new Set(),
 };
 
-const normalizeAddress = (address = {}) => ({
-  street: String(address?.street || "").trim(),
-  city: String(address?.city || "").trim(),
-  state: String(address?.state || "").trim(),
-  postalCode: String(address?.postalCode || "").trim(),
-});
+
 
 const formatCustomerAppointmentTime = (appointment, business) => customerAppointmentLabel(appointment, appointment.timezone || business.timezone);
 
@@ -504,6 +500,7 @@ class AppointmentService {
   }
 
   static async create({ business, input, idempotencyKey, confirm = true, ownerValuationAuthorized = false }) {
+    if (input.address !== undefined) normalizeAddress(input.address);
     if (ownerValuationAuthorized && Object.prototype.hasOwnProperty.call(input, "estimatedValue") && input.estimatedValue !== null && moneyAmount(input.estimatedValue) === null) {
       const error = new Error("Estimated value must be null or a non-negative number."); error.statusCode = 400; throw error;
     }
@@ -991,6 +988,7 @@ class AppointmentService {
     input,
     idempotencyKey,
   }) {
+    if (input.address !== undefined) normalizeAddress(input.address);
     const original = await getAppointmentForBusiness(
       business._id,
       appointmentId,
@@ -1399,6 +1397,7 @@ class AppointmentService {
   }
 
   static async update({ businessId, appointmentId, changes }) {
+    if (changes.address !== undefined) normalizeAddress(changes.address);
     const appointment = await getAppointmentForBusiness(
       businessId,
       appointmentId,
