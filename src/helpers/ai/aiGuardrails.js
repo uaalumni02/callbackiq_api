@@ -803,10 +803,21 @@ const normalizeSafetyDiscourse = (value) => {
  * when it does not. The first matching group wins, and groups are ordered by
  * severity so gas and fire outrank flooding when a message mentions both.
  */
-// A fixture overflow or burst pipe alone establishes urgent repair work, not
-// danger to people. Only complete, bounded statements qualify; extra hazard
-// clauses continue through the normal safety detector.
-export const isUrgentPlumbingRequest = value => /^(?:(?:hi[,!]?|help[,!]?)\s+)?(?:(?:my|our|the|a)\s+)?(?:(?:kitchen |bathroom )?(?:toilet|sink|tub|washer|dishwasher)(?: is|'s)? (?:overflowing|spilling)|(?:water )?pipe (?:has |just |has just )?burst|burst (?:water )?pipe)[.! ]*$/i.test(String(value || '').trim());
+// Extract the urgent repair clause independently of logistics. Additional
+// danger evidence always defeats this exception, even in an address-bearing turn.
+export const isUrgentPlumbingRequest = value => {
+  const text = String(value || '').trim();
+  const match = text.match(/^(?:(?:hi[,!]?|help[,!]?)\s+)?(?:(?:my|our|the|a)\s+)?(?:(?:kitchen |bathroom )?(?:toilet|sink|tub|washer|dishwasher)(?: is|'s)? (?:overflowing|spilling)|(?:water )?pipe (?:has |just |has just )?burst|burst (?:water )?pipe)\b/i);
+  if (!match) return false;
+  const remainder = text.slice(match[0].length).trim();
+  if (!remainder || /^[.! ]*$/.test(remainder)) return true;
+  if (SAFETY_HAZARD_PATTERN_GROUPS.some(group => group.patterns.some(pattern => patternHasAffirmedSafetyMatch(pattern, remainder)))) return false;
+  if (/\b(?:can't|cannot|unable to)\s+(?:stop|shut|turn)\b/i.test(remainder)) return false;
+  if (/\b(?:floor|electri(?:c|cal)|outlet|danger|injur|trapped|uncontrolled|sewage|spreading|ceiling|sparks?|smoke|gas)\b/i.test(remainder)) return false;
+  // Only logistics can be appended here. Uninterpreted condition clauses stay
+  // in the safety path rather than silently downgrading possible danger.
+  return /^(?:[.,;]\s*)?(?:at\s+\d+[a-z]?|my address is\s+\d+[a-z]?|the address is\s+\d+[a-z]?|please (?:call|help)|can you (?:call|help)|call me|asap|today|tomorrow)\b/i.test(remainder);
+};
 
 export const detectSafetyHazardType = (value) => {
   const text = normalizeSafetyDiscourse(value);

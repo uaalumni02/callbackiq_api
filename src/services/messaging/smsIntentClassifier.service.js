@@ -1,3 +1,4 @@
+import { isContextualSymptomAnswer } from '../booking/contextualServiceAnswer.service.js';
 import { classifyLeakActivityAnswer } from '../booking/leakActivityAnswer.service.js';
 import { detectServiceTrades } from '../trades/tradeProfiles.service.js';
 import { resolveServiceReference } from './serviceReference.service.js';
@@ -96,6 +97,7 @@ export const extractService = (text, { lead = null, conversation = null } = {}) 
   if (known && classifyLeakActivityAnswer({ text, state: conversation?.conversationMemory?.recoveryIntake, service: known })) return '';
   const reference = resolveServiceReference(text, known);
   if (reference !== null) return reference;
+  if (isContextualSymptomAnswer(text, known)) return '';
   // "It's the bathroom sink, not the kitchen sink" corrects part of the saved
   // request. Apply it only when the replaced words are actually in that request.
   if (known && !/^unknown$/i.test(known)) {

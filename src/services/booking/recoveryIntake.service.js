@@ -1,3 +1,4 @@
+import { isContextualSymptomAnswer } from './contextualServiceAnswer.service.js';
 import BookingStateMachine, { selectOfferedSlot } from './bookingStateMachine.service.js';
 import { classifyLeakActivityAnswer } from './leakActivityAnswer.service.js';
 import { assessTradeQualification, tradeReviewReply } from '../trades/tradeQualification.service.js';
@@ -144,7 +145,11 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   const useDependentAnswer = leakActivityAnswer === 'during_use';
   const triageFieldAnswer = Boolean(leakActivityAnswer) || (state.triagePending || state.clogPending || state.triageAnswer === text) &&
     !classification.entities?.serviceNeeded && /^(?:yes|yeah|yep|no|nope|only|just)\b/i.test(text);
-  const service = triageFieldAnswer || questions.ambiguous || questions.duration || questions.completionDate || questions.clarificationAnswer ? '' : classification.entities?.serviceNeeded || (!contextualPriceQuestion && typeof semantic?.serviceNeeded === 'string' ? clean(semantic.serviceNeeded).slice(0, 160) : '');
+  const symptomAnswer = isContextualSymptomAnswer(text, lead.serviceNeeded);
+  if (symptomAnswer) {
+    state.symptomUpdates = [...(state.symptomUpdates || []).filter(item => item.text !== text), { text: text.slice(0, 500), turnId: String(turnId) }].slice(-10);
+  }
+  const service = symptomAnswer || triageFieldAnswer || questions.ambiguous || questions.duration || questions.completionDate || questions.clarificationAnswer ? '' : classification.entities?.serviceNeeded || (!contextualPriceQuestion && typeof semantic?.serviceNeeded === 'string' ? clean(semantic.serviceNeeded).slice(0, 160) : '');
   if (!state.started && !known(service) && !known(lead.serviceNeeded) && !classification.intents?.scheduling && !capturedAddress && !addressFrom(text)) return null;
   state.started = true;
   const urgentPlumbing = isUrgentPlumbingRequest(text);

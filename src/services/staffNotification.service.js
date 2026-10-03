@@ -25,7 +25,7 @@ export async function enqueueStaffNotifications({ now = new Date(), limit = 100 
   if (!enabled()) return;
   for (const stage of ["initial", "overdue", "expired"]) {
     const stageFilter = stage === "expired" ? { "metadata.approvalState": "needs_recheck" } : stage === "overdue" ? { dueAt: { $ne: null, $lte: now } } : { $or: [{ dueAt: null }, { dueAt: { $gt: now } }] };
-    const alerts = await Alert.find({ ...unresolved,  $and: [{ $or: [{ priority: { $in: ["high", "critical"] } }, { "metadata.approvalRequest": true }] }],
+    const alerts = await Alert.find({ ...unresolved,  $and: [{ $or: [{ priority: { $in: ["high", "critical"] } }, { "metadata.approvalRequest": true }, { "metadata.serviceEligibilityReason": { $exists: true, $ne: "" } }] }],
       ...(stage === 'expired' ? {} : { 'metadata.approvalState': { $ne: 'needs_recheck' } }),
       ...stageFilter, [`metadata.staffNotification.${stage}`]: { $exists: false },
     }).sort({ createdAt: 1, _id: 1 }).limit(limit).select("_id business").lean();

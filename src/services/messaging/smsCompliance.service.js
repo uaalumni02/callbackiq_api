@@ -63,6 +63,9 @@ export const buildMissedCallRecoveryText = ({ business, template } = {}) => {
 };
 
 const SOFT_OPT_OUT_PATTERNS = [
+  /\b(?:stop|quit|cease)\s+(?:sending\s+(?:me\s+)?(?:any\s+)?(?:more\s+)?(?:texts?|messages?)(?:\s+to\s+(?:me|this\s+number))?|texting|messaging)(?:\s+(?:me|this\s+number))?(?=$|[.!?,;])/i,
+  /\b(?:please\s+)?unsubscribe\s+(?:me|this\s+number)\b/i,
+  /\b(?:do\s+not|don['’]?t)\s+send\s+(?:me|this\s+number)\s+(?:any\s+)?(?:more\s+)?(?:texts?|messages?)\b/i,
   /^stop[, ]+please(?:[,!?.]?\s+(?:thanks|thank\s+you))?[.!?, ]*$/i,
   /^please\s+stop(?:[,!?.]?\s+(?:thanks|thank\s+you))?[.!?, ]*$/i,
   /\bplease\s+stop\s+(?:texting|messaging|contacting|sending\s+(?:me\s+)?(?:messages?|texts?))\b/i,
@@ -78,7 +81,7 @@ const SOFT_OPT_OUT_PATTERNS = [
 export const isSoftOptOutPhrase = (value) => {
   const text = String(value || "").trim();
   if (!text) return false;
-  if (/\b(?:do\s+not|don['’]?t|never)\s+stop\b/i.test(text)) return false;
+
   // CALLBACKIQ_SOFT_OPTOUT_QUESTION_GUARD
   // Asking how opt-out works is not itself an opt-out request.
   if (
@@ -87,7 +90,10 @@ export const isSoftOptOutPhrase = (value) => {
   ) {
     return false;
   }
-  return SOFT_OPT_OUT_PATTERNS.some((pattern) => pattern.test(text));
+  return text.split(/[,;.!?]|\b(?:but|however)\b/i).some(clause => {
+    if (/\b(?:do\s+not|don['’]?t|never)\s+(?:(?:want|wish)\s+to\s+)?(?:stop|quit|cease|unsubscribe|remove|take|opt)\b/i.test(clause)) return false;
+    return SOFT_OPT_OUT_PATTERNS.some(pattern => pattern.test(clause.trim()));
+  }) || (/^stop[, ]+please(?:[,!?.]?\s+(?:thanks|thank\s+you))?[.!?, ]*$/i.test(text));
 };
 
 export const estimateSmsSegments = (body) => {

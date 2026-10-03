@@ -1,3 +1,4 @@
+import { isContextualSymptomAnswer } from '../booking/contextualServiceAnswer.service.js';
 import { classifyLeakActivityAnswer } from '../booking/leakActivityAnswer.service.js';
 import { assessTradeQualification } from '../trades/tradeQualification.service.js';
 import { assessProblemClarity } from "../booking/requestQualificationPolicy.service.js";
@@ -51,6 +52,7 @@ export async function guardServiceRequest({ business, lead, conversation, custom
   if (conversation.bookingState?.appointment && /\b(?:cancel|reschedule|move|status of)\b.{0,80}\b(?:appointment|booking|visit)\b/i.test(text)) return null;
   const intent = classifySmsIntent({ business, lead, conversation, customerMessage: text });
   let current = extractService(text, { lead, conversation });
+  if (isContextualSymptomAnswer(text, lead?.serviceNeeded)) current = '';
   const prior = conversation.serviceEligibility || lead?.serviceEligibility;
   if (!current && !prior?.request && !known(lead?.serviceNeeded) && !intent.intents?.scheduling &&
       semanticAssessment?.serviceNeeded && semanticAssessment?.confidence >= 60) current = text;
@@ -59,7 +61,7 @@ export async function guardServiceRequest({ business, lead, conversation, custom
   if (!hasDomain && (prior?.request || known(lead?.serviceNeeded)) &&
       /^(?:(?:it |the leak )?(?:has )?)?(?:not|no longer|stopped|only when|only during)\b/i.test(text)) current = '';
   const pendingLeakAnswer = classifyLeakActivityAnswer({ text, state: conversation.conversationMemory?.recoveryIntake, service: lead?.serviceNeeded || prior?.request });
-  const triageAnswer = Boolean(pendingLeakAnswer) || /^(?:no|nope|yes|yeah|yep)[, ]|^(?:only|just) (?:the|my|this) /i.test(text) &&
+  const triageAnswer = isContextualSymptomAnswer(text, lead?.serviceNeeded || prior?.request) || Boolean(pendingLeakAnswer) || /^(?:no|nope|yes|yeah|yep)[, ]|^(?:only|just) (?:the|my|this) /i.test(text) &&
     (conversation.conversationMemory?.recoveryIntake?.clogPending ||
       conversation.conversationMemory?.recoveryIntake?.triageAnswer === text ||
       /^(?:no[, ]+)?(?:only|just) (?:the|my|this) /i.test(text) && known(lead?.serviceNeeded)) && !current;
