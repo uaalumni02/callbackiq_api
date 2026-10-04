@@ -1,3 +1,4 @@
+import { invoiceSubscriptionId } from "../helpers/billing/invoiceSubscriptionId.js";
 import { safeConsole } from "../helpers/logging/safeLogger.js";
 import Db from "../db/db.js";
 import Business from "../models/business.js";
@@ -1194,7 +1195,8 @@ class BillingController {
   }
 
   static async handleInvoicePaid(invoice, eventId = "") {
-    if (!invoice.subscription) return null;
+    const subscriptionId = invoiceSubscriptionId(invoice);
+    if (!subscriptionId) return null;
 
     const invoiceGuard = await guardInvoiceAgainstCanonicalSubscription({
       invoice,
@@ -1205,7 +1207,7 @@ class BillingController {
 
     const stripe = getStripeClient();
     const stripeSubscription = await stripe.subscriptions.retrieve(
-      invoice.subscription,
+      subscriptionId,
       { expand: ["latest_invoice"] },
     );
     const subscription = await syncStripeSubscription({
@@ -1227,7 +1229,8 @@ class BillingController {
   }
 
   static async handleInvoicePaymentFailed(invoice, eventId = "") {
-    if (!invoice.subscription) return null;
+    const subscriptionId = invoiceSubscriptionId(invoice);
+    if (!subscriptionId) return null;
 
     const invoiceGuard = await guardInvoiceAgainstCanonicalSubscription({
       invoice,
@@ -1238,7 +1241,7 @@ class BillingController {
 
     const stripe = getStripeClient();
     const stripeSubscription = await stripe.subscriptions.retrieve(
-      invoice.subscription,
+      subscriptionId,
       { expand: ["latest_invoice"] },
     );
     const subscription = await syncStripeSubscription({

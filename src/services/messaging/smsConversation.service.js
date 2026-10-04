@@ -1,3 +1,4 @@
+import { linkRecentTrackedCalls } from "./trackedCallLink.service.js";
 import { reconcileConversationLead } from "./conversationLeadIdentity.service.js";
 // CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1: conversation-service
 import Lead from "../../models/lead.js";
@@ -207,6 +208,7 @@ export const getOrCreateSmsLeadAndConversation = async ({
   });
 
   ({ lead, conversation } = await reconcileConversationLead({ business, lead, conversation, customerPhone: normalizedPhone }));
+  await linkRecentTrackedCalls({ businessId: business._id, leadId: lead._id, conversationId: conversation._id, phone: normalizedPhone });
   return { lead, conversation, customerPhone: normalizedPhone };
 };
 

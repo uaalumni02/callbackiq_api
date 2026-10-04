@@ -1,3 +1,4 @@
+import { logOperationalEvent } from "../helpers/logging/safeLogger.js";
 import CallLog from "../models/callLog.js";
 import SocketService from "./socket.service.js";
 
@@ -87,6 +88,7 @@ export const processTwilioCallStatus = async ({ businessId, payload = {} }) => {
       );
     }
   }
+  if (!callLog) logOperationalEvent("twilio.status.unknown_call", { businessId, providerCallId, providerStatus });
   if (callLog) SocketService.emitCallUpdated(businessId, callLog);
   return { callLog, providerStatus, canonicalStatus };
 };

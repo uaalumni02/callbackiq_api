@@ -510,6 +510,14 @@ describe("subscriptionIntegrity.service adversarial matrix", () => {
     expect(mockBillingAnomalyFindOneAndUpdate).toHaveBeenCalled();
   });
 
+  test.each(["sub-b", { id: "sub-b" }])("modern invoice cannot bypass canonical subscription guard: %p", async subscription => {
+    mockSubscriptionFindOne.mockResolvedValue({ business: "biz-1", stripeCustomerId: "cus-1", stripeSubscriptionId: "sub-a" });
+    await expect(guardInvoiceAgainstCanonicalSubscription({ invoice: {
+      id: "in-modern", customer: "cus-1", parent: { subscription_details: { subscription } },
+    } })).resolves.toMatchObject({ allowed: false });
+    expect(mockBillingAnomalyFindOneAndUpdate).toHaveBeenCalled();
+  });
+
   test("invoice guard permits canonical invoice and flags paid subscription_update using amount_due fallback", async () => {
     mockSubscriptionFindOne.mockResolvedValue({
       business: "biz-1",

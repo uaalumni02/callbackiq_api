@@ -597,7 +597,7 @@ export const handleInboundSmsWebhook = async (req, res) => {
     });
 
     // Safety observations must still reach the durable worker during staff
-    // ownership. This does not authorize an automated reply or AI generation.
+    // ownership. The worker may send fixed emergency guidance without resuming AI.
     const inboundSafetyAssessment = body
       ? evaluateDeterministicInboundGuardrails({ customerMessage: body, recentMessages: [] })
       : null;

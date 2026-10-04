@@ -429,6 +429,8 @@ export const sendSms = async ({
       const reason = await getSmsAutomationSuppressionReason({
         businessId: resolvedBusinessId, conversationId, leadId, to: normalizedTo,
         isAiGenerated: metadata.aiGenerated !== false,
+        fixedEmergencyReply: metadata.fixedEmergencyReply === true && metadata.generatedBy === "guardrail" &&
+          metadata.messageCategory === "emergency" && metadata.decision === "send_fixed_response",
       });
       if (reason) {
         await releaseCommunicationUsageReservation({ reservation: lifecycle?.reservation, usage, reason });

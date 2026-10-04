@@ -1,3 +1,4 @@
+import { linkRecentTrackedCalls } from '../../src/services/messaging/trackedCallLink.service.js';
 import mongoose from 'mongoose';
 import { connectTestDB, clearTestDB, closeTestDB } from '../setup/testDb.js';
 import Business from '../../src/models/business.js';
@@ -193,4 +194,39 @@ test('equal-time legacy calls use the lowest call ID regardless of insertion ord
   const rows = await report();
   expect(rows.find(r => r.sourceId === String(source._id)).bookedJobs).toBe(1);
   expect(rows.find(r => r.sourceId === String(second._id)).bookedJobs).toBe(0);
+});
+
+
+test('later SMS links only recent unassigned tracked calls for its business and phone, without claiming recovery', async () => {
+  const now = new Date('2026-10-04T14:00:00Z');
+  const answered = await call({ lead: null, disposition: 'answered_by_business', recovered: false });
+  const excluded = await Promise.all([
+    call({ lead: null, business: oid() }), call({ lead: null, from: '+14045550111' }),
+    call({ lead: null, createdAt: new Date('2026-08-01') }), call({ lead: null, deletedAt: now }),
+    call({ lead: null, trackingNumber: null }), call({ lead: oid() }),
+  ]);
+  const args = { businessId: business, leadId: lead, conversationId: conversation, phone: '(404) 555-0999', now };
+  await linkRecentTrackedCalls(args); await linkRecentTrackedCalls(args);
+  const saved = await CallLog.findById(answered._id).lean();
+  expect(String(saved.lead)).toBe(String(lead)); expect(String(saved.conversation)).toBe(String(conversation));
+  expect(saved.disposition).toBe('answered_by_business'); expect(saved.recovered).toBe(false);
+  for (const row of excluded) expect(String((await CallLog.findById(row._id).lean()).lead)).toBe(String(row.lead));
+  expect(String((await Lead.findById(lead).lean()).firstMarketingSource)).toBe(String(source._id));
+});
+
+test('linking preserves an existing direct first source even without a tracking number', async () => {
+  const original = oid();
+  await Lead.collection.updateOne({ _id: lead }, { $set: { firstMarketingSource: original } });
+  await call({ lead: null });
+  await linkRecentTrackedCalls({ businessId: business, leadId: lead, conversationId: conversation, phone: '+14045550999', now: new Date('2026-10-04') });
+  expect(String((await Lead.findById(lead).lean()).firstMarketingSource)).toBe(String(original));
+});
+
+test('direct first-source lead contributes once without a call and respects its acquisition date', async () => {
+  await Lead.collection.updateOne({ _id: lead }, { $set: { firstMarketingSource: source._id, createdAt: date } });
+  const [row] = await report({ start: date.toISOString(), end: date.toISOString() });
+  expect(row).toMatchObject({ totalCalls: 0, leads: 1, actualRevenue: 300 });
+  expect((await report({ start: '2027-01-01', end: '2027-02-01' }))[0].actualRevenue).toBe(0);
+  await call();
+  expect((await report())[0]).toMatchObject({ totalCalls: 1, leads: 1, actualRevenue: 300 });
 });

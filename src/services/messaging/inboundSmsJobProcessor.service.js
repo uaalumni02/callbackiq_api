@@ -123,6 +123,8 @@ const persistOutboundReply = async ({
   assertDistributedLeaseActive();
 
   const isAiGenerated = result?.guardrail?.skipAI !== true;
+  const fixedEmergencyReply = !isAiGenerated && result?.messageCategory === "emergency" &&
+    result?.decision === "send_fixed_response";
   const usageCategory =
     result?.messageCategory === "emergency"
       ? "safety"
@@ -241,7 +243,7 @@ const persistOutboundReply = async ({
     const suppressionReason = await getSmsAutomationSuppressionReason({
       businessId: business._id, conversationId: conversation._id,
       leadId: lead._id, to: conversation.customerPhone, isAiGenerated,
-      contactControl: result?.contactControl || '', customerMessage: inboundMessage?.body,
+      contactControl: result?.contactControl || '', customerMessage: inboundMessage?.body, fixedEmergencyReply,
     });
     if (suppressionReason) {
       outbound = await Message.findByIdAndUpdate(claimed._id, {
@@ -279,6 +281,7 @@ const persistOutboundReply = async ({
         result?.handoff?.statusAcknowledgement === true,
       metadata: {
         aiGenerated: isAiGenerated,
+        fixedEmergencyReply,
         generatedBy: isAiGenerated ? "ai" : "guardrail",
         decision: result?.decision,
         messageCategory: result?.messageCategory,
@@ -631,7 +634,9 @@ export const processInboundSmsJob = async (job) => {
       },
     });
     let delivery = { sent: false };
-    if (safety && !automationPaused) {
+    // A fixed emergency response does not resume AI or relinquish staff ownership.
+    // Existing inbound-reply idempotency and SMS consent/budgets still apply.
+    if (safety && (!automationPaused || deterministicAssessment.category === "emergency")) {
       delivery = await persistOutboundReply({ business, lead, conversation, inboundMessage,
         result: { decision: "send_fixed_response", actionType: "send_fixed_response", messageCategory: deterministicAssessment.category, reply: deterministicAssessment.reply, guardrail: { skipAI: true } },
       });

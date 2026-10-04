@@ -84,6 +84,7 @@ describe("Twilio 21610 SMS suppression", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     resetTwilioClient();
+    mockMessagesCreate.mockReset();
     process.env.TWILIO_ACCOUNT_SID = "AC_test";
     process.env.TWILIO_AUTH_TOKEN = "test_token";
     twilio.mockReturnValue({
@@ -209,6 +210,18 @@ describe("Twilio 21610 SMS suppression", () => {
       directResponse: true, conversationId: "conversation-1", leadId: "lead-1", source: "inbound_sms_reply" });
     expect(result).toMatchObject({ suppressed: true, reason });
     expect(mockMessagesCreate).not.toHaveBeenCalled();
+  });
+
+  test.each([false, true])("fixed emergency preserves opt-out=%s at the provider boundary", async optedOut => {
+    setBeforeSmsProviderSendHookForTests(null);
+    isSmsSuppressed.mockResolvedValue(optedOut);
+    Conversation.findOne.mockResolvedValue({ lead: "lead-1", customerPhone: "+14045550101", humanTakeover: true, aiEnabled: false, status: "open" });
+    mockMessagesCreate.mockResolvedValueOnce({ sid: "SM_SAFETY", status: "queued" });
+    const result = await sendSms({ business, to: "+14045550101", body: "Leave the area and call emergency services.",
+      directResponse: true, conversationId: "conversation-1", leadId: "lead-1", source: "inbound_sms_reply", usageCategory: "safety",
+      metadata: { aiGenerated: false, generatedBy: "guardrail", fixedEmergencyReply: true, messageCategory: "emergency", decision: "send_fixed_response" } });
+    if (optedOut) { expect(result.suppressed).toBe(true); expect(mockMessagesCreate).not.toHaveBeenCalled(); }
+    else { expect(result.sid).toBe("SM_SAFETY"); expect(mockMessagesCreate).toHaveBeenCalledTimes(1); }
   });
 
   test("eligible automated reply still reaches the provider once", async () => {

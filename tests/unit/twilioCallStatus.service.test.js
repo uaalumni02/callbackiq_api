@@ -1,3 +1,5 @@
+import { logOperationalEvent } from '../../src/helpers/logging/safeLogger.js';
+jest.mock('../../src/helpers/logging/safeLogger.js', () => ({ logOperationalEvent: jest.fn() }));
 import CallLog from "../../src/models/callLog.js";
 import { processTwilioCallStatus } from "../../src/services/twilioCallStatus.service.js";
 
@@ -42,4 +44,10 @@ describe("Twilio call status transitions", () => {
     const conflictEvent = CallLog.findOneAndUpdate.mock.calls[1][1].$push.providerStatusEvents.$each[0];
     expect(conflictEvent).toMatchObject({ applied: false, conflict: true });
   });
+});
+
+test('unknown callback leaves a business-scoped diagnostic', async () => {
+  CallLog.findOneAndUpdate.mockResolvedValue(null);
+  await processTwilioCallStatus({ businessId: 'business-1', payload: { CallSid: 'CA_UNKNOWN', CallStatus: 'completed' } });
+  expect(logOperationalEvent).toHaveBeenCalledWith('twilio.status.unknown_call', expect.objectContaining({ businessId: 'business-1', providerCallId: 'CA_UNKNOWN' }));
 });

@@ -751,7 +751,7 @@ describe("BillingController money paths", () => {
     test.each([
       ["handleInvoicePaid", "paid"],
       ["handleInvoicePaymentFailed", "failed"],
-    ])("%s retrieves, syncs and stamps the canonical invoice outcome", async (method, outcome) => {
+    ].flatMap(row => ["legacy", "modern", "expanded"].map(shape => [...row, shape])))("%s retrieves, syncs and stamps the canonical invoice outcome (%s, %s)", async (method, outcome, shape) => {
       const stripe = makeStripe();
       const remote = { id: "sub_123", status: outcome === "paid" ? "active" : "past_due" };
       stripe.subscriptions.retrieve.mockResolvedValue(remote);
@@ -764,7 +764,7 @@ describe("BillingController money paths", () => {
       });
 
       const result = await BillingController[method](
-        { id: "in_123", subscription: "sub_123" },
+        { id: "in_123", ...(shape === "legacy" ? { subscription: "sub_123" } : { parent: { subscription_details: { subscription: shape === "expanded" ? { id: "sub_123" } : "sub_123" } } }) },
         "evt_123",
       );
 

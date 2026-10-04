@@ -27,7 +27,7 @@ export const getAttributionReport = async ({
       deletedAt: null,
       marketingSource: { $ne: null },
       ...dateFilter,
-    }).lean(),
+    }, { marketingSource: 1, lead: 1, from: 1, disposition: 1, recovered: 1 }).lean(),
   ]);
 
   const leadIds = [
@@ -38,9 +38,13 @@ export const getAttributionReport = async ({
     ),
   ];
 
-  const leads = leadIds.length
+  const sourceObjectIds = sources.map(source => source._id);
+  const leads = (leadIds.length || sourceObjectIds.length)
     ? await Lead.aggregate([
-        { $match: { _id: { $in: leadIds.map(id => new mongoose.Types.ObjectId(id)) }, business: new mongoose.Types.ObjectId(String(businessId)) } },
+        { $match: { business: new mongoose.Types.ObjectId(String(businessId)), $or: [
+          { _id: { $in: leadIds.map(id => new mongoose.Types.ObjectId(id)) } },
+          { firstMarketingSource: { $in: sourceObjectIds }, ...dateFilter },
+        ] } },
         ...canonicalLeadValueStages(),
       ])
     : [];
@@ -49,15 +53,14 @@ export const getAttributionReport = async ({
   // Calls remain per source; a lead and its value belong to only one source.
   const sourceIds = new Set(sources.map(source => String(source._id)));
   const callsBySource = new Map();
-  const eligibleLeadIds = new Set();
   for (const call of calls) {
     const sourceId = String(call.marketingSource);
     if (!sourceIds.has(sourceId)) continue;
     if (!callsBySource.has(sourceId)) callsBySource.set(sourceId, []);
     callsBySource.get(sourceId).push(call);
-    if (call.lead) eligibleLeadIds.add(String(call.lead));
   }
-  const eligibleLeads = leads.filter(lead => eligibleLeadIds.has(String(lead._id)));
+  // The query includes call-linked leads plus direct first-source leads in this cohort.
+  const eligibleLeads = leads;
   const legacyIds = eligibleLeads
     .filter(lead => !sourceIds.has(String(lead.firstMarketingSource || "")))
     .map(lead => lead._id);

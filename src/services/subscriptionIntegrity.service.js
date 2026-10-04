@@ -1,3 +1,4 @@
+import { invoiceSubscriptionId } from "../helpers/billing/invoiceSubscriptionId.js";
 import { safeConsole } from "../helpers/logging/safeLogger.js";
 import Subscription from "../models/subscription.js";
 import BillingAnomaly from "../models/billingAnomaly.js";
@@ -373,7 +374,7 @@ export const guardInvoiceAgainstCanonicalSubscription = async ({
   eventId = "",
   source = "invoice_webhook",
 }) => {
-  const observedSubscriptionId = stripeId(invoice?.subscription);
+  const observedSubscriptionId = invoiceSubscriptionId(invoice);
   if (!observedSubscriptionId) {
     return { allowed: false, subscription: null };
   }

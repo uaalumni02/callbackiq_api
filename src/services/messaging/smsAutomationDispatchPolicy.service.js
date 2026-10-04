@@ -6,7 +6,7 @@ import { isBusinessFeatureEnabled } from "../../helpers/businessFeatures.js";
 // Read authoritative ownership at dispatch, after slow AI/provider preparation.
 // A generated reply is not permission to send once a person takes ownership.
 export const getSmsAutomationSuppressionReason = async ({
-  businessId, conversationId, leadId, to, isAiGenerated = true, contactControl = '', customerMessage = '',
+  businessId, conversationId, leadId, to, isAiGenerated = true, contactControl = '', customerMessage = '', fixedEmergencyReply = false,
 }) => {
   if (!businessId || !conversationId) return "automation_context_missing";
   const [business, conversation] = await Promise.all([
@@ -18,9 +18,10 @@ export const getSmsAutomationSuppressionReason = async ({
   const controlAllowed = !isAiGenerated && Boolean(contactControl) &&
     smsContactControlKind(customerMessage) === contactControl &&
     canAcknowledgeSmsContactControl(conversation);
-  if (conversation.humanTakeover === true && !controlAllowed) return "human_takeover";
+  const emergencyAllowed = !isAiGenerated && fixedEmergencyReply === true;
+  if (conversation.humanTakeover === true && !controlAllowed && !emergencyAllowed) return "human_takeover";
   if (["closed", "archived"].includes(conversation.status)) return "conversation_inactive";
-  if (conversation.aiEnabled === false && !controlAllowed) return "conversation_ai_disabled";
+  if (conversation.aiEnabled === false && !controlAllowed && !emergencyAllowed) return "conversation_ai_disabled";
   if (leadId && String(conversation.lead) !== String(leadId)) return "automation_context_changed";
   if (to && conversation.customerPhone !== to) return "automation_context_changed";
   if (isAiGenerated && !isBusinessFeatureEnabled(business, "aiQualificationEnabled")) {

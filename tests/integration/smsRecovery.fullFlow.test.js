@@ -866,7 +866,7 @@ describe("completed manual intake uses the durable staff handoff", () => {
     expect(AlertService.createHumanHandoffAlert).toHaveBeenCalledWith(expect.objectContaining({ customerMessage: routine }));
     expect(activeLead.serviceNeeded).toBe(service);
   });
-  test.each(tradeCases)("%s: urgent follow-up is retained during staff takeover with no AI reply", async (trade, service, danger) => {
+  test.each(tradeCases)("%s: urgent follow-up sends fixed safety guidance during staff takeover without AI", async (trade, service, danger) => {
     EligibilityCatalog.find.mockReturnValue(catalogQuery([approvedOffering('service-1', trade, ['smoke detector', 'hedges', 'tap', 'lock repair', 'fence'])]));
     Business.findById.mockResolvedValue({ ...business, businessType: trade });
     activeLead.serviceNeeded = service; activeLead.urgency = "medium";
@@ -881,7 +881,10 @@ describe("completed manual intake uses the durable staff handoff", () => {
     expect(activeLead.preferredAppointmentTime).toBe("2026-09-09 at 14:00");
     expect(activeConversation.humanTakeover).toBe(true);
     expect(AlertService.createHumanHandoffAlert).toHaveBeenCalledWith(expect.objectContaining({ result: expect.objectContaining({ urgency: "emergency" }) }));
-    expect(sendSms).not.toHaveBeenCalled(); expect(generateAIReplyResult).not.toHaveBeenCalled();
+    expect(result.sent).toBe(true);
+    expect(sendSms).toHaveBeenCalledTimes(1);
+    expect(sendSms).toHaveBeenCalledWith(expect.objectContaining({ usageCategory: "safety", metadata: expect.objectContaining({ fixedEmergencyReply: true, aiGenerated: false }) }));
+    expect(generateAIReplyResult).not.toHaveBeenCalled();
   });
   test("unclear risk during staff takeover persists high priority without an emergency label or automatic reply", async () => {
     activeConversation.humanTakeover = true;

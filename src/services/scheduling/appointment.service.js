@@ -238,6 +238,17 @@ const resolveAppointmentAttribution = async ({ businessId, input }) => {
     .select("marketingSource trackingNumber attribution")
     .lean();
 
+  if (!call && input?.lead) {
+    const attributedLead = await Lead.findOne({ _id: input.lead, business: businessId })
+      .select('firstMarketingSource firstTrackingNumber firstAttribution latestMarketingSource latestTrackingNumber latestAttribution').lean();
+    if (attributedLead?.firstMarketingSource || attributedLead?.latestMarketingSource) {
+      const first = Boolean(attributedLead.firstMarketingSource);
+      return { marketingSource: first ? attributedLead.firstMarketingSource : attributedLead.latestMarketingSource,
+        trackingNumber: (first ? attributedLead.firstTrackingNumber : attributedLead.latestTrackingNumber) || null,
+        attribution: (first ? attributedLead.firstAttribution : attributedLead.latestAttribution) || {} };
+    }
+  }
+
   return {
     marketingSource: call?.marketingSource || null,
     trackingNumber: call?.trackingNumber || null,

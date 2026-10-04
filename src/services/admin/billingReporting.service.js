@@ -1,3 +1,4 @@
+import { invoiceSubscriptionId } from "../../helpers/billing/invoiceSubscriptionId.js";
 import Stripe from "stripe";
 import Subscription from "../../models/subscription.js";
 import {
@@ -35,10 +36,7 @@ export const normalizeReportingInvoice = (
   return {
     business,
     invoiceId: invoice.id,
-    subscriptionId: stripeId(
-      invoice.subscription ||
-        invoice.parent?.subscription_details?.subscription,
-    ),
+    subscriptionId: invoiceSubscriptionId(invoice),
     currency: invoice.currency || "",
     livemode: invoice.livemode === true,
     status: invoice.status || "unknown",

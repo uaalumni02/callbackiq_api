@@ -270,6 +270,12 @@ export const applySmsProductionInvariants = ({
 } = {}) => {
   if (!result || result?.decision === "no_reply") return result;
 
+  // Fixed emergency guidance must not be replaced by catalog or scheduling copy.
+  if (result.messageCategory === "emergency" && result.decision === "send_fixed_response" && result.guardrail?.skipAI === true) {
+    return { ...result, reply: dedupeSafetySentences(result.reply),
+      guardrail: { ...result.guardrail, productionInvariantApplied: true, productionInvariantActions: ["preserved_fixed_emergency_guidance"] } };
+  }
+
   const next = { ...result };
   const actions = [];
   let reply = clean(next.reply);
