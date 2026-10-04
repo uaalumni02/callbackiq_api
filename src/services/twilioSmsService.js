@@ -1,3 +1,4 @@
+import { resolveSmsUsageClass } from "./messaging/smsUsageClass.service.js";
 import crypto from "node:crypto";
 import { ownerTextSuppressionReason } from "./messaging/ownerTextPolicy.service.js";
 import twilio from "twilio";
@@ -240,6 +241,10 @@ export const sendSms = async ({
   // carrier-registered.
   assertA2pSmsReady(resolvedBusiness);
 
+  const smsUsageClass = await resolveSmsUsageClass({ businessId: resolvedBusinessId,
+    to: normalizedTo, from: configuredFrom, conversationId, directResponse, source,
+    metadata, operationKey, body: normalizedBody });
+
   const disclosure = await claimSmsContactDisclosure({
     businessId: resolvedBusinessId,
     phone: normalizedTo,
@@ -325,6 +330,7 @@ export const sendSms = async ({
     business: resolvedBusiness,
     customerPhone: normalizedTo,
     metric: "sms_outbound",
+    smsUsageClass,
     bypass: bypassUsageLimits || allowOptedOut || usageCategory === "safety",
     amount: segment.segmentCount,
     key: operationKey,

@@ -147,7 +147,7 @@ const getWindowStart = (window, now) => {
 const getExpiry = (windowStart, window) =>
   new Date(windowStart.getTime() + (window === "hour" ? 3 * HOUR_MS : 3 * DAY_MS));
 
-const buildSpecs = ({ business, customerPhone, metric, now }) => {
+const buildSpecs = ({ business, customerPhone, metric, now, smsUsageClass }) => {
   const businessId = business?._id || business?.id || business;
   const normalizedCustomer = customerScopeKey(customerPhone);
   const limits = getCommunicationLimits(business);
@@ -197,10 +197,23 @@ const buildSpecs = ({ business, customerPhone, metric, now }) => {
     );
   }
 
+  // Shared daily/customer and hourly/daily business counters stay unchanged.
+  // Only verified replies/notices receive distinct, bounded hourly buckets.
+  if (isSms && normalizedCustomer && ['reply', 'appointment'].includes(smsUsageClass)) {
+    const trial = toPlainObject(business)?.trialCostControls?.enabled === true;
+    const defaults = smsUsageClass === 'reply' ? [120, 24] : [24, 12];
+    const setting = `SMS_CUSTOMER_${smsUsageClass.toUpperCase()}_HOURLY_LIMIT`;
+    const limit = positiveInteger(process.env[setting], defaults[0], 1, 10000);
+    const hourly = specs.find(spec => spec.scope === 'customer' && spec.window === 'hour');
+    hourly.scopeKey = `${normalizedCustomer}:${smsUsageClass}`;
+    hourly.limit = trial ? Math.min(limit, defaults[1]) : limit;
+    hourly.smsUsageClass = smsUsageClass;
+  }
   return { specs, limits };
 };
 
 const reserveCounter = async (spec, amount = 1, mongoSession = null) => {
+  if (amount > spec.limit) return null;
   const identity = {
     business: spec.businessId,
     scope: spec.scope,
@@ -232,7 +245,18 @@ const reserveCounter = async (spec, amount = 1, mongoSession = null) => {
   } catch (error) {
     // When the row exists at its limit, the attempted upsert collides with the
     // unique identity index. Treat that as an ordinary denied reservation.
-    if (error?.code === 11000) return null;
+    if (error?.code === 11000) {
+      // Duplicate-key denial aborts a Mongo transaction. Let withTransaction
+      // unwind it before returning the quota result; do not query/rollback an
+      // already-aborted session or mistake it for an operation-key replay.
+      if (mongoSession) {
+        const denied = new Error('Communication allowance exhausted.');
+        denied.code = 'COMMUNICATION_USAGE_LIMIT';
+        denied.limitSpec = spec;
+        throw denied;
+      }
+      return null;
+    }
     throw error;
   }
 };
@@ -347,6 +371,7 @@ export const reserveCommunicationUsage = async ({
   business,
   customerPhone = "",
   metric,
+  smsUsageClass = "proactive",
   bypass = false,
   amount = 1,
   now = new Date(),
@@ -383,7 +408,7 @@ export const reserveCommunicationUsage = async ({
         };
   }
 
-  const { specs, limits } = buildSpecs({ business, customerPhone, metric, now });
+  const { specs, limits } = buildSpecs({ business, customerPhone, metric, now, smsUsageClass });
   const reserved = [];
   const thresholdAlerts = [];
 
@@ -402,7 +427,8 @@ export const reserveCommunicationUsage = async ({
         }
         return {
           allowed: false,
-          reason: `${spec.scope}_${spec.window}_${metric}_limit`,
+          reason: `${spec.scope}_${spec.window}_${metric}${spec.smsUsageClass ? `_${spec.smsUsageClass}` : ''}_limit`,
+          retryAt: new Date(spec.windowStart.getTime() + (spec.window === 'hour' ? HOUR_MS : DAY_MS)),
           limit: spec.limit,
           scope: spec.scope,
           window: spec.window,
@@ -431,6 +457,18 @@ export const reserveCommunicationUsage = async ({
       thresholdPercent: limits.alertThresholdPercent,
     };
   } catch (error) {
+    if (error?.code === 'COMMUNICATION_USAGE_LIMIT') {
+      const spec = error.limitSpec;
+      error.usage = {
+        allowed: false,
+        reason: `${spec.scope}_${spec.window}_${metric}${spec.smsUsageClass ? `_${spec.smsUsageClass}` : ''}_limit`,
+        retryAt: new Date(spec.windowStart.getTime() + (spec.window === 'hour' ? HOUR_MS : DAY_MS)),
+        limit: spec.limit, scope: spec.scope, window: spec.window, reservations: [],
+        thresholdAlerts: [{ spec, document: { count: spec.limit } }],
+        thresholdPercent: limits.alertThresholdPercent,
+      };
+      throw error;
+    }
     await rollback(reserved, reservationAmount, mongoSession);
     logOperationalError("communication_usage.reservation_failed", error, {
       businessId: business._id || business.id,

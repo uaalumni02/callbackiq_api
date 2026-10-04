@@ -18,5 +18,5 @@ export function isContextualSymptomAnswer(text, service) {
   }
   // A stated object/correction is left to the existing service parser. This
   // covers every trade without treating a new named fixture as an old symptom.
-  return /^(?:(?:yes|yeah|yep|no|nope)[, ]+)?(?:(?:it(?:'s| is| has)?|its|that(?:'s| is)?|this(?: is)?)\s+(?:(?:still|now|just|only|no longer|not|isn't|is not|won't|will not|doesn't|does not|has|hasn't|keeps?)\s+)*|(?:still|now|only|no longer|not)\s+)?(?:leak(?:s|ing)?|drip(?:s|ping)?|heat(?:s|ing)?|cool(?:s|ing)?|work(?:s|ing)?|run(?:s|ning)?|open(?:s|ing)?|clos(?:e|es|ing)|lock(?:s|ing)?|drain(?:s|ing)?|spread(?:s|ing)?|stopp?ed|broken|stuck|wet|dry|dead|making\s+(?:a\s+)?noise)\b/i.test(value);
+  return /^(?:(?:yes|yeah|yep|no|nope)[, ]+)?(?:(?:it(?:'s| is| has)?|its|that(?:'s| is)?|this(?: is)?)\s+(?:(?:still|now|just|only|no longer|not|isn't|is not|won't|will not|doesn't|does not|has|hasn't|keeps?)\s+)*|(?:still|now|only|no longer|not)\s+)?(?:overflow(?:s|ing)?|back(?:s|ing)?\s+up|leak(?:s|ing)?|drip(?:s|ping)?|heat(?:s|ing)?|cool(?:s|ing)?|work(?:s|ing)?|run(?:s|ning)?|open(?:s|ing)?|clos(?:e|es|ing)|lock(?:s|ing)?|drain(?:s|ing)?|spread(?:s|ing)?|stopp?ed|broken|stuck|wet|dry|dead|making\s+(?:a\s+)?noise)\b/i.test(value);
 }

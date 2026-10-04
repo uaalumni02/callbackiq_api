@@ -546,25 +546,27 @@ describe("BookingStateMachineService complete behavior", () => {
     expect(result.result.reply).toContain("day and time");
   });
 
-  test("negative confirmation returns to preference collection", async () => {
+  test.each(["no", "No, thank you", "No, another time"])("negative %s returns to preference collection", async message => {
     const conversation = makeConversation({ bookingState: { status: "awaiting_confirmation", selectedSlot: SLOT_1 } });
-    const result = await handle({ conversation, message: "no" });
+    const result = await handle({ conversation, message });
     expect(conversation.bookingState).toMatchObject({ status: "collecting_preference", selectedSlot: null, offeredSlots: [], expiresAt: null });
     expect(result.result.reply).toContain("other day");
   });
 
-  test("ambiguous confirmation asks for YES or NO", async () => {
+  test.each(["maybe", "Don't confirm"])("unapproved reply %s asks for explicit confirmation", async message => {
     const result = await handle({
       conversation: makeConversation({ bookingState: { status: "awaiting_confirmation", selectedSlot: SLOT_1 } }),
-      message: "maybe",
+      message,
     });
+    expect(createAppointmentTool).not.toHaveBeenCalled();
+    expect(submitRescheduleRequest).not.toHaveBeenCalled();
     expect(result.result.reply).toContain("reply CONFIRM");
   });
 
-  test("affirmative confirmation submits an appointment for business approval", async () => {
+  test.each(["yes", "Yes, confirm", "Yes please", "Confirm please"])("affirmative %s submits an appointment for business approval", async message => {
     const conversation = makeConversation({ bookingState: { status: "awaiting_confirmation", selectedSlot: SLOT_1 } });
     const lead = makeLead({ serviceNeeded: "HVAC diagnostic", address: "123 Main" });
-    const result = await handle({ conversation, lead, message: "yes" });
+    const result = await handle({ conversation, lead, message });
     expect(createAppointmentTool).toHaveBeenCalledWith(expect.objectContaining({
       business,
       idempotencyKey: expect.stringContaining("ai-book:c1"),
@@ -592,7 +594,7 @@ describe("BookingStateMachineService complete behavior", () => {
     }));
   });
 
-  test("submits a reschedule for business approval without replacing the confirmed appointment", async () => {
+  test.each(["confirm", "Yes, confirm", "Yes please", "Confirm please"])("%s submits a reschedule without replacing the confirmed appointment", async message => {
     const conversation = makeConversation({
       bookingState: {
         status: "awaiting_confirmation",
@@ -601,7 +603,7 @@ describe("BookingStateMachineService complete behavior", () => {
         lastError: "reschedule_requested",
       },
     });
-    const result = await handle({ conversation, message: "confirm" });
+    const result = await handle({ conversation, message });
 
     expect(submitRescheduleRequest).toHaveBeenCalledWith(expect.objectContaining({ business: expect.objectContaining({ _id: 'b1' }), conversationId: 'c1', appointmentId: expect.any(String), startAt: expect.any(String), endAt: expect.any(String) }));
     expect(rescheduleAppointmentTool).not.toHaveBeenCalled();

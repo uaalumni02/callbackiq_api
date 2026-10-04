@@ -470,3 +470,33 @@ test('voice cannot claim review is queued when the alert result lacks a durable 
  expect(c.conversation.conversationMemory.recoveryIntake.review.status).toBe('pending_persistence');
  expect(c.conversation.conversationMemory.recoveryIntake.submitted).not.toBe(true);
 });
+
+test.each(['sms','voice'])('%s negative clog-scope answer preserves the accepted service', async channel => {
+ const c = context(channel);
+ expect((await c.turn('My toilet is clogged')).reply).toMatch(/overflowing or backing up/);
+ const original = c.lead.serviceNeeded;
+ const result = await c.turn('No overflowing or backing up into other fixtures');
+ expect(c.lead.serviceNeeded).toBe(original);
+ expect(c.conversation.serviceEligibility.decision).toBe('supported');
+ expect(c.conversation.conversationMemory.recoveryIntake.clogResolved).toBe(true);
+ expect(result.reply).toMatch(/service address/);
+ expect(result.reply).not.toMatch(/whether they can accept/);
+});
+
+// The booking engine owns interpretation and persistence of confirmation replies.
+describe.each(['sms', 'voice'])('%s confirmation routing', channel => {
+  test.each(['Yes, confirm', 'Yes please', 'Confirm please', 'No, thank you', 'No, another time'])('delegates %s for both new requests and reschedules', async text => {
+    for (const reschedule of [false, true]) {
+      const c = context(channel);
+      c.lead.serviceNeeded = 'toilet repair';
+      c.lead.address = '123 Main Street Atlanta GA 30324';
+      c.conversation.bookingState = { status: 'awaiting_confirmation', selectedSlot: slot,
+        ...(reschedule ? { appointment: 'old-a1', lastError: 'reschedule_requested' } : {}) };
+      const before = structuredClone(c.conversation.bookingState);
+      expect(await c.turn(text)).toBeNull();
+      expect(c.conversation.bookingState).toEqual(before);
+      expect(c.conversation.conversationMemory.recoveryIntake).toBeUndefined();
+      expect(AlertService.createHumanHandoffAlert).not.toHaveBeenCalled();
+    }
+  });
+});

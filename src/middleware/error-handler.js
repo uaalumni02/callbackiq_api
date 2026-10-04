@@ -17,18 +17,24 @@ const errorHandler = (error, req, res, next) => {
   }
   const requestId = req.context?.requestId || "";
   const statusCode =
-    Number.isInteger(error?.statusCode) && error.statusCode >= 400
+    Number.isInteger(error?.statusCode) && error.statusCode >= 400 && error.statusCode <= 599
       ? error.statusCode
       : 500;
 
-  MonitoringService.captureError("unhandled_api_error", error, {
+  const details = {
     requestId,
     method: req.method,
-    path: req.originalUrl,
+    path: req.path,
     statusCode,
     userId: req.user?.userId,
     businessId: req.business?._id,
-  });
+  };
+  if (statusCode < 500) {
+    MonitoringService.captureEvent('api_request_rejected', { ...details, code: error.code || '' },
+      [404, 409].includes(statusCode) ? 'info' : 'warn');
+  } else {
+    MonitoringService.captureError('unhandled_api_error', error, details);
+  }
 
   return res.status(statusCode).json({
     success: false,

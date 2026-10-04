@@ -430,6 +430,7 @@ export const processNextAppointmentNotification = async () => {
       metadata: {
         appointmentId: String(appointment._id),
         appointmentNotificationKey: job.key,
+        appointmentNotificationJobId: String(job._id),
         // The provider may accept a text before job/message persistence fails.
         // Replaying the same notice must recover its receipt, never resend it.
         idempotencyKey: `appointment-notice:${business._id}:${job._id}:${crypto.createHash('sha256').update(body).digest('hex').slice(0, 32)}`,
@@ -439,7 +440,9 @@ export const processNextAppointmentNotification = async () => {
 
     if (result.policyBlocked) {
       job.status = "scheduled";
-      job.scheduledFor = new Date(Date.now() + 60 * 60_000);
+      const retryAt = new Date(result.usage?.retryAt || result.sendWindow?.nextAllowedAt || 0);
+      job.scheduledFor = Number.isFinite(retryAt.getTime()) && retryAt.getTime() > Date.now()
+        ? retryAt : new Date(Date.now() + 60 * 60_000);
       job.lockedAt = null;
       job.lockedBy = "";
       job.failureReason = result.reason || "SMS send window blocked delivery.";

@@ -206,3 +206,12 @@ describe("communication usage reservation provider-free target coverage", () => 
     expect(chain.limit).toHaveBeenCalledWith(5000);
   });
 });
+
+test('transaction quota denial returns blocked after abort instead of becoming replay', async () => {
+  const usage = { allowed:false, reason:'customer_hour_sms_outbound_limit', reservations:[] };
+  const endSession=jest.fn();
+  mockStartSession.mockResolvedValue({withTransaction:jest.fn().mockRejectedValue(Object.assign(new Error('quota'),{code:'COMMUNICATION_USAGE_LIMIT',usage})),endSession});
+  mockFindOne.mockClear();
+  expect(await reserveCommunicationUsageOperation({business:{_id:'business'},key:'quota'})).toEqual({allowed:false,usage,reservation:null,replayed:false});
+  expect(mockFindOne).not.toHaveBeenCalled();expect(endSession).toHaveBeenCalled();
+});

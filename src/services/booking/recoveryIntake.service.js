@@ -105,8 +105,10 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   // Slot selections and confirmations still belong to the booking engine,
   // including expiry and availability rechecks. A missing intake memory is not
   // evidence that a numeric option is a newly supplied service fact.
+  // Use the same response classification as that engine: compound replies
+  // such as "Yes, confirm" must not be consumed as extra intake details.
   if (bookingActive && !reviewOnly && !classification.intents?.availabilityInquiry && !capturedAddress && !classification.entities?.serviceNeeded &&
-      (selectOfferedSlot(text, conversation.bookingState?.offeredSlots || [], business.timezone || 'America/New_York') || /^(?:option\s*)?\d+[.! ]*$/i.test(text) || /^(?:yes|yeah|yep|no|nope|confirm|okay|ok)[.! ]*$/i.test(text) || classification.intents?.scheduling)) return null;
+      (selectOfferedSlot(text, conversation.bookingState?.offeredSlots || [], business.timezone || 'America/New_York') || /^(?:option\s*)?\d+[.! ]*$/i.test(text) || (classification.response?.affirmative || classification.response?.negative) || classification.intents?.scheduling)) return null;
   const checkActive = () => { assertDistributedLeaseActive(); if (channel === 'voice') assertVoiceTurnActive(); };
   const timezone = business.timezone || 'America/New_York';
   const journeyKey = conversation.orchestration?.recoveryJourneyKey || '';

@@ -43,6 +43,7 @@ export const reserveCommunicationUsageOperation = async ({
   business,
   customerPhone = "",
   metric = "sms_outbound",
+  smsUsageClass = "proactive",
   bypass = false,
   amount = 1,
   key,
@@ -76,6 +77,7 @@ export const reserveCommunicationUsageOperation = async ({
       business,
       customerPhone,
       metric,
+      smsUsageClass,
       bypass,
       amount,
       now,
@@ -138,30 +140,34 @@ export const reserveCommunicationUsageOperation = async ({
         result = await execute(mongoSession);
       });
     } catch (error) {
-      if (Number(error?.code) === 11000 || error?.code === "COMMUNICATION_OPERATION_CONFLICT") {
-        const winner = await CommunicationUsageReservation.findOne({ operationKey: resolvedKey });
-        return { allowed: true, usage: null, reservation: winner, replayed: true };
-      }
-      const production =
-        String(process.env.NODE_ENV || "development").toLowerCase() === "production";
-      if (!isTransactionUnsupported(error) || production) throw error;
-      logOperationalWarning("communication_usage.non_transactional_reservation", {
-        operationKey: resolvedKey,
-        reason: "development_mongo_without_transactions",
-      });
-      try {
-        result = await execute(null);
-      } catch (fallbackError) {
-        if (
-          Number(fallbackError?.code) === 11000 ||
-          fallbackError?.code === "COMMUNICATION_OPERATION_CONFLICT"
-        ) {
-          const winner = await CommunicationUsageReservation.findOne({
-            operationKey: resolvedKey,
-          });
+      if (error?.code === 'COMMUNICATION_USAGE_LIMIT' && error.usage) {
+        result = { allowed: false, usage: error.usage, reservation: null, replayed: false };
+      } else {
+        if (Number(error?.code) === 11000 || error?.code === "COMMUNICATION_OPERATION_CONFLICT") {
+          const winner = await CommunicationUsageReservation.findOne({ operationKey: resolvedKey });
           return { allowed: true, usage: null, reservation: winner, replayed: true };
         }
-        throw fallbackError;
+        const production =
+          String(process.env.NODE_ENV || "development").toLowerCase() === "production";
+        if (!isTransactionUnsupported(error) || production) throw error;
+        logOperationalWarning("communication_usage.non_transactional_reservation", {
+          operationKey: resolvedKey,
+          reason: "development_mongo_without_transactions",
+        });
+        try {
+          result = await execute(null);
+        } catch (fallbackError) {
+          if (
+            Number(fallbackError?.code) === 11000 ||
+            fallbackError?.code === "COMMUNICATION_OPERATION_CONFLICT"
+          ) {
+            const winner = await CommunicationUsageReservation.findOne({
+              operationKey: resolvedKey,
+            });
+            return { allowed: true, usage: null, reservation: winner, replayed: true };
+          }
+          throw fallbackError;
+        }
       }
     }
     if (result?.usage?.thresholdAlerts?.length) {

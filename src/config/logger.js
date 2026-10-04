@@ -21,6 +21,7 @@ const sanitizeString = (value) =>
 export const redactLogValue = (value, key = "", seen = new WeakSet()) => {
   if (SECRET_KEY_PATTERN.test(String(key))) return "[REDACTED]";
 
+  if (value?._bsontype === "ObjectId" && typeof value.toHexString === "function") return value.toHexString();
   if (typeof value === "string") return sanitizeString(value);
   if (value === null || value === undefined) return value;
   if (typeof value !== "object") return value;

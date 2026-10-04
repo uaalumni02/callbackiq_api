@@ -1,3 +1,6 @@
+// Register every model populated here, including in standalone worker processes.
+import "../models/lead.js";
+import "../models/business.js";
 import { isRequestReview, saveRequestReview } from './requestReview.service.js';
 import { staffReviewDueAt, staffReviewSlaMinutes } from "./staffReviewPolicy.service.js";
 import { safeConsole } from "../helpers/logging/safeLogger.js";

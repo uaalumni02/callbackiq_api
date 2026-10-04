@@ -20,3 +20,11 @@ test.each(["My toilet is overflowing at 123 Main Street and I can't stop it",'My
 test.each(["I do not want to opt out", "Don't unsubscribe me","Do not stop sending me texts",'How do I opt out?'])('negative/informational consent: %s',text=>{expect(classifyInboundSmsCommand(text).handled).toBe(false);});
 test('explicit opt-out survives unrelated negation',()=>{expect(classifyInboundSmsCommand("Don't stop the repair, stop texting me").action).toBe('opt_out');});
 test.each([['It leaks when I turn the faucet on','during_use'],['It stopped after I shut off the water','not_active'],['Still leaking badly','active']])('normalizes pending leak evidence: %s',(text,value)=>{expect(classifyLeakActivityAnswer({text,service:'pipe leak',state:{triagePending:true,field:'leak_activity'}})).toBe(value);});
+test.each(['No overflowing or backing up into other fixtures','No overflowing','It is overflowing','It is backing up','Not backing up'])('clog symptom preserves service: %s',text=>{
+ expect(isContextualSymptomAnswer(text,'toilet is clogged')).toBe(true);
+ const extracted=extractService(text,{lead:{serviceNeeded:'toilet is clogged'}});
+ if(extracted) expect(extracted).toContain('toilet is clogged');
+});
+test.each(['My roof is leaking','It is overflowing and my roof is leaking','I need another toilet installed'])('clog context must not hide different work: %s',text=>{
+ expect(isContextualSymptomAnswer(text,'toilet is clogged')).toBe(false);
+});

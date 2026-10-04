@@ -30,7 +30,7 @@ const sanitizeScalar = (key, value) => {
   if (/body|message|transcript|prompt|address|email|name/.test(normalizedKey)) {
     return isProduction() ? `[redacted:${shortHash(value)}]` : String(value || "").slice(0, 180);
   }
-  if (/sid|provider.*id|eventkey/.test(normalizedKey)) {
+  if (/sid|provider.*id|eventkey/.test(normalizedKey) && !/^(business|appointment|conversation|lead|customer|user|reservation)id$/.test(normalizedKey)) {
     return redactProviderId(value);
   }
   if (value instanceof Date) return value.toISOString();
@@ -40,12 +40,24 @@ const sanitizeScalar = (key, value) => {
   return String(value);
 };
 
+const isObjectId = value => value?._bsontype === 'ObjectId' && typeof value.toHexString === 'function';
+
 export const sanitizeLogDetails = (details = {}, depth = 0) => {
   if (depth > 4) return "[depth-limit]";
+  if (isObjectId(details)) return details.toHexString();
   if (!details || typeof details !== "object" || Array.isArray(details)) return {};
-  return Object.fromEntries(
-    Object.entries(details).slice(0, 100).map(([key, value]) => [key, value && typeof value === "object" && !(value instanceof Date) && !/secret|token|password|auth|cookie|body|message|transcript|prompt|address|email|name/i.test(key) ? (Array.isArray(value) ? value.slice(0, 20).map(item => typeof item === "object" ? sanitizeLogDetails(item, depth + 1) : sanitizeScalar(key, item)) : sanitizeLogDetails(value, depth + 1)) : sanitizeScalar(key, value)]),
-  );
+  const sanitizeValue = (key, value, level = depth) => {
+    if (level > 4) return "[depth-limit]";
+    // Redaction takes precedence, even when a sensitive field holds an ObjectId.
+    if (/secret|password|token|authorization|cookie|credential|api.?key|body|message|transcript|prompt|address|email|name/i.test(key)) {
+      return sanitizeScalar(key, value);
+    }
+    if (isObjectId(value)) return sanitizeScalar(key, value.toHexString());
+    if (Array.isArray(value)) return value.slice(0, 20).map(item => sanitizeValue(key, item, level + 1));
+    if (value && typeof value === 'object' && !(value instanceof Date)) return sanitizeLogDetails(value, level + 1);
+    return sanitizeScalar(key, value);
+  };
+  return Object.fromEntries(Object.entries(details).slice(0, 100).map(([key, value]) => [key, sanitizeValue(key, value)]));
 };
 
 export const sanitizeError = (error) => {
@@ -91,6 +103,7 @@ export default {
 const sanitizeLoose = (value, depth = 0) => {
   if (depth > 5) return "[depth-limit]";
   if (value instanceof Error) return sanitizeError(value);
+  if (isObjectId(value)) return value.toHexString();
   if (typeof value === "string") return `[redacted:${shortHash(value)}]`;
   if (Array.isArray(value)) return value.slice(0, 20).map(item => sanitizeLoose(item, depth + 1));
   if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).slice(0, 50).map(([key, item]) => [key, /secret|token|password|authorization|cookie|credential/i.test(key) ? "[redacted]" : sanitizeLoose(item, depth + 1)]));

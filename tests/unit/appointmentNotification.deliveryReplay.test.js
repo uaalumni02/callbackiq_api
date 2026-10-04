@@ -44,3 +44,9 @@ test('staff cancellation notice sends once using the shared delivery identity',a
  expect((await processNextAppointmentNotification()).status).toBe('sent');
  expect(sendSms).toHaveBeenCalledWith(expect.objectContaining({source:'appointment_change_notice',metadata:expect.objectContaining({appointmentNotificationKey:job.key})}));
 });
+
+test('quota retry uses the reported reset time instead of adding a full hour',async()=>{
+ const retryAt=new Date(Date.now()+15*60000);
+ sendSms.mockResolvedValue({policyBlocked:true,reason:'customer_hour_sms_outbound_appointment_limit',usage:{retryAt}});
+ expect(await processNextAppointmentNotification()).toMatchObject({status:'scheduled',scheduledFor:retryAt});
+});
