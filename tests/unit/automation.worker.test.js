@@ -117,3 +117,16 @@ test('automation defaults on and the dedicated role rejects an explicit disable'
   try { await expect(startAutomationWorker()).rejects.toThrow(/cannot run/); }
   finally { delete process.env.PROCESS_ROLE; delete process.env.AUTOMATION_WORKER_ENABLED; }
 });
+
+test('a surviving automation process recovers abandoned work on later ticks', async () => {
+  jest.useFakeTimers(); jest.clearAllMocks();
+  process.env.AUTOMATION_WORKER_ENABLED = 'true';
+  AutomationJob.updateMany.mockResolvedValue({ modifiedCount: 0 });
+  AutomationJob.findOneAndUpdate.mockResolvedValue(null);
+  const { runAutomationTick } = await import('../../src/workers/automation.worker.js');
+  try {
+    await startAutomationWorker(); expect(AutomationJob.updateMany).toHaveBeenCalledTimes(1);
+    jest.setSystemTime(Date.now() + 60001);
+    await runAutomationTick(); expect(AutomationJob.updateMany).toHaveBeenCalledTimes(2);
+  } finally { await stopAutomationWorker(); delete process.env.AUTOMATION_WORKER_ENABLED; jest.useRealTimers(); }
+});

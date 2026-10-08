@@ -177,7 +177,7 @@ class AutomationService {
         const result = await sendSms({
           business: populated.business,
           businessId: populated.business._id,
-          from: populated.business.phone,
+          from: populated.conversation.replyFromPhone || populated.business.phone,
           to: populated.conversation.customerPhone,
           body,
           actorType: "automation",
@@ -187,6 +187,7 @@ class AutomationService {
           leadId: populated.lead?._id || null,
           messagingServiceSid: getAutomationMessagingServiceSid(),
           metadata: {
+            idempotencyKey: `automation-sms:${populated.business._id}:${populated._id}`,
             automationJobId: populated._id,
             workflowId: populated.workflow?._id || populated.workflow || null,
           },
@@ -209,14 +210,17 @@ class AutomationService {
           return populated;
         }
 
-        const message = await Message.create({
+        if (!result?.sid) throw new Error("SMS provider acceptance could not be verified.");
+        const message = await Message.findOneAndUpdate(
+          { business: populated.business._id, provider: "twilio", providerMessageId: result.sid },
+          { $setOnInsert: {
           business: populated.business._id,
           conversation: populated.conversation._id,
           lead: populated.lead?._id || null,
           direction: "outbound",
-          from: populated.business.phone,
-          to: populated.conversation.customerPhone,
-          body,
+          from: result.from || populated.conversation.replyFromPhone || populated.business.phone,
+          to: result.to || populated.conversation.customerPhone,
+          body: result.body || body,
           provider: "twilio",
           providerMessageId: result.sid,
           status: result.status || "queued",
@@ -229,7 +233,7 @@ class AutomationService {
             automationJobId: populated._id,
             workflowId: populated.workflow?._id || populated.workflow || null,
           },
-        });
+        } }, { upsert: true, new: true });
         SocketService.emitMessageCreated(populated.business._id, message);
       } else if (populated.action === "create_alert" || populated.action === "mark_for_review") {
         const alert = await Alert.create({
