@@ -22,14 +22,17 @@ export const buildAttributionSnapshot = ({
   trackingNumber: String(trackingNumber?.phoneNumber || ""),
 });
 
+import { createFreshFindOneBatch } from './database/freshFindOneBatch.js';
+const freshTrackingNumber = createFreshFindOneBatch(TrackingNumber);
+
 export const resolveTrackingNumberContext = async (
   phone,
-  { activeOnly = true } = {},
+  { activeOnly = true, batch = false } = {},
 ) => {
   const normalized = normalizePhoneToE164(phone);
   if (!normalized) return null;
 
-  const number = await TrackingNumber.findOne({
+  const number = batch && TrackingNumber.schema ? await freshTrackingNumber({ phoneLookup: normalized, ...(activeOnly ? { status: "active" } : {}) }) : await TrackingNumber.findOne({
     phoneLookup: normalized,
     ...(activeOnly ? { status: "active" } : {}),
   }).lean();

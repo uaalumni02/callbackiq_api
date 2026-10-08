@@ -60,6 +60,8 @@ const WebhookEventSchema = new Schema(
       min: 0,
     },
 
+    // Proof of one successful conditional settlement; no index or migration needed.
+    settlementReceipt: { type: String, trim: true },
     leaseToken: { type: String, trim: true, default: "" },
     leaseExpiresAt: { type: Date, default: null },
     processingStartedAt: { type: Date, default: null },

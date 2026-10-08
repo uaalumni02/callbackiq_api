@@ -1,8 +1,24 @@
 const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_KEY_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
-const getParts = (date, timeZone) => {
-  const parts = new Intl.DateTimeFormat("en-US", {
+// Cache immutable formatters, never dates or business data. Reusing Intl
+// objects avoids repeatedly loading timezone tables on owner dashboard reads.
+const formatters = new Map();
+const getFormatter = (timeZone, offset = false) => {
+  // Non-string/default-zone inputs retain native coercion and resolution.
+  if (typeof timeZone !== "string") return buildFormatter(timeZone, offset);
+  const key = `${offset ? "offset" : "parts"}:${timeZone}`;
+  let formatter = formatters.get(key);
+  if (!formatter) {
+    formatter = buildFormatter(timeZone, offset); // Invalid zones are not cached.
+    if (formatters.size >= 64) formatters.delete(formatters.keys().next().value);
+    formatters.set(key, formatter);
+  }
+  return formatter;
+};
+const buildFormatter = (timeZone, offset) => new Intl.DateTimeFormat("en-US", offset
+  ? { timeZone, timeZoneName: "longOffset" }
+  : {
     timeZone,
     year: "numeric",
     month: "2-digit",
@@ -11,7 +27,9 @@ const getParts = (date, timeZone) => {
     minute: "2-digit",
     second: "2-digit",
     hourCycle: "h23",
-  }).formatToParts(date);
+  });
+const getParts = (date, timeZone) => {
+  const parts = getFormatter(timeZone).formatToParts(date);
 
   return Object.fromEntries(
     parts
@@ -22,7 +40,7 @@ const getParts = (date, timeZone) => {
 
 export const assertTimeZone = (timeZone) => {
   try {
-    new Intl.DateTimeFormat("en-US", { timeZone }).format(new Date());
+    getFormatter(timeZone);
   } catch {
     const error = new Error(`Invalid IANA timezone: ${timeZone}`);
     error.statusCode = 400;
@@ -135,10 +153,7 @@ export const formatTimeKey = (date, timeZone) => {
 export const formatZonedIso = (date, timeZone) => {
   const instant = new Date(date);
   const parts = getParts(instant, timeZone);
-  const offsetName = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    timeZoneName: "longOffset",
-  })
+  const offsetName = getFormatter(timeZone, true)
     .formatToParts(instant)
     .find((part) => part.type === "timeZoneName")?.value;
 

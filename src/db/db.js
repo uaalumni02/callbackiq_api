@@ -1670,11 +1670,14 @@ class Db {
   }
   // ----- Subscription / Billing methods -----
 
-  static async getSubscriptionByBusiness(model, businessId) {
+  static async getSubscriptionByBusiness(model, businessId, { populateBusiness = true } = {}) {
     try {
-      return await model
-        .findOne({ business: businessId })
-        .populate("business", "businessName businessType phone email");
+      const query = model.findOne({ business: businessId });
+      // Access checks already have a freshly loaded business and only inspect
+      // subscription state. Other callers retain the populated response shape.
+      return await (populateBusiness
+        ? query.populate("business", "businessName businessType phone email")
+        : query);
     } catch (error) {
       safeConsole.error("Error fetching subscription by business:", error);
       throw error;

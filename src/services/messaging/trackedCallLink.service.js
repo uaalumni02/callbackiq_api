@@ -1,19 +1,28 @@
+import { awaitedUpdateManyBatch } from "../database/awaitedUpdateManyBatch.js";
 import mongoose from 'mongoose';
 import CallLog from '../../models/callLog.js';
 import Lead from '../../models/lead.js';
+import { createFreshFindOneBatch } from '../database/freshFindOneBatch.js';
+const freshEarliestCall = createFreshFindOneBatch(CallLog, {
+  sort: { createdAt: 1, _id: 1 }, select: 'marketingSource trackingNumber attribution',
+});
 import { normalizePhoneToE164 } from '../../voice/voicePhone.service.js';
+
+const linkIngressCalls = awaitedUpdateManyBatch(CallLog, "smsTrackedCallLink");
 
 // Link only recent, unassigned tracking calls within the same business and phone identity.
 // An answered call remains answered: linking is attribution, not proof of recovery.
-export async function linkRecentTrackedCalls({ businessId, leadId, conversationId, phone, now = new Date() }) {
+export async function linkRecentTrackedCalls({ businessId, leadId, conversationId, phone, now = new Date(), batch = false }) {
   if (![businessId, leadId, conversationId].every(value => mongoose.isValidObjectId(value))) return;
   const normalized = normalizePhoneToE164(phone);
   if (!normalized) return;
   const since = new Date(now.getTime() - 30 * 86400000);
-  await CallLog.updateMany({ business: businessId, from: normalized, lead: null,
-    deletedAt: null, trackingNumber: { $ne: null }, createdAt: { $gte: since, $lte: now } },
-    { $set: { lead: leadId, conversation: conversationId } });
-  const earliest = await CallLog.findOne({ business: businessId, lead: leadId,
+  const filter = { business: businessId, from: normalized, lead: null,
+    deletedAt: null, trackingNumber: { $ne: null }, createdAt: { $gte: since, $lte: now } };
+  const update = { $set: { lead: leadId, conversation: conversationId } };
+  if (batch) await linkIngressCalls({ filter, update });
+  else await CallLog.updateMany(filter, update);
+  const earliest = batch && CallLog.schema ? await freshEarliestCall({ business: businessId, lead: leadId, trackingNumber: { $ne: null }, deletedAt: null }) : await CallLog.findOne({ business: businessId, lead: leadId,
     trackingNumber: { $ne: null }, deletedAt: null }).sort({ createdAt: 1, _id: 1 })
     .select('marketingSource trackingNumber attribution').lean();
   if (!earliest) return;

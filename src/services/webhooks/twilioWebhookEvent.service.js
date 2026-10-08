@@ -1,5 +1,12 @@
+import { createAwaitedInsertBatch } from '../database/awaitedInsertBatch.js';
+// CALLBACKIQ_WEBHOOK_SETTLEMENT_V2
+import { settleWebhookEvent } from "./webhookSettlementBatch.service.js";
+import { readOnlySnapshot } from "../database/readOnlySnapshot.js";
+import { sameTurnBatch } from "../database/sameTurnBatch.js";
 import crypto from "crypto";
 import WebhookEvent from "../../models/webhookEvent.js";
+
+const insertWebhookEvent = createAwaitedInsertBatch(WebhookEvent);
 
 const DEFAULT_LEASE_MS = 5_000;
 const DEFAULT_DUPLICATE_WAIT_MS = 5_500;
@@ -26,7 +33,7 @@ export const claimTwilioWebhookEvent = async ({
   const leaseExpiresAt = new Date(now.getTime() + leaseMs());
 
   try {
-    const event = await WebhookEvent.create({
+    const event = await insertWebhookEvent({
       business: businessId,
       provider: "twilio",
       eventType,
@@ -104,11 +111,24 @@ export const claimTwilioWebhookEvent = async ({
   };
 };
 
-export const heartbeatTwilioWebhookEvent = async ({ eventId, leaseToken }) =>
-  WebhookEvent.updateOne(
-    { _id: eventId, status: "processing", leaseToken },
-    { $set: { leaseExpiresAt: new Date(Date.now() + leaseMs()) } },
-  );
+// Keep each event's token/status fence. Combining renewals reduces round trips,
+// but never combines their ownership predicates or acknowledges before MongoDB.
+export const heartbeatTwilioWebhookEvent = sameTurnBatch(async renewals => {
+  const operations = renewals.map(({ eventId, leaseToken }) => ({
+    updateOne: {
+      filter: { _id: eventId, status: "processing", leaseToken },
+      update: { $set: { leaseExpiresAt: new Date(Date.now() + leaseMs()) } },
+    },
+  }));
+  if (operations.length === 1) {
+    const { filter, update } = operations[0].updateOne;
+    return [await WebhookEvent.updateOne(filter, update)];
+  }
+  await WebhookEvent.bulkWrite(operations, { ordered: false });
+  // Bulk counts cannot identify individual matches. Callers only await success;
+  // a nonmatching/expired owner's predicate remains a no-op, as with updateOne.
+  return renewals.map(() => undefined);
+}, { name: "webhookHeartbeats" });
 
 export const waitForTwilioWebhookEventSettlement = async (
   eventId,
@@ -141,6 +161,7 @@ export const completeTwilioWebhookEvent = async (
   eventId,
   {
     leaseToken = "",
+    readOnly = false,
     statusCode = 200,
     contentType = "text/xml",
     responseBody = "",
@@ -148,7 +169,7 @@ export const completeTwilioWebhookEvent = async (
 ) => {
   if (!eventId || !leaseToken) return null;
 
-  return WebhookEvent.findOneAndUpdate(
+  return readOnlySnapshot(WebhookEvent, settleWebhookEvent(
     { _id: eventId, status: "processing", leaseToken },
     {
       $set: {
@@ -165,7 +186,7 @@ export const completeTwilioWebhookEvent = async (
       },
     },
     { returnDocument: "after" },
-  );
+  ), readOnly);
 };
 
 export const failTwilioWebhookEvent = async (

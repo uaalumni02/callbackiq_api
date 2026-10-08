@@ -1,4 +1,4 @@
-import Business from "../../models/business.js";
+import { readFreshFollowUpSettings } from "../database/followUpSettingsRead.js";
 import Conversation from "../../models/conversation.js";
 import Lead from "../../models/lead.js";
 import { evaluateDeterministicInboundGuardrails } from "../../helpers/ai/aiGuardrails.js";
@@ -13,6 +13,7 @@ export const runInboundSmsLifecycleAfterClaim = async ({
   conversation,
   lead,
   inboundMessage,
+  inboundSafety,
 }) => {
   try {
     if (!business?._id || !conversation?._id || !inboundMessage?._id) return;
@@ -33,6 +34,7 @@ export const runInboundSmsLifecycleAfterClaim = async ({
       leadId: lead?._id || conversation.lead,
       conversationId: conversation._id,
       reason: "customer_replied",
+      batch: true,
     });
 
     await ConversionEventService.record({
@@ -51,7 +53,10 @@ export const runInboundSmsLifecycleAfterClaim = async ({
       },
     });
 
-    const deterministic = customerMessage
+    const deterministic = inboundSafety?.body === customerMessage &&
+      Object.hasOwn(inboundSafety, "assessment")
+      ? inboundSafety.assessment
+      : customerMessage
       ? evaluateDeterministicInboundGuardrails({
           customerMessage,
           recentMessages: [],
@@ -60,31 +65,23 @@ export const runInboundSmsLifecycleAfterClaim = async ({
 
     if (command.handled || deterministic?.handled) return;
 
-    const [updatedBusiness, updatedConversation, updatedLead] =
-      await Promise.all([
-        Business.findById(business._id)
-          .select("features.automatedFollowUpEnabled")
-          .lean(),
-        Conversation.findById(conversation._id)
-          .select("status humanTakeover bookingState.status")
-          .lean(),
-        lead?._id || conversation.lead
-          ? Lead.findById(lead?._id || conversation.lead)
-              .select(
-                "serviceNeeded address preferredAppointmentTime status",
-              )
-              .lean()
-          : null,
-      ]);
-
+    // Read each eligibility gate before fetching data used only by the next
+    // gate. Keep fresh database checks: a request snapshot may predate takeover
+    // or a settings change. Durable cancellation/event recording above always run.
+    const updatedBusiness = await readFreshFollowUpSettings(business._id);
     if (!updatedBusiness?.features?.automatedFollowUpEnabled) return;
-    if (
-      !updatedConversation ||
-      updatedConversation.status !== "open" ||
-      updatedConversation.humanTakeover
-    ) {
-      return;
-    }
+
+    const updatedConversation = await Conversation.findById(conversation._id)
+      .select("status humanTakeover bookingState.status")
+      .lean();
+    if (!updatedConversation || updatedConversation.status !== "open" ||
+        updatedConversation.humanTakeover) return;
+
+    const updatedLead = lead?._id || conversation.lead
+      ? await Lead.findById(lead?._id || conversation.lead)
+          .select("serviceNeeded address preferredAppointmentTime status")
+          .lean()
+      : null;
     if (
       !updatedLead ||
       ["booked", "lost", "spam"].includes(updatedLead.status)

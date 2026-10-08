@@ -1,3 +1,4 @@
+import { Adapter } from 'socket.io-adapter';
 import { safeConsole } from "../helpers/logging/safeLogger.js";
 let ioInstance = null;
 let uninitializedWarningShown = false;
@@ -88,6 +89,12 @@ const emitToRoom = (roomName, eventName, payload) => {
   if (!io || !roomName || !normalizedEventName) {
     return false;
   }
+
+  // The exact built-in adapter serves only local sockets. It would send nothing
+  // to an empty room, but still encodes the entire payload. Do not apply this
+  // check to Redis/custom adapters: their subscribers may be on other servers.
+  const adapter = io.sockets?.adapter;
+  if (adapter?.constructor === Adapter && !adapter.rooms.has(roomName)) return true;
 
   io.to(roomName).emit(normalizedEventName, payload);
 

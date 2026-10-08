@@ -1,3 +1,4 @@
+import { evaluateDeterministicInboundGuardrails } from "../../src/helpers/ai/aiGuardrails.js";
 import Business from "../../src/models/business.js";
 import Conversation from "../../src/models/conversation.js";
 import Lead from "../../src/models/lead.js";
@@ -132,4 +133,64 @@ describe("runInboundSmsLifecycleAfterClaim", () => {
       }),
     );
   });
+});
+
+describe('follow-up eligibility read budget', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    classifyInboundSmsCommand.mockReturnValue({ handled: false });
+    AutomationService.cancelObsolete.mockResolvedValue({});
+    ConversionEventService.record.mockResolvedValue({});
+  });
+  test('disabled follow-up still records the reply but avoids conversation and lead reads', async () => {
+    Business.findById.mockReturnValue(selectable({features:{automatedFollowUpEnabled:false}}));
+    await runInboundSmsLifecycleAfterClaim(base());
+    expect(AutomationService.cancelObsolete).toHaveBeenCalledTimes(1);
+    expect(ConversionEventService.record).toHaveBeenCalledTimes(1);
+    expect(Conversation.findById).not.toHaveBeenCalled();
+    expect(Lead.findById).not.toHaveBeenCalled();
+    expect(AutomationTriggerService.schedule).not.toHaveBeenCalled();
+  });
+  test('fresh staff ownership overrides a stale unowned request snapshot', async () => {
+    Business.findById.mockReturnValue(selectable({features:{automatedFollowUpEnabled:true}}));
+    Conversation.findById.mockReturnValue(selectable({status:'open',humanTakeover:true}));
+    await runInboundSmsLifecycleAfterClaim({...base(),conversation:{...base().conversation,humanTakeover:false}});
+    expect(Conversation.findById).toHaveBeenCalledWith('c1');
+    expect(Lead.findById).not.toHaveBeenCalled();
+    expect(AutomationTriggerService.schedule).not.toHaveBeenCalled();
+  });
+  test('fresh release from staff ownership still permits eligible follow-up', async () => {
+    Business.findById.mockReturnValue(selectable({features:{automatedFollowUpEnabled:true}}));
+    Conversation.findById.mockReturnValue(selectable({status:'open',humanTakeover:false,bookingState:{status:'idle'}}));
+    Lead.findById.mockReturnValue(selectable({status:'new',serviceNeeded:'Plumbing',address:''}));
+    await runInboundSmsLifecycleAfterClaim({...base(),conversation:{...base().conversation,humanTakeover:true}});
+    expect(AutomationTriggerService.schedule).toHaveBeenCalledTimes(1);
+  });
+});
+
+
+test('matching request-local safety assessment avoids a repeat scan and retains durable lifecycle writes', async () => {
+  jest.clearAllMocks();
+  classifyInboundSmsCommand.mockReturnValue({handled:false});
+  const input=base();
+  await runInboundSmsLifecycleAfterClaim({...input,inboundSafety:{body:input.inboundMessage.body,assessment:{handled:true,category:'emergency'}}});
+  expect(evaluateDeterministicInboundGuardrails).not.toHaveBeenCalled();
+  expect(AutomationService.cancelObsolete).toHaveBeenCalledTimes(1);
+  expect(ConversionEventService.record).toHaveBeenCalledTimes(1);
+  expect(Business.findById).not.toHaveBeenCalled();
+});
+test('reclaimed message with different stored body gets its own safety scan',async()=>{
+  jest.clearAllMocks();classifyInboundSmsCommand.mockReturnValue({handled:false});
+  evaluateDeterministicInboundGuardrails.mockReturnValueOnce({handled:true,category:'emergency'});
+  const input=base();input.inboundMessage.body='I smell gas';
+  await runInboundSmsLifecycleAfterClaim({...input,inboundSafety:{body:'ordinary test text',assessment:{handled:false}}});
+  expect(evaluateDeterministicInboundGuardrails).toHaveBeenCalledWith({customerMessage:'I smell gas',recentMessages:[]});
+  expect(Business.findById).not.toHaveBeenCalled();
+});
+test('missing assessment cannot suppress the lifecycle safety scan',async()=>{
+  jest.clearAllMocks();classifyInboundSmsCommand.mockReturnValue({handled:false});
+  const input=base();
+  evaluateDeterministicInboundGuardrails.mockReturnValueOnce({handled:true,category:'emergency'});
+  await runInboundSmsLifecycleAfterClaim({...input,inboundSafety:{body:input.inboundMessage.body}});
+  expect(evaluateDeterministicInboundGuardrails).toHaveBeenCalledTimes(1);
 });

@@ -59,7 +59,7 @@ const requireSubscriptionAccess =
 
       const subscription =
         req.subscription ||
-        (await Db.getSubscriptionByBusiness(Subscription, business._id));
+        (await Db.getSubscriptionByBusiness(Subscription, business._id, { populateBusiness: false }));
 
       const access = getSubscriptionAccess(subscription);
 

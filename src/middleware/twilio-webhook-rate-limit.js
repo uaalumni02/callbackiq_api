@@ -4,6 +4,8 @@ import crypto from "crypto";
 import CommunicationRouteRateLimit from "../models/communicationRouteRateLimit.js";
 import { logOperationalError } from "../helpers/logging/safeLogger.js";
 
+import { reserveMongoRouteCounter } from '../services/database/routeCounterBatch.js';
+
 const distributedRedis = createBoundedRedis({ url: () => process.env.RATE_LIMIT_REDIS_URL || process.env.REDIS_URL || process.env.SOCKET_REDIS_URL, name: "webhook-rate-limit" });
 const useRedis = () => Boolean(process.env.RATE_LIMIT_REDIS_URL || process.env.REDIS_URL || process.env.SOCKET_REDIS_URL);
 const COUNTER = `local n = redis.call('INCR', KEYS[1]); if n == 1 then redis.call('PEXPIRE', KEYS[1], ARGV[1]) end; return n`;
@@ -35,6 +37,9 @@ const reserveDistributed = async ({ keyHash, name, max, windowMs, now }) => {
     return count <= max;
   }
   const identity = { keyHash, name, windowStart };
+  if (CommunicationRouteRateLimit.schema && typeof CommunicationRouteRateLimit.bulkWrite === 'function') {
+    return reserveMongoRouteCounter(identity, max, new Date(windowStart.getTime() + windowMs * 3));
+  }
 
   try {
     const document = await CommunicationRouteRateLimit.findOneAndUpdate(

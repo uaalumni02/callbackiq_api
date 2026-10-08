@@ -1,3 +1,4 @@
+import { awaitedUpdateManyBatch } from "../database/awaitedUpdateManyBatch.js";
 import { blocksServiceAutomation } from '../serviceEligibility/policy.js';
 import {
   resetTwilioClient as resetCentralTwilioClient,
@@ -55,6 +56,8 @@ const withinQuietHours = ({ now, timeZone, start, end }) => {
 
 const getAutomationMessagingServiceSid = () =>
   String(process.env.TWILIO_MESSAGING_SERVICE_SID || "").trim();
+
+const cancelIngressFollowUps = awaitedUpdateManyBatch(AutomationJob, "smsFollowUpCancellation");
 
 class AutomationService {
   static async suppressionReason(job) {
@@ -272,14 +275,14 @@ class AutomationService {
     }
   }
 
-  static async cancelObsolete({ businessId, leadId = null, conversationId = null, reason }) {
+  static async cancelObsolete({ businessId, leadId = null, conversationId = null, reason, batch = false }) {
     const filter = {
       business: businessId,
       status: { $in: ["scheduled", "processing"] },
       ...(leadId ? { lead: leadId } : {}),
       ...(conversationId ? { conversation: conversationId } : {}),
     };
-    return AutomationJob.updateMany(filter, {
+    const update = {
       $set: {
         status: "canceled",
         canceledAt: new Date(),
@@ -287,7 +290,8 @@ class AutomationService {
         lockedAt: null,
         lockedBy: null,
       },
-    });
+    };
+    return batch ? cancelIngressFollowUps({ filter, update }) : AutomationJob.updateMany(filter, update);
   }
 
   static resetTwilioClient() {

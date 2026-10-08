@@ -6,6 +6,11 @@ import {
   phoneLookupVariants,
 } from "../voice/voicePhone.service.js";
 
+import { createFreshFindOneBatch } from './database/freshFindOneBatch.js';
+const freshLegacyBusiness = createFreshFindOneBatch(Business, {
+  select: '_id owner businessName businessType phone phoneLookup trackingNumber forwardingPhone email website address city state zipCode timezone smsTemplate estimatedJobValue features communicationLimits voiceSettings setupProgress isActive createdAt updatedAt', defaults: true,
+});
+
 const hasBusinessIdentity = (business) =>
   Boolean(business?._id || business?.id);
 
@@ -24,12 +29,14 @@ const materializeBusiness = async (value) => {
 
 const resolveLegacyBusinessByTwilioNumber = async (
   phone,
-  { activeOnly = true } = {},
+  { activeOnly = true, batch = false } = {},
 ) => {
   const rawPhone = String(phone || "").trim();
   if (!rawPhone) return null;
 
-  const direct = await materializeBusiness(
+  const direct = batch && Business.schema ? await freshLegacyBusiness({
+    isActive: true, 'trackingNumber.status': 'active', $or: [{ phone: rawPhone }, { phoneLookup: rawPhone }],
+  }) : await materializeBusiness(
     typeof Db.getBusinessByPhoneForWebhook === "function"
       ? Db.getBusinessByPhoneForWebhook(Business, rawPhone)
       : typeof Db.getBusinessByPhone === "function"

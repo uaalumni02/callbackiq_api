@@ -1,3 +1,4 @@
+import {appendVoiceTranscriptUpdate} from './voiceTranscriptBatch.service.js';
 import VoiceSession from "../models/voiceSession.js";
 import * as Guardrails from "../helpers/ai/aiGuardrails.js";
 
@@ -16,13 +17,11 @@ const redact = (value) => {
 };
 
 class VoiceTranscriptService {
-  static async append({ sessionId, role, text, isFinal = true }) {
+  static async append({ sessionId, role, text, isFinal = true, returnSession = false }) {
     const normalizedRole = ALLOWED_ROLES.has(role) ? role : "system";
     const normalized = redact(text);
     if (!sessionId || !normalized) return null;
-    return VoiceSession.findByIdAndUpdate(
-      sessionId,
-      {
+    const update = {
         $push: {
           transcript: {
             role: normalizedRole,
@@ -32,9 +31,9 @@ class VoiceTranscriptService {
           },
         },
         $set: { lastActivityAt: new Date() },
-      },
-      { returnDocument: "after" },
-    );
+      };
+    if (returnSession) return VoiceSession.findByIdAndUpdate(sessionId, update, { returnDocument: "after" });
+    return appendVoiceTranscriptUpdate(sessionId, update);
   }
 
   static async touch(sessionId, metadata = {}) {

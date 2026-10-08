@@ -1,3 +1,5 @@
+import { createAwaitedInsertBatch } from './database/awaitedInsertBatch.js';
+import { sameTurnBatch } from "./database/sameTurnBatch.js";
 // Register every model populated here, including in standalone worker processes.
 import "../models/lead.js";
 import "../models/business.js";
@@ -8,6 +10,8 @@ import { moneyAmount } from "./valuation/opportunityValue.js";
 // CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1: alerts
 import Alert from "../models/alert.js";
 import SocketService from "./socket.service.js";
+
+const insertAlert = createAwaitedInsertBatch(Alert);
 
 const ALERT_PRIORITIES = new Set(["low", "medium", "high", "critical"]);
 
@@ -44,6 +48,18 @@ const populateAlert = async (alertId) => {
     .populate("lead", "customerName phone serviceNeeded urgency status")
     .lean();
 };
+
+// Mongoose populates each reference path with an indexed $in read across
+// these newly inserted alerts. Preserve each caller's alert and await hydration
+// before emitting/returning it. No cached business or lead state is reused.
+const populateNewAlert = sameTurnBatch(async alerts => {
+  const paths = [
+    { path: "business", select: "businessName businessType phone", options: { lean: true } },
+    { path: "lead", select: "customerName phone serviceNeeded urgency status", options: { lean: true } },
+  ];
+  if (alerts.length === 1) return [await Alert.populate(alerts[0], paths)];
+  return Alert.populate(alerts, paths);
+}, { name: "alertPopulation" });
 
 const findExistingAlert = async (businessId, dedupeKey) => {
   if (!dedupeKey) {
@@ -129,8 +145,10 @@ class AlertService {
      * concurrency-safe source of truth.
      */
     try {
-      const createdAlert = await Alert.create(payload);
-      const populatedAlert = await populateAlert(createdAlert._id);
+      const createdAlert = await insertAlert(payload);
+      // The insert already returned this alert, including defaults/timestamps.
+      // Populate its refs directly; avoid rereading the same alert for every SMS.
+      const populatedAlert = await populateNewAlert(createdAlert.toObject());
 
       SocketService.emitAlertCreated(businessId, populatedAlert);
 

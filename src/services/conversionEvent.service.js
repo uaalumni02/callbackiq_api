@@ -1,8 +1,11 @@
+import { createAwaitedInsertBatch } from './database/awaitedInsertBatch.js';
 import { moneyAmount } from "./valuation/opportunityValue.js";
 import CallLog from "../models/callLog.js";
 import ConversionEvent from "../models/conversionEvent.js";
 import Lead from "../models/lead.js";
 import SocketService from "./socket.service.js";
+
+const insertConversionEvent = createAwaitedInsertBatch(ConversionEvent);
 
 class ConversionEventService {
   static async record({
@@ -25,7 +28,7 @@ class ConversionEventService {
     metadata = {},
   }) {
     try {
-      const event = await ConversionEvent.create({
+      const event = await insertConversionEvent({
         business: businessId,
         lead: leadId,
         conversation: conversationId,

@@ -1,3 +1,7 @@
+// CALLBACKIQ_SMS_PERSISTENCE_V2
+import { persistInboundSmsMessage } from "./messaging/smsIngressPersistence.service.js";
+import { readOnlySnapshot } from "./database/readOnlySnapshot.js";
+import { startSingleFlightHeartbeat } from "./webhooks/singleFlightHeartbeat.js";
 import { smsContactControlKind, canAcknowledgeSmsContactControl } from './messaging/smsContactControl.service.js';
 import { isAppointmentReply } from './scheduling/appointmentReply.service.js';
 import Business from "../models/business.js";
@@ -72,17 +76,14 @@ const startWebhookHeartbeat = ({ eventId, leaseToken, res }) => {
     1_000,
     Math.floor(Number(process.env.TWILIO_WEBHOOK_LEASE_MS || 5_000) / 3),
   );
-  const timer = setInterval(() => {
-    void heartbeatTwilioWebhookEvent({ eventId, leaseToken }).catch((error) =>
-      logOperationalError("twilio.webhook.heartbeat_failed", error, {
-        webhookEventId: eventId,
-      }),
-    );
-  }, intervalMs);
-  timer.unref?.();
-  res.once("finish", () => clearInterval(timer));
-  res.once("close", () => clearInterval(timer));
-  return timer;
+  return startSingleFlightHeartbeat({
+    res,
+    intervalMs,
+    renew: () => heartbeatTwilioWebhookEvent({ eventId, leaseToken }),
+    onError: (error) => logOperationalError("twilio.webhook.heartbeat_failed", error, {
+      webhookEventId: eventId,
+    }),
+  });
 };
 
 const saveOutbound = async ({ business, conversation, lead, from = "", to, body, sent, generatedBy, usageCategory, actorType, metadata }) => {
@@ -536,7 +537,7 @@ export const handleInboundSmsWebhook = async (req, res) => {
 
     const numberContext =
       typeof resolveTwilioNumberContext === "function"
-        ? await resolveTwilioNumberContext(to)
+        ? await resolveTwilioNumberContext(to, { batch: true })
         : null;
     const business =
       numberContext?.business ||
@@ -594,6 +595,7 @@ export const handleInboundSmsWebhook = async (req, res) => {
       body: body || (media.length ? "Attachment received" : ""),
       source: "sms",
       reopenEligible: true,
+      readOnly: true,
     });
 
     // Safety observations must still reach the durable worker during staff
@@ -631,7 +633,7 @@ export const handleInboundSmsWebhook = async (req, res) => {
       });
     }
 
-    const inboundMessage = await Message.findOneAndUpdate(
+    const inboundMessage = await readOnlySnapshot(Message, persistInboundSmsMessage(
       { business: business._id, providerMessageId },
       {
         // CALLBACKIQ_DURABLE_MESSAGE_INTENT
@@ -661,7 +663,7 @@ export const handleInboundSmsWebhook = async (req, res) => {
         },
       },
       { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
-    );
+    ));
     SocketService.emitMessageCreated(business._id, inboundMessage);
 
     await runInboundSmsLifecycleAfterClaim({
@@ -669,6 +671,7 @@ export const handleInboundSmsWebhook = async (req, res) => {
       conversation,
       lead,
       inboundMessage,
+      inboundSafety: { body, assessment: inboundSafetyAssessment },
     });
 
     // CALLBACKIQ_IDEMPOTENT_COMMAND_MMS_REPLY
@@ -692,11 +695,11 @@ export const handleInboundSmsWebhook = async (req, res) => {
           ? { aiEnabled: true, status: "open" }
           : {}),
       };
-      const updatedConversation = await Conversation.findByIdAndUpdate(
+      const updatedConversation = await readOnlySnapshot(Conversation, Conversation.findByIdAndUpdate(
         conversation._id,
         updates,
         { returnDocument: "after" },
-      );
+      ));
       SocketService.emitConversationUpdated(
         business._id,
         updatedConversation,
@@ -769,10 +772,7 @@ export const handleInboundSmsWebhook = async (req, res) => {
     }
 
     const customerReplyAssessment = body
-      ? evaluateDeterministicInboundGuardrails({
-          customerMessage: body,
-          recentMessages: [],
-        }) || { alertPriority: "low", riskFlags: [] }
+      ? inboundSafetyAssessment || { alertPriority: "low", riskFlags: [] }
       : { alertPriority: "low", riskFlags: [] };
     const customerReplyPriority =
       customerReplyAssessment.alertPriority === "critical" ||
@@ -796,12 +796,16 @@ export const handleInboundSmsWebhook = async (req, res) => {
     SocketService.emitDashboardRefresh(business._id, "inbound_sms_accepted");
 
     const responseBody = emptyTwiml();
-    await completeTwilioWebhookEvent(webhookEvent._id, {
+    const completedWebhookEvent = await completeTwilioWebhookEvent(webhookEvent._id, {
       leaseToken: webhookLeaseToken,
+      readOnly: true,
       statusCode: 200,
       contentType: "text/xml",
       responseBody,
     });
+    if (completedWebhookEvent === null) {
+      throw Object.assign(new Error("Inbound webhook lease was lost before completion"), { code: "TWILIO_WEBHOOK_LEASE_LOST" });
+    }
     return sendXml(res, { body: responseBody });
   } catch (error) {
     return failAndRespond({
@@ -810,7 +814,7 @@ export const handleInboundSmsWebhook = async (req, res) => {
       error,
       res,
       eventName: "twilio.sms.failed",
-      statusCode: webhookEvent?._id ? 503 : 200,
+      statusCode: 503,
     });
   }
 };
