@@ -8,6 +8,9 @@ import {
 
 const DEFAULT_INTERVAL_MS = 30000;
 let timer = null;
+let active = null;
+let stopping = false;
+import { withDeadline } from "../services/boundedRedis.service.js";
 
 const intervalMs = () => {
   const configured = Number(
@@ -18,12 +21,18 @@ const intervalMs = () => {
     : DEFAULT_INTERVAL_MS;
 };
 
-export const reconcileSmsIngressOnce = async () => {
+const performReconciliation = async () => {
   const result = await reconcileOrphanedInboundSmsJobs();
   if (result.repaired > 0) {
     logOperationalEvent("sms.ingress_orphans_repaired", result);
   }
   return result;
+};
+
+export const reconcileSmsIngressOnce = () => {
+  if (active) return active;
+  active = performReconciliation().finally(() => { active = null; });
+  return active;
 };
 
 const scheduleNext = () => {
@@ -36,7 +45,7 @@ const scheduleNext = () => {
         error,
       );
     } finally {
-      if (timer) scheduleNext();
+      if (!stopping) scheduleNext();
     }
   }, intervalMs());
   timer.unref?.();
@@ -52,13 +61,16 @@ export const startSmsIngressReconciliationWorker = async () => {
     return;
   }
 
+  stopping = false;
   await reconcileSmsIngressOnce();
-  scheduleNext();
+  if (!stopping) scheduleNext();
 };
 
-export const stopSmsIngressReconciliationWorker = () => {
+export const stopSmsIngressReconciliationWorker = async () => {
+  stopping = true;
   if (timer) clearTimeout(timer);
   timer = null;
+  if (active) await withDeadline(active, 120000, "SMS_INGRESS_DRAIN_TIMEOUT");
 };
 
 export default {

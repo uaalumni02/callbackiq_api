@@ -28,6 +28,7 @@ const isTransactionUnsupported = (error) =>
 export const isUncertainProviderFailure = (error) => {
   const code = String(error?.code || error?.cause?.code || "").toUpperCase();
   const status = Number(error?.status || error?.statusCode || 0);
+  if (status >= 500) return true;
   if (["ETIMEDOUT", "ESOCKETTIMEDOUT", "ECONNRESET", "EPIPE", "UND_ERR_CONNECT_TIMEOUT"].includes(code)) {
     return true;
   }
@@ -100,6 +101,7 @@ export const reserveCommunicationUsageOperation = async ({
       metadata,
       providerOperationId: "",
       providerStatus: "",
+      providerDispatchStartedAt: null,
       releaseReason: "",
       committedAt: null,
       releasedAt: null,
@@ -208,6 +210,7 @@ export const beginCommunicationUsageReservation = async ({
     metadata,
     providerOperationId: "",
     providerStatus: "",
+    providerDispatchStartedAt: null,
     releaseReason: "",
     committedAt: null,
     releasedAt: null,
@@ -263,14 +266,36 @@ export const beginCommunicationUsageReservation = async ({
   }
 };
 
+export const markCommunicationProviderDispatch = async ({ reservation, from, to, body, now = new Date() }) => {
+  if (!reservation?._id || !reservation.ownerToken) {
+    throw Object.assign(new Error("A persisted SMS reservation is required before provider dispatch."), {
+      code: "SMS_DISPATCH_RESERVATION_REQUIRED", statusCode: 503,
+    });
+  }
+  const claimed = await CommunicationUsageReservation.findOneAndUpdate(
+    { _id: reservation._id, ownerToken: reservation.ownerToken, state: "pending",
+      providerDispatchStartedAt: null, leaseExpiresAt: { $gt: now } },
+    { $set: { providerDispatchStartedAt: now,
+      "metadata.providerRequest": { from, to, body } } },
+    { returnDocument: "after" },
+  );
+  if (!claimed) {
+    throw Object.assign(new Error("The SMS dispatch reservation is no longer owned by this process."), {
+      code: "SMS_DELIVERY_RECONCILIATION_REQUIRED", statusCode: 409, deliveryUncertain: true,
+    });
+  }
+  return claimed;
+};
+
 export const commitCommunicationUsageReservation = async ({
   reservation,
   providerOperationId = "",
   providerStatus = "accepted",
 }) => {
   if (!reservation?._id) return null;
-  return CommunicationUsageReservation.findOneAndUpdate(
-    { _id: reservation._id, state: { $in: ["pending", "uncertain"] } },
+  const committed = await CommunicationUsageReservation.findOneAndUpdate(
+    { _id: reservation._id, state: { $in: ["pending", "uncertain"] },
+      ...(reservation.ownerToken ? { ownerToken: reservation.ownerToken } : {}) },
     {
       $set: {
         state: "committed",
@@ -282,20 +307,28 @@ export const commitCommunicationUsageReservation = async ({
     },
     { returnDocument: "after" },
   );
+  // A signed delivery callback can persist acceptance before the send call
+  // returns. Treat that exact receipt as an idempotent successful commit.
+  if (committed || !providerOperationId) return committed;
+  return CommunicationUsageReservation.findOne({ _id: reservation._id,
+    state: "committed", providerOperationId,
+    ...(reservation.ownerToken ? { ownerToken: reservation.ownerToken } : {}) });
 };
 
-export const markCommunicationUsageUncertain = async ({ reservation, error }) => {
+export const markCommunicationUsageUncertain = async ({ reservation, error, providerOperationId = "", providerStatus = "" }) => {
   if (!reservation?._id) return null;
   logOperationalWarning("communication_usage.delivery_uncertain", {
     reservationId: reservation._id,
     operationKey: reservation.operationKey,
     errorCode: error?.code || error?.name || "error",
   });
-  return CommunicationUsageReservation.findByIdAndUpdate(
-    reservation._id,
+  return CommunicationUsageReservation.findOneAndUpdate(
+    { _id: reservation._id, state: { $in: ["pending", "uncertain"] },
+      ...(reservation.ownerToken ? { ownerToken: reservation.ownerToken } : {}) },
     {
       $set: {
         state: "uncertain",
+        ...(providerOperationId ? { providerOperationId, providerStatus } : {}),
         releaseReason: String(error?.code || error?.message || "provider_uncertain").slice(0, 300),
         leaseExpiresAt: new Date(Date.now() + 24 * HOUR_MS),
       },
@@ -304,14 +337,16 @@ export const markCommunicationUsageUncertain = async ({ reservation, error }) =>
   );
 };
 
-const releaseClaim = async ({ reservationId, reason, now, allowUncertain }) => {
+const releaseClaim = async ({ reservationId, dispatchOwnerToken, reason, now, allowUncertain, providerRejected }) => {
   const ownerToken = crypto.randomUUID();
   const eligibleStates = allowUncertain ? ["pending", "uncertain"] : ["pending"];
   const claimed = await CommunicationUsageReservation.findOneAndUpdate(
     {
       _id: reservationId,
       $or: [
-        { state: { $in: eligibleStates } },
+        { state: { $in: eligibleStates },
+          ...(dispatchOwnerToken ? { ownerToken: dispatchOwnerToken } : {}),
+          ...(!providerRejected && !allowUncertain ? { providerDispatchStartedAt: { $eq: null, $exists: true } } : {}) },
         { state: "releasing", leaseExpiresAt: { $lte: now } },
       ],
     },
@@ -365,6 +400,7 @@ export const releaseCommunicationUsageReservation = async ({
   usage,
   reason = "provider_rejected",
   allowUncertain = false,
+  providerRejected = false,
   now = new Date(),
 }) => {
   if (!reservation?._id) {
@@ -379,9 +415,11 @@ export const releaseCommunicationUsageReservation = async ({
   if (["committed", "released"].includes(reservation.state)) return reservation;
   const claim = await releaseClaim({
     reservationId: reservation._id,
+    dispatchOwnerToken: reservation.ownerToken,
     reason,
     now,
     allowUncertain,
+    providerRejected,
   });
   if (!claim) return CommunicationUsageReservation.findById(reservation._id);
   const reservations = usage?.reservations?.length
@@ -442,11 +480,16 @@ export const sweepExpiredCommunicationReservations = async ({ now = new Date(), 
   })
     .sort({ leaseExpiresAt: 1 })
     .limit(Math.max(1, Math.min(5000, Number(limit) || 500)))
-    .select("_id")
+    .select("_id state ownerToken operationKey providerDispatchStartedAt")
     .lean();
   let released = 0;
   for (const item of expiredIds) {
     try {
+      if (item.state === "pending" && item.providerDispatchStartedAt !== null) {
+        await markCommunicationUsageUncertain({ reservation: item,
+          error: { code: "SMS_DISPATCH_INTERRUPTED" } });
+        continue;
+      }
       const result = await releaseCommunicationUsageReservation({
         reservation: { _id: item._id },
         reason: "expired_before_provider_acceptance",
@@ -466,6 +509,7 @@ export default {
   beginCommunicationUsageReservation,
   reserveCommunicationUsageOperation,
   commitCommunicationUsageReservation,
+  markCommunicationProviderDispatch,
   findCommunicationOperation,
   isUncertainProviderFailure,
   markCommunicationUsageUncertain,

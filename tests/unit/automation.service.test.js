@@ -22,7 +22,7 @@ jest.mock("../../src/models/business.js", () => ({ __esModule: true, default: { 
 jest.mock("../../src/models/contactPreference.js", () => ({ __esModule: true, default: { findOne: jest.fn() } }));
 jest.mock("../../src/models/conversation.js", () => ({ __esModule: true, default: { findById: jest.fn() } }));
 jest.mock("../../src/models/lead.js", () => ({ __esModule: true, default: { findById: jest.fn() } }));
-jest.mock("../../src/models/message.js", () => ({ __esModule: true, default: { countDocuments: jest.fn(), create: jest.fn() } }));
+jest.mock("../../src/models/message.js", () => ({ __esModule: true, default: { countDocuments: jest.fn(), findOneAndUpdate: jest.fn() } }));
 jest.mock("../../src/services/socket.service.js", () => ({
   __esModule: true,
   default: { emitMessageCreated: jest.fn(), emitAlertCreated: jest.fn() },
@@ -115,7 +115,7 @@ describe("AutomationService", () => {
     Appointment.findOne.mockReturnValue(leanQuery(null));
     Alert.findOne.mockReturnValue(leanQuery(null));
     Message.countDocuments.mockResolvedValue(0);
-    Message.create.mockResolvedValue({ _id: "message-1" });
+    Message.findOneAndUpdate.mockResolvedValue({ _id: "message-1" });
     Alert.create.mockResolvedValue({ _id: "alert-1" });
   });
 
@@ -259,11 +259,11 @@ describe("AutomationService", () => {
         leadId: "l1",
       }),
     );
-    expect(Message.create).toHaveBeenCalledWith(expect.objectContaining({
+    expect(Message.findOneAndUpdate).toHaveBeenCalledWith(expect.any(Object), { $setOnInsert: expect.objectContaining({
       body: "Hello Jane from CallBackIQ Plumbing",
       providerMessageId: "SM1",
       status: "queued",
-    }));
+    }) }, { upsert: true, new: true });
     expect(SocketService.emitMessageCreated).toHaveBeenCalledWith("b1", { _id: "message-1" });
     expect(populated).toMatchObject({ status: "completed", failureReason: "", lockedAt: null, lockedBy: null });
   });
@@ -285,7 +285,7 @@ describe("AutomationService", () => {
         from: "+14045550101",
       }),
     );
-    expect(Message.create).toHaveBeenCalledWith(expect.objectContaining({ lead: null, status: "queued" }));
+    expect(Message.findOneAndUpdate).toHaveBeenCalledWith(expect.any(Object), { $setOnInsert: expect.objectContaining({ lead: null, status: "queued" }) }, { upsert: true, new: true });
   });
 
   test.each(["create_alert", "mark_for_review"])("creates staff review alerts for %s", async (action) => {
@@ -355,4 +355,17 @@ describe("AutomationService", () => {
       expect.any(Object),
     );
   });
+  test('a database failure replays the same automation send identity and receipt', async () => {
+    const populated = doc();
+    AutomationJob.findById.mockReturnValue(populatedQuery(populated));
+    jest.spyOn(AutomationService, 'suppressionReason').mockResolvedValue(null);
+    Message.findOneAndUpdate.mockRejectedValueOnce(new Error('message persistence failed')).mockResolvedValueOnce({ _id: 'message-1' });
+    await expect(AutomationService.execute({ _id: 'job-1' })).rejects.toThrow('message persistence failed');
+    populated.status = 'processing';
+    await AutomationService.execute({ _id: 'job-1' });
+    const keys = sendSms.mock.calls.map(([input]) => input.metadata.idempotencyKey);
+    expect(keys).toEqual(['automation-sms:b1:job-1', 'automation-sms:b1:job-1']);
+    expect(Message.findOneAndUpdate.mock.calls[0][0]).toEqual(Message.findOneAndUpdate.mock.calls[1][0]);
+  });
+
 });

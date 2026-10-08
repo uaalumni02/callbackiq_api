@@ -36,6 +36,16 @@ let running = false;
 let lastWatchMaintenanceAt = 0;
 let maintenanceActive = null;
 let activeTick = null;
+let lastRecoveryAt = null;
+let stopping = false;
+
+const recoverAbandonedWork = async () => {
+  if (lastRecoveryAt !== null && Date.now() - lastRecoveryAt < 60_000) return;
+  // Each sweep is idempotent. Keep trying after a transient database failure.
+  await recoverStaleLocks();
+  await recoverStaleAppointmentNotificationLocks();
+  lastRecoveryAt = Date.now();
+};
 
 const recoverStaleLocks = async () => {
   const staleBefore = new Date(Date.now() - STALE_LOCK_MINUTES * 60_000);
@@ -116,6 +126,8 @@ const performTick = async ({ includeIntegrationMaintenance = true } = {}) => {
   if (running) return;
   running = true;
   try {
+    try { await recoverAbandonedWork(); }
+    catch (error) { safeConsole.error("Automation lock recovery failed:", error); }
     // A maintenance failure must not prevent already-queued confirmations.
     try { await AppointmentService.releaseExpiredHolds(); }
     catch (error) { safeConsole.error('Appointment maintenance failed:', error); }
@@ -124,7 +136,7 @@ const performTick = async ({ includeIntegrationMaintenance = true } = {}) => {
       { concurrency: Math.max(1, Math.min(10, Number(process.env.APPOINTMENT_NOTIFICATION_CONCURRENCY) || 3)) },
     );
     markAutomationTick(true);
-    if (includeIntegrationMaintenance && !maintenanceActive) {
+    if (!stopping && includeIntegrationMaintenance && !maintenanceActive) {
       maintenanceActive = (async () => {
         await processQueuedIntegrationWebhooks(25);
         await maintainGoogleWatches();
@@ -133,7 +145,7 @@ const performTick = async ({ includeIntegrationMaintenance = true } = {}) => {
     }
 
     let processed = 0;
-    while (processed < 25) {
+    while (!stopping && processed < 25) {
       const job = await processNextAutomationJob();
       if (!job) break;
       processed += 1;
@@ -158,8 +170,9 @@ export const startAutomationWorker = async () => {
     if (process.env.PROCESS_ROLE === 'worker-automation') throw new Error('The automation worker role cannot run with automation disabled.');
     return;
   }
-  await recoverStaleLocks();
-  await recoverStaleAppointmentNotificationLocks();
+  stopping = false;
+  lastRecoveryAt = null;
+  await recoverAbandonedWork();
   // Run core scheduling work immediately. Optional integration maintenance starts
   // on the normal polling interval so worker startup is deterministic and does
   // not block on webhook/watch infrastructure.
@@ -171,6 +184,7 @@ export const startAutomationWorker = async () => {
 };
 
 export const stopAutomationWorker = async () => {
+  stopping = true;
   markAutomationStopped();
   if (timer) clearInterval(timer);
   timer = null;

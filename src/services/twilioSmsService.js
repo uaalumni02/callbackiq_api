@@ -13,6 +13,7 @@ import { recordOutboundSmsAudit } from "./outboundSmsAudit.service.js";
 import {
   reserveCommunicationUsageOperation,
   commitCommunicationUsageReservation,
+  markCommunicationProviderDispatch,
   findCommunicationOperation,
   isUncertainProviderFailure,
   markCommunicationUsageUncertain,
@@ -217,15 +218,24 @@ export const sendSms = async ({
     ? explicitKey.slice(0, 240)
     : `sms:${resolvedBusinessId}:${crypto.randomUUID()}`;
   const replay = await findCommunicationOperation(operationKey);
-  if (replay?.state === "committed") {
+  if (replay?.business && String(replay.business) !== String(resolvedBusinessId)) {
+    throw Object.assign(new Error("The SMS operation belongs to a different business."), {
+      code: "SMS_OPERATION_CONFLICT", statusCode: 409,
+    });
+  }
+  if (replay?.state === "committed" || (replay?.state === "uncertain" && replay.providerOperationId)) {
+    if (replay.state === "uncertain") {
+      await commitCommunicationUsageReservation({ reservation: replay,
+        providerOperationId: replay.providerOperationId, providerStatus: replay.providerStatus });
+    }
     return {
       sid: replay.providerOperationId || "",
       status: replay.providerStatus || "sent",
       suppressed: false,
       replayed: true,
-      to: normalizedTo,
-      from: configuredFrom,
-      body: normalizedBody,
+      to: replay.metadata?.providerRequest?.to || normalizedTo,
+      from: replay.metadata?.providerRequest?.from || configuredFrom,
+      body: replay.metadata?.providerRequest?.body || normalizedBody,
       segmentCount: replay.amount || 1,
     };
   }
@@ -234,6 +244,7 @@ export const sendSms = async ({
     error.code = "SMS_DELIVERY_RECONCILIATION_REQUIRED";
     error.statusCode = 409;
     error.operationKey = operationKey;
+    error.deliveryUncertain = true;
     throw error;
   }
   // Preserve committed idempotent replays above, but no new outbound attempt may
@@ -357,8 +368,11 @@ export const sendSms = async ({
     const error = new Error("This SMS operation is already in progress or awaiting provider reconciliation.");
     error.code = "SMS_DELIVERY_RECONCILIATION_REQUIRED";
     error.statusCode = 409;
+    error.deliveryUncertain = true;
     throw error;
   }
+  let providerAccepted = null;
+  let providerDispatchStarted = false;
   try {
     if (
       process.env.NODE_ENV === "test" &&
@@ -460,7 +474,16 @@ export const sendSms = async ({
     assertDistributedLeaseActive();
     const client = getTwilioClient();
     const configuredMessagingServiceSid = String(messagingServiceSid || "").trim();
-    const statusCallback = getStatusCallback();
+    const callbackBase = getStatusCallback();
+    const callbackUrl = callbackBase ? new URL(callbackBase) : null;
+    if (callbackUrl && lifecycle?.reservation?._id) {
+      callbackUrl.searchParams.set("smsReservationId", String(lifecycle.reservation._id));
+      callbackUrl.searchParams.set("smsReservationToken", String(lifecycle.reservation.ownerToken));
+    }
+    const statusCallback = callbackUrl?.toString() || "";
+    await markCommunicationProviderDispatch({ reservation: lifecycle?.reservation,
+      from: configuredFrom, to: normalizedTo, body: normalizedBody });
+    providerDispatchStarted = true;
     const sent = await client.messages.create({
       to: normalizedTo,
       body: normalizedBody,
@@ -472,7 +495,14 @@ export const sendSms = async ({
         : {}),
       ...(statusCallback ? { statusCallback } : {}),
     });
-    await commitCommunicationUsageReservation({ reservation: lifecycle?.reservation, providerOperationId: sent?.sid || "", providerStatus: sent?.status || "sent" });
+    if (!sent?.sid) {
+      throw Object.assign(new Error("SMS provider acceptance could not be verified."), {
+        code: "SMS_PROVIDER_OUTCOME_UNCERTAIN", deliveryUncertain: true,
+      });
+    }
+    providerAccepted = sent;
+    const committed = await commitCommunicationUsageReservation({ reservation: lifecycle?.reservation, providerOperationId: sent.sid, providerStatus: sent.status || "sent" });
+    if (!committed) throw new Error("The SMS receipt could not be saved to its dispatch reservation.");
     await commitSmsContactDisclosure({
       claim: disclosure.claim,
       businessId: resolvedBusinessId,
@@ -484,23 +514,31 @@ export const sendSms = async ({
     return { ...sent, sid: sent?.sid || "", status: sent?.status || "sent", suppressed: false, to: sent?.to || normalizedTo, from: sent?.from || configuredFrom, usage, sendWindow, ...segment, body: normalizedBody, operationKey };
   } catch (error) {
     const providerCode = Number(error?.code || 0);
-    if (providerCode === 21610) {
+    if (!providerAccepted && providerCode === 21610) {
       let preferenceSyncFailed = false;
       try { await optOutSms({ businessId: resolvedBusinessId, phone: normalizedTo, source: "twilio_provider_21610", keyword: "STOP" }); }
       catch { preferenceSyncFailed = true; }
-      await releaseCommunicationUsageReservation({ reservation: lifecycle?.reservation, usage, reason: "provider_21610_opt_out" });
+      await releaseCommunicationUsageReservation({ reservation: lifecycle?.reservation, usage, reason: "provider_21610_opt_out", providerRejected: true });
       await releaseSmsContactDisclosure({ claim: disclosure.claim });
       const result = { sid: "", status: "suppressed", suppressed: true, reason: "customer_opted_out", providerCode, to: normalizedTo, from: configuredFrom, body: normalizedBody, usage, ...segment };
       await safeAudit({ businessId: resolvedBusinessId, actorId, actorType, source, usageCategory, conversationId, leadId, from: configuredFrom, to: normalizedTo, body: normalizedBody, status: "suppressed", reason: result.reason, metadata: { ...metadata, segment, sendWindow, providerCode, preferenceSyncFailed, operationKey } });
       return result;
     }
-    if (isUncertainProviderFailure(error)) {
-      await markCommunicationUsageUncertain({ reservation: lifecycle?.reservation, error });
+    const status = Number(error?.status || error?.statusCode || 0);
+    const conclusivelyRejected = status >= 400 && status < 500 && !error.deliveryUncertain;
+    if (providerAccepted || error.deliveryUncertain || isUncertainProviderFailure(error) ||
+        (providerDispatchStarted && !conclusivelyRejected)) {
       error.code = error.code || "SMS_PROVIDER_OUTCOME_UNCERTAIN";
       error.statusCode = error.statusCode || 503;
       error.deliveryUncertain = true;
+      error.providerAccepted = Boolean(providerAccepted?.sid);
+      error.providerMessageId = providerAccepted?.sid || "";
+      error.providerBody = providerAccepted ? normalizedBody : "";
+      await markCommunicationUsageUncertain({ reservation: lifecycle?.reservation, error,
+        providerOperationId: providerAccepted?.sid || "", providerStatus: providerAccepted?.status || "" })
+        .catch(persistError => logOperationalError("sms.uncertain_receipt_persist_failed", persistError, { operationKey }));
     } else {
-      await releaseCommunicationUsageReservation({ reservation: lifecycle?.reservation, usage, reason: error?.code || "provider_rejected" });
+      await releaseCommunicationUsageReservation({ reservation: lifecycle?.reservation, usage, reason: error?.code || "provider_rejected", providerRejected: conclusivelyRejected });
       await releaseSmsContactDisclosure({ claim: disclosure.claim });
     }
     await safeAudit({ businessId: resolvedBusinessId, actorId, actorType, source, usageCategory, conversationId, leadId, from: configuredFrom, to: normalizedTo, body: normalizedBody, status: "failed", reason: error?.code || error?.message || "provider_error", metadata: { ...metadata, segment, sendWindow, operationKey, deliveryUncertain: Boolean(error.deliveryUncertain) } });

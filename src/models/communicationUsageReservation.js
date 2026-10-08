@@ -33,6 +33,9 @@ const CommunicationUsageReservationSchema = new Schema(
     ownerToken: { type: String, trim: true, maxlength: 160, default: "" },
     providerOperationId: { type: String, trim: true, default: "" },
     providerStatus: { type: String, trim: true, default: "" },
+    // Persisted before the provider call. An expired lease after this point
+    // cannot prove that a customer text was never accepted.
+    providerDispatchStartedAt: { type: Date, default: null },
     source: { type: String, trim: true, maxlength: 100, default: "" },
     releaseReason: { type: String, trim: true, maxlength: 300, default: "" },
     leaseExpiresAt: { type: Date, required: true, index: true },

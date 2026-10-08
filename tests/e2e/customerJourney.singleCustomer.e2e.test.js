@@ -128,6 +128,7 @@ import {
 } from "../../src/services/twilioSmsWebhook.service.js";
 
 import AppointmentService from "../../src/services/scheduling/appointment.service.js";
+import { processNextAppointmentNotification } from "../../src/services/scheduling/appointmentNotification.service.js";
 import { createAppointmentTool } from "../../src/helpers/ai/tools/createAppointment.tool.js";
 
 import {
@@ -1161,15 +1162,81 @@ describe("CallBackIQ single-customer complete lifecycle", () => {
           .cancelAppointment
       ).toHaveBeenCalledTimes(1);
 
+      // Cancellation ends reminders/follow-ups, while the durable cancellation
+      // notice must remain queued until a worker records provider acceptance.
       const pendingAfterCancel =
         await AppointmentNotificationJob.countDocuments({
+          business: business._id,
           appointment:
             replacement._id,
-          status: "scheduled",
+          type: { $in: ["reminder", "follow_up"] },
+          status: { $in: ["scheduled", "processing"] },
         });
 
       expect(pendingAfterCancel)
         .toBe(0);
+
+      const cancellationKey = "change_notice:lifecycle_canceled";
+      const cancellationNotices = await AppointmentNotificationJob.find({
+        business: business._id,
+        appointment: replacement._id,
+        key: cancellationKey,
+      }).lean();
+      expect(cancellationNotices).toHaveLength(1);
+      expect(cancellationNotices[0]).toMatchObject({
+        type: "change_notice", status: "scheduled",
+      });
+      expect(cancellationNotices[0].body).toContain("has been canceled");
+
+      // Process the real persisted queue. A superseded confirmation/reschedule
+      // must be discarded, and only the current cancellation may be sent.
+      const sendsBeforeCancellationWorker = sendSms.mock.calls.length;
+      for (let processed = 0; processed < 20; processed += 1) {
+        if (!(await processNextAppointmentNotification())) break;
+      }
+      const sendsAfterCancellation = sendSms.mock.calls
+        .slice(sendsBeforeCancellationWorker)
+        .map(([input]) => input);
+      expect(sendsAfterCancellation).toHaveLength(1);
+      expect(sendsAfterCancellation[0]).toMatchObject({
+        to: CUSTOMER_PHONE,
+        source: "appointment_change_notice",
+        metadata: { appointmentNotificationKey: cancellationKey },
+      });
+      expect(sendsAfterCancellation[0].body).toContain("has been canceled");
+      expect(await AppointmentNotificationJob.countDocuments({
+        business: business._id,
+        appointment: replacement._id,
+        status: { $in: ["scheduled", "processing"] },
+      })).toBe(0);
+      expect(await AppointmentNotificationJob.countDocuments({
+        business: business._id,
+        appointment: replacement._id,
+        key: cancellationKey,
+        status: "sent",
+      })).toBe(1);
+      expect(await Message.countDocuments({
+        business: business._id,
+        conversation: conversation._id,
+        direction: "outbound",
+        "metadata.appointmentId": String(replacement._id),
+        "metadata.appointmentNotificationKey": cancellationKey,
+      })).toBe(1);
+
+      // A retried cancellation must retain the same completed notice and must
+      // not delete the provider event or text the customer again.
+      await AppointmentService.cancel({
+        business, appointmentId: replacement._id,
+        reason: "Customer canceled synthetic E2E appointment.",
+      });
+      expect(await processNextAppointmentNotification()).toBeNull();
+      expect(calendarProvider.cancelAppointment).toHaveBeenCalledTimes(1);
+      expect(sendSms.mock.calls.length).toBe(sendsBeforeCancellationWorker + 1);
+      expect(await AppointmentNotificationJob.countDocuments({
+        business: business._id,
+        appointment: replacement._id,
+        key: cancellationKey,
+      })).toBe(1);
 
       const finalLeadCount =
         await Lead.countDocuments({

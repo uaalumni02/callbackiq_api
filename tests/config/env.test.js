@@ -59,3 +59,21 @@ describe("Phase 1 environment validation", () => {
     expect(result.errors.join(" ")).toMatch(/unsigned/i);
   });
 });
+
+const production = { ...base, APP_ENV: 'production', NODE_ENV: 'production',
+  CLIENT_URL: 'https://callbackiq.com', PUBLIC_API_URL: 'https://api.callbackiq.com', ALLOWED_ORIGINS: 'https://callbackiq.com',
+  TWILIO_ACCOUNT_SID: 'AC12345678901234567890123456789012', TWILIO_AUTH_TOKEN: 'non-placeholder-auth-value',
+  STRIPE_SECRET_KEY: 'sk_live_valid-key-value', STRIPE_WEBHOOK_SECRET: 'whsec_valid-key-value', OPENAI_API_KEY: 'sk_valid-key-value' };
+test('valid HTTPS production configuration remains accepted', () => {
+  expect(validateEnvironment(production, { throwOnError: false }).valid).toBe(true);
+});
+test.each([
+  ['CLIENT_URL', 'http://callbackiq.com'], ['PUBLIC_API_URL', 'https://user:password@api.callbackiq.com'],
+  ['ALLOWED_ORIGINS', 'https://callbackiq.com/login'], ['ALLOWED_ORIGINS', 'http://callbackiq.com'],
+  ['CLIENT_URL', 'https://[::1]'], ['TWILIO_FALLBACK_WEBHOOK_BASE_URL', 'http://fallback.callbackiq.com'],
+  ['AUTH_RESPONSE_TOKEN_ENABLED', 'true'], ['TRUST_PROXY', 'true'],
+  ['CSRF_ORIGIN_GUARD_ENABLED', 'FALSE'], ['CSRF_ALLOW_MISSING_ORIGIN', 'TRUE'],
+  ['TWILIO_VALIDATE_WEBHOOKS', 'false'],
+])('production rejects unsafe %s=%s at actual startup', (name, value) => {
+  expect(validateEnvironment({ ...production, [name]: value }, { throwOnError: false }).valid).toBe(false);
+});

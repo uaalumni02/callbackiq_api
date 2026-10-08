@@ -139,7 +139,7 @@ describe("communication usage reservation provider-free target coverage", () => 
   });
 
   test("marks uncertain delivery with a bounded retry lease and safe warning", async () => {
-    mockFindByIdAndUpdate.mockResolvedValue({ _id: "r1", state: "uncertain" });
+    mockFindOneAndUpdate.mockResolvedValue({ _id: "r1", state: "uncertain" });
     const error = Object.assign(new Error("socket timeout"), { code: "ETIMEDOUT" });
     const result = await markCommunicationUsageUncertain({
       reservation: { _id: "r1", operationKey: "sms:b1:1" },
@@ -150,8 +150,8 @@ describe("communication usage reservation provider-free target coverage", () => 
       "communication_usage.delivery_uncertain",
       expect.objectContaining({ reservationId: "r1", errorCode: "ETIMEDOUT" }),
     );
-    expect(mockFindByIdAndUpdate).toHaveBeenCalledWith(
-      "r1",
+    expect(mockFindOneAndUpdate).toHaveBeenCalledWith(
+      { _id: "r1", state: { $in: ["pending", "uncertain"] } },
       expect.objectContaining({ $set: expect.objectContaining({ state: "uncertain" }) }),
       { returnDocument: "after" },
     );
