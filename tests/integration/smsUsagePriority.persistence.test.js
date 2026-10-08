@@ -33,7 +33,7 @@ async function notice(){
 beforeAll(async()=>{
  mongo=await MongoMemoryReplSet.create({binary:{version:'7.0.24'},replSet:{count:1}});
  await mongoose.connect(mongo.getUri());await Promise.all([Usage.init(),Reservation.init(),Message.init(),Job.init()]);
- process.env.TWILIO_ACCOUNT_SID='AC00000000000000000000000000000000';process.env.TWILIO_AUTH_TOKEN='synthetic';
+ process.env.TWILIO_ACCOUNT_SID='AC00000000000000000000000000000000';process.env.TWILIO_AUTH_TOKEN='test-synthetic-token';
  provider=jest.fn().mockImplementation(async()=>({sid:`SM${crypto.randomBytes(16).toString('hex')}`,status:'queued'}));
  twilio.mockReturnValue({messages:{create:provider}});
 },120000);

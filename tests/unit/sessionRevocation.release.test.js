@@ -93,3 +93,12 @@ describe("release invariant: password reset revokes old JWTs", () => {
     expect(update.$inc).toEqual({ sessionVersion: 1 });
   });
 });
+
+test.each(['MongoNetworkError', 'MongoServerSelectionError', 'MongoWaitQueueTimeoutError'])('a %s outage returns through the 503 handler without invalidating the session', async name => {
+  jest.clearAllMocks(); Token.verify.mockReturnValue({ userId: 'u1', sessionVersion: 0 });
+  const error = Object.assign(new Error('database temporarily unavailable'), { name });
+  User.findById.mockReturnValue({ select: () => ({ lean: () => Promise.reject(error) }) });
+  const res = response(), next = jest.fn();
+  await checkAuth({ cookies: { token: 'valid' }, headers: {} }, res, next);
+  expect(next).toHaveBeenCalledWith(error); expect(res.status).not.toHaveBeenCalled();
+});

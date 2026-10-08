@@ -27,6 +27,7 @@ jest.mock("../../src/services/communicationUsageReservation.service.js", () => (
   __esModule: true,
   reserveCommunicationUsageOperation: jest.fn(),
   commitCommunicationUsageReservation: jest.fn(),
+  markCommunicationProviderDispatch: jest.fn().mockResolvedValue({}),
   findCommunicationOperation: jest.fn(),
   isUncertainProviderFailure: jest.fn(),
   markCommunicationUsageUncertain: jest.fn(),
@@ -52,6 +53,8 @@ import { isSmsSuppressed } from "../../src/services/messaging/contactPreference.
 import {
   reserveCommunicationUsageOperation,
   commitCommunicationUsageReservation,
+  markCommunicationProviderDispatch,
+  markCommunicationUsageUncertain,
   findCommunicationOperation,
   isUncertainProviderFailure,
   releaseCommunicationUsageReservation,
@@ -119,6 +122,8 @@ describe("central outbound SMS policy", () => {
         reservations: [],
       },
     });
+    markCommunicationProviderDispatch.mockResolvedValue(usageReservation);
+    markCommunicationUsageUncertain.mockResolvedValue({ state: "uncertain" });
     commitCommunicationUsageReservation.mockResolvedValue(usageReservation);
     commitSmsContactDisclosure.mockResolvedValue(disclosureClaim);
     releaseCommunicationUsageReservation.mockResolvedValue(usageReservation);
@@ -272,6 +277,68 @@ describe("central outbound SMS policy", () => {
     const result = await sendSms({ business, to: "+14045550101", body: "A personal reply", usageCategory: "manual_sms" });
     expect(result.suppressed).toBe(false);
     expect(mockMessagesCreate).toHaveBeenCalledTimes(1);
+  });
+
+  test('provider acceptance followed by a database failure never releases or resends', async () => {
+    commitCommunicationUsageReservation.mockRejectedValueOnce(new Error('database write unavailable'));
+    await expect(sendSms({ business, to: '+14045550101', body: 'Hello', bypassQuietHours: true }))
+      .rejects.toMatchObject({ deliveryUncertain: true, providerAccepted: true, providerMessageId: 'SM123' });
+    expect(mockMessagesCreate).toHaveBeenCalledTimes(1);
+    expect(releaseCommunicationUsageReservation).not.toHaveBeenCalled();
+    expect(markCommunicationUsageUncertain).toHaveBeenCalledWith(expect.objectContaining({ providerOperationId: 'SM123' }));
+    expect(markCommunicationProviderDispatch.mock.invocationCallOrder[0]).toBeLessThan(mockMessagesCreate.mock.invocationCallOrder[0]);
+  });
+  test('disclosure persistence failure after acceptance cannot make a send retryable', async () => {
+    commitSmsContactDisclosure.mockRejectedValueOnce(new Error('disclosure persistence failed'));
+    await expect(sendSms({ business, to: '+14045550101', body: 'Hello', bypassQuietHours: true }))
+      .rejects.toMatchObject({ deliveryUncertain: true, providerAccepted: true });
+    expect(releaseCommunicationUsageReservation).not.toHaveBeenCalled();
+  });
+  test.each(['pending', 'uncertain'])('a %s send retains uncertainty on replay', async state => {
+    findCommunicationOperation.mockResolvedValue({ state });
+    await expect(sendSms({ business, to: '+14045550101', body: 'Hello' }))
+      .rejects.toMatchObject({ deliveryUncertain: true, code: 'SMS_DELIVERY_RECONCILIATION_REQUIRED' });
+    expect(mockMessagesCreate).not.toHaveBeenCalled();
+  });
+  test('a lost dispatch reservation blocks the provider call', async () => {
+    markCommunicationProviderDispatch.mockRejectedValueOnce(Object.assign(new Error('reservation lost'), { deliveryUncertain: true }));
+    await expect(sendSms({ business, to: '+14045550101', body: 'Hello', bypassQuietHours: true })).rejects.toMatchObject({ deliveryUncertain: true });
+    expect(mockMessagesCreate).not.toHaveBeenCalled();
+  });
+  test('a provider response without a receipt remains uncertain', async () => {
+    mockMessagesCreate.mockResolvedValueOnce({ status: 'queued' });
+    await expect(sendSms({ business, to: '+14045550101', body: 'Hello', bypassQuietHours: true })).rejects.toMatchObject({ deliveryUncertain: true });
+    expect(releaseCommunicationUsageReservation).not.toHaveBeenCalled();
+  });
+  test('server errors after dispatch never release a possibly accepted send', async () => {
+    mockMessagesCreate.mockRejectedValueOnce(Object.assign(new Error('upstream failure'), { status: 503 }));
+    await expect(sendSms({ business, to: '+14045550101', body: 'Hello', bypassQuietHours: true })).rejects.toMatchObject({ deliveryUncertain: true });
+    expect(releaseCommunicationUsageReservation).not.toHaveBeenCalled();
+  });
+  test('conclusive provider rejection permits retry with the same operation key', async () => {
+    mockMessagesCreate.mockRejectedValueOnce(Object.assign(new Error('invalid sender'), { status: 400, code: 21612 }));
+    await expect(sendSms({ business, to: '+14045550101', body: 'Hello', bypassQuietHours: true })).rejects.toMatchObject({ code: 21612 });
+    expect(releaseCommunicationUsageReservation).toHaveBeenCalledWith(expect.objectContaining({ providerRejected: true }));
+    expect(markCommunicationUsageUncertain).not.toHaveBeenCalled();
+  });
+  test('a recovered receipt returns the original provider payload without another text', async () => {
+    findCommunicationOperation.mockResolvedValue({ state: 'uncertain', providerOperationId: 'SMold', providerStatus: 'queued',
+      metadata: { providerRequest: { body: 'Original. Reply STOP to opt out.', from: '+14045550199', to: '+14045550101' } } });
+    const result = await sendSms({ business, to: '+14045550101', body: 'Changed template' });
+    expect(result).toMatchObject({ sid: 'SMold', body: 'Original. Reply STOP to opt out.', from: '+14045550199', replayed: true });
+    expect(mockMessagesCreate).not.toHaveBeenCalled();
+  });
+
+  test('status callback includes the durable reservation reference and retains provider retry overrides', async () => {
+    const prior = process.env.TWILIO_SMS_STATUS_CALLBACK_URL;
+    process.env.TWILIO_SMS_STATUS_CALLBACK_URL = 'https://api.callbackiq.com/api/twilio/status#rc=2&rp=ct,rt';
+    try {
+      await sendSms({ business, to: '+14045550101', body: 'Hello', bypassQuietHours: true });
+      const callback = new URL(mockMessagesCreate.mock.calls[0][0].statusCallback);
+      expect(callback.searchParams.get('smsReservationId')).toBe(usageReservation._id);
+      expect(callback.pathname).toBe('/api/twilio/status');
+      expect(callback.hash).toContain('rc=');
+    } finally { if (prior === undefined) delete process.env.TWILIO_SMS_STATUS_CALLBACK_URL; else process.env.TWILIO_SMS_STATUS_CALLBACK_URL = prior; }
   });
 
 });

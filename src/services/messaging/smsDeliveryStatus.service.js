@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { reconcileSmsProviderReceipt } from './smsProviderReceipt.service.js';
 import AppointmentNotice from '../../models/appointmentNotificationJob.js';
 import CallLog from "../../models/callLog.js";
 import {
@@ -216,6 +217,9 @@ export const processTwilioMessageStatus = async ({
         businessId,
         payload,
       });
+
+  await reconcileSmsProviderReceipt({ businessId, reservationId: payload.callbackReservationId,
+    ownerToken: payload.callbackReservationToken, payload });
 
   const [message, callLog] = await Promise.all([
     updateMessageMonotonically({

@@ -17,6 +17,9 @@ const DEFAULT_BATCH_SIZE = 50;
 
 let timer = null;
 let running = false;
+let active = null;
+let stopping = false;
+import { withDeadline } from "../services/boundedRedis.service.js";
 
 const intervalMs = () => {
   const configured = Number(
@@ -34,7 +37,7 @@ const batchSize = () => {
     : DEFAULT_BATCH_SIZE;
 };
 
-export const drainSmsDeliveryReconciliationOnce = async () => {
+const performDrain = async () => {
   if (running) return { processed: 0, applied: 0, skipped: true };
   running = true;
 
@@ -43,6 +46,7 @@ export const drainSmsDeliveryReconciliationOnce = async () => {
 
   try {
     for (let index = 0; index < batchSize(); index += 1) {
+      if (stopping) break;
       const event = await claimNextSmsDeliveryReconciliationEvent();
       if (!event) break;
       processed += 1;
@@ -100,6 +104,12 @@ export const drainSmsDeliveryReconciliationOnce = async () => {
   return { processed, applied, skipped: false };
 };
 
+export const drainSmsDeliveryReconciliationOnce = () => {
+  if (active) return active;
+  active = performDrain().finally(() => { active = null; });
+  return active;
+};
+
 const scheduleNext = () => {
   timer = setTimeout(async () => {
     try {
@@ -110,7 +120,7 @@ const scheduleNext = () => {
     } catch (error) {
       logOperationalError("sms.delivery_reconciliation.failed", error);
     } finally {
-      if (timer) scheduleNext();
+      if (!stopping) scheduleNext();
     }
   }, intervalMs());
   timer.unref?.();
@@ -126,13 +136,16 @@ export const startSmsDeliveryReconciliationWorker = async () => {
     return;
   }
 
+  stopping = false;
   await drainSmsDeliveryReconciliationOnce();
-  scheduleNext();
+  if (!stopping) scheduleNext();
 };
 
-export const stopSmsDeliveryReconciliationWorker = () => {
+export const stopSmsDeliveryReconciliationWorker = async () => {
+  stopping = true;
   if (timer) clearTimeout(timer);
   timer = null;
+  if (active) await withDeadline(active, 120000, "SMS_DELIVERY_DRAIN_TIMEOUT");
 };
 
 export default {

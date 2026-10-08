@@ -175,11 +175,11 @@ const shutdown = async (signal, exitCode = 0) => {
     stopA2pReconciliationWorker();
     stopTrialLifecycleWorker();
     stopAppointmentMaintenanceWorker();
-    stopAutomationWorker();
+    await stopAutomationWorker();
     await stopSmsProcessingWorker();
     await stopWebhookWorkWorker();
-    stopSmsIngressReconciliationWorker();
-    stopSmsDeliveryReconciliationWorker();
+    await stopSmsIngressReconciliationWorker();
+    await stopSmsDeliveryReconciliationWorker();
     await stopConversationLifecycleWorker();
     stopVoiceUsageReconciliationWorker();
     await conversationRelayServer.close({ drainMs: Math.max(0, Number(process.env.VOICE_DRAIN_TIMEOUT_MS) || 610000) });
@@ -214,10 +214,10 @@ process.on("uncaughtException", (error) => {
 });
 
 const startServer = async () => {
-  assertTwilioProductionConfig();
     // CALLBACKIQ_STARTUP_HARDENING_V1
   normalizeRuntimeEnvironment();
   validateEnvironment(process.env, { throwOnError: true });
+  assertTwilioProductionConfig();
   assertServerProcessRole();
   assertRealtimeScalingConfig();
   assertScaleProfile();

@@ -6,6 +6,7 @@ import Message from "../../models/message.js";
 import { sendSms } from "../twilioSmsService.js";
 import {
   findCommunicationOperation,
+  markCommunicationUsageUncertain,
   releaseCommunicationUsageReservation,
 } from "../communicationUsageReservation.service.js";
 import SocketService from "../socket.service.js";
@@ -41,6 +42,15 @@ const reconcileDispatchingOperation = async ({ operation, business }) => {
     operation.state = "provider_accepted";
     operation.providerMessageId = lifecycle.providerOperationId || operation.providerMessageId;
     operation.providerStatus = lifecycle.providerStatus || operation.providerStatus || "sent";
+    operation.metadata = { ...operation.metadata, providerBody: lifecycle.metadata?.providerRequest?.body || operation.body };
+    await operation.save();
+    return { accepted: true };
+  }
+  if (lifecycle.state === "uncertain" && lifecycle.providerOperationId) {
+    operation.state = "provider_accepted";
+    operation.providerMessageId = lifecycle.providerOperationId;
+    operation.providerStatus = lifecycle.providerStatus || "queued";
+    operation.metadata = { ...operation.metadata, providerBody: lifecycle.metadata?.providerRequest?.body || operation.body };
     await operation.save();
     return { accepted: true };
   }
@@ -61,6 +71,14 @@ const reconcileDispatchingOperation = async ({ operation, business }) => {
     return { retryable: true };
   }
   if (lifecycle.state === "pending" && new Date(lifecycle.leaseExpiresAt) <= new Date()) {
+    if (lifecycle.providerDispatchStartedAt !== null) {
+      await markCommunicationUsageUncertain({ reservation: lifecycle, error: { code: "SMS_DISPATCH_INTERRUPTED" } });
+      operation.state = "reconciliation_required";
+      operation.failureCode = "provider_outcome_uncertain";
+      operation.failureMessage = "The previous text may have reached the customer. Check delivery before sending again.";
+      await operation.save();
+      return { pending: true };
+    }
     await releaseCommunicationUsageReservation({
       reservation: lifecycle,
       reason: "expired_manual_sms_dispatch",
@@ -159,9 +177,9 @@ const persistAcceptedOperation = async ({ operation, business, conversation, lea
         conversation: conversation._id,
         lead: lead?._id || conversation.lead || null,
         direction: "outbound",
-        from: business.phone,
+        from: conversation.replyFromPhone || business.phone,
         to: operation.to,
-        body: operation.body,
+        body: operation.metadata?.providerBody || operation.body,
         provider: "twilio",
         providerMessageId: operation.providerMessageId,
         clientOperationId: operation.operationId,
@@ -190,7 +208,7 @@ const persistAcceptedOperation = async ({ operation, business, conversation, lea
         humanTakeoverAt: new Date(),
         humanTakeoverBy: actorId,
         "orchestration.phase": "human_takeover",
-        lastMessage: operation.body,
+        lastMessage: operation.metadata?.providerBody || operation.body,
         lastMessageAt: new Date(),
       },
     },
@@ -331,7 +349,7 @@ export const executeManualSmsOperation = async ({
     const sent = await sendSms({
       business,
       businessId: business._id,
-      from: business.phone,
+      from: policy.conversation.replyFromPhone || business.phone,
       to: policy.normalizedTo,
       body: policy.body,
       actorId,
@@ -368,7 +386,7 @@ export const executeManualSmsOperation = async ({
     operation.state = "provider_accepted";
     operation.providerMessageId = sent?.sid || "";
     operation.providerStatus = sent?.status || "sent";
-    operation.body = sent?.body || operation.body;
+    operation.metadata = { ...operation.metadata, providerBody: sent?.body || operation.body };
     await operation.save();
     return await persistAcceptedOperation({
       operation,
@@ -378,6 +396,10 @@ export const executeManualSmsOperation = async ({
       actorId,
     });
   } catch (error) {
+    if (error?.providerMessageId) {
+      operation.providerMessageId = error.providerMessageId;
+      operation.metadata = { ...operation.metadata, providerBody: error.providerBody || operation.body };
+    }
     const providerAccepted = Boolean(operation.providerMessageId);
     const providerUncertain = Boolean(error?.deliveryUncertain);
     operation.state =

@@ -1,5 +1,6 @@
 import Token from "../helpers/jwt/token.js";
 import User from "../models/user.js";
+import { databaseUnavailable, queryFailure } from "../services/scale/queryBudget.js";
 
 const getBearerToken = (authorizationHeader) => {
   if (typeof authorizationHeader !== "string") {
@@ -62,7 +63,10 @@ const checkAuth = async (req, res, next) => {
     };
 
     return next();
-  } catch {
+  } catch (error) {
+    // An outage must not invalidate a valid browser session or masquerade as
+    // an expired password-reset token. The API error handler returns 503.
+    if (databaseUnavailable(error) || queryFailure(error)) return next(error);
     return rejectAuthentication(res);
   }
 };

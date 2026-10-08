@@ -57,7 +57,7 @@ const isPlaceholder = (value) =>
 const isLocalUrl = (value) => {
   try {
     const url = new URL(value);
-    return ["localhost", "127.0.0.1", "::1"].includes(url.hostname);
+    return ["localhost", "127.0.0.1", "::1", "[::1]", "0.0.0.0"].includes(url.hostname);
   } catch {
     return false;
   }
@@ -92,6 +92,7 @@ export const validateEnvironment = (
   }
 
   const required = [...COMMON_REQUIRED];
+  const disabled = value => String(value || "").trim().toLowerCase() === "false";
 
   if (["staging", "production"].includes(appEnv)) {
     required.push(...PROVIDER_REQUIRED);
@@ -120,7 +121,20 @@ export const validateEnvironment = (
       "CLIENT_URL",
       "PUBLIC_API_URL",
       "TWILIO_WEBHOOK_BASE_URL",
+      "FRONTEND_URL",
+      "TWILIO_FALLBACK_WEBHOOK_BASE_URL",
     ]) {
+      if (source[name]) {
+        try {
+          const url = new URL(source[name]);
+          if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) {
+            errors.push(`${name} must use HTTPS without credentials, a query, or a fragment in ${appEnv}.`);
+          }
+          if (["CLIENT_URL", "FRONTEND_URL"].includes(name) && url.pathname !== "/") {
+            errors.push(`${name} must be a frontend origin without a path.`);
+          }
+        } catch { errors.push(`${name} must be a valid absolute HTTPS URL.`); }
+      }
       if (source[name] && isLocalUrl(source[name])) {
         errors.push(`${name} cannot use localhost in ${appEnv}.`);
       }
@@ -155,9 +169,13 @@ export const validateEnvironment = (
 
   if (["staging", "production"].includes(appEnv)) {
     if (!["staging", "production"].includes(String(source.NODE_ENV || "").toLowerCase())) errors.push("Production-like APP_ENV requires production-like NODE_ENV.");
-    if (source.CSRF_ALLOW_MISSING_ORIGIN === "true" || source.CSRF_ORIGIN_GUARD_ENABLED === "false") errors.push("Production requires the CSRF origin guard and verified origins.");
-    if (source.DISABLE_TWILIO_SIGNATURE_VALIDATION === "true") errors.push("Production cannot disable Twilio signature validation.");
-    if (source.RECOVERY_SMS_ASYNC_ENABLED === "false") errors.push("Production requires durable recovery SMS jobs.");
+    if (parseBoolean(source.CSRF_ALLOW_MISSING_ORIGIN, false) || disabled(source.CSRF_ORIGIN_GUARD_ENABLED)) errors.push("Production requires the CSRF origin guard and verified origins.");
+    if (parseBoolean(source.DISABLE_TWILIO_SIGNATURE_VALIDATION, false) || disabled(source.TWILIO_VALIDATE_WEBHOOKS)) errors.push("Production cannot disable Twilio signature validation.");
+    if (disabled(source.RECOVERY_SMS_ASYNC_ENABLED)) errors.push("Production requires durable recovery SMS jobs.");
+    if (parseBoolean(source.AUTH_RESPONSE_TOKEN_ENABLED, false)) errors.push("Production cannot expose session tokens to browser JavaScript.");
+    if (parseBoolean(source.TRUST_PROXY, false) && String(source.TRUST_PROXY).trim().toLowerCase() === "true") {
+      errors.push("TRUST_PROXY=true trusts every caller. Configure the actual proxy hop count or subnet.");
+    }
   }
 
   const allowedOrigins = parseCsv(
@@ -173,6 +191,17 @@ export const validateEnvironment = (
     ["staging", "production"].includes(appEnv)
   ) {
     errors.push("Wildcard CORS origins are not allowed outside development.");
+  }
+
+  if (["staging", "production"].includes(appEnv)) {
+    for (const origin of allowedOrigins) {
+      try {
+        const parsed = new URL(origin);
+        if (parsed.protocol !== "https:" || parsed.origin !== origin || isLocalUrl(origin)) {
+          errors.push("ALLOWED_ORIGINS must contain public HTTPS origins without paths or credentials.");
+        }
+      } catch { errors.push("ALLOWED_ORIGINS must contain valid HTTPS origins."); }
+    }
   }
 
   if (!source.DUMMY_PASSWORD_HASH) {

@@ -459,7 +459,12 @@ export const handleTwilioStatusWebhook = async (req, res) => {
     });
 
     if (eventType === "message_status") {
-      await processTwilioMessageStatus({ businessId: business._id, payload: req.body });
+      await processTwilioMessageStatus({ businessId: business._id, payload: {
+        ...req.body,
+        // The query is part of the URL verified by Twilio signature middleware.
+        callbackReservationId: typeof req.query?.smsReservationId === "string" ? req.query.smsReservationId : "",
+        callbackReservationToken: typeof req.query?.smsReservationToken === "string" ? req.query.smsReservationToken : "",
+      } });
     } else if (req.body.CallSid) {
       await processTwilioCallStatus({ businessId: business._id, payload: req.body });
     }

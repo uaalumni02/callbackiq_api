@@ -337,6 +337,22 @@
   {
     "collection": "appointments",
     "key": {
+      "lifecycleNotice.pending": 1,
+      "updatedAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "appointments",
+    "key": {
+      "rescheduleRequest.alertPending": 1,
+      "updatedAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "appointments",
+    "key": {
       "business": 1,
       "lead": 1,
       "status": 1
@@ -539,6 +555,14 @@
     "options": {
       "unique": true
     }
+  },
+  {
+    "collection": "appointmentnotificationjobs",
+    "key": {
+      "business": 1,
+      "providerMessageId": 1
+    },
+    "options": {}
   },
   {
     "collection": "appointmentnotificationjobs",
