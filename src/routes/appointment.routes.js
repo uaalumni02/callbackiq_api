@@ -8,6 +8,7 @@ router.post("/", AppointmentController.create);
 router.get("/", AppointmentController.list);
 router.get("/:id", AppointmentController.get);
 router.patch("/:id", AppointmentController.update);
+router.post("/:id/customer-contact", AppointmentController.recordCustomerContact);
 router.post("/:id/confirm", AppointmentController.confirm);
 router.post("/:id/decline", AppointmentController.decline);
 router.post("/:id/cancel", AppointmentController.cancel);

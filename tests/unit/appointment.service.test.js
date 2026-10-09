@@ -1,3 +1,10 @@
+jest.mock('../../src/services/distributedLease.service.js', () => ({
+  ...jest.requireActual('../../src/services/distributedLease.service.js'),
+  withDistributedLease: jest.fn(async (_key, operation) => ({ acquired: true, value: await operation() })),
+}));
+jest.mock('../../src/services/scheduling/appointmentProjection.service.js', () => ({ ...jest.requireActual('../../src/services/scheduling/appointmentProjection.service.js'), repairPendingAppointmentProjections: jest.fn() }));
+jest.mock('../../src/models/alert.js', () => ({ __esModule: true, default: { updateMany: jest.fn().mockResolvedValue({}) } }));
+jest.mock('../../src/services/scheduling/appointmentNoticeFailure.service.js', () => ({ reconcileAppointmentNoticeFailures: jest.fn() }));
 jest.mock('../../src/services/scheduling/appointmentLifecycle.service.js', () => ({ ...jest.requireActual('../../src/services/scheduling/appointmentLifecycle.service.js'), tryRepairAppointmentLifecycle: jest.fn(), repairPendingAppointmentLifecycles: jest.fn() }));
 jest.mock('../../src/services/scheduling/rescheduleRequest.service.js', () => ({ repairRescheduleReviews: jest.fn() }));
 jest.mock('../../src/services/scheduling/approvalLifecycle.service.js', () => ({ reconcileApprovalRequests: jest.fn().mockResolvedValue({ repaired: 0 }), resolveApprovalReview: jest.fn().mockResolvedValue(null) }));
@@ -31,7 +38,7 @@ import AppointmentService, {
 
 jest.mock("../../src/models/appointment.js", () => ({
   __esModule: true,
-  default: { findOne: jest.fn(), create: jest.fn(), updateMany: jest.fn(), find: jest.fn() },
+  default: { updateOne: jest.fn().mockResolvedValue({ matchedCount: 1 }), findOne: jest.fn(), create: jest.fn(), updateMany: jest.fn(), find: jest.fn() },
 }));
 jest.mock("../../src/models/lead.js", () => ({
   __esModule: true,
@@ -39,7 +46,7 @@ jest.mock("../../src/models/lead.js", () => ({
 }));
 jest.mock("../../src/models/serviceOffering.js", () => ({
   __esModule: true,
-  default: { findById: jest.fn() },
+  default: { findById: jest.fn(), findOne: jest.fn() },
 }));
 jest.mock("../../src/services/alert.service.js", () => ({
   __esModule: true,
@@ -164,6 +171,8 @@ describe("AppointmentService", () => {
     AvailabilityService.getAvailability.mockResolvedValue({ slots: matchingSlots });
     ServiceOffering.findById.mockResolvedValue(service);
     Lead.findById.mockResolvedValue({ _id: "l1", serviceNeeded: "Repair" });
+    Lead.findOne.mockImplementation(() => ({ _id: 'l1', serviceNeeded: 'Repair', lean: async () => null, select: () => ({ lean: async () => null }) }));
+    ServiceOffering.findOne.mockResolvedValue(service);
     Appointment.create.mockImplementation(async (value) => appointmentDoc({ ...value, _id: "a1" }));
     ConversionEventService.markAppointmentBooked.mockResolvedValue({});
     ConversionEventService.record.mockResolvedValue({});
@@ -437,7 +446,7 @@ describe("AppointmentService", () => {
     });
     expect(ConversionEventService.markAppointmentBooked).toHaveBeenCalledWith({
       appointment,
-      lead: { _id: "l1", serviceNeeded: "Repair" },
+      lead: expect.objectContaining({ _id: "l1", serviceNeeded: "Repair" }),
       channel: "sms",
       bookedBy: "ai",
     });
@@ -655,8 +664,8 @@ describe("AppointmentService", () => {
     expect(appointment.activeSlotKey).toBeNull();
     expect(ConversionEventService.record).toHaveBeenCalledWith(expect.objectContaining({ type: "job_completed", actualRevenue: 500 }));
     expect(Lead.updateOne).toHaveBeenCalledWith(
-      { _id: "l1", business: "b1" },
-      { $set: { completedAt: appointment.completedAt, actualRevenue: 500 } },
+      expect.objectContaining({ _id: "l1", business: "b1" }),
+      { $set: expect.objectContaining({ completedAt: appointment.completedAt, actualRevenue: 500 }) },
     );
   });
 

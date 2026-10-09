@@ -243,7 +243,7 @@ export const processTwilioMessageStatus = async ({
   ]);
 
   let appointmentNotice = null;
-  if (!message && !callLog && canonicalStatus && mongoose.isValidObjectId(businessId)) {
+  if (canonicalStatus && mongoose.isValidObjectId(businessId)) {
     appointmentNotice = await AppointmentNotice.findOneAndUpdate({ business: businessId, providerMessageId,
       $or: [{ deliveryStatus: { $in: ['', ...(ALLOWED_CURRENT_STATUSES[canonicalStatus] || [])] } }, { deliveryStatus: { $exists: false } }],
     }, { $set: { deliveryStatus: canonicalStatus, deliveryErrorMessage: errorMessage } }, { returnDocument: 'after' });

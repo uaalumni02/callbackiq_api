@@ -1,3 +1,5 @@
+import { reconcileAppointmentNoticeFailures } from './appointmentNoticeFailure.service.js';
+import { projectionMarker, tryRepairAppointmentProjections, repairPendingAppointmentProjections } from './appointmentProjection.service.js';
 import { lifecycleMarker, tryRepairAppointmentLifecycle, repairPendingAppointmentLifecycles } from './appointmentLifecycle.service.js';
 import { repairRescheduleReviews } from './rescheduleRequest.service.js';
 import { normalizeAppointmentAddress as normalizeAddress } from './appointmentAddress.service.js';
@@ -19,7 +21,6 @@ import CallLog from "../../models/callLog.js"; // CALLBACKIQ_MARKETING_ATTRIBUTI
 import Conversation from "../../models/conversation.js";
 import Lead from "../../models/lead.js";
 import ServiceOffering from "../../models/serviceOffering.js";
-import AlertService from "../alert.service.js";
 import AutomationTriggerService from "../automation/automationTrigger.service.js";
 import ConversionEventService from "../conversionEvent.service.js";
 import InterventionService from "../intervention.service.js";
@@ -36,7 +37,6 @@ import { businessCalendarProviderName } from "./calendarProviderName.service.js"
 import {
   cancelAppointmentNotifications,
   scheduleAppointmentReminders,
-  schedulePostAppointmentFollowUp,
 } from "./appointmentNotification.service.js";
 import { addMinutes, formatDateKey } from "./timezone.service.js";
 
@@ -191,68 +191,39 @@ const emptyAppointmentAttribution = () => ({
   attribution: {},
 });
 
-const resolveAppointmentAttribution = async ({ businessId, input }) => {
-  if (input?.marketingSource || input?.trackingNumber || input?.attribution) {
-    return {
-      marketingSource: input.marketingSource || null,
-      trackingNumber: input.trackingNumber || null,
-      attribution: input.attribution || {},
+export const resolveAppointmentAttribution = async ({ businessId, input }) => {
+  if (!mongoose.isValidObjectId(businessId)) return emptyAppointmentAttribution();
+  // Acquisition credit is write-once first source. Calls still retain their
+  // interaction source; never rewrite historical appointments on report reads.
+  if (input?.lead && mongoose.isValidObjectId(input.lead)) {
+    const lead = await Lead.findOne({ _id: input.lead, business: businessId })
+      .select('firstMarketingSource firstTrackingNumber firstAttribution').lean();
+    if (lead?.firstMarketingSource) return {
+      marketingSource: lead.firstMarketingSource,
+      trackingNumber: lead.firstTrackingNumber || null,
+      attribution: lead.firstAttribution || {},
     };
   }
-
-  /*
-   * Marketing attribution is supplemental booking metadata.
-   * It must never block appointment creation, confirmation, or rescheduling.
-   *
-   * Unit tests and some internal callers intentionally use synthetic IDs such
-   * as "b1" and "l1". Do not send those through ObjectId-backed CallLog
-   * queries.
-   */
-  if (!mongoose.isValidObjectId(businessId)) {
-    return emptyAppointmentAttribution();
-  }
-
-  const filter = {
-    business: businessId,
-    marketingSource: { $ne: null },
-  };
-
+  const filter = { business: businessId, marketingSource: { $ne: null } };
   if (input?.lead) {
-    if (!mongoose.isValidObjectId(input.lead)) {
-      return emptyAppointmentAttribution();
-    }
-
+    if (!mongoose.isValidObjectId(input.lead)) return emptyAppointmentAttribution();
     filter.lead = input.lead;
   } else if (input?.customerPhone) {
-    const normalizedCustomerPhone = normalizePhoneToE164(input.customerPhone);
-    if (!normalizedCustomerPhone) {
-      return { marketingSource: null, trackingNumber: null, attribution: {} };
-    }
-    filter.from = normalizedCustomerPhone;
-  } else {
-    return emptyAppointmentAttribution();
-  }
-
-  const call = await CallLog.findOne(filter)
-    .sort({ createdAt: -1 })
-    .select("marketingSource trackingNumber attribution")
-    .lean();
-
-  if (!call && input?.lead) {
-    const attributedLead = await Lead.findOne({ _id: input.lead, business: businessId })
-      .select('firstMarketingSource firstTrackingNumber firstAttribution latestMarketingSource latestTrackingNumber latestAttribution').lean();
-    if (attributedLead?.firstMarketingSource || attributedLead?.latestMarketingSource) {
-      const first = Boolean(attributedLead.firstMarketingSource);
-      return { marketingSource: first ? attributedLead.firstMarketingSource : attributedLead.latestMarketingSource,
-        trackingNumber: (first ? attributedLead.firstTrackingNumber : attributedLead.latestTrackingNumber) || null,
-        attribution: (first ? attributedLead.firstAttribution : attributedLead.latestAttribution) || {} };
-    }
-  }
-
+    filter.from = normalizePhoneToE164(input.customerPhone);
+    if (!filter.from) return emptyAppointmentAttribution();
+  } else return {
+    marketingSource: input?.marketingSource || null,
+    trackingNumber: input?.trackingNumber || null,
+    attribution: input?.attribution || {},
+  };
+  // Legacy leads without acquisition metadata use the earliest attributed
+  // interaction, not the latest. Explicit metadata is the final fallback.
+  const call = await CallLog.findOne(filter).sort({ createdAt: 1, _id: 1 })
+    .select('marketingSource trackingNumber attribution').lean();
   return {
-    marketingSource: call?.marketingSource || null,
-    trackingNumber: call?.trackingNumber || null,
-    attribution: call?.attribution || {},
+    marketingSource: call?.marketingSource || input?.marketingSource || null,
+    trackingNumber: call?.trackingNumber || input?.trackingNumber || null,
+    attribution: call?.attribution || input?.attribution || {},
   };
 };
 
@@ -470,7 +441,9 @@ class AppointmentService {
     });
     await reconcileApprovalRequests({ businessId });
     await repairPendingAppointmentLifecycles({ businessId });
+    await repairPendingAppointmentProjections({ businessId });
     await repairRescheduleReviews({ businessId });
+    await reconcileAppointmentNoticeFailures({ businessId });
     await runApprovalSms();
     return result;
   }
@@ -481,6 +454,7 @@ class AppointmentService {
       let appointment = await getAppointmentForBusiness(business._id, appointmentId);
       if (appointment.status === 'confirmed') {
         await repairConfirmedApproval({ appointment, business });
+        await tryRepairAppointmentProjections(appointment);
         return appointment;
       }
       if (!(appointment.status === 'held' || (appointment.requiresBusinessApproval === true && appointment.status === 'failed' && /hold expired/i.test(appointment.failureReason)))) {
@@ -531,7 +505,7 @@ class AppointmentService {
       idempotencyKey: key,
     });
     if (existing) {
-      if (existing.status === "confirmed") { await tryRepairAppointmentLifecycle(existing, business); return existing; }
+      if (existing.status === "confirmed") { await tryRepairAppointmentLifecycle(existing, business); await tryRepairAppointmentProjections(existing); return existing; }
 
       if (existing.status === "held") {
         if (existing.requiresBusinessApproval === true || !confirm) {
@@ -597,7 +571,7 @@ class AppointmentService {
       appointmentId,
     );
 
-    if (appointment.status === "confirmed") { await tryRepairAppointmentLifecycle(appointment, business); return appointment; }
+    if (appointment.status === "confirmed") { await tryRepairAppointmentLifecycle(appointment, business); await tryRepairAppointmentProjections(appointment); return appointment; }
     assertTransition(appointment.status, "confirmed");
 
     if (appointment.heldExpiresAt && appointment.heldExpiresAt <= new Date()) {
@@ -660,6 +634,7 @@ class AppointmentService {
       appointment.externalCalendarId =
         providerResult.externalCalendarId || null;
       appointment.status = "confirmed";
+      appointment.bookingProjection = projectionMarker();
       if (!appointment.requiresBusinessApproval && !appointment.automaticConfirmationAuthorized && appointment.bookedBy !== "ai") appointment.lifecycleNotice = lifecycleMarker("confirmed");
       appointment.approvalRecovery = { state: "resolved", reconciled: false };
       appointment.confirmedAt = new Date();
@@ -781,30 +756,7 @@ class AppointmentService {
       });
     }
 
-    try {
-      await ConversionEventService.markAppointmentBooked({
-        appointment,
-        lead,
-        channel: appointment.source,
-        bookedBy: appointment.bookedBy,
-      });
-      if (appointment.lead) {
-        await AlertService.createBookedJobAlert({
-          businessId: business._id,
-          leadId: appointment.lead,
-          customerName: appointment.customerName,
-          customerPhone: appointment.customerPhone,
-          serviceNeeded:
-            service?.name || lead?.serviceNeeded || "Service appointment",
-          estimatedValue: appointment.estimatedValue,
-        });
-      }
-    } catch (error) {
-      safeConsole.error("Appointment confirmation side effect failed:", {
-        appointmentId: String(appointment._id),
-        error: error.message,
-      });
-    }
+    await tryRepairAppointmentProjections(appointment);
 
     SocketService.emitToBusiness(
       business._id,
@@ -1466,41 +1418,10 @@ class AppointmentService {
       if (changes.status === "no_show") appointment.noShowAt = new Date();
     }
 
+    if (appointment.status === "completed") appointment.completionProjection = projectionMarker();
     await appointment.save();
-
-    if (appointment.status === "completed") {
-      await ConversionEventService.record({
-        businessId,
-        leadId: appointment.lead,
-        conversationId: appointment.conversation,
-        appointmentId: appointment._id,
-        type: "job_completed",
-        channel: appointment.source,
-        estimatedValue: appointment.estimatedValue,
-        actualRevenue: appointment.actualRevenue,
-        marketingSourceId: appointment.marketingSource || null,
-        trackingNumberId: appointment.trackingNumber || null,
-        attribution: appointment.attribution || {},
-        idempotencyKey: `job_completed:${appointment._id}`,
-      });
-      if (appointment.lead) {
-        await Lead.updateOne(
-          { _id: appointment.lead, business: businessId },
-          {
-            $set: {
-              completedAt: appointment.completedAt,
-              actualRevenue: appointment.actualRevenue,
-            },
-          },
-        );
-      }
-      await runNonBlockingAppointmentSideEffect({
-        appointment,
-        businessId,
-        label: "post-appointment follow-up scheduling",
-        task: () => schedulePostAppointmentFollowUp({ appointment }),
-      });
-    }
+    // Saved completion is success even when secondary work needs a retry.
+    await tryRepairAppointmentProjections(appointment);
 
 
     // CALLBACKIQ_AUTHORITATIVE_OWNER_OUTCOME_V1

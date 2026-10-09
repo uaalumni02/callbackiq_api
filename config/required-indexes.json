@@ -345,6 +345,24 @@
   {
     "collection": "appointments",
     "key": {
+      "bookingProjection.pending": 1,
+      "bookingProjection.retryAt": 1,
+      "updatedAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "appointments",
+    "key": {
+      "completionProjection.pending": 1,
+      "completionProjection.retryAt": 1,
+      "updatedAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "appointments",
+    "key": {
       "rescheduleRequest.alertPending": 1,
       "updatedAt": 1
     },
@@ -570,6 +588,25 @@
       "status": 1,
       "scheduledFor": 1,
       "lockedAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "appointmentnotificationjobs",
+    "key": {
+      "resolutionAt": 1,
+      "status": 1,
+      "failureCheckedAt": 1,
+      "_id": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "appointmentnotificationjobs",
+    "key": {
+      "resolutionAt": 1,
+      "deliveryStatus": 1,
+      "sentAt": 1
     },
     "options": {}
   },

@@ -470,7 +470,7 @@ class RevenueRecoveryService {
       const completed = Boolean(completionEvent) || appointment?.status === "completed";
       if (completed) {
         const actual = Number(
-          completionEvent?.actualRevenue ?? appointment?.actualRevenue ?? 0,
+          appointment?.actualRevenue ?? completionEvent?.actualRevenue ?? 0,
         );
         row.actualRecoveredRevenue += Number.isFinite(actual) ? actual : 0;
         row.totalRecoveredAttributableValue += Number.isFinite(actual) ? actual : 0;

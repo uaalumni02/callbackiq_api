@@ -1,3 +1,5 @@
+import { recordManualNoticeContact } from '../services/scheduling/appointmentNoticeFailure.service.js';
+import mongoose from 'mongoose';
 import { declineRescheduleRequest } from '../services/scheduling/appointmentLifecycle.service.js';
 import { listAppointmentPage } from '../services/scheduling/appointmentList.service.js';
 import { presentAppointment, presentAppointments } from '../services/scheduling/appointmentPresentation.service.js';
@@ -13,6 +15,18 @@ const getIdempotencyKey = (req) =>
   req.get("Idempotency-Key") || req.body?.idempotencyKey || null;
 
 class AppointmentController {
+  static async recordCustomerContact(req, res, next) {
+    try {
+      const business = await getOwnedBusiness({ user: req.user, requestedBusinessId: req.body.businessId });
+      if (!mongoose.isValidObjectId(req.params.id) || !mongoose.isValidObjectId(req.body.jobId)) {
+        return res.status(400).json({ success: false, message: 'Choose a saved customer notice.' });
+      }
+      const data = await recordManualNoticeContact({ businessId: business._id, appointmentId: req.params.id,
+        jobId: req.body.jobId, userId: req.user.userId });
+      return res.status(200).json({ success: true, data });
+    } catch (error) { return next(error); }
+  }
+
   static async create(req, res, next) {
     try {
       const business = await getOwnedBusiness({ user: req.user, requestedBusinessId: req.body.businessId });

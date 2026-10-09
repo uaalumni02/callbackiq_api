@@ -41,10 +41,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Use Node.js 20
+      - name: Use pinned Node.js runtime
         uses: actions/setup-node@v5
         with:
-          node-version: "20"
+          node-version: "24.19.0"
           cache: npm
 
       - name: Install dependencies
@@ -56,9 +56,15 @@ jobs:
       - name: Verify bounded owner reads and SMS tenant fairness
         run: npm run test:scale-capacity && npm run test:scale-query-fixes && npm run test:scale-query-fixes:persistence
 
+      - name: Record certification runtime
+        run: |
+          mkdir -p ci-diagnostics
+          node --version > ci-diagnostics/node-version.txt
+          npm --version > ci-diagnostics/npm-version.txt
+          git rev-parse HEAD > ci-diagnostics/api-commit.txt
       - name: Run complete deterministic release certification
         env:
-          NODE_OPTIONS: --max-old-space-size=4096
+          NODE_OPTIONS: --max-old-space-size=4096 --report-on-fatalerror --report-uncaught-exception --report-directory=ci-diagnostics
         run: npm run release:certify:ci
 
       - name: Upload coverage artifact
@@ -66,7 +72,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: callbackiq-api-coverage-${{ github.run_id }}
-          path: coverage/
+          path: |
+            coverage/
+            ci-diagnostics/
           if-no-files-found: warn
           retention-days: 14
 
@@ -92,10 +100,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Use Node.js 20
+      - name: Use pinned Node.js runtime
         uses: actions/setup-node@v5
         with:
-          node-version: "20"
+          node-version: "24.19.0"
           cache: npm
 
       - name: Install dependencies

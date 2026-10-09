@@ -11,20 +11,36 @@ jobs:
   browser:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      CROSS_REPO_TOKEN: ${{ secrets.CALLBACKIQ_CROSS_REPO_READ_TOKEN }}
     steps:
       - uses: actions/checkout@v6
         with:
           path: api
-      - uses: actions/checkout@v6
+      - name: Checkout partner using configured read credential
+        if: env.CROSS_REPO_TOKEN != ''
+        uses: actions/checkout@v6
         with:
           repository: uaalumni02/callbackiq_frontend
-          token: ${{ secrets.CALLBACKIQ_CROSS_REPO_READ_TOKEN || github.token }}
+          token: ${{ secrets.CALLBACKIQ_CROSS_REPO_READ_TOKEN }}
           persist-credentials: false
-          ref: ${{ vars.CALLBACKIQ_FRONTEND_REF || github.base_ref || github.ref_name }}
+          ref: ${{ vars.CALLBACKIQ_FRONTEND_REF || '998a89366203f183e7a0a0bb41912c46ac6a668d' }}
           path: frontend
+      - name: Checkout public partner without cross-repository credential
+        if: env.CROSS_REPO_TOKEN == ''
+        env:
+          PARTNER_REF: ${{ vars.CALLBACKIQ_FRONTEND_REF || '998a89366203f183e7a0a0bb41912c46ac6a668d' }}
+        run: |
+          git clone --no-checkout https://github.com/uaalumni02/callbackiq_frontend.git frontend
+          git -C frontend checkout --detach "$PARTNER_REF"
+      - name: Record exact API and frontend revisions
+        run: |
+          mkdir -p api/browser-results
+          git -C api rev-parse HEAD > api/browser-results/api-commit.txt
+          git -C frontend rev-parse HEAD > api/browser-results/frontend-commit.txt
       - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: "24.19.0"
       - run: npm ci
         working-directory: api
       - run: npm ci
@@ -33,7 +49,8 @@ jobs:
         working-directory: frontend
         env:
           CI: true
-          REACT_APP_API_BASE_URL: http://127.0.0.1:43771/api
+          REACT_APP_API_BASE_URL: /api
+          REACT_APP_SOCKET_URL: ""
       - run: npx playwright install --with-deps chromium
         working-directory: api
       - run: npm run test:browser

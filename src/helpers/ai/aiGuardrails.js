@@ -81,6 +81,8 @@ const SAFETY_HAZARD_PATTERN_GROUPS = [
   {
     type: "fire",
     patterns: [
+      /\bsmells?\s+like\s+(?:(?:it|something|the (?:panel|dryer|oven|wiring))\s+)?(?:(?:is|was)\s+)?(?:burning|burned|burnt)\b/i,
+      /\b(?:dryer|washer|oven|stove|microwave|appliance|furnace|air conditioner|heater)\b[^.!?;]{0,45}\b(?:smoking|on fire)\b/i,
       /\b(?:electrical|wiring|outlet|panel) (?:fire|smoke|burning)\b/i,
       /\b(?:smoke|fire|flames?)\b/i,
       /\b(?:burning|burned|burnt|electrical) smell\b/i,
@@ -122,6 +124,7 @@ const SAFETY_HAZARD_PATTERN_GROUPS = [
   {
     type: "trapped",
     patterns: [
+      /\b(?:child|kid|baby|toddler|person|someone|somebody|he|she|they|i|we|pet|dog|cat)\s+(?:(?:is|are|am|got|was|were|has been)\s+)?(?:pinned|crushed|caught)\s+(?:under|beneath|in|by|between)\b/i,
       /\b(?:baby|toddler|kid|child|dog|cat|pet|person|someone)\s+(?:is |got |was |has been )?locked\s+(?:in|inside)\b/i,
 
       /\b(?:person|child|kid|baby|pet|dog|cat|someone|somebody|he|she|they|i['\u2019]?m|i am|we['\u2019]?re|we are) (?:is |are |am |got |get )?trapped\b/i,
@@ -746,10 +749,10 @@ export const patternHasAffirmedSafetyMatch = (pattern, text) => {
 const SAFETY_REFERENCE_GROUPS = [
   { type: "medical", pattern: /\b(?:heart attack|stroke|seizure|unconscious|unresponsive|passed out|not breathing|trouble breathing|injured|bleeding)\b/i, canonical: "medical emergency" },
   { type: "gas", pattern: /\b(?:gas|propane|carbon monoxide|rotten eggs?)\b/i, canonical: "smell gas" },
-  { type: "fire", pattern: /\b(?:smoke|fire|flames?|burning smell|burned smell|burnt smell)\b/i, canonical: "smoke" },
+  { type: "fire", pattern: /\b(?:smoke|smoking|fire|flames?|burning|burned smell|burnt smell)\b/i, canonical: "smoke" },
   { type: "electrical", pattern: /\b(?:sparks?|sparking|arcing|live wire|electrical shock)\b/i, canonical: "electrical sparking" },
   { type: "structural", pattern: /\b(?:collapse|collapsing|sagging|bulging|caving|unstable)\b/i, canonical: "structural collapse" },
-  { type: "trapped", pattern: /\b(?:trapped|locked inside|stuck inside)\b/i, canonical: "person trapped" },
+  { type: "trapped", pattern: /\b(?:trapped|pinned|crushed|caught under|locked inside|stuck inside)\b/i, canonical: "person trapped" },
   { type: "flood", pattern: /\b(?:flood(?:ed|ing)?|gushing water|burst pipe|water pouring|water spreading|uncontrolled water)\b/i, canonical: "active flooding" },
   { type: "sewage", pattern: /\b(?:sewage|sewer backup|sewer overflow)\b/i, canonical: "sewage backup" },
 ];

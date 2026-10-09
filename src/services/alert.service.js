@@ -484,6 +484,8 @@ class AlertService {
   static async createBookedJobAlert({
     businessId,
     leadId,
+    appointmentId = null,
+    strict = false,
     customerName,
     customerPhone,
     serviceNeeded,
@@ -505,9 +507,10 @@ class AlertService {
         ? ` for ${serviceNeeded}`
         : "";
 
-    return this.createAutomatic({
+    return this[strict ? "create" : "createAutomatic"]({
       businessId,
       leadId,
+      appointmentId,
       type: "booked_job",
       title: "Job booked",
       message: `${customer} has been marked as booked${serviceText}.${valueText}`,
@@ -516,7 +519,7 @@ class AlertService {
         serviceNeeded: serviceNeeded || null,
         estimatedValue: moneyAmount(estimatedValue),
       },
-      dedupeKey: `booked_job:${leadId}`,
+      dedupeKey: `booked_job:${appointmentId || leadId}`,
     });
   }
 

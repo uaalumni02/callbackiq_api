@@ -169,6 +169,8 @@ const AppointmentSchema = new Schema(
     failureReason: { type: String, trim: true, default: "", maxlength: 2000 },
 
     lifecycleNotice: { key: String, pending: Boolean, lastError: String },
+    bookingProjection: { token: String, at: Date, pending: Boolean, lastError: String, retryAt: Date },
+    completionProjection: { token: String, at: Date, pending: Boolean, lastError: String, retryAt: Date },
     rescheduleRequest: {
       id: String, status: { type: String, enum: ['pending', 'approved', 'declined', 'canceled'] },
       startAt: Date, endAt: Date, requestedAt: Date, channel: String,
@@ -208,6 +210,8 @@ AppointmentSchema.pre("validate", function validateTimes() {
 });
 
 AppointmentSchema.index({ "lifecycleNotice.pending": 1, updatedAt: 1 });
+AppointmentSchema.index({ "bookingProjection.pending": 1, "bookingProjection.retryAt": 1, updatedAt: 1 });
+AppointmentSchema.index({ "completionProjection.pending": 1, "completionProjection.retryAt": 1, updatedAt: 1 });
 AppointmentSchema.index({ "rescheduleRequest.alertPending": 1, updatedAt: 1 });
 // Bounded owner read and related-record lookup indexes. Additive migration only.
 AppointmentSchema.index({ business: 1, lead: 1, status: 1 });

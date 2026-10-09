@@ -13,8 +13,8 @@ export async function presentAppointments(appointments, businessId) {
   if (!appointments.length) return [];
   try {
     const jobs = await AppointmentNotificationJob.find({ business: businessId,
-      appointment: { $in: appointments.map(row => row._id) }, key: { $in: [...new Set(['change_notice:business_approval_confirmed', ...appointments.filter(row => row.lifecycleNotice?.key).map(row => `change_notice:${row.lifecycleNotice.key}`)])] },
-    }).select('appointment key status providerMessageId sentAt failureReason deliveryStatus deliveryErrorMessage').maxTimeMS(queryBudgetMs()).lean();
+      appointment: { $in: appointments.map(row => row._id) },
+    }).select('appointment key status providerMessageId sentAt failureReason deliveryStatus deliveryErrorMessage resolutionAt resolutionReason').maxTimeMS(queryBudgetMs()).lean();
     const receipts = jobs.map(job => job.providerMessageId).filter(Boolean);
     const messages = receipts.length ? await Message.find({ business: businessId, direction: 'outbound',
       provider: 'twilio', providerMessageId: { $in: receipts },
@@ -25,7 +25,10 @@ export async function presentAppointments(appointments, businessId) {
       const appointment = plain(row), job = byAppointment.get(`${id(row)}:change_notice:${row.lifecycleNotice?.key || 'business_approval_confirmed'}`);
       const receipt = job && byReceipt.get(job.providerMessageId);
       const notice = confirmationNoticeState(appointment, job, receipt);
-      return { ...appointment, confirmationNotice: notice, confirmationNoticeStatus: notice.status };
+      const noticeFailures = jobs.filter(job => id(job.appointment) === id(row) && !job.resolutionAt &&
+        (job.status === 'failed' || (job.status === 'sent' && !['delivered', 'read'].includes(byReceipt.get(job.providerMessageId)?.deliveryStatus || byReceipt.get(job.providerMessageId)?.status || job.deliveryStatus))))
+        .map(job => ({ ...confirmationNoticeState(appointment, job, byReceipt.get(job.providerMessageId)), kind: job.key }));
+      return { ...appointment, noticeFailures, confirmationNotice: notice, confirmationNoticeStatus: notice.status };
     });
   } catch (error) {
     // A completed mutation must not appear to fail merely because its readback

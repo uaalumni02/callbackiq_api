@@ -1,3 +1,4 @@
+import Appointment from '../../src/models/appointment.js';
 import AppointmentNotice from '../../src/models/appointmentNotificationJob.js';
 import Sms from '../../src/models/smsProcessingJob.js';
 import Work from '../../src/models/webhookWork.js';
@@ -7,6 +8,8 @@ import Notification from '../../src/models/staffNotificationJob.js';
 import { readScaleHealth } from '../../src/services/scaleHealth.service.js';
 const query = result => ({ sort: () => query(result), select: () => query(result), maxTimeMS: () => query(result), lean: async () => result });
 beforeEach(() => {
+ jest.spyOn(Appointment, 'countDocuments').mockReturnValue({ maxTimeMS: async () => 0 });
+ jest.spyOn(AppointmentNotice, 'countDocuments').mockReturnValue({ maxTimeMS: async () => 0 });
  jest.spyOn(AppointmentNotice, 'findOne').mockImplementation(() => query(null));
  jest.spyOn(Sms, 'findOne').mockImplementation(() => query(null));
  jest.spyOn(Work, 'findOne').mockImplementation(() => query(null));
@@ -55,4 +58,17 @@ test('non-scale delivery readiness requires a fresh automation heartbeat',async(
  expect(await readScaleHealth()).toMatchObject({healthy:false,automationWorkerReady:false});
  Heartbeat.aggregate.mockReturnValue({option:async()=>[{_id:'all',count:1,releases:['release'],capacityPlans:[],images:[]}]});
  expect(await readScaleHealth()).toMatchObject({healthy:true,automationWorkerReady:true});
+});
+
+test('terminal notice failure cannot be hidden by a healthy worker', async () => {
+ Heartbeat.aggregate.mockReturnValue({ option: async () => [{ _id: 'worker-automation', count: 1, releases: [] }] });
+ AppointmentNotice.countDocuments.mockReturnValue({ maxTimeMS: async () => 2 });
+ expect(await readScaleHealth()).toMatchObject({ healthy: false, unresolvedAppointmentNotices: 2 });
+ expect(AppointmentNotice.countDocuments.mock.calls[0][0]).toMatchObject({ resolutionAt: null });
+});
+
+test('saved outcome projections that remain stalled are visible to fleet health', async () => {
+ Heartbeat.aggregate.mockReturnValue({ option: async () => [{ _id: 'all', count: 1, releases: [] }] });
+ Appointment.countDocuments.mockReturnValue({ maxTimeMS: async () => 1 });
+ expect(await readScaleHealth()).toMatchObject({ healthy: false, stalledAppointmentProjections: 1 });
 });

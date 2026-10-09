@@ -39,6 +39,10 @@ const AppointmentNotificationJobSchema = new Schema(
     lockedBy: { type: String, trim: true, default: "" },
     sentAt: { type: Date, default: null },
     canceledAt: { type: Date, default: null },
+    resolutionAt: { type: Date, default: null },
+    resolutionReason: { type: String, default: '' },
+    resolvedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+    failureCheckedAt: { type: Date, default: null },
     deliveryStatus: { type: String, default: '' },
     deliveryErrorMessage: { type: String, default: '' },
     providerMessageId: { type: String, trim: true, default: "" },
@@ -57,6 +61,9 @@ AppointmentNotificationJobSchema.index({
   scheduledFor: 1,
   lockedAt: 1,
 });
+
+AppointmentNotificationJobSchema.index({ resolutionAt: 1, status: 1, failureCheckedAt: 1, _id: 1 });
+AppointmentNotificationJobSchema.index({ resolutionAt: 1, deliveryStatus: 1, sentAt: 1 });
 
 const AppointmentNotificationJob =
   mongoose.models.AppointmentNotificationJob ||

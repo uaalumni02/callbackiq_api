@@ -184,7 +184,7 @@ const schema = {
 // Validate at runtime as well as requesting a strict provider schema. Model text is not an action.
 export const validateVoiceVerdict = (parsed, fallback) => {
   // Invalid model output cannot erase independently observed caller facts.
-  const unknown = { ...fallback };
+  const unknown = { ...fallback, classifierUnavailable: true, safety: { ...fallback.safety, classifierUnavailable: true } };
   if (!parsed || !INTENTS.includes(parsed.intent) || typeof parsed.confidence !== "number" ||
       !Number.isFinite(parsed.confidence) || parsed.confidence < 0 || parsed.confidence > 100 ||
       !["en", "es", "other"].includes(parsed.language) || !parsed.entities ||
@@ -214,7 +214,7 @@ export const classifyVoiceTurn = async ({
   if (fallback.safety.isEmergency || fallback.safety.needsReview || ["human", "opt_out", "wrong_number"].includes(fallback.intent)) return fallback;
 
   const openai = getClient();
-  if (!openai) return fallback;
+  if (!openai) return { ...fallback, safety: { ...fallback.safety, classifierUnavailable: true }, classifierUnavailable: true };
 
   try {
     const response = await openai.responses.create({
@@ -251,14 +251,15 @@ export const classifyVoiceTurn = async ({
     }, signal ? { signal } : undefined);
     if (signal?.aborted) throw signal.reason || new Error("Voice turn aborted.");
     const parsed = JSON.parse(response.output_text || "{}");
+    const verdict = validateVoiceVerdict(parsed, fallback);
     return {
-      ...validateVoiceVerdict(parsed, fallback),
-      source: "openai",
+      ...verdict,
+      source: verdict.classifierUnavailable ? "deterministic" : "openai",
       usage: response.usage || null,
     };
   } catch (error) {
     if (signal?.aborted) throw signal.reason || error;
-    return fallback;
+    return { ...fallback, safety: { ...fallback.safety, classifierUnavailable: true }, classifierUnavailable: true };
   }
 };
 
