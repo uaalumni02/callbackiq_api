@@ -57,7 +57,7 @@ jobs:
         working-directory: api
         env:
           CALLBACKIQ_FRONTEND_DIR: ${{ github.workspace }}/frontend
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: browser-results
