@@ -225,7 +225,7 @@ export const schedulePostAppointmentFollowUp = async ({ appointment }) => {
       key: "follow_up",
     },
     {
-      $set: {
+      $setOnInsert: {
         attempts: 0,
         lead: appointment.lead || null,
         conversation: appointment.conversation || null,

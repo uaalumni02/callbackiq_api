@@ -118,13 +118,13 @@ test('missed recovery call stays missed after completed and is visible in Call L
   await visit('/call-logs'); await visible(page.getByText(lead.phone,{exact:true}));
 });
 
-test('incoming hazardous SMS enters Needs Attention with one durable review record', async () => {
+test.each(['My electrical panel is sparking', 'The breaker panel smells like it is burning but I see no flames', 'My child is pinned under the garage door', 'My dryer smells like burning and is smoking'])('incoming hazardous SMS creates durable critical review: %s', async hazard => {
   const messageSid=sid();
-  const response=await context.request.post(`${base}/api/twilio/sms`,{form:{From:lead.phone,To:business.phone,Body:'My electrical panel is sparking',MessageSid:messageSid}});
+  const response=await context.request.post(`${base}/api/twilio/sms`,{form:{From:lead.phone,To:business.phone,Body:hazard,MessageSid:messageSid}});
   expect(response.status()).toBe(200);
   const alert=await Alert.findOne({business:business._id,dedupeKey:`human_handoff:${messageSid}`});
   expect(alert).toMatchObject({priority:'critical',actionRequired:true}); expect(alert.dueAt).toBeInstanceOf(Date);
-  await visit('/intervention-center'); await visible(page.getByText('My electrical panel is sparking',{exact:false}));
+  await visit('/intervention-center'); await visible(page.getByText(hazard,{exact:false}));
   await drainSmsProcessingQueueOnce();
   expect(await Alert.countDocuments({business:business._id,dedupeKey:`human_handoff:${messageSid}`})).toBe(1);
 });

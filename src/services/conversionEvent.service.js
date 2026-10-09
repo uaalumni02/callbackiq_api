@@ -73,7 +73,7 @@ class ConversionEventService {
 
     if (lead) {
       await Lead.updateOne(
-        { _id: lead._id, business: appointment.business },
+        { _id: lead._id, business: appointment.business, $or: [{ bookedAt: null }, { bookedAt: { $lte: appointment.confirmedAt || new Date() } }] },
         {
           $set: {
             status: "booked",
@@ -109,6 +109,7 @@ class ConversionEventService {
       trackingNumberId: appointment.trackingNumber || null,
       attribution: appointment.attribution || {},
       type: "appointment_booked",
+      occurredAt: appointment.confirmedAt || new Date(),
       channel,
       source: recovered ? "missed_call_recovery" : "direct_booking",
       estimatedValue: appointment.estimatedValue,

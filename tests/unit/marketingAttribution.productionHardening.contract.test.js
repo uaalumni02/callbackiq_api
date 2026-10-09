@@ -23,9 +23,10 @@ describe("marketing attribution production hardening", () => {
   test("appointment attribution normalizes customer phone and completed revenue carries attribution", () => {
     const text = source("src/services/scheduling/appointment.service.js");
     expect(text).toContain("normalizePhoneToE164(input.customerPhone)");
-    expect(text).toContain("marketingSourceId: appointment.marketingSource || null");
-    expect(text).toContain("trackingNumberId: appointment.trackingNumber || null");
-    expect(text).toContain("attribution: appointment.attribution || {}");
+    const projection = source("src/services/scheduling/appointmentProjection.service.js");
+    expect(projection).toContain("marketingSourceId: appointment.marketingSource || null");
+    expect(projection).toContain("trackingNumberId: appointment.trackingNumber || null");
+    expect(projection).toContain("attribution: appointment.attribution || {}");
   });
 
   test("marketing source API exposes provisioning blockers and release lifecycle", () => {

@@ -37,7 +37,7 @@ test('internal after-visit follow-up uses business preference', async () => {
   SchedulingPolicy.findOne.mockReturnValue({ lean: async () => ({ postAppointmentFollowUpEnabled: true, postAppointmentFollowUpDelayHours: 3 }) });
   const completedAt = new Date();
   await schedulePostAppointmentFollowUp({ appointment: { ...appointment, status: 'completed', completedAt } });
-  expect(Job.findOneAndUpdate.mock.calls[0][1].$set.scheduledFor).toEqual(new Date(+completedAt + 3 * 3600000));
+  expect(Job.findOneAndUpdate.mock.calls[0][1].$setOnInsert.scheduledFor).toEqual(new Date(+completedAt + 3 * 3600000));
 });
 test('lifecycle notice retries do not reset accepted or uncertain delivery evidence', async () => {
   await scheduleAppointmentChangeNotice({ appointment, key: 'lifecycle_canceled', body: 'Canceled' });

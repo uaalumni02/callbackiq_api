@@ -95,7 +95,7 @@ describe("ConversionEventService", () => {
       ConversionEventService.markAppointmentBooked({ appointment, lead, channel, bookedBy }),
     ).resolves.toEqual({ _id: "event" });
     expect(Lead.updateOne).toHaveBeenCalledWith(
-      { _id: "l1", business: "b1" },
+      expect.objectContaining({ _id: "l1", business: "b1", $or: expect.any(Array) }),
       { $set: expect.objectContaining({ status: "booked", recovered: true, recoveredBy }) },
     );
     expect(CallLog.updateMany).toHaveBeenCalledWith(

@@ -49,6 +49,7 @@ const LeadSchema = new Schema(
     estimatedValue: { type: Number, min: 0, default: null },
     valuation: { type: Schema.Types.Mixed, default: undefined },
     valuationVersion: { type: Number, min: 0, default: 0 },
+    completionProjectionAt: { type: Date, default: null },
     actualRevenue: { type: Number, min: 0, default: 0 },
     status: {
       type: String,
