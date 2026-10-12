@@ -1638,7 +1638,7 @@ class BookingStateMachineService {
           {
             $set: { customerConfirmedAt: new Date() },
           },
-          { new: true },
+          { returnDocument: "after" },
         );
         if (confirmed) {
           return {

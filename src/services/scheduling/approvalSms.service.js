@@ -48,7 +48,7 @@ export async function runApprovalSms({ limit = 100, now = new Date(), send = sen
     const token = crypto.randomUUID();
     const claimed = await Alert.findOneAndUpdate({ _id: alert._id, actionRequired: true, resolvedAt: null,
       acknowledgedAt: null, ...eligibleAttempt(path, now) },
-      { $set: { [path]: { state: 'sending', at: now, token } } }, { new: true });
+      { $set: { [path]: { state: 'sending', at: now, token } } }, { returnDocument: "after" });
     if (!claimed) continue;
     try {
       if (!process.env.CLIENT_URL) throw new Error('CLIENT_URL is required for approval links');

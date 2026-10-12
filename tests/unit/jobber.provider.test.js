@@ -95,7 +95,7 @@ describe("JobberProvider", () => {
         externalType: "scheduled_visit",
       },
       { $set: expect.objectContaining({ externalId: "visit-1", syncStatus: "synced", lastSyncedAt: expect.any(Date) }) },
-      { upsert: true, new: true },
+      { upsert: true, returnDocument: "after" },
     );
   });
 

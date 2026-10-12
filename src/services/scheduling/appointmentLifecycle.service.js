@@ -93,7 +93,7 @@ export async function declineRescheduleRequest({ business, appointmentId, reques
     'rescheduleRequest.id': requestId, 'rescheduleRequest.status': 'pending' }, { $set: {
     'rescheduleRequest.status': 'declined', 'rescheduleRequest.decidedAt': new Date(), 'rescheduleRequest.reason': String(reason).slice(0, 500),
     'rescheduleRequest.alertPending': true, lifecycleNotice: lifecycleMarker(`change_declined_${requestId}`),
-  } }, { new: true });
+  } }, { returnDocument: "after" });
   if (!appointment) appointment = await Appointment.findOne({ _id: appointmentId, business: business._id, status: 'confirmed',
     'rescheduleRequest.id': requestId, 'rescheduleRequest.status': 'declined' });
   if (!appointment) throw Object.assign(new Error('The request changed. Reload it before deciding.'), { statusCode: 409 });

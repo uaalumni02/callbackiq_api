@@ -529,7 +529,7 @@ describe("owner browser call target coverage", () => {
 
     expect(CallLogModel.findOneAndUpdate).toHaveBeenCalledTimes(2);
     expect(CallLogModel.findOneAndUpdate.mock.calls[1][2]).toEqual({
-      new: true,
+      returnDocument: "after",
       runValidators: true,
     });
   });

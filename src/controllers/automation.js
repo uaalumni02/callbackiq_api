@@ -33,7 +33,7 @@ class AutomationController {
       const workflow = await AutomationWorkflow.findOneAndUpdate(
         { _id: req.params.id, business: business._id },
         { $set: updates },
-        { new: true, runValidators: true },
+        { returnDocument: "after", runValidators: true },
       );
       if (!workflow) return res.status(404).json({ success: false, message: "Workflow not found." });
       return res.status(200).json({ success: true, data: workflow });

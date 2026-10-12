@@ -556,7 +556,7 @@ class Db {
     try {
       return await model
         .findByIdAndUpdate(id, data, {
-          new: true,
+          returnDocument: "after",
           runValidators: true,
         })
         .populate("owner", "userName email role");
@@ -665,7 +665,7 @@ class Db {
     try {
       return await model
         .findByIdAndUpdate(id, data, {
-          new: true,
+          returnDocument: "after",
           runValidators: true,
         })
         .populate("business", "businessName businessType phone");
@@ -811,7 +811,7 @@ class Db {
     try {
       return await model
         .findByIdAndUpdate(id, data, {
-          new: true,
+          returnDocument: "after",
           runValidators: true,
         })
         .populate("business", "businessName phone owner")
@@ -982,7 +982,7 @@ class Db {
     try {
       return await model
         .findByIdAndUpdate(id, data, {
-          new: true,
+          returnDocument: "after",
           runValidators: true,
         })
         .populate(
@@ -1116,7 +1116,7 @@ class Db {
     try {
       return await model
         .findOneAndUpdate({ providerCallId }, data, {
-          new: true,
+          returnDocument: "after",
           runValidators: true,
         })
         .populate(
@@ -1462,7 +1462,7 @@ class Db {
     try {
       return await model
         .findByIdAndUpdate(leadId, data, {
-          new: true,
+          returnDocument: "after",
           runValidators: true,
         })
         .populate(
@@ -1544,7 +1544,7 @@ class Db {
     try {
       return await model
         .findByIdAndUpdate(id, data, {
-          new: true,
+          returnDocument: "after",
           runValidators: true,
         })
         .populate("business", "businessName businessType phone")
@@ -1589,7 +1589,7 @@ class Db {
             },
           },
           {
-            new: true,
+            returnDocument: "after",
             runValidators: true,
           },
         )
@@ -1722,7 +1722,7 @@ class Db {
             business: businessId,
           },
           {
-            new: true,
+            returnDocument: "after",
             upsert: true,
             runValidators: true,
             setDefaultsOnInsert: true,
@@ -1743,7 +1743,7 @@ class Db {
     try {
       return await model
         .findOneAndUpdate({ stripeSubscriptionId }, data, {
-          new: true,
+          returnDocument: "after",
           runValidators: true,
         })
         .populate("business", "businessName businessType phone email");
@@ -1870,7 +1870,7 @@ class Db {
         businessId,
         { isActive },
         {
-          new: true,
+          returnDocument: "after",
           runValidators: true,
         },
       ).populate("owner", "userName email role");

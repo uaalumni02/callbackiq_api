@@ -28,7 +28,7 @@ export async function ensureApprovalReview(appointment, { expired = false } = {}
       'metadata.approvalState': expired ? 'needs_recheck' : 'pending',
       ...(expired ? { dueAt, resolvedAt: null, acknowledgedAt: null } : {}),
     },
-  }, { upsert: true, new: true });
+  }, { upsert: true, returnDocument: "after" });
   // Preserve an existing deadline and assignment while repairing legacy reviews.
   await Alert.updateOne({ _id: alert._id, dueAt: null }, { $set: { dueAt } });
   await Alert.updateOne({ _id: alert._id, assignedTo: null }, { $set: { assignedTo: business.owner, assignedAt: new Date() } });

@@ -60,7 +60,7 @@ export const processIntegrationWebhookEvent = async (eventId) => {
   const event = await IntegrationWebhookEvent.findOneAndUpdate(
     { _id: eventId, status: { $in: ["queued", "failed"] } },
     { $set: { status: "processing", errorMessage: "" }, $inc: { attempts: 1 } },
-    { new: true },
+    { returnDocument: "after" },
   );
   if (!event) return null;
   try {

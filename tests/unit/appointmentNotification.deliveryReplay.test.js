@@ -22,7 +22,7 @@ test('persistence failure after provider acceptance replays stable operation ide
  expect((await processNextAppointmentNotification()).status).toBe('scheduled');
  expect((await processNextAppointmentNotification()).status).toBe('sent');
  expect(sendSms.mock.calls[0][0].metadata.idempotencyKey).toBe(sendSms.mock.calls[1][0].metadata.idempotencyKey);
- expect(Message.findOneAndUpdate).toHaveBeenCalledWith({business:'business',provider:'twilio',providerMessageId:'SMreceipt'},{$setOnInsert:expect.any(Object)},{upsert:true,new:true});
+ expect(Message.findOneAndUpdate).toHaveBeenCalledWith({business:'business',provider:'twilio',providerMessageId:'SMreceipt'},{$setOnInsert:expect.any(Object)},{upsert:true,returnDocument: "after"});
 });
 test('canceled appointment cannot send a stale approval confirmation',async()=>{
  job.appointment.status='canceled';expect((await processNextAppointmentNotification()).status).toBe('canceled');expect(sendSms).not.toHaveBeenCalled();

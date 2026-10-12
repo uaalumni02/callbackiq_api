@@ -50,7 +50,7 @@ export async function submitRescheduleRequest({ business, appointmentId, convers
       status: 'confirmed', 'rescheduleRequest.status': { $ne: 'pending' } }, { $set: {
       customerRescheduleRequestedAt: new Date(), rescheduleRequest: { id: crypto.randomUUID(), status: 'pending',
         startAt, endAt, channel, requestedAt: new Date(), alertPending: true },
-    } }, { new: true, runValidators: true }).lean();
+    } }, { returnDocument: "after", runValidators: true }).lean();
     if (!appointment) throw conflict('The request changed. Please try again.');
   }
   // The request itself is durable and visible in Appointments even if alerting

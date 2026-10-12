@@ -80,7 +80,7 @@ export const processNextAutomationJob = async () => {
         lockedBy: instanceId,
       },
     },
-    { sort: { executeAt: 1 }, new: true },
+    { sort: { executeAt: 1 }, returnDocument: "after" },
   );
 
   if (!job) return null;

@@ -263,7 +263,7 @@ describe("AutomationService", () => {
       body: "Hello Jane from CallBackIQ Plumbing",
       providerMessageId: "SM1",
       status: "queued",
-    }) }, { upsert: true, new: true });
+    }) }, { upsert: true, returnDocument: "after" });
     expect(SocketService.emitMessageCreated).toHaveBeenCalledWith("b1", { _id: "message-1" });
     expect(populated).toMatchObject({ status: "completed", failureReason: "", lockedAt: null, lockedBy: null });
   });
@@ -285,7 +285,7 @@ describe("AutomationService", () => {
         from: "+14045550101",
       }),
     );
-    expect(Message.findOneAndUpdate).toHaveBeenCalledWith(expect.any(Object), { $setOnInsert: expect.objectContaining({ lead: null, status: "queued" }) }, { upsert: true, new: true });
+    expect(Message.findOneAndUpdate).toHaveBeenCalledWith(expect.any(Object), { $setOnInsert: expect.objectContaining({ lead: null, status: "queued" }) }, { upsert: true, returnDocument: "after" });
   });
 
   test.each(["create_alert", "mark_for_review"])("creates staff review alerts for %s", async (action) => {

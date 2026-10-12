@@ -233,7 +233,7 @@ class AutomationService {
             automationJobId: populated._id,
             workflowId: populated.workflow?._id || populated.workflow || null,
           },
-        } }, { upsert: true, new: true });
+        } }, { upsert: true, returnDocument: "after" });
         SocketService.emitMessageCreated(populated.business._id, message);
       } else if (populated.action === "create_alert" || populated.action === "mark_for_review") {
         const alert = await Alert.create({

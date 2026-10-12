@@ -27,7 +27,7 @@ class AvailabilityController {
         const blocked = Boolean(await AvailabilityException.exists({ ...key, active: true }));
         return res.json({...status,blocked});
       }
-      if (req.body.blocked) await AvailabilityException.findOneAndUpdate(key,{$set:{active:true,allDay:true,windows:[],capacity:0}},{upsert:true,new:true,runValidators:true});
+      if (req.body.blocked) await AvailabilityException.findOneAndUpdate(key,{$set:{active:true,allDay:true,windows:[],capacity:0}},{upsert:true,returnDocument: "after",runValidators:true});
       else await AvailabilityException.updateMany(key,{$set:{active:false}});
       res.json({...status,blocked:req.body.blocked});
     } catch(error) {next(error);}

@@ -152,7 +152,7 @@ describe("googleCalendarConnection.service complete behavior", () => {
           status: "disconnected",
         }),
       }),
-      { upsert: true, new: true },
+      { upsert: true, returnDocument: "after" },
     );
   });
 
@@ -374,7 +374,7 @@ describe("googleCalendarConnection.service complete behavior", () => {
     expect(IntegrationConnection.findOneAndUpdate).toHaveBeenCalledWith(
       { business: "b1", provider: "google_calendar" },
       { $set: expect.objectContaining({ providerCalendarId: "cal1", metadata: { selectedCalendarSummary: "Bookings" }, status: "connected" }) },
-      { new: true },
+      { returnDocument: "after" },
     );
   });
 
@@ -393,7 +393,7 @@ describe("googleCalendarConnection.service complete behavior", () => {
         oauthStateHash: "",
         oauthStateExpiresAt: null,
       } },
-      { new: true },
+      { returnDocument: "after" },
     );
   });
 });

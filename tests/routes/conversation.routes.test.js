@@ -118,7 +118,7 @@ businessName,
       userId,
       { $set: { role } },
       {
-        new: true,
+        returnDocument: "after",
         runValidators: true,
       },
     );
