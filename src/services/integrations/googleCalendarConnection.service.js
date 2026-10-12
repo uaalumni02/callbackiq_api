@@ -245,7 +245,7 @@ export const buildGoogleAuthorizationUrl = async (businessId, ownerId = "") => {
         metadata: {},
       },
     },
-    { upsert: true, new: true },
+    { upsert: true, returnDocument: "after" },
   );
 
   const url = new URL(GOOGLE_AUTH_URL);
@@ -324,7 +324,7 @@ export const exchangeGoogleAuthorizationCode = async ({ code, state }) => {
           oauthStateExpiresAt: null,
         },
       },
-      { new: true },
+      { returnDocument: "after" },
     ),
     secretSelection,
   );
@@ -741,7 +741,7 @@ export const selectGoogleCalendar = async ({
           status: "connected",
         },
       },
-      { new: true },
+      { returnDocument: "after" },
     );
   }
 
@@ -819,7 +819,7 @@ export const selectGoogleCalendar = async ({
         lastErrorMessage: "",
       },
     },
-    { new: true },
+    { returnDocument: "after" },
   );
 };
 
@@ -871,7 +871,7 @@ export const disconnectGoogleCalendar = async (businessId) => {
         oauthStateExpiresAt: null,
       },
     },
-    { new: true },
+    { returnDocument: "after" },
   );
 
   if (!disconnected) return null;

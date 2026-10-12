@@ -110,7 +110,7 @@ describe("jobberOAuth.service complete behavior", () => {
           oauthCodeVerifierEncrypted: expect.stringContaining("encrypted:"),
         }),
       }),
-      { upsert: true, new: true },
+      { upsert: true, returnDocument: "after" },
     );
   });
 

@@ -250,7 +250,7 @@ const approveMove = async ({ business, appointment, reviewedBy }) => {
             "pendingProviderChange.reviewedBy": reviewedBy || null,
           },
         },
-        { new: true, runValidators: true },
+        { returnDocument: "after", runValidators: true },
       ).populate("serviceOffering");
       if (updated) break;
     } catch (error) {

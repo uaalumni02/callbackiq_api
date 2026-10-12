@@ -41,7 +41,7 @@ test('removal stays available with same-day disabled and touches only dashboard 
 });
 test('pause preserves original appointment-only date-specific write',async () => {
  expect((await run('POST',{blocked:true})).data.blocked).toBe(true);
- expect(AvailabilityException.findOneAndUpdate).toHaveBeenCalledWith(expect.objectContaining({date:'2026-09-30',appliesTo:'appointments'}),{$set:{active:true,allDay:true,windows:[],capacity:0}},{upsert:true,new:true,runValidators:true});
+ expect(AvailabilityException.findOneAndUpdate).toHaveBeenCalledWith(expect.objectContaining({date:'2026-09-30',appliesTo:'appointments'}),{$set:{active:true,allDay:true,windows:[],capacity:0}},{upsert:true,returnDocument: "after",runValidators:true});
 });
 test('stale date and invalid payload cannot change another day',async () => {
  expect((await run('POST',{blocked:true,date:'2026-09-29'})).next).toHaveBeenCalledWith(expect.objectContaining({statusCode:409}));

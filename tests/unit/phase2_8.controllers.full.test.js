@@ -519,7 +519,7 @@ describe("Phase 2-8 controllers", () => {
       expect(AutomationWorkflow.findOneAndUpdate).toHaveBeenCalledWith(
         { _id: "w1", business: "b1" },
         { $set: { name: "New", enabled: false } },
-        { new: true, runValidators: true },
+        { returnDocument: "after", runValidators: true },
       );
 
       const secondRes = makeRes();

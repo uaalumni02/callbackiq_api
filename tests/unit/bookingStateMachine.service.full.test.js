@@ -717,7 +717,7 @@ describe("BookingStateMachineService complete behavior", () => {
     expect(Appointment.findOneAndUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ _id: "a1", business: "b1" }),
       expect.objectContaining({ $set: { customerConfirmedAt: expect.any(Date) } }),
-      { new: true },
+      { returnDocument: "after" },
     );
     expect(confirmed.result.reply).toContain("is confirmed");
 

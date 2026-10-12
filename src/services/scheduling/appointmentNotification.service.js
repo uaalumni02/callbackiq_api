@@ -123,7 +123,7 @@ export const scheduleAppointmentReminders = async ({
             failureReason: "",
           },
         },
-        { upsert: true, new: true },
+        { upsert: true, returnDocument: "after" },
       ),
     );
   }
@@ -198,7 +198,7 @@ export const scheduleAppointmentChangeNotice = async ({
         failureReason: "",
       },
     },
-    { upsert: true, new: true },
+    { upsert: true, returnDocument: "after" },
   );
 
 export const schedulePostAppointmentFollowUp = async ({ appointment }) => {
@@ -241,7 +241,7 @@ export const schedulePostAppointmentFollowUp = async ({ appointment }) => {
         failureReason: "",
       },
     },
-    { upsert: true, new: true },
+    { upsert: true, returnDocument: "after" },
   );
 };
 
@@ -297,7 +297,7 @@ const storeOutboundMessage = async ({
       appointmentId: String(appointment._id),
       appointmentNotificationKey: job.key,
     },
-  } }, { upsert: true, new: true });
+  } }, { upsert: true, returnDocument: "after" });
   await Conversation.updateOne(
     { _id: appointment.conversation, business: business._id },
     { $set: { lastMessage: body, lastMessageAt: new Date() } },
@@ -335,7 +335,7 @@ export const processNextAppointmentNotification = async () => {
       },
       $inc: { attempts: 1 },
     },
-    { sort: { scheduledFor: 1 }, new: true },
+    { sort: { scheduledFor: 1 }, returnDocument: "after" },
   );
   if (!job) return null;
 

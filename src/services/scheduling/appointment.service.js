@@ -474,7 +474,7 @@ class AppointmentService {
             failureReason: '', capacityLane: lane, activeSlotKey: `${getSlotKey(appointment.startAt, appointment.endAt)}|lane:${lane}`,
             slotClaimKeys: getSlotClaimKeys({ ...appointment.toObject(), capacityLane: lane }),
             'approvalRecovery.reconciled': false, 'approvalRecovery.state': 'pending',
-          } }, { new: true, runValidators: true });
+          } }, { returnDocument: "after", runValidators: true });
           if (!appointment) throw Object.assign(new Error('The request changed. Reload it before approving.'), { statusCode: 409 });
           claimed = true; break;
         } catch (error) { if (error.code !== 11000) throw error; }

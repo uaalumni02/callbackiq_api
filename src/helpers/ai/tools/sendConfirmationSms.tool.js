@@ -38,7 +38,7 @@ const claimDelivery = async (voiceSessionId) => {
         confirmationSmsProviderMessageId: "",
       },
     },
-    { new: true },
+    { returnDocument: "after" },
   );
 };
 

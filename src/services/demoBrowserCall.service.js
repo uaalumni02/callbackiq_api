@@ -232,7 +232,7 @@ class DemoBrowserCallService {
           lastOutreachChannel: "phone",
         },
       },
-      { new: true, runValidators: true },
+      { returnDocument: "after", runValidators: true },
     );
 
     return {
@@ -284,7 +284,7 @@ class DemoBrowserCallService {
           "outreachActivities.$.providerCallSid": clean(providerCallSid),
         },
       },
-      { new: true, runValidators: true },
+      { returnDocument: "after", runValidators: true },
     );
 
     return buildProspectDialTwiml({
@@ -325,7 +325,7 @@ class DemoBrowserCallService {
     return DemoRequestModel.findOneAndUpdate(
       { _id: demoId, "outreachActivities.callAttemptId": attemptId },
       { $set: set },
-      { new: true, runValidators: true },
+      { returnDocument: "after", runValidators: true },
     );
   }
 
@@ -356,7 +356,7 @@ class DemoBrowserCallService {
     return DemoRequestModel.findOneAndUpdate(
       { _id: demoId, "outreachActivities.callAttemptId": attemptId },
       { $set: set },
-      { new: true, runValidators: true },
+      { returnDocument: "after", runValidators: true },
     );
   }
 }

@@ -782,7 +782,7 @@ const reserveOtpRetry = async (registration) => {
         otpRetryCount: 1,
       },
     },
-    { new: true },
+    { returnDocument: "after" },
   ).select(selectSecrets);
 
   if (!reserved) {
@@ -799,7 +799,7 @@ const reserveOtpRetry = async (registration) => {
         $set: { otpRequestedAt: now },
         $inc: { otpRetryCount: 1 },
       },
-      { new: true },
+      { returnDocument: "after" },
     ).select(selectSecrets);
   }
 

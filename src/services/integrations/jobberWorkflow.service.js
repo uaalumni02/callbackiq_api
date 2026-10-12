@@ -217,7 +217,7 @@ export const ensureJobberClientForLead = async ({ lead, connection }) => {
         lastSyncedAt: new Date(),
       },
     },
-    { upsert: true, new: true },
+    { upsert: true, returnDocument: "after" },
   );
   return String(externalId);
 };
@@ -299,7 +299,7 @@ export const syncLeadToJobber = async ({ businessId, leadId }) => {
         metadata: { clientId },
       },
     },
-    { upsert: true, new: true },
+    { upsert: true, returnDocument: "after" },
   );
   return { clientId, requestId: String(requestId), duplicate: false };
 };

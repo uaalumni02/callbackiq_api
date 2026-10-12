@@ -155,7 +155,7 @@ export const buildJobberAuthorizationUrl = async (businessId) => {
       },
       $setOnInsert: { metadata: {} },
     },
-    { upsert: true, new: true },
+    { upsert: true, returnDocument: "after" },
   );
 
   const url = new URL(JOBBER_AUTHORIZATION_URL);

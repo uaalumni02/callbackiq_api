@@ -67,7 +67,7 @@ describe("automation worker", () => {
     expect(AutomationJob.findOneAndUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ status: "scheduled", lockedAt: null }),
       { $set: expect.objectContaining({ status: "processing", lockedAt: expect.any(Date), lockedBy: expect.any(String) }) },
-      { sort: { executeAt: 1 }, new: true },
+      { sort: { executeAt: 1 }, returnDocument: "after" },
     );
   });
 

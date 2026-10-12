@@ -117,7 +117,7 @@ describe("voice booking confirmation SMS", () => {
       expect.objectContaining({
         $set: expect.objectContaining({ confirmationSmsStatus: "sending" }),
       }),
-      { new: true },
+      { returnDocument: "after" },
     );
     expect(sendSms).toHaveBeenCalledWith({
       to: lead.phone,

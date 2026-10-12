@@ -72,7 +72,7 @@ class DemoOutreachService {
           lastOutreachChannel: channel,
         },
       },
-      { new: true, runValidators: true },
+      { returnDocument: "after", runValidators: true },
     );
   }
 
@@ -129,7 +129,7 @@ class DemoOutreachService {
           lastOutreachChannel: "email",
         },
       },
-      { new: true, runValidators: true },
+      { returnDocument: "after", runValidators: true },
     );
   }
 }

@@ -355,7 +355,7 @@ const upsertCallLog = async ({
       filter,
       { $set: set },
       {
-        new: true,
+        returnDocument: "after",
         upsert: true,
         setDefaultsOnInsert: true,
         runValidators: true,
@@ -369,7 +369,7 @@ const upsertCallLog = async ({
     return CallLogModel.findOneAndUpdate(
       filter,
       { $set: set },
-      { new: true, runValidators: true },
+      { returnDocument: "after", runValidators: true },
     );
   }
 };
