@@ -1,3 +1,5 @@
+import { getMongoUrl } from "./runtime-environment.js";
+
 const VALID_ENVIRONMENTS = new Set([
   "development",
   "test",
@@ -15,7 +17,6 @@ const PLACEHOLDER_PATTERNS = [
 ];
 
 const COMMON_REQUIRED = [
-  "MONGODB_URI",
   "JWT_SECRET",
   "CLIENT_URL",
   "PUBLIC_API_URL",
@@ -88,6 +89,14 @@ export const validateEnvironment = (
   if (!VALID_ENVIRONMENTS.has(appEnv)) {
     errors.push(
       `APP_ENV must be one of: ${[...VALID_ENVIRONMENTS].join(", ")}.`,
+    );
+  }
+
+  // Resolve the same MongoDB alias precedence used by the database connector.
+  // A configured MONGODB_URI remains authoritative over legacy aliases.
+  if (isPlaceholder(getMongoUrl(source))) {
+    errors.push(
+      "MONGODB_URI is required and cannot be a placeholder (MONGO_URL and MONGO_URI are also accepted).",
     );
   }
 
