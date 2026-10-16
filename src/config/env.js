@@ -178,6 +178,41 @@ export const validateEnvironment = (
     }
   }
 
+  // CALLBACKIQ_RENDER_HARDENING_ENV_V1
+  // Reject local/non-TLS auxiliary endpoints without requiring unfinished
+  // providers or a frontend to be activated during staging.
+  if (["staging", "production"].includes(appEnv)) {
+    for (const name of ["CALLBACKIQ_API_BASE_URL", "VOICE_HTTP_PUBLIC_URL"]) {
+      if (!source[name]) continue;
+      try {
+        const url = new URL(source[name]);
+        if (url.protocol !== "https:" || isLocalUrl(source[name]) ||
+            url.username || url.password || url.search || url.hash) {
+          errors.push(`${name} must be a public HTTPS base URL.`);
+        }
+      } catch { errors.push(`${name} must be a valid HTTPS base URL.`); }
+    }
+    if (source.VOICE_WEBSOCKET_PUBLIC_URL) {
+      try {
+        const url = new URL(source.VOICE_WEBSOCKET_PUBLIC_URL);
+        if (url.protocol !== "wss:" || isLocalUrl(source.VOICE_WEBSOCKET_PUBLIC_URL) ||
+            url.username || url.password || url.hash) {
+          errors.push("VOICE_WEBSOCKET_PUBLIC_URL must use a public WSS endpoint.");
+        }
+      } catch { errors.push("VOICE_WEBSOCKET_PUBLIC_URL must be a valid WSS URL."); }
+    }
+    if (source.INTEGRATION_ENCRYPTION_KEY &&
+        (isPlaceholder(source.INTEGRATION_ENCRYPTION_KEY) ||
+          /^(?:replace|placeholder|dummy|test|default)(?:[-_\s]|$)/i.test(
+            String(source.INTEGRATION_ENCRYPTION_KEY).trim()
+          ))) {
+      errors.push("INTEGRATION_ENCRYPTION_KEY cannot be a placeholder.");
+    }
+    if (appEnv === "staging" && source.STAGING_DATABASE_ISOLATED !== "true") {
+      warnings.push("Confirm staging uses an isolated MongoDB database before enabling workers or provider delivery.");
+    }
+  }
+
   const allowedOrigins = parseCsv(
     source.ALLOWED_ORIGINS || source.CLIENT_URL || "",
   );

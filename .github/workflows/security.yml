@@ -25,7 +25,7 @@ jobs:
 
       - uses: actions/setup-node@v5
         with:
-          node-version: "20"
+          node-version: "24.19.0"
           cache: npm
 
       - run: npm ci
@@ -53,7 +53,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v5
         with:
-          node-version: "20"
+          node-version: "24.19.0"
       - name: Probe production liveness/readiness
         env:
           CALLBACKIQ_HEALTH_URL: ${{ vars.CALLBACKIQ_HEALTH_URL }}

@@ -1,9 +1,9 @@
-# Build with --build-arg NODE_IMAGE=node:20-bookworm-slim@sha256:<approved digest>.
-ARG NODE_IMAGE=node:20-bookworm-slim
+# Build with --build-arg NODE_IMAGE=node:24-bookworm-slim@sha256:<approved digest>.
+ARG NODE_IMAGE=node:24-bookworm-slim
 FROM ${NODE_IMAGE} AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --no-audit --no-fund
+RUN npm ci --include=dev --no-audit --no-fund
 COPY src ./src
 COPY scripts ./scripts
 COPY config ./config

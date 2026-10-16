@@ -24,7 +24,7 @@ test('loss of Redis marks worker unready without advertising a healthy database 
  expect(JSON.parse(fs.writeFile.mock.calls[0][1]).ready).toBe(false); expect(Heartbeat.updateOne).not.toHaveBeenCalled();
 });
 test('non-scale execution is unchanged; API heartbeat writes no worker file', async () => {
- delete process.env.SCALE_PROFILE; startProcessHeartbeat(); await jest.advanceTimersByTimeAsync(1); expect(Heartbeat.updateOne).not.toHaveBeenCalled();
+ delete process.env.SCALE_PROFILE; process.env.PROCESS_ROLE = 'api'; startProcessHeartbeat(); await jest.advanceTimersByTimeAsync(1); expect(Heartbeat.updateOne).not.toHaveBeenCalled();
  process.env.SCALE_PROFILE='business-1000-voice-350'; process.env.PROCESS_ROLE='api'; startProcessHeartbeat(); await jest.advanceTimersByTimeAsync(1);
  expect(Heartbeat.updateOne).toHaveBeenCalled(); expect(fs.writeFile).not.toHaveBeenCalled();
 });
