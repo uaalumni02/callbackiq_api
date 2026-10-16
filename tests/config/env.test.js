@@ -77,3 +77,38 @@ test.each([
 ])('production rejects unsafe %s=%s at actual startup', (name, value) => {
   expect(validateEnvironment({ ...production, [name]: value }, { throwOnError: false }).valid).toBe(false);
 });
+
+/* CALLBACKIQ_MONGO_URL_ENV_ALIAS_TESTS_V1 */
+describe("MongoDB URL aliases in environment validation", () => {
+  const { MONGODB_URI: canonical, ...withoutCanonical } = base;
+
+  test.each(["MONGO_URL", "MONGO_URI"])("accepts %s when MONGODB_URI is absent", (alias) => {
+    const result = validateEnvironment(
+      { ...withoutCanonical, [alias]: canonical },
+      { throwOnError: false },
+    );
+    expect(result.valid).toBe(true);
+  });
+
+  test("rejects missing MongoDB credentials across all aliases", () => {
+    const result = validateEnvironment(withoutCanonical, { throwOnError: false });
+    expect(result.valid).toBe(false);
+    expect(result.errors.join(" ")).toMatch(/MONGODB_URI/);
+  });
+
+  test("rejects a placeholder MONGO_URL", () => {
+    const result = validateEnvironment(
+      { ...withoutCanonical, MONGO_URL: "replace-me" },
+      { throwOnError: false },
+    );
+    expect(result.valid).toBe(false);
+  });
+
+  test("canonical MONGODB_URI takes precedence over MONGO_URL", () => {
+    const result = validateEnvironment(
+      { ...base, MONGODB_URI: "replace-me", MONGO_URL: canonical },
+      { throwOnError: false },
+    );
+    expect(result.valid).toBe(false);
+  });
+});
