@@ -47,6 +47,10 @@ class HealthController {
         realtime: socketRedisReady() ? "ok" : "unavailable",
         voice: getVoiceSnapshot(),
         automation: automationReadiness().ready ? "ok" : "not_processing",
+        // CALLBACKIQ_REMOTE_WORKER_STATUS_V1
+        // HTTP readiness describes this process, not a separate worker.
+        remoteWorkers: ["api", "voice"].includes(process.env.PROCESS_ROLE || "all")
+          ? "not_checked" : "managed_locally",
       },
       requestId: req.context?.requestId || "",
       timestamp: new Date().toISOString(),

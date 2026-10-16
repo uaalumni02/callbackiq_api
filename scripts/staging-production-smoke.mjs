@@ -130,11 +130,11 @@ console.log(`Target: ${base.origin}`);
 console.log("Allowed methods: GET, HEAD only");
 console.log("Provider resource creation: DISABLED BY DESIGN\n");
 
-const healthPath = String(process.env.STAGING_HEALTH_PATH || "/health").trim();
+const healthPath = String(process.env.STAGING_HEALTH_PATH || "/api/health/ready").trim();
 if (healthPath) {
   await runCheck("API health/reachability", async () => {
     const { response } = await safeRequest(healthPath, {
-      accepted: [401, 403, 404],
+      accepted: [],
     });
     return `HTTP ${response.status}`;
   });

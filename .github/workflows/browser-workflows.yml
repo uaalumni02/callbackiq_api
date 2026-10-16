@@ -26,13 +26,13 @@ jobs:
           persist-credentials: false
           ref: ${{ vars.CALLBACKIQ_FRONTEND_REF || '998a89366203f183e7a0a0bb41912c46ac6a668d' }}
           path: frontend
-      - name: Checkout public partner without cross-repository credential
+      # CALLBACKIQ_FRONTEND_AUTH_GUARD_V1
+      # Do not silently fall back to an unauthenticated clone of a private repo.
+      - name: Require frontend read permission
         if: env.CROSS_REPO_TOKEN == ''
-        env:
-          PARTNER_REF: ${{ vars.CALLBACKIQ_FRONTEND_REF || '998a89366203f183e7a0a0bb41912c46ac6a668d' }}
         run: |
-          git clone --no-checkout https://github.com/uaalumni02/callbackiq_frontend.git frontend
-          git -C frontend checkout --detach "$PARTNER_REF"
+          echo 'Missing CALLBACKIQ_CROSS_REPO_READ_TOKEN secret. Grant read-only access to callbackiq_frontend.' >&2
+          exit 1
       - name: Record exact API and frontend revisions
         run: |
           mkdir -p api/browser-results
