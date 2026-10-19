@@ -1,4 +1,5 @@
 import { providerBalanceSummary } from "./providerBalances.service.js";
+import { infrastructureExpenseSummary, syncInfrastructureExpenses } from "./infrastructureExpenses.service.js";
 import twilio from "twilio";
 import Stripe from "stripe";
 import OpenAI from "openai";
@@ -276,6 +277,9 @@ export const companyExpenseSummary = async (now = new Date()) => {
     AdminExpenseRule.find({}).select("-updatedBy").lean(),
   ]);
   const choose = (provider, month) => {
+    if (provider === "ngrok" && month >= "2026-10") {
+      return { provider, amountCents: 0, forecastCents: 0, basis: "inactive", fixedMonthly: true, complete: true, scope: "Retired; historical charges preserved" };
+    }
     const manual = records.find(
       (r) =>
         r.provider === provider &&
@@ -342,21 +346,26 @@ export const companyExpenseSummary = async (now = new Date()) => {
     ...choose(provider, period),
     previous: choose(provider, previousPeriod),
   }));
-  const complete = providers.every((p) => p.complete && p.amountCents !== null);
-  const knownCents = providers.reduce((s, p) => s + (p.amountCents || 0), 0);
-  const forecastComplete = providers.every(
+  const infrastructure = await infrastructureExpenseSummary(now);
+  // Legacy Hosting and retired ngrok are retained as historical rows, but cannot
+  // double-count the separate active infrastructure ledger.
+  const activeProviders = providers.filter((p) => !["hosting", "ngrok"].includes(p.provider));
+  const complete = activeProviders.every((p) => p.complete && p.amountCents !== null) && infrastructure.complete;
+  const knownCents = activeProviders.reduce((s, p) => s + (p.amountCents || 0), infrastructure.knownCents);
+  const forecastComplete = activeProviders.every(
     (p) => p.complete && p.forecastCents !== null,
-  );
+  ) && infrastructure.forecastCents !== null;
   return {
     period,
     previousPeriod,
     providers,
+    infrastructure,
     balances: await providerBalanceSummary(now),
     complete,
     knownCents,
     totalCents: complete ? knownCents : null,
     forecastCents: forecastComplete
-      ? providers.reduce((s, p) => s + p.forecastCents, 0)
+      ? activeProviders.reduce((s, p) => s + p.forecastCents, infrastructure.forecastCents)
       : null,
     note: "Company expense totals are separate from customer cost allocations. Usage APIs can lag final invoices. Forecast extrapolates completed days after day 3; fixed monthly entries are counted once.",
   };
@@ -395,6 +404,13 @@ export const runCompanyExpenseSync = async () => {
   if (claimed) {
     try {
       await syncCompanyExpenses({ now });
+      // Separate read-only infrastructure sync. A provider outage must not block
+      // the existing Twilio/OpenAI/Stripe reporting or the shared lease release.
+      try {
+        await syncInfrastructureExpenses({ now });
+      } catch {
+        // Dashboard retains estimates and last successful infrastructure records.
+      }
     } finally {
       await AdminReportingState.updateOne(
         { _id: key, "data.leaseUntil": new Date(+now + 3600000) },
