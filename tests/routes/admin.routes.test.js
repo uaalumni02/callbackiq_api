@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { companyExpenseSummary } from "../../src/services/admin/companyExpenses.service.js";
 import express from "express";
 import request from "supertest";
 import adminRoutes from "../../src/routes/admin.routes.js";
@@ -566,6 +567,14 @@ test("company expense overrides are auditable and never modify customer billing"
   const summary = await founderOverview(30);
   expect(
     summary.companyExpenses.providers.find((p) => p.provider === "ngrok")
+      .amountCents,
+  ).toBe(0);
+
+  const historical = await companyExpenseSummary(
+    new Date("2026-09-15T12:00:00Z"),
+  );
+  expect(
+    historical.providers.find((p) => p.provider === "ngrok")
       .amountCents,
   ).toBe(1000);
 });
