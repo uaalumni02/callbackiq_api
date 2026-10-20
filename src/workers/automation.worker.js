@@ -4,6 +4,8 @@ import { safeConsole } from "../helpers/logging/safeLogger.js";
 import AutomationJob from "../models/automationJob.js";
 import AppointmentService from "../services/scheduling/appointment.service.js";
 import AutomationService from "../services/automation/automation.service.js";
+import { runDueRevenueCampaigns } from "../services/revenueAutomationEngine.js";
+import { scanRevenueRescueDeadlines } from "../services/revenueHumanRescue.service.js";
 import {
   processDueAppointmentNotifications,
   recoverStaleAppointmentNotificationLocks,
@@ -135,6 +137,14 @@ const performTick = async ({ includeIntegrationMaintenance = true } = {}) => {
       Math.max(1, Math.min(500, Number(process.env.APPOINTMENT_NOTIFICATION_BATCH_SIZE) || 100)),
       { concurrency: Math.max(1, Math.min(10, Number(process.env.APPOINTMENT_NOTIFICATION_CONCURRENCY) || 3)) },
     );
+    if (process.env.MEEKCALL_REVENUE_AUTOMATION_WORKER_ENABLED === 'true') {
+      try {
+        await scanRevenueRescueDeadlines();
+        await runDueRevenueCampaigns(5);
+      } catch (error) {
+        safeConsole.error('Revenue automation tick failed:', { code: error?.code || 'RECOVERY_TICK_FAILED' });
+      }
+    }
     markAutomationTick(true);
     if (!stopping && includeIntegrationMaintenance && !maintenanceActive) {
       maintenanceActive = (async () => {
