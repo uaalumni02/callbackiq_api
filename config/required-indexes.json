@@ -1663,6 +1663,33 @@
     "options": {}
   },
   {
+    "collection": "internalrevenuerecords",
+    "key": {
+      "business": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "internalrevenuerecords",
+    "key": {
+      "business": 1,
+      "recordType": 1,
+      "reference": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "internalrevenuerecords",
+    "key": {
+      "business": 1,
+      "status": 1,
+      "updatedAt": -1
+    },
+    "options": {}
+  },
+  {
     "collection": "leads",
     "key": {
       "customerLifecycleStatus": 1
@@ -2131,6 +2158,132 @@
     "options": {
       "expireAfterSeconds": 0,
       "name": "expires_at_ttl"
+    }
+  },
+  {
+    "collection": "revenueautomationattempts",
+    "key": {
+      "business": 1,
+      "operationKey": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "revenueautomationattempts",
+    "key": {
+      "business": 1,
+      "campaign": 1,
+      "sequence": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "revenueautomationattempts",
+    "key": {
+      "providerMessageId": 1
+    },
+    "options": {
+      "sparse": true
+    }
+  },
+  {
+    "collection": "revenueautomationcampaigns",
+    "key": {
+      "business": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "revenueautomationcampaigns",
+    "key": {
+      "business": 1,
+      "state": 1,
+      "executeAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "revenueautomationcampaigns",
+    "key": {
+      "state": 1,
+      "executeAt": 1,
+      "lockUntil": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "revenueautomationcampaigns",
+    "key": {
+      "business": 1,
+      "opportunity": 1,
+      "purpose": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "revenueautomationconsents",
+    "key": {
+      "business": 1,
+      "phone": 1,
+      "purpose": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "revenueautomationsettings",
+    "key": {
+      "business": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "revenuerescueopportunities",
+    "key": {
+      "business": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "revenuerescueopportunities",
+    "key": {
+      "business": 1,
+      "status": 1,
+      "dueAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "revenuerescueopportunities",
+    "key": {
+      "business": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "revenuerescueopportunities",
+    "key": {
+      "business": 1,
+      "type": 1,
+      "externalKey": 1
+    },
+    "options": {
+      "unique": true,
+      "partialFilterExpression": {
+        "externalKey": {
+          "$type": "string"
+        }
+      }
     }
   },
   {

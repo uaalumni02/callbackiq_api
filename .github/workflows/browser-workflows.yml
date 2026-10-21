@@ -24,7 +24,7 @@ jobs:
           repository: uaalumni02/callbackiq_frontend
           token: ${{ secrets.CALLBACKIQ_CROSS_REPO_READ_TOKEN }}
           persist-credentials: false
-          ref: ${{ vars.CALLBACKIQ_FRONTEND_REF || '998a89366203f183e7a0a0bb41912c46ac6a668d' }}
+          ref: ${{ vars.CALLBACKIQ_FRONTEND_REF || 'main' }}
           path: frontend
       # CALLBACKIQ_FRONTEND_AUTH_GUARD_V1
       # Do not silently fall back to an unauthenticated clone of a private repo.

@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import express from 'express';
 import mongoose from 'mongoose';
-import { MongoMemoryServer } from 'mongodb-memory-server';
+import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { chromium } from 'playwright';
 import app from '../../src/app.js';
 import Token from '../../src/helpers/jwt/token.js';
@@ -57,7 +57,9 @@ async function visible(locator) { await locator.first().waitFor({ state: 'visibl
 
 beforeAll(async () => {
   if (!fs.existsSync(path.join(uiDir, 'build/index.html'))) throw new Error(`Build the frontend first: ${uiDir}`);
-  mongo = await MongoMemoryServer.create();
+  // Staff workflow updates use MongoDB transactions; the browser fixture must
+  // use the same transaction-capable semantics as Atlas, without a live DB.
+  mongo = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: 'wiredTiger' } });
   await mongoose.connect(mongo.getUri());
   await Promise.all([Alert.init(), CallLog.init(), Message.init(), Appointment.init()]);
   owner = await User.create({ userName: 'Browser Owner', email: 'owner@example.test', password: 'unused-test-hash', businessName: 'Browser HVAC', role: 'owner', emailVerified: true, termsAccepted: true, privacyAccepted: true });
@@ -160,6 +162,10 @@ test('same-day voice scheduling review appears without creating or confirming an
 
 test('owner can approve, reschedule and cancel a policy-checked customer hold through the UI', async () => {
   const service=await ServiceOffering.create({business:business._id,name:'HVAC repair',category:'hvac',active:true,aiCanDiscuss:true,aiCanBook:true,durationMinutes:60,keywords:['HVAC repair']});
+  // The saved customer request must state the actual problem AND HVAC equipment.
+  // A generic 'HVAC repair' request intentionally fails AI booking qualification.
+  await Lead.updateOne({ _id: lead._id, business: business._id },
+    { $set: { serviceNeeded: 'HVAC repair - air conditioner not cooling' } });
   await ServiceArea.create({business:business._id,zipCodes:['30324']});
   await SchedulingPolicy.create({business:business._id,minimumNoticeMinutes:60,allowSameDayBooking:true});
   await AvailabilityRule.insertMany(Array.from({length:7},(_,dayOfWeek)=>({business:business._id,dayOfWeek,enabled:true,capacity:1,windows:[{startTime:'08:00',endTime:'18:00'}]})));
@@ -195,7 +201,7 @@ test('owner can approve, reschedule and cancel a policy-checked customer hold th
   const canceled = await cancellationResponse;
   expect(canceled.status()).toBe(200);
   expect(await canceled.json()).toMatchObject({ success: true, data: { status: 'canceled' } });
-  await visible(page.getByText('Appointment canceled.', { exact: true }));
+  await visible(page.getByText(/^Appointment canceled[.]/));
   expect((await Appointment.findById(original.rescheduledTo)).status).toBe('canceled');
 });
 
