@@ -17,6 +17,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           path: api
+          persist-credentials: false
       - name: Checkout partner using configured read credential
         if: env.CROSS_REPO_TOKEN != ''
         uses: actions/checkout@v6
@@ -26,13 +27,18 @@ jobs:
           persist-credentials: false
           ref: ${{ vars.CALLBACKIQ_FRONTEND_REF || 'main' }}
           path: frontend
-      # CALLBACKIQ_FRONTEND_AUTH_GUARD_V1
-      # Do not silently fall back to an unauthenticated clone of a private repo.
-      - name: Require frontend read permission
+      # Without a token, only a publicly accessible partner can be checked out.
+      # A private partner requires a scoped read-only token; never silently skip tests.
+      - name: Checkout public partner without cross-repository credential
         if: env.CROSS_REPO_TOKEN == ''
+        env:
+          PARTNER_REF: ${{ vars.CALLBACKIQ_FRONTEND_REF || 'main' }}
         run: |
-          echo 'Missing CALLBACKIQ_CROSS_REPO_READ_TOKEN secret. Grant read-only access to callbackiq_frontend.' >&2
-          exit 1
+          if ! GIT_TERMINAL_PROMPT=0 git -c credential.helper= clone --no-checkout https://github.com/uaalumni02/callbackiq_frontend.git frontend; then
+            echo 'Could not access frontend. If private, configure CALLBACKIQ_CROSS_REPO_READ_TOKEN with read-only access to the partner repository.' >&2
+            exit 1
+          fi
+          git -C frontend checkout --detach "$PARTNER_REF"
       - name: Record exact API and frontend revisions
         run: |
           mkdir -p api/browser-results

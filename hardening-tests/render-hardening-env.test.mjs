@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { validateEnvironment } from '../src/config/env.js';
 const base=()=>({
- APP_ENV:'staging', NODE_ENV:'production', MONGODB_URI:'mongodb+srv://stub:stub@cluster.test.invalid/callbackiq_staging',
+ APP_ENV:'staging', NODE_ENV:'production', MONGODB_URI:'mongodb://127.0.0.1:27017/callbackiq_staging',
  JWT_SECRET:'a'.repeat(64), CLIENT_URL:'https://app.callbackiq.test',
  PUBLIC_API_URL:'https://api.callbackiq.test', ALLOWED_ORIGINS:'https://app.callbackiq.test',
  TWILIO_ACCOUNT_SID:'AC'+'1'.repeat(32), TWILIO_AUTH_TOKEN:'token-for-test-only',
