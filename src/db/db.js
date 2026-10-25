@@ -1,4 +1,6 @@
 import { safeConsole } from "../helpers/logging/safeLogger.js";
+import * as subscriptionRepository from "./repositories/subscriptionRepository.js";
+import * as supportTicketRepository from "./repositories/supportTicketRepository.js";
 import { verifiedAmountExpression, estimateCoverageGroup } from "../services/valuation/opportunityValue.js";
 
 const BUSINESS_SCOPE_FIELDS = [
@@ -1669,197 +1671,53 @@ class Db {
     }
   }
   // ----- Subscription / Billing methods -----
-
-  static async getSubscriptionByBusiness(model, businessId, { populateBusiness = true } = {}) {
-    try {
-      const query = model.findOne({ business: businessId });
-      // Access checks already have a freshly loaded business and only inspect
-      // subscription state. Other callers retain the populated response shape.
-      return await (populateBusiness
-        ? query.populate("business", "businessName businessType phone email")
-        : query);
-    } catch (error) {
-      safeConsole.error("Error fetching subscription by business:", error);
-      throw error;
-    }
+  static async getSubscriptionByBusiness(...args) {
+    return subscriptionRepository.getSubscriptionByBusiness(...args);
   }
 
-  static async getSubscriptionByStripeCustomer(model, stripeCustomerId) {
-    try {
-      return await model
-        .findOne({ stripeCustomerId })
-        .populate("business", "businessName businessType phone email");
-    } catch (error) {
-      safeConsole.error("Error fetching subscription by Stripe customer:", error);
-      throw error;
-    }
+  static async getSubscriptionByStripeCustomer(...args) {
+    return subscriptionRepository.getSubscriptionByStripeCustomer(...args);
   }
 
-  static async getSubscriptionByStripeSubscription(
-    model,
-    stripeSubscriptionId,
-  ) {
-    try {
-      return await model
-        .findOne({ stripeSubscriptionId })
-        .populate("business", "businessName businessType phone email");
-    } catch (error) {
-      safeConsole.error(
-        "Error fetching subscription by Stripe subscription:",
-        error,
-      );
-      throw error;
-    }
+  static async getSubscriptionByStripeSubscription(...args) {
+    return subscriptionRepository.getSubscriptionByStripeSubscription(...args);
   }
 
-  static async upsertSubscriptionByBusiness(model, businessId, data) {
-    try {
-      return await model
-        .findOneAndUpdate(
-          { business: businessId },
-          {
-            ...data,
-            business: businessId,
-          },
-          {
-            returnDocument: "after",
-            upsert: true,
-            runValidators: true,
-            setDefaultsOnInsert: true,
-          },
-        )
-        .populate("business", "businessName businessType phone email");
-    } catch (error) {
-      safeConsole.error("Error upserting subscription:", error);
-      throw error;
-    }
+  static async upsertSubscriptionByBusiness(...args) {
+    return subscriptionRepository.upsertSubscriptionByBusiness(...args);
   }
 
-  static async updateSubscriptionByStripeSubscription(
-    model,
-    stripeSubscriptionId,
-    data,
-  ) {
-    try {
-      return await model
-        .findOneAndUpdate({ stripeSubscriptionId }, data, {
-          returnDocument: "after",
-          runValidators: true,
-        })
-        .populate("business", "businessName businessType phone email");
-    } catch (error) {
-      safeConsole.error(
-        "Error updating subscription by Stripe subscription:",
-        error,
-      );
-      throw error;
-    }
+  static async updateSubscriptionByStripeSubscription(...args) {
+    return subscriptionRepository.updateSubscriptionByStripeSubscription(...args);
   }
 
   // ----- Support Ticket methods -----
-
-  static async saveSupportTicket(model, data) {
-    try {
-      const ticket = new model(data);
-      return await ticket.save();
-    } catch (error) {
-      safeConsole.error("Error saving support ticket:", error);
-      throw error;
-    }
+  static async saveSupportTicket(...args) {
+    return supportTicketRepository.saveSupportTicket(...args);
   }
 
-  static async getSupportTicketsByBusiness(model, businessId) {
-    try {
-      return await model
-        .find({ business: businessId })
-        .sort({ createdAt: -1 })
-        .lean();
-    } catch (error) {
-      safeConsole.error("Error fetching support tickets:", error);
-      throw error;
-    }
+  static async getSupportTicketsByBusiness(...args) {
+    return supportTicketRepository.getSupportTicketsByBusiness(...args);
   }
 
-  static async getSupportTicketForBusiness(model, ticketId, businessId) {
-    try {
-      return await model.findOne({ _id: ticketId, business: businessId });
-    } catch (error) {
-      safeConsole.error("Error fetching support ticket:", error);
-      throw error;
-    }
+  static async getSupportTicketForBusiness(...args) {
+    return supportTicketRepository.getSupportTicketForBusiness(...args);
   }
 
-  static async updateSupportTicketForBusiness(
-    model,
-    ticketId,
-    businessId,
-    data,
-  ) {
-    try {
-      return await model.findOneAndUpdate(
-        { _id: ticketId, business: businessId },
-        data,
-        {
-          returnDocument: "after",
-          runValidators: true,
-        },
-      );
-    } catch (error) {
-      safeConsole.error("Error updating support ticket:", error);
-      throw error;
-    }
+  static async updateSupportTicketForBusiness(...args) {
+    return supportTicketRepository.updateSupportTicketForBusiness(...args);
   }
 
-  static async closeSupportTicketForBusiness(model, ticketId, businessId) {
-    try {
-      return await model.findOneAndUpdate(
-        { _id: ticketId, business: businessId },
-        {
-          status: "closed",
-          resolvedAt: new Date(),
-        },
-        {
-          returnDocument: "after",
-          runValidators: true,
-        },
-      );
-    } catch (error) {
-      safeConsole.error("Error closing support ticket:", error);
-      throw error;
-    }
+  static async closeSupportTicketForBusiness(...args) {
+    return supportTicketRepository.closeSupportTicketForBusiness(...args);
   }
 
-  static async getAllSupportTickets(model, filter = {}) {
-    try {
-      return await model
-        .find(filter)
-        .populate("business", "businessName phone email businessType")
-        .populate("user", "userName email role")
-        .populate("lastUpdatedBy", "userName email role")
-        .populate("ticketHistory.admin", "userName email role")
-        .sort({ createdAt: -1 })
-        .lean();
-    } catch (error) {
-      safeConsole.error("Error fetching admin support tickets:", error);
-      throw error;
-    }
+  static async getAllSupportTickets(...args) {
+    return supportTicketRepository.getAllSupportTickets(...args);
   }
 
-  static async updateSupportTicketAdmin(model, ticketId, updateQuery) {
-    try {
-      return await model
-        .findByIdAndUpdate(ticketId, updateQuery, {
-          returnDocument: "after",
-          runValidators: true,
-        })
-        .populate("business", "businessName phone email businessType")
-        .populate("user", "userName email role")
-        .populate("lastUpdatedBy", "userName email role")
-        .populate("ticketHistory.admin", "userName email role");
-    } catch (error) {
-      safeConsole.error("Error updating support ticket as admin:", error);
-      throw error;
-    }
+  static async updateSupportTicketAdmin(...args) {
+    return supportTicketRepository.updateSupportTicketAdmin(...args);
   }
 
   // ----- Admin methods -----
