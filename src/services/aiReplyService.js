@@ -1,3 +1,4 @@
+import { maybeAnswerDialogQuestion } from './conversationPolicy/dialogInterruption.js';
 import { handleConversationControl, isRequestWithdrawal } from './conversationControl.service.js';
 import { guardServiceRequest } from './serviceEligibility/serviceEligibility.service.js';
 import { observeCustomerConstraint, respectCustomerConstraints } from './conversationCondition.service.js';
@@ -223,6 +224,12 @@ const generateReplyResult = async ({
 
     const serviceGuard = await guardServiceRequest({ business, lead, conversation, customerMessage: latestCustomerMessage, recentMessages: messages });
     if (serviceGuard) return serviceGuard;
+
+    // Shared, read-only status policy. All original safety, control and
+    // service-eligibility guards above retain priority.
+    const dialogAnswer = await maybeAnswerDialogQuestion({ business, lead, conversation,
+      customerMessage: latestCustomerMessage, channel: 'sms', recentMessages: messages });
+    if (dialogAnswer) return preserveTurnUrgency(dialogAnswer, turnUrgency);
 
     const intake = await handleRecoveryIntake({ business, lead, conversation, customerMessage: latestCustomerMessage, recentMessages: messages, turnId: messages.filter(message => message.direction === "inbound").at(-1)?._id || "" });
     if (intake) return preserveTurnUrgency(intake, turnUrgency);

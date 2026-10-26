@@ -1,3 +1,4 @@
+import { dialogMode } from '../conversationPolicy/dialogPolicy.js';
 import { captureTurnFacts } from './turnFactCapture.service.js';
 import AlertService from '../alert.service.js';
 import { assertDistributedLeaseActive } from '../distributedLease.service.js';
@@ -9,9 +10,10 @@ export async function requestStaffSchedulingReview({ business, lead, conversatio
   const facts = captureTurnFacts({ customerMessage, business, lead, now });
   const result = {
     decision: 'send_fixed_response', actionType: 'human_handoff', messageCategory: 'appointment_preference',
-    reply: "Your requested timing is saved for team review. This is not a confirmed appointment or dispatch, and a response time is not guaranteed.",
+    reply: "Your requested timing is saved for team review. This is not a confirmed appointment or dispatch, and a response time is not guaranteed." +
+      (dialogMode(process.env) === 'active' ? ' If the requested time cannot be accommodated, what backup day works for you?' : ''),
     serviceNeeded: lead?.serviceNeeded || '', urgency: lead?.urgency || 'medium', address: lead?.address || '',
-    preferredAppointmentTime: facts.preferredAppointmentTime || customerMessage || lead?.preferredAppointmentTime || '',
+    preferredAppointmentTime: facts.preferredAppointmentTime || lead?.preferredAppointmentTime || '',
     shouldAlertOwner: true, alertPriority: lead?.urgency === 'emergency' ? 'critical' : 'high', riskFlags: [],
     intakeReady: false, handoff: { required: true, reason: 'scheduling_review', callbackRequested: false },
     guardrail: { skipAI: true, usedFallback: false, reason: 'staff_scheduling_review' },

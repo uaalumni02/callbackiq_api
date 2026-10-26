@@ -133,6 +133,7 @@ const conversationSchema = new Schema(
       uncertainTurnId: { type: String, default: "" },
       uncertainTurns: { type: Number, min: 0, max: 2, default: 0 },
       recoveryIntake: { type: Schema.Types.Mixed, default: () => ({}) },
+      dialogPolicy: { type: Schema.Types.Mixed, default: () => ({}) },
       summary: { type: String, trim: true, maxlength: 2000, default: "" },
       serviceNeeded: { type: String, trim: true, maxlength: 200, default: "" },
       urgency: { type: String, trim: true, maxlength: 40, default: "" },
