@@ -1,3 +1,6 @@
+import { preventNonProgressReply } from './conversationPolicy/repetitionGuard.js';
+import { dialogMode } from './conversationPolicy/dialogPolicy.js';
+import { emitDialogMetric } from './conversationPolicy/dialogMetrics.js';
 import Conversation from "../models/conversation.js";
 import Message from "../models/message.js";
 import AlertService from "./alert.service.js";
@@ -40,6 +43,13 @@ class ConversationOrchestratorService {
     result = enforceSmsWorkflowResult(result, { lead });
     const latestConversation = await Conversation.findById(conversation._id);
     let escalated = latestConversation?.humanTakeover === true || latestConversation?.bookingState?.status === "human_takeover";
+    const quality = preventNonProgressReply({ result, customerMessage: inboundMessage.body,
+      recentMessages: messages, lead, conversation: latestConversation || conversation,
+      mode: dialogMode(process.env) });
+    result = quality.result;
+    if (quality.loopRisk) emitDialogMetric({ businessId: business._id,
+      conversationId: conversation._id, channel: 'sms', outcome: 'loop_risk',
+      intent: result?.messageCategory, phase: conversation?.bookingState?.status });
     const reply = String(result?.reply || "").trim();
 
     // Prevent accidental silence, but preserve intentional guardrail no_reply decisions.

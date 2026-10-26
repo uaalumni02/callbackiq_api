@@ -1,3 +1,6 @@
+import { maybeAnswerDialogQuestion } from '../services/conversationPolicy/dialogInterruption.js';
+import { preventNonProgressReply } from '../services/conversationPolicy/repetitionGuard.js';
+import { dialogMode } from '../services/conversationPolicy/dialogPolicy.js';
 import { handleCompoundCustomerTurn } from '../services/messaging/compoundCustomerTurn.service.js';
 import { planCustomerTurn } from '../services/messaging/customerTurnPlan.service.js';
 import { applyCustomerAddressRevision } from '../services/messaging/customerRequestRevision.service.js';
@@ -316,8 +319,13 @@ const recordConfirmedAppointment = async ({
 
 class VoiceAgentService {
   static async handlePrompt(args) {
-    const result = await this.handlePromptInternal(args);
+    let result = await this.handlePromptInternal(args);
     if (!result?.reply) return result;
+    result = preventNonProgressReply({ result, customerMessage: args.customerMessage,
+      recentMessages: (args.session?.transcript || []).slice(-10).map(entry => ({
+        direction: entry.role === 'customer' ? 'inbound' : 'outbound', body: entry.text })),
+      lead: args.session?.lead, conversation: args.session?.conversation,
+      mode: dialogMode(process.env) }).result;
     return { ...result, reply: respectCustomerConstraints(result.reply, {
       conversation: args.session?.conversation, customerMessage: args.customerMessage,
     }) };
@@ -504,6 +512,12 @@ class VoiceAgentService {
     const serviceGuard = await guardServiceRequest({ business, lead, conversation, customerMessage: text, channel: 'voice', turnId, recentMessages,
       semanticAssessment: understanding?.entities?.service ? { serviceNeeded: understanding.entities.service, confidence: understanding.confidence } : null });
     if (serviceGuard) return { reply: toSpokenReply(serviceGuard.reply) };
+
+    const dialogAnswer = ['es', 'other'].includes(understanding?.language) ? null :
+      await maybeAnswerDialogQuestion({ business, lead, conversation,
+        customerMessage: text, channel: 'voice', recentMessages, signal });
+    if (dialogAnswer) return { ...dialogAnswer, reply: toSpokenReply(dialogAnswer.reply),
+      messageCategory: 'appointment_status' };
 
     // Safety and opt-out handling must not wait on ancillary valuation reads.
     assertVoiceTurnActive();
