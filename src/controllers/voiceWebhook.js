@@ -310,26 +310,10 @@ const voiceFailureResponse = ({
   message = "",
 }) => {
   queueFailureAudit({ session, failureReason, context: "voice_failure" });
-  if (
-    session &&
-    !isTerminal(session) &&
-    determineVoiceFailureRoute({ settings }) === VOICE_ROUTE.DIAL_STAFF
-  ) {
-    return staffDialResponse({
-      res,
-      session,
-      phone: settings.transferPhone,
-      timeoutSeconds: settings.overflowRingSeconds,
-      actionPath: `${buildTransferActionPath({ reason: "voice_failure" })}&purpose=failureStaff`,
-      purpose: "failureStaff",
-    });
-  }
-  return fallbackSmsResponse({
-    res,
-    session,
-    failureReason,
-    message,
-  });
+  // AI is the fallback for unavailable staff, not a call-transfer service.
+  // Even if an old setting selected staff_then_sms, never dial staff after
+  // a caller has entered the voice AI path.
+  return fallbackSmsResponse({ res, session, failureReason, message });
 };
 
 const gracefulVoiceFailure = ({ res, session, error, context, settings }) => {
@@ -547,52 +531,15 @@ class VoiceWebhookController {
       }
 
       if (handoff.reasonCode === "live-agent-handoff") {
-        const livePhone = normalizePhoneToE164(settings.liveTransferPhone);
-        const trackingPhone = normalizePhoneToE164(context.business.phone);
-        const dedicated = Boolean(
-          livePhone &&
-            !phoneNumbersEqual(livePhone, trackingPhone) &&
-            !phoneNumbersEqual(livePhone, settings.transferPhone),
-        );
-        let open = false;
-        try {
-          const availability =
-            await VoiceAvailabilityService.isBusinessOpen(context.business);
-          open =
-            availability === true ||
-            (isJestRuntime() && availability == null);
-        } catch (error) {
-          logOperationalWarning("voice.live_transfer_hours_failed", {
-            businessId: context.business._id,
-            errorCode: error?.code || error?.name || "error",
-          });
-        }
-        if (settings.liveTransferEnabled && dedicated && open) {
-          await markTransferring(session, {
-            liveTransferRequestedAt: new Date().toISOString(),
-            liveTransferReason: String(handoff.reason || "human_request").slice(
-              0,
-              300,
-            ),
-          });
-          return staffDialResponse({
-            res,
-            session,
-            phone: livePhone,
-            timeoutSeconds: settings.overflowRingSeconds,
-            actionPath: `${buildTransferActionPath({
-              reason: handoff.reason || "live_agent_handoff",
-            })}&purpose=liveTransfer`,
-            purpose: "liveTransfer",
-          });
-        }
+        // Backward-compatible fail-closed handling for a legacy voice session.
+        // New voice sessions capture a durable callback request in the agent.
+        // This branch must never dial a live staff number after AI answered.
         return fallbackSmsResponse({
           res,
           session,
-          failureReason:
-            "An explicit human request could not use the dedicated screened live-transfer line.",
+          failureReason: "Legacy post-AI live handoff disabled; callback-first recovery required.",
           message:
-            "A live team member could not be reached by phone on the dedicated line. I preserved the request as a priority callback.",
+            "Your inquiry has been saved for review. I cannot connect a live staff member or promise a callback time.",
         });
       }
 

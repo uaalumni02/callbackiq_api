@@ -331,8 +331,9 @@ describe("Phase 9 completion gate using production voice orchestration", () => {
     expect(sendConfirmationSmsTool).not.toHaveBeenCalled();
   });
 
-  test("gate 7: transfers only when the caller explicitly asks and live transfer is enabled", async () => {
+  test("gate 7: explicit human request starts callback capture even for a legacy live-transfer account", async () => {
     const session = makeSession();
+    // Prior business settings must not re-enable a post-AI warm transfer.
     session.business.voiceSettings.liveTransferEnabled = true;
 
     const result = await VoiceAgentService.handlePrompt({
@@ -340,18 +341,24 @@ describe("Phase 9 completion gate using production voice orchestration", () => {
       customerMessage: "Please transfer me to a person",
     });
 
-    expect(result.handoff).toEqual(expect.objectContaining({ type: "end" }));
-    expect(session.status).toBe("transferring");
-    expect(session.transferredToHuman).toBe(false);
-    expect(session.transferReason).toBe("customer_requested_human");
-    expect(Alert.findOneAndUpdate).toHaveBeenCalledWith(
+    expect(result.reply).toMatch(/callback|team/i);
+    // Intake remains in progress until the caller confirms its details;
+    // an initial human request must neither end the call nor dial anyone.
+    expect(result.handoff).toBeUndefined();
+    expect(session.status).not.toBe("transferring");
+    expect(session.transferredToHuman).not.toBe(true);
+    expect(session.metadata?.callbackCapture).toEqual(
+      expect.objectContaining({ reason: "customer_requested_human" }),
+    );
+    expect(searchServicesTool).not.toHaveBeenCalled();
+    expect(createAppointmentTool).not.toHaveBeenCalled();
+    expect(Alert.findOneAndUpdate).not.toHaveBeenCalledWith(
       expect.objectContaining({
         dedupeKey: "voice_handoff:voice-session-1:customer_requested_human",
       }),
-      expect.any(Object),
-      expect.objectContaining({ upsert: true }),
+      expect.anything(),
+      expect.anything(),
     );
-    expect(searchServicesTool).not.toHaveBeenCalled();
   });
 
   test("gate 8: performs critical safety escalation before booking without a blind transfer", async () => {

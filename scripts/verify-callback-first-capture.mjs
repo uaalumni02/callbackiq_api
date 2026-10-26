@@ -1,0 +1,16 @@
+import fs from 'node:fs';
+import path from 'node:path';
+const read = file => fs.readFileSync(path.join(process.cwd(), file), 'utf8');
+const assert = (ok, description) => { if (!ok) { console.error('FAIL:', description); process.exitCode = 1; } else console.log('PASS:', description); };
+const agent = read('src/voice/voiceAgent.service.js');
+const webhook = read('src/controllers/voiceWebhook.js');
+const attribution = read('src/services/marketingAttribution.service.js');
+const responseBranch = agent.match(/if \(humanIntent\) \{[\s\S]*?\n    \}\n\n    if \(!bookingInProgress/);
+assert(Boolean(responseBranch && /captureCallback\(/.test(responseBranch[0]) && !/liveTransferResult|transfer_attempted|liveTransferEnabled/.test(responseBranch[0])), 'Human requests use voice callback capture, not a warm transfer');
+const legacy = webhook.match(/if \(handoff\.reasonCode === "live-agent-handoff"\) \{[\s\S]*?\n      \}\n\n      const status/);
+assert(Boolean(legacy && /fallbackSmsResponse/.test(legacy[0]) && !/staffDialResponse/.test(legacy[0])), 'Legacy live-handoff event cannot dial staff');
+const voiceFailure = webhook.match(/const voiceFailureResponse = \(\{[\s\S]*?\n};\n\nconst gracefulVoiceFailure/);
+assert(Boolean(voiceFailure && /fallbackSmsResponse/.test(voiceFailure[0]) && !/staffDialResponse/.test(voiceFailure[0])), 'Voice failure never creates a post-AI staff dial');
+assert(/purpose: "initialStaff"/.test(webhook), 'Staff-first initial overflow routing remains available');
+assert(/buildAttributionSnapshot/.test(attribution) && /syncLatestAttribution/.test(attribution), 'Existing attribution services preserved');
+console.log(process.exitCode ? 'Callback-first verification FAILED' : 'Callback-first verification PASSED');

@@ -177,34 +177,22 @@ describe("VoiceWebhookController business-selected AI/SMS routing", () => {
     );
   });
 
-  test("tries staff after a voice failure when the business selected staff-then-SMS", async () => {
+  test("never rings staff after a voice failure even for legacy staff-then-SMS settings", async () => {
     Business.findOne.mockResolvedValue(
-      makeBusiness({
-        openHours: "voice_ai",
-        afterHours: "voice_ai",
-        voiceFailure: "staff_then_sms",
-      }),
+      makeBusiness({ openHours: "voice_ai", afterHours: "voice_ai", voiceFailure: "staff_then_sms" }),
     );
     const res = response();
-
     await VoiceWebhookController.complete(
-      request({
-        HandoffData: JSON.stringify({
-          reasonCode: "voice-failure",
-          reason: "model unavailable",
-        }),
-      }),
+      request({ HandoffData: JSON.stringify({ reasonCode: "voice-failure", reason: "model unavailable" }) }),
       res,
     );
-
     const twiml = res.send.mock.calls[0][0];
-    expect(twiml).toContain("<Dial");
-    expect(twiml).toContain("voice-transfer-complete");
-    expect(VoiceSessionService.sendFallbackSms).not.toHaveBeenCalled();
+    expect(twiml).not.toContain("<Dial");
+    expect(twiml).toContain("<Say");
     await flushPromises();
+    expect(VoiceSessionService.sendFallbackSms).toHaveBeenCalled();
     expect(VoiceFailureService.record).toHaveBeenCalledWith({
-      sessionId: "voice-session-1",
-      failureReason: "model unavailable",
+      sessionId: "voice-session-1", failureReason: "model unavailable",
     });
   });
 

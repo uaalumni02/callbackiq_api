@@ -1,4 +1,5 @@
 import { safeConsole } from "../helpers/logging/safeLogger.js";
+import { getTradeReceptionGuidance } from "./trades/receptionIntelligence.service.js";
 import AvailabilityException from "../models/availabilityException.js";
 import AvailabilityRule from "../models/availabilityRule.js";
 import BusinessOperationsSettings from "../models/businessOperationsSettings.js";
@@ -189,6 +190,7 @@ export const buildAIConfigurationContext = async (business) => {
     return {
       configured: bootstrap.readiness.ready,
       readiness: bootstrap.readiness,
+      receptionGuidance: getTradeReceptionGuidance({ businessType: business.businessType, services: bootstrap.services }),
       services: bootstrap.services
         .filter((service) => service.active && service.aiCanDiscuss)
         .map((service) => ({
