@@ -79,7 +79,7 @@ describe("VoiceWebhookController dedicated live-transfer destination", () => {
     process.env = originalEnv;
   });
 
-  test("dials the dedicated live-transfer phone, not the initial staff-routing phone", async () => {
+  test("never dials either staff number from a legacy post-AI handoff", async () => {
     Business.findOne.mockResolvedValue({
       _id: "business-1",
       businessName: "Peachtree Plumbing",
@@ -110,15 +110,20 @@ describe("VoiceWebhookController dedicated live-transfer destination", () => {
       res,
     );
 
-    expect(res.send).toHaveBeenCalledWith(
-      expect.stringContaining("+14045550188"),
-    );
-    expect(res.send).not.toHaveBeenCalledWith(
-      expect.stringContaining(">+14045550109</Number>"),
+    const twiml = res.send.mock.calls[0][0];
+    expect(twiml).toContain("<Say>");
+    expect(twiml).toContain("cannot connect a live staff member");
+    expect(twiml).not.toMatch(/<Dial\b|<Number\b/);
+    expect(twiml).not.toContain("+14045550188");
+    expect(twiml).not.toContain("+14045550109");
+    // Fallback is queued for review without bridging a new telephone call.
+    await Promise.resolve();
+    expect(VoiceSessionService.sendFallbackSms).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: "voice-session-1" }),
     );
   });
 
-  test("uses SMS and alert fallback when the dedicated line is unavailable", async () => {
+  test("keeps the same no-dial fallback when legacy live transfer is disabled", async () => {
     Business.findOne.mockResolvedValue({
       _id: "business-1",
       businessName: "Peachtree Plumbing",
@@ -151,8 +156,10 @@ describe("VoiceWebhookController dedicated live-transfer destination", () => {
     expect(VoiceSessionService.sendFallbackSms).toHaveBeenCalledWith(
       expect.objectContaining({ sessionId: "voice-session-1" }),
     );
-    expect(res.send).toHaveBeenCalledWith(
-      expect.stringContaining("could not be reached by phone"),
-    );
+    const twiml = res.send.mock.calls[0][0];
+    expect(twiml).toContain("Your inquiry has been saved for review");
+    expect(twiml).toContain("cannot connect a live staff member");
+    expect(twiml).not.toMatch(/<Dial\b|<Number\b/);
+    expect(twiml).not.toContain("+14045550109");
   });
 });

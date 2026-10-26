@@ -26,7 +26,6 @@ import {
 } from "../helpers/logging/safeLogger.js";
 import VoiceAvailabilityService from "./voiceAvailability.service.js";
 import VoiceCallbackService from "./voiceCallback.service.js";
-import VoiceHandoffService from "./voiceHandoff.service.js";
 import VoiceTranscriptService from "./voiceTranscript.service.js";
 import VoiceUnderstandingService from "./voiceUnderstanding.service.js";
 import VoiceServiceAreaService from "./voiceServiceArea.service.js";
@@ -165,19 +164,6 @@ const captureCallback = ({
     sendConfirmationSms,
     requiredFields,
   });
-
-const liveTransferResult = async ({ session, reason, prompt }) => ({
-  reply: prompt,
-  handoff: await VoiceHandoffService.request({
-    session,
-    reason,
-    alertType: "human_requested",
-    customerMessage:
-      session.transcript
-        ?.filter((entry) => entry.role === "customer")
-        .at(-1)?.text || "",
-  }),
-});
 
 const hasCatalogServiceMatch = async ({ businessId, text }) => {
   if (!businessId || !SERVICE_REQUEST_HINT.test(text)) return false;
@@ -627,29 +613,18 @@ class VoiceAgentService {
       resetFallbackGuard(guard);
       recordPilotMetric(session, "exit_requested", 1, { exit: "human" });
       recordPilotMetric(session, "exit_honored_one_turn", 1, { exit: "human" });
-      const settings = business.voiceSettings || {};
-      const liveTransferPhone = normalizePhoneToE164(settings.liveTransferPhone);
-      const transferConfigured = Boolean(
-        settings.liveTransferEnabled &&
-          liveTransferPhone &&
-          !phoneNumbersEqual(liveTransferPhone, session.to || business.phone),
-      );
-      if (transferConfigured && (await safeBusinessOpen(business))) {
-        recordPilotMetric(session, "transfer_attempted");
-        return liveTransferResult({
-          session,
-          reason: "customer_requested_human",
-          prompt:
-            "I’ll try the dedicated live-transfer line now. If the team does not accept the call, CallBackIQ will preserve your information for follow-up.",
-        });
-      }
+      // Small businesses use MeekCall when the team cannot answer. Never
+      // place another live call after AI answers. Preserve the ongoing intake,
+      // submit a staff-review callback and make no timing commitment.
       return captureCallback({
         session,
         customerMessage: text,
         reason: "customer_requested_human",
         alertType: "human_requested",
+        priority: "high",
+        seedServiceFromMessage: true,
         openingPrompt:
-          "A verified live transfer is unavailable right now. I’ll create a priority callback request instead of sending you to voicemail.",
+          "I can help capture your request for the team. I cannot connect a live staff member, but I can save the details for a callback. What should I tell them?",
       });
     }
 

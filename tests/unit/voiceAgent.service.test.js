@@ -304,20 +304,19 @@ describe("VoiceAgentService callback-first recovery", () => {
     expect(VoiceHandoffService.request).not.toHaveBeenCalled();
   });
 
-  test("uses live transfer only for an explicit request when it is enabled", async () => {
+  test("captures a callback even if an old account enabled live transfer", async () => {
     const session = makeSession();
     session.business.voiceSettings.liveTransferEnabled = true;
 
-    const result = await VoiceAgentService.handlePrompt({
+    await VoiceAgentService.handlePrompt({
       session,
       customerMessage: "I need to speak to an agent",
     });
 
-    expect(result.reply).toMatch(/live-transfer line/i);
-    expect(VoiceHandoffService.request).toHaveBeenCalledWith(
-      expect.objectContaining({ reason: "customer_requested_human" }),
+    expect(VoiceHandoffService.request).not.toHaveBeenCalled();
+    expect(VoiceCallbackService.handle).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: "customer_requested_human", priority: "high" }),
     );
-    expect(VoiceCallbackService.handle).not.toHaveBeenCalled();
   });
 
   test("captures a callback when the dedicated live-transfer window is closed", async () => {
