@@ -103,7 +103,7 @@ const SAFETY_HAZARD_PATTERN_GROUPS = [
       /\b(?:downed|fallen|live) (?:power line|electrical line|wire)\b/i,
       /\bpower line (?:is )?down\b/i,
       /\bexposed (?:live )?wir(?:e|es|ing)\b/i,
-      /\b(?:outlet|wires?|wiring|panel|breaker) (?:is |are )?(?:smoking|melting|buzzing|sizzling|hot to the touch)\b/i,
+      /\b(?:outlet|wires?|wiring|panel|breaker) (?:is |are )?(?:smoking|melting|buzzing|sizzling|hot to the touch|warm to the touch|warm)\b/i,
       /\bwater\b[\s\S]{0,20}\b(?:near|on|in|into|onto|around|touching|leaking|dripping|pouring|coming)\b[\s\S]{0,20}\b(?:outlets?|panel|breaker|electrical|wires?|wiring|light fixture)\b/i,
     ],
   },

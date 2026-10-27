@@ -42,6 +42,19 @@ export const buildTwilioWebhookUrls = (
     throw error;
   }
 
+  // Optional migration gate; the legacy same-fleet fallback remains available
+  // until an independent, tested provider endpoint is deployed and configured.
+  if (
+    env.MEEKCALL_REQUIRE_INDEPENDENT_TWILIO_FALLBACK === "true" &&
+    new URL(fallbackBase).origin === new URL(base).origin
+  ) {
+    const error = new Error(
+      "TWILIO_FALLBACK_WEBHOOK_BASE_URL must use an independent HTTPS origin.",
+    );
+    error.code = "TWILIO_FALLBACK_WEBHOOK_NOT_INDEPENDENT";
+    throw error;
+  }
+
   const voiceOverrides = String(
     env.TWILIO_VOICE_WEBHOOK_OVERRIDES ||
       DEFAULT_TWILIO_VOICE_WEBHOOK_OVERRIDES,

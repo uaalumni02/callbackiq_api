@@ -60,7 +60,7 @@ class VoiceFailureService {
           channel: "in_app",
           title: "Voice AI session failed",
           message:
-            "The voice session failed. CallBackIQ preserved the partial transcript and started the configured staff-first recovery path.",
+            "The voice session failed. MeekCall preserved the partial transcript and started the configured staff-first recovery path.",
           status: "pending",
           priority: "high",
           actionRequired: true,

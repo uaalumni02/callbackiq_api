@@ -27,6 +27,18 @@ export const buildSmsRecoveryVoicePrompt = ({
   const name = normalizeBusinessName(businessName);
   const status = String(smsStatus || "").trim().toLowerCase();
 
+  // Optional concise copy; the old script stays the default pending real calls.
+  if (process.env.MEEKCALL_CONCISE_MISSED_CALL_PROMPT === "true") {
+    const conciseMessage = status === "sent"
+      ? `Thank you for calling ${name}. We just sent you a text. Reply to tell us how we can help.`
+      : status === "queued"
+        ? `Thank you for calling ${name}. Sorry we missed you. If you receive a text, you can reply with your request.`
+        : `Thank you for calling ${name}. Sorry we missed you. Text recovery is not available for this call.`;
+    return escapeXml(normalizeEmergencyNumberForSpeech(
+      sanitizeUnverifiedStaffCommitments(conciseMessage, { channel: "voice" }),
+    ));
+  }
+
   let message;
 
   if (status === "sent") {

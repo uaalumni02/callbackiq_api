@@ -353,7 +353,7 @@ export const staffScreenPromptTwiml = ({
 } = {}) => {
   const action = appendQuery(decisionPath, { callSid: providerCallSid });
   return xml(
-    `<Response><Gather action="${escapeXml(action)}" method="POST" numDigits="1" timeout="7"><Say>CallBackIQ has a recovered customer call. Press 1 to accept.</Say></Gather><Gather action="${escapeXml(action)}" method="POST" numDigits="1" timeout="7"><Say>Still there? Press 1 now to accept the customer call.</Say></Gather><Hangup/></Response>`,
+    `<Response><Gather action="${escapeXml(action)}" method="POST" numDigits="1" timeout="7"><Say>MeekCall has a recovered customer call. Press 1 to accept.</Say></Gather><Gather action="${escapeXml(action)}" method="POST" numDigits="1" timeout="7"><Say>Still there? Press 1 now to accept the customer call.</Say></Gather><Hangup/></Response>`,
   );
 };
 

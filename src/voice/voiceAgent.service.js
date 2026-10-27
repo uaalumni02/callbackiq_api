@@ -86,7 +86,7 @@ const TERMINAL_BOOKING_STATUSES = new Set([
   "canceled",
 ]);
 const GENERAL_HELP_REPLY =
-  "I can help with a residential service request, service-area questions, published business hours, a verified diagnostic fee, scheduling, or a callback request. What do you need help with?";
+  "I can help with business information, services, scheduling questions, or a callback request. What do you need help with?";
 const MAX_REPEATED_INPUTS = 3;
 const MAX_ABUSIVE_TURNS = 2;
 // Preserve a natural multi-question conversation. Unsupported questions may
@@ -251,7 +251,7 @@ const getDiagnosticFeeReply = async ({ business, text }) => {
       service.discloseDiagnosticFee === true &&
       Number.isFinite(service.diagnosticFee) && service.diagnosticFee >= 0
     ) {
-      return `The published diagnostic fee for ${service.name} is $${service.diagnosticFee}. Final scope and pricing still require technician evaluation.`;
+      return `The published diagnostic fee for ${service.name} is $${service.diagnosticFee}. Final scope and pricing require confirmation by the business.`;
     }
   } catch (error) {
     if (error?.code === "VOICE_STALE_TURN") throw error;
@@ -461,7 +461,7 @@ class VoiceAgentService {
         sendConfirmationSms: false,
         completionReply:
           safety?.reply ||
-          "If anyone is in immediate danger, hang up and call 911 now. CallBackIQ flagged this for urgent review, but do not wait for a callback or use this service instead of emergency services.",
+          "If anyone is in immediate danger, hang up and call 911 now. MeekCall flagged this for urgent review, but do not wait for a callback or use this service instead of emergency services.",
       });
     }
 

@@ -158,14 +158,14 @@ export const buildBusinessReadiness = async (
     missingRequirements.smsRecovery,
     checks.subscriptionActive,
     "subscription_required",
-    "Complete CallBackIQ subscription checkout before a CallBackIQ number can be assigned or used.",
+    "Complete MeekCall subscription checkout before a MeekCall number can be assigned or used.",
     "/billing",
   );
   addMissing(
     missingRequirements.smsRecovery,
     checks.trackingNumberActive,
     "tracking_number_not_active",
-    "Your CallBackIQ number must be assigned, verified, and active.",
+    "Your MeekCall number must be assigned, verified, and active.",
     "/setup",
   );
   addMissing(
@@ -253,14 +253,14 @@ export const buildBusinessReadiness = async (
     missingRequirements.voiceAi,
     checks.subscriptionActive,
     "subscription_required",
-    "Complete CallBackIQ subscription checkout before Voice AI can run.",
+    "Complete MeekCall subscription checkout before Voice AI can run.",
     "/billing",
   );
   addMissing(
     missingRequirements.voiceAi,
     checks.trackingNumberActive,
     "tracking_number_not_active",
-    "Activate your CallBackIQ number before enabling Voice AI.",
+    "Activate your MeekCall number before enabling Voice AI.",
     "/setup",
   );
   addMissing(

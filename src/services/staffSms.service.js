@@ -61,8 +61,11 @@ export async function runStaffSms({ limit = 100, now = new Date(), send = sendSm
         continue;
       }
       const result = await send({ business, to: policy.staffSmsPhone,
-        body: `CallBackIQ: ${alert.priority === 'critical' ? 'An urgent safety concern' : 'A customer request'} ${stage === 'overdue' ? 'still needs your attention' : 'needs your attention'}. Review and contact the customer: ${link}. Sign-in required.`,
+        body: `MeekCall: ${alert.priority === 'critical' ? 'An urgent safety concern' : 'A customer request'} ${stage === 'overdue' ? 'still needs your attention' : 'needs your attention'}. Review and contact the customer: ${link}. Sign-in required.`,
         actorType: 'system', source: 'staff_request_notice', usageCategory: 'sms',
+        // Only an opted-in owner and an explicitly enabled policy can bypass the
+        // application send window for truly critical alerts. Other checks remain.
+        bypassQuietHours: alert.priority === 'critical' && process.env.STAFF_NOTIFICATION_CRITICAL_OVERNIGHT_ENABLED === 'true',
         metadata: { idempotencyKey: `staff-request:${alert._id}:${stage}` } });
       const state = result?.sid ? 'sent' : result?.suppressed || result?.policyBlocked ? 'blocked' : 'uncertain';
       const retryAt = state === 'blocked' && ['outside_send_window', 'quiet_hours'].includes(result?.reason)
