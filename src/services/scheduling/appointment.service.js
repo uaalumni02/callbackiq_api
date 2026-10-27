@@ -7,6 +7,7 @@ import { ensureBusinessApprovalNotice, repairConfirmedApproval } from './appoint
 import { runApprovalSms } from './approvalSms.service.js';
 import { arrivalWindow, customerAppointmentLabel } from './customerAppointmentPresentation.service.js';
 import { reconcileApprovalRequests, resolveApprovalReview } from './approvalLifecycle.service.js';
+import { preservePendingApprovalOnAvailabilityConflict } from './approvalAvailabilityFailurePolicy.js';
 import { withDistributedLease, assertDistributedLeaseActive } from '../distributedLease.service.js';
 import { currentStaffSchedulingException, withStaffSchedulingException } from './staffSchedulingException.service.js';
 import { assertServiceRequestEligible } from '../serviceEligibility/serviceEligibility.service.js';
@@ -602,6 +603,15 @@ class AppointmentService {
     });
 
     if (!stillAvailable) {
+      if (preservePendingApprovalOnAvailabilityConflict(appointment)) {
+        // Do not discard a still-open customer request merely because external
+        // availability changed before staff approval. The hold remains visible
+        // until normal maintenance expires it and reopens review for a new time.
+        const error = new Error("That requested time is no longer available. The customer request remains open for staff review.");
+        error.statusCode = 409;
+        error.code = "SLOT_UNAVAILABLE";
+        throw error;
+      }
       appointment.status = "failed";
       appointment.activeSlotKey = null;
       appointment.slotClaimKeys = [];
