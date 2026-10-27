@@ -28,10 +28,10 @@ const notes={
 };
 export function getTradeSetup(businessType, services=[], policy={}) {
  const trade=BUSINESS_TYPES.includes(businessType)?businessType:'other';
- return {version:TRADE_PROFILE_VERSION,trade,note:notes[trade],
+ return {version:TRADE_PROFILE_VERSION,trade,note:notes[trade] || 'This is an inactive inquiry example. Review your services, privacy rules, and permissions before enabling AI actions.',
   // Suggestions are intentionally inactive. Adding a draft and saving it must
   // not change service acceptance, booking permissions, or existing offerings.
-  suggestedServices:servicesByTrade[trade].map(name=>({name,category:trade,active:false,aiCanDiscuss:true,aiCanBook:false,requiresHumanReview:true,durationMinutes:90,bufferAfterMinutes:0,keywords:[],excludedKeywords:[],intakePolicy:{requireClarification:false,clarificationQuestion:TRADE_CLARIFICATION[trade],detailKeywords:[]},disclosePriceEstimate:false,discloseDiagnosticFee:false})),
+  suggestedServices:(Array.isArray(servicesByTrade[trade]) ? servicesByTrade[trade] : ['General customer inquiry']).map(name=>({name,category:trade,active:false,aiCanDiscuss:true,aiCanBook:false,requiresHumanReview:true,durationMinutes:90,bufferAfterMinutes:0,keywords:[],excludedKeywords:[],intakePolicy:{requireClarification:false,clarificationQuestion:TRADE_CLARIFICATION[trade] || 'How can we help you?',detailKeywords:[]},disclosePriceEstimate:false,discloseDiagnosticFee:false})),
   detailOptions:Object.entries(DETAIL_FIELDS).map(([key,field])=>({key,label:detailLabels[key],question:field.question})),
   catalogWarnings:services.filter(s=>s.active && (!s.category || ['general','other'].includes(s.category))).map(s=>({serviceId:String(s._id),name:s.name,inferredTrade:offeringTrade(s),message:'Review the service category and customer wording. Existing permissions have not changed.'})),
   schedulingNote:['locksmith','restoration','hvac','garage_door'].includes(trade)

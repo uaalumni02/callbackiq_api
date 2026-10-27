@@ -21,7 +21,7 @@ export function voiceRecoveryMessage(session) {
   if (completed) return { kind: 'suppressed', reason: 'A durable call/request outcome already exists; no recovery introduction is needed.', body: '' };
   const engaged = (session.transcript || []).some(turn => turn.role === 'customer' && turn.isFinal !== false && String(turn.text || '').trim());
   if (!engaged) return { kind: 'introduction', body: buildMissedCallRecoveryText({ business: session.business }) };
-  const businessName = String(session.business?.businessName || 'the service team').trim();
+  const businessName = String(session.business?.businessName || 'the business').trim();
   return { kind: 'continuation', body: buildMissedCallRecoveryText({ business: session.business,
     template: `Thanks for speaking with ${businessName}. If you still need help, reply here to continue your request or add details.` }) };
 }
