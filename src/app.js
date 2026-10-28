@@ -35,6 +35,7 @@ import revenueRescueRoutes from "./routes/revenueRescue.routes.js";
 import revenueAutomationRoutes from "./routes/revenueAutomation.routes.js";
 import marketingAttributionRoutes from "./routes/marketingAttribution.routes.js"; // CALLBACKIQ_MARKETING_ATTRIBUTION_V1
 import interventionRoutes from "./routes/intervention.routes.js";
+import recoveryCoordinatorRoutes from "./routes/recoveryCoordinator.routes.js";
 import ownerExperienceRoutes from "./routes/ownerExperience.routes.js";
 import voiceSettingsRoutes from "./routes/voiceSettings.routes.js";
 import customerRecoveryRoutes from "./routes/customerRecovery.routes.js";
@@ -112,6 +113,7 @@ app.use("/api/revenue-rescue", revenueRescueRoutes);
 app.use("/api/revenue-automation", revenueAutomationRoutes);
 app.use("/api/marketing-sources", marketingAttributionRoutes);
 app.use("/api/interventions", interventionRoutes);
+app.use("/api/recovery-coordinator", recoveryCoordinatorRoutes);
 app.use("/api/owner", ownerExperienceRoutes);
 app.use("/api/voice-settings", voiceSettingsRoutes);
 app.use("/api/voice-operations", voiceOperationsRoutes);

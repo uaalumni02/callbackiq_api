@@ -1,4 +1,5 @@
 import { maintainStaffReviewRecords } from '../services/staffReviewReconciliation.service.js';
+import { reconcileRecoveryBookingEvidence } from '../services/recoveryCoordinator/reconciliation.service.js';
 import { requestWasWithdrawn } from '../services/conversationControlPolicy.js';
 import { blocksServiceAutomation } from '../services/serviceEligibility/policy.js';
 import { withDeadline } from '../services/boundedRedis.service.js';
@@ -215,6 +216,9 @@ export const runConversationLifecycleOnce = async ({ now = new Date(), limit = N
     await recoverFailedSmsStaffReviews({ now, limit });
     await maintainStaffReviewRecords({ now }).catch(error => {
       safeConsole.error("Staff review reconciliation failed:", error);
+    });
+    await reconcileRecoveryBookingEvidence({ now }).catch(error => {
+      safeConsole.error('Recovery booking evidence reconciliation failed:', error);
     });
     await escalateOverdueInterventions({ now, limit });
     const conversations = await Conversation.find({
