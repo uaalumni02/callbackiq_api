@@ -21,6 +21,7 @@ import { assertDistributedLeaseActive } from '../distributedLease.service.js';
 import { evaluateServicePolicy, eligibilityReply, serviceDomains, blocksServiceAutomation } from './policy.js';
 import { additionalServiceText } from '../messaging/customerTurnPlan.service.js';
 import { preserveAdditionalServiceRequest } from './additionalServiceRequest.service.js';
+import { assertRecoveryCaseAcceptance } from '../recoveryCoordinator/acceptanceGate.js';
 
 const clean = value => String(value || '').trim();
 const known = value => clean(value) && !/^(unknown|not provided|n\/a)$/i.test(clean(value));
@@ -252,5 +253,6 @@ export async function assertServiceRequestEligible({ businessId, leadId, convers
       });
     }
   }
+  await assertRecoveryCaseAcceptance({ businessId, leadId, conversationId, serviceOfferingId, actualRequest });
   return eligibility;
 }
