@@ -89,6 +89,7 @@ const ownerInterventionFilter = (businessId) => ({
   resolvedAt: null,
   $or: [
     { 'metadata.approvalRequest': true, actionRequired: true },
+    { type: 'system', actionRequired: true, 'metadata.serviceEligibilityReason': { $exists: true } },
     { type: { $in: OWNER_INTERVENTION_TYPES } },
     {
       type: "system",

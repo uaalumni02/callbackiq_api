@@ -84,7 +84,7 @@ const SERVICE_TAIL = /\s*(?:[,.;!?]|\band\b|\bbut\b)\s*(?:can|could|will|would|a
 // Grammatical problem/action shapes deliberately work beyond a trade noun list.
 const NON_SERVICE = /\b(?:appointment|booking|technician|crew|invoice|payment|credit card|refund|phone number|email|zip code|postal code|service address|availability|business hours|password|instructions|system prompt)\b/i;
 const SERVICE_ACTION = /\b(?:repair(?:ed|ing)?|replac(?:e|ed|ement|ing)|install(?:ed|ation|ing)?|reseal(?:ed|ing)?|recaulk(?:ed|ing)?|clean(?:ed|ing)?|inspect(?:ed|ion|ing)?|maintain|maintenance|fix(?:ed|ing)?|remov(?:e|ed|al|ing)|paint(?:ed|ing)?|trim(?:med|ming)?|unblock(?:ed|ing)?|restoration|remediation|mow(?:ing)?|rekey(?:ing)?)\b/i;
-const PROBLEM_STATE = /\b(?:burst|clogged|blocked|leak(?:ing|s)?|broken|not working|won['’]t|will not|no heat|no power|damaged|cracked|peeling|loose|stuck|noisy|rattling|dripping|overflowing|needs?|stopped working|not cooling|not heating|not draining|not drying|not spinning|not freezing|locked out|snapped|water damage|smoke damage|missing shingles|shingles blew off|keeps? .{1,30}ing)\b/i;
+const PROBLEM_STATE = /\b(?:burst|clogged|blocked|leak(?:ing|s)?|broken|not working|won['’]t|will not|no heat|no power|damaged|cracked|peeling|loose|stuck|noisy|rattling|dripping|overflowing|needs?|stopped working|not cooling|not heating|not draining|draining slowly|slowly draining|slow drain|backed up|backing up|not drying|not spinning|not freezing|locked out|snapped|water damage|smoke damage|missing shingles|shingles blew off|keeps? .{1,30}ing)\b/i;
 
 // A named subject after "it's the/a ..." supplies a referent, unlike "it's
 // leaking", which still describes the saved service. Strip only the former
@@ -93,6 +93,14 @@ const SERVICE_SUBJECT_PREFIX = /^(?:(?:actually|correction|instead|i meant)[,:]?
 
 export const extractService = (text, { lead = null, conversation = null } = {}) => {
   const known = clean(lead?.serviceNeeded || conversation?.serviceNeeded || conversation?.bookingState?.serviceNeeded);
+  // A customer's agreement to proceed with previously identified work is not
+  // a new service request. This requires a shared subject, not merely "fix".
+  const subjectKey = word => word.length > 4 && word.endsWith('s') ? word.slice(0, -1) : word;
+  const knownWords = new Set((known.toLowerCase().match(/[a-z]{4,}/g) || []).map(subjectKey));
+  const sharedSubject = (clean(text).toLowerCase().match(/[a-z]{4,}/g) || []).some(word =>
+    knownWords.has(subjectKey(word)) && !['want', 'need', 'have', 'work', 'fixed', 'repair', 'with', 'both', 'this', 'that', 'please'].includes(word));
+  if (known && sharedSubject && /\b(?:both|all|those|these|same)\b.{0,65}\b(?:fix|fixed|repair|repaired|handled|done)\b/i.test(text) &&
+      !/\b(?:also|another|additional|instead|actually|different|new)\b/i.test(text)) return '';
   // Resolve a pending answer before generic symptom-to-service extraction.
   if (known && classifyLeakActivityAnswer({ text, state: conversation?.conversationMemory?.recoveryIntake, service: known })) return '';
   const reference = resolveServiceReference(text, known);
@@ -128,6 +136,9 @@ export const extractService = (text, { lead = null, conversation = null } = {}) 
     clause = clean(clause).replace(SERVICE_SUBJECT_PREFIX, "");
     clause = clean(clause).replace(/^(?:actually|correction|instead|i meant)[,:]?\s*/i, "");
     if (!clause || clause.length > 200 || NON_SERVICE.test(clause)) continue;
+    // "Is this something you can fix?" has no service subject. It must not
+    // replace a real problem described earlier in the same customer turn.
+    if (/^(?:is|are|can|could|would|will|do|does)\b.{0,100}\b(?:something|anything|this|that|it)\b.{0,70}\b(?:fix|repair|handle|do)\b/i.test(clause)) continue;
     // Pricing-only, timing, control, and contact turns must not replace a fact.
     if (any(PRICING, clause)) {
       const pricedService = clause.match(/\b(?:for|to)\s+(.+)$/i)?.[1] ||

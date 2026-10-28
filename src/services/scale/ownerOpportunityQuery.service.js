@@ -21,6 +21,7 @@ export function opportunityFlags(business, interventionFilter, autoBooking) {
     opportunityLookup(Appointment, business, '_appointments', { status: { $in: ['held', 'confirmed'] } }),
     { $set: { _active: active, _needsMe: { $and: [active, { $or: [has('_takeover'), has('_interventions')] }] }, _isWaiting: { $and: [active, has('_waiting')] },
       _ready: { $and: [!autoBooking, active, { $not: [has('_takeover')] }, { $not: [has('_interventions')] }, { $not: [has('_appointments')] },
+        { $not: [{ $in: ['$serviceEligibility.decision', ['needs_staff_review', 'needs_clarification', 'unsupported']] }] },
         { $not: [{ $in: ['$serviceNeeded', ['', 'Unknown']] }] }, { $not: [{ $in: [{ $ifNull: ['$address', null] }, ['', null]] }] },
         { $not: [{ $in: [{ $ifNull: ['$preferredAppointmentTime', null] }, ['', null]] }] }] } } },
   ];
