@@ -19,11 +19,21 @@ const outcomeLabels={booked:'Booked',customer_declined:'Customer declined',unabl
 const factLabels={customerName:'Customer name',serviceNeeded:'Service',address:'Address',preferredAppointmentTime:'Requested time'};
 const id = value => String(value?._id || value || '');
 const fail = (message, statusCode = 409) => Object.assign(new Error(message), { statusCode, code: 'REQUEST_WORKFLOW_CONFLICT' });
-export const ordinaryReview = row => row?.type === 'human_requested' && /^(ai_review|human_handoff|request_review):/.test(row.dedupeKey || '') &&
-  !['emergency', 'hazardous_diy_request'].includes(row.metadata?.messageCategory) &&
+// Service eligibility requests are ordinary owner decisions, not invisible
+// diagnostics. They still require staff ownership, fact review and booking checks.
+export const serviceEligibilityReview = row => row?.type === 'system' &&
+  row.actionRequired === true && Boolean(row.metadata?.serviceEligibilityReason) &&
+  /^service-eligibility:/.test(row.dedupeKey || '');
+export const ordinaryReview = row => (
+  (row?.type === 'human_requested' && /^(ai_review|human_handoff|request_review):/.test(row.dedupeKey || '')) ||
+  serviceEligibilityReview(row)
+) && !['emergency', 'hazardous_diy_request'].includes(row.metadata?.messageCategory) &&
   !(row.metadata?.riskFlags || []).some(flag => ['safety_hazard', 'hazardous_diy_request'].includes(flag));
 export function reviewJourney(row, conversation) {
   if (!ordinaryReview(row) || !conversation) return null;
+  // A service eligibility review belongs to this specific requested service;
+  // never merge it into an unrelated human handoff from the same conversation.
+  if (serviceEligibilityReview(row)) return null;
   if (row.metadata?.reviewJourneyKey !== undefined) return String(row.metadata.reviewJourneyKey);
   const started = conversation.orchestration?.recoveryJourneyStartedAt;
   const journey = conversation.orchestration?.recoveryJourneyKey;
@@ -65,7 +75,8 @@ export async function listBusinessRequests({ businessId, query }) {
   }
   if(query.resolved==='true') match.resolvedAt={$ne:null}; else if(query.resolved!=='all') match.resolvedAt=null;
   match.type={$in:['human_requested','safety_emergency','angry_customer','low_ai_confidence','booking_conflict','integration_failure','message_delivery_failure','unanswered_hot_lead','appointment_canceled','appointment_change_review','system','hot_lead']};
-  match.$or=[{'metadata.approvalRequest':true},{type:{$nin:['system','hot_lead']}},{type:'hot_lead',priority:'critical'},{type:'system',priority:'critical',$or:[{'metadata.messageCategory':'emergency'},{'metadata.riskFlags':{$in:['safety_hazard','hazardous_diy_request']}}]}];
+  match.$or=[{'metadata.approvalRequest':true},{type:{$nin:['system','hot_lead']}},
+    {type:'system',actionRequired:true,'metadata.serviceEligibilityReason':{$exists:true}},{type:'hot_lead',priority:'critical'},{type:'system',priority:'critical',$or:[{'metadata.messageCategory':'emergency'},{'metadata.riskFlags':{$in:['safety_hazard','hazardous_diy_request']}}]}];
   const ordinary = {$and:[{$eq:['$type','human_requested']},{$regexMatch:{input:{$ifNull:['$dedupeKey','']},regex:'^(ai_review|human_handoff|request_review):'}},
     {$not:[{$in:['$metadata.messageCategory',['emergency','hazardous_diy_request']]}]},
     {$eq:[{$size:{$setIntersection:[{$ifNull:['$metadata.riskFlags',[]]},['safety_hazard','hazardous_diy_request']]}},0]}]};

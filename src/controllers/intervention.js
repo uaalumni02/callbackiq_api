@@ -143,6 +143,7 @@ class InterventionController {
         business: business._id,
         $or: [
           { 'metadata.approvalRequest': true, actionRequired: true },
+          { type: 'system', actionRequired: true, 'metadata.serviceEligibilityReason': { $exists: true } },
           { type: { $in: INTERVENTION_TYPES } },
           {
             type: "system",

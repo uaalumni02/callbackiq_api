@@ -57,6 +57,18 @@ export async function guardServiceRequest({ business, lead, conversation, custom
   if (!current && !prior?.request && !known(lead?.serviceNeeded) && !intent.intents?.scheduling &&
       semanticAssessment?.serviceNeeded && semanticAssessment?.confidence >= 60) current = text;
   const hasDomain = serviceDomains(text).length > 0;
+  // A reaffirmation of the same work is not a replacement service, even when
+  // it mentions a trade-specific object. A truly new service remains separate.
+  const priorService = clean(lead?.serviceNeeded || conversation?.serviceEligibility?.request);
+  const subjectKey = word => word.length > 4 && word.endsWith('s') ? word.slice(0, -1) : word;
+  const priorWords = new Set(priorService.toLowerCase().split(/[^a-z]+/).map(subjectKey));
+  const sharedServiceNoun = (text.toLowerCase().match(/[a-z]{4,}/g) || []).some(word =>
+    priorWords.has(subjectKey(word)) &&
+    !['want', 'need', 'work', 'with', 'both', 'this', 'that', 'fixed', 'have'].includes(word));
+  const reaffirmingExistingWork = Boolean(priorService && sharedServiceNoun &&
+    /\b(?:both|all|those|these|same)\b.{0,65}\b(?:fixed|repair(?:ed)?|handled|done)\b/i.test(text) &&
+    !/\b(?:also|another|additional|instead|actually|different|new)\b/i.test(text));
+  if (reaffirmingExistingWork) current = '';
   // Symptom updates answer triage; they do not request an unidentified new service.
   if (!hasDomain && (prior?.request || known(lead?.serviceNeeded)) &&
       /^(?:(?:it |the leak )?(?:has )?)?(?:not|no longer|stopped|only when|only during)\b/i.test(text)) current = '';
@@ -65,7 +77,7 @@ export async function guardServiceRequest({ business, lead, conversation, custom
     (conversation.conversationMemory?.recoveryIntake?.clogPending ||
       conversation.conversationMemory?.recoveryIntake?.triageAnswer === text ||
       /^(?:no[, ]+)?(?:only|just) (?:the|my|this) /i.test(text) && known(lead?.serviceNeeded)) && !current;
-  if (!current && hasDomain && !isAddressOnlyTurn(text) && !triageAnswer) current = text;
+  if (!current && hasDomain && !isAddressOnlyTurn(text) && !triageAnswer && !reaffirmingExistingWork) current = text;
   const clarificationAnswer = prior?.decision === 'needs_clarification' &&
     !['cancel', 'reschedule', 'status', 'human', 'callback'].some(key => intent.intents?.[key]);
   if (clarificationAnswer && /\b(?:unsure|not sure|don['’]?t know)\b/i.test(text)) current = `unsure: ${prior.request}`;
@@ -146,11 +158,32 @@ export async function guardServiceRequest({ business, lead, conversation, custom
   }
   // Keep facts even while service acceptance needs review. No price/calendar action is authorized.
   if (lead && eligibility.decision === 'needs_staff_review') {
+    // Explicit self-identification is factual data; do not treat it as a job.
+    const declaredName = text.match(/^\s*my name is\s+([a-z][a-z' -]{1,70}?)(?=\s*(?:[.!?,]|you can|my number|$))/i)?.[1]?.trim();
+    const placeholder = name => !clean(name) || /^(?:missed call lead|new sms lead|unknown|customer)$/i.test(clean(name));
+    if (declaredName && /^([a-z][a-z'\-]*)(?:\s+[a-z][a-z'\-]*){1,3}$/i.test(declaredName) &&
+        placeholder(lead.customerName)) {
+      lead.customerName = declaredName;
+      if (placeholder(conversation.customerName)) conversation.customerName = declaredName;
+    }
     const address = addressFromTurn({customerMessage:text, recentMessages, conversation, knownAddress: known(lead.address) ? lead.address : ''}) || extractCustomerAddress(text, { expected: Boolean(reviewSubmitted || acceptingReview) });
     if (address) lead.address = address;
     else if (/^\d{5}(?:-\d{4})?$/.test(text) && known(lead.address) && !/\b\d{5}\b/.test(lead.address)) lead.address += `, ${text}`;
     if (!address && !intent.intents?.availabilityInquiry && (intent.entities?.range || intent.entities?.timePreference?.timeOfDay || intent.entities?.timePreference?.targetMinutes != null)) {
       lead.preferredAppointmentTime = text.slice(0, 500);
+    }
+  }
+  // Read models used by Conversations and scheduling from the same customer
+  // facts. Do not overwrite a known lead with an older intake snapshot.
+  if (lead && eligibility.decision === 'needs_staff_review') {
+    const memory = conversation.conversationMemory?.toObject?.() || conversation.conversationMemory || {};
+    const nextMemory = { ...memory };
+    if (known(lead.address) && lead.address !== memory.address) nextMemory.address = lead.address;
+    if (known(lead.preferredAppointmentTime) && lead.preferredAppointmentTime !== memory.preferredAppointmentTime)
+      nextMemory.preferredAppointmentTime = lead.preferredAppointmentTime;
+    if (nextMemory.address !== memory.address || nextMemory.preferredAppointmentTime !== memory.preferredAppointmentTime) {
+      conversation.conversationMemory = nextMemory;
+      conversation.markModified?.('conversationMemory');
     }
   }
   checkActive();
