@@ -159,7 +159,37 @@ class AlertService {
     } catch (error) {
       if (error?.code === 11000 && dedupeKey) {
         const existing = await findExistingAlert(businessId, dedupeKey);
-
+        // An SMS requesting renewed staff review must not silently reuse a
+        // previously resolved, invisible service eligibility alert. CAS limits
+        // concurrent reopens to one; keep all earlier review history intact.
+        if (existing && /^service-eligibility:/.test(dedupeKey) && metadata?.serviceEligibilityReason) {
+          const reopenedAt = new Date();
+          const reopened = await Alert.findOneAndUpdate({
+            _id: existing._id, business: businessId, resolvedAt: { $ne: null },
+            'metadata.serviceEligibilityReason': { $exists: true },
+          }, {
+            $set: {
+              actionRequired: true, resolvedAt: null, resolvedBy: null,
+              resolution: '', status: 'sent', assignedTo: null,
+              acknowledgedAt: null, acknowledgedBy: null,
+              dueAt: dueAt || staffReviewDueAt(normalizePriority(priority), reopenedAt),
+              title, message, reason: truncate(reason, 1000),
+              recommendedAction: truncate(recommendedAction, 1000),
+              'metadata.serviceEligibilityReason': metadata.serviceEligibilityReason,
+            },
+            $unset: { 'metadata.workflow': 1 },
+            $push: { reviewEvents: {
+              key: `service-review-reopened:${reopenedAt.getTime()}`,
+              occurredAt: reopenedAt, title: 'Customer renewed the service review request',
+              message: 'The previous review remains in history; staff must make a new decision.',
+            } },
+          }, { returnDocument: 'after', runValidators: true });
+          if (reopened) {
+            const visible = await populateAlert(reopened._id);
+            SocketService.emitAlertCreated(businessId, visible);
+            return { alert: visible, created: false, reopened: true };
+          }
+        }
         return {
           alert: existing ? await populateAlert(existing._id) : null,
           created: false,

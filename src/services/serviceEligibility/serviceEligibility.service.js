@@ -200,7 +200,10 @@ export async function guardServiceRequest({ business, lead, conversation, custom
       message: `Determine whether this business accepts the requested work: ${request.slice(0, 300)}. Reason: ${eligibility.reason}. Latest customer message: ${text.slice(0, 300)}. No appointment or callback time was promised.`,
       priority: 'medium', dedupeKey: `service-eligibility:${conversation._id}:${crypto.createHash('sha256').update(request).digest('hex').slice(0, 32)}`,
       metadata: { leadId: String(lead?._id || ''), conversationId: String(conversation._id), serviceEligibilityReason: eligibility.reason, channel } });
-    if (!reviewAlert?.alert?._id) throw Object.assign(new Error('Service review could not be saved.'), { code: 'SERVICE_REVIEW_NOT_SAVED' });
+    if (!reviewAlert?.alert?._id)
+      throw Object.assign(new Error('Service review could not be saved.'), { code: 'SERVICE_REVIEW_NOT_SAVED' });
+    if (reviewAlert.alert.resolvedAt || reviewAlert.alert.actionRequired === false)
+      throw Object.assign(new Error('Service review could not be confirmed as actionable.'), { code: 'SERVICE_REVIEW_NOT_ACTIVE' });
     state.reviewSubmitted = true;
     state.reviewPromptCount = Math.min(2, (!changed ? Number(prior?.reviewPromptCount || 0) : 0) + 1);
     checkActive();

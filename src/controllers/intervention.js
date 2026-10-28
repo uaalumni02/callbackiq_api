@@ -144,6 +144,7 @@ class InterventionController {
         $or: [
           { 'metadata.approvalRequest': true, actionRequired: true },
           { type: 'system', actionRequired: true, 'metadata.serviceEligibilityReason': { $exists: true } },
+          { type: 'system', actionRequired: true, 'metadata.additionalRequest': { $exists: true } },
           { type: { $in: INTERVENTION_TYPES } },
           {
             type: "system",
