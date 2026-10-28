@@ -76,7 +76,8 @@ export async function listBusinessRequests({ businessId, query }) {
   if(query.resolved==='true') match.resolvedAt={$ne:null}; else if(query.resolved!=='all') match.resolvedAt=null;
   match.type={$in:['human_requested','safety_emergency','angry_customer','low_ai_confidence','booking_conflict','integration_failure','message_delivery_failure','unanswered_hot_lead','appointment_canceled','appointment_change_review','system','hot_lead']};
   match.$or=[{'metadata.approvalRequest':true},{type:{$nin:['system','hot_lead']}},
-    {type:'system',actionRequired:true,'metadata.serviceEligibilityReason':{$exists:true}},{type:'hot_lead',priority:'critical'},{type:'system',priority:'critical',$or:[{'metadata.messageCategory':'emergency'},{'metadata.riskFlags':{$in:['safety_hazard','hazardous_diy_request']}}]}];
+    {type:'system',actionRequired:true,'metadata.serviceEligibilityReason':{$exists:true}},
+    {type:'system',actionRequired:true,'metadata.additionalRequest':{$exists:true}},{type:'hot_lead',priority:'critical'},{type:'system',priority:'critical',$or:[{'metadata.messageCategory':'emergency'},{'metadata.riskFlags':{$in:['safety_hazard','hazardous_diy_request']}}]}];
   const ordinary = {$and:[{$eq:['$type','human_requested']},{$regexMatch:{input:{$ifNull:['$dedupeKey','']},regex:'^(ai_review|human_handoff|request_review):'}},
     {$not:[{$in:['$metadata.messageCategory',['emergency','hazardous_diy_request']]}]},
     {$eq:[{$size:{$setIntersection:[{$ifNull:['$metadata.riskFlags',[]]},['safety_hazard','hazardous_diy_request']]}},0]}]};

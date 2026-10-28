@@ -1,4 +1,5 @@
 import { requestReviewKey } from './requestReview.service.js';
+import { reconcileServiceReviewPage } from './serviceEligibility/serviceReviewRecovery.service.js';
 import { logOperationalError } from '../helpers/logging/safeLogger.js';
 import crypto from 'node:crypto';
 import Conversation from '../models/conversation.js';
@@ -96,6 +97,7 @@ export async function reconcileStaffReviewPage({ businessId, after = null, limit
 }
 
 let cursor = null;
+let eligibilityCursor = null;
 let nextRunAt = 0;
 let running = false;
 export async function maintainStaffReviewRecords({ now = new Date() } = {}) {
@@ -104,7 +106,18 @@ export async function maintainStaffReviewRecords({ now = new Date() } = {}) {
   try {
     const page = await reconcileStaffReviewPage({ after: cursor, limit: 50, apply: true, now });
     cursor = page.nextCursor;
-    nextRunAt = now.getTime() + (cursor ? 5000 : 60000);
-    return page;
+    // Separate bounded cursor for missing primary service-eligibility reviews.
+    // A failure here must not prevent other staff handoff reconciliation.
+    let serviceReviewRecovery = null;
+    if (process.env.SERVICE_ELIGIBILITY_REVIEW_REPAIR_ENABLED === 'true') {
+      try {
+        serviceReviewRecovery = await reconcileServiceReviewPage({ after: eligibilityCursor, limit: 25 });
+        eligibilityCursor = serviceReviewRecovery.nextCursor;
+      } catch (error) {
+        logOperationalError('service_review.reconciliation_failed', error, {});
+      }
+    }
+    nextRunAt = now.getTime() + (cursor || eligibilityCursor ? 5000 : 60000);
+    return { ...page, serviceReviewRecovery };
   } finally { running = false; }
 }
