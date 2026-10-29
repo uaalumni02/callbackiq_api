@@ -226,14 +226,22 @@ describe("Auth Validator", () => {
       await expect(registerSchema.validateAsync(data)).rejects.toThrow();
     });
 
-    test("register fails with invalid businessType", async () => {
+    test("register accepts a supported restaurant businessType", async () => {
+      const result = await registerSchema.validateAsync({
+        ...validRegisterData,
+        businessType: "restaurant",
+      });
+      expect(result.businessType).toBe("restaurant");
+    });
+
+    test("register rejects an unsupported businessType", async () => {
       const data = {
         userName: "demoowner",
         email: "owner@callbackiq.com",
         password: "Password123",
         businessName: "Atlanta Pro Plumbing",
         businessPhone: "4045551234",
-        businessType: "restaurant",
+        businessType: "unsupported_industry",
         smsConsent: true,
         termsAccepted: true,
         privacyAccepted: true,
