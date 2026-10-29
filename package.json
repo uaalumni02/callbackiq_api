@@ -5,6 +5,8 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
+    "test:maintainability:stage2b": "jest --runInBand tests/completion/phase0-2.contract.test.js tests/unit/conversationOrchestrator.v2.contract.test.js tests/unit/maintainability.stage2b.contract.test.js",
+    "maintainability:hotspots": "node scripts/report-maintainability-hotspots.mjs",
     "test:maintainability:stage2": "jest --runInBand tests/unit/maintainability.stage2.policy.test.js tests/unit/maintainability.offeredSlots.test.js tests/unit/maintainability.urgency.test.js",
     "maintainability:check": "node scripts/maintainability-audit.mjs",
     "test": "jest --runInBand",

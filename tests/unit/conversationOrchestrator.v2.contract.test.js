@@ -1,3 +1,4 @@
+import { AVAILABILITY_HINT, hasBookingAvailabilityHint } from "../../src/services/booking/bookingMessagePolicy.service.js";
 import { renderAppointmentResponse } from '../../src/services/scheduling/customerAppointmentPresentation.service.js';
 import fs from "fs";
 import path from "path";
@@ -18,7 +19,14 @@ describe("Conversation Orchestration v2 contract", () => {
 
   test("booking recognizes natural-language availability and negotiates alternatives", () => {
     const booking = read("src/services/booking/bookingStateMachine.service.js");
-    expect(booking).toMatch(/AVAILABILITY_HINT/);
+    // Availability intent policy is extracted from the legacy state machine.
+    // Test behavior and verify the old orchestration still imports it.
+    expect(booking).toMatch(/bookingMessagePolicy\.service\.js/);
+    expect(AVAILABILITY_HINT.test("tomorrow afternoon")).toBe(true);
+    for (const phrase of ["tomorrow afternoon", "next Friday at 3pm", "available Tuesday morning"]) {
+      expect(hasBookingAvailabilityHint(phrase, "America/New_York")).toBe(true);
+    }
+    expect(hasBookingAvailabilityHint("not sure which service I need", "America/New_York")).toBe(false);
     expect(booking).toMatch(/scheduling_no_match_after_three_attempts/);
     expect(booking).toMatch(/renderAppointmentResponse/);
     for (const channel of ['sms', 'voice']) {

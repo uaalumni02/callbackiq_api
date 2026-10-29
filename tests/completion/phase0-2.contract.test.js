@@ -1,3 +1,4 @@
+import { VALID_TRANSITIONS, assertTransition } from "../../src/services/scheduling/appointmentStatePolicy.service.js";
 import fs from "fs";
 import path from "path";
 
@@ -240,14 +241,17 @@ describe("CallBackIQ Phase 0-2 completion contract", () => {
 
     const service = read("src/services/scheduling/appointment.service.js");
 
-    // Assert the transition contract semantically instead of depending on
-    // whitespace/formatting produced by Prettier or refactoring.
-    expect(service).toMatch(
-      /held\s*:\s*new Set\(\s*\[\s*["']confirmed["']\s*,\s*["']failed["']\s*,\s*["']canceled["']\s*\]\s*\)/,
-    );
-    expect(service).toMatch(
-      /confirmed\s*:\s*new Set\(\s*\[\s*["']canceled["']\s*,\s*["']completed["']\s*,\s*["']no_show["']\s*,\s*["']rescheduled["']\s*\]\s*\)/,
-    );
+    // State policy moved to a dedicated module in Stage 2A: assert behavior,
+    // not the physical location/formatting of its source definition.
+    expect([...VALID_TRANSITIONS.held]).toEqual(["confirmed", "failed", "canceled"]);
+    expect([...VALID_TRANSITIONS.confirmed]).toEqual(["canceled", "completed", "no_show", "rescheduled"]);
+    for (const state of ["canceled", "completed", "no_show", "failed", "rescheduled"]) {
+      expect(VALID_TRANSITIONS[state]?.size).toBe(0);
+    }
+    expect(() => assertTransition("held", "confirmed")).not.toThrow();
+    let rejected;
+    try { assertTransition("confirmed", "held"); } catch (error) { rejected = error; }
+    expect(rejected).toMatchObject({ code: "INVALID_APPOINTMENT_TRANSITION", statusCode: 409 });
 
     for (const marker of [
       "SLOT_ALREADY_CLAIMED",
