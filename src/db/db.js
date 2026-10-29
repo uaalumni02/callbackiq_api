@@ -1,75 +1,8 @@
+import {BUSINESS_SCOPE_FIELDS,CONVERSATION_INTELLIGENCE_CONVERSATION_FIELDS,CONVERSATION_INTELLIGENCE_LEAD_FIELDS} from './repositories/dbProjectionFields.js';
 import { safeConsole } from "../helpers/logging/safeLogger.js";
 import * as subscriptionRepository from "./repositories/subscriptionRepository.js";
 import * as supportTicketRepository from "./repositories/supportTicketRepository.js";
 import { verifiedAmountExpression, estimateCoverageGroup } from "../services/valuation/opportunityValue.js";
-
-const BUSINESS_SCOPE_FIELDS = [
-  "_id",
-  "owner",
-  "businessName",
-  "businessType",
-  "phone",
-  "phoneLookup",
-  "trackingNumber",
-  "forwardingPhone",
-  "email",
-  "website",
-  "address",
-  "city",
-  "state",
-  "zipCode",
-  "timezone",
-  "smsTemplate",
-  "estimatedJobValue",
-  "features",
-  "communicationLimits",
-  "voiceSettings",
-  "setupProgress",
-  "isActive",
-  "createdAt",
-  "updatedAt",
-].join(" ");
-
-const CONVERSATION_INTELLIGENCE_CONVERSATION_FIELDS = [
-  "_id",
-  "business",
-  "lead",
-  "customerPhone",
-  "customerName",
-  "status",
-  "aiEnabled",
-  "humanTakeover",
-  "lastMessage",
-  "lastMessageAt",
-  "archivedAt",
-  "archivedBy",
-  "archiveSnapshot",
-  "createdAt",
-  "updatedAt",
-  "__v",
-].join(" ");
-
-const CONVERSATION_INTELLIGENCE_LEAD_FIELDS = [
-  "_id",
-  "business",
-  "customerName",
-  "phone",
-  "email",
-  "serviceNeeded",
-  "urgency",
-  "address",
-  "preferredAppointmentTime",
-  "leadQualityScore",
-  "estimatedValue",
-  "valuation",
-  "status",
-  "source",
-  "summary",
-  "notes",
-  "createdAt",
-  "updatedAt",
-  "__v",
-].join(" ");
 
 class Db {
   static async findUserByEmailOrUserName(model, userName, email) {

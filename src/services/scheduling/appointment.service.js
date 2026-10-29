@@ -1,3 +1,5 @@
+import {ACTIVE_STATUSES,VALID_TRANSITIONS,getSlotKey,getSlotClaimKeys,assertTransition} from './appointmentStatePolicy.service.js';
+import {createNonBlockingAppointmentSideEffect} from './appointmentEffectAdapter.service.js';
 import { reconcileAppointmentNoticeFailures } from './appointmentNoticeFailure.service.js';
 import { projectionMarker, tryRepairAppointmentProjections, repairPendingAppointmentProjections } from './appointmentProjection.service.js';
 import { lifecycleMarker, tryRepairAppointmentLifecycle, repairPendingAppointmentLifecycles } from './appointmentLifecycle.service.js';
@@ -41,60 +43,7 @@ import {
 } from "./appointmentNotification.service.js";
 import { addMinutes, formatDateKey } from "./timezone.service.js";
 
-const ACTIVE_STATUSES = new Set(["held", "confirmed"]);
-const VALID_TRANSITIONS = {
-  held: new Set(["confirmed", "failed", "canceled"]),
-  confirmed: new Set(["canceled", "completed", "no_show", "rescheduled"]),
-  canceled: new Set(),
-  completed: new Set(),
-  no_show: new Set(),
-  failed: new Set(),
-  rescheduled: new Set(),
-};
-
-
-
-
 export { ensureBusinessApprovalNotice } from './appointmentConfirmation.service.js';
-
-const getSlotKey = (startAt, endAt) =>
-  `${new Date(startAt).toISOString()}|${new Date(endAt).toISOString()}`;
-
-const getSlotClaimKeys = ({
-  startAt,
-  endAt,
-  bufferBeforeMinutes = 0,
-  bufferAfterMinutes = 0,
-  capacityLane,
-}) => {
-  const minuteMs = 60_000;
-  const claimStart =
-    Math.floor(
-      (new Date(startAt).getTime() - Number(bufferBeforeMinutes || 0) * minuteMs) /
-        minuteMs,
-    ) * minuteMs;
-  const claimEnd =
-    Math.ceil(
-      (new Date(endAt).getTime() + Number(bufferAfterMinutes || 0) * minuteMs) /
-        minuteMs,
-    ) * minuteMs;
-  const keys = [];
-
-  for (let cursor = claimStart; cursor < claimEnd; cursor += minuteMs) {
-    keys.push(`${new Date(cursor).toISOString()}|lane:${capacityLane}`);
-  }
-
-  return keys;
-};
-
-const assertTransition = (from, to) => {
-  if (!VALID_TRANSITIONS[from]?.has(to)) {
-    const error = new Error(`Invalid appointment transition: ${from} → ${to}`);
-    error.statusCode = 409;
-    error.code = "INVALID_APPOINTMENT_TRANSITION";
-    throw error;
-  }
-};
 
 const getAppointmentForBusiness = async (businessId, appointmentId) => {
   const appointment = await Appointment.findOne({
@@ -111,44 +60,7 @@ const getAppointmentForBusiness = async (businessId, appointmentId) => {
   return appointment;
 };
 
-const runNonBlockingAppointmentSideEffect = async ({
-  appointment,
-  businessId,
-  label,
-  task,
-}) => {
-  try {
-    return await task();
-  } catch (error) {
-    safeConsole.error(`Appointment ${label} side effect failed:`, {
-      appointmentId: String(appointment?._id || ""),
-      businessId: String(businessId || appointment?.business || ""),
-      error: error.message,
-    });
-
-    try {
-      await InterventionService.create({
-        businessId: businessId || appointment?.business,
-        leadId: appointment?.lead || null,
-        conversationId: appointment?.conversation || null,
-        appointmentId: appointment?._id || null,
-        type: "integration_failure",
-        title: "Appointment notification follow-up needed",
-        message: `The appointment was saved, but CallBackIQ could not complete the ${label} notification task.`,
-        priority: "medium",
-        reason: error.message,
-        recommendedAction:
-          "Review the appointment and contact the customer manually if needed.",
-        metadata: { operation: label },
-        dedupeKey: `appointment_side_effect:${label}:${appointment?._id || "unknown"}`,
-      });
-    } catch {
-      // Never let an alerting failure reverse a durable appointment change.
-    }
-
-    return null;
-  }
-};
+const runNonBlockingAppointmentSideEffect = createNonBlockingAppointmentSideEffect({safeConsole, InterventionService});
 
 const exactSlotAvailable = async ({
   business,
