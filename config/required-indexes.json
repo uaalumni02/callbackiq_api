@@ -2151,6 +2151,57 @@
     }
   },
   {
+    "collection": "recoverycases",
+    "key": {
+      "business": 1,
+      "conversation": 1,
+      "generation": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "recoverycases",
+    "key": {
+      "business": 1,
+      "lead": 1,
+      "status": 1,
+      "updatedAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "recoverycases",
+    "key": {
+      "status": 1,
+      "booking.status": 1,
+      "updatedAt": 1,
+      "_id": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "recoveryevents",
+    "key": {
+      "business": 1,
+      "operationId": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "recoveryevents",
+    "key": {
+      "business": 1,
+      "recoveryCase": 1,
+      "createdAt": -1,
+      "_id": -1
+    },
+    "options": {}
+  },
+  {
     "collection": "request_rate_limit_buckets",
     "key": {
       "expiresAt": 1
