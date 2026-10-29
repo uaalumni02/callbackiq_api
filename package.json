@@ -5,6 +5,7 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
+    "maintainability:check": "node scripts/maintainability-audit.mjs",
     "test": "jest --runInBand",
     "test:watch": "jest --watch --runInBand",
     "test:phase0": "jest tests/unit/businessFeatures.test.js tests/unit/twilioEventKey.test.js tests/integration/contactPreference.service.test.js tests/integration/twilioWebhookEvent.service.test.js tests/integration/twilioWebhookIdempotency.test.js tests/integration/twilioOptOut.test.js tests/integration/businessFeatures.test.js tests/integration/providerUniqueIndexes.test.js tests/routes/twilio.routes.test.js tests/routes/business.routes.test.js tests/routes/dashboard.routes.test.js tests/routes/alert.routes.test.js --runInBand",

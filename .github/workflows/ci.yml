@@ -50,6 +50,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Enforce maintainability ratchet
+        run: npm run maintainability:check
+
       - name: Verify architecture invariants and hygiene scanner
         run: node scripts/meekcall-architecture-contracts.mjs && node --test hardening-tests/meekcall-secret-hygiene.regression.test.mjs
 

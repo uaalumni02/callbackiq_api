@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "reviewedGitSha": "a452c6bd7eb37fb3e0d661c1edd34c4e2767dcb3",
+  "newProductionFileLimitBytes": 30000,
+  "allowedGrowthBytes": 1536,
+  "oversizedModules": {
+    "src/controllers/billing.js": 40007,
+    "src/db/db.js": 59426,
+    "src/helpers/ai/aiGuardrails.js": 60150,
+    "src/services/a2pCustomerOnboarding.service.js": 46332,
+    "src/services/admin/founderReporting.service.js": 34761,
+    "src/services/booking/bookingStateMachine.service.js": 66611,
+    "src/services/booking/recoveryIntake.service.js": 50377,
+    "src/services/messaging/inboundSmsJobProcessor.service.js": 45297,
+    "src/services/scheduling/appointment.service.js": 57216,
+    "src/services/trialLifecycle.service.js": 35910,
+    "src/services/twilioSmsWebhook.service.js": 34004,
+    "src/voice/conversationRelay.server.js": 47911,
+    "src/voice/voiceAgent.service.js": 42920,
+    "src/voice/voiceCallback.service.js": 43482
+  },
+  "allowedLegacyOverlays": [
+    "tools/api_overlay/scripts/verify-phase9-structure.js",
+    "tools/api_overlay/src/controllers/voiceSettings.js",
+    "tools/api_overlay/src/controllers/voiceWebhook.js",
+    "tools/api_overlay/src/helpers/ai/tools/sendConfirmationSms.tool.js",
+    "tools/api_overlay/src/models/voiceSession.js",
+    "tools/api_overlay/src/routes/voiceSettings.routes.js",
+    "tools/api_overlay/src/services/safetyAssessmentService.js",
+    "tools/api_overlay/src/voice/conversationRelay.server.js",
+    "tools/api_overlay/src/voice/voiceAgent.service.js",
+    "tools/api_overlay/src/voice/voiceAvailability.service.js",
+    "tools/api_overlay/src/voice/voiceHandoff.service.js",
+    "tools/api_overlay/src/voice/voiceRouting.service.js",
+    "tools/api_overlay/src/voice/voiceSession.service.js",
+    "tools/api_overlay/src/voice/voiceTranscript.service.js",
+    "tools/api_overlay/tests/unit/conversationRelay.server.test.js",
+    "tools/api_overlay/tests/unit/safetyAssessmentService.voiceCompatibility.test.js",
+    "tools/api_overlay/tests/unit/sendConfirmationSms.tool.test.js",
+    "tools/api_overlay/tests/unit/voiceAgent.service.test.js",
+    "tools/api_overlay/tests/unit/voiceBookingStateMachineReuse.test.js",
+    "tools/api_overlay/tests/unit/voiceRouting.service.test.js",
+    "tools/api_overlay/tests/unit/voiceSession.model.test.js",
+    "tools/api_overlay/tests/unit/voiceSessionFallback.service.test.js",
+    "tools/api_overlay/tests/unit/voiceSettings.controller.test.js",
+    "tools/api_overlay/tests/unit/voiceWebhook.controller.test.js"
+  ],
+  "pureModuleBoundaries": {
+    "src/services/booking/offeredSlotSelection.service.js": [
+      "/models/",
+      "/db/",
+      "/controllers/",
+      "/workers/",
+      "twilio",
+      "stripe"
+    ],
+    "src/services/messaging/urgencyPolicy.service.js": [
+      "/models/",
+      "/db/",
+      "/controllers/",
+      "/workers/",
+      "twilio",
+      "stripe"
+    ]
+  }
+}
