@@ -141,7 +141,12 @@ test('booking state machine preserves availability-hint contract', () => {
     new URL('../src/services/booking/bookingStateMachine.service.js', import.meta.url),
     'utf8',
   );
-  assert.match(source, /AVAILABILITY_HINT/);
-  assert.match(source, /hasBookingAvailabilityHint/);
-  assert.match(source, /hasAppointmentPreferenceHint/);
+  assert.match(source, /bookingMessagePolicy\.service\.js/);
+  const policySource = fs.readFileSync(
+    new URL('../src/services/booking/bookingMessagePolicy.service.js', import.meta.url),
+    'utf8',
+  );
+  assert.match(policySource, /AVAILABILITY_HINT/);
+  assert.match(policySource, /hasBookingAvailabilityHint/);
+  assert.match(policySource, /hasAppointmentPreferenceHint/);
 });

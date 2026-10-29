@@ -1,3 +1,4 @@
+import {BOOKING_INTENT,hasBookingAvailabilityHint,HUMAN_INTENT,EXACT_PRICE,ZIP_PATTERN,isAffirmative,isNegative} from './bookingMessagePolicy.service.js';
 import { spreadSlotOptions, selectSlotOptions, selectOfferedSlot } from "./offeredSlotSelection.service.js";
 export { selectOfferedSlot };
 import { submitRescheduleRequest } from '../scheduling/rescheduleRequest.service.js';
@@ -39,24 +40,6 @@ import {
   parseTimePreference,
   rankSlotsByTimePreference,
 } from "./appointmentPreferenceParser.service.js";
-
-const BOOKING_INTENT = /\b(book|booking|schedule|appointment|available|availability|come out|visit)\b/i;
-const AVAILABILITY_HINT = /\b(today|tomorrow|tmrw|tmr|monday|tuesday|wednesday|thursday|friday|saturday|sunday|morning|afternoon|evening|tonight|after work|next week|\d{1,2}(?::\d{2})?\s*(?:am|pm)|20\d{2}-\d{2}-\d{2})\b/i;
-const hasBookingAvailabilityHint = (value, timeZone = "America/New_York") =>
-  AVAILABILITY_HINT.test(String(value || "")) ||
-  hasAppointmentPreferenceHint(value, timeZone);
-const HUMAN_INTENT = /\b(human|person|representative|staff|someone|call me|talk to)\b/i;
-const AFFIRMATIVE_TOKEN = /\b(yes|yep|yeah|yup|correct|confirm|confirmed|book it|please do|that works|works for me|sounds good|ok|okay|sure)\b/i;
-const NEGATIVE_TOKEN = /\b(no|nope|not that|different|another|change it|cancel|do not|don't|not yet)\b/i;
-const EXACT_PRICE = /\b(exact|final|total)\b.{0,25}\b(price|cost|quote|charge)\b|\bhow much (?:will|does) it cost\b/i;
-const ZIP_PATTERN = /\b(\d{5})(?:-\d{4})?\b/;
-
-const isAffirmative = (value) => {
-  const text = String(value || "").trim();
-  return AFFIRMATIVE_TOKEN.test(text) && !NEGATIVE_TOKEN.test(text);
-};
-
-const isNegative = (value) => NEGATIVE_TOKEN.test(String(value || "").trim());
 
 const cleanStreetAddress = (value) =>
   withoutCustomerPostalCode(value)

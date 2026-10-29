@@ -61,6 +61,22 @@
       "/workers/",
       "twilio",
       "stripe"
+    ],
+    "src/services/booking/bookingMessagePolicy.service.js": [
+      "/models/",
+      "/db/",
+      "/controllers/",
+      "/workers/",
+      "twilio",
+      "stripe"
+    ],
+    "src/services/scheduling/appointmentStatePolicy.service.js": [
+      "/models/",
+      "/db/",
+      "/controllers/",
+      "/workers/",
+      "twilio",
+      "stripe"
     ]
   }
 }
