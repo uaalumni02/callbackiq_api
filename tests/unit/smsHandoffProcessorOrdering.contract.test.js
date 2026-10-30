@@ -1,3 +1,19 @@
+// SMS_STAGE3_DELIVERY_SOURCE_CONTRACT_V1: implementation moved, behavior contract retained.
+import { readFileSync as readSmsStage3File } from "node:fs";
+import { join as joinSmsStage3Path } from "node:path";
+
+const smsStage3DeliverySource = readSmsStage3File(
+  joinSmsStage3Path(process.cwd(),
+    "src/services/messaging/smsOutboundDelivery.adapter.js"), "utf8");
+
+test("Stage 3 SMS outbound adapter is still wired into the processor", () => {
+  const processor = readSmsStage3File(
+    joinSmsStage3Path(process.cwd(),
+      "src/services/messaging/inboundSmsJobProcessor.service.js"), "utf8");
+  expect(processor).toContain("const persistOutboundReply = createSmsOutboundDelivery(");
+  expect(processor).toContain("import { createSmsOutboundDelivery }");
+});
+
 import fs from "node:fs";
 import path from "node:path";
 
@@ -36,7 +52,7 @@ describe("SMS handoff processor ordering contract", () => {
   it("retains idempotency by linking one outbound reply to one inbound message", () => {
     expect(source).toContain("inReplyToMessage: inboundMessage._id");
     expect(source).toContain("providerMessageId");
-    expect(source).toContain("sms-inbound-reply:${business._id}:${inboundMessage._id}");
+    expect(smsStage3DeliverySource).toContain("sms-inbound-reply:${business._id}:${inboundMessage._id}");
     expect(source).toContain("existingHandoffReply");
   });
 
@@ -53,8 +69,8 @@ describe("SMS handoff processor ordering contract", () => {
   });
 
   it("bypasses ordinary limits only for essential handoff control messages", () => {
-    expect(source).toContain("bypassUsageLimits");
-    expect(source).toContain("result?.handoff?.required === true");
-    expect(source).toContain("result?.handoff?.statusAcknowledgement === true");
+    expect(smsStage3DeliverySource).toContain("bypassUsageLimits");
+    expect(smsStage3DeliverySource).toContain("result?.handoff?.required === true");
+    expect(smsStage3DeliverySource).toContain("result?.handoff?.statusAcknowledgement === true");
   });
 });
