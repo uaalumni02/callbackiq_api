@@ -78,7 +78,7 @@
     "verify:onboarding-regression-v3": "node scripts/verify-onboarding-regression-v3.mjs",
     "test:unit": "jest tests/unit --runInBand",
     "test:integration": "jest tests/integration tests/routes tests/services --runInBand",
-    "test:coverage": "node scripts/clean-coverage.mjs && jest --config jest.coverage.config.cjs --runInBand",
+    "test:coverage": "node scripts/clean-coverage.mjs && jest --config jest.coverage.bounded.config.cjs --maxWorkers=1",
     "verify:coverage-ratchet": "node scripts/verify-coverage-ratchet.mjs",
     "coverage:ratchet:update": "node scripts/verify-coverage-ratchet.mjs --update",
     "test:critical": "jest --runInBand tests/routes/stripeSubscriptionStateMatrix.hardening.test.js tests/routes/a2pEvents.hardening.test.js tests/unit/subscriptionIntegrity.ordering.hardening.test.js tests/unit/smsProcessing.worker.hardening.test.js tests/unit/trialLifecycle.worker.hardening.test.js tests/unit/followUpAgent.hardening.test.js tests/unit/qualifyLeadWithAI.hardening.test.js tests/unit/providerPayloadFixtures.contract.test.js tests/integration/trialTelecomRecovery.contract.test.js tests/integration/trialLifecycleWorker.sideEffects.test.js tests/integration/socketTenantIsolation.authenticated.test.js tests/unit/subscriptionIntegrity.matrix.hardening.test.js tests/unit/subscriptionActions.matrix.hardening.test.js tests/controllers/billing.moneyPaths.hardening.test.js",
