@@ -1,3 +1,4 @@
+import { createBookingTurnContext, isBookingTurnBlocked, planRejectedBookingPreference } from './bookingTurnDecision.policy.js';
 import {BOOKING_INTENT,hasBookingAvailabilityHint,HUMAN_INTENT,EXACT_PRICE,ZIP_PATTERN,isAffirmative,isNegative} from './bookingMessagePolicy.service.js';
 import { spreadSlotOptions, selectSlotOptions, selectOfferedSlot } from "./offeredSlotSelection.service.js";
 export { selectOfferedSlot };
@@ -474,14 +475,9 @@ class BookingStateMachineService {
     channel = "sms",
     source = "booking_state_machine",
   }) {
-    const bookingChannel = channel === "voice" ? "voice" : "sms";
-    const bookingSource = String(source || "booking_state_machine");
-    const bookingIdempotencyPrefix =
-      bookingChannel === "voice" ? "voice-" : "";
-    const bookingEventPrefix = bookingChannel === "voice" ? "voice:" : "";
-    const enabled = Boolean(business?.features?.aiBookingEnabled);
-    const text = String(customerMessage || "").trim();
-    if (conversation?.humanTakeover || ['closed', 'archived'].includes(conversation?.status)) return { handled: false };
+    const { bookingChannel, bookingSource, bookingIdempotencyPrefix, bookingEventPrefix, enabled, text } =
+      createBookingTurnContext({ business, customerMessage, channel, source });
+    if (isBookingTurnBlocked(conversation)) return { handled: false };
 
     const control = await handleConversationControl({ business, lead, conversation, customerMessage, channel });
     if (control) return { handled: true, result: control };
@@ -496,10 +492,13 @@ class BookingStateMachineService {
     const evidence = schedulingEvidence(text);
     const timezone = business.timezone || 'America/New_York';
     const acceptedTime = parseTimePreference(text, timezone);
-    if ((evidence.rejectedDate && !findDateRange(text, timezone)) ||
-        (evidence.rejectedTime && acceptedTime.targetMinutes === null && !acceptedTime.timeOfDay)) {
+    const preferenceRejection = planRejectedBookingPreference({
+      evidence, acceptedTime, hasReplacementDate: evidence.rejectedDate ? Boolean(findDateRange(text, timezone)) : false,
+      enabled, hasExistingAppointment: Boolean(conversation?.bookingState?.appointment),
+    });
+    if (preferenceRejection) {
       // Rejected proposals must not remain selectable on the next "yes".
-      if (lead?.save && !conversation?.bookingState?.appointment) {
+      if (lead?.save && preferenceRejection.updateRequestedPreference) {
         const range = evidence.rejectedDate ? findDateRange(text, timezone) : findDateRange(lead.preferredAppointmentTime, timezone);
         const time = evidence.rejectedTime ? acceptedTime : parseTimePreference(lead.preferredAppointmentTime, timezone);
         const day = range ? range.startDate === range.endDate ? range.startDate : `${range.startDate} through ${range.endDate}` : '';
@@ -509,15 +508,12 @@ class BookingStateMachineService {
         lead.preferredAppointmentTime = [day, clock].filter(Boolean).join(' at ');
         await lead.save();
       }
-      if (conversation?.set && !conversation.bookingState?.appointment) {
-        await updateState(conversation, { offeredSlots: [], selectedSlot: null,
-          status: enabled ? 'collecting_preference' : 'not_started', expiresAt: null,
-          searchStartDate: null, searchEndDate: null, lastCustomerPreference: '',
-          lastError: 'customer_rejected_preference' });
+      if (conversation?.set && preferenceRejection.updateRequestedPreference) {
+        await updateState(conversation, preferenceRejection.statePatch);
       }
-      return { handled: true, result: fixedResult({ reply:
-        `What day and time would work instead?${conversation?.bookingState?.appointment ? ' Your existing appointment has not been changed.' : ' No appointment is confirmed.'}`,
-        category: 'appointment_preference' }) };
+      return { handled: true, result: fixedResult({
+        reply: preferenceRejection.reply, category: preferenceRejection.category,
+      }) };
     }
 
     if (!enabled) {
