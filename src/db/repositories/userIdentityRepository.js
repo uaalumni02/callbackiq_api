@@ -1,7 +1,7 @@
 import { safeConsole } from '../../helpers/logging/safeLogger.js';
 // Exact identity operations extracted from Db; errors and Mongoose operations unchanged.
 
-export async findUserByEmailOrUserName(model, userName, email) {
+export async function findUserByEmailOrUserName(model, userName, email) {
     try {
       return await model.findOne({
         $or: [{ userName }, { email }],
@@ -11,7 +11,7 @@ export async findUserByEmailOrUserName(model, userName, email) {
     }
   }
 
-export async saveUser(model, userData, { session = null } = {}) {
+export async function saveUser(model, userData, { session = null } = {}) {
     try {
       const user = new model(userData);
       return await user.save(session ? { session } : undefined);
@@ -21,7 +21,7 @@ export async saveUser(model, userData, { session = null } = {}) {
     }
   }
 
-export async getUserById(model, id) {
+export async function getUserById(model, id) {
     try {
       return await model.findById(id).select("-password");
     } catch (error) {
