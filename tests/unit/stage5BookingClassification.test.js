@@ -1,0 +1,6 @@
+import { mergeBookingClassification } from '../../src/services/booking/bookingClassification.policy.js';
+const reconcile=(lead,entities,result)=>mergeBookingClassification({parameters:{lead},classification:{entities},outcome:{handled:true,result}});
+test('existing verified service remains authoritative',()=>{const result={serviceNeeded:'',urgency:'low'};expect(reconcile({serviceNeeded:'HVAC'},{serviceNeeded:'plumbing',urgency:'high'},result).result).toBe(result);expect(result.serviceNeeded).toBe('HVAC');expect(result.urgency).toBe('high');});
+test('emergency urgency is never downgraded',()=>{const result={urgency:'emergency'};reconcile(null,{serviceNeeded:'roofing',urgency:'low'},result);expect(result.urgency).toBe('emergency');expect(result.serviceNeeded).toBe('roofing');});
+test('unknown prior service is replaced by classified service',()=>{const result={serviceNeeded:'',urgency:'medium'};reconcile({serviceNeeded:'Unknown'},{serviceNeeded:'locksmith',urgency:'medium'},result);expect(result.serviceNeeded).toBe('locksmith');});
+test('unhandled decisions are not mutated',()=>{const result={urgency:'low'};const outcome={handled:false,result};expect(mergeBookingClassification({parameters:{},classification:{entities:{urgency:'emergency',serviceNeeded:'any'}},outcome})).toBe(outcome);expect(result).toEqual({urgency:'low'});});
