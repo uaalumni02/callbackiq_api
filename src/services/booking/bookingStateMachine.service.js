@@ -1,4 +1,6 @@
 import { createBookingTurnContext, isBookingTurnBlocked, planRejectedBookingPreference } from './bookingTurnDecision.policy.js';
+import { mergeBookingClassification } from './bookingClassification.policy.js';
+import { findBookingConversation } from './bookingConversation.repository.js';
 import {BOOKING_INTENT,hasBookingAvailabilityHint,HUMAN_INTENT,EXACT_PRICE,ZIP_PATTERN,isAffirmative,isNegative} from './bookingMessagePolicy.service.js';
 import { spreadSlotOptions, selectSlotOptions, selectOfferedSlot } from "./offeredSlotSelection.service.js";
 export { selectOfferedSlot };
@@ -444,27 +446,13 @@ const updateState = async (conversation, changes) => {
 
 class BookingStateMachineService {
   static async findConversation({ business, lead, conversation }) {
-    if (conversation) return conversation;
-    if (!lead?._id) return null;
-
-    return Conversation.findOne({
-      business: business._id,
-      lead: lead._id,
-      status: "open",
-    }).sort({ lastMessageAt: -1 });
+    return findBookingConversation({ business, lead, conversation });
   }
 
   static async handle(parameters) {
     const classification = classifySmsIntent(parameters);
     const outcome = await this.handleTurn(parameters);
-    if (outcome.handled && outcome.result) {
-      const existing = String(parameters.lead?.serviceNeeded || "").trim();
-      const extracted = classification.entities.serviceNeeded;
-      outcome.result.serviceNeeded = (existing && existing !== "Unknown" ? existing : extracted) || outcome.result.serviceNeeded;
-      const ranks = { low: 0, medium: 1, high: 2, emergency: 3 };
-      if ((ranks[classification.entities.urgency] ?? -1) > (ranks[outcome.result.urgency] ?? -1)) outcome.result.urgency = classification.entities.urgency;
-    }
-    return outcome;
+    return mergeBookingClassification({ parameters, classification, outcome });
   }
 
   static async handleTurn({

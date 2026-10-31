@@ -1,3 +1,4 @@
+import * as userIdentityRepository from './repositories/userIdentityRepository.js';
 import {BUSINESS_SCOPE_FIELDS,CONVERSATION_INTELLIGENCE_CONVERSATION_FIELDS,CONVERSATION_INTELLIGENCE_LEAD_FIELDS} from './repositories/dbProjectionFields.js';
 import { safeConsole } from "../helpers/logging/safeLogger.js";
 import * as subscriptionRepository from "./repositories/subscriptionRepository.js";
@@ -6,31 +7,15 @@ import { verifiedAmountExpression, estimateCoverageGroup } from "../services/val
 
 class Db {
   static async findUserByEmailOrUserName(model, userName, email) {
-    try {
-      return await model.findOne({
-        $or: [{ userName }, { email }],
-      });
-    } catch (error) {
-      throw new Error("Database error while finding user");
-    }
+    return userIdentityRepository.findUserByEmailOrUserName(model, userName, email);
   }
 
-  static async saveUser(model, userData, { session = null } = {}) {
-    try {
-      const user = new model(userData);
-      return await user.save(session ? { session } : undefined);
-    } catch (error) {
-      safeConsole.error("Actual Mongoose Save Error:", error);
-      throw error;
-    }
+  static async saveUser(model, userData, options = {}) {
+    return userIdentityRepository.saveUser(model, userData, options);
   }
 
   static async getUserById(model, id) {
-    try {
-      return await model.findById(id).select("-password");
-    } catch (error) {
-      throw new Error("Database error while fetching user");
-    }
+    return userIdentityRepository.getUserById(model, id);
   }
 
   // ----- Password Reset methods -----

@@ -92,10 +92,33 @@ test('the clog question does not re-ask what the customer already answered', asy
   expect(plain.reply).toMatch(/Is water overflowing or backing up into other fixtures\?/);
 });
 
+// Construct a later same-day business-local time from a morning instant.
+// Unlike fixed 21:00 UTC, 17:00 America/New_York is 21:00Z during EDT
+// but 22:00Z during EST. This test's reference is always after the
+// morning DST switch; no transition occurs between that reference and 5 PM.
+const easternAfternoon = (referenceInstant, hour = 17, minute = 0) => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(referenceInstant);
+  const value = type => Number(parts.find(part => part.type === type)?.value);
+  const deltaMinutes = (hour - value('hour')) * 60 + minute - value('minute');
+  return new Date(referenceInstant.getTime() + deltaMinutes * 60000);
+};
+
+// Lock the fixture's meaning on both sides of the US daylight-saving changes.
+test.each([
+  ['EDT before fall-back', '2026-10-31T12:00:00.000Z', '2026-10-31T21:00:00.000Z'],
+  ['EST after fall-back', '2026-11-01T12:00:00.000Z', '2026-11-01T22:00:00.000Z'],
+  ['EDT after spring-forward', '2027-03-14T12:00:00.000Z', '2027-03-14T21:00:00.000Z'],
+])('%s: an Eastern 5 PM fixture has the correct UTC instant', (_, reference, expected) => {
+  expect(easternAfternoon(new Date(reference)).toISOString()).toBe(expected);
+});
+
 test('expanded availability keeps an afternoon preference instead of reverting to morning slots', async () => {
  const c = context(); c.lead.serviceNeeded = 'sink repair'; c.lead.address = '56566 Road Way Atlanta GA 30323';
  const morning = morningSlots()[0];
- const evening = { ...morning, startAt: new Date(new Date(morning.startAt).setUTCHours(21, 0, 0, 0)), endAt: new Date(new Date(morning.startAt).setUTCHours(22, 0, 0, 0)) };
+ const eveningStart = easternAfternoon(new Date(morning.startAt));
+ const evening = { ...morning, startAt: eveningStart, endAt: new Date(eveningStart.getTime() + 3600000) };
  availability.mockResolvedValueOnce({ supportedServiceArea: true, slots: [morning] })
    .mockResolvedValueOnce({ supportedServiceArea: true, slots: [morning, evening] });
  const result = await c.turn('Do you have anything around 5ish?');
