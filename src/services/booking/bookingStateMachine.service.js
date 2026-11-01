@@ -1,3 +1,4 @@
+import { fixedResult } from './bookingFixedResult.policy.js';
 import { createBookingTurnContext, isBookingTurnBlocked, planRejectedBookingPreference } from './bookingTurnDecision.policy.js';
 import { mergeBookingClassification } from './bookingClassification.policy.js';
 import { findBookingConversation } from './bookingConversation.repository.js';
@@ -57,35 +58,7 @@ const parseStreetAddress = value => {
   return { street: cleanStreetAddress(address), valid: Boolean(address) };
 };
 
-const fixedResult = ({
-  reply,
-  category = "appointment_preference",
-  actionType = "send_fixed_response",
-}) => ({
-  decision: "send_fixed_response",
-  actionType,
-  messageCategory: category,
-  reply,
-  serviceNeeded: "",
-  urgency: "medium",
-  address: "",
-  preferredAppointmentTime: "",
-  leadQualityScore: 0,
-  estimatedValue: 0,
-  summary: "The deterministic booking state machine handled this message.",
-  shouldAlertOwner: false,
-  alertPriority: "low",
-  alertTitle: "",
-  alertMessage: "",
-  riskFlags: [],
-  confidence: 1,
-  guardrail: {
-    skipAI: true,
-    reason: "booking_state_machine",
-    usedFallback: false,
-    violations: [],
-  },
-});
+
 
 const buildAvailabilityPricingNote = async ({
   business,
