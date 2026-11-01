@@ -9,6 +9,8 @@
     "maintainability:hotspots": "node scripts/report-maintainability-hotspots.mjs",
     "test:maintainability:stage2": "jest --runInBand tests/unit/maintainability.stage2.policy.test.js tests/unit/maintainability.offeredSlots.test.js tests/unit/maintainability.urgency.test.js",
     "maintainability:check": "node scripts/maintainability-audit.mjs",
+    "maintainability:boundaries": "node scripts/meekcall-maintainability-boundaries.mjs",
+    "test:maintainability:stage3": "jest --runInBand tests/unit/maintainability.stage3.bookingPolicy.test.js tests/unit/maintainability.stage3.attribution.test.js",
     "test": "jest --runInBand",
     "test:watch": "jest --watch --runInBand",
     "test:phase0": "jest tests/unit/businessFeatures.test.js tests/unit/twilioEventKey.test.js tests/integration/contactPreference.service.test.js tests/integration/twilioWebhookEvent.service.test.js tests/integration/twilioWebhookIdempotency.test.js tests/integration/twilioOptOut.test.js tests/integration/businessFeatures.test.js tests/integration/providerUniqueIndexes.test.js tests/routes/twilio.routes.test.js tests/routes/business.routes.test.js tests/routes/dashboard.routes.test.js tests/routes/alert.routes.test.js --runInBand",

@@ -1,0 +1,30 @@
+// Stage 3: deterministic booking response contract; copied from original state machine.
+export const fixedResult = ({
+  reply,
+  category = "appointment_preference",
+  actionType = "send_fixed_response",
+}) => ({
+  decision: "send_fixed_response",
+  actionType,
+  messageCategory: category,
+  reply,
+  serviceNeeded: "",
+  urgency: "medium",
+  address: "",
+  preferredAppointmentTime: "",
+  leadQualityScore: 0,
+  estimatedValue: 0,
+  summary: "The deterministic booking state machine handled this message.",
+  shouldAlertOwner: false,
+  alertPriority: "low",
+  alertTitle: "",
+  alertMessage: "",
+  riskFlags: [],
+  confidence: 1,
+  guardrail: {
+    skipAI: true,
+    reason: "booking_state_machine",
+    usedFallback: false,
+    violations: [],
+  },
+});
