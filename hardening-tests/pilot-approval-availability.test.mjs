@@ -6,6 +6,7 @@ import { resolve, dirname } from 'node:path';
 import { preservePendingApprovalOnAvailabilityConflict } from '../src/services/scheduling/approvalAvailabilityFailurePolicy.js';
 
 const source = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../src/services/scheduling/appointment.service.js'), 'utf8');
+const expirySource = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../src/services/scheduling/appointmentHoldExpiry.service.js'), 'utf8');
 
 test('pending staff approval remains reviewable when a final slot check fails', () => {
   assert.equal(preservePendingApprovalOnAvailabilityConflict({ status: 'held', requiresBusinessApproval: true, approvalDecisionAt: null }), true);
@@ -34,6 +35,14 @@ test('the production confirmation path uses the guard before mutating failed sta
 
 test('expired holds still have the existing reconciliation mechanism', () => {
   assert.match(source, /static async releaseExpiredHolds\(/);
-  assert.match(source, /await reconcileApprovalRequests\(\{ businessId \}\)/);
+  // Release 9 delegates the original hold-expiry reconciliation to an extracted module.
+  assert.match(source, /const releaseExpiredHolds = createExpiredHoldReconciler\(/);
+  assert.match(source, /return releaseExpiredHolds\(businessId\);/);
+  assert.match(expirySource, /await reconcileApprovalRequests\(\{ businessId \}\)/);
+  assert.match(expirySource, /await repairPendingAppointmentLifecycles\(\{ businessId \}\)/);
+  assert.match(expirySource, /await repairPendingAppointmentProjections\(\{ businessId \}\)/);
+  assert.match(expirySource, /await repairRescheduleReviews\(\{ businessId \}\)/);
+  assert.match(expirySource, /await reconcileAppointmentNoticeFailures\(\{ businessId \}\)/);
+  assert.match(expirySource, /await runApprovalSms\(\)/);
   assert.match(source, /static async recheckAndConfirm\(/);
 });

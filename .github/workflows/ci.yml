@@ -56,6 +56,9 @@ jobs:
       - name: Enforce Stage 3 import boundaries
         run: npm run maintainability:boundaries
 
+      - name: Enforce Release 9 architecture regression gate
+        run: npm run maintainability:release9
+
       - name: Verify architecture invariants and hygiene scanner
         run: node scripts/meekcall-architecture-contracts.mjs && node --test hardening-tests/meekcall-secret-hygiene.regression.test.mjs
 
