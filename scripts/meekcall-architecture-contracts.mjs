@@ -70,11 +70,10 @@ requireTokens('.github/workflows/ci.yml', [
 requireTokens('.github/workflows/browser-workflows.yml', [
   "vars.CALLBACKIQ_FRONTEND_REF || 'main'",
   'CALLBACKIQ_CROSS_REPO_READ_TOKEN',
-  'GIT_TERMINAL_PROMPT=0',
-  'git -c credential.helper= clone',
+  'Checkout partner repository', 'github.token',
 ]);
 requireBefore('.github/workflows/browser-workflows.yml',
-  'Checkout public partner without cross-repository credential',
+  'Checkout partner repository',
   'Record exact API and frontend revisions');
 
 if (failures.length) {

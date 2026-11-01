@@ -1,3 +1,4 @@
+import { createExpiredHoldReconciler } from './appointmentHoldExpiry.service.js';
 import { resolveAppointmentAttribution } from './appointmentAttribution.repository.js';
 import { createAppointmentLookup } from './appointmentLookup.adapter.js';
 import { createExactSlotAvailability } from './appointmentAvailability.adapter.js';
@@ -53,6 +54,16 @@ const getAppointmentForBusiness = createAppointmentLookup({ Appointment });
 const runNonBlockingAppointmentSideEffect = createNonBlockingAppointmentSideEffect({safeConsole, InterventionService});
 
 const exactSlotAvailable = createExactSlotAvailability({ AvailabilityService, withStaffSchedulingException, formatDateKey });
+
+const releaseExpiredHolds = createExpiredHoldReconciler({
+  Appointment,
+  reconcileApprovalRequests,
+  repairPendingAppointmentLifecycles,
+  repairPendingAppointmentProjections,
+  repairRescheduleReviews,
+  reconcileAppointmentNoticeFailures,
+  runApprovalSms
+});
 
 export { resolveAppointmentAttribution };
 
@@ -251,30 +262,7 @@ const ensureCancellationSideEffects = async ({
 
 class AppointmentService {
   static async releaseExpiredHolds(businessId = null) {
-    const query = {
-      status: "held",
-      heldExpiresAt: { $lte: new Date() },
-      ...(businessId ? { business: businessId } : {}),
-    };
-
-    const result = await Appointment.updateMany(query, {
-      $set: {
-        status: "failed",
-        activeSlotKey: null,
-        slotClaimKeys: [],
-        capacityLane: null,
-        failureReason: "Appointment hold expired before confirmation.",
-        "approvalRecovery.reconciled": false,
-        "approvalRecovery.expiredAt": new Date(),
-      },
-    });
-    await reconcileApprovalRequests({ businessId });
-    await repairPendingAppointmentLifecycles({ businessId });
-    await repairPendingAppointmentProjections({ businessId });
-    await repairRescheduleReviews({ businessId });
-    await reconcileAppointmentNoticeFailures({ businessId });
-    await runApprovalSms();
-    return result;
+    return releaseExpiredHolds(businessId);
   }
 
   static async recheckAndConfirm({ business, appointmentId, approvedBy }) {

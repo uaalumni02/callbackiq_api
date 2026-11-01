@@ -2,17 +2,17 @@
   "version": 1,
   "reviewedGitSha": "a452c6bd7eb37fb3e0d661c1edd34c4e2767dcb3",
   "newProductionFileLimitBytes": 30000,
-  "allowedGrowthBytes": 1536,
+  "allowedGrowthBytes": 512,
   "oversizedModules": {
     "src/controllers/billing.js": 40007,
-    "src/db/db.js": 59426,
+    "src/db/db.js": 58231,
     "src/helpers/ai/aiGuardrails.js": 60150,
     "src/services/a2pCustomerOnboarding.service.js": 46332,
     "src/services/admin/founderReporting.service.js": 34761,
-    "src/services/booking/bookingStateMachine.service.js": 66611,
+    "src/services/booking/bookingStateMachine.service.js": 61064,
     "src/services/booking/recoveryIntake.service.js": 50377,
-    "src/services/messaging/inboundSmsJobProcessor.service.js": 45297,
-    "src/services/scheduling/appointment.service.js": 57216,
+    "src/services/messaging/inboundSmsJobProcessor.service.js": 33172,
+    "src/services/scheduling/appointment.service.js": 51416,
     "src/services/trialLifecycle.service.js": 35910,
     "src/services/twilioSmsWebhook.service.js": 34004,
     "src/voice/conversationRelay.server.js": 47911,
@@ -78,5 +78,6 @@
       "twilio",
       "stripe"
     ]
-  }
+  },
+  "release9Target": "Reduce outstanding modules through test-proven responsibility separation; size budgets only prevent regression."
 }
