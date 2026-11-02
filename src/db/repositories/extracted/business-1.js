@@ -51,7 +51,7 @@ async updateBusinessByOwner(model, ownerId, data) {
 async deleteBusinessByOwner(model, ownerId) {
     try {
       const { deleteBusinessSafely } = await import(
-        "../services/businessDeletion.service.js"
+        "../../../services/businessDeletion.service.js"
       );
       return await deleteBusinessSafely({ ownerId });
     } catch (error) {
@@ -63,7 +63,7 @@ async deleteBusinessByOwner(model, ownerId) {
 async deleteBusiness(model, id) {
     try {
       const { deleteBusinessSafely } = await import(
-        "../services/businessDeletion.service.js"
+        "../../../services/businessDeletion.service.js"
       );
       return await deleteBusinessSafely({ businessId: id });
     } catch (error) {
