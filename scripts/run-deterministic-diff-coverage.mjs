@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { resolveDiffCoverageBase, assertNoUntrackedSources } from "./diff-coverage-base.mjs";
 
 const root = process.cwd();
 const npx = process.platform === "win32" ? "npx.cmd" : "npx";
@@ -47,11 +48,15 @@ const capture = (command, args) => {
   return result.stdout;
 };
 
+const coverageBase = resolveDiffCoverageBase({ cwd: root });
+assertNoUntrackedSources({ cwd: root });
+console.log(`Diff coverage source-discovery base: ${coverageBase}`);
+
 const changedOutput = capture("git", [
   "diff",
   "--name-only",
   "--diff-filter=ACMR",
-  "HEAD^",
+  coverageBase,
   "--",
   "src",
 ]);
@@ -73,7 +78,7 @@ const changedSourceFiles = [
 
 if (!changedSourceFiles.length) {
   console.log(
-    "No changed production JavaScript files relative to HEAD^.",
+    "No changed production JavaScript files relative to selected base.",
   );
 
   run(process.execPath, [

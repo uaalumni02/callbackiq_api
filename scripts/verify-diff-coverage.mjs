@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
+import { resolveDiffCoverageBase, assertNoUntrackedSources } from "./diff-coverage-base.mjs";
 
 const realpathIfPossible = (value) => {
   try {
@@ -47,40 +48,8 @@ const git = (...args) =>
     stdio: ["ignore", "pipe", "pipe"],
   }).trim();
 
-const commitExists = (ref) => {
-  if (!ref || /^0+$/.test(ref)) return false;
-  try {
-    git("rev-parse", "--verify", `${ref}^{commit}`);
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-const resolveBase = () => {
-  const explicit = String(process.env.DIFF_COVERAGE_BASE || "").trim();
-  if (commitExists(explicit)) return explicit;
-
-  const githubBaseRef = String(process.env.GITHUB_BASE_REF || "").trim();
-  if (githubBaseRef && commitExists(`origin/${githubBaseRef}`)) {
-    try {
-      return git("merge-base", "HEAD", `origin/${githubBaseRef}`);
-    } catch {
-      return `origin/${githubBaseRef}`;
-    }
-  }
-
-  for (const candidate of ["HEAD^", "origin/main", "origin/development"]) {
-    if (commitExists(candidate)) return candidate;
-  }
-  return "";
-};
-
-const base = resolveBase();
-if (!base) {
-  console.log("Diff coverage skipped: no usable Git base commit is available.");
-  process.exit(0);
-}
+const base = resolveDiffCoverageBase({ cwd: root });
+assertNoUntrackedSources({ cwd: root });
 
 let diff = "";
 try {

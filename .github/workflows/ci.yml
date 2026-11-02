@@ -59,6 +59,9 @@ jobs:
       - name: Enforce Release 9 architecture regression gate
         run: npm run maintainability:release9
 
+      - name: Enforce comprehensive architecture domains
+        run: npm run maintainability:architecture
+
       - name: Verify architecture invariants and hygiene scanner
         run: node scripts/meekcall-architecture-contracts.mjs && node --test hardening-tests/meekcall-secret-hygiene.regression.test.mjs
 
