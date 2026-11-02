@@ -17,10 +17,11 @@ describe("SMS hardening delivery-aware SMS compatibility v2", () => {
   test("keeps dashboard metrics tied to provider-accepted delivery records", () => {
     const dbSource = source("src/db/db.js");
 
-    expect(dbSource).toMatch(/providerMessageId/);
-    expect(dbSource).toMatch(/smsDelivered/);
-    expect(dbSource).toMatch(/smsFailed/);
-    expect(dbSource).toMatch(/smsSegments/);
+    expect(dbSource).toContain("__meekcallGetDbreporting1Methods().getDashboardMetrics.apply(this, args)");
+    expect(dbSource + "\n" + require("node:fs").readFileSync(require("node:path").resolve(process.cwd(), "src/db/repositories/extracted/reporting-1.js"), "utf8")).toMatch(/providerMessageId/);
+    expect(dbSource + "\n" + require("node:fs").readFileSync(require("node:path").resolve(process.cwd(), "src/db/repositories/extracted/reporting-1.js"), "utf8")).toMatch(/smsDelivered/);
+    expect(dbSource + "\n" + require("node:fs").readFileSync(require("node:path").resolve(process.cwd(), "src/db/repositories/extracted/reporting-1.js"), "utf8")).toMatch(/smsFailed/);
+    expect(dbSource + "\n" + require("node:fs").readFileSync(require("node:path").resolve(process.cwd(), "src/db/repositories/extracted/reporting-1.js"), "utf8")).toMatch(/smsSegments/);
   });
 
   test("keeps canonical E.164 lead identity normalization", () => {

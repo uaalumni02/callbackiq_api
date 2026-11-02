@@ -1,9 +1,94 @@
+import { createDbidentity1Methods } from './repositories/extracted/identity-1.js';
+import { createDboperations1Methods } from './repositories/extracted/operations-1.js';
+import { createDbbusiness1Methods } from './repositories/extracted/business-1.js';
+import { createDbleads1Methods } from './repositories/extracted/leads-1.js';
+import { createDbconversations1Methods } from './repositories/extracted/conversations-1.js';
+import { createDbmessages1Methods } from './repositories/extracted/messages-1.js';
+import { createDbcalls1Methods } from './repositories/extracted/calls-1.js';
+import { createDbreporting1Methods } from './repositories/extracted/reporting-1.js';
+import { createDbalerts1Methods } from './repositories/extracted/alerts-1.js';
+import { createDbtrial1Methods } from './repositories/extracted/trial-1.js';
+import { createDbdemo1Methods } from './repositories/extracted/demo-1.js';
+import { createDbintelligence1Methods } from './repositories/extracted/intelligence-1.js';
 import * as userIdentityRepository from './repositories/userIdentityRepository.js';
 import {BUSINESS_SCOPE_FIELDS,CONVERSATION_INTELLIGENCE_CONVERSATION_FIELDS,CONVERSATION_INTELLIGENCE_LEAD_FIELDS} from './repositories/dbProjectionFields.js';
 import { safeConsole } from "../helpers/logging/safeLogger.js";
 import * as subscriptionRepository from "./repositories/subscriptionRepository.js";
 import * as supportTicketRepository from "./repositories/supportTicketRepository.js";
 import { verifiedAmountExpression, estimateCoverageGroup } from "../services/valuation/opportunityValue.js";
+
+
+let __meekcallDbidentity1Cache;
+function __meekcallGetDbidentity1Methods() {
+  if (!__meekcallDbidentity1Cache) __meekcallDbidentity1Cache = createDbidentity1Methods({ safeConsole });
+  return __meekcallDbidentity1Cache;
+}
+
+let __meekcallDboperations1Cache;
+function __meekcallGetDboperations1Methods() {
+  if (!__meekcallDboperations1Cache) __meekcallDboperations1Cache = createDboperations1Methods({ safeConsole });
+  return __meekcallDboperations1Cache;
+}
+
+let __meekcallDbbusiness1Cache;
+function __meekcallGetDbbusiness1Methods() {
+  if (!__meekcallDbbusiness1Cache) __meekcallDbbusiness1Cache = createDbbusiness1Methods({ BUSINESS_SCOPE_FIELDS, safeConsole });
+  return __meekcallDbbusiness1Cache;
+}
+
+let __meekcallDbleads1Cache;
+function __meekcallGetDbleads1Methods() {
+  if (!__meekcallDbleads1Cache) __meekcallDbleads1Cache = createDbleads1Methods({ safeConsole });
+  return __meekcallDbleads1Cache;
+}
+
+let __meekcallDbconversations1Cache;
+function __meekcallGetDbconversations1Methods() {
+  if (!__meekcallDbconversations1Cache) __meekcallDbconversations1Cache = createDbconversations1Methods({ safeConsole });
+  return __meekcallDbconversations1Cache;
+}
+
+let __meekcallDbmessages1Cache;
+function __meekcallGetDbmessages1Methods() {
+  if (!__meekcallDbmessages1Cache) __meekcallDbmessages1Cache = createDbmessages1Methods({ safeConsole });
+  return __meekcallDbmessages1Cache;
+}
+
+let __meekcallDbcalls1Cache;
+function __meekcallGetDbcalls1Methods() {
+  if (!__meekcallDbcalls1Cache) __meekcallDbcalls1Cache = createDbcalls1Methods({ safeConsole });
+  return __meekcallDbcalls1Cache;
+}
+
+let __meekcallDbreporting1Cache;
+function __meekcallGetDbreporting1Methods() {
+  if (!__meekcallDbreporting1Cache) __meekcallDbreporting1Cache = createDbreporting1Methods({ safeConsole, verifiedAmountExpression });
+  return __meekcallDbreporting1Cache;
+}
+
+let __meekcallDbalerts1Cache;
+function __meekcallGetDbalerts1Methods() {
+  if (!__meekcallDbalerts1Cache) __meekcallDbalerts1Cache = createDbalerts1Methods({ safeConsole });
+  return __meekcallDbalerts1Cache;
+}
+
+let __meekcallDbtrial1Cache;
+function __meekcallGetDbtrial1Methods() {
+  if (!__meekcallDbtrial1Cache) __meekcallDbtrial1Cache = createDbtrial1Methods({ safeConsole });
+  return __meekcallDbtrial1Cache;
+}
+
+let __meekcallDbdemo1Cache;
+function __meekcallGetDbdemo1Methods() {
+  if (!__meekcallDbdemo1Cache) __meekcallDbdemo1Cache = createDbdemo1Methods({ safeConsole });
+  return __meekcallDbdemo1Cache;
+}
+
+let __meekcallDbintelligence1Cache;
+function __meekcallGetDbintelligence1Methods() {
+  if (!__meekcallDbintelligence1Cache) __meekcallDbintelligence1Cache = createDbintelligence1Methods({ CONVERSATION_INTELLIGENCE_CONVERSATION_FIELDS, CONVERSATION_INTELLIGENCE_LEAD_FIELDS });
+  return __meekcallDbintelligence1Cache;
+}
 
 class Db {
   static async findUserByEmailOrUserName(model, userName, email) {
@@ -29,98 +114,13 @@ class Db {
     }
   }
 
-  static async savePasswordResetToken(model, userId, resetToken, expiresAt) {
-    try {
-      return await model.findByIdAndUpdate(
-        userId,
-        {
-          resetToken,
-          resetTokenExpiresAt: expiresAt,
-        },
-        {
-          returnDocument: "after",
-          runValidators: true,
-        },
-      );
-    } catch (error) {
-      safeConsole.error("Error saving password reset token:", error);
-      throw error;
-    }
-  }
+  static async savePasswordResetToken(...args) { return __meekcallGetDbidentity1Methods().savePasswordResetToken.apply(this, args); }
 
-  static async findUserByPasswordResetToken(model, resetToken) {
-    try {
-      return await model
-        .findOne({
-          resetToken,
-          resetTokenExpiresAt: { $gt: new Date() },
-        })
-        .select("+password +resetToken +resetTokenExpiresAt +sessionVersion");
-    } catch (error) {
-      safeConsole.error("Error finding password reset token:", error);
-      throw error;
-    }
-  }
+  static async findUserByPasswordResetToken(...args) { return __meekcallGetDbidentity1Methods().findUserByPasswordResetToken.apply(this, args); }
 
-  static async saveResetPassword(model, userId, password) {
-    try {
-      return await model.findByIdAndUpdate(
-        userId,
-        {
-          $set: {
-            password,
-            resetToken: null,
-            resetTokenExpiresAt: null,
-            failedLoginAttempts: 0,
-            lastFailedLoginAt: null,
-            loginBlockedUntil: null,
-            loginLockoutLevel: 0,
-            lastLoginLockoutAt: null,
-            securityChallengeRequired: false,
-            securityChallengeRequiredAt: null,
-          },
-          $inc: {
-            sessionVersion: 1,
-          },
-        },
-        {
-          returnDocument: "after",
-          runValidators: true,
-        },
-      );
-    } catch (error) {
-      safeConsole.error("Error saving reset password:", error);
-      throw error;
-    }
-  }
+  static async saveResetPassword(...args) { return __meekcallGetDbidentity1Methods().saveResetPassword.apply(this, args); }
 
-  static async findUserByLogin(model, login) {
-    try {
-      const normalizedLogin = String(login || "").trim();
-      const normalizedEmail = normalizedLogin.toLowerCase();
-
-      return await model
-        .findOne({
-          $or: [{ userName: normalizedLogin }, { email: normalizedEmail }],
-        })
-        .select(
-          [
-            "+password",
-            "+sessionVersion",
-            "+failedLoginAttempts",
-            "+lastFailedLoginAt",
-            "+loginBlockedUntil",
-            "+loginLockoutLevel",
-            "+lastLoginLockoutAt",
-            "+securityChallengeRequired",
-            "+securityChallengeRequiredAt",
-          ].join(" "),
-        );
-    } catch (error) {
-      safeConsole.error("Error finding user by login:", error);
-      throw new Error("Database error while finding user");
-    }
-  }
+  static async findUserByLogin(...args) { return __meekcallGetDbidentity1Methods().findUserByLogin.apply(this, args); }
 
   /*
    * Records one failed login atomically.
@@ -132,285 +132,11 @@ class Db {
    * - The escalation level resets after 24 hours without a failure.
    * - CAPTCHA becomes required after the third temporary block.
    */
-  static async recordFailedLogin(model, userId) {
-    try {
-      const now = new Date();
-      const observationWindowStart = new Date(now.getTime() - 15 * 60 * 1000);
-      const decayWindowStart = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  static async recordFailedLogin(...args) { return __meekcallGetDboperations1Methods().recordFailedLogin.apply(this, args); }
 
-      return await model
-        .findOneAndUpdate(
-          { _id: userId },
-          [
-            {
-              $set: {
-                _existingFailureCount: {
-                  $cond: [
-                    {
-                      $and: [
-                        { $ne: ["$lastFailedLoginAt", null] },
-                        {
-                          $gte: ["$lastFailedLoginAt", observationWindowStart],
-                        },
-                      ],
-                    },
-                    { $ifNull: ["$failedLoginAttempts", 0] },
-                    0,
-                  ],
-                },
+  static async clearLoginSecurityState(...args) { return __meekcallGetDboperations1Methods().clearLoginSecurityState.apply(this, args); }
 
-                _existingLockoutLevel: {
-                  $cond: [
-                    {
-                      $or: [
-                        { $eq: ["$lastFailedLoginAt", null] },
-                        {
-                          $lt: ["$lastFailedLoginAt", decayWindowStart],
-                        },
-                      ],
-                    },
-                    0,
-                    { $ifNull: ["$loginLockoutLevel", 0] },
-                  ],
-                },
-              },
-            },
-
-            {
-              $set: {
-                _nextFailureCount: {
-                  $add: ["$_existingFailureCount", 1],
-                },
-              },
-            },
-
-            {
-              $set: {
-                _shouldBlock: {
-                  $gte: ["$_nextFailureCount", 5],
-                },
-
-                _nextLockoutLevel: {
-                  $cond: [
-                    { $gte: ["$_nextFailureCount", 5] },
-                    { $add: ["$_existingLockoutLevel", 1] },
-                    "$_existingLockoutLevel",
-                  ],
-                },
-              },
-            },
-
-            {
-              $set: {
-                _delayMinutes: {
-                  $switch: {
-                    branches: [
-                      {
-                        case: {
-                          $eq: ["$_nextLockoutLevel", 1],
-                        },
-                        then: 1,
-                      },
-                      {
-                        case: {
-                          $eq: ["$_nextLockoutLevel", 2],
-                        },
-                        then: 5,
-                      },
-                      {
-                        case: {
-                          $eq: ["$_nextLockoutLevel", 3],
-                        },
-                        then: 15,
-                      },
-                      {
-                        case: {
-                          $eq: ["$_nextLockoutLevel", 4],
-                        },
-                        then: 30,
-                      },
-                    ],
-                    default: 60,
-                  },
-                },
-              },
-            },
-
-            {
-              $set: {
-                failedLoginAttempts: {
-                  $cond: ["$_shouldBlock", 0, "$_nextFailureCount"],
-                },
-
-                lastFailedLoginAt: now,
-
-                loginLockoutLevel: "$_nextLockoutLevel",
-
-                loginBlockedUntil: {
-                  $cond: [
-                    "$_shouldBlock",
-                    {
-                      $dateAdd: {
-                        startDate: now,
-                        unit: "minute",
-                        amount: "$_delayMinutes",
-                      },
-                    },
-                    {
-                      $cond: [
-                        {
-                          $and: [
-                            {
-                              $ne: ["$loginBlockedUntil", null],
-                            },
-                            {
-                              $gt: ["$loginBlockedUntil", now],
-                            },
-                          ],
-                        },
-                        "$loginBlockedUntil",
-                        null,
-                      ],
-                    },
-                  ],
-                },
-
-                lastLoginLockoutAt: {
-                  $cond: ["$_shouldBlock", now, "$lastLoginLockoutAt"],
-                },
-
-                securityChallengeRequired: {
-                  $or: [
-                    {
-                      $eq: [
-                        {
-                          $ifNull: ["$securityChallengeRequired", false],
-                        },
-                        true,
-                      ],
-                    },
-                    {
-                      $gte: ["$_nextLockoutLevel", 3],
-                    },
-                  ],
-                },
-
-                securityChallengeRequiredAt: {
-                  $cond: [
-                    {
-                      $and: [
-                        "$_shouldBlock",
-                        {
-                          $gte: ["$_nextLockoutLevel", 3],
-                        },
-                        {
-                          $ne: [
-                            {
-                              $ifNull: ["$securityChallengeRequired", false],
-                            },
-                            true,
-                          ],
-                        },
-                      ],
-                    },
-                    now,
-                    "$securityChallengeRequiredAt",
-                  ],
-                },
-              },
-            },
-
-            {
-              $unset: [
-                "_existingFailureCount",
-                "_existingLockoutLevel",
-                "_nextFailureCount",
-                "_shouldBlock",
-                "_nextLockoutLevel",
-                "_delayMinutes",
-              ],
-            },
-          ],
-          {
-            returnDocument: "after",
-            updatePipeline: true,
-          },
-        )
-        .select(
-          [
-            "+failedLoginAttempts",
-            "+lastFailedLoginAt",
-            "+loginBlockedUntil",
-            "+loginLockoutLevel",
-            "+lastLoginLockoutAt",
-            "+securityChallengeRequired",
-            "+securityChallengeRequiredAt",
-          ].join(" "),
-        );
-    } catch (error) {
-      safeConsole.error("Error recording failed login:", error);
-      throw error;
-    }
-  }
-
-  static async clearLoginSecurityState(model, userId) {
-    try {
-      return await model.findByIdAndUpdate(
-        userId,
-        {
-          $set: {
-            failedLoginAttempts: 0,
-            lastFailedLoginAt: null,
-            loginBlockedUntil: null,
-            loginLockoutLevel: 0,
-            lastLoginLockoutAt: null,
-            securityChallengeRequired: false,
-            securityChallengeRequiredAt: null,
-            lastSuccessfulLoginAt: new Date(),
-          },
-        },
-        {
-          returnDocument: "after",
-        },
-      );
-    } catch (error) {
-      safeConsole.error("Error clearing login security state:", error);
-      throw error;
-    }
-  }
-
-  static async decayLoginSecurityState(model, userId) {
-    try {
-      const decayWindowStart = new Date(Date.now() - 24 * 60 * 60 * 1000);
-
-      return await model.findOneAndUpdate(
-        {
-          _id: userId,
-          lastFailedLoginAt: {
-            $ne: null,
-            $lt: decayWindowStart,
-          },
-        },
-        {
-          $set: {
-            failedLoginAttempts: 0,
-            lastFailedLoginAt: null,
-            loginBlockedUntil: null,
-            loginLockoutLevel: 0,
-            lastLoginLockoutAt: null,
-            securityChallengeRequired: false,
-            securityChallengeRequiredAt: null,
-          },
-        },
-        {
-          returnDocument: "after",
-        },
-      );
-    } catch (error) {
-      safeConsole.error("Error decaying login security state:", error);
-      throw error;
-    }
-  }
+  static async decayLoginSecurityState(...args) { return __meekcallGetDboperations1Methods().decayLoginSecurityState.apply(this, args); }
 
   // ----- Business methods -----
 
@@ -440,17 +166,7 @@ class Db {
    * Avoids hydrating a Mongoose document and populating the owner when the
    * controller only needs the business scope and core settings.
    */
-  static async getBusinessScopeByOwner(model, ownerId) {
-    try {
-      return await model
-        .findOne({ owner: ownerId })
-        .select(BUSINESS_SCOPE_FIELDS)
-        .lean();
-    } catch (error) {
-      safeConsole.error("Error fetching business scope by owner:", error);
-      throw error;
-    }
-  }
+  static async getBusinessScopeByOwner(...args) { return __meekcallGetDbbusiness1Methods().getBusinessScopeByOwner.apply(this, args); }
   static async getBusinessById(model, id) {
     try {
       return await model.findById(id).populate("owner", "userName email role");
@@ -472,63 +188,13 @@ class Db {
     }
   }
 
-  static async updateBusiness(model, id, data) {
-    try {
-      return await model
-        .findByIdAndUpdate(id, data, {
-          returnDocument: "after",
-          runValidators: true,
-        })
-        .populate("owner", "userName email role");
-    } catch (error) {
-      safeConsole.error("Error updating business:", error);
-      throw error;
-    }
-  }
+  static async updateBusiness(...args) { return __meekcallGetDbbusiness1Methods().updateBusiness.apply(this, args); }
 
-  static async updateBusinessByOwner(model, ownerId, data) {
-    try {
-      return await model
-        .findOneAndUpdate(
-          {
-            owner: ownerId,
-          },
-          data,
-          {
-            returnDocument: "after",
-            runValidators: true,
-          },
-        )
-        .populate("owner", "userName email role");
-    } catch (error) {
-      safeConsole.error("Error updating business by owner:", error);
-      throw error;
-    }
-  }
+  static async updateBusinessByOwner(...args) { return __meekcallGetDbbusiness1Methods().updateBusinessByOwner.apply(this, args); }
 
-  static async deleteBusinessByOwner(model, ownerId) {
-    try {
-      const { deleteBusinessSafely } = await import(
-        "../services/businessDeletion.service.js"
-      );
-      return await deleteBusinessSafely({ ownerId });
-    } catch (error) {
-      safeConsole.error("Error deleting business by owner:", error);
-      throw error;
-    }
-  }
+  static async deleteBusinessByOwner(...args) { return __meekcallGetDbbusiness1Methods().deleteBusinessByOwner.apply(this, args); }
 
-  static async deleteBusiness(model, id) {
-    try {
-      const { deleteBusinessSafely } = await import(
-        "../services/businessDeletion.service.js"
-      );
-      return await deleteBusinessSafely({ businessId: id });
-    } catch (error) {
-      safeConsole.error("Error deleting business:", error);
-      throw error;
-    }
-  }
+  static async deleteBusiness(...args) { return __meekcallGetDbbusiness1Methods().deleteBusiness.apply(this, args); }
   // ----- Lead methods -----
 
   static async saveLead(model, data) {
@@ -541,80 +207,11 @@ class Db {
     }
   }
 
-  static async getLeadsByBusiness(model, businessId) {
-    try {
-      return await model
-        .find({ business: businessId })
-        .sort({ createdAt: -1 })
-        .populate("business", "businessName businessType phone")
-        .lean();
-    } catch (error) {
-      safeConsole.error("Error fetching leads by business:", error);
-      throw error;
-    }
-  }
-  static async getLeadById(
-    model,
-    id,
-    {
-      populateBusiness = true,
-      lean = false,
-    } = {},
-  ) {
-    try {
-      let query = model.findById(id);
+  static async getLeadsByBusiness(...args) { return __meekcallGetDbleads1Methods().getLeadsByBusiness.apply(this, args); }
+  static async getLeadById(...args) { return __meekcallGetDbleads1Methods().getLeadById.apply(this, args); }
+  static async updateLead(...args) { return __meekcallGetDbleads1Methods().updateLead.apply(this, args); }
 
-      if (populateBusiness) {
-        query = query.populate(
-          "business",
-          "businessName businessType phone",
-        );
-      }
-
-      if (lean) {
-        query = query.lean();
-      }
-
-      return await query;
-    } catch (error) {
-      safeConsole.error("Error fetching lead by ID:", error);
-      throw error;
-    }
-  }
-  static async updateLead(model, id, data) {
-    try {
-      return await model
-        .findByIdAndUpdate(id, data, {
-          returnDocument: "after",
-          runValidators: true,
-        })
-        .populate("business", "businessName businessType phone");
-    } catch (error) {
-      safeConsole.error("Error updating lead:", error);
-      throw error;
-    }
-  }
-
-  static async updateLeadForBusiness(model, id, businessId, data) {
-    try {
-      return await model
-        .findOneAndUpdate(
-          {
-            _id: id,
-            business: businessId,
-          },
-          data,
-          {
-            returnDocument: "after",
-            runValidators: true,
-          },
-        )
-        .populate("business", "businessName businessType phone");
-    } catch (error) {
-      safeConsole.error("Error updating lead for business:", error);
-      throw error;
-    }
-  }
+  static async updateLeadForBusiness(...args) { return __meekcallGetDbleads1Methods().updateLeadForBusiness.apply(this, args); }
 
   static async deleteLead(model, id) {
     try {
@@ -648,100 +245,10 @@ class Db {
     }
   }
 
-  static async getConversationsByBusiness(model, businessId) {
-    try {
-      return await model
-        .find({ business: businessId })
-        .sort({ lastMessageAt: -1, createdAt: -1 })
-        .populate("business", "businessName phone owner")
-        .populate("lead", "customerName phone serviceNeeded urgency status serviceEligibility")
-        .populate("archivedBy", "userName email role")
-        .lean();
-    } catch (error) {
-      safeConsole.error("Error fetching conversations:", error);
-      throw error;
-    }
-  }
-  static async getConversationById(
-    model,
-    id,
-    {
-      populateBusiness = true,
-      populateLead = true,
-      populateArchivedBy = true,
-      lean = false,
-      select = null,
-    } = {},
-  ) {
-    try {
-      let query = model.findById(id);
-
-      if (select) {
-        query = query.select(select);
-      }
-
-      if (populateBusiness) {
-        query = query.populate(
-          "business",
-          "businessName phone owner",
-        );
-      }
-
-      if (populateLead) {
-        query = query.populate(
-          "lead",
-          "customerName phone serviceNeeded urgency status serviceEligibility",
-        );
-      }
-
-      if (populateArchivedBy) {
-        query = query.populate(
-          "archivedBy",
-          "userName email role",
-        );
-      }
-
-      if (lean) {
-        query = query.lean();
-      }
-
-      return await query;
-    } catch (error) {
-      safeConsole.error("Error fetching conversation:", error);
-      throw error;
-    }
-  }
-  static async getConversationForBusiness(model, id, businessId) {
-    try {
-      return await model
-        .findOne({
-          _id: id,
-          business: businessId,
-        })
-        .populate("business", "businessName phone owner")
-        .populate("lead", "customerName phone serviceNeeded urgency status serviceEligibility")
-        .populate("archivedBy", "userName email role")
-        .lean();
-    } catch (error) {
-      safeConsole.error("Error fetching conversation for business:", error);
-      throw error;
-    }
-  }
-  static async updateConversation(model, id, data) {
-    try {
-      return await model
-        .findByIdAndUpdate(id, data, {
-          returnDocument: "after",
-          runValidators: true,
-        })
-        .populate("business", "businessName phone owner")
-        .populate("lead", "customerName phone serviceNeeded urgency status serviceEligibility")
-        .populate("archivedBy", "userName email role");
-    } catch (error) {
-      safeConsole.error("Error updating conversation:", error);
-      throw error;
-    }
-  }
+  static async getConversationsByBusiness(...args) { return __meekcallGetDbconversations1Methods().getConversationsByBusiness.apply(this, args); }
+  static async getConversationById(...args) { return __meekcallGetDbconversations1Methods().getConversationById.apply(this, args); }
+  static async getConversationForBusiness(...args) { return __meekcallGetDbconversations1Methods().getConversationForBusiness.apply(this, args); }
+  static async updateConversation(...args) { return __meekcallGetDbconversations1Methods().updateConversation.apply(this, args); }
 
   static async deleteConversation(model, id) {
     try {
@@ -764,57 +271,15 @@ class Db {
     }
   }
 
-  static async getMessagesByConversation(model, conversationId) {
-    try {
-      return await model
-        .find({ conversation: conversationId })
-        .sort({ createdAt: 1 })
-        .populate("lead", "customerName phone serviceNeeded")
-        .populate("conversation", "customerPhone customerName status")
-        .lean();
-    } catch (error) {
-      safeConsole.error("Error fetching messages:", error);
-      throw error;
-    }
-  }
+  static async getMessagesByConversation(...args) { return __meekcallGetDbmessages1Methods().getMessagesByConversation.apply(this, args); }
 
   /*
    * AI workflows only need message content and chronology. Skipping populate
    * keeps inbound-SMS and conversation-analysis requests lightweight.
    */
-  static async getMessagesForAI(model, conversationId) {
-    const limit = Math.max(20, Math.min(500, Number(process.env.AI_ANALYSIS_HISTORY_LIMIT) || 200));
-    const messages = await model.find({ conversation: conversationId })
-      .select("_id business conversation lead direction from to body provider providerMessageId status isAiGenerated generatedBy usageCategory actorType actorId metadata createdAt updatedAt")
-      .sort({ createdAt: -1, _id: -1 }).limit(limit);
-    return messages.reverse();
-  }
-  static async getMessageById(model, id) {
-    try {
-      return await model
-        .findById(id)
-        .populate("lead", "customerName phone serviceNeeded")
-        .populate("conversation", "customerPhone customerName status");
-    } catch (error) {
-      safeConsole.error("Error fetching message:", error);
-      throw error;
-    }
-  }
-  static async getMessageForBusiness(model, id, businessId) {
-    try {
-      return await model
-        .findOne({
-          _id: id,
-          business: businessId,
-        })
-        .populate("lead", "customerName phone serviceNeeded")
-        .populate("conversation", "customerPhone customerName status")
-        .lean();
-    } catch (error) {
-      safeConsole.error("Error fetching message for business:", error);
-      throw error;
-    }
-  }
+  static async getMessagesForAI(...args) { return __meekcallGetDbmessages1Methods().getMessagesForAI.apply(this, args); }
+  static async getMessageById(...args) { return __meekcallGetDbmessages1Methods().getMessageById.apply(this, args); }
+  static async getMessageForBusiness(...args) { return __meekcallGetDbmessages1Methods().getMessageForBusiness.apply(this, args); }
   static async deleteMessage(model, id) {
     try {
       return await model.findByIdAndDelete(id);
@@ -847,101 +312,12 @@ class Db {
     }
   }
 
-  static async getCallLogsByBusiness(model, businessId) {
-    try {
-      return await model
-        .find({ business: businessId })
-        .sort({ createdAt: -1 })
-        .populate(
-          "business",
-          "businessName businessType phone smsTemplate estimatedJobValue",
-        )
-        .populate("lead", "customerName phone serviceNeeded urgency status serviceEligibility")
-        .populate("conversation", "customerPhone customerName status")
-        .lean();
-    } catch (error) {
-      safeConsole.error("Error fetching call logs:", error);
-      throw error;
-    }
-  }
-  static async getCallLogById(model, id) {
-    try {
-      return await model
-        .findById(id)
-        .populate(
-          "business",
-          "businessName businessType phone smsTemplate estimatedJobValue",
-        )
-        .populate("lead", "customerName phone serviceNeeded urgency status serviceEligibility")
-        .populate("conversation", "customerPhone customerName status");
-    } catch (error) {
-      safeConsole.error("Error fetching call log:", error);
-      throw error;
-    }
-  }
-  static async getCallLogForBusiness(model, id, businessId) {
-    try {
-      return await model
-        .findOne({
-          _id: id,
-          business: businessId,
-        })
-        .populate(
-          "business",
-          "businessName businessType phone smsTemplate estimatedJobValue",
-        )
-        .populate("lead", "customerName phone serviceNeeded urgency status serviceEligibility")
-        .populate("conversation", "customerPhone customerName status")
-        .lean();
-    } catch (error) {
-      safeConsole.error("Error fetching call log for business:", error);
-      throw error;
-    }
-  }
-  static async updateCallLog(model, id, data) {
-    try {
-      return await model
-        .findByIdAndUpdate(id, data, {
-          returnDocument: "after",
-          runValidators: true,
-        })
-        .populate(
-          "business",
-          "businessName businessType phone smsTemplate estimatedJobValue",
-        )
-        .populate("lead", "customerName phone serviceNeeded urgency status serviceEligibility")
-        .populate("conversation", "customerPhone customerName status");
-    } catch (error) {
-      safeConsole.error("Error updating call log:", error);
-      throw error;
-    }
-  }
+  static async getCallLogsByBusiness(...args) { return __meekcallGetDbcalls1Methods().getCallLogsByBusiness.apply(this, args); }
+  static async getCallLogById(...args) { return __meekcallGetDbcalls1Methods().getCallLogById.apply(this, args); }
+  static async getCallLogForBusiness(...args) { return __meekcallGetDbcalls1Methods().getCallLogForBusiness.apply(this, args); }
+  static async updateCallLog(...args) { return __meekcallGetDbcalls1Methods().updateCallLog.apply(this, args); }
 
-  static async updateCallLogForBusiness(model, id, businessId, data) {
-    try {
-      return await model
-        .findOneAndUpdate(
-          {
-            _id: id,
-            business: businessId,
-          },
-          data,
-          {
-            returnDocument: "after",
-            runValidators: true,
-          },
-        )
-        .populate(
-          "business",
-          "businessName businessType phone smsTemplate estimatedJobValue",
-        )
-        .populate("lead", "customerName phone serviceNeeded urgency status serviceEligibility")
-        .populate("conversation", "customerPhone customerName status");
-    } catch (error) {
-      safeConsole.error("Error updating call log for business:", error);
-      throw error;
-    }
-  }
+  static async updateCallLogForBusiness(...args) { return __meekcallGetDbcalls1Methods().updateCallLogForBusiness.apply(this, args); }
 
   static async deleteCallLog(model, id) {
     try {
@@ -965,35 +341,9 @@ class Db {
   }
   // ----- Twilio helper methods -----
 
-  static async getBusinessByPhone(model, phone) {
-    try {
-      return await model.findOne({
-        $or: [
-          { phone },
-          { businessPhone: phone },
-          { twilioPhoneNumber: phone },
-        ],
-      });
-    } catch (error) {
-      safeConsole.error("Error fetching business by phone:", error);
-      throw error;
-    }
-  }
+  static async getBusinessByPhone(...args) { return __meekcallGetDbbusiness1Methods().getBusinessByPhone.apply(this, args); }
 
-  static async getBusinessByPhoneForWebhook(model, phone) {
-    try {
-      return await model
-        .findOne({
-          isActive: true,
-          "trackingNumber.status": "active",
-          $or: [{ phone }, { phoneLookup: phone }],
-        })
-        .select(BUSINESS_SCOPE_FIELDS);
-    } catch (error) {
-      safeConsole.error("Error fetching webhook business by phone:", error);
-      throw error;
-    }
-  }
+  static async getBusinessByPhoneForWebhook(...args) { return __meekcallGetDbbusiness1Methods().getBusinessByPhoneForWebhook.apply(this, args); }
   static async getFirstBusiness(model) {
     try {
       return await model.findOne({}).sort({ createdAt: 1 });
@@ -1003,370 +353,12 @@ class Db {
     }
   }
 
-  static async getLeadByBusinessAndPhone(model, businessId, phone) {
-    try {
-      return await model
-        .findOne({
-          business: businessId,
-          phone,
-        })
-        .sort({ createdAt: -1 });
-    } catch (error) {
-      safeConsole.error("Error fetching lead by business and phone:", error);
-      throw error;
-    }
-  }
-  static async getConversationByBusinessAndPhone(model, businessId, phone) {
-    try {
-      return await model
-        .findOne({
-          business: businessId,
-          customerPhone: phone,
-        })
-        .sort({ lastMessageAt: -1, createdAt: -1 });
-    } catch (error) {
-      safeConsole.error(
-        "Error fetching conversation by business and phone:",
-        error,
-      );
-      throw error;
-    }
-  }
-  static async updateCallLogByProviderCallId(model, providerCallId, data) {
-    try {
-      return await model
-        .findOneAndUpdate({ providerCallId }, data, {
-          returnDocument: "after",
-          runValidators: true,
-        })
-        .populate(
-          "business",
-          "businessName phone smsTemplate estimatedJobValue",
-        )
-        .populate("lead", "customerName phone serviceNeeded urgency status serviceEligibility")
-        .populate("conversation", "customerPhone customerName status");
-    } catch (error) {
-      safeConsole.error("Error updating call log by providerCallId:", error);
-      throw error;
-    }
-  }
+  static async getLeadByBusinessAndPhone(...args) { return __meekcallGetDbleads1Methods().getLeadByBusinessAndPhone.apply(this, args); }
+  static async getConversationByBusinessAndPhone(...args) { return __meekcallGetDbconversations1Methods().getConversationByBusinessAndPhone.apply(this, args); }
+  static async updateCallLogByProviderCallId(...args) { return __meekcallGetDbcalls1Methods().updateCallLogByProviderCallId.apply(this, args); }
   // ----- Dashboard methods -----
 
-  static async getDashboardMetrics({
-    Business,
-    Lead,
-    CallLog,
-    Conversation,
-    Message,
-    ownerId,
-    businessId,
-  }) {
-    try {
-      const businessQuery = businessId
-        ? { _id: businessId, owner: ownerId }
-        : { owner: ownerId };
-
-      const business = await Business.findOne(businessQuery)
-        .select(
-          "_id businessName businessType phone estimatedJobValue features owner",
-        )
-        .lean();
-
-      if (!business) {
-        return null;
-      }
-
-      const scopedBusinessId = business._id;
-      const missedCallStatuses = ["missed", "no_answer", "busy", "failed"];
-
-      const [callResults, leadResults, conversationResults, messageResults] =
-        await Promise.all([
-          CallLog.aggregate([
-            {
-              $match: {
-                business: scopedBusinessId,
-              },
-            },
-            {
-              $group: {
-                _id: null,
-                totalCalls: { $sum: 1 },
-                missedCalls: {
-                  $sum: {
-                    $cond: [{ $in: ["$status", missedCallStatuses] }, 1, 0],
-                  },
-                },
-                answeredCalls: {
-                  $sum: {
-                    $cond: [{ $eq: ["$status", "answered"] }, 1, 0],
-                  },
-                },
-                recoveredCalls: {
-                  $sum: {
-                    $cond: [{ $eq: ["$recovered", true] }, 1, 0],
-                  },
-                },
-              },
-            },
-          ]),
-
-          Lead.aggregate([
-            {
-              $match: {
-                business: scopedBusinessId,
-              },
-            },
-            {
-              $group: {
-                _id: null,
-                totalLeads: { $sum: 1 },
-                newLeads: {
-                  $sum: {
-                    $cond: [{ $eq: ["$status", "new"] }, 1, 0],
-                  },
-                },
-                contactedLeads: {
-                  $sum: {
-                    $cond: [{ $eq: ["$status", "contacted"] }, 1, 0],
-                  },
-                },
-                bookedLeads: {
-                  $sum: {
-                    $cond: [{ $eq: ["$status", "booked"] }, 1, 0],
-                  },
-                },
-                lostLeads: {
-                  $sum: {
-                    $cond: [{ $eq: ["$status", "lost"] }, 1, 0],
-                  },
-                },
-                spamLeads: {
-                  $sum: {
-                    $cond: [{ $eq: ["$status", "spam"] }, 1, 0],
-                  },
-                },
-                bookedRevenue: {
-                  $sum: {
-                    $cond: [
-                      { $eq: ["$status", "booked"] },
-                      { $ifNull: [verifiedAmountExpression, 0] },
-                      0,
-                    ],
-                  },
-                },
-                recoveredRevenue: {
-                  $sum: {
-                    $cond: [
-                      {
-                        $and: [
-                          { $eq: ["$status", "booked"] },
-                          { $in: ["$source", ["missed_call", "sms"]] },
-                        ],
-                      },
-                      { $ifNull: [verifiedAmountExpression, 0] },
-                      0,
-                    ],
-                  },
-                },
-              },
-            },
-          ]),
-
-          Conversation.aggregate([
-            {
-              $match: {
-                business: scopedBusinessId,
-              },
-            },
-            {
-              $group: {
-                _id: null,
-                activeConversations: {
-                  $sum: {
-                    $cond: [{ $eq: ["$status", "open"] }, 1, 0],
-                  },
-                },
-                closedConversations: {
-                  $sum: {
-                    $cond: [{ $eq: ["$status", "closed"] }, 1, 0],
-                  },
-                },
-                archivedConversations: {
-                  $sum: {
-                    $cond: [{ $eq: ["$status", "archived"] }, 1, 0],
-                  },
-                },
-              },
-            },
-          ]),
-
-          Message.aggregate([
-            {
-              $match: {
-                business: scopedBusinessId,
-              },
-            },
-            {
-              $group: {
-                _id: null,
-                totalMessages: { $sum: 1 },
-                smsSent: {
-                  $sum: {
-                    $cond: [
-                      {
-                        $and: [
-                          { $eq: ["$direction", "outbound"] },
-                          { $ne: [{ $ifNull: ["$providerMessageId", ""] }, ""] },
-                        ],
-                      },
-                      1,
-                      0,
-                    ],
-                  },
-                },
-                smsDelivered: {
-                  $sum: {
-                    $cond: [
-                      { $and: [{ $eq: ["$direction", "outbound"] }, { $eq: ["$status", "delivered"] }] },
-                      1,
-                      0,
-                    ],
-                  },
-                },
-                smsFailed: {
-                  $sum: {
-                    $cond: [
-                      { $and: [{ $eq: ["$direction", "outbound"] }, { $in: ["$status", ["failed", "undelivered"]] }] },
-                      1,
-                      0,
-                    ],
-                  },
-                },
-                smsSegments: {
-                  $sum: {
-                    $cond: [
-                      { $eq: ["$direction", "outbound"] },
-                      { $ifNull: ["$segmentCount", 1] },
-                      0,
-                    ],
-                  },
-                },
-                smsReceived: {
-                  $sum: {
-                    $cond: [{ $eq: ["$direction", "inbound"] }, 1, 0],
-                  },
-                },
-              },
-            },
-          ]),
-        ]);
-
-      const callMetrics = callResults[0] || {
-        totalCalls: 0,
-        missedCalls: 0,
-        answeredCalls: 0,
-        recoveredCalls: 0,
-      };
-
-      const leadMetrics = leadResults[0] || {
-        totalLeads: 0,
-        newLeads: 0,
-        contactedLeads: 0,
-        bookedLeads: 0,
-        lostLeads: 0,
-        spamLeads: 0,
-        bookedRevenue: 0,
-        recoveredRevenue: 0,
-      };
-
-      const conversationMetrics = conversationResults[0] || {
-        activeConversations: 0,
-        closedConversations: 0,
-        archivedConversations: 0,
-      };
-
-      const messageMetrics = messageResults[0] || {
-        totalMessages: 0,
-        smsSent: 0,
-        smsDelivered: 0,
-        smsFailed: 0,
-        smsSegments: 0,
-        smsReceived: 0,
-      };
-
-      const missedCallRecoveryRate =
-        callMetrics.missedCalls > 0
-          ? Math.round(
-              (callMetrics.recoveredCalls / callMetrics.missedCalls) * 100,
-            )
-          : 0;
-
-      const bookingRate =
-        leadMetrics.totalLeads > 0
-          ? Math.round((leadMetrics.bookedLeads / leadMetrics.totalLeads) * 100)
-          : 0;
-
-      return {
-        business: {
-          _id: business._id,
-          businessName: business.businessName,
-          businessType: business.businessType,
-          phone: business.phone,
-          estimatedJobValue: business.estimatedJobValue,
-          features: business.features || {},
-        },
-
-        calls: {
-          totalCalls: callMetrics.totalCalls,
-          missedCalls: callMetrics.missedCalls,
-          answeredCalls: callMetrics.answeredCalls,
-          recoveredCalls: callMetrics.recoveredCalls,
-          missedCallRecoveryRate,
-        },
-
-        leads: {
-          totalLeads: leadMetrics.totalLeads,
-          newLeads: leadMetrics.newLeads,
-          contactedLeads: leadMetrics.contactedLeads,
-          bookedLeads: leadMetrics.bookedLeads,
-          lostLeads: leadMetrics.lostLeads,
-          spamLeads: leadMetrics.spamLeads,
-          bookingRate,
-        },
-
-        conversations: {
-          activeConversations: conversationMetrics.activeConversations,
-          closedConversations: conversationMetrics.closedConversations,
-          archivedConversations: conversationMetrics.archivedConversations,
-          totalConversations:
-            conversationMetrics.activeConversations +
-            conversationMetrics.closedConversations +
-            conversationMetrics.archivedConversations,
-        },
-
-        messages: {
-          smsSent: messageMetrics.smsSent,
-          smsDelivered: messageMetrics.smsDelivered,
-          smsFailed: messageMetrics.smsFailed,
-          smsSegments: messageMetrics.smsSegments,
-          smsReceived: messageMetrics.smsReceived,
-          totalMessages: messageMetrics.totalMessages,
-          deliveryRate:
-            messageMetrics.smsSent > 0
-              ? Math.round((messageMetrics.smsDelivered / messageMetrics.smsSent) * 100)
-              : 0,
-        },
-
-        revenue: {
-          bookedRevenue: leadMetrics.bookedRevenue,
-          recoveredRevenue: leadMetrics.recoveredRevenue,
-        },
-      };
-    } catch (error) {
-      safeConsole.error("Error getting dashboard metrics:", error);
-      throw error;
-    }
-  }
+  static async getDashboardMetrics(...args) { return __meekcallGetDbreporting1Methods().getDashboardMetrics.apply(this, args); }
   static async getLeadForBusiness(model, leadId, businessId) {
     try {
       return await model.findOne({
@@ -1378,22 +370,7 @@ class Db {
       throw error;
     }
   }
-  static async qualifyLead(model, leadId, data) {
-    try {
-      return await model
-        .findByIdAndUpdate(leadId, data, {
-          returnDocument: "after",
-          runValidators: true,
-        })
-        .populate(
-          "business",
-          "businessName businessType phone estimatedJobValue",
-        );
-    } catch (error) {
-      safeConsole.error("Error qualifying lead:", error);
-      throw error;
-    }
-  }
+  static async qualifyLead(...args) { return __meekcallGetDbleads1Methods().qualifyLead.apply(this, args); }
   // ----- Alert methods -----
 
   static async saveAlert(model, data) {
@@ -1406,167 +383,19 @@ class Db {
     }
   }
 
-  static async getAlertsByBusiness(model, businessId) {
-    try {
-      return await model
-        .find({ business: businessId })
-        .sort({ createdAt: -1 })
-        .populate("business", "businessName businessType phone")
-        .populate("lead", "customerName phone serviceNeeded urgency status serviceEligibility")
-        .lean();
-    } catch (error) {
-      safeConsole.error("Error fetching alerts by business:", error);
-      throw error;
-    }
-  }
-  static async getUnreadAlertsByBusiness(model, businessId) {
-    try {
-      return await model
-        .find({
-          business: businessId,
-          readAt: null,
-        })
-        .sort({ createdAt: -1 })
-        .populate("business", "businessName businessType phone")
-        .populate("lead", "customerName phone serviceNeeded urgency status serviceEligibility")
-        .lean();
-    } catch (error) {
-      safeConsole.error("Error fetching unread alerts:", error);
-      throw error;
-    }
-  }
-  static async getAlertById(model, id) {
-    try {
-      return await model
-        .findById(id)
-        .populate("business", "businessName businessType phone")
-        .populate("lead", "customerName phone serviceNeeded urgency status serviceEligibility");
-    } catch (error) {
-      safeConsole.error("Error fetching alert by ID:", error);
-      throw error;
-    }
-  }
-  static async getAlertForBusiness(model, id, businessId) {
-    try {
-      return await model
-        .findOne({
-          _id: id,
-          business: businessId,
-        })
-        .populate("business", "businessName businessType phone")
-        .populate("lead", "customerName phone serviceNeeded urgency status serviceEligibility");
-    } catch (error) {
-      safeConsole.error("Error fetching alert for business:", error);
-      throw error;
-    }
-  }
-  static async updateAlert(model, id, data) {
-    try {
-      return await model
-        .findByIdAndUpdate(id, data, {
-          returnDocument: "after",
-          runValidators: true,
-        })
-        .populate("business", "businessName businessType phone")
-        .populate("lead", "customerName phone serviceNeeded urgency status serviceEligibility");
-    } catch (error) {
-      safeConsole.error("Error updating alert:", error);
-      throw error;
-    }
-  }
+  static async getAlertsByBusiness(...args) { return __meekcallGetDbalerts1Methods().getAlertsByBusiness.apply(this, args); }
+  static async getUnreadAlertsByBusiness(...args) { return __meekcallGetDbalerts1Methods().getUnreadAlertsByBusiness.apply(this, args); }
+  static async getAlertById(...args) { return __meekcallGetDbalerts1Methods().getAlertById.apply(this, args); }
+  static async getAlertForBusiness(...args) { return __meekcallGetDbalerts1Methods().getAlertForBusiness.apply(this, args); }
+  static async updateAlert(...args) { return __meekcallGetDbalerts1Methods().updateAlert.apply(this, args); }
 
-  static async updateAlertForBusiness(model, id, businessId, data) {
-    try {
-      return await model
-        .findOneAndUpdate(
-          {
-            _id: id,
-            business: businessId,
-          },
-          data,
-          {
-            returnDocument: "after",
-            runValidators: true,
-          },
-        )
-        .populate("business", "businessName businessType phone")
-        .populate("lead", "customerName phone serviceNeeded urgency status serviceEligibility");
-    } catch (error) {
-      safeConsole.error("Error updating alert for business:", error);
-      throw error;
-    }
-  }
+  static async updateAlertForBusiness(...args) { return __meekcallGetDbalerts1Methods().updateAlertForBusiness.apply(this, args); }
 
-  static async markAlertAsRead(model, id) {
-    try {
-      return await model
-        .findByIdAndUpdate(
-          id,
-          {
-            $set: {
-              status: "read",
-              readAt: new Date(),
-            },
-          },
-          {
-            returnDocument: "after",
-            runValidators: true,
-          },
-        )
-        .populate("business", "businessName businessType phone")
-        .populate("lead", "customerName phone serviceNeeded urgency status serviceEligibility");
-    } catch (error) {
-      safeConsole.error("Error marking alert as read:", error);
-      throw error;
-    }
-  }
+  static async markAlertAsRead(...args) { return __meekcallGetDbalerts1Methods().markAlertAsRead.apply(this, args); }
 
-  static async markAlertAsReadForBusiness(model, id, businessId) {
-    try {
-      return await model
-        .findOneAndUpdate(
-          {
-            _id: id,
-            business: businessId,
-          },
-          {
-            $set: {
-              status: "read",
-              readAt: new Date(),
-            },
-          },
-          {
-            returnDocument: "after",
-            runValidators: true,
-          },
-        )
-        .populate("business", "businessName businessType phone")
-        .populate("lead", "customerName phone serviceNeeded urgency status serviceEligibility");
-    } catch (error) {
-      safeConsole.error("Error marking business alert as read:", error);
-      throw error;
-    }
-  }
+  static async markAlertAsReadForBusiness(...args) { return __meekcallGetDbalerts1Methods().markAlertAsReadForBusiness.apply(this, args); }
 
-  static async markAllAlertsAsRead(model, businessId, readAt = new Date()) {
-    try {
-      return await model.updateMany(
-        {
-          business: businessId,
-          readAt: null,
-        },
-        {
-          $set: {
-            status: "read",
-            readAt,
-          },
-        },
-      );
-    } catch (error) {
-      safeConsole.error("Error marking all alerts as read:", error);
-      throw error;
-    }
-  }
+  static async markAllAlertsAsRead(...args) { return __meekcallGetDbalerts1Methods().markAllAlertsAsRead.apply(this, args); }
 
   static async deleteAlert(model, id) {
     try {
@@ -1640,21 +469,7 @@ class Db {
 
   // ----- Admin methods -----
 
-  static async adminUpdateBusinessStatus({ Business, businessId, isActive }) {
-    try {
-      return await Business.findByIdAndUpdate(
-        businessId,
-        { isActive },
-        {
-          returnDocument: "after",
-          runValidators: true,
-        },
-      ).populate("owner", "userName email role");
-    } catch (error) {
-      safeConsole.error("Error updating business status as admin:", error);
-      throw error;
-    }
-  }
+  static async adminUpdateBusinessStatus(...args) { return __meekcallGetDbbusiness1Methods().adminUpdateBusinessStatus.apply(this, args); }
 
   static async createAdminActionLog(AdminActionLog, payload) {
     try {
@@ -1668,37 +483,9 @@ class Db {
 
   // ----- Trial Redemption methods -----
 
-  static async findTrialRedemption(model, { ownerId, emailKey, phoneKey }) {
-    try {
-      const conditions = [];
+  static async findTrialRedemption(...args) { return __meekcallGetDbtrial1Methods().findTrialRedemption.apply(this, args); }
 
-      if (ownerId) conditions.push({ owner: ownerId });
-      if (emailKey) conditions.push({ emailKey });
-      if (phoneKey) conditions.push({ phoneKey });
-
-      if (!conditions.length) return null;
-
-      return await model.findOne({ $or: conditions }).lean();
-    } catch (error) {
-      safeConsole.error("Error finding trial redemption:", error);
-      throw error;
-    }
-  }
-
-  static async createTrialRedemption(model, data) {
-    try {
-      const redemption = new model(data);
-      return await redemption.save();
-    } catch (error) {
-      if (error?.code === 11000) {
-        // Surface duplicate-key so the caller can return a clean 400.
-        error.isDuplicateTrial = true;
-      }
-
-      safeConsole.error("Error creating trial redemption:", error);
-      throw error;
-    }
-  }
+  static async createTrialRedemption(...args) { return __meekcallGetDbtrial1Methods().createTrialRedemption.apply(this, args); }
 
   static async deleteTrialRedemptionsForBusiness(model, businessId) {
     try {
@@ -1739,17 +526,7 @@ class Db {
     }
   }
 
-  static async updateDemoRequest(model, id, data) {
-    try {
-      return await model.findByIdAndUpdate(id, data, {
-        returnDocument: "after",
-        runValidators: true,
-      });
-    } catch (error) {
-      safeConsole.error("Error updating demo request:", error);
-      throw error;
-    }
-  }
+  static async updateDemoRequest(...args) { return __meekcallGetDbdemo1Methods().updateDemoRequest.apply(this, args); }
 
   static async deleteDemoRequest(model, id) {
     try {
@@ -1759,43 +536,9 @@ class Db {
       throw error;
     }
   }
-  static async getConversationIntelligenceByConversation(
-    ConversationIntelligence,
-    conversationId,
-  ) {
-    return ConversationIntelligence.findOne({
-      conversation: conversationId,
-    })
-      .populate({
-        path: "conversation",
-        select: CONVERSATION_INTELLIGENCE_CONVERSATION_FIELDS,
-      })
-      .populate({
-        path: "lead",
-        select: CONVERSATION_INTELLIGENCE_LEAD_FIELDS,
-      })
-      .lean();
-  }
+  static async getConversationIntelligenceByConversation(...args) { return __meekcallGetDbintelligence1Methods().getConversationIntelligenceByConversation.apply(this, args); }
 
-  static async getConversationIntelligenceForBusinessByConversation(
-    ConversationIntelligence,
-    conversationId,
-    businessId,
-  ) {
-    return ConversationIntelligence.findOne({
-      conversation: conversationId,
-      business: businessId,
-    })
-      .populate({
-        path: "conversation",
-        select: CONVERSATION_INTELLIGENCE_CONVERSATION_FIELDS,
-      })
-      .populate({
-        path: "lead",
-        select: CONVERSATION_INTELLIGENCE_LEAD_FIELDS,
-      })
-      .lean();
-  }
+  static async getConversationIntelligenceForBusinessByConversation(...args) { return __meekcallGetDbintelligence1Methods().getConversationIntelligenceForBusinessByConversation.apply(this, args); }
   static async getConversationIntelligenceDocument(
     ConversationIntelligence,
     conversationId,
@@ -1805,203 +548,13 @@ class Db {
     });
   }
 
-  static async getConversationIntelligenceByBusiness(
-    ConversationIntelligence,
-    businessId,
-    filters = {},
-  ) {
-    const {
-      status,
-      minimumScore,
-      urgency,
-      actionCompleted,
-      page = 1,
-      limit = 25,
-    } = filters;
+  static async getConversationIntelligenceByBusiness(...args) { return __meekcallGetDbintelligence1Methods().getConversationIntelligenceByBusiness.apply(this, args); }
+  static async getConversationIntelligenceOpportunities(...args) { return __meekcallGetDbintelligence1Methods().getConversationIntelligenceOpportunities.apply(this, args); }
+  static async saveConversationIntelligence(...args) { return __meekcallGetDbintelligence1Methods().saveConversationIntelligence.apply(this, args); }
 
-    const query = {
-      business: businessId,
-    };
+  static async updateConversationIntelligence(...args) { return __meekcallGetDbintelligence1Methods().updateConversationIntelligence.apply(this, args); }
 
-    if (status) {
-      query.status = status;
-    }
-
-    if (minimumScore !== undefined) {
-      query["buyingLikelihood.score"] = {
-        $gte: minimumScore,
-      };
-    }
-
-    if (urgency) {
-      query["urgency.level"] = urgency;
-    }
-
-    if (actionCompleted !== undefined) {
-      query["nextBestAction.completed"] = actionCompleted;
-    }
-
-    const skip = (page - 1) * limit;
-
-    const [records, total] = await Promise.all([
-      ConversationIntelligence.find(query)
-        .populate({
-          path: "conversation",
-          select: CONVERSATION_INTELLIGENCE_CONVERSATION_FIELDS,
-        })
-        .populate({
-          path: "lead",
-          select: CONVERSATION_INTELLIGENCE_LEAD_FIELDS,
-        })
-        .sort({
-          "urgency.score": -1,
-          "buyingLikelihood.score": -1,
-          "estimatedRevenue.likely": -1,
-          updatedAt: -1,
-        })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-
-      ConversationIntelligence.countDocuments(query),
-    ]);
-
-    return {
-      records,
-      pagination: {
-        page,
-        limit,
-        total,
-        pages: Math.ceil(total / limit),
-      },
-    };
-  }
-  static async getConversationIntelligenceOpportunities(
-    ConversationIntelligence,
-    businessId,
-    filters = {},
-  ) {
-    const {
-      minimumScore = 70,
-      minimumRevenue = 0,
-      urgency,
-      actionCompleted,
-      page = 1,
-      limit = 25,
-    } = filters;
-
-    const query = {
-      business: businessId,
-      status: "completed",
-      "buyingLikelihood.score": {
-        $gte: minimumScore,
-      },
-      "estimatedRevenue.likely": {
-        $gte: minimumRevenue,
-      },
-    };
-
-    if (urgency?.length) {
-      query["urgency.level"] = {
-        $in: urgency,
-      };
-    }
-
-    if (actionCompleted !== undefined) {
-      query["nextBestAction.completed"] = actionCompleted;
-    }
-
-    const skip = (page - 1) * limit;
-
-    const [records, total] = await Promise.all([
-      ConversationIntelligence.find(query)
-        .populate({
-          path: "conversation",
-          select: CONVERSATION_INTELLIGENCE_CONVERSATION_FIELDS,
-        })
-        .populate({
-          path: "lead",
-          select: CONVERSATION_INTELLIGENCE_LEAD_FIELDS,
-        })
-        .sort({
-          "urgency.score": -1,
-          "buyingLikelihood.score": -1,
-          "appointmentProbability.score": -1,
-          "estimatedRevenue.likely": -1,
-        })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-
-      ConversationIntelligence.countDocuments(query),
-    ]);
-
-    return {
-      records,
-      pagination: {
-        page,
-        limit,
-        total,
-        pages: Math.ceil(total / limit),
-      },
-    };
-  }
-  static async saveConversationIntelligence(ConversationIntelligence, payload) {
-    return ConversationIntelligence.findOneAndUpdate(
-      {
-        conversation: payload.conversation,
-      },
-      {
-        $set: payload,
-      },
-      {
-        returnDocument: "after",
-        upsert: true,
-        runValidators: true,
-        setDefaultsOnInsert: true,
-      },
-    );
-  }
-
-  static async updateConversationIntelligence(
-    ConversationIntelligence,
-    conversationId,
-    updates,
-  ) {
-    return ConversationIntelligence.findOneAndUpdate(
-      {
-        conversation: conversationId,
-      },
-      {
-        $set: updates,
-      },
-      {
-        returnDocument: "after",
-        runValidators: true,
-      },
-    );
-  }
-
-  static async updateConversationIntelligenceForBusiness(
-    ConversationIntelligence,
-    conversationId,
-    businessId,
-    updates,
-  ) {
-    return ConversationIntelligence.findOneAndUpdate(
-      {
-        conversation: conversationId,
-        business: businessId,
-      },
-      {
-        $set: updates,
-      },
-      {
-        returnDocument: "after",
-        runValidators: true,
-      },
-    );
-  }
+  static async updateConversationIntelligenceForBusiness(...args) { return __meekcallGetDbintelligence1Methods().updateConversationIntelligenceForBusiness.apply(this, args); }
 
   static async deleteConversationIntelligence(
     ConversationIntelligence,
@@ -2023,101 +576,7 @@ class Db {
     });
   }
 
-  static async getConversationIntelligenceDashboard(
-    ConversationIntelligence,
-    businessId,
-  ) {
-    const results = await ConversationIntelligence.aggregate([
-      {
-        $match: {
-          business: businessId,
-          status: "completed",
-        },
-      },
-      {
-        $group: {
-          _id: null,
-
-          totalAnalyzed: {
-            $sum: 1,
-          },
-
-          highIntentLeads: {
-            $sum: {
-              $cond: [
-                {
-                  $gte: ["$buyingLikelihood.score", 80],
-                },
-                1,
-                0,
-              ],
-            },
-          },
-
-          urgentLeads: {
-            $sum: {
-              $cond: [
-                {
-                  $in: ["$urgency.level", ["high", "emergency"]],
-                },
-                1,
-                0,
-              ],
-            },
-          },
-
-          estimatedPipelineValue: {
-            $sum: "$estimatedRevenue.likely",
-          },
-
-          averageBuyingLikelihood: {
-            $avg: "$buyingLikelihood.score",
-          },
-
-          averageAppointmentProbability: {
-            $avg: "$appointmentProbability.score",
-          },
-
-          likelyAppointments: {
-            $sum: {
-              $cond: [
-                {
-                  $gte: ["$appointmentProbability.score", 70],
-                },
-                1,
-                0,
-              ],
-            },
-          },
-
-          pendingActions: {
-            $sum: {
-              $cond: [
-                {
-                  $eq: ["$nextBestAction.completed", false],
-                },
-                1,
-                0,
-              ],
-            },
-          },
-        },
-      },
-    ]);
-
-    return (
-      results[0] || {
-        totalAnalyzed: 0,
-        highIntentLeads: 0,
-        urgentLeads: 0,
-        estimatedPipelineValue: 0,
-        averageBuyingLikelihood: 0,
-        averageAppointmentProbability: 0,
-        likelyAppointments: 0,
-        pendingActions: 0,
-      }
-    );
-  }
+  static async getConversationIntelligenceDashboard(...args) { return __meekcallGetDbintelligence1Methods().getConversationIntelligenceDashboard.apply(this, args); }
 }
 
 export default Db;
