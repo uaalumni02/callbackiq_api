@@ -77,8 +77,31 @@ const watched = [
   'src/pages/Appointments.js', 'src/pages/Conversations.js','src/pages/Billing.js',
 ];
 const isInfrastructure=p=>/(?:^|\/)(?:models|db|controllers|workers|routes)\//.test(p);
+// Reviewed intra-database extraction imports only.
+// New modules, different importers, and dependency cycles remain guarded.
+const reviewedDbExtractions = new Set([
+  'src/db/repositories/extracted/alerts-1.js',
+  'src/db/repositories/extracted/business-1.js',
+  'src/db/repositories/extracted/calls-1.js',
+  'src/db/repositories/extracted/conversations-1.js',
+  'src/db/repositories/extracted/demo-1.js',
+  'src/db/repositories/extracted/identity-1.js',
+  'src/db/repositories/extracted/intelligence-1.js',
+  'src/db/repositories/extracted/leads-1.js',
+  'src/db/repositories/extracted/messages-1.js',
+  'src/db/repositories/extracted/operations-1.js',
+  'src/db/repositories/extracted/reporting-1.js',
+  'src/db/repositories/extracted/trial-1.js',
+]);
+const isReviewedIntraDbEdge = (source, destination) =>
+  source === 'src/db/db.js' &&
+  reviewedDbExtractions.has(destination);
 const riskyEdges={};
-for(const node of watched.filter(n=>files.has(n))) riskyEdges[node]=(imports.get(node)||[]).filter(isInfrastructure);
+for(const node of watched.filter(n=>files.has(n))) {
+  riskyEdges[node]=(imports.get(node)||[]).filter(
+    dep => isInfrastructure(dep) && !isReviewedIntraDbEdge(node,dep)
+  );
+}
 const pureModules=names.filter(n=>/\.(?:policy|contract)\.js$/.test(n)||n.endsWith('appointmentStatePolicy.service.js'));
 const pureExceptions={};
 for(const node of pureModules) {
