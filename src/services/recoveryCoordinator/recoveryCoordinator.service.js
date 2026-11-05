@@ -1,10 +1,11 @@
 import crypto from 'node:crypto';
+import { linked, caseFor, requireOwnedReview } from './recoveryScope.repository.js';
+import { isPilotBusiness } from './recoveryPilotPolicy.js';
 import mongoose from 'mongoose';
 import RecoveryCase from '../../models/recoveryCase.js';
 import RecoveryEvent from '../../models/recoveryEvent.js';
 import Conversation from '../../models/conversation.js';
 import Lead from '../../models/lead.js';
-import Alert from '../../models/alert.js';
 import Appointment from '../../models/appointment.js';
 import AppointmentNotificationJob from '../../models/appointmentNotificationJob.js';
 import ServiceOffering from '../../models/serviceOffering.js';
@@ -17,24 +18,10 @@ const str = value => String(value?._id || value || '');
 const isId = value => mongoose.isObjectIdOrHexString(str(value));
 const conflict = message => contractError(message, 'RECOVERY_CONFLICT', 409);
 const enabled = () => process.env.MEEKCALL_RECOVERY_COORDINATOR_ENABLED === 'true';
-export const isPilotBusiness = businessId => String(process.env.MEEKCALL_RECOVERY_PILOT_BUSINESS_IDS || '')
-  .split(',').map(value => value.trim()).filter(Boolean).includes(str(businessId));
+export { isPilotBusiness } from './recoveryPilotPolicy.js';
 const writeThroughEnabled = () => process.env.MEEKCALL_RECOVERY_WRITE_THROUGH === 'true';
 export function requireCoordinatorEnabled(businessId) {
   if (!enabled() || !isPilotBusiness(businessId)) throw contractError('Not found.', 'RECOVERY_DISABLED', 404);
-}
-async function linked(businessId, conversationId, session = null) {
-  if (!isId(conversationId)) throw contractError('Invalid conversation ID.');
-  const conversation = await Conversation.findOne({ _id: conversationId, business: businessId }).session(session).lean();
-  if (!conversation || !isId(conversation.lead)) throw contractError('Active conversation and linked lead required.', 'RECOVERY_NOT_FOUND', 404);
-  const lead = await Lead.findOne({ _id: conversation.lead, business: businessId }).session(session).lean();
-  if (!lead) throw contractError('Lead does not belong to this business.', 'RECOVERY_NOT_FOUND', 404);
-  return { conversation, lead };
-}
-async function caseFor(businessId, conversationId, session = null) {
-  const record = await RecoveryCase.findOne({business: businessId, conversation: conversationId, generation: 1}).session(session).lean();
-  if (!record) throw contractError('Recovery record not initialized. Use Load recovery review.', 'RECOVERY_NOT_FOUND', 404);
-  return record;
 }
 // This is a server-scoped adapter. Never take authoritative customer facts from a browser.
 export async function initializeRecoveryCase({businessId,conversationId}) {
@@ -63,19 +50,6 @@ export async function readRecoveryCase({businessId,conversationId}) {
   return {case:record, appointment:appointment||null, notification:notification||null,
     capabilities:{factsEditable:writeThroughEnabled(),bookingDecisionEnforced:process.env.MEEKCALL_RECOVERY_REQUIRE_SERVICE_DECISION==='true'},
     note:'The appointment collection, not this recovery case, determines whether a booking is confirmed. Notification delivery is separately verified.'};
-}
-async function requireOwnedReview({businessId,conversationId,leadId,userId,session}) {
-  const conversation = await Conversation.findOne({_id:conversationId,business:businessId,lead:leadId,humanTakeover:true}).session(session).lean();
-  if (!conversation) throw conflict('Accept the request and pause AI before editing or deciding service eligibility.');
-  // An unrelated safety or delivery exception does not grant service-approval rights.
-  const alert = await Alert.findOne({business:businessId,conversation:conversationId,lead:leadId,
-    actionRequired:true,resolvedAt:null,acknowledgedAt:{$ne:null},assignedTo:userId,
-    $or:[{type:'human_requested',dedupeKey:/^(ai_review|human_handoff|request_review):/},
-      {type:'system','metadata.serviceEligibilityReason':{$exists:true}},
-      {type:'system','metadata.additionalRequest':{$exists:true}}]})
-    .session(session).select('_id').lean();
-  if (!alert) throw conflict('No active staff review exists; reconcile the review rather than bypassing it.');
-  return conversation;
 }
 export async function applyRecoveryOperation({businessId,conversationId,userId,version,operationId,action,payload}) {
   requireCoordinatorEnabled(businessId);

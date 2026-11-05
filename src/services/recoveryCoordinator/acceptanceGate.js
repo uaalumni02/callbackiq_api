@@ -1,11 +1,12 @@
 import crypto from 'node:crypto';
 import RecoveryCase from '../../models/recoveryCase.js';
 import {contractError} from './contract.js';
+import { isPilotBusiness } from './recoveryPilotPolicy.js';
 export const fingerprintRequest = value => crypto.createHash('sha256').update(JSON.stringify({request:String(value||'').trim()})).digest('hex');
 // Staged gate only applies to cases explicitly initialized for this tenant;
 // legacy customers retain their existing safety boundary during migration.
 export async function assertRecoveryCaseAcceptance({businessId,leadId,conversationId,serviceOfferingId,actualRequest}) {
-  const piloted = String(process.env.MEEKCALL_RECOVERY_PILOT_BUSINESS_IDS || '').split(',').map(s=>s.trim()).includes(String(businessId));
+  const piloted = isPilotBusiness(businessId);
   if (process.env.MEEKCALL_RECOVERY_REQUIRE_SERVICE_DECISION !== 'true' || !piloted || (!conversationId && !leadId)) return;
   if (!conversationId) {
     // For pilot leads, a lead-only booking cannot avoid a recorded decision.
