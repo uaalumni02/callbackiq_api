@@ -281,7 +281,7 @@ function __meekcallGetAppointmentcreate1Methods() {
 
 let __meekcallAppointmentconfirm1Cache;
 function __meekcallGetAppointmentconfirm1Methods() {
-  if (!__meekcallAppointmentconfirm1Cache) __meekcallAppointmentconfirm1Cache = createAppointmentconfirm1Methods({ Conversation, InterventionService, Lead, SchedulingProviderFactory, ServiceOffering, SocketService, assertDistributedLeaseActive, assertServiceRequestEligible, assertTransition, ensureBusinessApprovalNotice, exactSlotAvailable, getAppointmentForBusiness, lifecycleMarker, preservePendingApprovalOnAvailabilityConflict, projectionMarker, resolveApprovalReview, runNonBlockingAppointmentSideEffect, scheduleAppointmentReminders, tryRepairAppointmentLifecycle, tryRepairAppointmentProjections });
+  if (!__meekcallAppointmentconfirm1Cache) __meekcallAppointmentconfirm1Cache = createAppointmentconfirm1Methods({ Conversation, InterventionService, Lead, SchedulingProviderFactory, ServiceOffering, SocketService, assertDistributedLeaseActive, assertServiceRequestEligible, assertTransition, ensureBusinessApprovalNotice, exactSlotAvailable, getAppointmentForBusiness, lifecycleMarker, preservePendingApprovalOnAvailabilityConflict, projectionMarker, resolveApprovalReview, runNonBlockingAppointmentSideEffect, scheduleAppointmentReminders, tryRepairAppointmentLifecycle, tryRepairAppointmentProjections, safeConsole });
   return __meekcallAppointmentconfirm1Cache;
 }
 
