@@ -1,6 +1,22 @@
 /* Source-exact AppointmentService extraction. Preserve order and outcome contracts. */
 export function createAppointmentconfirm1Methods(deps) {
-  const { Conversation, InterventionService, Lead, SchedulingProviderFactory, ServiceOffering, SocketService, assertDistributedLeaseActive, assertServiceRequestEligible, assertTransition, ensureBusinessApprovalNotice, exactSlotAvailable, getAppointmentForBusiness, lifecycleMarker, preservePendingApprovalOnAvailabilityConflict, projectionMarker, resolveApprovalReview, runNonBlockingAppointmentSideEffect, scheduleAppointmentReminders, tryRepairAppointmentLifecycle, tryRepairAppointmentProjections } = deps;
+  const { Conversation, InterventionService, Lead, SchedulingProviderFactory, ServiceOffering, SocketService, assertDistributedLeaseActive, assertServiceRequestEligible, assertTransition, ensureBusinessApprovalNotice, exactSlotAvailable, getAppointmentForBusiness, lifecycleMarker, preservePendingApprovalOnAvailabilityConflict, projectionMarker, resolveApprovalReview, runNonBlockingAppointmentSideEffect, scheduleAppointmentReminders, tryRepairAppointmentLifecycle, tryRepairAppointmentProjections, safeConsole } = deps;
+  // Once MongoDB has saved status=confirmed, these effects must not turn the booking into an HTTP failure.
+  // Keep logs structured and tenant-scoped; the existing intervention is our durable human recovery record.
+  const logCommittedEffectFailure = (effect, error, appointment, business) => {
+    try {
+      safeConsole.error('appointment.confirm.post_commit_effect_failed', {
+        businessId: String(business?._id || ''),
+        appointmentId: String(appointment?._id || ''),
+        effect,
+        error: String(error?.message || error).slice(0, 300),
+      });
+    } catch { /* Logging must not undo a committed booking. */ }
+  };
+  const safelyAfterCommit = async (effect, work, appointment, business) => {
+    try { return await work(); }
+    catch (error) { logCommittedEffectFailure(effect, error, appointment, business); return null; }
+  };
   return {
 async confirm({ business, appointmentId, approvedBy = null }) {
     const appointment = await getAppointmentForBusiness(
@@ -8,7 +24,11 @@ async confirm({ business, appointmentId, approvedBy = null }) {
       appointmentId,
     );
 
-    if (appointment.status === "confirmed") { await tryRepairAppointmentLifecycle(appointment, business); await tryRepairAppointmentProjections(appointment); return appointment; }
+    if (appointment.status === "confirmed") {
+      await safelyAfterCommit("existing_lifecycle_repair", () => tryRepairAppointmentLifecycle(appointment, business), appointment, business);
+      await safelyAfterCommit("existing_projection_repair", () => tryRepairAppointmentProjections(appointment), appointment, business);
+      return appointment;
+    }
     assertTransition(appointment.status, "confirmed");
 
     if (appointment.heldExpiresAt && appointment.heldExpiresAt <= new Date()) {
@@ -153,12 +173,12 @@ async confirm({ business, appointmentId, approvedBy = null }) {
       throw error;
     }
 
-    await tryRepairAppointmentLifecycle(appointment, business);
-    await resolveApprovalReview(appointment).catch(() => {});
+    await safelyAfterCommit("lifecycle_repair", () => tryRepairAppointmentLifecycle(appointment, business), appointment, business);
+    await safelyAfterCommit("approval_review_repair", () => resolveApprovalReview(appointment), appointment, business);
     // Confirmation is durable at this point. Secondary notifications and
     // analytics must never roll the appointment back if they fail.
     if (appointment.requiresBusinessApproval || appointment.automaticConfirmationAuthorized) {
-      await runNonBlockingAppointmentSideEffect({
+      await safelyAfterCommit("approval_confirmation_notice", () => runNonBlockingAppointmentSideEffect({
         appointment,
         businessId: business._id,
         label: "business approval customer confirmation",
@@ -178,13 +198,14 @@ async confirm({ business, appointmentId, approvedBy = null }) {
             );
           }
         },
-      });
+      }), appointment, business);
     }
 
     try {
       await scheduleAppointmentReminders({ appointment });
     } catch (error) {
-      await InterventionService.create({
+      logCommittedEffectFailure("reminder_scheduling", error, appointment, business);
+      await safelyAfterCommit("reminder_failure_intervention", () => InterventionService.create({
         businessId: business._id,
         leadId: appointment.lead,
         conversationId: appointment.conversation,
@@ -199,20 +220,20 @@ async confirm({ business, appointmentId, approvedBy = null }) {
           "Confirm reminder settings and contact the customer manually if needed.",
         metadata: { provider: appointment.provider || "internal" },
         dedupeKey: `appointment_reminder_schedule:${appointment._id}`,
-      });
+      }), appointment, business);
     }
 
-    await tryRepairAppointmentProjections(appointment);
+    await safelyAfterCommit("projection_repair", () => tryRepairAppointmentProjections(appointment), appointment, business);
 
-    SocketService.emitToBusiness(
+    await safelyAfterCommit("business_socket_event", () => SocketService.emitToBusiness(
       business._id,
       "appointment:confirmed",
       appointment,
-    );
-    SocketService.emitDashboardRefresh(
+    ), appointment, business);
+    await safelyAfterCommit("dashboard_socket_refresh", () => SocketService.emitDashboardRefresh(
       business._id,
       "appointment_confirmed",
-    );
+    ), appointment, business);
     return appointment;
   }
   };

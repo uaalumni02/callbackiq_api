@@ -43,7 +43,27 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/dependency-review-action@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24.19.0"
+      - name: Private repository dependency security
+        if: github.event.repository.private
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          changes="$(git diff --name-only "$BASE_SHA" HEAD --)"
+          if printf '%s\n' "$changes" | grep -E '(^|/)(package(-lock)?\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb?|\.npmrc)$'; then
+            echo "::error::Dependency changes require separate security review."
+            exit 1
+          fi
+          npm ci
+          npm audit --omit=dev --audit-level=high
+      - name: GitHub dependency review
+        if: ${{ !github.event.repository.private }}
+        uses: actions/dependency-review-action@v4
 
   external-health:
     if: github.event_name == 'schedule' && vars.CALLBACKIQ_HEALTH_URL != ''
