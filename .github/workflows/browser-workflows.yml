@@ -16,8 +16,8 @@ jobs:
         with:
           path: api
           persist-credentials: false
-      # Use GitHub's checkout action instead of an unauthenticated raw git clone.
-      # For a private partner repository, configure a read-only cross-repository token.
+      # Public sibling repository: use the built-in read-only token by default.
+      # An optional cross-repo read token supports future private visibility.
       - name: Checkout partner repository
         uses: actions/checkout@v6
         with:
