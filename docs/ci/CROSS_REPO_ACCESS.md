@@ -1,24 +1,49 @@
-# Cross-repository browser CI access — MeekCall
+# Browser cross-repository access (public repositories)
 
-## Verified failure
+## Current status, November 5, 2026
 
-At API `e51679e1` and frontend `0ed3b566`, both browser workflows failed at `Checkout partner repository`, **before** running Playwright. The runner said `Repository not found` for the sibling checkout. Both repository metadata responses currently say `visibility=public`, which is inconsistent with assuming they are definitely private; check actual repo settings/token grants.
+Both `uaalumni02/callbackiq_api` and `uaalumni02/callbackiq_frontend` were
+verified as **public**. The earlier browser workflow failed because its
+Phase 1 change *required* `MEEKCALL_CROSS_REPO_TOKEN`, which was not set.
+The earlier checkout error occurred while repository visibility was different;
+it is not evidence that a private access credential is needed now.
 
-## Owner-only setup (no secrets in files)
+## Credential policy
 
-1. On GitHub, open **Settings → Developer settings → Personal access tokens → Fine-grained tokens**, or create a GitHub App with read-only Contents access. Restrict the credential to `uaalumni02/callbackiq_api` and `uaalumni02/callbackiq_frontend` with **Contents: Read-only**. If your GitHub account/org security policy requires approval, obtain it. Set a short expiry and maintain rotation securely.
-2. In **each repository**, open **Settings → Secrets and variables → Actions → New repository secret**. Name it exactly `MEEKCALL_CROSS_REPO_TOKEN`; paste the credential through GitHub's secret UI. Never put it in a shell history, `.env`, commit, screenshot or bug report.
-3. Review whether `vars.CALLBACKIQ_FRONTEND_REF` / `vars.CALLBACKIQ_API_REF` are set. The prepared patch preserves their existing fallback to `main`. For a development PR, prefer explicitly pinned partner commit/branch in a separate tested change to avoid cross-version drift.
-4. Open one PR per repository from `refactor/phase1-*` into `development`, allow CI to run and verify the two distinct exact SHAs recorded in the `browser-results` artifact. A successful checkout alone is insufficient: Playwright must actually run and pass.
-5. If the check fails, inspect the *Verify cross-repository checkout credential* step for a missing secret. If the actual checkout still returns 404, check token repository selection, token expiration, organization approval, repository name, and whether the runner can access both repos. Do not disable the browser job or grant write access to solve a read problem.
+The sibling checkout retains `actions/checkout@v6`, `contents: read` and
+`persist-credentials: false`, using:
 
-## Workflows preserved
+```yaml
+    token: ${{ secrets.CALLBACKIQ_CROSS_REPO_READ_TOKEN || github.token }}
+```
 
-- Existing checkout action `actions/checkout@v6` and pinned Node 24.19.0.
-- Job directories `api` and `frontend` and existing frontend build environment.
-- Playwright Chromium install and `npm run test:browser` in API project.
-- `browser-results` upload, including commit manifests when checkout succeeds.
+For public repositories no PAT is required. `github.token` is automatically
+available to the job and can read a public partner repository. The optional
+`CALLBACKIQ_CROSS_REPO_READ_TOKEN` secret becomes relevant if a sibling is made
+private later. If repository visibility changes, verify checkout permissions
+and use a fine-grained Contents: read credential (or installation token) with
+only the necessary repository access; never grant write access to fix checkout.
 
-## Risk and rollback
+The previous *mandatory* `MEEKCALL_CROSS_REPO_TOKEN` check is removed because
+it prevented public-repo browser tests from starting. This is a deliberate
+change to the workflow access contract, not a disabled test or CI job.
 
-The workflow intentionally fails early until the owner completes setup. If needed, restore from the installer backup; do not merge an intentionally red change without documented reason.
+## Validation
+
+1. Run `node scripts/meekcall-architecture-contracts.mjs` and
+   `node --test hardening-tests/phase1-cross-repo-checkout.test.mjs` in **both**
+   refactor branches.
+2. Push changes to the existing PR branches, not `main`/`development`.
+3. Verify PR CI, security and dependency-review checks; the PR's prior failed
+   runs will not turn green merely because repository visibility changed.
+4. Confirm the browser workflow checks out both repositories, records two
+   exact SHAs, installs dependencies, builds the frontend and executes Playwright.
+   A green checkout by itself is not browser E2E certification.
+5. For Dependency Review, ensure GitHub's Dependency graph is enabled in both
+   public repositories. Public visibility permits supported dependency review
+   but does not retroactively repair a failed run.
+
+## Important security consequence
+
+These repositories are now publicly readable. Review tracked content for
+secrets and inappropriate business data. Do not publish live credentials.

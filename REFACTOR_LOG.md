@@ -2,7 +2,7 @@
 
 ## BLOCKED — NEEDS OWNER DECISION
 
-- **Repository credential:** The GitHub browser workflow needs `MEEKCALL_CROSS_REPO_TOKEN` in **both** repositories. The owner must create/configure a read-only GitHub credential; see `docs/ci/CROSS_REPO_ACCESS.md`. Current GitHub metadata reports both repos **public**; nevertheless both browser runs failed sibling checkout with `Repository not found`. Check credential availability and repository access rather than assuming private status.
+- **Browser verification:** Both repositories are now public. The new browser workflow uses the built-in read-only `github.token` fallback; Playwright must still pass on the PRs. Do not reintroduce a mandatory PAT for public checkout.
 - **Authority rollout:** Do not expand `MEEKCALL_RECOVERY_PILOT_BUSINESS_IDS`, enable a replacement request authority, or remove legacy booking authority without an owner decision.
 - **Environment evidence:** No production, staging, Twilio, Stripe, or MongoDB systems were accessed. Full npm tests/coverage and live browser evidence cannot be certified in the artifact-building environment (repository clones and dependency installation unavailable).
 
@@ -62,3 +62,14 @@ Audit commit: `e51679e1d65e851dda31806604b7cf649fb7f0fe`, identical for API main
 - Primary risk: behavior of the extracted confirmation method depends on factory wiring and other service callers; full Jest and integration/regression suites are mandatory before PR.
 - Rollback uses `python3 install.py --repo "$HOME/Documents/callbackiq_api" --rollback <backup.zip>` from the same refactor branch and refuses if files have changed.
 - Rollout remains **not approved** until both browser and transaction coverage are verified.
+
+## Phase 1 supplemental review
+
+### 2 — 2026-11-05 — Public repository checkout correction
+
+- Current GitHub metadata confirms API and frontend are public. The earlier assumed mandatory private-repository read credential is no longer needed.
+- The Phase 1 workflow's unconditional `MEEKCALL_CROSS_REPO_TOKEN` check caused both browser jobs to stop before Playwright. Restore the existing optional `CALLBACKIQ_CROSS_REPO_READ_TOKEN || github.token` checkout contract. Keep `persist-credentials: false`, read-only permissions, branch selection, commit manifests and the full browser test step.
+- CI source architecture checks explicitly require that original token fallback. This change restores those contracts rather than editing/loosening their rules.
+- **Test changes ledger:** the newly added browser-checkout structural test is revised to assert the public-repository credential fallback, read-only permissions, both checkout directories and the unchanged E2E execution step. No tests are removed or skipped.
+- The separate PR Dependency Review failure occurred when both repos reported private; verify Dependency graph enabled and re-run in the public configuration. Security audits remain enabled.
+- Changes are workflow/tests/docs/log only; no application runtime, coverage thresholds, routing, SMS wording, webhook or DB change. Full PR checks are still required before merge.

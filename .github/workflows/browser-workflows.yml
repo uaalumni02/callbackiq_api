@@ -16,20 +16,13 @@ jobs:
         with:
           path: api
           persist-credentials: false
-      # Use an explicit read-only credential for the other repository; no scoped-token fallback.
-      - name: Verify cross-repository checkout credential
-        env:
-          MEEKCALL_CROSS_REPO_TOKEN: ${{ secrets.MEEKCALL_CROSS_REPO_TOKEN }}
-        run: |
-          if [ -z "$MEEKCALL_CROSS_REPO_TOKEN" ]; then
-            echo "::error::MEEKCALL_CROSS_REPO_TOKEN missing. Set a fine-grained, contents:read token with access to both MeekCall repositories."
-            exit 1
-          fi
+      # Public sibling repository: use the built-in read-only token by default.
+      # An optional cross-repo read token supports future private visibility.
       - name: Checkout partner repository
         uses: actions/checkout@v6
         with:
           repository: uaalumni02/callbackiq_frontend
-          token: ${{ secrets.MEEKCALL_CROSS_REPO_TOKEN }}
+          token: ${{ secrets.CALLBACKIQ_CROSS_REPO_READ_TOKEN || github.token }}
           persist-credentials: false
           ref: ${{ vars.CALLBACKIQ_FRONTEND_REF || 'main' }}
           path: frontend
