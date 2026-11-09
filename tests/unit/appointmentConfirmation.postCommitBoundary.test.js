@@ -310,3 +310,28 @@ describe('appointment confirmation durable boundary',()=>{
   });
 
 });
+
+  test('success persists provider references before reminders and tenant socket events', async () => {
+    const f = fixture();
+    const order = [];
+    f.provider.createAppointment.mockImplementationOnce(async () => {
+      order.push('provider');
+      return { provider: 'google_calendar', externalAppointmentId: 'calendar-event', externalCalendarId: 'tenant-calendar' };
+    });
+    f.appointment.save.mockImplementationOnce(async () => {
+      expect(f.appointment).toMatchObject({
+        status: 'confirmed', provider: 'google_calendar', externalAppointmentId: 'calendar-event', externalCalendarId: 'tenant-calendar',
+        heldExpiresAt: null, failureReason: '', approvalRecovery: { state: 'resolved', reconciled: false },
+      });
+      expect(f.appointment.confirmedAt).toBeInstanceOf(Date);
+      order.push('commit');
+    });
+    f.deps.scheduleAppointmentReminders.mockImplementationOnce(async () => { order.push('reminders'); });
+    f.deps.SocketService.emitToBusiness.mockImplementationOnce((businessId, event, appointment) => {
+      expect([businessId, event, appointment._id]).toEqual(['b1', 'appointment:confirmed', 'a1']);
+      order.push('socket');
+    });
+
+    await f.confirm({ business: f.business, appointmentId: 'a1' });
+    expect(order).toEqual(['provider', 'commit', 'reminders', 'socket']);
+  });
