@@ -3,7 +3,7 @@ export const createAppointmentLookup = ({ Appointment }) => async (businessId, a
   const appointment = await Appointment.findOne({
     _id: appointmentId,
     business: businessId,
-  });
+  }, "+confirmationIntent");
 
   if (!appointment) {
     const error = new Error("Appointment not found.");

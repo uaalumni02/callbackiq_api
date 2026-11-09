@@ -1,11 +1,12 @@
 /* Source-exact AppointmentService extraction. Preserve order and outcome contracts. */
 export function createAppointmentrecheckAndConfirm1Methods(deps) {
-  const { Appointment, addMinutes, assertDistributedLeaseActive, exactSlotAvailable, getAppointmentForBusiness, getSlotCapacity, getSlotClaimKeys, getSlotKey, repairConfirmedApproval, tryRepairAppointmentProjections, withDistributedLease } = deps;
+  const { assertConfirmationNotPending, Appointment, addMinutes, assertDistributedLeaseActive, exactSlotAvailable, getAppointmentForBusiness, getSlotCapacity, getSlotClaimKeys, getSlotKey, repairConfirmedApproval, tryRepairAppointmentProjections, withDistributedLease } = deps;
   return {
 async recheckAndConfirm({ business, appointmentId, approvedBy }) {
     if (!approvedBy) throw Object.assign(new Error('Staff approval is required.'), { statusCode: 403 });
     const lease = await withDistributedLease(`appointment-approval:${appointmentId}`, async () => {
       let appointment = await getAppointmentForBusiness(business._id, appointmentId);
+      assertConfirmationNotPending(appointment);
       if (appointment.status === 'confirmed') {
         await repairConfirmedApproval({ appointment, business });
         await tryRepairAppointmentProjections(appointment);
@@ -24,7 +25,7 @@ async recheckAndConfirm({ business, appointmentId, approvedBy }) {
         try {
           assertDistributedLeaseActive();
           appointment = await Appointment.findOneAndUpdate({ _id: appointment._id, business: business._id,
-            status: appointment.status }, { $set: { status: 'held', heldExpiresAt: addMinutes(new Date(), 5),
+            status: appointment.status, 'confirmationIntent.status': { $ne: 'pending_provider' } }, { $set: { status: 'held', heldExpiresAt: addMinutes(new Date(), 5),
             failureReason: '', capacityLane: lane, activeSlotKey: `${getSlotKey(appointment.startAt, appointment.endAt)}|lane:${lane}`,
             slotClaimKeys: getSlotClaimKeys({ ...appointment.toObject(), capacityLane: lane }),
             'approvalRecovery.reconciled': false, 'approvalRecovery.state': 'pending',

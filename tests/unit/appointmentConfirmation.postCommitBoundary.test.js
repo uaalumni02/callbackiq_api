@@ -1,6 +1,9 @@
+import { assertConfirmationNotPending, confirmationPending } from '../../src/services/scheduling/appointmentConfirmationIntent.repository.js';
+import { confirmWithoutRecovery } from '../../src/services/scheduling/commands/confirmWithoutRecovery.js';
 // No database, Twilio, Stripe or network calls. Authorized change: after a durable
 // status=confirmed save, a secondary effect failure cannot become an HTTP failure.
 import { bookingStateFields } from '../../src/services/booking/requestBookingState.js';
+import { createConfirmationRecovery } from '../../src/services/scheduling/appointmentConfirmationRecovery.service.js';
 import { createAppointmentconfirm1Methods } from '../../src/services/scheduling/commands/confirm-1.js';
 
 const fixture = () => {
@@ -16,8 +19,31 @@ const fixture = () => {
     createAppointment:jest.fn(async () => ({provider:'internal',externalAppointmentId:'internal:a1',externalCalendarId:'callbackiq'})),
     cancelAppointment:jest.fn(async () => ({})),
   };
+  const intent = {
+    begin: jest.fn(async (row, approvedBy, provider) => {
+      row.confirmationIntent = { approvedBy, provider, attempts: 0, status: 'pending_provider' };
+      return row;
+    }),
+    patch: jest.fn(async (row, fields) => {
+      for (const [key, value] of Object.entries(fields)) {
+        if (key.startsWith('confirmationIntent.')) row.confirmationIntent[key.split('.')[1]] = value;
+        else row[key] = value;
+      }
+      if (fields.status === 'confirmed') {
+        try { await row.save(); }
+        catch (error) {
+          row.status = 'held';
+          row.confirmationIntent.status = 'pending_provider';
+          throw error;
+        }
+      }
+      return row;
+    }),
+    getCommitted: jest.fn(async () => null), finishEffects: jest.fn(), defer: jest.fn(),
+  };
   const deps={
-    bookingStateFields,
+    assertConfirmationNotPending, confirmationPending, confirmWithoutRecovery,
+    bookingStateFields, intent, businessCalendarProviderName: jest.fn(() => "internal"),
     getAppointmentForBusiness:jest.fn(async()=>appointment),
     assertTransition:jest.fn(), assertServiceRequestEligible:jest.fn(async()=>true),
     exactSlotAvailable:jest.fn(async()=>true),
@@ -38,6 +64,7 @@ const fixture = () => {
     scheduleAppointmentReminders:jest.fn(async()=>[]),
     safeConsole:{error:jest.fn()}, assertDistributedLeaseActive:jest.fn(),
   };
+  deps.recovery = createConfirmationRecovery(deps);
   return {appointment,business,provider,deps,confirm:createAppointmentconfirm1Methods(deps).confirm};
 };
 
@@ -109,10 +136,12 @@ describe('appointment confirmation durable boundary',()=>{
   test('ambiguous provider timeout triggers staff review and leaves no confirmed notice', async () => {
     const f = fixture();
     f.appointment.requiresBusinessApproval = true;
+    f.deps.businessCalendarProviderName.mockReturnValue("google_calendar");
     const timeout = Object.assign(new Error('provider outcome unknown'), { code: 'ETIMEDOUT' });
     f.provider.createAppointment.mockRejectedValueOnce(timeout);
     await expect(f.confirm({ business: f.business, appointmentId: 'a1' })).rejects.toBe(timeout);
-    expect(f.appointment.status).toBe('failed');
+    expect(f.appointment.status).toBe('held');
+    expect(f.appointment.confirmationIntent.status).toBe("pending_provider");
     expect(f.provider.cancelAppointment).not.toHaveBeenCalled();
     expect(f.deps.InterventionService.integrationFailure).toHaveBeenCalledWith(
       expect.objectContaining({ businessId: 'b1', appointmentId: 'a1', error: timeout }),
@@ -131,10 +160,10 @@ describe('appointment confirmation durable boundary',()=>{
     expect(f.deps.InterventionService.create).toHaveBeenCalledWith(expect.objectContaining({
       businessId: 'b1',
       appointmentId: 'a1',
-      dedupeKey: 'google_orphan_cleanup:a1:internal:a1',
-      metadata: expect.objectContaining({ googleEventId: 'internal:a1' }),
+      dedupeKey: 'appointment_confirmation_cleanup:a1:internal:a1',
+      metadata: expect.objectContaining({ externalAppointmentId: 'internal:a1' }),
     }));
-    expect(f.appointment.status).toBe('failed');
+    expect(f.appointment.confirmationIntent.compensation).toMatchObject({ eventId: 'internal:a1' });
     expect(f.deps.SocketService.emitToBusiness).not.toHaveBeenCalled();
   });
 
@@ -309,4 +338,103 @@ describe('appointment confirmation durable boundary',()=>{
     );
   });
 
+});
+
+  test('success persists provider references before reminders and tenant socket events', async () => {
+    const f = fixture();
+    const order = [];
+    f.provider.createAppointment.mockImplementationOnce(async () => {
+      order.push('provider');
+      return { provider: 'google_calendar', externalAppointmentId: 'calendar-event', externalCalendarId: 'tenant-calendar' };
+    });
+    f.appointment.save.mockImplementationOnce(async () => {
+      expect(f.appointment).toMatchObject({
+        status: 'confirmed', provider: 'google_calendar', externalAppointmentId: 'calendar-event', externalCalendarId: 'tenant-calendar',
+        heldExpiresAt: null, failureReason: '', approvalRecovery: { state: 'resolved', reconciled: false },
+      });
+      expect(f.appointment.confirmedAt).toBeInstanceOf(Date);
+      order.push('commit');
+    });
+    f.deps.scheduleAppointmentReminders.mockImplementationOnce(async () => { order.push('reminders'); });
+    f.deps.SocketService.emitToBusiness.mockImplementationOnce((businessId, event, appointment) => {
+      expect([businessId, event, appointment._id]).toEqual(['b1', 'appointment:confirmed', 'a1']);
+      order.push('socket');
+    });
+
+    await f.confirm({ business: f.business, appointmentId: 'a1' });
+    expect(order).toEqual(['provider', 'commit', 'reminders', 'socket']);
+  });
+
+describe('confirmation compatibility', () => {
+  test('expired hold releases capacity without creating an intent or contacting the provider', async () => {
+    const f = fixture();
+    f.appointment.heldExpiresAt = new Date(0);
+    await expect(f.confirm({ business: f.business, appointmentId: 'a1' })).rejects.toMatchObject({ code: 'HOLD_EXPIRED' });
+    expect(f.appointment).toMatchObject({ status: 'failed', activeSlotKey: null, slotClaimKeys: [] });
+    expect(f.deps.intent.begin).not.toHaveBeenCalled();
+    expect(f.provider.createAppointment).not.toHaveBeenCalled();
+  });
+
+  test('unavailable ordinary hold releases capacity without creating an intent', async () => {
+    const f = fixture();
+    f.deps.exactSlotAvailable.mockResolvedValue(false);
+    await expect(f.confirm({ business: f.business, appointmentId: 'a1' })).rejects.toMatchObject({ code: 'SLOT_UNAVAILABLE' });
+    expect(f.appointment).toMatchObject({ status: 'failed', activeSlotKey: null, slotClaimKeys: [] });
+    expect(f.deps.intent.begin).not.toHaveBeenCalled();
+  });
+
+  test('provider outside recovery scope keeps the legacy provider call and reminder schedule', async () => {
+    const f = fixture();
+    f.deps.businessCalendarProviderName.mockReturnValue('jobber');
+    f.provider.createAppointment.mockResolvedValue({ provider: 'jobber', externalAppointmentId: 'visit', externalCalendarId: 'jobber' });
+    f.appointment.requiresBusinessApproval = true;
+    await expect(f.confirm({ business: f.business, appointmentId: 'a1', approvedBy: 'staff' })).resolves.toMatchObject({
+      status: 'confirmed', externalAppointmentId: 'visit', approvalDecisionBy: 'staff',
+    });
+    expect(f.provider.createAppointment).toHaveBeenCalledWith({ appointment: f.appointment, service: { _id: 's1' } });
+    expect(f.deps.intent.begin).not.toHaveBeenCalled();
+    expect(f.deps.scheduleAppointmentReminders).toHaveBeenCalledWith({ appointment: f.appointment });
+  });
+
+  test('provider outside recovery scope retains catch-path compensation', async () => {
+    const f = fixture();
+    f.deps.businessCalendarProviderName.mockReturnValue('jobber');
+    f.provider.createAppointment.mockResolvedValue({ provider: 'jobber', externalAppointmentId: 'visit' });
+    f.appointment.save.mockRejectedValueOnce(Error('Mongo unavailable'));
+    await expect(f.confirm({ business: f.business, appointmentId: 'a1' })).rejects.toThrow('Mongo unavailable');
+    expect(f.provider.cancelAppointment).toHaveBeenCalledTimes(1);
+    expect(f.deps.intent.begin).not.toHaveBeenCalled();
+  });
+
+  test('provider outside recovery scope retains legacy failed-compensation alert', async () => {
+    const f = fixture();
+    f.deps.businessCalendarProviderName.mockReturnValue('jobber');
+    f.provider.createAppointment.mockResolvedValue({ provider: 'jobber', externalAppointmentId: 'visit' });
+    f.appointment.save.mockRejectedValueOnce(Error('Mongo unavailable')).mockRejectedValueOnce(Error('still unavailable'));
+    f.provider.cancelAppointment.mockRejectedValueOnce(Error('provider cleanup error'));
+    await expect(f.confirm({ business: f.business, appointmentId: 'a1' })).rejects.toThrow('Mongo unavailable');
+    expect(f.deps.InterventionService.create).toHaveBeenCalledWith(expect.objectContaining({
+      dedupeKey: 'google_orphan_cleanup:a1:visit',
+    }));
+    expect(f.deps.intent.begin).not.toHaveBeenCalled();
+  });
+});
+
+test('a concurrent confirmation winning the intent compare-and-set prevents provider calls', async () => {
+  const f = fixture();
+  f.deps.intent.begin.mockResolvedValue(null);
+  await expect(f.confirm({ business: f.business, appointmentId: 'a1' })).rejects.toMatchObject({
+    code: 'APPOINTMENT_CONFIRMATION_PENDING',
+  });
+  expect(f.provider.createAppointment).not.toHaveBeenCalled();
+});
+
+test('legacy provider rejection without an external receipt retains the default intervention provider', async () => {
+  const f = fixture();
+  f.deps.businessCalendarProviderName.mockReturnValue('jobber');
+  f.appointment.provider = '';
+  f.provider.createAppointment.mockRejectedValue(Error('legacy provider unavailable'));
+  await expect(f.confirm({ business: f.business, appointmentId: 'a1' })).rejects.toThrow('legacy provider unavailable');
+  expect(f.provider.cancelAppointment).not.toHaveBeenCalled();
+  expect(f.deps.InterventionService.integrationFailure).toHaveBeenCalledWith(expect.objectContaining({ provider: 'internal' }));
 });

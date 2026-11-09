@@ -2,6 +2,9 @@ import { bookingStateFields } from "../booking/requestBookingState.js";
 import { createAppointmentrecheckAndConfirm1Methods } from './commands/recheckAndConfirm-1.js';
 import { createAppointmentcreate1Methods } from './commands/create-1.js';
 import { createAppointmentconfirm1Methods } from './commands/confirm-1.js';
+import { confirmWithoutRecovery } from './commands/confirmWithoutRecovery.js';
+import { assertConfirmationNotPending, confirmationPending, createConfirmationIntentRepository } from './appointmentConfirmationIntent.repository.js';
+import { createConfirmationRecovery } from './appointmentConfirmationRecovery.service.js';
 import { createAppointmentcancel1Methods } from './commands/cancel-1.js';
 import { createAppointmentreschedule1Methods } from './commands/reschedule-1.js';
 import { createAppointmentupdate1Methods } from './commands/update-1.js';
@@ -61,6 +64,12 @@ const getAppointmentForBusiness = createAppointmentLookup({ Appointment });
 const runNonBlockingAppointmentSideEffect = createNonBlockingAppointmentSideEffect({safeConsole, InterventionService});
 
 const exactSlotAvailable = createExactSlotAvailability({ AvailabilityService, withStaffSchedulingException, formatDateKey });
+
+const confirmationIntent = createConfirmationIntentRepository({ Appointment });
+const confirmationRecovery = createConfirmationRecovery({
+  intent: confirmationIntent, ServiceOffering, SchedulingProviderFactory, InterventionService, safeConsole,
+  exactSlotAvailable, assertServiceRequestEligible, assertDistributedLeaseActive, projectionMarker, lifecycleMarker,
+});
 
 const releaseExpiredHolds = createExpiredHoldReconciler({
   Appointment,
@@ -270,7 +279,7 @@ const ensureCancellationSideEffects = async ({
 
 let __meekcallAppointmentrecheckAndConfirm1Cache;
 function __meekcallGetAppointmentrecheckAndConfirm1Methods() {
-  if (!__meekcallAppointmentrecheckAndConfirm1Cache) __meekcallAppointmentrecheckAndConfirm1Cache = createAppointmentrecheckAndConfirm1Methods({ Appointment, addMinutes, assertDistributedLeaseActive, exactSlotAvailable, getAppointmentForBusiness, getSlotCapacity, getSlotClaimKeys, getSlotKey, repairConfirmedApproval, tryRepairAppointmentProjections, withDistributedLease });
+  if (!__meekcallAppointmentrecheckAndConfirm1Cache) __meekcallAppointmentrecheckAndConfirm1Cache = createAppointmentrecheckAndConfirm1Methods({ assertConfirmationNotPending, Appointment, addMinutes, assertDistributedLeaseActive, exactSlotAvailable, getAppointmentForBusiness, getSlotCapacity, getSlotClaimKeys, getSlotKey, repairConfirmedApproval, tryRepairAppointmentProjections, withDistributedLease });
   return __meekcallAppointmentrecheckAndConfirm1Cache;
 }
 
@@ -282,13 +291,13 @@ function __meekcallGetAppointmentcreate1Methods() {
 
 let __meekcallAppointmentconfirm1Cache;
 function __meekcallGetAppointmentconfirm1Methods() {
-  if (!__meekcallAppointmentconfirm1Cache) __meekcallAppointmentconfirm1Cache = createAppointmentconfirm1Methods({ bookingStateFields, Conversation, InterventionService, Lead, SchedulingProviderFactory, ServiceOffering, SocketService, assertDistributedLeaseActive, assertServiceRequestEligible, assertTransition, ensureBusinessApprovalNotice, exactSlotAvailable, getAppointmentForBusiness, lifecycleMarker, preservePendingApprovalOnAvailabilityConflict, projectionMarker, resolveApprovalReview, runNonBlockingAppointmentSideEffect, scheduleAppointmentReminders, tryRepairAppointmentLifecycle, tryRepairAppointmentProjections, safeConsole });
+  if (!__meekcallAppointmentconfirm1Cache) __meekcallAppointmentconfirm1Cache = createAppointmentconfirm1Methods({ assertConfirmationNotPending, confirmationPending, confirmWithoutRecovery, bookingStateFields, Conversation, InterventionService, SchedulingProviderFactory, ServiceOffering, SocketService, assertDistributedLeaseActive, assertServiceRequestEligible, assertTransition, ensureBusinessApprovalNotice, exactSlotAvailable, getAppointmentForBusiness, lifecycleMarker, preservePendingApprovalOnAvailabilityConflict, projectionMarker, resolveApprovalReview, runNonBlockingAppointmentSideEffect, scheduleAppointmentReminders, tryRepairAppointmentLifecycle, tryRepairAppointmentProjections, safeConsole, businessCalendarProviderName, intent: confirmationIntent, recovery: confirmationRecovery });
   return __meekcallAppointmentconfirm1Cache;
 }
 
 let __meekcallAppointmentcancel1Cache;
 function __meekcallGetAppointmentcancel1Methods() {
-  if (!__meekcallAppointmentcancel1Cache) __meekcallAppointmentcancel1Cache = createAppointmentcancel1Methods({ InterventionService, SchedulingProviderFactory, SocketService, assertTransition, cancelAppointmentNotifications, ensureCancellationSideEffects, getAppointmentForBusiness, lifecycleMarker, resolveApprovalReview, runNonBlockingAppointmentSideEffect, tryRepairAppointmentLifecycle });
+  if (!__meekcallAppointmentcancel1Cache) __meekcallAppointmentcancel1Cache = createAppointmentcancel1Methods({ assertConfirmationNotPending, InterventionService, SchedulingProviderFactory, SocketService, assertTransition, cancelAppointmentNotifications, ensureCancellationSideEffects, getAppointmentForBusiness, lifecycleMarker, resolveApprovalReview, runNonBlockingAppointmentSideEffect, tryRepairAppointmentLifecycle });
   return __meekcallAppointmentcancel1Cache;
 }
 
@@ -300,13 +309,17 @@ function __meekcallGetAppointmentreschedule1Methods() {
 
 let __meekcallAppointmentupdate1Cache;
 function __meekcallGetAppointmentupdate1Methods() {
-  if (!__meekcallAppointmentupdate1Cache) __meekcallAppointmentupdate1Cache = createAppointmentupdate1Methods({ ServiceOffering, SocketService, assertTransition, getAppointmentForBusiness, moneyAmount, normalizeAddress, ownerEstimate, projectionMarker, resolveOpportunityValue, tryRepairAppointmentProjections });
+  if (!__meekcallAppointmentupdate1Cache) __meekcallAppointmentupdate1Cache = createAppointmentupdate1Methods({ assertConfirmationNotPending, ServiceOffering, SocketService, assertTransition, getAppointmentForBusiness, moneyAmount, normalizeAddress, ownerEstimate, projectionMarker, resolveOpportunityValue, tryRepairAppointmentProjections });
   return __meekcallAppointmentupdate1Cache;
 }
 
 class AppointmentService {
   static async releaseExpiredHolds(businessId = null) {
     return releaseExpiredHolds(businessId);
+  }
+
+  static async reconcileConfirmations(options) {
+    return __meekcallGetAppointmentconfirm1Methods().reconcileConfirmations(options);
   }
 
   static async recheckAndConfirm(...args) { return __meekcallGetAppointmentrecheckAndConfirm1Methods().recheckAndConfirm.apply(this, args); }
@@ -325,6 +338,8 @@ class AppointmentService {
       business._id,
       appointmentId,
     );
+
+    assertConfirmationNotPending(appointment);
 
     if (appointment.status === 'failed' && appointment.approvalDecisionAt && appointment.lifecycleNotice?.key === 'lifecycle_declined') {
       await tryRepairAppointmentLifecycle(appointment, business);

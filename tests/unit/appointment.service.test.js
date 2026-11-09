@@ -38,7 +38,7 @@ import AppointmentService, {
 
 jest.mock("../../src/models/appointment.js", () => ({
   __esModule: true,
-  default: { updateOne: jest.fn().mockResolvedValue({ matchedCount: 1 }), findOne: jest.fn(), create: jest.fn(), updateMany: jest.fn(), find: jest.fn() },
+  default: { updateOne: jest.fn().mockResolvedValue({ matchedCount: 1 }), findOne: jest.fn(), findOneAndUpdate: jest.fn(), create: jest.fn(), updateMany: jest.fn(), find: jest.fn() },
 }));
 jest.mock("../../src/models/lead.js", () => ({
   __esModule: true,
@@ -164,6 +164,17 @@ describe("AppointmentService", () => {
         externalCalendarId: "callbackiq",
       }),
     };
+    Appointment.findOneAndUpdate.mockImplementation((filter, { $set }) => ({
+      select: async () => {
+        const row = await Appointment.findOne({ _id: filter._id, business: filter.business });
+        if ($set.confirmationIntent) row.confirmationIntent = $set.confirmationIntent;
+        for (const [key, value] of Object.entries($set)) {
+          if (key.startsWith("confirmationIntent.")) row.confirmationIntent[key.split(".")[1]] = value;
+          else row[key] = value;
+        }
+        return row;
+      },
+    }));
     SchedulingProviderFactory.getProvider.mockReturnValue(provider);
     getBookableService.mockResolvedValue(service);
     getAiBookableService.mockResolvedValue(service);
@@ -206,11 +217,46 @@ describe("AppointmentService", () => {
     Appointment.updateMany.mockResolvedValue({ modifiedCount: 2 });
     await expect(AppointmentService.releaseExpiredHolds()).resolves.toEqual({ modifiedCount: 2 });
     expect(Appointment.updateMany).toHaveBeenCalledWith(
-      { status: "held", heldExpiresAt: { $lte: expect.any(Date) } },
+      { status: "held", "confirmationIntent.status": { $ne: "pending_provider" }, heldExpiresAt: { $lte: expect.any(Date) } },
       { $set: expect.objectContaining({ status: "failed", slotClaimKeys: [], capacityLane: null }) },
     );
     await AppointmentService.releaseExpiredHolds("b1");
     expect(Appointment.updateMany.mock.calls[1][0]).toMatchObject({ business: "b1" });
+  });
+
+  test("recheck and decline cannot overtake an active confirmation intent", async () => {
+    const pending = appointmentDoc({
+      requiresBusinessApproval: true, confirmationIntent: { status: "pending_provider" },
+    });
+    Appointment.findOne.mockResolvedValueOnce(pending).mockResolvedValueOnce(pending).mockResolvedValueOnce(pending);
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await expect(AppointmentService.recheckAndConfirm({ business, appointmentId: "a1", approvedBy: "staff" }))
+        .rejects.toMatchObject({ code: "APPOINTMENT_CONFIRMATION_PENDING" });
+    }
+    await expect(AppointmentService.decline({ business, appointmentId: "a1", declinedBy: "staff" }))
+      .rejects.toMatchObject({ code: "APPOINTMENT_CONFIRMATION_PENDING" });
+
+    expect(provider.createAppointment).not.toHaveBeenCalled();
+    expect(Appointment.findOneAndUpdate).not.toHaveBeenCalled();
+    expect(pending.save).not.toHaveBeenCalled();
+  });
+
+  test("runs the due confirmation query through the appointment service used by maintenance", async () => {
+    const query = {
+      sort: jest.fn(() => query), limit: jest.fn(() => query),
+      select: jest.fn(() => query), lean: jest.fn().mockResolvedValue([]),
+    };
+    Appointment.find.mockReturnValueOnce(query);
+
+    await AppointmentService.reconcileConfirmations({ limit: 3 });
+
+    expect(Appointment.find).toHaveBeenCalledWith(expect.objectContaining({
+      "confirmationIntent.nextAttemptAt": { $lte: expect.any(Date) },
+      "confirmationIntent.leaseUntil": { $lte: expect.any(Date) },
+    }));
+    expect(query.limit).toHaveBeenCalledWith(3);
+    expect(provider.createAppointment).not.toHaveBeenCalled();
   });
 
   test("requires a customer phone", async () => {

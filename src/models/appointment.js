@@ -33,6 +33,21 @@ const PendingProviderChangeSchema = new Schema(
   { _id: false },
 );
 
+const ConfirmationIntentSchema = new Schema({
+  key: String,
+  status: { type: String, enum: ["pending_provider", "confirmed", "failed"] },
+  provider: String,
+  target: { calendarId: String, eventId: String, accountId: String },
+  requestedAt: Date,
+  approvedBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
+  attempts: Number,
+  nextAttemptAt: Date,
+  token: String,
+  leaseUntil: Date,
+  effectsPending: Boolean,
+  compensation: { eventId: String, calendarId: String, error: String },
+}, { _id: false });
+
 const AppointmentSchema = new Schema(
   {
     business: {
@@ -176,6 +191,7 @@ const AppointmentSchema = new Schema(
       startAt: Date, endAt: Date, requestedAt: Date, channel: String,
       decidedAt: Date, reason: String, alertPending: Boolean, lastError: String,
     },
+    confirmationIntent: { type: ConfirmationIntentSchema, default: undefined, select: false },
     confirmedAt: { type: Date, default: null },
     approvalRecovery: { state: { type: String, enum: ['pending', 'needs_recheck', 'resolved'] }, reconciled: Boolean, expiredAt: Date, lastError: String },
     customerConfirmedAt: { type: Date, default: null },
@@ -200,7 +216,7 @@ const AppointmentSchema = new Schema(
     },
     notes: { type: String, trim: true, default: "", maxlength: 4000 },
   },
-  { timestamps: true },
+  { timestamps: true, toJSON: { transform(_doc, value) { delete value.confirmationIntent; } } },
 );
 
 AppointmentSchema.pre("validate", function validateTimes() {
@@ -209,6 +225,23 @@ AppointmentSchema.pre("validate", function validateTimes() {
   }
 });
 
+const rememberHoldState = function rememberHoldState() {
+  this.$locals.loadedAsHeld = this.status === "held";
+};
+AppointmentSchema.post("init", rememberHoldState);
+AppointmentSchema.post("save", rememberHoldState);
+
+// A stale document loaded before confirmation began may still attempt a save.
+// Keep that write from replacing the outcome or changing the event payload.
+AppointmentSchema.pre("save", function protectPendingConfirmation() {
+  if (!this.isNew && this.modifiedPaths().some((path) => !["updatedAt", "customerLifecycleStatus"].includes(path))) {
+    this.$where = { ...this.$where, "confirmationIntent.status": { $ne: "pending_provider" },
+      ...(this.$locals.loadedAsHeld ? { $or: [{ status: "held" }, { "confirmationIntent.status": { $exists: false } }] } : {}) };
+  }
+});
+
+AppointmentSchema.index({ "confirmationIntent.nextAttemptAt": 1, "confirmationIntent.leaseUntil": 1, _id: 1 },
+  { partialFilterExpression: { "confirmationIntent.nextAttemptAt": { $exists: true } } });
 AppointmentSchema.index({ "lifecycleNotice.pending": 1, updatedAt: 1 });
 AppointmentSchema.index({ "bookingProjection.pending": 1, "bookingProjection.retryAt": 1, updatedAt: 1 });
 AppointmentSchema.index({ "completionProjection.pending": 1, "completionProjection.retryAt": 1, updatedAt: 1 });
