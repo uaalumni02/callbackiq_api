@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import Conversation from "../../src/models/conversation.js";
 import { applyBookingEvent } from "../../src/services/booking/bookingTurnState.repository.js";
+import { applyAppointmentBookingTransition } from "../../src/services/booking/appointmentBookingTransition.repository.js";
 import {
   getDistributedLeaseWriteDeadline,
   withDistributedLease,
@@ -150,4 +151,28 @@ test("an expired offer or an offer refreshed for the same slot cannot be confirm
   });
   await expect(applyBookingEvent(conversation, "claim_confirmation", { businessId }))
     .rejects.toMatchObject({ code: "BOOKING_STATE_CONFLICT" });
+});
+
+test('an appointment projection requires durable confirmation and the expected tenant and link', async () => {
+  const newer = new mongoose.Types.ObjectId();
+  const old = new mongoose.Types.ObjectId();
+  const conversation = await createOfferedConversation({ status: "booked", appointment: newer });
+  const appointment = { _id: old, business: businessId, conversation: conversation._id, status: "confirmed" };
+
+  expect((await applyAppointmentBookingTransition(Conversation, "appointment_confirmed", appointment)).matchedCount).toBe(0);
+  expect((await applyAppointmentBookingTransition(Conversation, "appointment_canceled", { ...appointment, status: "canceled" })).matchedCount).toBe(0);
+  expect((await applyAppointmentBookingTransition(Conversation, "appointment_rescheduled", { ...appointment, rescheduledFrom: old })).matchedCount).toBe(0);
+  expect(await applyAppointmentBookingTransition(Conversation, "appointment_confirmed", { ...appointment, _id: newer, status: "held" })).toBeNull();
+  expect((await applyAppointmentBookingTransition(Conversation, "appointment_confirmed", {
+    ...appointment, _id: newer, business: new mongoose.Types.ObjectId(),
+  })).matchedCount).toBe(0);
+
+  const current = { ...appointment, _id: newer };
+  await applyAppointmentBookingTransition(Conversation, "appointment_confirmed", current);
+  await applyAppointmentBookingTransition(Conversation, "appointment_confirmed", current);
+  expect((await applyAppointmentBookingTransition(Conversation, "approval_hold_expired", { ...current, status: "failed" })).matchedCount).toBe(0);
+  expect((await Conversation.findById(conversation._id)).bookingState.toObject()).toMatchObject({
+    status: "booked", appointment: newer, expiresAt: null,
+  });
+  await expect(applyAppointmentBookingTransition(Conversation, "invalid", current)).rejects.toThrow(TypeError);
 });

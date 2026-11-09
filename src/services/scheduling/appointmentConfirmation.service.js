@@ -1,4 +1,4 @@
-import { bookingStateFields } from '../booking/requestBookingState.js';
+import { applyAppointmentBookingTransition } from '../booking/appointmentBookingTransition.repository.js';
 import Alert from '../../models/alert.js';
 import AppointmentNotificationJob from '../../models/appointmentNotificationJob.js';
 import Business from '../../models/business.js';
@@ -43,8 +43,5 @@ export async function repairConfirmedApproval({ appointment, business }) {
       metadata: { appointmentId: String(appointment._id), confirmationRecovery: true },
     } }, { upsert: true });
   }
-  if (appointment.conversation) await Conversation.updateOne({ _id: appointment.conversation,
-    business: appointment.business, 'bookingState.appointment': appointment._id,
-    'bookingState.status': { $in: ['pending_business_confirmation', 'awaiting_confirmation', 'booking', 'booked'] },
-  }, { $set: bookingStateFields({ status: 'booked', expiresAt: null, lastError: '' }) });
+  await applyAppointmentBookingTransition(Conversation, 'approval_repaired', appointment);
 }
