@@ -1,3 +1,4 @@
+import { assertOwnerReadContract } from "../contracts/ownerReadContract.js";
 import request from "supertest";
 
 import app from "../../src/app.js";
@@ -786,6 +787,7 @@ describe("Billing Routes", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
+    assertOwnerReadContract("/api/billing/subscription", res);
     expect(res.body.data.status).toBe("none");
     expect(res.body.data.canStartTrial).toBe(true);
   });

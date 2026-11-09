@@ -1,3 +1,4 @@
+import { bookingStateFields } from '../booking/requestBookingState.js';
 import Alert from '../../models/alert.js';
 import AppointmentNotificationJob from '../../models/appointmentNotificationJob.js';
 import Business from '../../models/business.js';
@@ -45,5 +46,5 @@ export async function repairConfirmedApproval({ appointment, business }) {
   if (appointment.conversation) await Conversation.updateOne({ _id: appointment.conversation,
     business: appointment.business, 'bookingState.appointment': appointment._id,
     'bookingState.status': { $in: ['pending_business_confirmation', 'awaiting_confirmation', 'booking', 'booked'] },
-  }, { $set: { 'bookingState.status': 'booked', 'bookingState.expiresAt': null, 'bookingState.lastError': '' } });
+  }, { $set: bookingStateFields({ status: 'booked', expiresAt: null, lastError: '' }) });
 }

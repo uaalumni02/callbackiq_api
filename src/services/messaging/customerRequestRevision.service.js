@@ -1,3 +1,4 @@
+import { replaceBookingState } from '../booking/requestBookingState.js';
 import crypto from 'node:crypto';
 import { addressFromTurn } from '../booking/customerAddress.service.js';
 import AlertService from '../alert.service.js';
@@ -21,8 +22,7 @@ export async function applyCustomerAddressRevision({ business, lead, conversatio
     intake = { ...intake, addressRevision: revision, availability: { status: 'unknown' } };
     const knownLocation = lead.address && !/^(unknown|not provided|n\/a)$/i.test(lead.address);
     if (!conversation.bookingState?.appointment && (knownLocation || ['offering_slots', 'awaiting_confirmation', 'booking'].includes(conversation.bookingState?.status))) {
-      conversation.bookingState = { status: 'not_started', offeredSlots: [], selectedSlot: null, expiresAt: null };
-      conversation.markModified?.('bookingState');
+      replaceBookingState(conversation, { status: 'not_started', offeredSlots: [], selectedSlot: null, expiresAt: null }, { markModified: true });
     }
     if (conversation.set) conversation.set('conversationMemory.recoveryIntake', intake);
     else conversation.conversationMemory = { ...(conversation.conversationMemory || {}), recoveryIntake: intake };

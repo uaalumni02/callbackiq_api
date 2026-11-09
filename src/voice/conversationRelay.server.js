@@ -1,10 +1,10 @@
+import { PATH, validateConversationRelaySignature } from "./conversationRelaySignature.js";
+export { validateConversationRelaySignature };
+
 import { withDeadline } from "../services/boundedRedis.service.js";
 import { runVoiceConversationTurn } from '../services/voiceConversationTurn.service.js';
 import { createVoiceAdmission, acquireFleetVoiceSlot } from "../services/voiceAdmission.service.js";
 import { registerVoiceSnapshot } from "../services/runtimeState.service.js";
-import {
-  validateTwilioRequestWithRotation,
-} from "../services/twilioSignatureRotation.service.js";
 import { WebSocket, WebSocketServer } from "ws";
 
 import VoiceAgentService from "./voiceAgent.service.js";
@@ -14,7 +14,6 @@ import VoiceTranscriptService from "./voiceTranscript.service.js";
 import VoiceOutcomeService from "./voiceOutcome.service.js";
 import VoiceMetricsService from "./voiceMetrics.service.js";
 import {
-  getVoiceWebSocketUrl,
   isPhase9ForcedRelayFailureEnabled,
   normalizeVoiceSettings,
 } from "./voiceRouting.service.js";
@@ -39,7 +38,6 @@ import {
   logOperationalWarning,
 } from "../helpers/logging/safeLogger.js";
 
-const PATH = "/ws/voice";
 const DEFAULT_END_DELAY_MS = 700;
 const DEFAULT_CLOSE_DELAY_MS = 3500;
 const DEFAULT_HANDSHAKE_TIMEOUT_MS = 10_000;
@@ -90,41 +88,6 @@ const remoteAddress = (request) =>
   )
     .trim()
     .slice(0, 100);
-
-const signatureUrlForRequest = (request) => {
-  const configured = getVoiceWebSocketUrl();
-  if (!configured) return "";
-  try {
-    const publicUrl = new URL(configured);
-    const requestUrl = new URL(request.url || PATH, "http://localhost");
-    publicUrl.pathname = requestUrl.pathname;
-    publicUrl.search = requestUrl.search;
-    publicUrl.hash = "";
-    return publicUrl.toString();
-  } catch {
-    return configured;
-  }
-};
-
-export const validateConversationRelaySignature = (request) => {
-  if (
-    process.env.NODE_ENV === "test" &&
-    process.env.DISABLE_TWILIO_SIGNATURE_VALIDATION === "true"
-  ) {
-    return true;
-  }
-
-  const signature = request.headers?.["x-twilio-signature"];
-  const publicUrl = signatureUrlForRequest(request);
-
-  if (!signature || !publicUrl) return false;
-
-  return validateTwilioRequestWithRotation({
-    signature,
-    url: publicUrl,
-    params: {},
-  });
-};
 
 const safeSend = (socket, payload) => {
   if (socket.readyState !== WebSocket.OPEN) return false;

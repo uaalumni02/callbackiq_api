@@ -25,3 +25,23 @@ test('a new same-day request replaces an older requested day while retaining its
  expect(result.preferredAppointmentTime).toBe('2026-09-17 at 2:00 PM');
  expect(c.lead.preferredAppointmentTime).toBe(result.preferredAppointmentTime);
 });
+
+test.each([
+  ['existing subdocument', { toObject: () => ({ postalCode: '30324' }) }, { postalCode: '30324' }],
+  ['legacy missing state', undefined, {}],
+])('clears old offers during staff review with %s', async (_, bookingState, existingFields) => {
+  const input = context();
+  input.conversation.bookingState = bookingState;
+  input.conversation.save = jest.fn().mockResolvedValue(null);
+  input.conversation.markModified = jest.fn();
+  await requestStaffSchedulingReview(input);
+  expect(input.conversation.bookingState).toEqual({
+    ...existingFields,
+    status: 'collecting_preference',
+    offeredSlots: [],
+    selectedSlot: null,
+    expiresAt: null,
+  });
+  expect(input.conversation.markModified).toHaveBeenCalledWith('bookingState');
+  expect(input.conversation.save).toHaveBeenCalledTimes(1);
+});

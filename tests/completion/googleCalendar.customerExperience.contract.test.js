@@ -57,8 +57,10 @@ describe("Google Calendar customer experience completion contract", () => {
     expect(notification).toContain("scheduleAppointmentChangeNotice");
     expect(notification).toContain("schedulePostAppointmentFollowUp");
     expect(worker).toContain("processDueAppointmentNotifications");
-    expect(stateMachine).toContain("customerConfirmedAt");
-    expect(stateMachine).toContain("customerRescheduleRequestedAt");
+    const existingBookingTurn = read("src/services/booking/existingBookingTurn.service.js");
+    expect(stateMachine).toContain("handleExistingBookingTurn({");
+    expect(existingBookingTurn).toContain("customerConfirmedAt");
+    expect(existingBookingTurn).toContain("customerRescheduleRequestedAt");
   });
 
   test("requires review before Google moves or cancellations affect customers", () => {

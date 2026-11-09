@@ -1,6 +1,6 @@
 /* Source-exact AppointmentService extraction. Preserve order and outcome contracts. */
 export function createAppointmentconfirm1Methods(deps) {
-  const { Conversation, InterventionService, Lead, SchedulingProviderFactory, ServiceOffering, SocketService, assertDistributedLeaseActive, assertServiceRequestEligible, assertTransition, ensureBusinessApprovalNotice, exactSlotAvailable, getAppointmentForBusiness, lifecycleMarker, preservePendingApprovalOnAvailabilityConflict, projectionMarker, resolveApprovalReview, runNonBlockingAppointmentSideEffect, scheduleAppointmentReminders, tryRepairAppointmentLifecycle, tryRepairAppointmentProjections, safeConsole } = deps;
+  const { Conversation, InterventionService, Lead, SchedulingProviderFactory, ServiceOffering, SocketService, assertDistributedLeaseActive, assertServiceRequestEligible, assertTransition, bookingStateFields, ensureBusinessApprovalNotice, exactSlotAvailable, getAppointmentForBusiness, lifecycleMarker, preservePendingApprovalOnAvailabilityConflict, projectionMarker, resolveApprovalReview, runNonBlockingAppointmentSideEffect, scheduleAppointmentReminders, tryRepairAppointmentLifecycle, tryRepairAppointmentProjections, safeConsole } = deps;
   // Once MongoDB has saved status=confirmed, these effects must not turn the booking into an HTTP failure.
   // Keep logs structured and tenant-scoped; the existing intervention is our durable human recovery record.
   const logCommittedEffectFailure = (effect, error, appointment, business) => {
@@ -188,12 +188,12 @@ async confirm({ business, appointmentId, approvedBy = null }) {
             await Conversation.updateOne(
               { _id: appointment.conversation, business: business._id },
               {
-                $set: {
-                  "bookingState.status": "booked",
-                  "bookingState.appointment": appointment._id,
-                  "bookingState.expiresAt": null,
-                  "bookingState.lastError": "",
-                },
+                $set: bookingStateFields({
+                  status: "booked",
+                  appointment: appointment._id,
+                  expiresAt: null,
+                  lastError: "",
+                }),
               },
             );
           }

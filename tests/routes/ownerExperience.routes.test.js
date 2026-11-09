@@ -1,3 +1,4 @@
+import { assertOwnerReadContract } from "../contracts/ownerReadContract.js";
 import request from "supertest";
 
 import app from "../../src/app.js";
@@ -292,6 +293,21 @@ describe("Owner experience routes", () => {
     await conversation.save();
 
     const response = await authGet("/api/appointments?status=confirmed", token);
+    assertOwnerReadContract('/api/appointments', response);
+    const paged = await authGet("/api/appointments?view=all&pageSize=25", token);
+    expect(paged.status).toBe(200);
+    assertOwnerReadContract('/api/appointments', paged);
+    expect(paged.body.data.map(({ _id }) => _id)).toContain(String(appointment._id));
+    expect(paged.body.pagination).toEqual({ limit: 25, hasMore: false, nextCursor: null });
+
+    const detail = await authGet(`/api/appointments/${appointment._id}`, token);
+    expect(detail.status).toBe(200);
+    assertOwnerReadContract('/api/appointments/{id}', detail);
+
+    const leads = await authGet("/api/leads", token);
+    expect(leads.status).toBe(200);
+    assertOwnerReadContract('/api/leads', leads);
+    expect(leads.body.data.map(({ _id }) => _id)).toContain(String(lead._id));
 
     expect(response.status).toBe(200);
     expect(response.body.data).toHaveLength(1);

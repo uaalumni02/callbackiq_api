@@ -145,3 +145,16 @@ test('uses the staff-confirmed name on the appointment and saves it after confir
  expect(AppointmentService.create).toHaveBeenCalledWith(expect.objectContaining({input:expect.objectContaining({customerName:'Jordan Lee'})}));
  expect(Lead.updateOne).toHaveBeenCalledWith(expect.objectContaining({customerName:'Missed Call Lead'}),{$set:{customerName:'Jordan Lee'}});
 });
+
+test('a newly held appointment is projected as pending until confirmation succeeds', async () => {
+  AppointmentService.create.mockResolvedValueOnce({ ...appointment, status: 'held' });
+  await expect(run()).resolves.toMatchObject({ appointment: { status: 'confirmed' } });
+  expect(Conversation.updateOne).toHaveBeenNthCalledWith(
+    1,
+    { _id: conversation._id, business: business._id },
+    { $set: expect.objectContaining({
+      'bookingState.appointment': appointment._id,
+      'bookingState.status': 'pending_business_confirmation',
+    }) },
+  );
+});

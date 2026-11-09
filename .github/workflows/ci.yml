@@ -50,6 +50,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify versioned owner read contracts
+        run: npm run contracts:check
+
+      - name: Enforce remediation architecture limits
+        run: npm run maintainability:remediation
+
       - name: Enforce maintainability ratchet
         run: npm run maintainability:check
 
