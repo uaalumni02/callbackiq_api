@@ -19,6 +19,7 @@ requiredFiles.forEach(mustExist);
 
 const invariant = read("src/services/messaging/smsProductionInvariant.service.js");
 const processor = read("src/services/messaging/inboundSmsJobProcessor.service.js");
+const delivery = read("src/services/messaging/smsOutboundDelivery.adapter.js");
 const eligibility = read("src/services/serviceEligibility/serviceEligibility.service.js");
 const fixture = read("tests/fixtures/smsProductionAcceptanceMatrix.js");
 const pkg = JSON.parse(read("package.json"));
@@ -29,7 +30,7 @@ const assertions = [
   [invariant.includes("enforced_service_eligibility_boundary"), "service eligibility boundary"],
   [invariant.includes("added_scheduling_acknowledgement"), "multi-intent scheduling acknowledgement"],
   [processor.includes("applySmsProductionInvariants"), "processor integration"],
-  [processor.includes("customerMessage: inboundMessage?.body"), "final send-path invariant invocation"],
+  [delivery.includes("customerMessage: inboundMessage?.body"), "final send-path invariant invocation"],
   [eligibility.includes("Pricing and scheduling stay paused until staff confirms the service is accepted."), "staff review scheduling pause"],
   [Boolean(pkg.scripts?.["test:sms-production-acceptance"]), "production acceptance test script"],
   [Boolean(pkg.scripts?.["certify:sms-production"]), "production certification script"],

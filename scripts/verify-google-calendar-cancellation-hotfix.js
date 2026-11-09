@@ -3,12 +3,12 @@ import fs from "node:fs";
 import path from "node:path";
 
 const root = process.cwd();
-const target = path.join(root, "src/services/booking/bookingStateMachine.service.js");
+const target = path.join(root, "src/services/booking/existingBookingTurn.service.js");
 const fail = (message) => {
   console.error(`Google Calendar cancellation hotfix verification failed: ${message}`);
   process.exit(1);
 };
-if (!fs.existsSync(target)) fail("bookingStateMachine.service.js was not found");
+if (!fs.existsSync(target)) fail("existingBookingTurn.service.js was not found");
 const source = fs.readFileSync(target, "utf8");
 const required = [
   'status: "not_started"',

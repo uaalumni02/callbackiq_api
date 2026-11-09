@@ -170,7 +170,7 @@ async function routeRequestInterrupt(context) {
 }
 
 async function routeServiceEligibility(context) {
-const { business, lead, conversation, inboundMessage, customerTurn } = context;
+  const { business, lead, conversation, inboundMessage, customerTurn } = context;
   const eligibilityResult = await guardServiceRequest({ business, lead, conversation,
     customerMessage: customerTurn.customerMessage, turnId: String(inboundMessage._id) });
   if (eligibilityResult) {
@@ -180,7 +180,7 @@ const { business, lead, conversation, inboundMessage, customerTurn } = context;
     await completeTurn(context);
     return { decision: eligibilityResult.decision, reason: eligibilityResult.serviceEligibility?.reason || eligibilityResult.guardrail?.reason,
       sent: delivery.sent === true, outboundMessageId: delivery.message?._id || null };
-    }
+  }
   return null;
 }
 

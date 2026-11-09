@@ -194,10 +194,10 @@ function continueAfterLocation({ business, lead, activeConversation, text, booki
   // booking turn. Consume a date/time supplied now instead of asking again.
   if (hasBookingAvailabilityHint(text, business.timezone || "America/New_York")) return null;
   return {
-      handled: true,
-      result: fixedResult({
-        reply:
-          "What day and time work best? You can text naturally—for example: tomorrow at 2, day after tomorrow around 3ish, Friday morning, Aug 10 at 2:30, or after work.",
-      }),
+    handled: true,
+    result: fixedResult({
+      reply:
+        "What day and time work best? You can text naturally—for example: tomorrow at 2, day after tomorrow around 3ish, Friday morning, Aug 10 at 2:30, or after work.",
+    }),
   };
 }
