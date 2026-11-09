@@ -251,6 +251,21 @@ describe("BookingStateMachineService complete behavior", () => {
     await expect(handle({ customBusiness: { ...business, features: { aiBookingEnabled: false } } })).resolves.toEqual({ handled: false });
   });
 
+  test("refreshes an expired read-only offer without creating an appointment", async () => {
+    const customBusiness = { ...business, features: { aiBookingEnabled: false } };
+    const lead = makeLead({ serviceNeeded: "HVAC diagnostic" });
+    const conversation = makeConversation({ bookingState: {
+      status: "offering_slots", offeredSlots: [SLOT_1], expiresAt: new Date(Date.now() - 1000),
+    } });
+
+    const result = await handle({ customBusiness, conversation, lead, message: "option 1" });
+
+    expect(result.result.reply).toMatch(/earlier options expired/i);
+    expect(getAvailabilityTool).toHaveBeenCalledTimes(1);
+    expect(createAppointmentTool).not.toHaveBeenCalled();
+    expect(conversation.bookingState.selectedSlot).toBeNull();
+  });
+
   test("queries real business availability for an availability inquiry even when auto-booking is disabled", async () => {
     const customBusiness = {
       ...business,
@@ -609,6 +624,21 @@ describe("BookingStateMachineService complete behavior", () => {
     expect(result.result.reply).toMatch(/not confirmed/i);
   });
 
+  test("an explicitly selectable SMS option submits the saved slot for approval", async () => {
+    const conversation = makeConversation({ bookingState: {
+      status: "offering_slots", streetAddress: "123 Main St", offeredSlots: [{ ...SLOT_1, selectionSubmits: true }],
+    } });
+    const lead = makeLead({ serviceNeeded: "HVAC diagnostic", address: "123 Main St" });
+
+    const result = await handle({ conversation, lead, message: "option 1" });
+
+    expect(createAppointmentTool).toHaveBeenCalledWith(expect.objectContaining({
+      input: expect.objectContaining({ startAt: SLOT_1.startAt, endAt: SLOT_1.endAt }),
+    }));
+    expect(result.result.reply).toMatch(/not confirmed/i);
+    expect(conversation.bookingState.status).toBe("pending_business_confirmation");
+  });
+
   test("uses conversation customer fallbacks without a lead", async () => {
     const conversation = makeConversation({ bookingState: { status: "awaiting_confirmation", selectedSlot: SLOT_1 } });
     await handle({ conversation, lead: null, message: "okay" });
@@ -864,6 +894,59 @@ describe("Booking production readiness/provider regressions", () => {
     expect(result.result.messageCategory).toBe("human_requested");
     expect(result.result.reply).toMatch(/trouble checking the live schedule/i);
     expect(AlertService.createSystemAlert).toHaveBeenCalled();
+  });
+
+  test("widens a search with no primary openings and keeps the alternative provisional", async () => {
+    const alternative = { startAt: "2026-09-05T15:00:00.000Z", endAt: "2026-09-05T16:00:00.000Z" };
+    getAvailabilityTool.mockResolvedValueOnce({ slots: [] }).mockResolvedValueOnce({ slots: [alternative] });
+    const conversation = makeConversation({ bookingState: { status: "collecting_preference" } });
+
+    const result = await handle({ conversation, message: "tomorrow" });
+
+    expect(getAvailabilityTool).toHaveBeenCalledTimes(2);
+    expect(conversation.bookingState.status).toBe("offering_slots");
+    expect(conversation.bookingState.offeredSlots).toEqual([
+      expect.objectContaining({ startAt: new Date(alternative.startAt), requiresBusinessApproval: true }),
+    ]);
+    expect(result.result.reply).toMatch(/time isn’t available/i);
+    expect(createAppointmentTool).not.toHaveBeenCalled();
+  });
+
+  test("escalates only after the third search with no primary or expanded openings", async () => {
+    getAvailabilityTool.mockResolvedValue({ slots: [] });
+    const conversation = makeConversation({ bookingState: { status: "collecting_preference", negotiationAttempts: 2 } });
+
+    const result = await handle({ conversation, message: "tomorrow" });
+
+    expect(conversation.bookingState).toMatchObject({ status: "human_takeover", negotiationAttempts: 3 });
+    expect(escalateToHumanTool).toHaveBeenCalledWith(expect.objectContaining({
+      businessId: business._id, reason: "scheduling_no_match_after_three_attempts",
+    }));
+    expect(result.result.messageCategory).toBe("human_requested");
+    expect(createAppointmentTool).not.toHaveBeenCalled();
+  });
+
+  test("handles a readiness exception without checking provider availability", async () => {
+    buildBusinessReadiness.mockRejectedValueOnce(new Error("readiness unavailable"));
+    const conversation = makeConversation({ bookingState: { status: "collecting_preference" } });
+
+    const result = await handle({ conversation, message: "tomorrow" });
+
+    expect(result.result.messageCategory).toBe("human_requested");
+    expect(getAvailabilityTool).not.toHaveBeenCalled();
+    expect(AlertService.createSystemAlert).toHaveBeenCalled();
+  });
+
+  test("confirms the customer only when the provider returns authorized automatic confirmation", async () => {
+    createAppointmentTool.mockResolvedValueOnce({
+      ...SLOT_1, _id: "auto-a1", status: "confirmed", automaticConfirmationAuthorized: true, timezone: business.timezone,
+    });
+    const conversation = makeConversation({ bookingState: { status: "awaiting_confirmation", selectedSlot: SLOT_1 } });
+
+    const result = await handle({ conversation, message: "confirm" });
+
+    expect(conversation.bookingState).toMatchObject({ status: "booked", appointment: "auto-a1", expiresAt: null });
+    expect(result.result.reply).toMatch(/appointment is confirmed/i);
   });
 
   test("true zero slots remains a zero-slots outcome without provider alert", async () => {

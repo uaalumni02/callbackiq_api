@@ -3,19 +3,14 @@ import { submitRescheduleRequest } from '../scheduling/rescheduleRequest.service
 import { renderAppointmentResponse } from '../scheduling/customerAppointmentPresentation.service.js';
 import { assertVoiceTurnActive } from "../voiceTurnContext.service.js";
 import createAppointmentTool from "../../helpers/ai/tools/createAppointment.tool.js";
-import { updateState } from "./bookingTurnState.repository.js";
+import { applyBookingEvent, updateState } from "./bookingTurnState.repository.js";
 import { bookingInquiryOperations } from "./bookingInquiryRuntime.js";
 const { formatSlot } = bookingInquiryOperations;
 
 export async function confirmBookingOffer(context) {
   const { business, lead, activeConversation, smsIntent, bookingChannel, bookingIdempotencyPrefix } = context;
   if (smsIntent.response.negative) {
-    await updateState(activeConversation, {
-      status: "collecting_preference",
-      selectedSlot: null,
-      offeredSlots: [],
-      expiresAt: null,
-    });
+    await applyBookingEvent(activeConversation, "decline_confirmation", { businessId: business._id });
 
     return {
       handled: true,
@@ -35,9 +30,8 @@ export async function confirmBookingOffer(context) {
     };
   }
 
-  const selectedSlot = activeConversation.bookingState.selectedSlot;
   assertVoiceTurnActive();
-  await updateState(activeConversation, { status: "booking" });
+  const { selectedSlot } = await applyBookingEvent(activeConversation, "claim_confirmation", { businessId: business._id });
 
   try {
     const bookingInput = buildBookingInput({ business, lead, activeConversation, selectedSlot, bookingChannel });

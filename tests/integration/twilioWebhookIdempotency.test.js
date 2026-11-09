@@ -273,6 +273,21 @@ describe("Twilio webhook idempotency", () => {
     expect(mockTwilioMessageCreate).toHaveBeenCalledTimes(1);
   });
 
+  test("two simultaneous distinct texts persist against the same lead and conversation", async () => {
+    const business = await createBusiness();
+    const messageIds = ["SM_DISTINCT_A", "SM_DISTINCT_B"];
+
+    const responses = await Promise.all(messageIds.map((MessageSid) => sendInboundSms({ MessageSid })));
+
+    expect(responses.map(({ status }) => status)).toEqual([200, 200]);
+    const messages = await Message.find({ business: business._id, direction: "inbound",
+      providerMessageId: { $in: messageIds } }).lean();
+    expect(messages.map(({ providerMessageId }) => providerMessageId).sort()).toEqual(messageIds);
+    expect(new Set(messages.map(({ conversation }) => String(conversation))).size).toBe(1);
+    expect(await Conversation.countDocuments({ business: business._id, customerPhone: "4045559999" })).toBe(1);
+    expect(await Lead.countDocuments({ business: business._id, phone: "4045559999" })).toBe(1);
+  });
+
   test("duplicate voice webhooks create one call and one missed-call SMS", async () => {
     const business = await createBusiness();
 

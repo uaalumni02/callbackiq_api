@@ -766,6 +766,23 @@ describe("completed manual intake uses the durable staff handoff", () => {
     });
   });
 
+  test.each([
+    { providerMessageId: "SM_PRIOR_ACK", sent: true, suppressed: false },
+    { status: "suppressed", sent: false, suppressed: true },
+    { deliveryUncertain: true, sent: false, suppressed: false },
+  ])("reuses the durable handoff response after worker retry (%j)", async ({ sent, suppressed, ...priorReply }) => {
+    activeConversation.orchestration = { handoffReason: "intake_complete", handoffInboundMessage: activeInbound._id };
+    Message.findOne.mockReset()
+      .mockReturnValueOnce(leanQuery(null))
+      .mockResolvedValueOnce({ _id: "prior-ack", ...priorReply });
+
+    const result = await processInboundSmsJob(job);
+
+    expect(result).toMatchObject({ decision: "human_handoff", duplicate: true, outboundMessageId: "prior-ack", sent, suppressed });
+    expect(generateAIReplyResult).not.toHaveBeenCalled();
+    expect(sendSms).not.toHaveBeenCalled();
+  });
+
   test("an alert write failure prevents a false acknowledgement and the retry reuses the handoff", async () => {
     AlertService.createHumanHandoffAlert.mockRejectedValueOnce(new Error("alert storage unavailable"));
     await expect(processInboundSmsJob(job)).rejects.toThrow("alert storage unavailable");

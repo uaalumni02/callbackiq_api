@@ -15,7 +15,7 @@ import {
   parseTimePreference,
   rankSlotsByTimePreference,
 } from "./appointmentPreferenceParser.service.js";
-import { updateState } from "./bookingTurnState.repository.js";
+import { applyBookingEvent, updateState } from "./bookingTurnState.repository.js";
 import { bookingInquiryOperations } from "./bookingInquiryRuntime.js";
 const { formatSlot, buildAvailabilityPricingNote, handleAvailabilityProviderFailure } = bookingInquiryOperations;
 
@@ -274,9 +274,7 @@ export async function selectBookingOffer({ business, lead, activeConversation, t
 
   if (!slot) {
     if (smsIntent.intents.availabilityInquiry || hasAppointmentPreferenceHint(text, business.timezone || "America/New_York")) {
-      await updateState(activeConversation, {
-        status: "collecting_preference",
-      });
+      await applyBookingEvent(activeConversation, "request_new_offer", { businessId: business._id });
       return handle({
         business,
         lead,
@@ -296,8 +294,8 @@ export async function selectBookingOffer({ business, lead, activeConversation, t
     };
   }
 
-  await updateState(activeConversation, {
-    status: "awaiting_confirmation",
+  await applyBookingEvent(activeConversation, "select_offer", {
+    businessId: business._id,
     selectedSlot: slot,
     expiresAt: new Date(Date.now() + 15 * 60_000),
   });
