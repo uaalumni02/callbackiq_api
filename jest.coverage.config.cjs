@@ -20,7 +20,6 @@ module.exports = {
   ],
   testPathIgnorePatterns: [
     "/node_modules/",
-    "<rootDir>/tools/api_overlay/",
     "<rootDir>/hardening-tests/",
     "<rootDir>/tools/",
     "<rootDir>/.callbackiq-",
