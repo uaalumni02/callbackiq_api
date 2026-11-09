@@ -26,6 +26,17 @@ export const assertDistributedLeaseActive = () => {
   }
 };
 
+
+// A fenced write can use the earliest active deadline in its Mongo predicate.
+// Heartbeat renewals can only move the deadline forward.
+export const getDistributedLeaseWriteDeadline = () => {
+  let expiresAt = Infinity;
+  for (let scope = leaseScope.getStore(); scope; scope = scope.parent) {
+    expiresAt = Math.min(expiresAt, scope.expiresAt);
+  }
+  return Number.isFinite(expiresAt) ? new Date(expiresAt) : null;
+};
+
 const toPositiveInteger = (value, fallback) => {
   const parsed = Number.parseInt(value, 10);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;

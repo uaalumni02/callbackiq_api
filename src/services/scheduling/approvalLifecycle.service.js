@@ -1,4 +1,4 @@
-import { bookingStateFields } from '../booking/requestBookingState.js';
+import { applyAppointmentBookingTransition } from '../booking/appointmentBookingTransition.repository.js';
 import { repairConfirmedApproval } from './appointmentConfirmation.service.js';
 import Appointment from '../../models/appointment.js';
 import Alert from '../../models/alert.js';
@@ -60,12 +60,7 @@ export async function reconcileApprovalRequests({ businessId = null, limit = 100
       if (expired) {
         if (appointment.approvalRecovery?.expiredAt && Date.now() - new Date(appointment.approvalRecovery.expiredAt).getTime() < 86400000 && new Date(appointment.heldExpiresAt).getTime() > Date.now() - 86400000) await scheduleAppointmentChangeNotice({ appointment, key: 'approval_hold_expired',
           body: 'Your appointment is still awaiting approval. The requested time is no longer reserved. Your request remains open for the team to review. Reply here if another day would work.' });
-        if (appointment.conversation) await Conversation.updateOne({ _id: appointment.conversation,
-          business: appointment.business, 'bookingState.appointment': appointment._id }, { $set: bookingStateFields({
-          expiresAt: null,
-          status: 'pending_business_confirmation',
-          lastError: 'approval_needs_recheck',
-        }) });
+        await applyAppointmentBookingTransition(Conversation, 'approval_hold_expired', appointment);
       }
       await Appointment.updateOne({ _id: appointment._id, status: appointment.status }, { $set: {
         'approvalRecovery.reconciled': true, 'approvalRecovery.state': expired ? 'needs_recheck' : 'pending',
@@ -73,9 +68,7 @@ export async function reconcileApprovalRequests({ businessId = null, limit = 100
       const latest = await Appointment.findById(appointment._id).lean();
       if (latest && latest.status !== appointment.status && latest.status !== 'held') {
         await resolveApprovalReview(latest);
-        if (latest.status === 'confirmed' && latest.conversation) await Conversation.updateOne({
-          _id: latest.conversation, business: latest.business, 'bookingState.appointment': latest._id,
-        }, { $set: bookingStateFields({ status: 'booked', expiresAt: null, lastError: '' }) });
+        if (latest.status === 'confirmed') await applyAppointmentBookingTransition(Conversation, 'confirmation_recovered', latest);
       }
       repaired++;
     } catch (error) {

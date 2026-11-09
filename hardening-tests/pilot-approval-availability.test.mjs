@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { resolve, dirname } from 'node:path';
 import { preservePendingApprovalOnAvailabilityConflict } from '../src/services/scheduling/approvalAvailabilityFailurePolicy.js';
+import { assertConfirmationNotPending } from '../src/services/scheduling/appointmentConfirmationIntent.repository.js';
 import { createAppointmentconfirm1Methods } from '../src/services/scheduling/commands/confirm-1.js';
 
 const source = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../src/services/scheduling/appointment.service.js'), 'utf8');
@@ -37,7 +38,7 @@ test('the production confirmation path uses the guard before mutating failed sta
     confirmationSource.indexOf('async confirm(')
   );
   const end = confirmationSource.indexOf(
-    'const [service, lead]', start
+    'const service = await ServiceOffering.findById', start
   );
   assert.ok(start > 0 && end > start,
     'expected bounded final availability branch');
@@ -64,6 +65,7 @@ test('unavailable slot preserves pending approval without persistence', async ()
   };
 
   const methods = createAppointmentconfirm1Methods({
+    assertConfirmationNotPending,
     getAppointmentForBusiness: async () => appointment,
     assertTransition: () => events.push('transition'),
     exactSlotAvailable: async () => {

@@ -1,4 +1,4 @@
-import { bookingStateFields } from './requestBookingState.js';
+import { applyAppointmentBookingTransition } from './appointmentBookingTransition.repository.js';
 import { withStaffSchedulingException } from '../scheduling/staffSchedulingException.service.js';
 import { extractCustomerPostalCode } from './customerAddress.service.js';
 import crypto from 'crypto';
@@ -89,18 +89,15 @@ export const approveIntake = async ({ business, conversationId, input, approvedB
       notes: `Reviewed service request: ${lead.serviceNeeded}. Customer preference: ${lead.preferredAppointmentTime || ''}${unresolvedQualification ? `. Staff approved with unresolved intake details: ${reviewState.problem?.reason || 'triage_unresolved'}.${qualificationReviewNote ? ` Review note: ${qualificationReviewNote}` : ''}` : ''}`,
     } }));
     assertDistributedLeaseActive();
-    await Conversation.updateOne({ _id: conversation._id, business: business._id }, { $set: {
-      'conversationMemory.recoveryIntake.reviewAppointmentId': String(appointment._id),
-      ...bookingStateFields({ appointment: appointment._id,
-      status: appointment.status === 'confirmed' ? 'booked' : 'pending_business_confirmation' }),
-    } });
-    assertDistributedLeaseActive();
-    if (normalizePhoneToE164(appointment.customerPhone) !== customerPhone || String(appointment.conversation) !== String(conversation._id) || String(appointment.lead) !== String(lead._id) ||
+    if (String(appointment.business) !== String(business._id) || normalizePhoneToE164(appointment.customerPhone) !== customerPhone || String(appointment.conversation) !== String(conversation._id) || String(appointment.lead) !== String(lead._id) ||
       appointment.customerName !== customerName || appointment.address?.street !== address || appointment.address?.postalCode !== postalCode ||
       String(appointment.serviceOffering) !== String(input.serviceOfferingId) || new Date(appointment.startAt).getTime() !== Date.parse(input.startAt) ||
       (input.endAt && new Date(appointment.endAt).getTime() !== Date.parse(input.endAt))) {
       throw fail('This request already has a different appointment operation. Review that appointment before changing it.', 'INTAKE_APPOINTMENT_MISMATCH');
     }
+    const linked = await applyAppointmentBookingTransition(Conversation, 'intake_reservation_linked', appointment);
+    assertDistributedLeaseActive();
+    if (!linked?.matchedCount) throw fail('The conversation booking changed during review. Refresh before confirming.', 'INTAKE_REVIEW_CHANGED');
     // Voice and staff edits may not share the SMS worker lease. Re-read the
     // reviewed facts after availability lookup before granting confirmation.
     const currentConversation = await Conversation.findOne({ _id: conversation._id, business: business._id });
@@ -121,14 +118,7 @@ export const approveIntake = async ({ business, conversationId, input, approvedB
       const notice = await AppointmentNotificationJob.findOne({ business: business._id, appointment: confirmed._id, key: 'change_notice:business_approval_confirmed' }).lean();
       confirmationNoticeStatus = notice?.status || 'unavailable';
     } catch { /* The appointment is confirmed; report missing notice honestly. */ }
-    await Conversation.updateOne({ _id: conversation._id, business: business._id }, { $set: {
-      'conversationMemory.recoveryIntake.appointmentId': String(confirmed._id),
-      'conversationMemory.recoveryIntake.approvedAt': confirmed.approvalDecisionAt || new Date(),
-      'conversationMemory.recoveryIntake.approvedBy': approvedBy,
-      ...(unresolvedQualification ? { 'conversationMemory.recoveryIntake.qualificationReview': qualificationReview } : {}),
-      ...bookingStateFields({ status: 'booked', appointment: confirmed._id,
-      expiresAt: null, lastError: '' }),
-    } });
+    await applyAppointmentBookingTransition(Conversation, 'intake_confirmed', confirmed, { approvedBy, qualificationReview });
     // Update only the name staff actually reviewed; do not overwrite a concurrent correction.
     await Lead.updateOne({ _id: lead._id, business: business._id, customerName: lead.customerName ?? null },
       { $set: { customerName } });

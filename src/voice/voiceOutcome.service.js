@@ -1,4 +1,4 @@
-import { bookingStateFields } from '../services/booking/requestBookingState.js';
+import { bookingTransitionFields } from '../services/booking/requestBookingState.js';
 import { recordCallAnswer } from "../services/callAnswerEvidence.service.js";
 import AlertService from "../services/alert.service.js";
 import VoiceSession from "../models/voiceSession.js";
@@ -107,7 +107,7 @@ export const commitVoiceOutcome = async ({
           humanTakeover: true,
           humanTakeoverAt: now,
           humanTakeoverBy: null,
-          ...bookingStateFields({ status: "human_takeover" }),
+          ...bookingTransitionFields('voice_transfer_accepted'),
           "orchestration.phase": "human_takeover",
           "orchestration.handoffStatus": "acknowledged",
           "orchestration.handoffAcknowledgedAt": now,

@@ -21,8 +21,8 @@ beforeEach(()=>{
  conversation={_id:'b'.repeat(24),lead:'c'.repeat(24),status:'open',customerPhone:'+14045550123',orchestration:{recoveryJourneyKey:'journey'},conversationMemory:{recoveryIntake:{submitted:true}}};
  lead={_id:conversation.lead,customerName:'Jordan Lee',serviceNeeded:'Bathtub resealing',address:'970 Sidney Marcus Blvd NE Atlanta GA 30324',preferredAppointmentTime:'2026-09-09 at 08:00'};
  input={serviceOfferingId:'d'.repeat(24),startAt:'2026-09-09T12:00:00.000Z',intakeReviewVersion:intakeReviewVersion(conversation,lead)};
- appointment={_id:'e'.repeat(24),customerName:lead.customerName,customerPhone:conversation.customerPhone,conversation:conversation._id,lead:lead._id,address:{street:lead.address,postalCode:'30324'},serviceOffering:input.serviceOfferingId,startAt:new Date(input.startAt),status:'confirmed',requiresBusinessApproval:true};
- Conversation.findOne.mockResolvedValue(conversation); Lead.findOne.mockResolvedValue(lead);Alert.exists.mockResolvedValue({_id:'alert'});
+ appointment={_id:'e'.repeat(24),business:business._id,customerName:lead.customerName,customerPhone:conversation.customerPhone,conversation:conversation._id,lead:lead._id,address:{street:lead.address,postalCode:'30324'},serviceOffering:input.serviceOfferingId,startAt:new Date(input.startAt),status:'confirmed',requiresBusinessApproval:true};
+ Conversation.findOne.mockResolvedValue(conversation); Conversation.updateOne.mockResolvedValue({matchedCount:1}); Lead.findOne.mockResolvedValue(lead);Alert.exists.mockResolvedValue({_id:'alert'});
  withDistributedLease.mockImplementation(async(key,fn)=>({acquired:true,value:await fn()}));
  AppointmentService.create.mockResolvedValue(appointment);AppointmentService.confirm.mockResolvedValue(appointment);
  AppointmentNotificationJob.findOne.mockReturnValue({lean:jest.fn().mockResolvedValue({status:'scheduled'})});
@@ -151,10 +151,20 @@ test('a newly held appointment is projected as pending until confirmation succee
   await expect(run()).resolves.toMatchObject({ appointment: { status: 'confirmed' } });
   expect(Conversation.updateOne).toHaveBeenNthCalledWith(
     1,
-    { _id: conversation._id, business: business._id },
+    { _id: conversation._id, business: business._id, 'bookingState.appointment': { $in: [appointment._id, null] },
+      'bookingState.status': { $ne: 'booked' } },
     { $set: expect.objectContaining({
       'bookingState.appointment': appointment._id,
       'bookingState.status': 'pending_business_confirmation',
     }) },
   );
+});
+
+test('does not confirm a hold when the conversation now points to a different appointment', async () => {
+  Conversation.updateOne.mockResolvedValueOnce({ matchedCount: 0 });
+  await expect(run()).rejects.toMatchObject({ code: 'INTAKE_REVIEW_CHANGED' });
+  expect(AppointmentService.confirm).not.toHaveBeenCalled();
+  expect(Conversation.updateOne).toHaveBeenCalledWith(expect.objectContaining({
+    _id: conversation._id, business: business._id, 'bookingState.appointment': { $in: [appointment._id, null] },
+  }), expect.anything());
 });

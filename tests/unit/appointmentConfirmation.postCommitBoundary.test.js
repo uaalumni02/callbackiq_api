@@ -2,7 +2,7 @@ import { assertConfirmationNotPending, confirmationPending } from '../../src/ser
 import { confirmWithoutRecovery } from '../../src/services/scheduling/commands/confirmWithoutRecovery.js';
 // No database, Twilio, Stripe or network calls. Authorized change: after a durable
 // status=confirmed save, a secondary effect failure cannot become an HTTP failure.
-import { bookingStateFields } from '../../src/services/booking/requestBookingState.js';
+import { applyAppointmentBookingTransition } from '../../src/services/booking/appointmentBookingTransition.repository.js';
 import { createConfirmationRecovery } from '../../src/services/scheduling/appointmentConfirmationRecovery.service.js';
 import { createAppointmentconfirm1Methods } from '../../src/services/scheduling/commands/confirm-1.js';
 
@@ -43,7 +43,7 @@ const fixture = () => {
   };
   const deps={
     assertConfirmationNotPending, confirmationPending, confirmWithoutRecovery,
-    bookingStateFields, intent, businessCalendarProviderName: jest.fn(() => "internal"),
+    applyAppointmentBookingTransition, intent, businessCalendarProviderName: jest.fn(() => "internal"),
     getAppointmentForBusiness:jest.fn(async()=>appointment),
     assertTransition:jest.fn(), assertServiceRequestEligible:jest.fn(async()=>true),
     exactSlotAvailable:jest.fn(async()=>true),
@@ -184,7 +184,7 @@ describe('appointment confirmation durable boundary',()=>{
     expect(f.appointment.approvalDecisionAt).toBeInstanceOf(Date);
     expect(f.deps.ensureBusinessApprovalNotice).toHaveBeenCalledTimes(1);
     expect(f.deps.Conversation.updateOne).toHaveBeenCalledWith(
-      {_id:'c1',business:'b1'},
+      expect.objectContaining({_id:'c1',business:'b1','bookingState.appointment':{$in:['a1',null]}}),
       {$set:expect.objectContaining({'bookingState.status':'booked','bookingState.appointment':'a1'})}
     );
   });

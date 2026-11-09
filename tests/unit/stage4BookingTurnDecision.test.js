@@ -1,3 +1,4 @@
+import { bookingTransitionChanges } from '../../src/services/booking/requestBookingState.js';
 import {
   createBookingTurnContext, isBookingTurnBlocked, planRejectedBookingPreference,
 } from '../../src/services/booking/bookingTurnDecision.policy.js';
@@ -28,7 +29,7 @@ describe('Stage4 booking decisions without persistence or provider I/O',()=>{
   });
   test('rejected date clears offered options without inventing confirmation',()=>{
     const plan=rejection();
-    expect(plan.statePatch).toEqual({offeredSlots:[],selectedSlot:null,status:'collecting_preference',expiresAt:null,searchStartDate:null,searchEndDate:null,lastCustomerPreference:'',lastError:'customer_rejected_preference'});
+    expect(bookingTransitionChanges(plan.event, plan.details)).toEqual({offeredSlots:[],selectedSlot:null,status:'collecting_preference',expiresAt:null,searchStartDate:null,searchEndDate:null,lastCustomerPreference:'',lastError:'customer_rejected_preference'});
     expect(plan.reply).toBe('What day and time would work instead? No appointment is confirmed.');
     expect(plan.updateRequestedPreference).toBe(true);
     expect(plan.category).toBe('appointment_preference');
@@ -39,13 +40,13 @@ describe('Stage4 booking decisions without persistence or provider I/O',()=>{
     expect(plan.reply).toContain('existing appointment has not been changed');
   });
   test('disabled booking returns not_started without adding a booking',()=>{
-    expect(rejection({enabled:false}).statePatch.status).toBe('not_started');
+    expect(bookingTransitionChanges('preference_rejected', rejection({enabled:false}).details).status).toBe('not_started');
   });
   test('rejected date with a replacement date is processed by existing workflow',()=>{
     expect(rejection({hasReplacementDate:true})).toBeNull();
   });
   test('rejected time without an accepted time resets preference',()=>{
-    expect(rejection({evidence:{rejectedTime:true,rejectedDate:false}})?.statePatch.lastError).toBe('customer_rejected_preference');
+    expect(bookingTransitionChanges('preference_rejected', rejection({evidence:{rejectedTime:true,rejectedDate:false}})?.details).lastError).toBe('customer_rejected_preference');
   });
   test('rejected time with an accepted minute stays in existing workflow',()=>{
     expect(rejection({evidence:{rejectedTime:true,rejectedDate:false},acceptedTime:{targetMinutes:870,timeOfDay:''}})).toBeNull();

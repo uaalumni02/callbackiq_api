@@ -11,7 +11,7 @@ export async function handleExistingBookingTurn({
   bookingChannel,
   text,
   formatSlot,
-  updateState,
+  saveBookingTransition,
 }) {
   if (status === "pending_business_confirmation") {
     const appointmentId = activeConversation.bookingState.appointment;
@@ -23,15 +23,11 @@ export async function handleExistingBookingTurn({
       : null;
 
     if (appointment?.status === 'failed' && /hold expired/i.test(appointment.failureReason || '')) {
-      await updateState(activeConversation, { expiresAt: null, lastError: 'approval_needs_recheck' });
+      await saveBookingTransition(activeConversation, "approval_recheck_requested");
       return { handled: true, result: fixedResult({ reply: renderAppointmentResponse({ kind: 'expired' }, bookingChannel) }) };
     }
     if (appointment?.status === "confirmed") {
-      await updateState(activeConversation, {
-        status: "booked",
-        expiresAt: null,
-        lastError: "",
-      });
+      await saveBookingTransition(activeConversation, "approval_observed");
       return {
         handled: true,
         result: fixedResult({
@@ -53,14 +49,7 @@ export async function handleExistingBookingTurn({
       };
     }
 
-    await updateState(activeConversation, {
-      status: "collecting_preference",
-      appointment: null,
-      selectedSlot: null,
-      offeredSlots: [],
-      expiresAt: null,
-      lastError: "business_approval_unavailable",
-    });
+    await saveBookingTransition(activeConversation, "approval_unavailable");
     return {
       handled: true,
       result: fixedResult({
@@ -84,14 +73,7 @@ export async function handleExistingBookingTurn({
             bookingChannel === "sms" ? "SMS" : "voice"
           }.`,
         });
-        await updateState(activeConversation, {
-          status: "not_started",
-          appointment: null,
-          selectedSlot: null,
-          offeredSlots: [],
-          expiresAt: null,
-          lastError: "",
-        });
+        await saveBookingTransition(activeConversation, "booking_canceled");
 
         return {
           handled: true,
@@ -119,10 +101,7 @@ export async function handleExistingBookingTurn({
         { _id: appointmentId, business: business._id },
         { $set: { customerRescheduleRequestedAt: new Date() } },
       );
-      await updateState(activeConversation, {
-        status: "collecting_preference",
-        lastError: "reschedule_requested",
-      });
+      await saveBookingTransition(activeConversation, "reschedule_requested");
 
       return {
         handled: true,

@@ -375,6 +375,12 @@ test("the queued job generates and persists the AI reply exactly once", async ()
       source: "inbound_sms_reply",
     }),
   );
+  expect(SocketService.emitLeadUpdated).toHaveBeenCalledWith(
+    business._id, expect.objectContaining({ _id: lead._id, serviceNeeded: "Leaking faucet repair" }),
+  );
+  expect(SocketService.emitMessageCreated).toHaveBeenCalledWith(business._id, sentOutbound);
+  expect(SocketService.emitMessageCreated.mock.invocationCallOrder[0])
+    .toBeGreaterThan(Message.findByIdAndUpdate.mock.invocationCallOrder[0]);
   expect(result).toMatchObject({ sent: true, outboundMessageId: "message-out-1" });
   expect(logOperationalEvent).toHaveBeenCalledWith(
     "twilio.sms.reply_sent",
@@ -758,6 +764,42 @@ describe("completed manual intake uses the durable staff handoff", () => {
       expect(await processInboundSmsJob(job)).toMatchObject({ sent: false, suppressed: true });
       expect(sendSms).not.toHaveBeenCalled();
     });
+  });
+
+  test("a routine turn with AI qualification disabled completes without model work or SMS", async () => {
+    isBusinessFeatureEnabled.mockReturnValue(false);
+    activeInbound.body = "Thanks for your help";
+
+    await expect(processInboundSmsJob(job)).resolves.toMatchObject({ decision: "skipped", reason: "ai_ineligible" });
+
+    expect(generateAIReplyResult).not.toHaveBeenCalled();
+    expect(sendSms).not.toHaveBeenCalled();
+  });
+
+  test("fails a job with missing tenant records before provider work", async () => {
+    Business.findById.mockResolvedValueOnce(null);
+
+    await expect(processInboundSmsJob(job)).rejects.toMatchObject({ code: "SMS_JOB_RECORD_MISSING" });
+
+    expect(generateAIReplyResult).not.toHaveBeenCalled();
+    expect(sendSms).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    { providerMessageId: "SM_PRIOR_ACK", sent: true, suppressed: false },
+    { status: "suppressed", sent: false, suppressed: true },
+    { deliveryUncertain: true, sent: false, suppressed: false },
+  ])("reuses the durable handoff response after worker retry (%j)", async ({ sent, suppressed, ...priorReply }) => {
+    activeConversation.orchestration = { handoffReason: "intake_complete", handoffInboundMessage: activeInbound._id };
+    Message.findOne.mockReset()
+      .mockReturnValueOnce(leanQuery(null))
+      .mockResolvedValueOnce({ _id: "prior-ack", ...priorReply });
+
+    const result = await processInboundSmsJob(job);
+
+    expect(result).toMatchObject({ decision: "human_handoff", duplicate: true, outboundMessageId: "prior-ack", sent, suppressed });
+    expect(generateAIReplyResult).not.toHaveBeenCalled();
+    expect(sendSms).not.toHaveBeenCalled();
   });
 
   test("an alert write failure prevents a false acknowledgement and the retry reuses the handoff", async () => {

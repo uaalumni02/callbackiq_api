@@ -93,7 +93,7 @@ test("voice turns propagate cancellation and fence side effects", () => {
   const relay = read("src/voice/conversationRelay.server.js");
   const agent = read("src/voice/voiceAgent.service.js");
   const understanding = read("src/voice/voiceUnderstanding.service.js");
-  const booking = read("src/services/booking/bookingStateMachine.service.js");
+  const booking = read("src/services/booking/bookingConfirmationTurn.service.js");
   assert.match(relay, /AbortController/);
   assert.match(relay, /runWithVoiceTurnContext/);
   assert.match(relay, /signal: abortController\.signal/);

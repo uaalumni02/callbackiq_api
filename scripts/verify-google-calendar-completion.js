@@ -33,11 +33,11 @@ requireText(
   "sweepOrphanedGoogleEvents",
 );
 requireText(
-  "src/services/booking/bookingStateMachine.service.js",
+  "src/services/booking/appointmentPreferenceParser.service.js",
   "TOMORROW_PATTERN",
 );
 requireText(
-  "src/services/booking/bookingStateMachine.service.js",
+  "src/services/booking/bookingAvailabilityTurn.service.js",
   "spreadSlotOptions",
 );
 requireText(
@@ -65,7 +65,7 @@ requireText(
   "populated.lockedBy !== instanceId",
 );
 requireText(
-  "src/services/booking/bookingStateMachine.service.js",
+  "src/services/booking/existingBookingTurn.service.js",
   "Destructive or schedule-changing intent takes precedence",
 );
 requireText(

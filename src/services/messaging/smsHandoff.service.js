@@ -1,4 +1,4 @@
-import { bookingStateFields } from '../booking/requestBookingState.js';
+import { bookingTransitionFields } from '../booking/requestBookingState.js';
 import { smsContactControlKind } from './smsContactControl.service.js';
 import { confirmationFollowUpReply } from '../booking/confirmationFollowUp.service.js';
 import { respectCustomerConstraints, currentConstraints } from '../conversationCondition.service.js';
@@ -332,7 +332,7 @@ export const buildFinalizedHumanHandoffUpdate = ({
   // ownership. Keep automation eligible until a real staff action occurs.
   // The pending phase was recorded before delivery; do not overwrite a
   // concurrent real staff takeover that may happen while sending.
-  ...bookingStateFields({ escalatedAt: now }),
+  ...bookingTransitionFields('sms_handoff_recorded', { escalatedAt: now }),
   "orchestration.lastOutcome": handoffReason(result),
   "orchestration.lastStateTransitionAt": now,
   "orchestration.lastEscalatedAt": now,

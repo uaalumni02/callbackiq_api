@@ -1,10 +1,10 @@
 {
   "files": {
     "src/services/messaging/inboundSmsJobProcessor.service.js": {
-      "moduleImports": 35,
-      "fileCallFanOut": 64,
-      "maxFunctionCallFanOut": 61,
-      "maxCyclomatic": 117
+      "moduleImports": 30,
+      "fileCallFanOut": 56,
+      "maxFunctionCallFanOut": 13,
+      "maxCyclomatic": 25
     },
     "src/voice/conversationRelay.server.js": {
       "moduleImports": 23,
@@ -25,10 +25,52 @@
       "maxCyclomatic": 32
     },
     "src/services/booking/bookingStateMachine.service.js": {
-      "moduleImports": 40,
-      "fileCallFanOut": 71,
-      "maxFunctionCallFanOut": 66,
-      "maxCyclomatic": 184
+      "moduleImports": 12,
+      "fileCallFanOut": 20,
+      "maxFunctionCallFanOut": 11,
+      "maxCyclomatic": 25
+    },
+    "src/services/booking/bookingAvailabilityTurn.service.js": {
+      "moduleImports": 13,
+      "fileCallFanOut": 36,
+      "maxFunctionCallFanOut": 18,
+      "maxCyclomatic": 25
+    },
+    "src/services/booking/bookingIntakeTurn.service.js": {
+      "moduleImports": 8,
+      "fileCallFanOut": 18,
+      "maxFunctionCallFanOut": 11,
+      "maxCyclomatic": 25
+    },
+    "src/services/booking/bookingConfirmationTurn.service.js": {
+      "moduleImports": 7,
+      "fileCallFanOut": 12,
+      "maxFunctionCallFanOut": 11,
+      "maxCyclomatic": 25
+    },
+    "src/services/booking/bookingReadOnlyTurn.service.js": {
+      "moduleImports": 9,
+      "fileCallFanOut": 16,
+      "maxFunctionCallFanOut": 11,
+      "maxCyclomatic": 25
+    },
+    "src/services/booking/bookingTurnPreflight.service.js": {
+      "moduleImports": 16,
+      "fileCallFanOut": 24,
+      "maxFunctionCallFanOut": 12,
+      "maxCyclomatic": 25
+    },
+    "src/services/booking/bookingTurnState.repository.js": {
+      "moduleImports": 4,
+      "fileCallFanOut": 20,
+      "maxFunctionCallFanOut": 8,
+      "maxCyclomatic": 25
+    },
+    "src/services/messaging/inboundSmsReply.service.js": {
+      "moduleImports": 13,
+      "fileCallFanOut": 43,
+      "maxFunctionCallFanOut": 10,
+      "maxCyclomatic": 25
     }
   }
 }

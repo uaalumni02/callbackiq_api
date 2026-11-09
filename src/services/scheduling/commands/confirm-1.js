@@ -1,6 +1,6 @@
 /* Appointment command dependencies are wired in AppointmentService. */
 export function createAppointmentconfirm1Methods(deps) {
-  const { assertConfirmationNotPending, confirmationPending, confirmWithoutRecovery, Conversation, InterventionService, SchedulingProviderFactory, ServiceOffering, SocketService, assertDistributedLeaseActive, assertServiceRequestEligible, assertTransition, bookingStateFields, ensureBusinessApprovalNotice, exactSlotAvailable, getAppointmentForBusiness, lifecycleMarker, preservePendingApprovalOnAvailabilityConflict, projectionMarker, resolveApprovalReview, runNonBlockingAppointmentSideEffect, scheduleAppointmentReminders, tryRepairAppointmentLifecycle, tryRepairAppointmentProjections, safeConsole, businessCalendarProviderName, intent, recovery } = deps;
+  const { assertConfirmationNotPending, confirmationPending, confirmWithoutRecovery, Conversation, InterventionService, SchedulingProviderFactory, ServiceOffering, SocketService, assertDistributedLeaseActive, assertServiceRequestEligible, assertTransition, applyAppointmentBookingTransition, ensureBusinessApprovalNotice, exactSlotAvailable, getAppointmentForBusiness, lifecycleMarker, preservePendingApprovalOnAvailabilityConflict, projectionMarker, resolveApprovalReview, runNonBlockingAppointmentSideEffect, scheduleAppointmentReminders, tryRepairAppointmentLifecycle, tryRepairAppointmentProjections, safeConsole, businessCalendarProviderName, intent, recovery } = deps;
   // Once MongoDB has saved status=confirmed, these effects must not turn the booking into an HTTP failure.
   // Keep logs structured and tenant-scoped; the existing intervention is our durable human recovery record.
   const logCommittedEffectFailure = (effect, error, appointment, business) => {
@@ -29,21 +29,8 @@ export function createAppointmentconfirm1Methods(deps) {
         label: "business approval customer confirmation",
         task: async () => {
           await ensureBusinessApprovalNotice({ appointment, business, service });
-          if (appointment.conversation) {
-            await Conversation.updateOne(
-              { _id: appointment.conversation, business: business._id,
-                ...(recovering ? { 'bookingState.appointment': appointment._id } : {}),
-              },
-              {
-                $set: bookingStateFields({
-                  status: "booked",
-                  appointment: appointment._id,
-                  expiresAt: null,
-                  lastError: "",
-                }),
-              },
-            );
-          }
+          const event = recovering ? 'confirmation_recovered' : 'appointment_confirmed';
+          await applyAppointmentBookingTransition(Conversation, event, appointment);
         },
       }), appointment, business);
     }

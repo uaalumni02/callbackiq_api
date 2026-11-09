@@ -1,4 +1,4 @@
-import { bookingStateFields } from '../services/booking/requestBookingState.js';
+import { bookingTransitionFields } from '../services/booking/requestBookingState.js';
 import { maintainStaffReviewRecords } from '../services/staffReviewReconciliation.service.js';
 import { reconcileRecoveryBookingEvidence } from '../services/recoveryCoordinator/reconciliation.service.js';
 import { requestWasWithdrawn } from '../services/conversationControlPolicy.js';
@@ -96,13 +96,7 @@ export const expireBookingOffer = async (conversation, now) => {
     },
     {
       $set: {
-        ...bookingStateFields({
-          status: "collecting_preference",
-          selectedSlot: null,
-          offeredSlots: [],
-          expiresAt: null,
-          lastError: "offer_expired",
-        }),
+        ...bookingTransitionFields('offer_expired'),
         "orchestration.phase": "scheduling",
         "orchestration.lastStateTransitionAt": now,
       },

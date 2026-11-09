@@ -8,11 +8,16 @@ const { parse } = require('@babel/parser');
 const traverse = require('@babel/traverse').default;
 
 const root = resolve(__dirname, '..');
-const config = JSON.parse(readFileSync(resolve(root, 'config/remediation-metrics.json'), 'utf8'));
 const args = process.argv.slice(2);
 const refIndex = args.indexOf('--ref');
 const revision = refIndex < 0 ? null : args[refIndex + 1];
 if (refIndex >= 0 && (!revision || revision.startsWith('-'))) throw new Error('--ref needs a Git revision');
+
+const configPath = 'config/remediation-metrics.json';
+const readSource = (file) => revision
+  ? execFileSync('git', ['show', `${revision}:${file}`], { cwd: root, encoding: 'utf8' })
+  : readFileSync(resolve(root, file), 'utf8');
+const config = JSON.parse(readSource(configPath));
 
 function calleeName(node) {
   if (node?.type === 'Identifier') return node.name;
@@ -67,12 +72,9 @@ function measure(source) {
   };
 }
 
-const values = Object.fromEntries(Object.keys(config.files).map((file) => {
-  const source = revision
-    ? execFileSync('git', ['show', `${revision}:${file}`], { cwd: root, encoding: 'utf8' })
-    : readFileSync(resolve(root, file), 'utf8');
-  return [file, measure(source)];
-}));
+const values = Object.fromEntries(
+  Object.keys(config.files).map((file) => [file, measure(readSource(file))]),
+);
 
 if (!args.includes('--check')) {
   console.log(JSON.stringify(values, null, 2));

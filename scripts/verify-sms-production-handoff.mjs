@@ -11,6 +11,8 @@ import { spawnSync } from "node:child_process";
 const root = process.cwd();
 const files = {
   processor: "src/services/messaging/inboundSmsJobProcessor.service.js",
+  reply: "src/services/messaging/inboundSmsReply.service.js",
+  delivery: "src/services/messaging/smsOutboundDelivery.adapter.js",
   helper: "src/services/messaging/smsHandoff.service.js",
   policy: "src/services/messaging/smsTurnPolicy.service.js",
   alertService: "src/services/alert.service.js",
@@ -40,25 +42,23 @@ check(
   "Handoff helper marker is installed",
 );
 check(
-  source.processor.includes("ensureHumanHandoffResult"),
+  source.reply.includes("ensureHumanHandoffResult"),
   "Processor guarantees a handoff acknowledgement result",
 );
 check(
-  source.processor.includes("bypassUsageLimits") &&
-    source.processor.includes("statusAcknowledgement"),
+  source.delivery.includes("bypassUsageLimits") &&
+    source.delivery.includes("statusAcknowledgement"),
   "Essential handoff replies bypass normal usage caps",
 );
 check(
-  source.processor.includes("inReplyToMessage: inboundMessage._id") &&
-    source.processor.includes("sms-inbound-reply:${business._id}:${inboundMessage._id}"),
+  source.delivery.includes("inReplyToMessage: inboundMessage._id") &&
+    source.delivery.includes("sms-inbound-reply:${business._id}:${inboundMessage._id}"),
   "Outbound replies use message and provider-operation idempotency",
 );
 
-const deliveryIndex = source.processor.lastIndexOf("persistOutboundReply({");
-const finalizationIndex = source.processor.indexOf(
-  "buildFinalizedHumanHandoffUpdate",
-  deliveryIndex,
-);
+const route = source.reply.slice(source.reply.indexOf("export async function routeConversationReply"));
+const deliveryIndex = route.indexOf("await deliverConversationReply(");
+const finalizationIndex = route.indexOf("await finalizeConversationHandoff(");
 check(deliveryIndex >= 0, "Processor contains outbound delivery step");
 check(
   finalizationIndex > deliveryIndex,
@@ -66,12 +66,12 @@ check(
   `deliveryIndex=${deliveryIndex}, finalizationIndex=${finalizationIndex}`,
 );
 check(
-  !source.processor.includes("if (requiresHumanTakeover(result))"),
+  !source.reply.includes("if (requiresHumanTakeover(result))"),
   "Legacy pre-delivery takeover block is removed",
 );
 check(
-  source.processor.includes('"orchestration.silentFailureCount"') &&
-    source.processor.includes("buildFailedHumanHandoffUpdate"),
+  source.reply.includes('"orchestration.silentFailureCount"') &&
+    source.reply.includes("buildFailedHumanHandoffUpdate"),
   "Failed handoff replies remain retryable and observable",
 );
 check(

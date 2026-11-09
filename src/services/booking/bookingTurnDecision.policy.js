@@ -24,12 +24,8 @@ export const planRejectedBookingPreference = ({ evidence, acceptedTime, hasRepla
   if (!rejected) return null;
   return {
     updateRequestedPreference: !hasExistingAppointment,
-    statePatch: {
-      offeredSlots: [], selectedSlot: null,
-      status: enabled ? 'collecting_preference' : 'not_started', expiresAt: null,
-      searchStartDate: null, searchEndDate: null, lastCustomerPreference: '',
-      lastError: 'customer_rejected_preference',
-    },
+    event: 'preference_rejected',
+    details: { enabled },
     reply: `What day and time would work instead?${hasExistingAppointment ? ' Your existing appointment has not been changed.' : ' No appointment is confirmed.'}`,
     category: 'appointment_preference',
   };

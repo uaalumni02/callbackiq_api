@@ -1,4 +1,4 @@
-import { replaceBookingState } from './requestBookingState.js';
+import { applyBookingStateTransition } from './requestBookingState.js';
 import { dialogMode } from '../conversationPolicy/dialogPolicy.js';
 import { captureTurnFacts } from './turnFactCapture.service.js';
 import AlertService from '../alert.service.js';
@@ -34,8 +34,7 @@ export async function requestStaffSchedulingReview({ business, lead, conversatio
   // Retire earlier numbered offers, so a later "1" cannot select a stale
   // appointment after the customer asked for a different, unavailable day.
   if (conversation && typeof conversation.save === 'function') {
-    replaceBookingState(conversation, { ...(conversation.bookingState?.toObject?.() || conversation.bookingState || {}),
-      status: 'collecting_preference', offeredSlots: [], selectedSlot: null, expiresAt: null }, { markModified: true });
+    applyBookingStateTransition(conversation, 'staff_review_requested');
     if (channel === 'voice') {
       conversation.orchestration = { ...(conversation.orchestration?.toObject?.() || conversation.orchestration || {}),
         phase: 'handoff_pending', handoffStatus: 'pending_ack', handoffReason: 'scheduling_review',

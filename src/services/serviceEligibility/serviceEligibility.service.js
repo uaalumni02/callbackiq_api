@@ -1,4 +1,4 @@
-import { replaceBookingState } from '../booking/requestBookingState.js';
+import { applyBookingStateTransition } from '../booking/requestBookingState.js';
 import { isContextualSymptomAnswer } from '../booking/contextualServiceAnswer.service.js';
 import { classifyLeakActivityAnswer } from '../booking/leakActivityAnswer.service.js';
 import { assessTradeQualification } from '../trades/tradeQualification.service.js';
@@ -139,7 +139,7 @@ export async function guardServiceRequest({ business, lead, conversation, custom
   }
   if (changed || (!prior && eligibility.decision !== 'supported')) {
     // Invalidate stale proposals, never cancel an existing customer appointment.
-    if (!conversation.bookingState?.appointment) replaceBookingState(conversation, { status: 'not_started' });
+    if (!conversation.bookingState?.appointment) applyBookingStateTransition(conversation, 'service_eligibility_changed');
     const memory = conversation.conversationMemory?.toObject?.() || conversation.conversationMemory || {};
     conversation.conversationMemory = { ...memory, recoveryIntake: current && prior?.request !== request ? {} : (memory.recoveryIntake || {}) };
     if (current && prior?.request !== request) {

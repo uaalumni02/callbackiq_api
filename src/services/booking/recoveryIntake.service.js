@@ -1,4 +1,4 @@
-import { replaceBookingState } from './requestBookingState.js';
+import { applyBookingStateTransition } from './requestBookingState.js';
 import { isContextualSymptomAnswer } from './contextualServiceAnswer.service.js';
 import BookingStateMachine, { selectOfferedSlot } from './bookingStateMachine.service.js';
 import { classifyLeakActivityAnswer } from './leakActivityAnswer.service.js';
@@ -77,7 +77,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   if (capturedAddress) {
     assertDistributedLeaseActive(); assertVoiceTurnActive();
     if (known(lead.address) && capturedAddress !== lead.address && !conversation.bookingState?.appointment) {
-      replaceBookingState(conversation, { status: 'not_started' });
+      applyBookingStateTransition(conversation, 'intake_address_changed');
       if (conversation.conversationMemory?.recoveryIntake) {
         conversation.conversationMemory.recoveryIntake.availability = { status: 'unknown' };
         conversation.conversationMemory.recoveryIntake.submitted = false;
@@ -377,11 +377,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   if (rejectedDateOnly || rejectedTimeOnly) {
     if (!conversation.bookingState?.appointment) {
       lead.preferredAppointmentTime = [state.date, state.time].filter(Boolean).join(' at ');
-      replaceBookingState(conversation, { ...conversation.bookingState,
-        offeredSlots: [], selectedSlot: null, expiresAt: null,
-        searchStartDate: null, searchEndDate: null, lastCustomerPreference: '',
-        status: business.features?.aiBookingEnabled ? 'collecting_preference' : 'not_started',
-        lastError: 'customer_rejected_preference' }, { markModified: true });
+      applyBookingStateTransition(conversation, 'intake_preference_rejected', { enabled: business.features?.aiBookingEnabled });
     }
     state.availability = { status: 'not_checked', reason: 'customer_rejected_preference' };
     state.reviewReady = false; state.submitted = false;
@@ -401,7 +397,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
     if (state.coverage.supported !== true) {
       state.availability = { status: 'unknown' };
       if (!conversation.bookingState?.appointment) {
-        replaceBookingState(conversation, { status: 'not_started' }, { markModified: true });
+        applyBookingStateTransition(conversation, 'intake_coverage_unavailable');
       }
       if (state.coverage.supported === false && !conversation.bookingState?.appointment) {
         state.reviewReady = false; state.submitted = false;
@@ -533,7 +529,7 @@ export const handleRecoveryIntake = async ({ business, lead, conversation, custo
   // collects a preference. Both modes share address and qualification rules.
   if (business.features?.aiBookingEnabled === true && !state.triagePending && !state.clogPending) {
     if (!conversation.bookingState?.status || conversation.bookingState.status === 'not_started') {
-      replaceBookingState(conversation, { ...conversation.bookingState, status: 'collecting_service' }, { markModified: true });
+      applyBookingStateTransition(conversation, 'intake_booking_started');
     }
     await persist(); return null;
   }

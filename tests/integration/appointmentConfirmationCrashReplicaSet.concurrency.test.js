@@ -5,7 +5,7 @@ import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import Appointment from '../../src/models/appointment.js';
 import AppointmentNotificationJob from '../../src/models/appointmentNotificationJob.js';
 import { scheduleAppointmentReminders } from '../../src/services/scheduling/appointmentNotification.service.js';
-import { bookingStateFields } from '../../src/services/booking/requestBookingState.js';
+import { applyAppointmentBookingTransition } from '../../src/services/booking/appointmentBookingTransition.repository.js';
 import { createConfirmationIntentRepository } from '../../src/services/scheduling/appointmentConfirmationIntent.repository.js';
 import { createConfirmationRecovery } from '../../src/services/scheduling/appointmentConfirmationRecovery.service.js';
 import { createAppointmentconfirm1Methods } from '../../src/services/scheduling/commands/confirm-1.js';
@@ -61,7 +61,7 @@ async function fixture() {
   const service = { _id: appointment.serviceOffering };
   const deps = {
     assertConfirmationNotPending, confirmationPending, confirmWithoutRecovery,
-    intent, bookingStateFields, clock, Business: { findById: jest.fn(async () => business) },
+    intent, applyAppointmentBookingTransition, clock, Business: { findById: jest.fn(async () => business) },
     getAppointmentForBusiness: (businessId, id) => Appointment.findOne({ _id: id, business: businessId }, '+confirmationIntent'),
     assertTransition: jest.fn(), assertServiceRequestEligible: jest.fn(),
     exactSlotAvailable: jest.fn(async () => true), preservePendingApprovalOnAvailabilityConflict: jest.fn(() => true),
