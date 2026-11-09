@@ -61,3 +61,44 @@ test('replacement repair fixes conversation and lead without modifying another t
   expect(await Job.countDocuments({ appointment: replacement._id })).toBe(1);
   await expect(submitRescheduleRequest({ business: { _id: oid() }, appointmentId: replacement._id, conversationId: conversation, startAt: replacement.startAt, endAt: replacement.endAt })).rejects.toMatchObject({ statusCode: 409 });
 });
+
+test('a delayed confirmation preserves the appointment now linked to the conversation', async () => {
+  const newer = oid();
+  await Conversation.updateOne({ _id: conversation }, { $set: { 'bookingState.appointment': newer } });
+  appointment.lifecycleNotice = lifecycleMarker('confirmed');
+  await repairAppointmentLifecycle(appointment, business);
+  expect((await Conversation.findById(conversation)).bookingState.toObject()).toMatchObject({
+    appointment: newer, status: 'booked',
+  });
+});
+
+test('cancellation clears only the conversation still linked to the canceled appointment', async () => {
+  const otherConversation = oid();
+  const otherAppointment = oid();
+  await Conversation.collection.insertOne({ _id: otherConversation, business: business._id,
+    bookingState: { appointment: otherAppointment, status: 'booked' } });
+  const canceled = { ...appointment, status: 'canceled', lifecycleNotice: lifecycleMarker('canceled') };
+
+  await repairAppointmentLifecycle(canceled, business);
+  await repairAppointmentLifecycle(canceled, business);
+  expect((await Conversation.findById(conversation)).bookingState.toObject()).toMatchObject({
+    appointment: null, status: 'not_started', offeredSlots: [], selectedSlot: null,
+  });
+  expect((await Conversation.findById(otherConversation)).bookingState.toObject()).toMatchObject({
+    appointment: otherAppointment, status: 'booked',
+  });
+  expect(await Job.countDocuments({ appointment: appointment._id })).toBe(1);
+});
+
+test('replaying a replacement cannot move the conversation back after another booking', async () => {
+  const replacement = { ...appointment, _id: oid(), idempotencyKey: 'replacement-replay',
+    rescheduledFrom: appointment._id, lifecycleNotice: lifecycleMarker('rescheduled') };
+  await Appointment.collection.insertOne(replacement);
+  await repairAppointmentLifecycle(replacement, business);
+  expect((await Conversation.findById(conversation)).bookingState.appointment).toEqual(replacement._id);
+
+  const newer = oid();
+  await Conversation.updateOne({ _id: conversation }, { $set: { 'bookingState.appointment': newer } });
+  await repairAppointmentLifecycle(replacement, business);
+  expect((await Conversation.findById(conversation)).bookingState.appointment).toEqual(newer);
+});
