@@ -1,3 +1,4 @@
+import { assertOwnerReadContract } from "../contracts/ownerReadContract.js";
 import request from "supertest";
 
 import app from "../../src/app.js";
@@ -349,6 +350,7 @@ describe("Conversation Routes", () => {
         }),
       );
 
+      assertOwnerReadContract("/api/conversations", res);
       expect(res.body.data[0].permissions).toEqual(
         expect.objectContaining({
           canArchive: true,

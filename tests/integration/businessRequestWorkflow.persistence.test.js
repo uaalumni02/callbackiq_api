@@ -89,3 +89,34 @@ test('delivery receipt between owner read and follow-up does not block outcome',
  expect(result.review.actionRequired).toBe(true);
  expect(result.conversation.humanTakeover).toBe(true);
 });
+
+test('a partial correction preserves the saved preference and clears legacy booking evidence', async () => {
+  await act('accept');
+  await Lead.collection.updateOne({ _id: lead }, { $unset: { address: '' } });
+  await Conversation.collection.updateOne({ _id: conversation }, {
+    $set: { 'conversationMemory.recoveryIntake.readiness': { availabilityVerified: true, addressReady: true } },
+  });
+  const corrected = await act('facts', { changes: { serviceNeeded: 'Inspect bathroom drain' } });
+  expect(corrected.lead.preferredAppointmentTime).toBe('Friday noon');
+  expect(corrected.conversation.bookingState).toMatchObject({
+    status: 'human_takeover',
+    lastCustomerPreference: 'Friday noon',
+    postalCode: '',
+    offeredSlots: [],
+  });
+  expect(corrected.conversation.conversationMemory.recoveryIntake.readiness)
+    .toMatchObject({ availabilityVerified: false, addressReady: true });
+});
+
+test('staff can close a genuinely booked request without withdrawing it', async () => {
+  await act('accept');
+  const appointment = oid();
+  await Appointment.collection.insertOne({ _id: appointment, business: business._id, conversation, lead, status: 'confirmed' });
+  await Conversation.updateOne({ _id: conversation }, {
+    $set: { 'bookingState.appointment': appointment, 'bookingState.status': 'booked' },
+  });
+  const result = await act('outcome', { outcome: 'booked', reason: 'Staff verified the appointment' });
+  expect(result.lead.status).toBe('booked');
+  expect(result.conversation.bookingState.status).toBe('booked');
+  expect(result.conversation.conversationMemory.recoveryIntake.withdrawnAt).toBeFalsy();
+});

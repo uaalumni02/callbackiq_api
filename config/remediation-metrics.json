@@ -1,0 +1,34 @@
+{
+  "files": {
+    "src/services/messaging/inboundSmsJobProcessor.service.js": {
+      "moduleImports": 35,
+      "fileCallFanOut": 64,
+      "maxFunctionCallFanOut": 61,
+      "maxCyclomatic": 117
+    },
+    "src/voice/conversationRelay.server.js": {
+      "moduleImports": 23,
+      "fileCallFanOut": 133,
+      "maxFunctionCallFanOut": 23,
+      "maxCyclomatic": 43
+    },
+    "src/helpers/ai/aiGuardrails.js": {
+      "moduleImports": 2,
+      "fileCallFanOut": 62,
+      "maxFunctionCallFanOut": 10,
+      "maxCyclomatic": 17
+    },
+    "src/controllers/billing.js": {
+      "moduleImports": 19,
+      "fileCallFanOut": 69,
+      "maxFunctionCallFanOut": 21,
+      "maxCyclomatic": 32
+    },
+    "src/services/booking/bookingStateMachine.service.js": {
+      "moduleImports": 40,
+      "fileCallFanOut": 71,
+      "maxFunctionCallFanOut": 66,
+      "maxCyclomatic": 184
+    }
+  }
+}

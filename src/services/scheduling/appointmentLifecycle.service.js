@@ -1,3 +1,4 @@
+import { bookingStateFields } from '../booking/requestBookingState.js';
 import Appointment from '../../models/appointment.js';
 import Business from '../../models/business.js';
 import Conversation from '../../models/conversation.js';
@@ -36,7 +37,7 @@ export async function repairAppointmentLifecycle(appointment, business = null) {
   if (key === 'lifecycle_confirmed' && appointment.conversation) {
     await Conversation.updateOne({ _id: appointment.conversation, business: appointment.business,
       $or: [{ 'bookingState.appointment': null }, { 'bookingState.appointment': appointment._id }] },
-    { $set: { 'bookingState.appointment': appointment._id, 'bookingState.status': 'booked', 'bookingState.expiresAt': null, 'bookingState.lastError': '' } });
+    { $set: bookingStateFields({ appointment: appointment._id, status: 'booked', expiresAt: null, lastError: '' }) });
   }
   if (key === 'lifecycle_rescheduled' && appointment.rescheduledFrom) {
     const original = await Appointment.findOne({ _id: appointment.rescheduledFrom, business: appointment.business }).lean();
@@ -50,10 +51,10 @@ export async function repairAppointmentLifecycle(appointment, business = null) {
     await cancelAppointmentNotifications({ businessId: appointment.business, appointmentId: original._id });
     await resolveRescheduleReviews(original);
     if (appointment.conversation) await Conversation.updateOne({ _id: appointment.conversation, business: appointment.business,
-      'bookingState.appointment': original._id }, { $set: { 'bookingState.appointment': appointment._id,
-      'bookingState.status': 'booked', 'bookingState.lastError': '', 'bookingState.expiresAt': null,
-      'bookingState.selectedSlot': null, 'bookingState.offeredSlots': [],
-    } });
+      'bookingState.appointment': original._id }, { $set: bookingStateFields({
+      appointment: appointment._id, status: 'booked', lastError: '', expiresAt: null,
+      selectedSlot: null, offeredSlots: [],
+    }) });
     if (appointment.lead) await Lead.updateOne({ _id: appointment.lead, business: appointment.business, appointment: original._id },
       { $set: { appointment: appointment._id, bookedAt: appointment.confirmedAt } });
     await scheduleAppointmentReminders({ appointment });
@@ -63,10 +64,10 @@ export async function repairAppointmentLifecycle(appointment, business = null) {
     await resolveRescheduleReviews(appointment);
     if (appointment.lead) await Lead.updateOne({ _id: appointment.lead, business: appointment.business, appointment: appointment._id }, { $set: { appointment: null } });
     if (appointment.conversation) await Conversation.updateOne({ _id: appointment.conversation, business: appointment.business,
-      'bookingState.appointment': appointment._id }, { $set: { 'bookingState.status': 'not_started',
-      'bookingState.appointment': null, 'bookingState.selectedSlot': null, 'bookingState.offeredSlots': [],
-      'bookingState.expiresAt': null, 'bookingState.lastError': key === 'lifecycle_declined' ? 'business_declined' : '',
-    } });
+      'bookingState.appointment': appointment._id }, { $set: bookingStateFields({
+      status: 'not_started', appointment: null, selectedSlot: null, offeredSlots: [],
+      expiresAt: null, lastError: key === 'lifecycle_declined' ? 'business_declined' : '',
+    }) });
   }
   if (key.startsWith('lifecycle_change_declined_')) await resolveRescheduleReviews(appointment, key.slice('lifecycle_change_declined_'.length));
   await scheduleAppointmentChangeNotice({ appointment, key, body: lifecycleMessage(appointment, ownerBusiness) });

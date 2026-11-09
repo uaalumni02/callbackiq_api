@@ -28,6 +28,10 @@ const webhookPath = path.join(
 
 const source = fs.readFileSync(processorPath, "utf8");
 const webhookSource = fs.readFileSync(webhookPath, "utf8");
+const deterministicActions = fs.readFileSync(
+  path.join(process.cwd(), "src/services/messaging/inboundSmsDeterministicActions.service.js"),
+  "utf8",
+);
 
 describe("SMS handoff processor ordering contract", () => {
   it("prepares a guaranteed acknowledgement before attempting delivery", () => {
@@ -65,7 +69,8 @@ describe("SMS handoff processor ordering contract", () => {
   it("allows only deterministic callback-status questions after human takeover", () => {
     expect(webhookSource).toContain("postHandoffStatusEligible");
     expect(webhookSource).toContain("isHumanHandoffStatusQuestion");
-    expect(source).toContain("human_handoff_status_throttled");
+    expect(source).toContain("return handleSmsContactControl({");
+    expect(deterministicActions).toContain("human_handoff_status_throttled");
   });
 
   it("bypasses ordinary limits only for essential handoff control messages", () => {

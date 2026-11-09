@@ -1,3 +1,4 @@
+import { bookingStateFields } from './requestBookingState.js';
 import { withStaffSchedulingException } from '../scheduling/staffSchedulingException.service.js';
 import { extractCustomerPostalCode } from './customerAddress.service.js';
 import crypto from 'crypto';
@@ -90,8 +91,8 @@ export const approveIntake = async ({ business, conversationId, input, approvedB
     assertDistributedLeaseActive();
     await Conversation.updateOne({ _id: conversation._id, business: business._id }, { $set: {
       'conversationMemory.recoveryIntake.reviewAppointmentId': String(appointment._id),
-      'bookingState.appointment': appointment._id,
-      'bookingState.status': appointment.status === 'confirmed' ? 'booked' : 'pending_business_confirmation',
+      ...bookingStateFields({ appointment: appointment._id,
+      status: appointment.status === 'confirmed' ? 'booked' : 'pending_business_confirmation' }),
     } });
     assertDistributedLeaseActive();
     if (normalizePhoneToE164(appointment.customerPhone) !== customerPhone || String(appointment.conversation) !== String(conversation._id) || String(appointment.lead) !== String(lead._id) ||
@@ -125,8 +126,8 @@ export const approveIntake = async ({ business, conversationId, input, approvedB
       'conversationMemory.recoveryIntake.approvedAt': confirmed.approvalDecisionAt || new Date(),
       'conversationMemory.recoveryIntake.approvedBy': approvedBy,
       ...(unresolvedQualification ? { 'conversationMemory.recoveryIntake.qualificationReview': qualificationReview } : {}),
-      'bookingState.status': 'booked', 'bookingState.appointment': confirmed._id,
-      'bookingState.expiresAt': null, 'bookingState.lastError': '',
+      ...bookingStateFields({ status: 'booked', appointment: confirmed._id,
+      expiresAt: null, lastError: '' }),
     } });
     // Update only the name staff actually reviewed; do not overwrite a concurrent correction.
     await Lead.updateOne({ _id: lead._id, business: business._id, customerName: lead.customerName ?? null },

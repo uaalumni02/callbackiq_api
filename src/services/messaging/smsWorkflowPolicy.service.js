@@ -1,3 +1,4 @@
+import { bookingStateFields } from '../booking/requestBookingState.js';
 import { REPLY_ACTION_TYPES } from '../../helpers/ai/aiGuardrails.js';
 import { captureTurnFacts } from '../booking/turnFactCapture.service.js';
 import { classifySmsIntent } from './smsIntentClassifier.service.js';
@@ -40,8 +41,8 @@ export function buildSmsRequestRevisionPatch({ result = {}, lead = {}, conversat
   if (interruptCategories.has(result.messageCategory) &&
       changed.some(field => factualFields.includes(field)) && !conversation.bookingState?.appointment) {
     if (['offering_slots', 'awaiting_confirmation'].includes(conversation.bookingState?.status)) {
-      Object.assign(patch, { 'bookingState.status': 'not_started', 'bookingState.offeredSlots': [],
-        'bookingState.selectedSlot': null, 'bookingState.expiresAt': null });
+      Object.assign(patch, { ...bookingStateFields({ status: 'not_started', offeredSlots: [],
+        selectedSlot: null, expiresAt: null }) });
     }
     const intake = conversation.conversationMemory?.recoveryIntake;
     if (intake) patch['conversationMemory.recoveryIntake'] = { ...intake, submitted: false, reviewReady: false, availability: { status: 'not_checked', reason: 'request_changed' }, review: { status: 'update_required' }, activePreference: { label: result.preferredAppointmentTime || lead.preferredAppointmentTime || '' }, ...(changed.includes('preferredAppointmentTime') ? { date: '', time: '' } : {}) };

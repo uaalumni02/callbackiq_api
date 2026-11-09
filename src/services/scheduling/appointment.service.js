@@ -1,3 +1,4 @@
+import { bookingStateFields } from "../booking/requestBookingState.js";
 import { createAppointmentrecheckAndConfirm1Methods } from './commands/recheckAndConfirm-1.js';
 import { createAppointmentcreate1Methods } from './commands/create-1.js';
 import { createAppointmentconfirm1Methods } from './commands/confirm-1.js';
@@ -281,7 +282,7 @@ function __meekcallGetAppointmentcreate1Methods() {
 
 let __meekcallAppointmentconfirm1Cache;
 function __meekcallGetAppointmentconfirm1Methods() {
-  if (!__meekcallAppointmentconfirm1Cache) __meekcallAppointmentconfirm1Cache = createAppointmentconfirm1Methods({ Conversation, InterventionService, Lead, SchedulingProviderFactory, ServiceOffering, SocketService, assertDistributedLeaseActive, assertServiceRequestEligible, assertTransition, ensureBusinessApprovalNotice, exactSlotAvailable, getAppointmentForBusiness, lifecycleMarker, preservePendingApprovalOnAvailabilityConflict, projectionMarker, resolveApprovalReview, runNonBlockingAppointmentSideEffect, scheduleAppointmentReminders, tryRepairAppointmentLifecycle, tryRepairAppointmentProjections, safeConsole });
+  if (!__meekcallAppointmentconfirm1Cache) __meekcallAppointmentconfirm1Cache = createAppointmentconfirm1Methods({ bookingStateFields, Conversation, InterventionService, Lead, SchedulingProviderFactory, ServiceOffering, SocketService, assertDistributedLeaseActive, assertServiceRequestEligible, assertTransition, ensureBusinessApprovalNotice, exactSlotAvailable, getAppointmentForBusiness, lifecycleMarker, preservePendingApprovalOnAvailabilityConflict, projectionMarker, resolveApprovalReview, runNonBlockingAppointmentSideEffect, scheduleAppointmentReminders, tryRepairAppointmentLifecycle, tryRepairAppointmentProjections, safeConsole });
   return __meekcallAppointmentconfirm1Cache;
 }
 

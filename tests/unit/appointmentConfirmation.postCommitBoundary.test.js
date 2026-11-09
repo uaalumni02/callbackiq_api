@@ -1,5 +1,6 @@
 // No database, Twilio, Stripe or network calls. Authorized change: after a durable
 // status=confirmed save, a secondary effect failure cannot become an HTTP failure.
+import { bookingStateFields } from '../../src/services/booking/requestBookingState.js';
 import { createAppointmentconfirm1Methods } from '../../src/services/scheduling/commands/confirm-1.js';
 
 const fixture = () => {
@@ -16,6 +17,7 @@ const fixture = () => {
     cancelAppointment:jest.fn(async () => ({})),
   };
   const deps={
+    bookingStateFields,
     getAppointmentForBusiness:jest.fn(async()=>appointment),
     assertTransition:jest.fn(), assertServiceRequestEligible:jest.fn(async()=>true),
     exactSlotAvailable:jest.fn(async()=>true),
@@ -80,6 +82,62 @@ describe('appointment confirmation durable boundary',()=>{
     expect(f.provider.cancelAppointment).toHaveBeenCalledTimes(1);
     expect(f.appointment.status).toBe('failed');
   });
+  test('provider acceptance does not notify anyone while Mongo confirmation is pending', async () => {
+    const f = fixture();
+    f.appointment.requiresBusinessApproval = true;
+    let releaseSave;
+    let enteredSave;
+    const saveStarted = new Promise((resolve) => { enteredSave = resolve; });
+    f.appointment.save.mockImplementationOnce(() => {
+      enteredSave();
+      return new Promise((resolve) => { releaseSave = resolve; });
+    });
+
+    const confirmation = f.confirm({ business: f.business, appointmentId: 'a1' });
+    await saveStarted;
+    expect(f.provider.createAppointment).toHaveBeenCalledTimes(1);
+    expect(f.deps.ensureBusinessApprovalNotice).not.toHaveBeenCalled();
+    expect(f.deps.Conversation.updateOne).not.toHaveBeenCalled();
+    expect(f.deps.SocketService.emitToBusiness).not.toHaveBeenCalled();
+
+    releaseSave();
+    await expect(confirmation).resolves.toHaveProperty('status', 'confirmed');
+    expect(f.deps.ensureBusinessApprovalNotice).toHaveBeenCalledTimes(1);
+    expect(f.deps.SocketService.emitToBusiness).toHaveBeenCalledTimes(1);
+  });
+
+  test('ambiguous provider timeout triggers staff review and leaves no confirmed notice', async () => {
+    const f = fixture();
+    f.appointment.requiresBusinessApproval = true;
+    const timeout = Object.assign(new Error('provider outcome unknown'), { code: 'ETIMEDOUT' });
+    f.provider.createAppointment.mockRejectedValueOnce(timeout);
+    await expect(f.confirm({ business: f.business, appointmentId: 'a1' })).rejects.toBe(timeout);
+    expect(f.appointment.status).toBe('failed');
+    expect(f.provider.cancelAppointment).not.toHaveBeenCalled();
+    expect(f.deps.InterventionService.integrationFailure).toHaveBeenCalledWith(
+      expect.objectContaining({ businessId: 'b1', appointmentId: 'a1', error: timeout }),
+    );
+    expect(f.deps.ensureBusinessApprovalNotice).not.toHaveBeenCalled();
+    expect(f.deps.SocketService.emitToBusiness).not.toHaveBeenCalled();
+  });
+
+  test('failed compensation records a tenant-scoped orphan intervention', async () => {
+    const f = fixture();
+    const persistenceFailure = new Error('Mongo commit failed');
+    f.appointment.save.mockRejectedValueOnce(persistenceFailure).mockResolvedValueOnce(undefined);
+    f.provider.cancelAppointment.mockRejectedValueOnce(new Error('provider cleanup timed out'));
+    await expect(f.confirm({ business: f.business, appointmentId: 'a1' })).rejects.toBe(persistenceFailure);
+
+    expect(f.deps.InterventionService.create).toHaveBeenCalledWith(expect.objectContaining({
+      businessId: 'b1',
+      appointmentId: 'a1',
+      dedupeKey: 'google_orphan_cleanup:a1:internal:a1',
+      metadata: expect.objectContaining({ googleEventId: 'internal:a1' }),
+    }));
+    expect(f.appointment.status).toBe('failed');
+    expect(f.deps.SocketService.emitToBusiness).not.toHaveBeenCalled();
+  });
+
   test('already confirmed replay still avoids external insert',async()=>{
     const f=fixture();f.appointment.status='confirmed';
     f.deps.tryRepairAppointmentLifecycle.mockRejectedValue(Error('replay repair transient'));

@@ -361,7 +361,7 @@
       "name": "confirm",
       "module": "src/services/scheduling/commands/confirm-1.js",
       "kind": "method",
-      "sha": "00e38f20cf43396838b7f18c92e998767f514deea896c77b7b15e3fe99763695"
+      "sha": "76751dd094d6dcd8470e648f57106b8d27fc5dba337534aafe1e3bc535281935"
     },
     {
       "name": "cancel",

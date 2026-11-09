@@ -1,0 +1,521 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "MeekCall owner read contracts",
+    "version": "1.0.0",
+    "description": "Stable response fields used by owner screens. Additional fields remain available."
+  },
+  "paths": {
+    "/api/appointments": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful owner read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/AppointmentPageResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AppointmentListResponse"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/appointments/{id}": {
+      "get": {
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful owner read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppointmentResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/conversations": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful owner read",
+            "headers": {
+              "X-Page-Limit": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$"
+                }
+              },
+              "X-Has-More": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true",
+                    "false"
+                  ]
+                }
+              },
+              "X-Next-Cursor": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leads": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful owner read",
+            "headers": {
+              "X-Page-Limit": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$"
+                }
+              },
+              "X-Has-More": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true",
+                    "false"
+                  ]
+                }
+              },
+              "X-Next-Cursor": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeadListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/billing/subscription": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful owner read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingSubscriptionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CursorPagination": {
+        "type": "object",
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "limit": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "hasMore",
+          "nextCursor",
+          "limit"
+        ]
+      },
+      "Appointment": {
+        "type": "object",
+        "properties": {
+          "_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "held",
+              "confirmed",
+              "canceled",
+              "completed",
+              "no_show",
+              "failed",
+              "rescheduled"
+            ]
+          },
+          "startAt": {
+            "type": "string"
+          },
+          "endAt": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "requiresBusinessApproval": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "_id",
+          "status",
+          "startAt",
+          "endAt"
+        ]
+      },
+      "AppointmentResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "const": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/Appointment"
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "AppointmentListResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "const": true
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Appointment"
+            }
+          },
+          "pagination": false,
+          "summary": false
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "AppointmentPageResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "const": true
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Appointment"
+            }
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "pendingApprovals": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "pendingApprovals"
+            ]
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/CursorPagination"
+          }
+        },
+        "required": [
+          "success",
+          "data",
+          "summary",
+          "pagination"
+        ]
+      },
+      "ConversationListItem": {
+        "type": "object",
+        "properties": {
+          "_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "closed",
+              "archived"
+            ]
+          },
+          "customerName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "customerPhone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "humanTakeover": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "_id",
+          "status"
+        ]
+      },
+      "ConversationListResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "const": true
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConversationListItem"
+            }
+          }
+        },
+        "required": [
+          "success",
+          "message",
+          "data"
+        ]
+      },
+      "LeadListItem": {
+        "type": "object",
+        "properties": {
+          "_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "new",
+              "contacted",
+              "booked",
+              "lost",
+              "spam"
+            ]
+          },
+          "customerName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "_id",
+          "status"
+        ]
+      },
+      "LeadListResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "const": true
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LeadListItem"
+            }
+          }
+        },
+        "required": [
+          "success",
+          "message",
+          "data"
+        ]
+      },
+      "BillingDisplay": {
+        "type": "object",
+        "properties": {
+          "display": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "display"
+        ]
+      },
+      "BillingInvoice": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "amountDue": {
+            "type": "number"
+          },
+          "amountPaid": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "amountDue",
+          "amountPaid"
+        ]
+      },
+      "Subscription": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "incomplete",
+              "incomplete_expired",
+              "trialing",
+              "active",
+              "expired",
+              "past_due",
+              "canceled",
+              "unpaid",
+              "paused",
+              "none"
+            ]
+          },
+          "plan": {
+            "type": "string",
+            "enum": [
+              "starter",
+              "pro",
+              "agency"
+            ]
+          },
+          "priceMonthly": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "canStartTrial": {
+            "type": "boolean"
+          },
+          "billingDetails": {
+            "type": "object",
+            "properties": {
+              "paymentMethod": {
+                "$ref": "#/components/schemas/BillingDisplay"
+              },
+              "nextCharge": {
+                "$ref": "#/components/schemas/BillingDisplay"
+              },
+              "invoices": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/BillingInvoice"
+                }
+              }
+            },
+            "required": [
+              "paymentMethod",
+              "nextCharge",
+              "invoices"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "canStartTrial",
+          "billingDetails"
+        ]
+      },
+      "BillingSubscriptionResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "const": true
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Subscription"
+          }
+        },
+        "required": [
+          "success",
+          "message",
+          "data"
+        ]
+      }
+    }
+  }
+}
