@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const role = fs.existsSync(path.join(root, 'src', 'services', 'booking', 'bookingStateMachine.service.js')) ? 'api' : 'frontend';
 const api = [
-  ['src/services/booking/bookingFixedResult.policy.js', ['fixedResult'], ['src/services/booking/bookingStateMachine.service.js']],
+  ['src/services/booking/bookingFixedResult.policy.js', ['fixedResult'], ['src/services/booking/bookingTurnPreflight.service.js', 'src/services/booking/bookingConfirmationTurn.service.js']],
   ['src/services/scheduling/appointmentAttribution.repository.js', ['resolveAppointmentAttribution'], ['src/services/scheduling/appointment.service.js']],
 ];
 const frontend = [

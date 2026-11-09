@@ -27,6 +27,8 @@ const webhookPath = path.join(
 );
 
 const source = fs.readFileSync(processorPath, "utf8");
+const reply = fs.readFileSync(path.join(process.cwd(), "src/services/messaging/inboundSmsReply.service.js"), "utf8");
+const replyRouting = reply.slice(reply.indexOf("export async function routeConversationReply"));
 const webhookSource = fs.readFileSync(webhookPath, "utf8");
 const deterministicActions = fs.readFileSync(
   path.join(process.cwd(), "src/services/messaging/inboundSmsDeterministicActions.service.js"),
@@ -35,22 +37,20 @@ const deterministicActions = fs.readFileSync(
 
 describe("SMS handoff processor ordering contract", () => {
   it("prepares a guaranteed acknowledgement before attempting delivery", () => {
-    expect(source).toContain("ensureHumanHandoffResult");
-    expect(source.indexOf("ensureHumanHandoffResult")).toBeLessThan(
-      source.lastIndexOf("persistOutboundReply({"),
+    expect(reply).toContain("ensureHumanHandoffResult");
+    expect(replyRouting.indexOf("await prepareConversationReply(")).toBeGreaterThan(-1);
+    expect(replyRouting.indexOf("await prepareConversationReply(")).toBeLessThan(
+      replyRouting.indexOf("await deliverConversationReply("),
     );
   });
 
   it("does not commit human takeover before the outbound delivery result", () => {
-    const deliveryIndex = source.lastIndexOf("persistOutboundReply({");
-    const finalizationIndex = source.indexOf(
-      "buildFinalizedHumanHandoffUpdate",
-      deliveryIndex,
-    );
+    const deliveryIndex = replyRouting.indexOf("await deliverConversationReply(");
+    const finalizationIndex = replyRouting.indexOf("await finalizeConversationHandoff(");
 
     expect(deliveryIndex).toBeGreaterThan(-1);
     expect(finalizationIndex).toBeGreaterThan(deliveryIndex);
-    expect(source).not.toContain("if (requiresHumanTakeover(result))");
+    expect(reply).not.toContain("if (requiresHumanTakeover(result))");
   });
 
   it("retains idempotency by linking one outbound reply to one inbound message", () => {
@@ -61,9 +61,9 @@ describe("SMS handoff processor ordering contract", () => {
   });
 
   it("records a retryable failure instead of permanently muting AI", () => {
-    expect(source).toContain("buildFailedHumanHandoffUpdate");
-    expect(source).toContain('"orchestration.silentFailureCount"');
-    expect(source).toContain("SMS_HANDOFF_ACK_REQUIRED");
+    expect(reply).toContain("buildFailedHumanHandoffUpdate");
+    expect(reply).toContain('"orchestration.silentFailureCount"');
+    expect(reply).toContain("SMS_HANDOFF_ACK_REQUIRED");
   });
 
   it("allows only deterministic callback-status questions after human takeover", () => {

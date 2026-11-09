@@ -1,10 +1,10 @@
 {
   "files": {
     "src/services/messaging/inboundSmsJobProcessor.service.js": {
-      "moduleImports": 35,
-      "fileCallFanOut": 64,
-      "maxFunctionCallFanOut": 61,
-      "maxCyclomatic": 117
+      "moduleImports": 30,
+      "fileCallFanOut": 56,
+      "maxFunctionCallFanOut": 13,
+      "maxCyclomatic": 25
     },
     "src/voice/conversationRelay.server.js": {
       "moduleImports": 23,
@@ -25,10 +25,10 @@
       "maxCyclomatic": 32
     },
     "src/services/booking/bookingStateMachine.service.js": {
-      "moduleImports": 40,
-      "fileCallFanOut": 71,
-      "maxFunctionCallFanOut": 66,
-      "maxCyclomatic": 184
+      "moduleImports": 12,
+      "fileCallFanOut": 20,
+      "maxFunctionCallFanOut": 11,
+      "maxCyclomatic": 25
     }
   }
 }

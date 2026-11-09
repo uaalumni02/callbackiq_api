@@ -58,7 +58,7 @@ describe("Google Calendar customer experience completion contract", () => {
     expect(notification).toContain("schedulePostAppointmentFollowUp");
     expect(worker).toContain("processDueAppointmentNotifications");
     const existingBookingTurn = read("src/services/booking/existingBookingTurn.service.js");
-    expect(stateMachine).toContain("handleExistingBookingTurn({");
+    expect(stateMachine).toContain('["booked", handleExistingBookingTurn]');
     expect(existingBookingTurn).toContain("customerConfirmedAt");
     expect(existingBookingTurn).toContain("customerRescheduleRequestedAt");
   });
@@ -101,10 +101,12 @@ describe("Google Calendar customer experience completion contract", () => {
       "src/services/booking/bookingStateMachine.service.js",
     );
 
-    expect(stateMachine).toContain("findDateRange");
-    expect(stateMachine).toContain("parseTimePreference");
-    expect(stateMachine).toContain("spreadSlotOptions");
-    expect(stateMachine).toContain("parseStreetAddress");
+    const availability = read("src/services/booking/bookingAvailabilityTurn.service.js");
+    const intake = read("src/services/booking/bookingIntakeTurn.service.js");
+    expect(availability).toContain("findDateRange");
+    expect(availability).toContain("parseTimePreference");
+    expect(availability).toContain("spreadSlotOptions");
+    expect(intake).toContain("parseStreetAddress");
     expect(stateMachine).toContain("collecting_postal_code");
   });
 });

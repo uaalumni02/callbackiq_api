@@ -45,7 +45,7 @@ const contracts = [
   ["src/voice/conversationRelay.server.js", "duration_limit_callback_captured"],
   ["src/voice/voiceCallback.service.js", "assertVoiceTurnActive"],
   ["src/voice/voiceHandoff.service.js", "assertVoiceTurnActive"],
-  ["src/services/booking/bookingStateMachine.service.js", "assertVoiceTurnActive"],
+  ["src/services/booking/bookingConfirmationTurn.service.js", "assertVoiceTurnActive"],
   ["src/helpers/ai/tools/sendConfirmationSms.tool.js", "assertVoiceTurnActive"],
 ];
 const failures = [];

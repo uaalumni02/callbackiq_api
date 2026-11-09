@@ -138,7 +138,7 @@ test('availability hint detects date/time slang', () => {
 
 test('booking state machine preserves availability-hint contract', () => {
   const source = fs.readFileSync(
-    new URL('../src/services/booking/bookingStateMachine.service.js', import.meta.url),
+    new URL('../src/services/booking/bookingTurnPreflight.service.js', import.meta.url),
     'utf8',
   );
   assert.match(source, /bookingMessagePolicy\.service\.js/);
