@@ -586,6 +586,29 @@ describe("BookingStateMachineService complete behavior", () => {
     expect(result.result.reply).toMatch(/not confirmed/i);
   });
 
+  test("persists the booking claim before creating the appointment and persists approval before replying", async () => {
+    const conversation = makeConversation({ bookingState: { status: "awaiting_confirmation", selectedSlot: SLOT_1 } });
+    const persistedStates = [];
+    conversation.save.mockImplementation(async () => {
+      persistedStates.push({ status: conversation.bookingState.status, appointment: conversation.bookingState.appointment });
+    });
+    const appointment = { _id: "a1", status: "held", requiresBusinessApproval: true,
+      startAt: SLOT_1.startAt, endAt: SLOT_1.endAt, timezone: "America/New_York" };
+    createAppointmentTool.mockImplementationOnce(async () => {
+      expect(persistedStates).toEqual([{ status: "booking", appointment: null }]);
+      return appointment;
+    });
+
+    const result = await handle({ conversation, message: "confirm" });
+
+    expect(persistedStates).toEqual([
+      { status: "booking", appointment: null },
+      { status: "pending_business_confirmation", appointment: "a1" },
+    ]);
+    expect(createAppointmentTool).toHaveBeenCalledTimes(1);
+    expect(result.result.reply).toMatch(/not confirmed/i);
+  });
+
   test("uses conversation customer fallbacks without a lead", async () => {
     const conversation = makeConversation({ bookingState: { status: "awaiting_confirmation", selectedSlot: SLOT_1 } });
     await handle({ conversation, lead: null, message: "okay" });

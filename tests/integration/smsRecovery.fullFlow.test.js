@@ -375,6 +375,12 @@ test("the queued job generates and persists the AI reply exactly once", async ()
       source: "inbound_sms_reply",
     }),
   );
+  expect(SocketService.emitLeadUpdated).toHaveBeenCalledWith(
+    business._id, expect.objectContaining({ _id: lead._id, serviceNeeded: "Leaking faucet repair" }),
+  );
+  expect(SocketService.emitMessageCreated).toHaveBeenCalledWith(business._id, sentOutbound);
+  expect(SocketService.emitMessageCreated.mock.invocationCallOrder[0])
+    .toBeGreaterThan(Message.findByIdAndUpdate.mock.invocationCallOrder[0]);
   expect(result).toMatchObject({ sent: true, outboundMessageId: "message-out-1" });
   expect(logOperationalEvent).toHaveBeenCalledWith(
     "twilio.sms.reply_sent",
