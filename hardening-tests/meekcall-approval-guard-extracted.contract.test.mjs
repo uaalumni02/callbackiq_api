@@ -4,6 +4,7 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { assertConfirmationNotPending } from '../src/services/scheduling/appointmentConfirmationIntent.repository.js';
 import { createAppointmentconfirm1Methods } from '../src/services/scheduling/commands/confirm-1.js';
 import { preservePendingApprovalOnAvailabilityConflict } from '../src/services/scheduling/approvalAvailabilityFailurePolicy.js';
 
@@ -20,6 +21,7 @@ function fixture({requiresBusinessApproval=true}={}) {
   };
   let available=false;
   const deps={
+    assertConfirmationNotPending,
     getAppointmentForBusiness:async (tenant,appt)=>{
       assert.equal(tenant,'tenant-1');assert.equal(appt,'appointment-1');
       events.push('load');return appointment;
