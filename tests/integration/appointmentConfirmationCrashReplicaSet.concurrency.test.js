@@ -54,6 +54,7 @@ async function fixture() {
       return result;
     }),
     findConfirmation: jest.fn(async ({ target: actual }) => events.get(actual.eventId) || null),
+    assertConfirmationRetryTarget: jest.fn(),
     cancelAppointment: jest.fn(async () => { events.delete(target.eventId); }),
   };
   const intent = createConfirmationIntentRepository({ Appointment, clock });
@@ -258,4 +259,68 @@ test('reminder repair preserves an already sent provider receipt', async () => {
   const [replayed] = await scheduleAppointmentReminders(input);
   expect(replayed).toMatchObject({ status: 'sent', providerMessageId: 'SM-receipt' });
   expect(await AppointmentNotificationJob.countDocuments({ appointment: f.appointment._id })).toBe(1);
+});
+
+test('a lost commit acknowledgement never compensates an already confirmed event', async () => {
+  const f = await fixture();
+  const patch = f.intent.patch;
+  jest.spyOn(f.intent, 'patch').mockImplementation(async (row, values) => {
+    const persisted = await patch(row, values);
+    if (values.status === 'confirmed') throw new Error('Commit acknowledgement lost');
+    return persisted;
+  });
+
+  await expect(f.confirm()).resolves.toMatchObject({ status: 'confirmed' });
+  expect(f.provider.cancelAppointment).not.toHaveBeenCalled();
+  await expectOneConfirmed(f);
+});
+
+test('a lost slot before any provider attempt stays failed even if the staff alert must be retried', async () => {
+  const f = await fixture();
+  f.crashAt('before_provider');
+  await expect(f.confirm()).rejects.toBe(f.crash);
+  f.deps.exactSlotAvailable.mockResolvedValue(false);
+  f.deps.InterventionService.integrationFailure.mockRejectedValueOnce(Error('Alert unavailable'));
+
+  f.advance();
+  await f.recover();
+  expect((await f.read())).toMatchObject({ status: 'failed', activeSlotKey: null,
+    confirmationIntent: { status: 'failed', effectsPending: true } });
+  expect(f.provider.createAppointment).not.toHaveBeenCalled();
+
+  f.advance();
+  await f.recover();
+  expect((await f.read()).confirmationIntent.effectsPending).toBe(false);
+  expect(f.deps.InterventionService.integrationFailure).toHaveBeenCalledTimes(2);
+});
+
+test('a calendar target cannot be used if the intent lease changes while it is prepared', async () => {
+  const f = await fixture();
+  const patch = f.intent.patch;
+  jest.spyOn(f.intent, 'patch').mockImplementation((row, values) => {
+    if (values['confirmationIntent.target']) return Promise.resolve(null);
+    return patch(row, values);
+  });
+  await expect(f.confirm()).rejects.toMatchObject({ code: 'APPOINTMENT_CONFIRMATION_PENDING' });
+  expect(f.provider.createAppointment).not.toHaveBeenCalled();
+  expect((await f.read()).confirmationIntent).toMatchObject({ status: 'pending_provider', attempts: 0 });
+});
+
+test('a missing event lookup cannot release capacity when an earlier create might still arrive', async () => {
+  const f = await fixture();
+  f.provider.createAppointment.mockRejectedValueOnce(Error('Unknown provider outcome'));
+  await expect(f.confirm()).rejects.toThrow('Unknown provider outcome');
+  f.deps.exactSlotAvailable.mockResolvedValue(false);
+
+  f.advance();
+  await f.recover();
+  expect(await f.read()).toMatchObject({ status: 'held', activeSlotKey: 'slot',
+    confirmationIntent: { status: 'pending_provider' } });
+  expect(f.provider.createAppointment).toHaveBeenCalledTimes(1);
+
+  f.events.set('deterministic-event', { provider: 'google_calendar', externalAppointmentId: 'deterministic-event',
+    externalCalendarId: 'original-calendar' });
+  f.advance();
+  await f.recover();
+  await expectOneConfirmed(f);
 });
