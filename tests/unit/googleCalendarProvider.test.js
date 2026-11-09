@@ -93,4 +93,59 @@ describe("Google Calendar confirmation recovery", () => {
     await expect(provider.createAppointment({ appointment, target }))
       .rejects.toMatchObject({ code: "GOOGLE_CONFIRMATION_EVENT_MISMATCH" });
   });
+
+  test("refuses to guess an unresolved primary calendar and allows a pinned calendar match", async () => {
+    getGoogleSettings.mockReturnValue({ bookingCalendarId: "primary" });
+    googleApiRequest.mockResolvedValueOnce({}).mockResolvedValueOnce({ id: target.calendarId });
+    await expect(provider.prepareConfirmation({ appointment }))
+      .rejects.toThrow("Google did not return the writable calendar ID");
+    await expect(provider.assertConfirmationRetryTarget({ appointment, target })).resolves.toBeUndefined();
+  });
+
+  test("ordinary create without a recovery target keeps the configured calendar", async () => {
+    const legacyProvider = new GoogleCalendarProvider({ business: { id: business._id } });
+    googleApiRequest.mockResolvedValueOnce({ id: event.id });
+
+    await expect(legacyProvider.createAppointment({ appointment })).resolves.toMatchObject({
+      externalAppointmentId: event.id, externalCalendarId: "new@example.com",
+    });
+    expect(googleApiRequest).toHaveBeenCalledWith(expect.objectContaining({
+      businessId: business._id, path: expect.stringContaining("/calendars/new%40example.com/events?"),
+    }));
+    expect(googleApiRequest.mock.calls[0][0]).not.toHaveProperty("signal");
+  });
+
+  test("marks only definite rejections from a pinned creation as known failures", async () => {
+    const rejected = Object.assign(new Error("Calendar permission denied"), { providerStatus: 403 });
+    const timedOut = new Error("Connection timed out");
+    const legacyRejected = Object.assign(new Error("Calendar permission denied"), { providerStatus: 403 });
+    googleApiRequest.mockRejectedValueOnce(rejected).mockRejectedValueOnce(timedOut).mockRejectedValueOnce(legacyRejected);
+
+    await expect(provider.createAppointment({ appointment, target })).rejects.toBe(rejected);
+    expect(rejected.confirmationCreateRejected).toBe(true);
+    await expect(provider.createAppointment({ appointment, target })).rejects.toBe(timedOut);
+    expect(timedOut).not.toHaveProperty("confirmationCreateRejected");
+    await expect(provider.createAppointment({ appointment })).rejects.toBe(legacyRejected);
+    expect(legacyRejected).not.toHaveProperty("confirmationCreateRejected");
+  });
+
+  test("compensation verifies a missing event against the pinned calendar and leaves ordinary cancellation unchanged", async () => {
+    const canceledAppointment = { ...appointment, externalAppointmentId: event.id, externalCalendarId: target.calendarId };
+    googleApiRequest
+      .mockResolvedValueOnce({ __providerStatus: 410 }).mockResolvedValueOnce({ id: target.calendarId })
+      .mockResolvedValueOnce({}).mockResolvedValueOnce({ __providerStatus: 404 });
+
+    await expect(provider.cancelAppointment({ appointment: canceledAppointment, target }))
+      .resolves.toEqual({ canceled: true, alreadyMissing: true });
+    expect(googleApiRequest).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      method: "DELETE", path: expect.stringContaining("/calendars/original%40example.com/events/"),
+    }));
+    expect(googleApiRequest).toHaveBeenNthCalledWith(2, expect.objectContaining({ path: "/calendars/original%40example.com" }));
+    await expect(provider.cancelAppointment({ appointment: canceledAppointment, target })).resolves.toEqual({ canceled: true });
+    await expect(provider.cancelAppointment({ appointment: canceledAppointment }))
+      .resolves.toEqual({ canceled: true, alreadyMissing: true });
+    expect(googleApiRequest).toHaveBeenCalledTimes(4);
+    expect(googleApiRequest.mock.calls[3][0]).not.toHaveProperty("signal");
+  });
+
 });

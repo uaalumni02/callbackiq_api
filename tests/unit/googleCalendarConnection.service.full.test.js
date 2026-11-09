@@ -287,6 +287,23 @@ describe("googleCalendarConnection.service complete behavior", () => {
     });
   });
 
+  test("passes the confirmation request deadline to token refresh and the calendar request", async () => {
+    const connection = makeConnection({ tokenExpiresAt: new Date("2026-07-27T11:00:00Z") });
+    IntegrationConnection.findOne.mockReturnValue(selectQuery(connection));
+    global.fetch
+      .mockResolvedValueOnce(response({ payload: { access_token: "fresh", expires_in: 3600 } }))
+      .mockResolvedValueOnce(response({ payload: { id: "event-id" } }));
+    const { signal } = new AbortController();
+
+    await expect(googleApiRequest({ businessId: "b1", path: "/calendars/calendar/events/event-id", signal }))
+      .resolves.toEqual({ id: "event-id" });
+
+    expect(global.fetch).toHaveBeenNthCalledWith(1, expect.stringContaining("oauth2"), expect.objectContaining({ signal }));
+    expect(global.fetch).toHaveBeenNthCalledWith(2, expect.stringContaining("/events/event-id"), expect.objectContaining({
+      signal, headers: { Authorization: "Bearer fresh" },
+    }));
+  });
+
   test("records refresh failure on the connection", async () => {
     const connection = makeConnection({ tokenExpiresAt: new Date("2026-07-27T11:00:00Z") });
     IntegrationConnection.findOne.mockReturnValue(selectQuery(connection));

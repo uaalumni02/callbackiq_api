@@ -1,5 +1,6 @@
 /** Scheduling edge cases exercise real extracted commands without network/db I/O. */
 import assert from 'node:assert/strict';
+import { assertConfirmationNotPending } from '../../src/services/scheduling/appointmentConfirmationIntent.repository.js';
 import { createAppointmentrecheckAndConfirm1Methods } from '../../src/services/scheduling/commands/recheckAndConfirm-1.js';
 import { createAppointmentreschedule1Methods } from '../../src/services/scheduling/commands/reschedule-1.js';
 
@@ -15,6 +16,7 @@ function original(overrides={}) { return {
 function approvalFixture(a=original(), overrides={}) {
   const events=[];
   const deps={
+    assertConfirmationNotPending,
     Appointment:{ async findOneAndUpdate(filter, patch, opts) {
       events.push(['claim', filter, patch, opts]);
       return original({...a, status:'held', heldExpiresAt: new Date(Date.now()+300000)});
@@ -58,6 +60,12 @@ test('active hold reuses existing confirmation rather than claiming another slot
   assert.ok(!f.events.some(x=>x[0]==='claim'));
 });
 
+test('staff recheck cannot reclaim a slot while its provider confirmation is pending', async () => {
+  const f = approvalFixture(original({ confirmationIntent: { status: 'pending_provider' } }));
+  await assert.rejects(() => f.invoke(), (error) => error.code === 'APPOINTMENT_CONFIRMATION_PENDING');
+  assert.deepEqual(f.events, []);
+});
+
 test('only held or qualifying failed holds can be rechecked',async()=>{
   const f=approvalFixture(original({status:'canceled'}));
   await assert.rejects(()=>f.invoke(),error=>error.statusCode===409);
@@ -73,7 +81,10 @@ test('expired hold claims a tenant-scoped lane and preserves business approval',
   const f=approvalFixture();
   assert.deepEqual(await f.invoke(),{confirmed:true});
   const claim=f.events.find(x=>x[0]==='claim');
-  assert.deepEqual(claim[1],{_id:'original-1',business:'tenant-1',status:'held'});
+  assert.deepEqual(claim[1], {
+    _id: 'original-1', business: 'tenant-1', status: 'held',
+    'confirmationIntent.status': { $ne: 'pending_provider' },
+  });
   assert.equal(claim[2].$set.capacityLane,1);
   assert.deepEqual(claim[2].$set.slotClaimKeys,['slot-claim']);
   assert.ok(f.events.some(x=>x[0]==='confirm'));
