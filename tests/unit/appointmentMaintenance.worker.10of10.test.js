@@ -2,6 +2,7 @@ jest.mock("../../src/services/scheduling/appointment.service.js", () => ({
   __esModule: true,
   default: {
     releaseExpiredHolds: jest.fn(),
+    reconcileConfirmations: jest.fn(),
   },
 }));
 
@@ -27,5 +28,6 @@ test("appointment maintenance moves expired-hold writes out of GET traffic", asy
     matched: 3,
     modified: 2,
   });
+  expect(AppointmentService.reconcileConfirmations).toHaveBeenCalledWith();
   expect(AppointmentService.releaseExpiredHolds).toHaveBeenCalledWith();
 });

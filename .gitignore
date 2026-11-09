@@ -72,3 +72,7 @@ staging-browser-report.json
 /capacity-plan.json
 /scale-query-report*.json
 /scale-evidence-input.json
+
+# Local patch installer manifests
+/.callbackiq-*.json
+/VOICE_HARDENING_APPLIED.json

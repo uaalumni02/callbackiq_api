@@ -19,32 +19,7 @@
     "src/voice/voiceAgent.service.js": 42920,
     "src/voice/voiceCallback.service.js": 43482
   },
-  "allowedLegacyOverlays": [
-    "tools/api_overlay/scripts/verify-phase9-structure.js",
-    "tools/api_overlay/src/controllers/voiceSettings.js",
-    "tools/api_overlay/src/controllers/voiceWebhook.js",
-    "tools/api_overlay/src/helpers/ai/tools/sendConfirmationSms.tool.js",
-    "tools/api_overlay/src/models/voiceSession.js",
-    "tools/api_overlay/src/routes/voiceSettings.routes.js",
-    "tools/api_overlay/src/services/safetyAssessmentService.js",
-    "tools/api_overlay/src/voice/conversationRelay.server.js",
-    "tools/api_overlay/src/voice/voiceAgent.service.js",
-    "tools/api_overlay/src/voice/voiceAvailability.service.js",
-    "tools/api_overlay/src/voice/voiceHandoff.service.js",
-    "tools/api_overlay/src/voice/voiceRouting.service.js",
-    "tools/api_overlay/src/voice/voiceSession.service.js",
-    "tools/api_overlay/src/voice/voiceTranscript.service.js",
-    "tools/api_overlay/tests/unit/conversationRelay.server.test.js",
-    "tools/api_overlay/tests/unit/safetyAssessmentService.voiceCompatibility.test.js",
-    "tools/api_overlay/tests/unit/sendConfirmationSms.tool.test.js",
-    "tools/api_overlay/tests/unit/voiceAgent.service.test.js",
-    "tools/api_overlay/tests/unit/voiceBookingStateMachineReuse.test.js",
-    "tools/api_overlay/tests/unit/voiceRouting.service.test.js",
-    "tools/api_overlay/tests/unit/voiceSession.model.test.js",
-    "tools/api_overlay/tests/unit/voiceSessionFallback.service.test.js",
-    "tools/api_overlay/tests/unit/voiceSettings.controller.test.js",
-    "tools/api_overlay/tests/unit/voiceWebhook.controller.test.js"
-  ],
+  "allowedLegacyOverlays": [],
   "pureModuleBoundaries": {
     "src/services/booking/offeredSlotSelection.service.js": [
       "/models/",

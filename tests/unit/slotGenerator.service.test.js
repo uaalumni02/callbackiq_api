@@ -85,6 +85,7 @@ describe("generateInternalSlots", () => {
       $or: [
         { status: "confirmed" },
         { status: "held", heldExpiresAt: { $gt: now } },
+        { status: "held", "confirmationIntent.status": "pending_provider" },
       ],
       _id: { $ne: "a-old" },
     });

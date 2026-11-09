@@ -6,7 +6,7 @@ test('lookup always filters by tenant and returns the same found document', asyn
  const Appointment={findOne:jest.fn().mockResolvedValue(appointment)};
  const lookup=createAppointmentLookup({Appointment});
  expect(await lookup('tenant','appt')).toBe(appointment);
- expect(Appointment.findOne).toHaveBeenCalledWith({_id:'appt',business:'tenant'});
+ expect(Appointment.findOne).toHaveBeenCalledWith({_id:'appt',business:'tenant'}, '+confirmationIntent');
 });
 test('missing appointment retains original 404 error', async () => {
  const lookup=createAppointmentLookup({Appointment:{findOne:jest.fn().mockResolvedValue(null)}});

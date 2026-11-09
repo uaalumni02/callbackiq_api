@@ -85,7 +85,7 @@
     "verify:coverage-ratchet": "node scripts/verify-coverage-ratchet.mjs",
     "coverage:ratchet:update": "node scripts/verify-coverage-ratchet.mjs --update",
     "test:critical": "jest --runInBand tests/routes/stripeSubscriptionStateMatrix.hardening.test.js tests/routes/a2pEvents.hardening.test.js tests/unit/subscriptionIntegrity.ordering.hardening.test.js tests/unit/smsProcessing.worker.hardening.test.js tests/unit/trialLifecycle.worker.hardening.test.js tests/unit/followUpAgent.hardening.test.js tests/unit/qualifyLeadWithAI.hardening.test.js tests/unit/providerPayloadFixtures.contract.test.js tests/integration/trialTelecomRecovery.contract.test.js tests/integration/trialLifecycleWorker.sideEffects.test.js tests/integration/socketTenantIsolation.authenticated.test.js tests/unit/subscriptionIntegrity.matrix.hardening.test.js tests/unit/subscriptionActions.matrix.hardening.test.js tests/controllers/billing.moneyPaths.hardening.test.js",
-    "test:replica-set": "jest --runInBand tests/integration/trialRedemptionReplicaSet.concurrency.test.js",
+    "test:replica-set": "jest --runInBand ReplicaSet.concurrency.test.js",
     "test:hardening": "node --test hardening-tests/*.test.mjs",
     "perf:webhook": "node perf/webhook-burst.mjs",
     "perf:socket": "node perf/socket-fanout.mjs",
@@ -222,7 +222,6 @@
       "<rootDir>/jest.setup.js"
     ],
     "testPathIgnorePatterns": [
-      "<rootDir>/tools/api_overlay/",
       "<rootDir>/.callbackiq-phase9-backup/",
       "<rootDir>/.callbackiq-backups/",
       "<rootDir>/hardening-tests/",

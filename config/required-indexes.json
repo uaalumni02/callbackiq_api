@@ -337,6 +337,21 @@
   {
     "collection": "appointments",
     "key": {
+      "confirmationIntent.nextAttemptAt": 1,
+      "confirmationIntent.leaseUntil": 1,
+      "_id": 1
+    },
+    "options": {
+      "partialFilterExpression": {
+        "confirmationIntent.nextAttemptAt": {
+          "$exists": true
+        }
+      }
+    }
+  },
+  {
+    "collection": "appointments",
+    "key": {
       "lifecycleNotice.pending": 1,
       "updatedAt": 1
     },

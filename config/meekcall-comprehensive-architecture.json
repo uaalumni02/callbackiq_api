@@ -349,7 +349,7 @@
       "name": "recheckAndConfirm",
       "module": "src/services/scheduling/commands/recheckAndConfirm-1.js",
       "kind": "method",
-      "sha": "27141be8746aff1dbfbda99e525cf78877951b433e090e71076126f810090363"
+      "sha": "1284ea630ea2858c448cef094663ea50d4158b5812268ab8a72c528d66ef0a0a"
     },
     {
       "name": "create",
@@ -361,13 +361,13 @@
       "name": "confirm",
       "module": "src/services/scheduling/commands/confirm-1.js",
       "kind": "method",
-      "sha": "76751dd094d6dcd8470e648f57106b8d27fc5dba337534aafe1e3bc535281935"
+      "sha": "b12b34899b0c3e25da0d9b16c0fbfdadd0f0d5284d14c775fabb69ab2ac0bb4b"
     },
     {
       "name": "cancel",
       "module": "src/services/scheduling/commands/cancel-1.js",
       "kind": "method",
-      "sha": "acee388316233147e6e0f225952f2310c26cf1c63d7c6d194fc62c6902a9a3c6"
+      "sha": "005526f013d26e7917de93945a541eb0bc456e11d8994101132c8f490dd82abb"
     },
     {
       "name": "reschedule",
@@ -379,7 +379,7 @@
       "name": "update",
       "module": "src/services/scheduling/commands/update-1.js",
       "kind": "method",
-      "sha": "2acf1afcc5399f6449db3da7bf68243c5a82125fe57da665f2cab9f38e5c3d62"
+      "sha": "992e70eb9134387e28c5947b0264f4575079634428db8ddf01d26c2db97c32fe"
     },
     {
       "name": "cleanStreetAddress",

@@ -15,6 +15,7 @@ export const runAppointmentMaintenanceOnce = async () => {
   running = true;
   try {
     const result = await AppointmentService.releaseExpiredHolds();
+    await AppointmentService.reconcileConfirmations();
     return {
       skipped: false,
       matched: Number(result?.matchedCount || 0),

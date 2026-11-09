@@ -79,6 +79,7 @@ export const generateInternalSlots = async ({
     $or: [
       { status: "confirmed" },
       { status: "held", heldExpiresAt: { $gt: now } },
+      { status: "held", "confirmationIntent.status": "pending_provider" },
     ],
   };
 

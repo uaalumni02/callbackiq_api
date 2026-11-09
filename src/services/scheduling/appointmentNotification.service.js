@@ -73,10 +73,11 @@ export const cancelAppointmentNotifications = async ({
 export const scheduleAppointmentReminders = async ({
   appointment,
   settingsOverride = null,
+  repairMissingOnly = false,
 }) => {
   const settings =
     settingsOverride || (await getNotificationSettings(appointment.business));
-  await cancelAppointmentNotifications({
+  if (!repairMissingOnly) await cancelAppointmentNotifications({
     businessId: appointment.business,
     appointmentId: appointment._id,
     reason: "Appointment reminder schedule refreshed.",
@@ -107,7 +108,7 @@ export const scheduleAppointmentReminders = async ({
           key: `reminder:${hoursBefore}`,
         },
         {
-          $set: {
+          [repairMissingOnly ? "$setOnInsert" : "$set"]: {
             attempts: 0,
             lead: appointment.lead || null,
             conversation: appointment.conversation || null,
