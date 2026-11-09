@@ -1,6 +1,6 @@
 /* Source-exact AppointmentService extraction. Preserve order and outcome contracts. */
 export function createAppointmentupdate1Methods(deps) {
-  const { ServiceOffering, SocketService, assertTransition, getAppointmentForBusiness, moneyAmount, normalizeAddress, ownerEstimate, projectionMarker, resolveOpportunityValue, tryRepairAppointmentProjections } = deps;
+  const { assertConfirmationNotPending, ServiceOffering, SocketService, assertTransition, getAppointmentForBusiness, moneyAmount, normalizeAddress, ownerEstimate, projectionMarker, resolveOpportunityValue, tryRepairAppointmentProjections } = deps;
   return {
 async update({ businessId, appointmentId, changes }) {
     if (changes.address !== undefined) normalizeAddress(changes.address);
@@ -8,6 +8,7 @@ async update({ businessId, appointmentId, changes }) {
       businessId,
       appointmentId,
     );
+    assertConfirmationNotPending(appointment);
     if (Object.prototype.hasOwnProperty.call(changes, "estimatedValue") && changes.estimatedValue !== null && moneyAmount(changes.estimatedValue) === null) {
       const error = new Error("Estimated value must be null or a non-negative number."); error.statusCode = 400; throw error;
     }

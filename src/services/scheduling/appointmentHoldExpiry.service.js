@@ -3,6 +3,7 @@
 export const createExpiredHoldReconciler = ({ Appointment, reconcileApprovalRequests, repairPendingAppointmentLifecycles, repairPendingAppointmentProjections, repairRescheduleReviews, reconcileAppointmentNoticeFailures, runApprovalSms }) => async (businessId = null) => {
     const query = {
       status: "held",
+      "confirmationIntent.status": { $ne: "pending_provider" },
       heldExpiresAt: { $lte: new Date() },
       ...(businessId ? { business: businessId } : {}),
     };

@@ -38,7 +38,7 @@ import AppointmentService, {
 
 jest.mock("../../src/models/appointment.js", () => ({
   __esModule: true,
-  default: { updateOne: jest.fn().mockResolvedValue({ matchedCount: 1 }), findOne: jest.fn(), create: jest.fn(), updateMany: jest.fn(), find: jest.fn() },
+  default: { updateOne: jest.fn().mockResolvedValue({ matchedCount: 1 }), findOne: jest.fn(), findOneAndUpdate: jest.fn(), create: jest.fn(), updateMany: jest.fn(), find: jest.fn() },
 }));
 jest.mock("../../src/models/lead.js", () => ({
   __esModule: true,
@@ -164,6 +164,17 @@ describe("AppointmentService", () => {
         externalCalendarId: "callbackiq",
       }),
     };
+    Appointment.findOneAndUpdate.mockImplementation((filter, { $set }) => ({
+      select: async () => {
+        const row = await Appointment.findOne({ _id: filter._id, business: filter.business });
+        if ($set.confirmationIntent) row.confirmationIntent = $set.confirmationIntent;
+        for (const [key, value] of Object.entries($set)) {
+          if (key.startsWith("confirmationIntent.")) row.confirmationIntent[key.split(".")[1]] = value;
+          else row[key] = value;
+        }
+        return row;
+      },
+    }));
     SchedulingProviderFactory.getProvider.mockReturnValue(provider);
     getBookableService.mockResolvedValue(service);
     getAiBookableService.mockResolvedValue(service);
@@ -206,7 +217,7 @@ describe("AppointmentService", () => {
     Appointment.updateMany.mockResolvedValue({ modifiedCount: 2 });
     await expect(AppointmentService.releaseExpiredHolds()).resolves.toEqual({ modifiedCount: 2 });
     expect(Appointment.updateMany).toHaveBeenCalledWith(
-      { status: "held", heldExpiresAt: { $lte: expect.any(Date) } },
+      { status: "held", "confirmationIntent.status": { $ne: "pending_provider" }, heldExpiresAt: { $lte: expect.any(Date) } },
       { $set: expect.objectContaining({ status: "failed", slotClaimKeys: [], capacityLane: null }) },
     );
     await AppointmentService.releaseExpiredHolds("b1");

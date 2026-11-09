@@ -11,6 +11,7 @@ import {
 import { getGoogleSettings } from "../../services/integrations/integrationSettings.service.js";
 
 const encode = encodeURIComponent;
+const confirmationRequest = (request) => googleApiRequest({ ...request, signal: AbortSignal.timeout(15_000) });
 const DEFAULT_CACHE_TTL_MS = 45_000;
 const availabilityCache = new Map();
 
@@ -392,10 +393,73 @@ class GoogleCalendarProvider extends SchedulingProvider {
     });
   }
 
-  async createAppointment({ appointment, service }) {
+  async prepareConfirmation({ appointment }) {
     const businessId = this.business._id || this.business.id;
-    const { bookingCalendarId, settings } =
+    const { bookingCalendarId, connection } = await normalizeSettings(businessId);
+    const calendarId = bookingCalendarId === "primary"
+      ? (await confirmationRequest({ businessId, path: "/calendars/primary" })).id
+      : bookingCalendarId;
+    if (!calendarId) throw new Error("Google did not return the writable calendar ID.");
+    return { calendarId, eventId: deterministicEventId(appointment), accountId: connection.providerAccountId };
+  }
+
+  async assertConfirmationRetryTarget({ appointment, target }) {
+    const current = await this.prepareConfirmation({ appointment });
+    if (current.calendarId !== target.calendarId) {
+      throw Object.assign(new Error("The booking calendar changed after this confirmation started."),
+        { code: "GOOGLE_CONFIRMATION_CALENDAR_CHANGED" });
+    }
+  }
+
+  async findConfirmation({ appointment, target }) {
+    const businessId = this.business._id || this.business.id;
+    const { connection } = await normalizeSettings(businessId);
+    this.assertConfirmationAccount(target, connection);
+    const calendarPath = `/calendars/${encode(target.calendarId)}`;
+    const event = await confirmationRequest({
+      businessId,
+      path: `${calendarPath}/events/${encode(target.eventId)}`,
+      allowStatuses: [404, 410],
+    });
+    if (event?.__providerStatus === 404 || event?.__providerStatus === 410) {
+      // A missing calendar and a missing event both return 404.
+      await confirmationRequest({ businessId, path: calendarPath });
+      return null;
+    }
+    this.assertConfirmationEvent(appointment, target, event);
+    return { provider: "google_calendar", externalAppointmentId: event.id,
+      externalCalendarId: target.calendarId, raw: event };
+  }
+
+  assertConfirmationAccount(target, connection) {
+    if (target.accountId && target.accountId !== connection.providerAccountId) {
+      throw Object.assign(new Error("Restore access to the original Google Calendar account to reconcile confirmation."),
+        { code: "GOOGLE_CONFIRMATION_ACCOUNT_CHANGED" });
+    }
+  }
+
+  assertConfirmationEvent(appointment, target, event) {
+    const properties = event?.extendedProperties?.private;
+    if (event?.status === "cancelled") {
+      throw Object.assign(new Error("The Google Calendar event was canceled before confirmation could be saved."),
+        { code: "GOOGLE_CONFIRMATION_EVENT_CANCELED", confirmationRejected: true });
+    }
+    if (event?.id !== target.eventId || properties?.callbackiqAppointmentId !== String(appointment._id) ||
+        properties?.callbackiqBusinessId !== String(appointment.business) ||
+        new Date(event.start?.dateTime).getTime() !== new Date(appointment.startAt).getTime() ||
+        new Date(event.end?.dateTime).getTime() !== new Date(appointment.endAt).getTime()) {
+      throw Object.assign(new Error("The Google Calendar event could not be verified against this appointment."),
+        { code: "GOOGLE_CONFIRMATION_EVENT_MISMATCH" });
+    }
+  }
+
+  async createAppointment({ appointment, service, target }) {
+    const businessId = this.business._id || this.business.id;
+    const { bookingCalendarId: configuredCalendarId, settings, connection } =
       await normalizeSettings(businessId);
+    if (target) this.assertConfirmationAccount(target, connection);
+    const bookingCalendarId = target?.calendarId || configuredCalendarId;
+    const request = target ? confirmationRequest : googleApiRequest;
     const eventBody = buildGoogleEvent({
       appointment,
       service,
@@ -408,7 +472,7 @@ class GoogleCalendarProvider extends SchedulingProvider {
 
     let event;
     try {
-      event = await googleApiRequest({
+      event = await request({
         businessId,
         path: `/calendars/${encode(bookingCalendarId)}/events?${query}`,
         method: "POST",
@@ -421,13 +485,17 @@ class GoogleCalendarProvider extends SchedulingProvider {
         error.providerStatus !== 409 &&
         error.providerPayload?.error?.code !== 409
       ) {
+        if (target && [400, 401, 403, 404, 410, 422].includes(error.providerStatus)) {
+          error.confirmationCreateRejected = true;
+        }
         throw error;
       }
-      event = await googleApiRequest({
+      event = await request({
         businessId,
         path: `/calendars/${encode(bookingCalendarId)}/events/${encode(eventBody.id)}`,
       });
     }
+    if (target) this.assertConfirmationEvent(appointment, target, event);
     invalidateGoogleAvailabilityCache(businessId);
 
     return {
@@ -545,24 +613,29 @@ class GoogleCalendarProvider extends SchedulingProvider {
     };
   }
 
-  async cancelAppointment({ appointment }) {
+  async cancelAppointment({ appointment, target }) {
     if (!appointment.externalAppointmentId) {
       return { canceled: true, alreadyMissing: true };
     }
 
     const businessId = this.business._id || this.business.id;
-    const { bookingCalendarId, settings } =
+    const { bookingCalendarId, settings, connection } =
       await normalizeSettings(businessId);
+    if (target) this.assertConfirmationAccount(target, connection);
     const calendarId = appointment.externalCalendarId || bookingCalendarId;
     const query = new URLSearchParams({
       sendUpdates: settings.sendUpdates || "all",
     });
-    const result = await googleApiRequest({
+    const request = target ? confirmationRequest : googleApiRequest;
+    const result = await request({
       businessId,
       path: `/calendars/${encode(calendarId)}/events/${encode(appointment.externalAppointmentId)}?${query}`,
       method: "DELETE",
       allowStatuses: [404, 410],
     });
+    if (target && result?.__providerStatus) {
+      await request({ businessId, path: `/calendars/${encode(calendarId)}` });
+    }
     invalidateGoogleAvailabilityCache(businessId);
 
     return {

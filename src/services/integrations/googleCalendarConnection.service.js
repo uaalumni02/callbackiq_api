@@ -418,7 +418,7 @@ export const getGoogleConnection = async (
   return query;
 };
 
-export const getGoogleAccessToken = async (businessId) => {
+export const getGoogleAccessToken = async (businessId, { signal } = {}) => {
   const { clientId, clientSecret } = getGoogleOAuthConfig();
   const connection = await getGoogleConnection(businessId, true);
 
@@ -473,6 +473,7 @@ export const getGoogleAccessToken = async (businessId) => {
 
   const response = await fetch(GOOGLE_TOKEN_URL, {
     method: "POST",
+    ...(signal ? { signal } : {}),
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       client_id: clientId,
@@ -530,10 +531,12 @@ export const googleApiRequest = async ({
   method = "GET",
   body,
   allowStatuses = [],
+  signal,
 }) => {
-  const { token, connection } = await getGoogleAccessToken(businessId);
+  const { token, connection } = await getGoogleAccessToken(businessId, { signal });
   const response = await fetch(`${GOOGLE_CALENDAR_API}${path}`, {
     method,
+    ...(signal ? { signal } : {}),
     headers: {
       Authorization: `Bearer ${token}`,
       ...(body ? { "Content-Type": "application/json" } : {}),

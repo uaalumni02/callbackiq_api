@@ -1,12 +1,13 @@
 /* Source-exact AppointmentService extraction. Preserve order and outcome contracts. */
 export function createAppointmentcancel1Methods(deps) {
-  const { InterventionService, SchedulingProviderFactory, SocketService, assertTransition, cancelAppointmentNotifications, ensureCancellationSideEffects, getAppointmentForBusiness, lifecycleMarker, resolveApprovalReview, runNonBlockingAppointmentSideEffect, tryRepairAppointmentLifecycle } = deps;
+  const { assertConfirmationNotPending, InterventionService, SchedulingProviderFactory, SocketService, assertTransition, cancelAppointmentNotifications, ensureCancellationSideEffects, getAppointmentForBusiness, lifecycleMarker, resolveApprovalReview, runNonBlockingAppointmentSideEffect, tryRepairAppointmentLifecycle } = deps;
   return {
 async cancel({ business, appointmentId, reason = "", notifyCustomer = true }) {
     const appointment = await getAppointmentForBusiness(
       business._id,
       appointmentId,
     );
+    assertConfirmationNotPending(appointment);
 
     // A retry after the durable local transition replays idempotent side
     // effects instead of silently skipping anything that previously failed.
