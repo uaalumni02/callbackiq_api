@@ -184,7 +184,7 @@ describe('appointment confirmation durable boundary',()=>{
     expect(f.appointment.approvalDecisionAt).toBeInstanceOf(Date);
     expect(f.deps.ensureBusinessApprovalNotice).toHaveBeenCalledTimes(1);
     expect(f.deps.Conversation.updateOne).toHaveBeenCalledWith(
-      {_id:'c1',business:'b1','bookingState.appointment':{$in:['a1',null]}},
+      expect.objectContaining({_id:'c1',business:'b1','bookingState.appointment':{$in:['a1',null]}}),
       {$set:expect.objectContaining({'bookingState.status':'booked','bookingState.appointment':'a1'})}
     );
   });

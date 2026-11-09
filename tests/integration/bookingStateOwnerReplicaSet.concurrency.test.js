@@ -174,5 +174,14 @@ test('an appointment projection requires durable confirmation and the expected t
   expect((await Conversation.findById(conversation._id)).bookingState.toObject()).toMatchObject({
     status: "booked", appointment: newer, expiresAt: null,
   });
+  await Conversation.updateOne({ _id: conversation._id }, { $set: {
+    "bookingState.status": "collecting_preference", "bookingState.lastError": "reschedule_requested",
+  } });
+  for (const event of ["appointment_confirmed", "confirmation_recovered", "approval_repaired"]) {
+    expect((await applyAppointmentBookingTransition(Conversation, event, current)).matchedCount).toBe(0);
+  }
+  expect((await Conversation.findById(conversation._id)).bookingState.toObject()).toMatchObject({
+    status: "collecting_preference", appointment: newer, lastError: "reschedule_requested",
+  });
   await expect(applyAppointmentBookingTransition(Conversation, "invalid", current)).rejects.toThrow(TypeError);
 });

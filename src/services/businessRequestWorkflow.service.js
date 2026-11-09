@@ -1,4 +1,4 @@
-import { bookingStateFields } from './booking/requestBookingState.js';
+import { bookingTransitionFields } from './booking/requestBookingState.js';
 import { confirmationNoticeState } from './scheduling/appointmentConfirmationState.js';
 import crypto from 'node:crypto';
 import mongoose from 'mongoose';
@@ -218,11 +218,10 @@ export async function updateRequestWorkflow({business,userId,alertId,input}) {
             if(field==='customerName') conversationSet.customerName=value;
             else {conversationSet[`conversationMemory.${field}`]=value;conversationSet[`conversationMemory.recoveryIntake.${field}`]=value;}
           }
-          if(schedulingChanged) Object.assign(conversationSet,{...bookingStateFields({ offeredSlots:[],selectedSlot:null,lastAvailabilityCheckedAt:null,
-            expiresAt:null,preferredStart:null,preferredEnd:null,searchStartDate:'',searchEndDate:'',
-            status:'human_takeover',lastCustomerPreference:changes.preferredAppointmentTime??snapshot.lead.preferredAppointmentTime,
+          if(schedulingChanged) Object.assign(conversationSet,{...bookingTransitionFields('staff_scheduling_facts_corrected', {
+            lastCustomerPreference:changes.preferredAppointmentTime??snapshot.lead.preferredAppointmentTime,
             streetAddress:changes.address??snapshot.lead.address,postalCode:extractCustomerPostalCode(changes.address??snapshot.lead.address??''),
-            serviceOffering:null }),'conversationMemory.recoveryIntake.availability':{status:'not_checked'},'conversationMemory.recoveryIntake.readiness':{...(snapshot.conversation.conversationMemory?.recoveryIntake?.readiness||{}),availabilityVerified:false}});
+          }),'conversationMemory.recoveryIntake.availability':{status:'not_checked'},'conversationMemory.recoveryIntake.readiness':{...(snapshot.conversation.conversationMemory?.recoveryIntake?.readiness||{}),availabilityVerified:false}});
           const intakeReview={...(snapshot.review.metadata?.intakeReview||{})};
           for(const field of ['serviceNeeded','address','preferredAppointmentTime']) if(changes[field]!==undefined) intakeReview[field]=changes[field];
           if(schedulingChanged) {intakeReview.availability={status:'not_checked'};intakeReview.readiness={...(intakeReview.readiness||{}),availabilityVerified:false};}
@@ -237,7 +236,7 @@ export async function updateRequestWorkflow({business,userId,alertId,input}) {
             Object.assign(alertSet,{actionRequired:false,status:'resolved',resolvedAt:now,resolvedBy:userId,resolution:`${outcomeLabels[input.outcome]}: ${input.reason.trim()}`});
             if(ordinary&&snapshot.conversation) {
               conversationSet['conversationMemory.recoveryIntake.review.status']='resolved';
-              if(input.outcome!=='booked') Object.assign(conversationSet,{'conversationMemory.recoveryIntake.withdrawnAt':now,...bookingStateFields({ offeredSlots:[],selectedSlot:null,expiresAt:null,status:'human_takeover' })});
+              if(input.outcome!=='booked') Object.assign(conversationSet,{'conversationMemory.recoveryIntake.withdrawnAt':now,...bookingTransitionFields('staff_request_resolved')});
               if(snapshot.lead) await Lead.updateOne({_id:snapshot.lead._id,business:business._id},{$set:{status:input.outcome==='booked'?'booked':'lost'}},{session});
             }
           }

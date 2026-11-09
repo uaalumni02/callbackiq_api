@@ -15,7 +15,7 @@ import {
   parseTimePreference,
   rankSlotsByTimePreference,
 } from "./appointmentPreferenceParser.service.js";
-import { applyBookingEvent, updateState } from "./bookingTurnState.repository.js";
+import { applyBookingEvent, saveBookingTransition } from "./bookingTurnState.repository.js";
 import { bookingInquiryOperations } from "./bookingInquiryRuntime.js";
 const { formatSlot, buildAvailabilityPricingNote, handleAvailabilityProviderFailure } = bookingInquiryOperations;
 
@@ -55,7 +55,7 @@ export async function collectBookingPreference(context) {
     };
   }
 
-  await updateState(activeConversation, { searchStartDate: range.startDate, searchEndDate: range.endDate });
+  await saveBookingTransition(activeConversation, "search_range_selected", { searchStartDate: range.startDate, searchEndDate: range.endDate });
 
   let availability;
   try {
@@ -111,21 +111,17 @@ function toBookingOffer(slot, timezone) {
 
 async function recordBookingOffers({ business, lead, activeConversation, text, bookingChannel, bookingSource, bookingEventPrefix },
   { offeredSlots, timeZone, timeOfDay, availabilityInquiry }) {
-  await updateState(activeConversation, {
-    status: "offering_slots",
+  await saveBookingTransition(activeConversation, "slots_offered", {
     timeOfDay,
     preferredStart: new Date(offeredSlots[0].startAt),
     preferredEnd: new Date(
       offeredSlots[offeredSlots.length - 1].endAt,
     ),
     offeredSlots: offeredSlots.map((slot) => toBookingOffer(slot, timeZone)),
-    selectedSlot: null,
-    negotiationAttempts: 0,
     lastCustomerPreference: availabilityInquiry
       ? activeConversation.bookingState?.lastCustomerPreference || ""
       : text,
     lastAvailabilityCheckedAt: new Date(),
-    availabilityInquiry: false,
     expiresAt: new Date(Date.now() + 30 * 60_000),
   });
 
@@ -214,7 +210,7 @@ async function offerExpandedAvailability({ business, lead, conversation, activeC
     });
   }
 
-  await updateState(activeConversation, {
+  await saveBookingTransition(activeConversation, "availability_checked", {
     negotiationAttempts: attempts,
     lastCustomerPreference: text,
     lastAvailabilityCheckedAt: new Date(),
@@ -228,8 +224,7 @@ async function offerExpandedAvailability({ business, lead, conversation, activeC
       reason: "scheduling_no_match_after_three_attempts",
       customerMessage: text,
     });
-    await updateState(activeConversation, {
-      status: "human_takeover",
+    await saveBookingTransition(activeConversation, "scheduling_escalated", {
       escalatedAt: new Date(),
     });
     return {
@@ -245,8 +240,7 @@ async function offerExpandedAvailability({ business, lead, conversation, activeC
     const options = alternatives
       .map((slot, index) => `${index + 1}) ${formatSlot(slot, timeZone)}`)
       .join("; ");
-    await updateState(activeConversation, {
-      status: "offering_slots",
+    await saveBookingTransition(activeConversation, "alternative_slots_offered", {
       offeredSlots: alternatives.map((slot) => toBookingOffer(slot, timeZone)),
       expiresAt: new Date(Date.now() + 30 * 60_000),
     });

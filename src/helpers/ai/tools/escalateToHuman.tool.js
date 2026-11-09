@@ -1,4 +1,4 @@
-import { bookingStateFields } from '../../../services/booking/requestBookingState.js';
+import { bookingTransitionFields } from '../../../services/booking/requestBookingState.js';
 import Conversation from "../../../models/conversation.js";
 import ConversionEventService from "../../../services/conversionEvent.service.js";
 import InterventionService from "../../../services/intervention.service.js";
@@ -16,8 +16,7 @@ export const escalateToHumanTool = async ({
       $set: {
         humanTakeover: true,
         aiEnabled: false,
-        ...bookingStateFields({ status: "human_takeover",
-        lastError: reason }),
+        ...bookingTransitionFields('human_escalation_requested', { lastError: reason }),
       },
     },
   );

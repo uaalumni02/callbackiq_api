@@ -5,7 +5,7 @@ import AlertService from "../alert.service.js";
 import { assertVoiceTurnActive } from "../voiceTurnContext.service.js";
 import { assertDistributedLeaseActive } from "../distributedLease.service.js";
 import { filterAutomatedSlots } from '../scheduling/automatedSchedulingPolicy.service.js';
-import { updateState } from "./bookingTurnState.repository.js";
+import { saveBookingTransition } from "./bookingTurnState.repository.js";
 import { bookingInquiryOperations } from "./bookingInquiryRuntime.js";
 const { formatSlot, handleReadOnlyAvailabilityInquiry } = bookingInquiryOperations;
 
@@ -23,7 +23,7 @@ export async function handleReadOnlyBookingTurn({ business, lead, conversation, 
   ) {
     const expired = conversation.bookingState.expiresAt && new Date(conversation.bookingState.expiresAt) <= new Date();
     if (expired) {
-      await updateState(conversation, { offeredSlots: [], selectedSlot: null, status: 'not_started', expiresAt: null });
+      await saveBookingTransition(conversation, "inquiry_offer_expired");
       const refreshed = await handleReadOnlyAvailabilityInquiry({ business, lead, conversation, channel: bookingChannel, text: 'What is available?' });
       refreshed.result.reply = `The earlier options expired. ${refreshed.result.reply}`;
       return refreshed;
@@ -105,14 +105,9 @@ async function recordReadOnlySelection({ business, lead, conversation, bookingCh
 
   if (!savedSelection?.alert?._id) throw Object.assign(new Error("Selected time was not queued for review."), { code: "STAFF_ACTION_NOT_SAVED" });
   if (conversation?.set && typeof conversation.save === "function") {
-    await updateState(conversation, {
-      status: "human_takeover",
+    await saveBookingTransition(conversation, "inquiry_slot_referred", {
       selectedSlot: selected,
-      availabilityInquiry: false,
       escalatedAt: new Date(),
-      offeredSlots: [],
-      expiresAt: null,
-      lastError: "selected_slot_requires_manual_confirmation",
     });
   }
 

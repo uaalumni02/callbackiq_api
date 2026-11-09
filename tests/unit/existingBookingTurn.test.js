@@ -1,3 +1,4 @@
+import { bookingTransitionChanges } from '../../src/services/booking/requestBookingState.js';
 import Appointment from '../../src/models/appointment.js';
 import cancelAppointment from '../../src/helpers/ai/tools/cancelAppointment.tool.js';
 import { handleExistingBookingTurn } from '../../src/services/booking/existingBookingTurn.service.js';
@@ -11,16 +12,20 @@ jest.mock('../../src/helpers/ai/tools/cancelAppointment.tool.js', () => ({
   default: jest.fn(),
 }));
 
-const fixture = (overrides = {}) => ({
-  status: 'pending_business_confirmation',
-  activeConversation: { bookingState: { appointment: 'a1' } },
-  business: { _id: 'b1' },
-  bookingChannel: 'sms',
-  text: 'Any update?',
-  formatSlot: jest.fn().mockReturnValue('Friday at 2 PM'),
-  updateState: jest.fn().mockResolvedValue(undefined),
-  ...overrides,
-});
+const fixture = (overrides = {}) => {
+  const updateState = jest.fn().mockResolvedValue(undefined);
+  return {
+    status: 'pending_business_confirmation',
+    activeConversation: { bookingState: { appointment: 'a1' } },
+    business: { _id: 'b1' },
+    bookingChannel: 'sms',
+    text: 'Any update?',
+    formatSlot: jest.fn().mockReturnValue('Friday at 2 PM'),
+    updateState,
+    saveBookingTransition: (conversation, event, details) => updateState(conversation, bookingTransitionChanges(event, details)),
+    ...overrides,
+  };
+};
 
 beforeEach(() => jest.resetAllMocks());
 

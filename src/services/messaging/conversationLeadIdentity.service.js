@@ -1,4 +1,4 @@
-import { bookingStateReplacement } from '../booking/requestBookingState.js';
+import { bookingTransitionFields } from '../booking/requestBookingState.js';
 import { readOnlySnapshot } from "../database/readOnlySnapshot.js";
 import Lead from "../../models/lead.js";
 import Conversation from "../../models/conversation.js";
@@ -28,7 +28,7 @@ export const reconcileConversationLead = async ({ business, lead, conversation, 
       const repaired = await readOnlySnapshot(Conversation, Conversation.findOneAndUpdate({
         _id: conversation._id, business: business._id,
         lead: conversation.lead || null, customerPhone: customerPhone,
-      }, { $set: { lead: lead._id, ...bookingStateReplacement({ status: "not_started" }),
+      }, { $set: { lead: lead._id, ...bookingTransitionFields('conversation_lead_relinked'),
         "conversationMemory.recoveryIntake": {} }, $unset: { serviceEligibility: 1 } },
       { returnDocument: "after", runValidators: true }), readOnly);
       if (!repaired) throw Object.assign(new Error("Conversation identity changed during repair"), { code: "SMS_LEAD_REPAIR_CONFLICT" });

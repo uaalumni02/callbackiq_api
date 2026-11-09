@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import { join, relative } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { applyBookingStateFields, bookingStateFields, bookingStateReplacement, replaceBookingState } from '../src/services/booking/requestBookingState.js';
+import { applyBookingStateTransition, bookingTransitionFields } from '../src/services/booking/requestBookingState.js';
 
 const require = createRequire(import.meta.url);
 const { parse } = require('@babel/parser');
@@ -24,6 +24,36 @@ const writesBookingMember = (node) => {
   }
   return false;
 };
+
+const lowLevelOwners = new Map([
+  ['services/booking/appointmentBookingTransition.repository.js', new Set(['bookingStateFields'])],
+  ['services/booking/bookingTurnState.repository.js', new Set(['applyBookingStateFields', 'bookingTransitionChanges'])],
+]);
+const rawHelpers = new Set(['bookingStateFields', 'applyBookingStateFields', 'bookingStateReplacement',
+  'replaceBookingState', 'bookingTransitionChanges']);
+const ownerImport = (source) => typeof source === 'string' && /(?:^|\/)requestBookingState(?:\.js)?$/.test(source);
+
+function lowLevelImports(source, file) {
+  const violations = [];
+  const allowed = lowLevelOwners.get(file);
+  const report = node => violations.push(node.loc.start.line);
+  traverse(parse(source, { sourceType: 'unambiguous' }), {
+    ImportDeclaration({ node }) {
+      if (!ownerImport(node.source.value)) return;
+      for (const specifier of node.specifiers) {
+        const name = text(specifier.imported);
+        if (specifier.type !== 'ImportSpecifier' || (rawHelpers.has(name) && !allowed?.has(name))) report(specifier);
+      }
+    },
+    'ExportNamedDeclaration|ExportAllDeclaration'({ node }) {
+      if (ownerImport(node.source?.value)) report(node);
+    },
+    CallExpression({ node }) {
+      if ((node.callee.type === 'Import' || node.callee.name === 'require') && ownerImport(text(node.arguments[0]))) report(node);
+    },
+  });
+  return violations;
+}
 
 function inlineWrites(source) {
   const lines = new Set();
@@ -64,13 +94,17 @@ function inlineWrites(source) {
 test('runtime modules write Conversation booking state through its owner', () => {
   const violations = [];
   for (const entry of readdirSync(root, { recursive: true, withFileTypes: true })) {
-    if (!entry.isFile() || !entry.name.endsWith('.js')) continue;
+    if (!entry.isFile() || !/\.[cm]?js$/.test(entry.name)) continue;
     const file = join(entry.parentPath, entry.name);
     const name = relative(root, file);
     if (name === owner) continue;
     const source = readFileSync(file, 'utf8');
-    if (!source.includes('bookingState')) continue;
-    for (const line of inlineWrites(source)) violations.push(`${name}:${line}`);
+    if (source.includes('bookingState')) {
+      for (const line of inlineWrites(source)) violations.push(`${name}:${line}`);
+    }
+    if (source.includes('requestBookingState')) {
+      for (const line of lowLevelImports(source, name)) violations.push(`${name}:${line} bypasses named transitions`);
+    }
   }
   assert.deepEqual(violations, []);
 });
@@ -91,25 +125,45 @@ test('the ownership check catches document, Mongo update and shared patch bypass
   ].join('\n')), [1, 2, 3, 4, 5, 7, 8, 9, 10]);
 });
 
-test('partial updates preserve the existing dotted fields and replacement is explicit', () => {
-  const changes = { status: 'collecting_preference', selectedSlot: null, offeredSlots: [] };
+test('only booking repositories can import raw state writers', () => {
+  const source = [
+    "import { bookingStateFields as fields } from './requestBookingState.js'",
+    "import * as raw from './requestBookingState.js'",
+    "export * from './requestBookingState.js'",
+    "const required = require('./requestBookingState.js')",
+    "const dynamic = import('./requestBookingState.js')",
+    "import { bookingTransitionFields } from './requestBookingState.js'",
+  ].join('\n');
+  assert.deepEqual(lowLevelImports(source, 'services/staff.service.js'), [1, 2, 3, 4, 5]);
+  assert.deepEqual(lowLevelImports(source, 'services/booking/appointmentBookingTransition.repository.js'), [2, 3, 4, 5]);
+});
+
+test('named patches own their fields and full replacements are explicit', () => {
+  const input = { status: 'booked', appointment: 'unexpected' };
   const fields = {
-    'bookingState.status': 'collecting_preference',
-    'bookingState.selectedSlot': null,
     'bookingState.offeredSlots': [],
+    'bookingState.selectedSlot': null,
+    'bookingState.expiresAt': null,
+    'bookingState.status': 'collecting_preference',
+    'bookingState.lastError': 'offer_expired',
   };
-  assert.deepEqual(bookingStateFields(changes), fields);
-  assert.deepEqual(bookingStateReplacement(changes), { bookingState: changes });
+  assert.deepEqual(bookingTransitionFields('offer_expired', input), fields);
+  assert.deepEqual(bookingTransitionFields('conversation_lead_relinked'), { bookingState: { status: 'not_started' } });
+  assert.throws(() => bookingTransitionFields('unsupported'), TypeError);
 
   const writes = [];
   const document = {
     set: (path, value) => writes.push([path, value]),
-    markModified: (path) => writes.push([path]),
+    markModified: path => writes.push([path]),
   };
-  applyBookingStateFields(document, changes);
-  replaceBookingState(document, changes, { markModified: true });
+  applyBookingStateTransition(document, 'offer_expired', input);
+  applyBookingStateTransition(document, 'request_withdrawn');
   assert.deepEqual(writes, [...Object.entries(fields), ['bookingState']]);
-  assert.equal(document.bookingState, changes);
-  replaceBookingState({}, changes);
-  replaceBookingState({}, changes, { markModified: true });
+  assert.deepEqual(document.bookingState, {
+    status: 'not_started', appointment: null, offeredSlots: [], selectedSlot: null, expiresAt: null,
+  });
+
+  const first = bookingTransitionFields('offer_expired');
+  first['bookingState.offeredSlots'].push('transient');
+  assert.deepEqual(bookingTransitionFields('offer_expired'), fields);
 });

@@ -4,7 +4,7 @@ import { resolveRequestAddress, normalizeSpokenAddress, extractCustomerPostalCod
 import escalateToHumanTool from "../../helpers/ai/tools/escalateToHuman.tool.js";
 import searchServicesTool from "../../helpers/ai/tools/searchServices.tool.js";
 import validateServiceAreaTool from "../../helpers/ai/tools/validateServiceArea.tool.js";
-import { updateState } from "./bookingTurnState.repository.js";
+import { saveBookingTransition } from "./bookingTurnState.repository.js";
 import { bookingInquiryOperations } from "./bookingInquiryRuntime.js";
 const { cleanStreetAddress, parseStreetAddress, buildAvailabilityPricingNote } = bookingInquiryOperations;
 
@@ -25,9 +25,7 @@ export async function collectBookingService({ business, lead, activeConversation
   });
 
   if (matches.length !== 1) {
-    await updateState(activeConversation, {
-      status: "collecting_service",
-    });
+    await saveBookingTransition(activeConversation, "service_requested");
     const choices = matches.length
       ? ` I found: ${matches.map((item) => item.name).join(", ")}.`
       : "";
@@ -44,8 +42,7 @@ export async function collectBookingService({ business, lead, activeConversation
 
   const selectedService = matches[0];
   const address = resolveRequestAddress({ customerMessage: text, lead, conversation: activeConversation });
-  await updateState(activeConversation, {
-    status: "collecting_location",
+  await saveBookingTransition(activeConversation, "service_selected", {
     serviceOffering: selectedService.id,
     streetAddress: cleanStreetAddress(address),
     postalCode: extractCustomerPostalCode(address),
@@ -80,8 +77,7 @@ export async function collectBookingStreetAddress(context) {
   const suppliedZip = extractCustomerPostalCode(address);
 
   if (!valid) {
-    await updateState(activeConversation, {
-      status: "collecting_street_address",
+    await saveBookingTransition(activeConversation, "street_address_requested", {
       ...(suppliedZip ? { postalCode: suppliedZip } : {}),
     });
     return {
@@ -99,8 +95,7 @@ export async function collectBookingStreetAddress(context) {
   }
 
   if (!suppliedZip) {
-    await updateState(activeConversation, {
-      status: "collecting_postal_code",
+    await saveBookingTransition(activeConversation, "postal_code_requested", {
       streetAddress: street,
     });
     return {
@@ -114,8 +109,7 @@ export async function collectBookingStreetAddress(context) {
   const areaReview = await reviewBookingServiceArea(context, suppliedZip);
   if (areaReview) return areaReview;
 
-  await updateState(activeConversation, {
-    status: "collecting_preference",
+  await saveBookingTransition(activeConversation, "location_verified", {
     streetAddress: street,
     postalCode: suppliedZip,
   });
@@ -143,8 +137,7 @@ export async function collectBookingPostalCode(context) {
     lead.address = extractCustomerPostalCode(address) ? address : `${address}, ${zip}`;
     await lead.save();
   }
-  await updateState(activeConversation, {
-    status: "collecting_preference",
+  await saveBookingTransition(activeConversation, "location_verified", {
     ...(address ? { streetAddress: cleanStreetAddress(address) } : {}),
     postalCode: zip,
   });

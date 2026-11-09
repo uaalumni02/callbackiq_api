@@ -12,7 +12,7 @@ import { assertVoiceTurnActive } from "../voiceTurnContext.service.js";
 import { assertDistributedLeaseActive } from "../distributedLease.service.js";
 import escalateToHumanTool from "../../helpers/ai/tools/escalateToHuman.tool.js";
 import { findDateRange, parseTimePreference } from "./appointmentPreferenceParser.service.js";
-import { updateState } from "./bookingTurnState.repository.js";
+import { saveBookingTransition } from "./bookingTurnState.repository.js";
 import { bookingInquiryOperations } from "./bookingInquiryRuntime.js";
 const { handleBookingReadinessFailure } = bookingInquiryOperations;
 
@@ -49,7 +49,7 @@ async function routeRejectedPreference({ business, lead, conversation, text, ena
       await lead.save();
     }
     if (conversation?.set && preferenceRejection.updateRequestedPreference) {
-      await updateState(conversation, preferenceRejection.statePatch);
+      await saveBookingTransition(conversation, preferenceRejection.event, preferenceRejection.details);
     }
     return { handled: true, result: fixedResult({
       reply: preferenceRejection.reply, category: preferenceRejection.category,

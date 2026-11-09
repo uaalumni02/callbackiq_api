@@ -1,5 +1,6 @@
 /** Booking advisory and failure recovery contract tests using inert collaborators. */
 import assert from 'node:assert/strict';
+import { bookingTransitionChanges } from '../../src/services/booking/requestBookingState.js';
 import { createBookingInquiryOperations } from '../../src/services/booking/inquiry/bookingInquiryOperations.js';
 
 const service = { id: 'offering-1', name: 'Roof repair', score: 10 };
@@ -38,7 +39,7 @@ function fixture(changes = {}) {
     requestStaffSchedulingReview: async () => ({ reply: 'Staff will review this request.' }),
     searchServicesTool: async () => [service],
     selectSlotOptions: x => x.slice(0, 3),
-    updateState: async (_conversation, patch) => updates.push(patch),
+    saveBookingTransition: async (_conversation, event, details) => updates.push(bookingTransitionChanges(event, details)),
     withoutCustomerPostalCode: x => String(x || '').replace(/\b\d{5}\b/g, ''),
     ...changes,
   };

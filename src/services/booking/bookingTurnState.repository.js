@@ -1,9 +1,9 @@
 import { fixedResult } from "./bookingFixedResult.policy.js";
-import { applyBookingStateFields } from "./requestBookingState.js";
+import { applyBookingStateFields, bookingTransitionChanges } from "./requestBookingState.js";
 import { assertVoiceTurnActive } from "../voiceTurnContext.service.js";
 import { assertDistributedLeaseActive, getDistributedLeaseWriteDeadline } from "../distributedLease.service.js";
 
-export const updateState = async (conversation, changes) => {
+const updateState = async (conversation, changes) => {
   assertVoiceTurnActive();
   assertDistributedLeaseActive();
   applyBookingStateFields(conversation, changes);
@@ -11,6 +11,10 @@ export const updateState = async (conversation, changes) => {
   assertVoiceTurnActive();
   assertDistributedLeaseActive();
 };
+
+export function saveBookingTransition(conversation, event, details) {
+  return updateState(conversation, bookingTransitionChanges(event, details));
+}
 
 const bookingEvents = new Map([
   ['select_offer', {
@@ -86,10 +90,8 @@ export async function applyBookingEvent(conversation, event, context) {
 }
 
 export async function resetExpiredBookingTurn({ activeConversation, text, currentStatus }) {
-  const offerExpired = Boolean(
-    activeConversation.bookingState?.status !== 'pending_business_confirmation' && activeConversation.bookingState?.expiresAt &&
-      activeConversation.bookingState.expiresAt < new Date(),
-  );
+  const offerExpired = activeConversation.bookingState?.status !== 'pending_business_confirmation' &&
+    activeConversation.bookingState?.expiresAt && activeConversation.bookingState.expiresAt < new Date();
 
   if (currentStatus === "failed" || offerExpired) {
     await updateState(activeConversation, {

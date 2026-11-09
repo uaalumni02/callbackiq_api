@@ -21,7 +21,7 @@ import {
   parseTimePreference,
   rankSlotsByTimePreference,
 } from "./appointmentPreferenceParser.service.js";
-import { updateState } from "./bookingTurnState.repository.js";
+import { saveBookingTransition } from "./bookingTurnState.repository.js";
 
 export const bookingInquiryOperations = createBookingInquiryOperations({
   AlertService,
@@ -47,6 +47,6 @@ export const bookingInquiryOperations = createBookingInquiryOperations({
   requestStaffSchedulingReview,
   searchServicesTool,
   selectSlotOptions,
-  updateState,
+  saveBookingTransition,
   withoutCustomerPostalCode,
 });

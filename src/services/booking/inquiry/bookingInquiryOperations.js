@@ -1,6 +1,6 @@
 /* Source-exact legacy booking inquiry/advisory functions. Decision order unchanged. */
 export function createBookingInquiryOperations(deps) {
-  const { AlertService, assertDistributedLeaseActive, assertVoiceTurnActive, automatedSchedulingNotice, classifySmsIntent, customerAppointmentLabel, extractCustomerAddress, extractCustomerPostalCode, filterAutomatedSlots, filterSlotsByTimePreference, findDateRange, fixedResult, formatDateKey, getApprovedServiceEstimate, getAvailabilityTool, hasAppointmentPreferenceHint, logOperationalError, logOperationalEvent, parseTimePreference, rankSlotsByTimePreference, requestStaffSchedulingReview, searchServicesTool, selectSlotOptions, updateState, withoutCustomerPostalCode } = deps;
+  const { AlertService, assertDistributedLeaseActive, assertVoiceTurnActive, automatedSchedulingNotice, classifySmsIntent, customerAppointmentLabel, extractCustomerAddress, extractCustomerPostalCode, filterAutomatedSlots, filterSlotsByTimePreference, findDateRange, fixedResult, formatDateKey, getApprovedServiceEstimate, getAvailabilityTool, hasAppointmentPreferenceHint, logOperationalError, logOperationalEvent, parseTimePreference, rankSlotsByTimePreference, requestStaffSchedulingReview, searchServicesTool, selectSlotOptions, saveBookingTransition, withoutCustomerPostalCode } = deps;
 const cleanStreetAddress = (value) =>
   withoutCustomerPostalCode(value)
     .trim()
@@ -121,7 +121,7 @@ const handleReadOnlyAvailabilityInquiry = async ({
   const timePreference = parseTimePreference(text, timeZone);
   const postalCode = extractCustomerPostalCode(lead?.address);
   if (conversation?.set && typeof conversation.save === 'function') {
-    await updateState(conversation, { searchStartDate: range.startDate, searchEndDate: range.endDate });
+    await saveBookingTransition(conversation, "search_range_selected", { searchStartDate: range.startDate, searchEndDate: range.endDate });
   }
 
   try {
@@ -207,8 +207,7 @@ const handleReadOnlyAvailabilityInquiry = async ({
     // Keep the numbered options and approval caveat inside the SMS budget.
     offeredSlots = offeredSlots.slice(0, pricingNote ? 1 : 2);
     if (conversation?.set && typeof conversation.save === "function") {
-      await updateState(conversation, {
-        status: "offering_slots",
+      await saveBookingTransition(conversation, "inquiry_slots_offered", {
         serviceOffering: service.id,
         offeredSlots: offeredSlots.map((slot) => ({
           startAt: new Date(slot.startAt),
@@ -219,8 +218,6 @@ const handleReadOnlyAvailabilityInquiry = async ({
           requiresBusinessApproval: slot.requiresBusinessApproval !== false,
           selectionSubmits: false,
         })),
-        selectedSlot: null,
-        availabilityInquiry: true,
         lastAvailabilityCheckedAt: new Date(),
         expiresAt: new Date(Date.now() + 30 * 60_000),
       });

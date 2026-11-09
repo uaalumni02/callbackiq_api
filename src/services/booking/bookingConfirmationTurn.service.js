@@ -3,7 +3,7 @@ import { submitRescheduleRequest } from '../scheduling/rescheduleRequest.service
 import { renderAppointmentResponse } from '../scheduling/customerAppointmentPresentation.service.js';
 import { assertVoiceTurnActive } from "../voiceTurnContext.service.js";
 import createAppointmentTool from "../../helpers/ai/tools/createAppointment.tool.js";
-import { applyBookingEvent, updateState } from "./bookingTurnState.repository.js";
+import { applyBookingEvent, saveBookingTransition } from "./bookingTurnState.repository.js";
 import { bookingInquiryOperations } from "./bookingInquiryRuntime.js";
 const { formatSlot } = bookingInquiryOperations;
 
@@ -67,14 +67,12 @@ export async function confirmBookingOffer(context) {
     }
 
     if (appointment.status === 'confirmed' && appointment.automaticConfirmationAuthorized === true) {
-      await updateState(activeConversation, { status: 'booked', appointment: appointment._id, expiresAt: null, lastError: '' });
+      await saveBookingTransition(activeConversation, "booking_confirmed", { appointment: appointment._id });
       return { handled: true, result: fixedResult({ reply: renderAppointmentResponse({ kind: 'confirmed', label: formatSlot(appointment, appointment.timezone) }, bookingChannel) }) };
     }
-    await updateState(activeConversation, {
-      status: "pending_business_confirmation",
+    await saveBookingTransition(activeConversation, "booking_submitted", {
       appointment: appointment._id,
       expiresAt: appointment.heldExpiresAt || null,
-      lastError: "",
     });
 
     return {
@@ -84,10 +82,8 @@ export async function confirmBookingOffer(context) {
       }),
     };
   } catch (error) {
-    await updateState(activeConversation, {
-      status: "failed",
+    await saveBookingTransition(activeConversation, "booking_failed", {
       lastError: error.message,
-      expiresAt: null,
     });
 
     return {
@@ -143,13 +139,7 @@ async function submitBookingReschedule({ business, activeConversation, bookingCh
     return { handled: true, result: fixedResult({ reply: 'I could not verify that your change request reached the team. Your existing appointment has not been changed. Please contact the business directly or try again.' }) };
   }
 
-  await updateState(activeConversation, {
-    status: "booked",
-    selectedSlot: null,
-    offeredSlots: [],
-    expiresAt: null,
-    lastError: "reschedule_pending_business_approval",
-  });
+  await saveBookingTransition(activeConversation, "reschedule_submitted");
 
   return {
     handled: true,
