@@ -25,7 +25,10 @@ const transitions = new Map([
   }],
   ['intake_reservation_linked', {
     statuses: ['held', 'confirmed'],
-    filter: appointment => linkedOrUnassigned(appointment._id),
+    filter: appointment => ({
+      ...linkedOrUnassigned(appointment._id),
+      ...(appointment.status === 'held' ? { 'bookingState.status': { $ne: 'booked' } } : keepNewerReschedule),
+    }),
     fields: appointment => ({
       appointment: appointment._id,
       status: appointment.status === 'confirmed' ? 'booked' : 'pending_business_confirmation',
@@ -36,7 +39,7 @@ const transitions = new Map([
   }],
   ['intake_confirmed', {
     statuses: ['confirmed'],
-    filter: appointment => linked(appointment._id),
+    filter: appointment => ({ ...linked(appointment._id), ...keepNewerReschedule }),
     fields: confirmed,
     conversationFields: (appointment, { approvedBy, qualificationReview }) => ({
       'conversationMemory.recoveryIntake.appointmentId': String(appointment._id),

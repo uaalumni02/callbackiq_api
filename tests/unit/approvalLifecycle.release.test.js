@@ -55,3 +55,18 @@ test('confirmed notice enqueue failure cannot mark recovery complete',async()=>{
  expect(Appointment.updateOne).toHaveBeenCalledWith({_id:'a1'},{$set:{'approvalRecovery.lastError':'outbox unavailable'}});
  expect(await reconcileApprovalRequests()).toEqual({repaired:1});
 });
+
+test.each(['confirmed', 'canceled'])('approval repair observes an intervening %s decision', async status => {
+  const latest = { ...request, status };
+  Appointment.findById.mockReturnValue({ lean: async () => latest });
+
+  await expect(reconcileApprovalRequests()).resolves.toEqual({ repaired: 1 });
+  expect(Alert.updateMany).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+    $set: expect.objectContaining({ 'metadata.approvalState': status }),
+  }));
+  const projected = Conversation.updateOne.mock.calls.filter(([, { $set }]) => $set['bookingState.status'] === 'booked');
+  expect(projected).toHaveLength(status === 'confirmed' ? 1 : 0);
+  if (status === 'confirmed') {
+    expect(projected[0][0]).toMatchObject({ business: request.business, 'bookingState.appointment': request._id });
+  }
+});

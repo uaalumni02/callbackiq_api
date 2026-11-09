@@ -151,7 +151,8 @@ test('a newly held appointment is projected as pending until confirmation succee
   await expect(run()).resolves.toMatchObject({ appointment: { status: 'confirmed' } });
   expect(Conversation.updateOne).toHaveBeenNthCalledWith(
     1,
-    { _id: conversation._id, business: business._id, 'bookingState.appointment': { $in: [appointment._id, null] } },
+    { _id: conversation._id, business: business._id, 'bookingState.appointment': { $in: [appointment._id, null] },
+      'bookingState.status': { $ne: 'booked' } },
     { $set: expect.objectContaining({
       'bookingState.appointment': appointment._id,
       'bookingState.status': 'pending_business_confirmation',
@@ -163,7 +164,7 @@ test('does not confirm a hold when the conversation now points to a different ap
   Conversation.updateOne.mockResolvedValueOnce({ matchedCount: 0 });
   await expect(run()).rejects.toMatchObject({ code: 'INTAKE_REVIEW_CHANGED' });
   expect(AppointmentService.confirm).not.toHaveBeenCalled();
-  expect(Conversation.updateOne).toHaveBeenCalledWith({
+  expect(Conversation.updateOne).toHaveBeenCalledWith(expect.objectContaining({
     _id: conversation._id, business: business._id, 'bookingState.appointment': { $in: [appointment._id, null] },
-  }, expect.anything());
+  }), expect.anything());
 });

@@ -500,3 +500,14 @@ describe.each(['sms', 'voice'])('%s confirmation routing', channel => {
     }
   });
 });
+
+test('complete intake hands off to enabled booking and starts service collection', async () => {
+  const c = context();
+  const enabledBusiness = { ...c.business, features: { aiBookingEnabled: true } };
+  c.lead.serviceNeeded = 'toilet repair';
+  c.lead.address = '970 Sidney Marcus Blvd NE Atlanta GA 30324';
+
+  await expect(handleRecoveryIntake({ ...c, business: enabledBusiness, customerMessage: 'Sep 8 at 8 am' })).resolves.toBeNull();
+  expect(c.conversation.bookingState.status).toBe('collecting_service');
+  expect(c.conversation.save).toHaveBeenCalled();
+});
