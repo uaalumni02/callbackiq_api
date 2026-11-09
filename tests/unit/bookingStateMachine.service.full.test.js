@@ -399,6 +399,45 @@ describe("BookingStateMachineService complete behavior", () => {
     expect(result.result.reply).toMatch(/street address.*ZIP code/);
   });
 
+  test.each([
+    { matches: [] },
+    { matches: [{ id: "s1", name: "Diagnostic" }, { id: "s2", name: "Replacement" }] },
+  ])("asks about a known service without choosing a catalog match automatically (%j)", async ({ matches }) => {
+    searchServicesTool.mockResolvedValueOnce(matches);
+    const lead = makeLead({ serviceNeeded: "HVAC diagnostic" });
+    const conversation = makeConversation();
+
+    const result = await handle({ conversation, lead, message: "book appointment" });
+
+    expect(result.result.reply).toMatch(/arrange the right visit/i);
+    expect(conversation.bookingState.status).toBe("collecting_service");
+    expect(lead.save).not.toHaveBeenCalled();
+  });
+
+  test("a request for availability uses the saved service and address", async () => {
+    const lead = makeLead({ serviceNeeded: "HVAC diagnostic", address: "123 Main Street, Atlanta GA 30318" });
+    const conversation = makeConversation();
+
+    const result = await handle({ conversation, lead, message: "earliest availability" });
+
+    expect(result.handled).toBe(true);
+    expect(searchServicesTool).toHaveBeenCalledWith({ businessId: business._id, query: lead.serviceNeeded });
+    expect(getAvailabilityTool).toHaveBeenCalledWith(expect.objectContaining({ postalCode: "30318" }));
+    expect(conversation.bookingState.status).toBe("offering_slots");
+  });
+
+  test("waits for a valid postal code before checking a service area", async () => {
+    const conversation = makeConversation({ bookingState: {
+      status: "collecting_postal_code", streetAddress: "123 Main Street", postalCode: null,
+    } });
+
+    const result = await handle({ conversation, message: "I need to look it up" });
+
+    expect(result.result.reply).toMatch(/5-digit ZIP code/);
+    expect(validateServiceAreaTool).not.toHaveBeenCalled();
+    expect(conversation.bookingState.status).toBe("collecting_postal_code");
+  });
+
   test("does not replace an existing lead service", async () => {
     const lead = makeLead({ serviceNeeded: "Drain repair" });
     await handle({ lead });

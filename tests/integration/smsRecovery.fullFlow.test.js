@@ -766,6 +766,25 @@ describe("completed manual intake uses the durable staff handoff", () => {
     });
   });
 
+  test("a routine turn with AI qualification disabled completes without model work or SMS", async () => {
+    isBusinessFeatureEnabled.mockReturnValue(false);
+    activeInbound.body = "Thanks for your help";
+
+    await expect(processInboundSmsJob(job)).resolves.toMatchObject({ decision: "skipped", reason: "ai_ineligible" });
+
+    expect(generateAIReplyResult).not.toHaveBeenCalled();
+    expect(sendSms).not.toHaveBeenCalled();
+  });
+
+  test("fails a job with missing tenant records before provider work", async () => {
+    Business.findById.mockResolvedValueOnce(null);
+
+    await expect(processInboundSmsJob(job)).rejects.toMatchObject({ code: "SMS_JOB_RECORD_MISSING" });
+
+    expect(generateAIReplyResult).not.toHaveBeenCalled();
+    expect(sendSms).not.toHaveBeenCalled();
+  });
+
   test.each([
     { providerMessageId: "SM_PRIOR_ACK", sent: true, suppressed: false },
     { status: "suppressed", sent: false, suppressed: true },
