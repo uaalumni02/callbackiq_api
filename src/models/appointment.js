@@ -163,6 +163,7 @@ const AppointmentSchema = new Schema(
     actualRevenue: { type: Number, min: 0, default: 0 },
 
     idempotencyKey: { type: String, trim: true, required: true },
+    intakeReviewVersion: { type: String, immutable: true },
     activeSlotKey: { type: String, trim: true, default: null },
     slotClaimKeys: { type: [String], default: [] },
     capacityLane: { type: Number, min: 1, default: null },
@@ -216,7 +217,7 @@ const AppointmentSchema = new Schema(
     },
     notes: { type: String, trim: true, default: "", maxlength: 4000 },
   },
-  { timestamps: true, toJSON: { transform(_doc, value) { delete value.confirmationIntent; } } },
+  { timestamps: true, toJSON: { transform(_doc, value) { delete value.confirmationIntent; delete value.intakeReviewVersion; } } },
 );
 
 AppointmentSchema.pre("validate", function validateTimes() {

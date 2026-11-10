@@ -2,7 +2,7 @@
 export function createAppointmentcreate1Methods(deps) {
   const { Appointment, SocketService, assertServiceRequestEligible, businessCalendarProviderName, createHold, crypto, getAiBookableService, getBookableService, moneyAmount, normalizeAddress, tryRepairAppointmentLifecycle, tryRepairAppointmentProjections } = deps;
   return {
-async create({ business, input, idempotencyKey, confirm = true, ownerValuationAuthorized = false }) {
+async create({ business, input, idempotencyKey, confirm = true, ownerValuationAuthorized = false, intakeReviewVersion }) {
     if (input.address !== undefined) normalizeAddress(input.address);
     if (ownerValuationAuthorized && Object.prototype.hasOwnProperty.call(input, "estimatedValue") && input.estimatedValue !== null && moneyAmount(input.estimatedValue) === null) {
       const error = new Error("Estimated value must be null or a non-negative number."); error.statusCode = 400; throw error;
@@ -57,6 +57,7 @@ async create({ business, input, idempotencyKey, confirm = true, ownerValuationAu
       input,
       ownerValuationAuthorized,
       idempotencyKey: key,
+      intakeReviewVersion,
       // Immediate Google confirmations perform one external availability check
       // at confirm time. The internal claim index still protects the hold.
       checkExternalAvailability:

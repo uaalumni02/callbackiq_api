@@ -1,4 +1,11 @@
 import crypto from 'crypto';
+
+export const STALE_INTAKE_HOLD_REASON = 'The reviewed customer details changed. Reload the captured request and review it before booking.';
+export const intakeApprovalKey = (conversation) => {
+  const journey = conversation.orchestration?.recoveryJourneyKey || 'legacy';
+  const hash = crypto.createHash('sha256').update(journey).digest('hex').slice(0, 24);
+  return `intake-approval:${conversation._id}:${hash}`;
+};
 export const intakeReviewVersion = (conversation, lead) => crypto.createHash('sha256').update(JSON.stringify([
   String(conversation?._id || ''), conversation?.orchestration?.recoveryJourneyKey || '',
   String(conversation?.orchestration?.lastInboundMessage || ''), lead?.status || '',

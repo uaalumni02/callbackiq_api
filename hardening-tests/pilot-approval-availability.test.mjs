@@ -65,7 +65,7 @@ test('unavailable slot preserves pending approval without persistence', async ()
   };
 
   const methods = createAppointmentconfirm1Methods({
-    assertConfirmationNotPending,
+    assertConfirmationNotPending, assertIntakeHoldCurrent: async () => {},
     getAppointmentForBusiness: async () => appointment,
     assertTransition: () => events.push('transition'),
     exactSlotAvailable: async () => {

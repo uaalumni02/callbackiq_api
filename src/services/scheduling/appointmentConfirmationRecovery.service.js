@@ -10,7 +10,7 @@ const isDefiniteRejection = (error, provider, earlierAttempts) =>
 
 export function createConfirmationRecovery({
   intent, InterventionService, Business = BusinessModel, ServiceOffering, SchedulingProviderFactory, safeConsole,
-  exactSlotAvailable, assertServiceRequestEligible, assertDistributedLeaseActive, projectionMarker, lifecycleMarker,
+  exactSlotAvailable, assertServiceRequestEligible, assertIntakeHoldCurrent, assertDistributedLeaseActive, projectionMarker, lifecycleMarker,
   testCrash, clock = () => new Date(),
 }) {
   const crash = (phase) => {
@@ -157,8 +157,8 @@ export function createConfirmationRecovery({
   }
 
   async function handleProviderFailure(appointment, error, earlierAttempts) {
-    if (['APPOINTMENT_CONFIRMATION_PENDING', 'DISTRIBUTED_LEASE_LOST'].includes(error.code)) return;
-    if (isDefiniteRejection(error, appointment.confirmationIntent.provider, earlierAttempts)) {
+    if (error.intakeHoldReleased || ['APPOINTMENT_CONFIRMATION_PENDING', 'DISTRIBUTED_LEASE_LOST'].includes(error.code)) return;
+    if (!['INTAKE_REVIEW_CHANGED', 'INTAKE_VOICE_ACTIVE'].includes(error.code) && isDefiniteRejection(error, appointment.confirmationIntent.provider, earlierAttempts)) {
       await failed(appointment, error);
     } else {
       await intent.defer(appointment, retryDelay(earlierAttempts));
@@ -180,6 +180,7 @@ export function createConfirmationRecovery({
     try {
       if (recovering) receipt = await lookupOrRetry({ appointment, business, provider });
       if (!receipt) {
+        await assertIntakeHoldCurrent(appointment);
         assertDistributedLeaseActive();
         const claimed = await intent.patch(appointment, { 'confirmationIntent.attempts': attempts + 1 });
         if (!claimed || claimed.confirmationIntent.leaseUntil <= clock()) throw confirmationPending();

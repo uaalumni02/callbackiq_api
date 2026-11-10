@@ -16,7 +16,7 @@ function original(overrides={}) { return {
 function approvalFixture(a=original(), overrides={}) {
   const events=[];
   const deps={
-    assertConfirmationNotPending,
+    assertConfirmationNotPending, assertIntakeHoldCurrent: async () => {},
     Appointment:{ async findOneAndUpdate(filter, patch, opts) {
       events.push(['claim', filter, patch, opts]);
       return original({...a, status:'held', heldExpiresAt: new Date(Date.now()+300000)});
