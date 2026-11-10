@@ -42,7 +42,7 @@ const fixture = () => {
     getCommitted: jest.fn(async () => null), finishEffects: jest.fn(), defer: jest.fn(),
   };
   const deps={
-    assertConfirmationNotPending, confirmationPending, confirmWithoutRecovery,
+    assertConfirmationNotPending, assertIntakeHoldCurrent: async () => {}, confirmationPending, confirmWithoutRecovery,
     applyAppointmentBookingTransition, intent, businessCalendarProviderName: jest.fn(() => "internal"),
     getAppointmentForBusiness:jest.fn(async()=>appointment),
     assertTransition:jest.fn(), assertServiceRequestEligible:jest.fn(async()=>true),

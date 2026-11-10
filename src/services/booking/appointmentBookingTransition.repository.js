@@ -37,6 +37,16 @@ const transitions = new Map([
       'conversationMemory.recoveryIntake.reviewAppointmentId': String(appointment._id),
     }),
   }],
+  ['intake_hold_superseded', {
+    statuses: ['failed'],
+    filter: appointment => ({
+      ...linked(appointment._id),
+      'bookingState.status': { $ne: 'booked' },
+      'conversationMemory.recoveryIntake.reviewAppointmentId': String(appointment._id),
+    }),
+    fields: () => released('intake_review_changed'),
+    conversationFields: () => ({ 'conversationMemory.recoveryIntake.reviewAppointmentId': null }),
+  }],
   ['intake_confirmed', {
     statuses: ['confirmed'],
     filter: appointment => ({ ...linked(appointment._id), ...keepNewerReschedule }),
@@ -93,5 +103,6 @@ export async function applyAppointmentBookingTransition(Conversation, event, app
       ...bookingStateFields(transition.fields(appointment)),
       ...transition.conversationFields?.(appointment, details),
     } },
+    ...(details.session ? [{ session: details.session }] : []),
   );
 }

@@ -21,7 +21,7 @@ function fixture({requiresBusinessApproval=true}={}) {
   };
   let available=false;
   const deps={
-    assertConfirmationNotPending,
+    assertConfirmationNotPending, assertIntakeHoldCurrent: async () => {},
     getAppointmentForBusiness:async (tenant,appt)=>{
       assert.equal(tenant,'tenant-1');assert.equal(appt,'appointment-1');
       events.push('load');return appointment;

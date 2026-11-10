@@ -1,5 +1,5 @@
 import { queryBudgetMs } from "./scale/queryBudget.js";
-import { queryOwnerOpportunities } from "./scale/ownerOpportunityQuery.service.js";
+import { queryOwnerOpportunities, ownerAppointmentFilter, ownerAppointmentSort, ownerConversationSort } from "./scale/ownerOpportunityQuery.service.js";
 import { intakeReviewVersion, manualIntakeSubmitted } from "./booking/intakeReviewContext.service.js";
 import mongoose from "mongoose";
 import Alert from "../models/alert.js";
@@ -717,16 +717,17 @@ class OwnerExperienceService {
         .select(
           "lead serviceEligibility customerName customerPhone status humanTakeover bookingState orchestration conversationMemory lastMessage lastMessageAt createdAt updatedAt",
         )
-        .sort({ lastMessageAt: -1, updatedAt: -1 })
+        .sort(ownerConversationSort)
         .lean(),
       Appointment.findOne({
         business: business._id,
         lead: lead._id,
+        ...ownerAppointmentFilter,
       })
         .select(
           "lead status startAt endAt timezone source bookedBy provider confirmedAt customerConfirmedAt estimatedValue valuation actualRevenue requiresBusinessApproval failureReason createdAt",
         )
-        .sort({ createdAt: -1 })
+        .sort(ownerAppointmentSort)
         .lean(),
       Alert.exists({
         ...ownerInterventionFilter(business._id),
@@ -747,7 +748,7 @@ class OwnerExperienceService {
     const { business } = options;
     const page = await queryOwnerOpportunities({ ...options, interventionFilter: ownerInterventionFilter(business._id) });
     return { ...page, rows: undefined, items: page.rows.map(row => {
-      const { _conversation, _appointment, _interventions, _waiting, _takeover, _appointments, _active, _needsMe, _isWaiting, _ready, ...lead } = row;
+      const { _conversation, _appointment, _interventions, _waiting, _takeover, _appointments, _readyConversation, _active, _needsMe, _isWaiting, _ready, ...lead } = row;
       return serializeOpportunity({ business, lead, conversation: _conversation[0] || null,
         appointment: _appointment[0] || null, hasOpenIntervention: _interventions.length > 0 });
     }).sort((a, b) => {

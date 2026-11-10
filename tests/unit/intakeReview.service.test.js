@@ -1,3 +1,4 @@
+import { intakeApprovalKey } from '../../src/services/booking/intakeReviewContext.service.js';
 import VoiceSession from '../../src/models/voiceSession.js';
 import Conversation from '../../src/models/conversation.js';
 import Lead from '../../src/models/lead.js';
@@ -167,4 +168,13 @@ test('does not confirm a hold when the conversation now points to a different ap
   expect(Conversation.updateOne).toHaveBeenCalledWith(expect.objectContaining({
     _id: conversation._id, business: business._id, 'bookingState.appointment': { $in: [appointment._id, null] },
   }), expect.anything());
+});
+
+test('intake hold identity is stable for older requests without a recovery journey', () => {
+ const id = 'b'.repeat(24);
+ const withoutOrchestration = intakeApprovalKey({ _id: id });
+ expect(withoutOrchestration).toMatch(new RegExp(`^intake-approval:${id}:[a-f0-9]{24}$`));
+ expect(intakeApprovalKey({ _id: id, orchestration: {} })).toBe(withoutOrchestration);
+ expect(intakeApprovalKey({ _id: id, orchestration: { recoveryJourneyKey: 'another-journey' } }))
+   .not.toBe(withoutOrchestration);
 });

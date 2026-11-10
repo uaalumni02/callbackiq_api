@@ -1,6 +1,6 @@
 /* Source-exact AppointmentService extraction. Preserve order and outcome contracts. */
 export function createAppointmentrecheckAndConfirm1Methods(deps) {
-  const { assertConfirmationNotPending, Appointment, addMinutes, assertDistributedLeaseActive, exactSlotAvailable, getAppointmentForBusiness, getSlotCapacity, getSlotClaimKeys, getSlotKey, repairConfirmedApproval, tryRepairAppointmentProjections, withDistributedLease } = deps;
+  const { assertConfirmationNotPending, assertIntakeHoldCurrent, Appointment, addMinutes, assertDistributedLeaseActive, exactSlotAvailable, getAppointmentForBusiness, getSlotCapacity, getSlotClaimKeys, getSlotKey, repairConfirmedApproval, tryRepairAppointmentProjections, withDistributedLease } = deps;
   return {
 async recheckAndConfirm({ business, appointmentId, approvedBy }) {
     if (!approvedBy) throw Object.assign(new Error('Staff approval is required.'), { statusCode: 403 });
@@ -16,6 +16,7 @@ async recheckAndConfirm({ business, appointmentId, approvedBy }) {
         throw Object.assign(new Error('This appointment is not awaiting approval.'), { statusCode: 409 });
       }
       if (appointment.status === 'held' && appointment.heldExpiresAt > new Date()) return this.confirm({ business, appointmentId, approvedBy });
+      await assertIntakeHoldCurrent(appointment);
       const available = await exactSlotAvailable({ business, serviceOfferingId: appointment.serviceOffering,
         startAt: appointment.startAt, endAt: appointment.endAt, postalCode: appointment.address?.postalCode, excludeAppointmentId: appointment._id, approvedExistingRequest: true });
       if (!available) throw Object.assign(new Error('That time is no longer available. Contact the customer to agree another time.'), { statusCode: 409, code: 'SLOT_UNAVAILABLE' });

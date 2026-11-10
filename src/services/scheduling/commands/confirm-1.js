@@ -1,6 +1,6 @@
 /* Appointment command dependencies are wired in AppointmentService. */
 export function createAppointmentconfirm1Methods(deps) {
-  const { assertConfirmationNotPending, confirmationPending, confirmWithoutRecovery, Conversation, InterventionService, SchedulingProviderFactory, ServiceOffering, SocketService, assertDistributedLeaseActive, assertServiceRequestEligible, assertTransition, applyAppointmentBookingTransition, ensureBusinessApprovalNotice, exactSlotAvailable, getAppointmentForBusiness, lifecycleMarker, preservePendingApprovalOnAvailabilityConflict, projectionMarker, resolveApprovalReview, runNonBlockingAppointmentSideEffect, scheduleAppointmentReminders, tryRepairAppointmentLifecycle, tryRepairAppointmentProjections, safeConsole, businessCalendarProviderName, intent, recovery } = deps;
+  const { assertConfirmationNotPending, assertIntakeHoldCurrent, confirmationPending, confirmWithoutRecovery, Conversation, InterventionService, SchedulingProviderFactory, ServiceOffering, SocketService, assertDistributedLeaseActive, assertServiceRequestEligible, assertTransition, applyAppointmentBookingTransition, ensureBusinessApprovalNotice, exactSlotAvailable, getAppointmentForBusiness, lifecycleMarker, preservePendingApprovalOnAvailabilityConflict, projectionMarker, resolveApprovalReview, runNonBlockingAppointmentSideEffect, scheduleAppointmentReminders, tryRepairAppointmentLifecycle, tryRepairAppointmentProjections, safeConsole, businessCalendarProviderName, intent, recovery } = deps;
   // Once MongoDB has saved status=confirmed, these effects must not turn the booking into an HTTP failure.
   // Keep logs structured and tenant-scoped; the existing intervention is our durable human recovery record.
   const logCommittedEffectFailure = (effect, error, appointment, business) => {
@@ -90,6 +90,8 @@ export function createAppointmentconfirm1Methods(deps) {
     assertConfirmationNotPending(appointment);
     assertTransition(appointment.status, "confirmed");
 
+    await assertIntakeHoldCurrent(appointment);
+
     if (appointment.heldExpiresAt && appointment.heldExpiresAt <= new Date()) {
       appointment.status = "failed";
       appointment.activeSlotKey = null;
@@ -144,6 +146,7 @@ export function createAppointmentconfirm1Methods(deps) {
     const providerName = businessCalendarProviderName(business);
     const provider = SchedulingProviderFactory.getProvider(business);
     if (providerName !== "google_calendar" && providerName !== "internal") {
+      await assertIntakeHoldCurrent(appointment);
       await confirmWithoutRecovery({ appointment, business, approvedBy, provider, service },
         { assertDistributedLeaseActive, InterventionService, lifecycleMarker, projectionMarker });
       await afterCommit(appointment, business, service);

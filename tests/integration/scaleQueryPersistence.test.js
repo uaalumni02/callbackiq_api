@@ -8,7 +8,7 @@ import Alert from '../../src/models/alert.js';
 import { readCustomerHistory, readCustomerSummary } from '../../src/services/scale/customerHistory.service.js';
 import { queryOwnerOpportunities } from '../../src/services/scale/ownerOpportunityQuery.service.js';
 import { withSmsTenantSlot } from '../../src/services/scale/smsTenantFairness.service.js';
-import { ownerInterventionFilter } from '../../src/services/ownerExperience.service.js';
+import OwnerExperienceService, { ownerInterventionFilter } from '../../src/services/ownerExperience.service.js';
 const oid = () => new mongoose.Types.ObjectId();
 beforeAll(async () => {
   await connectTestDB();
@@ -76,4 +76,34 @@ test('summary counts retain historical booked/lost totals while workflow joins u
   const options = { business, interventionFilter: ownerInterventionFilter(business._id) };
   expect(await queryOwnerOpportunities({ ...options, view: 'all' })).toMatchObject({ stats: { active: 1, booked: 120, readyToSchedule: 1 }, pagination: { total: 151 } });
   expect(await queryOwnerOpportunities({ ...options, view: 'not_booked' })).toMatchObject({ pagination: { total: 30 } });
+});
+
+test('Ready uses the latest tenant conversation eligibility and the same facts as the customer cards', async () => {
+  const business = { _id: oid(), features: {} };
+  const common = { business: business._id, status: 'new', serviceNeeded: 'repair',
+    address: '1 Main', preferredAppointmentTime: 'tomorrow', updatedAt: new Date() };
+  const [blocked, supported, fallback, conversationFacts] = Array.from({ length: 4 }, () => oid());
+  await Lead.collection.insertMany([
+    { ...common, _id: blocked, serviceEligibility: { decision: 'supported' } },
+    { ...common, _id: supported, serviceEligibility: { decision: 'unsupported' } },
+    { ...common, _id: fallback, serviceEligibility: { decision: 'needs_clarification' } },
+    { ...common, _id: conversationFacts, address: '', preferredAppointmentTime: '' },
+  ]);
+  const at = new Date();
+  await Conversation.collection.insertMany([
+    { business: business._id, lead: blocked, lastMessageAt: at, serviceEligibility: { decision: 'unsupported' } },
+    { business: business._id, lead: blocked, lastMessageAt: new Date(0), serviceEligibility: { decision: 'supported' } },
+    { business: business._id, lead: supported, lastMessageAt: at, serviceEligibility: { decision: 'supported' } },
+    { business: oid(), lead: supported, lastMessageAt: new Date(at.getTime() + 1000), serviceEligibility: { decision: 'unsupported' } },
+    { business: business._id, lead: fallback, lastMessageAt: at },
+    { business: business._id, lead: conversationFacts, lastMessageAt: at,
+      bookingState: { streetAddress: '1 Main', lastCustomerPreference: 'tomorrow' } },
+  ]);
+  const page = await OwnerExperienceService.opportunities({ business, view: 'ready' });
+  expect(page.stats.readyToSchedule).toBe(2);
+  expect(page.pagination.total).toBe(2);
+  expect(page.items.map(row => row.id).sort()).toEqual([String(supported), String(conversationFacts)].sort());
+  expect(page.items.every(row => row.nextAction.kind === 'schedule')).toBe(true);
+  const excluded = await OwnerExperienceService.opportunity({ business, leadId: blocked });
+  expect(excluded.nextAction.label).toBe('Service not offered');
 });

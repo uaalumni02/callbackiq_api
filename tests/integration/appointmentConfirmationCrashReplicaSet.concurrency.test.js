@@ -60,7 +60,7 @@ async function fixture() {
   const intent = createConfirmationIntentRepository({ Appointment, clock });
   const service = { _id: appointment.serviceOffering };
   const deps = {
-    assertConfirmationNotPending, confirmationPending, confirmWithoutRecovery,
+    assertConfirmationNotPending, assertIntakeHoldCurrent: async () => {}, confirmationPending, confirmWithoutRecovery,
     intent, applyAppointmentBookingTransition, clock, Business: { findById: jest.fn(async () => business) },
     getAppointmentForBusiness: (businessId, id) => Appointment.findOne({ _id: id, business: businessId }, '+confirmationIntent'),
     assertTransition: jest.fn(), assertServiceRequestEligible: jest.fn(),

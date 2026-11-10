@@ -4,26 +4,59 @@ import Lead from '../../models/lead.js';
 import Conversation from '../../models/conversation.js';
 import Appointment from '../../models/appointment.js';
 import Alert from '../../models/alert.js';
+import { STALE_INTAKE_HOLD_REASON } from '../booking/intakeReviewContext.service.js';
 import ScaleCache from '../scaleCache.service.js';
 import { queryBudgetMs, pageLimit, decodePage, beforePage, finishPage, invalidPage } from './queryBudget.js';
 const active = { $in: ['$status', ['new', 'contacted']] };
+export const ownerConversationSort = { lastMessageAt: -1, updatedAt: -1, _id: -1 };
+export const ownerAppointmentSort = { createdAt: -1, _id: -1 };
+export const ownerAppointmentFilter = { failureReason: { $ne: STALE_INTAKE_HOLD_REASON } };
 const has = field => ({ $gt: [{ $size: `$${field}` }, 0] });
 const escape = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 export const opportunityLookup = (model, business, as, match, sort, project) => ({ $lookup: {
   from: model.collection.name, localField: '_id', foreignField: 'lead', as,
   pipeline: [{ $match: { ...match, business } }, ...(sort ? [{ $sort: sort }] : []), { $limit: 1 }, { $project: project || { _id: 1 } }],
 } });
+const latestConversation = field => ({ $arrayElemAt: [`$_readyConversation.${field}`, 0] });
+const firstNonEmpty = (...fields) => fields.reduceRight(
+  (fallback, field) => ({ $cond: [{ $in: [{ $ifNull: [field, ''] }, ['', false, 0]] }, fallback, field] }),
+  '',
+);
+const trimmed = input => ({
+  $trim: { input: { $convert: { input, to: 'string', onNull: '', onError: '' } } },
+});
+
 export function opportunityFlags(business, interventionFilter, autoBooking) {
+  const eligibility = { $ifNull: [latestConversation('serviceEligibility'), '$serviceEligibility'] };
+  const service = trimmed(firstNonEmpty('$serviceNeeded', latestConversation('conversationMemory.serviceNeeded')));
+  const address = trimmed(firstNonEmpty(
+    latestConversation('bookingState.streetAddress'), latestConversation('conversationMemory.address'), '$address',
+  ));
+  const preference = firstNonEmpty(latestConversation('bookingState.lastCustomerPreference'), '$preferredAppointmentTime');
   return [
     opportunityLookup(Conversation, business, '_waiting', { status: 'open', 'bookingState.status': { $in: ['offering_slots', 'awaiting_confirmation'] } }),
     opportunityLookup(Conversation, business, '_takeover', { status: 'open', $or: [{ humanTakeover: true }, { 'bookingState.status': { $in: ['failed', 'human_takeover'] } }] }),
     opportunityLookup(Alert, business, '_interventions', interventionFilter),
-    opportunityLookup(Appointment, business, '_appointments', { status: { $in: ['held', 'confirmed'] } }),
-    { $set: { _active: active, _needsMe: { $and: [active, { $or: [has('_takeover'), has('_interventions')] }] }, _isWaiting: { $and: [active, has('_waiting')] },
-      _ready: { $and: [!autoBooking, active, { $not: [has('_takeover')] }, { $not: [has('_interventions')] }, { $not: [has('_appointments')] },
-        { $not: [{ $in: ['$serviceEligibility.decision', ['needs_staff_review', 'needs_clarification', 'unsupported']] }] },
-        { $not: [{ $in: ['$serviceNeeded', ['', 'Unknown']] }] }, { $not: [{ $in: [{ $ifNull: ['$address', null] }, ['', null]] }] },
-        { $not: [{ $in: [{ $ifNull: ['$preferredAppointmentTime', null] }, ['', null]] }] }] } } },
+    opportunityLookup(Appointment, business, '_appointments', ownerAppointmentFilter),
+    opportunityLookup(Conversation, business, '_readyConversation', {}, ownerConversationSort, {
+      serviceEligibility: 1, humanTakeover: 1, 'bookingState.status': 1, 'bookingState.streetAddress': 1,
+      'bookingState.lastCustomerPreference': 1, 'conversationMemory.serviceNeeded': 1, 'conversationMemory.address': 1,
+    }),
+    { $set: {
+      _active: active,
+      _needsMe: { $and: [active, { $or: [has('_takeover'), has('_interventions')] }] },
+      _isWaiting: { $and: [active, has('_waiting')] },
+      _ready: { $and: [
+        !autoBooking, active, { $not: [has('_interventions')] }, { $not: [has('_appointments')] },
+        { $ne: [latestConversation('humanTakeover'), true] },
+        { $not: [{ $in: [latestConversation('bookingState.status'), ['failed', 'human_takeover']] }] },
+        { $let: { vars: { eligibility }, in: {
+          $not: [{ $in: ['$$eligibility.decision', ['needs_staff_review', 'needs_clarification', 'unsupported']] }],
+        } } },
+        { $not: [{ $in: [service, ['', 'Unknown']] }] },
+        { $ne: [address, ''] }, { $ne: [preference, ''] },
+      ] },
+    } },
   ];
 }
 const viewFilter = view => ({ active: { status: { $in: ['new', 'contacted'] } }, booked: { status: 'booked' }, not_booked: { status: 'lost' },
@@ -40,7 +73,7 @@ export const ownerWorkflowPipeline = (businessId, flags) => [
     needsMe: { $sum: { $cond: ['$_needsMe', 1, 0] } }, waiting: { $sum: { $cond: ['$_isWaiting', 1, 0] } } } },
 ];
 export const ownerSummaryKey = (businessId, autoBooking, interventionFilter) =>
-  `owner-workflow-summary:v2:${crypto.createHash('sha256').update(JSON.stringify([String(businessId), autoBooking, interventionFilter])).digest('hex')}`;
+  `owner-workflow-summary:v3:${crypto.createHash('sha256').update(JSON.stringify([String(businessId), autoBooking, interventionFilter])).digest('hex')}`;
 export async function readOwnerSummary({ businessId, flags, autoBooking, interventionFilter }) {
   return ScaleCache.getOrLoad({ key: ownerSummaryKey(businessId, autoBooking, interventionFilter), ttlMs: 10000, staleMs: 30000, loader: async () => {
     const statuses = await execute(ownerStatusPipeline(businessId));
@@ -67,9 +100,9 @@ export async function queryOwnerOpportunities({ business, interventionFilter, vi
   const filtered = [...base, { $match: beforePage(continuation, 'updatedAt') }, { $sort: { updatedAt: -1, _id: -1 } },
     ...(needsFlags(view) ? flags : []), { $match: viewFilter(view) }];
   const rows = await execute([...filtered, ...(offset ? [{ $skip: offset }] : []), { $limit: size + 1 },
-    opportunityLookup(Conversation, businessId, '_conversation', {}, { lastMessageAt: -1, updatedAt: -1, _id: -1 },
+    opportunityLookup(Conversation, businessId, '_conversation', {}, ownerConversationSort,
       { lead: 1, serviceEligibility: 1, customerName: 1, customerPhone: 1, status: 1, humanTakeover: 1, bookingState: 1, orchestration: 1, conversationMemory: 1, lastMessage: 1, lastMessageAt: 1, createdAt: 1, updatedAt: 1 }),
-    opportunityLookup(Appointment, businessId, '_appointment', {}, { createdAt: -1, _id: -1 },
+    opportunityLookup(Appointment, businessId, '_appointment', ownerAppointmentFilter, ownerAppointmentSort,
       { lead: 1, status: 1, startAt: 1, endAt: 1, timezone: 1, source: 1, bookedBy: 1, provider: 1, confirmedAt: 1, customerConfirmedAt: 1, estimatedValue: 1, valuation: 1, actualRevenue: 1, requiresBusinessApproval: 1, failureReason: 1, createdAt: 1 }),
     ...(!needsFlags(view) ? [opportunityLookup(Alert, businessId, '_interventions', interventionFilter)] : []),
   ]);
@@ -86,7 +119,7 @@ export async function queryOwnerOpportunities({ business, interventionFilter, vi
       // Only the search-specific count is keyed by search/view. The shared
       // workflow summary above is reused across all tabs and typed searches.
       const key = crypto.createHash('sha256').update(JSON.stringify([scope, Boolean(business.features?.aiBookingEnabled), interventionFilter])).digest('hex');
-      const count = await ScaleCache.getOrLoad({ key: `owner-search-count:v2:${key}`, ttlMs: 10000, staleMs: 30000, loader: async () => {
+      const count = await ScaleCache.getOrLoad({ key: `owner-search-count:v3:${key}`, ttlMs: 10000, staleMs: 30000, loader: async () => {
         const [row] = await execute([...base, ...(needsFlags(view) ? flags : []), { $match: viewFilter(view) }, { $count: 'value' }]);
         return { value: row?.value || 0 };
       } });

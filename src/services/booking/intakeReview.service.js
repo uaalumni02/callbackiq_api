@@ -1,12 +1,11 @@
 import { applyAppointmentBookingTransition } from './appointmentBookingTransition.repository.js';
 import { withStaffSchedulingException } from '../scheduling/staffSchedulingException.service.js';
 import { extractCustomerPostalCode } from './customerAddress.service.js';
-import crypto from 'crypto';
+import { rejectStaleIntakeHold, assertVoiceReviewIdle } from './intakeHoldReview.service.js';
 import mongoose from 'mongoose';
 import Conversation from '../../models/conversation.js';
 import Lead from '../../models/lead.js';
 import Alert from '../../models/alert.js';
-import VoiceSession from '../../models/voiceSession.js';
 import { normalizePhoneToE164 } from '../../voice/voicePhone.service.js';
 import AppointmentNotificationJob from '../../models/appointmentNotificationJob.js';
 import AppointmentService, { ensureBusinessApprovalNotice } from '../scheduling/appointment.service.js';
@@ -14,14 +13,7 @@ import { withDistributedLease, assertDistributedLeaseActive } from '../distribut
 
 const fail = (message, code, statusCode = 409) => Object.assign(new Error(message), { code, statusCode });
 export { intakeReviewVersion, manualIntakeSubmitted } from './intakeReviewContext.service.js';
-import { intakeReviewVersion, manualIntakeSubmitted } from './intakeReviewContext.service.js';
-
-const assertVoiceReviewIdle = async (businessId, conversationId) => {
-  const activeCall = await VoiceSession.exists({ business: businessId, conversation: conversationId,
-    status: { $in: ['routing', 'connecting', 'active', 'capturing_callback', 'safety_escalated', 'transferring', 'completing'] },
-  });
-  if (activeCall) throw fail('The customer is still on a voice call. Review the completed call before approving.', 'INTAKE_VOICE_ACTIVE');
-};
+import { intakeApprovalKey, intakeReviewVersion, manualIntakeSubmitted } from './intakeReviewContext.service.js';
 
 export const approveIntake = async ({ business, conversationId, input, approvedBy }) => {
   if (!mongoose.isValidObjectId(conversationId) || !mongoose.isValidObjectId(input.serviceOfferingId) ||
@@ -78,10 +70,10 @@ export const approveIntake = async ({ business, conversationId, input, approvedB
     const address = String(lead.address || '').trim();
     const postalCode = extractCustomerPostalCode(address);
     if (!address || !postalCode || !lead.serviceNeeded) throw fail('Review the service and complete address before scheduling.', 'INTAKE_INCOMPLETE');
-    const journey = conversation.orchestration?.recoveryJourneyKey || 'legacy';
-    const key = `intake-approval:${conversation._id}:${crypto.createHash('sha256').update(journey).digest('hex').slice(0, 24)}`;
+    const key = intakeApprovalKey(conversation);
     assertDistributedLeaseActive();
-    const appointment = await runScheduling(() => AppointmentService.create({ business, idempotencyKey: key, confirm: false, ownerValuationAuthorized: true, input: {
+    const appointment = await runScheduling(() => AppointmentService.create({
+      business, idempotencyKey: key, confirm: false, ownerValuationAuthorized: true, intakeReviewVersion: input.intakeReviewVersion, input: {
       serviceOfferingId: input.serviceOfferingId, startAt: input.startAt, ...(input.endAt ? { endAt: input.endAt } : {}),
       lead: lead._id, conversation: conversation._id, customerName,
       customerPhone, customerEmail: lead.email || '', address: { street: address, postalCode },
@@ -89,6 +81,10 @@ export const approveIntake = async ({ business, conversationId, input, approvedB
       notes: `Reviewed service request: ${lead.serviceNeeded}. Customer preference: ${lead.preferredAppointmentTime || ''}${unresolvedQualification ? `. Staff approved with unresolved intake details: ${reviewState.problem?.reason || 'triage_unresolved'}.${qualificationReviewNote ? ` Review note: ${qualificationReviewNote}` : ''}` : ''}`,
     } }));
     assertDistributedLeaseActive();
+    if (appointment.status === 'held' && appointment.idempotencyKey === key &&
+        appointment.intakeReviewVersion !== input.intakeReviewVersion) {
+      await rejectStaleIntakeHold(appointment);
+    }
     if (String(appointment.business) !== String(business._id) || normalizePhoneToE164(appointment.customerPhone) !== customerPhone || String(appointment.conversation) !== String(conversation._id) || String(appointment.lead) !== String(lead._id) ||
       appointment.customerName !== customerName || appointment.address?.street !== address || appointment.address?.postalCode !== postalCode ||
       String(appointment.serviceOffering) !== String(input.serviceOfferingId) || new Date(appointment.startAt).getTime() !== Date.parse(input.startAt) ||
@@ -104,7 +100,7 @@ export const approveIntake = async ({ business, conversationId, input, approvedB
     const currentLead = await Lead.findOne({ _id: lead._id, business: business._id });
     if (!currentConversation || !currentLead || ['closed', 'archived'].includes(currentConversation.status) ||
         intakeReviewVersion(currentConversation, currentLead) !== input.intakeReviewVersion) {
-      throw fail('The customer details changed during review. Refresh before confirming.', 'INTAKE_REVIEW_CHANGED');
+      await rejectStaleIntakeHold(appointment);
     }
     assertDistributedLeaseActive();
     await assertVoiceReviewIdle(business._id, conversation._id);
