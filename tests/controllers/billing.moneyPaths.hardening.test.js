@@ -688,7 +688,7 @@ describe("BillingController money paths", () => {
 
       expectResponse(res, 400, {
         success: false,
-        message: "Webhook Error: No signatures found matching the expected signature",
+        message: "Stripe signature verification failed",
       });
     });
   });

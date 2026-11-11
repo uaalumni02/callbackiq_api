@@ -61,7 +61,7 @@ export const closeSocketRedisAdapter = async () => {
       try {
         if (client.isOpen) await withDeadline(client.quit(), 1000);
       } catch (error) {
-        try { client.destroy(); } catch {}
+        try { client.destroy(); } catch { /* Cleanup can already be complete or storage unavailable. */ }
         safeConsole.error("Socket Redis shutdown error:", error);
       }
     }),

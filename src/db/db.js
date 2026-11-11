@@ -15,7 +15,7 @@ import {BUSINESS_SCOPE_FIELDS,CONVERSATION_INTELLIGENCE_CONVERSATION_FIELDS,CONV
 import { safeConsole } from "../helpers/logging/safeLogger.js";
 import * as subscriptionRepository from "./repositories/subscriptionRepository.js";
 import * as supportTicketRepository from "./repositories/supportTicketRepository.js";
-import { verifiedAmountExpression, estimateCoverageGroup } from "../services/valuation/opportunityValue.js";
+import { verifiedAmountExpression } from "../services/valuation/opportunityValue.js";
 
 
 let __meekcallDbidentity1Cache;
@@ -248,6 +248,14 @@ class Db {
   static async getConversationsByBusiness(...args) { return __meekcallGetDbconversations1Methods().getConversationsByBusiness.apply(this, args); }
   static async getConversationById(...args) { return __meekcallGetDbconversations1Methods().getConversationById.apply(this, args); }
   static async getConversationForBusiness(...args) { return __meekcallGetDbconversations1Methods().getConversationForBusiness.apply(this, args); }
+  static async updateConversationForBusiness(model, id, businessId, update) {
+    return model.findOneAndUpdate({ _id: id, business: businessId }, update, {
+      returnDocument: 'after', runValidators: true,
+    }).populate('business', 'businessName phone owner')
+      .populate('lead', 'customerName phone serviceNeeded urgency status serviceEligibility')
+      .populate('archivedBy', 'userName email role');
+  }
+
   static async updateConversation(...args) { return __meekcallGetDbconversations1Methods().updateConversation.apply(this, args); }
 
   static async deleteConversation(model, id) {

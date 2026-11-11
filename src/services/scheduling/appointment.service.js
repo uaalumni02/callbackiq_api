@@ -3,7 +3,6 @@ import { assertIntakeHoldCurrent } from "../booking/intakeHoldReview.service.js"
 import { createAppointmentrecheckAndConfirm1Methods } from './commands/recheckAndConfirm-1.js';
 import { createAppointmentcreate1Methods } from './commands/create-1.js';
 import { createAppointmentconfirm1Methods } from './commands/confirm-1.js';
-import { confirmWithoutRecovery } from './commands/confirmWithoutRecovery.js';
 import { assertConfirmationNotPending, confirmationPending, createConfirmationIntentRepository } from './appointmentConfirmationIntent.repository.js';
 import { createConfirmationRecovery } from './appointmentConfirmationRecovery.service.js';
 import { createAppointmentcancel1Methods } from './commands/cancel-1.js';
@@ -22,7 +21,7 @@ import { repairRescheduleReviews } from './rescheduleRequest.service.js';
 import { normalizeAppointmentAddress as normalizeAddress } from './appointmentAddress.service.js';
 import { ensureBusinessApprovalNotice, repairConfirmedApproval } from './appointmentConfirmation.service.js';
 import { runApprovalSms } from './approvalSms.service.js';
-import { arrivalWindow, customerAppointmentLabel } from './customerAppointmentPresentation.service.js';
+import { arrivalWindow } from "./customerAppointmentPresentation.service.js";
 import { reconcileApprovalRequests, resolveApprovalReview } from './approvalLifecycle.service.js';
 import { preservePendingApprovalOnAvailabilityConflict } from './approvalAvailabilityFailurePolicy.js';
 import { withDistributedLease, assertDistributedLeaseActive } from '../distributedLease.service.js';
@@ -32,10 +31,10 @@ import { safeConsole } from "../../helpers/logging/safeLogger.js";
 import { resolveOpportunityValue, ownerEstimate, moneyAmount } from "../valuation/opportunityValue.js";
 import crypto from "crypto";
 
-import mongoose from "mongoose";
+import "mongoose";
 import Appointment from "../../models/appointment.js";
-import { normalizePhoneToE164 } from "../../voice/voicePhone.service.js";
-import CallLog from "../../models/callLog.js"; // CALLBACKIQ_MARKETING_ATTRIBUTION_V1
+import "../../voice/voicePhone.service.js";
+import "../../models/callLog.js"; // CALLBACKIQ_MARKETING_ATTRIBUTION_V1
 import Conversation from "../../models/conversation.js";
 import Lead from "../../models/lead.js";
 import ServiceOffering from "../../models/serviceOffering.js";
@@ -294,7 +293,7 @@ function __meekcallGetAppointmentcreate1Methods() {
 
 let __meekcallAppointmentconfirm1Cache;
 function __meekcallGetAppointmentconfirm1Methods() {
-  if (!__meekcallAppointmentconfirm1Cache) __meekcallAppointmentconfirm1Cache = createAppointmentconfirm1Methods({ assertConfirmationNotPending, assertIntakeHoldCurrent, confirmationPending, confirmWithoutRecovery, applyAppointmentBookingTransition, Conversation, InterventionService, SchedulingProviderFactory, ServiceOffering, SocketService, assertDistributedLeaseActive, assertServiceRequestEligible, assertTransition, ensureBusinessApprovalNotice, exactSlotAvailable, getAppointmentForBusiness, lifecycleMarker, preservePendingApprovalOnAvailabilityConflict, projectionMarker, resolveApprovalReview, runNonBlockingAppointmentSideEffect, scheduleAppointmentReminders, tryRepairAppointmentLifecycle, tryRepairAppointmentProjections, safeConsole, businessCalendarProviderName, intent: confirmationIntent, recovery: confirmationRecovery });
+  if (!__meekcallAppointmentconfirm1Cache) __meekcallAppointmentconfirm1Cache = createAppointmentconfirm1Methods({ assertConfirmationNotPending, assertIntakeHoldCurrent, confirmationPending, applyAppointmentBookingTransition, Conversation, InterventionService, SchedulingProviderFactory, ServiceOffering, SocketService, assertDistributedLeaseActive, assertServiceRequestEligible, assertTransition, ensureBusinessApprovalNotice, exactSlotAvailable, getAppointmentForBusiness, lifecycleMarker, preservePendingApprovalOnAvailabilityConflict, projectionMarker, resolveApprovalReview, runNonBlockingAppointmentSideEffect, scheduleAppointmentReminders, tryRepairAppointmentLifecycle, tryRepairAppointmentProjections, safeConsole, businessCalendarProviderName, intent: confirmationIntent, recovery: confirmationRecovery });
   return __meekcallAppointmentconfirm1Cache;
 }
 

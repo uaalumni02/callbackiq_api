@@ -8,18 +8,6 @@ import ConversationController from "../controllers/conversation.js";
 import { isCurrentAdminRequest } from "../helpers/security/current-admin.js";
 const router = express.Router();
 
-const ADMIN_ROLES = new Set([
-  "admin",
-  "administrator",
-  "superadmin",
-  "super_admin",
-]);
-
-const getAuthenticatedRole = (req) =>
-  String(req.user?.role || req.user?.userRole || req.user?.accountType || "")
-    .trim()
-    .toLowerCase();
-
 // Business owners keep the existing subscription requirement. Admins can
 // perform management actions without needing a customer subscription record.
 // CALLBACKIQ_FRESH_ADMIN_ROUTE_V1

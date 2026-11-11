@@ -1,4 +1,5 @@
-import twilio from "twilio";
+import { createTwilioClient } from '../integrations/providerClients.js';
+
 
 import A2pCustomerRegistration from "../models/a2pCustomerRegistration.js";
 import Business from "../models/business.js";
@@ -62,7 +63,7 @@ const requiredEnv = (name) => {
 };
 
 export const getTwilioClient = () =>
-  twilio(requiredEnv("TWILIO_ACCOUNT_SID"), requiredEnv("TWILIO_AUTH_TOKEN"));
+  createTwilioClient(requiredEnv("TWILIO_ACCOUNT_SID"), requiredEnv("TWILIO_AUTH_TOKEN"));
 
 const getNotificationEmail = () => requiredEnv("A2P_NOTIFICATION_EMAIL");
 const getPrimaryCustomerProfileSid = () => requiredEnv("TWILIO_PRIMARY_CUSTOMER_PROFILE_SID");

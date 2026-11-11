@@ -12,7 +12,7 @@
     "maintainability:boundaries": "node scripts/meekcall-maintainability-boundaries.mjs",
     "maintainability:release9": "node scripts/meekcall-release9-architecture-guard.mjs --check",
     "test:maintainability:stage3": "jest --runInBand tests/unit/maintainability.stage3.bookingPolicy.test.js tests/unit/maintainability.stage3.attribution.test.js",
-    "test": "jest --runInBand",
+    "test": "jest",
     "test:watch": "jest --watch --runInBand",
     "test:phase0": "jest tests/unit/businessFeatures.test.js tests/unit/twilioEventKey.test.js tests/integration/contactPreference.service.test.js tests/integration/twilioWebhookEvent.service.test.js tests/integration/twilioWebhookIdempotency.test.js tests/integration/twilioOptOut.test.js tests/integration/businessFeatures.test.js tests/integration/providerUniqueIndexes.test.js tests/routes/twilio.routes.test.js tests/routes/business.routes.test.js tests/routes/dashboard.routes.test.js tests/routes/alert.routes.test.js --runInBand",
     "test:phase1": "jest tests/routes/businessConfiguration.routes.test.js tests/services/bookingEligibility.service.test.js --runInBand",
@@ -32,7 +32,7 @@
     "test:message": "jest tests/validators/message.test.js --runInBand",
     "test:calllog": "jest tests/validators/callLog.test.js --runInBand",
     "test:integrations": "jest tests/unit/integrationSettings.test.js tests/unit/googleCalendarProvider.test.js tests/unit/integrationWebhookSignature.test.js --runInBand",
-    "start:dev": "nodemon --watch src --ext js --exec babel-node src/server.js",
+    "start:dev": "node --watch scripts/start-development.cjs",
     "build": "node scripts/build-production.mjs",
     "start": "node build/server.js",
     "validate:env": "node scripts/validate-environment.js",
@@ -169,29 +169,28 @@
     "verify:multi-trade-pilot": "node scripts/verify-multi-trade-pilot.mjs",
     "maintainability:architecture": "node scripts/meekcall-comprehensive-architecture-guard.cjs",
     "contracts:check": "jest --runInBand tests/unit/ownerReadContracts.test.js",
-    "maintainability:remediation": "node --test hardening-tests/request-booking-state-authority.test.mjs && node scripts/remediation-metrics.cjs --check"
+    "maintainability:remediation": "node --test hardening-tests/request-booking-state-authority.test.mjs && node scripts/remediation-metrics.cjs --check",
+    "lint": "eslint src scripts --ext .js,.mjs,.cjs",
+    "config:inventory": "node scripts/config-inventory.cjs",
+    "maintainability:complexity": "node scripts/complexity-budget.cjs"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "CallBackIQ API",
   "dependencies": {
-    "@babel/node": "^7.29.7",
     "@babel/plugin-syntax-object-rest-spread": "^7.8.3",
     "@babel/plugin-transform-runtime": "^7.29.7",
     "@babel/register": "^7.29.7",
     "@socket.io/redis-adapter": "^8.3.0",
     "bcrypt": "^6.0.0",
-    "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-rate-limit": "^8.5.2",
-    "googleapis": "^173.0.0",
     "joi": "^18.2.9",
     "jsonwebtoken": "^9.0.3",
-    "jspdf": "^4.2.1",
     "mongoose": "9.7.2",
     "nodemailer": "^10.0.8",
     "openai": "^6.42.0",
@@ -200,10 +199,11 @@
     "socket.io": "^4.8.3",
     "stripe": "^22.2.1",
     "twilio": "^6.0.2",
-    "ws": "^8.18.3"
+    "ws": "^8.18.3",
+    "socket.io-adapter": "^2.5.8",
+    "@babel/runtime": "^7.29.7"
   },
   "devDependencies": {
-    "@babel/cli": "^7.29.7",
     "@babel/preset-env": "^7.29.7",
     "ajv": "8.20.0",
     "babel-jest": "^29.7.0",
@@ -211,7 +211,14 @@
     "mongodb-memory-server": "^10.4.3",
     "playwright": "^1.62.1",
     "socket.io-client": "^4.8.3",
-    "supertest": "^7.2.2"
+    "supertest": "^7.2.2",
+    "eslint": "^9.39.1",
+    "@eslint/js": "^9.39.1",
+    "globals": "^16.5.0",
+    "@babel/core": "^7.29.7",
+    "@babel/parser": "^7.29.7",
+    "@babel/traverse": "^7.29.7",
+    "bcryptjs": "^3.0.3"
   },
   "jest": {
     "testEnvironment": "node",
@@ -253,6 +260,11 @@
     "watchman": false,
     "setupFilesAfterEnv": [
       "<rootDir>/tests/setup/externalProviderSafety.js"
-    ]
+    ],
+    "maxWorkers": 1,
+    "workerIdleMemoryLimit": "768MB"
+  },
+  "engines": {
+    "node": ">=24.19.0"
   }
 }

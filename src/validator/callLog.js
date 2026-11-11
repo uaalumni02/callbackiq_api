@@ -39,3 +39,6 @@ const callLogSchema = Joi.object({
 });
 
 export default callLogSchema;
+
+// PATCH accepts partial values. Business is a legacy input checked against the owner.
+export const callLogUpdateSchema = callLogSchema.fork(Object.keys(callLogSchema.describe().keys), field => field.optional()).min(1).prefs({ noDefaults: true });

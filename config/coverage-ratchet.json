@@ -252,5 +252,27 @@
     "at": "2026-08-16T15:04:10.355Z",
     "reason": "replace stale partial baseline with fresh full-suite post-hardening baseline",
     "actor": "demecobell"
-  }
+  },
+  "criticalDomains": {
+    "billing": {
+      "prefixes": [
+        "src/controllers/billing/"
+      ],
+      "minimums": {
+        "branches": 64.23,
+        "functions": 82.97,
+        "lines": 81.62,
+        "statements": 81.62
+      }
+    }
+  },
+  "criticalPrefixes": [
+    "src/controllers/billing/",
+    "src/services/trialExtension.service.js",
+    "src/services/trialLifecycleDelivery.service.js",
+    "src/services/billingEvent.service.js",
+    "src/services/booking/recoveryIntake/",
+    "src/voice/relay/",
+    "src/voice/voiceTurn/"
+  ]
 }

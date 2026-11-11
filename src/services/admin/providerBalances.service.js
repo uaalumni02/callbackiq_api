@@ -1,6 +1,7 @@
+import { createStripeClient, createTwilioClient } from '../../integrations/providerClients.js';
 import crypto from "node:crypto";
-import twilio from "twilio";
-import Stripe from "stripe";
+
+
 import { AdminReportingState } from "../../models/adminReporting.js";
 
 export const BALANCE_PROVIDERS = [
@@ -83,7 +84,7 @@ export const createBalanceReaders = () => {
   const password =
     process.env.TWILIO_API_KEY_SECRET || process.env.TWILIO_AUTH_TOKEN;
   if (sid && username && password) {
-    const client = twilio(username, password, {
+    const client = createTwilioClient(username, password, {
       accountSid: sid,
       timeout: 10000,
       autoRetry: false,
@@ -96,7 +97,7 @@ export const createBalanceReaders = () => {
   const stripeKey =
     process.env.STRIPE_REPORTING_SECRET_KEY || process.env.STRIPE_SECRET_KEY;
   if (/^(sk|rk)_live_/.test(stripeKey || "")) {
-    const client = new Stripe(stripeKey, {
+    const client = createStripeClient(stripeKey, {
       timeout: 10000,
       maxNetworkRetries: 0,
     });

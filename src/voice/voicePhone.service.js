@@ -1,38 +1,6 @@
-const BLOCKED_CALLER_IDS = new Set([
-  "",
-  "anonymous",
-  "restricted",
-  "private",
-  "private number",
-  "blocked",
-  "unknown",
-  "unavailable",
-  "+266696687",
-]);
-
-export const digitsOnly = (value) => String(value || "").replace(/\D/g, "");
-
-export const normalizePhoneToE164 = (value, { defaultCountryCode = "1" } = {}) => {
-  const raw = String(value || "").trim();
-  if (!raw || BLOCKED_CALLER_IDS.has(raw.toLowerCase())) return "";
-
-  let digits = digitsOnly(raw);
-  if (!digits) return "";
-
-  const hadExplicitInternationalPrefix = raw.startsWith("+") || digits.startsWith("00");
-  if (digits.startsWith("00")) digits = digits.slice(2);
-
-  if (digits.length === 10 && !hadExplicitInternationalPrefix) {
-    digits = `${digitsOnly(defaultCountryCode)}${digits}`;
-  }
-
-  // E.164 country codes never begin with zero. Reject placeholder, malformed,
-  // and ambiguous short local values instead of treating them as callable.
-  if (!/^[1-9]\d{7,14}$/.test(digits)) return "";
-  if (!hadExplicitInternationalPrefix && digits.length < 11) return "";
-
-  return `+${digits}`;
-};
+import { canonicalPhone, phoneDigits } from '../helpers/phoneIdentity.js';
+export const digitsOnly = phoneDigits;
+export const normalizePhoneToE164 = (value, options) => canonicalPhone(value, options);
 
 export const isUsableCallerId = (value) => Boolean(normalizePhoneToE164(value));
 

@@ -26,11 +26,7 @@ const sanitizeScore = (score) => {
   return Math.min(100, Math.max(0, numberScore));
 };
 
-const sanitizeEstimatedValue = (value) => {
-  const numberValue = Number(value);
-  if (Number.isNaN(numberValue)) return 0;
-  return Math.max(0, numberValue);
-};
+
 
 const shouldCreateHotLeadAlert = (agentResult) =>
   agentResult.shouldAlertOwner === true ||

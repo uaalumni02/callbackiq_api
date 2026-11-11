@@ -31,10 +31,10 @@ jest.mock("../../src/services/trackingNumberProvisioning.service.js", () => {
 });
 
 jest.mock("../../src/helpers/email/mailer.js", () => ({
-  sendTrialWelcomeEmail: jest.fn(async () => true),
-  sendTrialReminderEmail: jest.fn(async () => true),
-  sendTrialExpiredEmail: jest.fn(async () => true),
-  sendTrackingNumberReleasedEmail: jest.fn(async () => true),
+  sendTrialWelcomeEmail: jest.fn(async () => ({ messageId: "synthetic-mail-receipt" })),
+  sendTrialReminderEmail: jest.fn(async () => ({ messageId: "synthetic-mail-receipt" })),
+  sendTrialExpiredEmail: jest.fn(async () => ({ messageId: "synthetic-mail-receipt" })),
+  sendTrackingNumberReleasedEmail: jest.fn(async () => ({ messageId: "synthetic-mail-receipt" })),
 }));
 
 const register = (suffix) =>

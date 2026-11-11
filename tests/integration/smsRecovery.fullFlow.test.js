@@ -1,3 +1,4 @@
+const mockOutboundFindOne = jest.fn();
 import { multiTradeCases } from '../fixtures/multiTradeCases.js';
 jest.mock('../../src/helpers/ai/tools/validateServiceArea.tool.js', () => ({ __esModule: true, default: jest.fn().mockResolvedValue({ supported: null, reason: 'service_area_not_configured' }) }));
 jest.mock('../../src/models/serviceOffering.js', () => ({ __esModule: true, default: { find: jest.fn() } }));
@@ -47,7 +48,7 @@ jest.mock("../../src/models/conversation.js", () => ({
 }));
 jest.mock("../../src/models/lead.js", () => ({
   __esModule: true,
-  default: { findById: jest.fn(), findByIdAndUpdate: jest.fn(), findOneAndUpdate: jest.fn(() => ({ lean: async () => null })) },
+  default: { findById: jest.fn(), findOne: jest.fn(), findByIdAndUpdate: jest.fn(), findOneAndUpdate: jest.fn(() => ({ lean: async () => null })) },
 }));
 jest.mock("../../src/models/message.js", () => ({
   __esModule: true,
@@ -228,7 +229,10 @@ beforeEach(() => {
   delete conversation.serviceEligibility;
   jest.clearAllMocks();
   getApprovedServiceEstimate.mockResolvedValue("");
+  mockOutboundFindOne.mockReset();
+  Message.findOne.mockImplementation(filter => filter._id ? Message.findById(filter._id) : mockOutboundFindOne(filter));
   Conversation.findOne.mockImplementation(({ _id }) => Conversation.findById(_id));
+  Lead.findOne.mockImplementation(({ _id }) => Lead.findById(_id));
   // CALLBACKIQ_FULL_FLOW_GUARDRAIL_DEFAULT
   evaluateDeterministicInboundGuardrails.mockReturnValue({
     handled: false,
@@ -329,7 +333,7 @@ test("the queued job generates and persists the AI reply exactly once", async ()
     status: "queued",
     deliveryStatus: "queued",
   };
-  Message.findOne
+  mockOutboundFindOne
     .mockReturnValueOnce(leanQuery(null))
     .mockResolvedValueOnce(null);
   Message.find
@@ -413,7 +417,7 @@ describe("completed manual intake uses the durable staff handoff", () => {
     });
     Lead.findByIdAndUpdate.mockImplementation(async (_id, updates) => Object.assign(activeLead, updates.$set || updates));
     Db.getMessagesForAI.mockResolvedValue([activeInbound]);
-    Message.findOne.mockReset().mockReturnValueOnce(leanQuery(null)).mockResolvedValue(null);
+    mockOutboundFindOne.mockReset().mockReturnValueOnce(leanQuery(null)).mockResolvedValue(null);
     Message.find.mockReset().mockReturnValueOnce(leanQuery([activeInbound])).mockReturnValue(leanQuery([]));
     Message.updateMany.mockResolvedValue({ modifiedCount: 0 });
     const outbound = { _id: "message-out-intake", business: business._id, inReplyToMessage: activeInbound._id, status: "queued", metadata: {} };
@@ -597,7 +601,7 @@ describe("completed manual intake uses the durable staff handoff", () => {
   });
 
   test("replays a suppressed turn without sending or declaring uncertain delivery", async () => {
-    Message.findOne.mockReset().mockReturnValueOnce(leanQuery(null)).mockResolvedValue({
+    mockOutboundFindOne.mockReset().mockReturnValueOnce(leanQuery(null)).mockResolvedValue({
       _id: "previously-suppressed", status: "suppressed", providerMessageId: "",
       deliveryAttemptedAt: new Date(),
     });
@@ -690,7 +694,7 @@ describe("completed manual intake uses the durable staff handoff", () => {
       expect(await processInboundSmsJob(job)).toMatchObject({ sent: true });
       activeInbound.body = 'Did you get my text?';
       activeInbound._id = 'message-in-2';
-      Message.findOne.mockReset().mockReturnValueOnce(leanQuery(null)).mockResolvedValue(null);
+      mockOutboundFindOne.mockReset().mockReturnValueOnce(leanQuery(null)).mockResolvedValue(null);
       Message.find.mockReset().mockReturnValueOnce(leanQuery([activeInbound])).mockReturnValue(leanQuery([]));
       expect(await processInboundSmsJob({ ...job, inboundMessage: activeInbound._id })).toMatchObject({ sent: true });
       expect(sendSms).toHaveBeenCalledTimes(2);
@@ -707,7 +711,7 @@ describe("completed manual intake uses the durable staff handoff", () => {
     });
     test('callback retry after provider acceptance does not resend', async () => {
       arrangeContact();
-      Message.findOne.mockReset().mockReturnValueOnce(leanQuery(null)).mockResolvedValue({ _id: 'already-sent', providerMessageId: 'SM_ALREADY' });
+      mockOutboundFindOne.mockReset().mockReturnValueOnce(leanQuery(null)).mockResolvedValue({ _id: 'already-sent', providerMessageId: 'SM_ALREADY' });
       expect(await processInboundSmsJob(job)).toMatchObject({ sent: true, outboundMessageId: 'already-sent' });
       expect(sendSms).not.toHaveBeenCalled();
       expect(AlertService.createHumanHandoffAlert).toHaveBeenCalledWith(expect.objectContaining({ messageId: activeInbound._id, providerMessageId: activeInbound.providerMessageId }));
@@ -738,7 +742,7 @@ describe("completed manual intake uses the durable staff handoff", () => {
       activeConversation.conversationMemory.recoveryIntake.contactControl = {
         receiptReply: { at: new Date(), inboundMessageId: activeInbound._id },
       };
-      Message.findOne.mockReset().mockReturnValueOnce(leanQuery(null)).mockResolvedValue({ _id: 'already-sent', providerMessageId: 'SM_ALREADY' });
+      mockOutboundFindOne.mockReset().mockReturnValueOnce(leanQuery(null)).mockResolvedValue({ _id: 'already-sent', providerMessageId: 'SM_ALREADY' });
       expect(await processInboundSmsJob(job)).toMatchObject({ sent: true, outboundMessageId: 'already-sent' });
       expect(sendSms).not.toHaveBeenCalled();
     });
@@ -791,7 +795,7 @@ describe("completed manual intake uses the durable staff handoff", () => {
     { deliveryUncertain: true, sent: false, suppressed: false },
   ])("reuses the durable handoff response after worker retry (%j)", async ({ sent, suppressed, ...priorReply }) => {
     activeConversation.orchestration = { handoffReason: "intake_complete", handoffInboundMessage: activeInbound._id };
-    Message.findOne.mockReset()
+    mockOutboundFindOne.mockReset()
       .mockReturnValueOnce(leanQuery(null))
       .mockResolvedValueOnce({ _id: "prior-ack", ...priorReply });
 
@@ -807,7 +811,7 @@ describe("completed manual intake uses the durable staff handoff", () => {
     await expect(processInboundSmsJob(job)).rejects.toThrow("alert storage unavailable");
     expect(sendSms).not.toHaveBeenCalled();
     expect(activeConversation.orchestration.handoffStatus).toBe("pending_ack");
-    Message.findOne.mockReset().mockReturnValueOnce(leanQuery(null)).mockResolvedValue(null);
+    mockOutboundFindOne.mockReset().mockReturnValueOnce(leanQuery(null)).mockResolvedValue(null);
     Message.find.mockReset().mockReturnValueOnce(leanQuery([activeInbound])).mockReturnValue(leanQuery([]));
     const reply = await processInboundSmsJob(job);
     expect(reply.sent).toBe(true);
@@ -991,7 +995,7 @@ describe("completed manual intake uses the durable staff handoff", () => {
     await expect(processInboundSmsJob(job)).rejects.toThrow('review projection failed');
     expect(sendSms).not.toHaveBeenCalled();
     Conversation.findByIdAndUpdate.mockImplementation(original);
-    Message.findOne.mockReset().mockReturnValueOnce(leanQuery(null)).mockResolvedValue(null);
+    mockOutboundFindOne.mockReset().mockReturnValueOnce(leanQuery(null)).mockResolvedValue(null);
     Message.find.mockReset().mockReturnValueOnce(leanQuery([activeInbound])).mockReturnValue(leanQuery([]));
     await expect(processInboundSmsJob(job)).resolves.toMatchObject({sent:true});
   });

@@ -150,7 +150,7 @@ export const isPhase9ForcedRelayFailureEnabled = () => {
 };
 
 const cleanGreeting = (value) => {
-  const text = String(value || "").replace(/[\u0000-\u001F\u007F]/g, " ").replace(/\s+/g, " ").trim();
+  const text = String(value || "").replace(/\p{Cc}/ug, " ").replace(/\s+/g, " ").trim();
   // Treat the legacy generic default as unset so the business name is spoken.
   if (/^thanks for calling\.? how can i help you today\??$/i.test(text)) return "";
   return text.slice(0, 300);

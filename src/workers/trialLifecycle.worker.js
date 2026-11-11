@@ -1,9 +1,9 @@
+import { reconcileTrialExtensions } from '../services/trialExtension.service.js';
+import { workerSetting } from '../config/workerSettings.js';
 import { safeConsole } from "../helpers/logging/safeLogger.js";
 import { processTrialLifecycle } from "../services/trialLifecycle.service.js";
 import { reconcileStripeSubscriptionIntegrity } from "../services/subscriptionIntegrity.service.js";
 
-const DEFAULT_INTERVAL_MS = 60 * 60 * 1000;
-const DEFAULT_INTEGRITY_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 let timer = null;
 let running = false;
@@ -14,17 +14,17 @@ export const runTrialLifecycleOnce = async () => {
   if (running) return { skipped: true };
   running = true;
   try {
-    return await processTrialLifecycle(new Date());
+    const extensions = await reconcileTrialExtensions();
+    const lifecycle = await processTrialLifecycle(new Date());
+    if (extensions.errors.length) safeConsole.error("trial.extension.reconciliation_incomplete", extensions);
+    return lifecycle;
   } finally {
     running = false;
   }
 };
 
 export const runSubscriptionIntegrityOnce = async ({ force = false } = {}) => {
-  const intervalMs =
-    Number(process.env.BILLING_INTEGRITY_INTERVAL_MS) > 0
-      ? Number(process.env.BILLING_INTEGRITY_INTERVAL_MS)
-      : DEFAULT_INTEGRITY_INTERVAL_MS;
+  const intervalMs = workerSetting('BILLING_INTEGRITY_INTERVAL_MS');
 
   if (!force && Date.now() - lastIntegrityRunAt < intervalMs) return { skipped: true };
   if (integrityRunning) return { skipped: true };
@@ -49,10 +49,7 @@ export const startTrialLifecycleWorker = async () => {
     safeConsole.error("Initial Stripe billing integrity run failed:", error);
   });
 
-  const intervalMs =
-    Number(process.env.TRIAL_LIFECYCLE_INTERVAL_MS) > 0
-      ? Number(process.env.TRIAL_LIFECYCLE_INTERVAL_MS)
-      : DEFAULT_INTERVAL_MS;
+  const intervalMs = workerSetting('TRIAL_LIFECYCLE_INTERVAL_MS');
 
   timer = setInterval(() => {
     void runTrialLifecycleOnce().catch((error) => {

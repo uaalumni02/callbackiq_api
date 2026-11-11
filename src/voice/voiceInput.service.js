@@ -37,7 +37,7 @@ const NO_PATTERN = /^(?:no|nope|incorrect|wrong|not correct|change it|that(?:'s|
 const CANCEL_PATTERN = /\b(?:never\s*mind|cancel(?:\s+that)?|stop(?:\s+this)?|forget it|do not submit|don't submit|no callback|leave it alone)\b/i;
 const SKIP_PATTERN = /\b(?:skip(?:\s+(?:it|that|this|one))?|rather not say|prefer not to say|do not know|don't know|not sure|unknown|not provided|none)\b/i;
 const REPEAT_PATTERN = /\b(?:repeat that|say that again|what did you say|come again|could you repeat|repeat the question)\b/i;
-const HUMAN_PATTERN = /(?:\b(?:human|person|representative|agent|operator|someone|somebody|owner|manager|dispatcher|technician|staff(?:\s+member)?)\b|\b(?:transfer|connect|put)\s+me(?:\s+through)?\b|\b(?:talk|speak)(?:\s+to|\s+with)\s+(?:(?:a|an|the)\s+)?(?:person|human|representative|agent|operator|someone|somebody|staff(?:\s+member)?|owner|manager|dispatcher|technician)\b)/i;
+
 const BOOKING_PATTERN = /\b(?:book|booking|schedule|appointment|available|availability|come out|service visit|send someone|reserve|confirm a time|cancel|reschedule)\b|\bchange\b.{0,20}\b(?:time|day|appointment)\b/i;
 const HOURS_CONTEXT_PATTERN = /\b(?:when|today|tomorrow|tonight|weekend|weekday|saturday|sunday|day|days|time|hours|currently|right now)\b/i;
 const OPEN_CLOSE_PATTERN = /\b(?:open|close|closed|closing|opening)\b/i;
@@ -60,7 +60,7 @@ const NON_ENGLISH_MARKERS = new Set([
 const URL_PATTERN = /\b(?:https?:\/\/|www\.)\S+/gi;
 const EMAIL_PATTERN = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
 const MILITARY_TIME_PATTERN = /\b([01]?\d|2[0-3]):([0-5]\d)\b/g;
-const ZIP_PATTERN = /\b(\d{5})(?:-\d{4})?\b/;
+
 
 export const cleanVoiceText = (value, maximum = 2000) =>
   String(value || "")
@@ -279,7 +279,7 @@ export const isLikelyNonEnglish = (value) => {
   if (markerCount >= 2) return true;
 
   const asciiLetters = text.match(/[A-Za-z]/g)?.length || 0;
-  const nonAsciiLetters = text.match(/[^\x00-\x7F]/g)?.length || 0;
+  const nonAsciiLetters = text.match(/[^\p{ASCII}]/gu)?.length || 0;
   return nonAsciiLetters >= 4 && nonAsciiLetters > asciiLetters / 2;
 };
 

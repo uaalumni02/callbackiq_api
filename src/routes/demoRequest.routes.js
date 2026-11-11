@@ -2,7 +2,7 @@ import express from "express";
 import { rateLimit } from "express-rate-limit";
 
 import DemoRequestController from "../controllers/demoRequest.js";
-import DemoBookingController from "../controllers/demoBooking.controller.js";
+import "../controllers/demoBooking.controller.js";
 import DemoOutreachController from "../controllers/demoOutreach.controller.js";
 import DemoBrowserCallController from "../controllers/demoBrowserCall.controller.js";
 import checkAuth from "../middleware/check-auth.js";

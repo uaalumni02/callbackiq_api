@@ -1,10 +1,13 @@
+import { extendTrial as extendTrialByAdmin } from './trialExtension.service.js';
+import { sendTrialNotice, reconcileTrialNotices } from './trialLifecycleDelivery.service.js';
+import { stripePeriodDates } from '../helpers/billing/stripeSubscriptionSnapshot.js';
 import { safeConsole } from "../helpers/logging/safeLogger.js";
 import mongoose from "mongoose";
 
 import Business from "../models/business.js";
 import Subscription from "../models/subscription.js";
 import TrialRedemption from "../models/trialRedemption.js";
-import TrialExtensionGrant from "../models/trialExtensionGrant.js";
+import "../models/trialExtensionGrant.js";
 import { getStripeClient, getPriceIdByPlan } from "../helpers/stripe/stripeClient.js";
 import {
   TRIAL_DAYS,
@@ -23,12 +26,7 @@ import {
   findExistingStripeCustomerForBusiness,
   guardCanonicalStripeSubscription,
 } from "./subscriptionIntegrity.service.js";
-import {
-  sendTrialWelcomeEmail,
-  sendTrialReminderEmail,
-  sendTrialExpiredEmail,
-  sendTrackingNumberReleasedEmail,
-} from "../helpers/email/mailer.js";
+import "../helpers/email/mailer.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const RELEASE_GRACE_DAYS = Math.max(
@@ -67,24 +65,14 @@ const lifecycleError = (code, message, statusCode = 400) => {
 const toDateFromUnix = (timestamp) =>
   timestamp ? new Date(Number(timestamp) * 1000) : null;
 
-const getPeriodDates = (stripeSubscription) => {
-  const item = stripeSubscription?.items?.data?.[0];
-  return {
-    currentPeriodStart: toDateFromUnix(
-      stripeSubscription?.current_period_start || item?.current_period_start,
-    ),
-    currentPeriodEnd: toDateFromUnix(
-      stripeSubscription?.current_period_end || item?.current_period_end,
-    ),
-  };
-};
+const getPeriodDates = stripePeriodDates;
 
 const latestInvoiceId = (stripeSubscription) =>
   typeof stripeSubscription?.latest_invoice === "string"
     ? stripeSubscription.latest_invoice
     : stripeSubscription?.latest_invoice?.id || "";
 
-const isFullStatus = (status) => ["trialing", "active"].includes(String(status || ""));
+
 
 const getBusinessOwnerId = (business, fallbackOwnerId = null) =>
   business?.owner?._id || business?.owner || fallbackOwnerId;
@@ -302,7 +290,7 @@ const consumeTrialWithoutTransaction = async ({
       await TrialRedemption.deleteOne({
         _id: createdRedemption._id,
         stripeSubscriptionId: stripeSubscription.id || "",
-      }).catch(() => {});
+      }).catch(error => safeConsole.error("Trial lifecycle notice failed:", error));
     }
     throw error;
   }
@@ -883,82 +871,18 @@ export const syncCheckoutSession = async (checkoutSession) => {
   });
 };
 
-const lifecycleFieldFor = (kind) => {
-  if (kind === "welcome") return "trialWelcomeSentAt";
-  if (kind === "three_day") return "trialReminder3dSentAt";
-  if (kind === "one_day") return "trialReminder1dSentAt";
-  if (kind === "expired") return "trialExpiredNotifiedAt";
-  if (kind === "number_released") return "trialNumberReleasedNotifiedAt";
-  return null;
-};
-
-export const sendTrialLifecycleMessage = async (subscription, kind) => {
-  if (!subscription) return false;
-  const field = lifecycleFieldFor(kind);
-  if (!field || subscription[field]) return false;
-
-  const business = await Business.findById(subscription.business).populate(
-    "owner",
-    "email",
-  );
-  if (!business) return false;
-
-  const email = business.email || business.owner?.email;
-  if (!email) return false;
-
-  if (kind === "welcome") {
-    await sendTrialWelcomeEmail({
-      email,
-      businessName: business.businessName,
-      trialEndsAt: subscription.trialEndsAt,
-    });
-  } else if (kind === "three_day") {
-    await sendTrialReminderEmail({
-      email,
-      businessName: business.businessName,
-      trialEndsAt: subscription.trialEndsAt,
-      daysRemaining: 3,
-    });
-  } else if (kind === "one_day") {
-    await sendTrialReminderEmail({
-      email,
-      businessName: business.businessName,
-      trialEndsAt: subscription.trialEndsAt,
-      daysRemaining: 1,
-    });
-  } else if (kind === "expired") {
-    await sendTrialExpiredEmail({
-      email,
-      businessName: business.businessName,
-    });
-  } else if (kind === "number_released") {
-    await sendTrackingNumberReleasedEmail({
-      email,
-      businessName: business.businessName,
-    });
-  }
-
-  await Subscription.updateOne(
-    { _id: subscription._id, [field]: null },
-    { $set: { [field]: new Date() } },
-  );
-
-  return true;
-};
+export const sendTrialLifecycleMessage = sendTrialNotice;
 
 export const processTrialLifecycle = async (now = new Date()) => {
-  const subscriptions = await Subscription.find({
-    $or: [
-      { status: { $in: ["trialing", "active"] } },
-      {
-        trialUsedAt: { $ne: null },
-        trialNumberReleaseAt: { $ne: null },
-      },
-    ],
-  });
+  await reconcileTrialNotices();
+  const subscriptions = Subscription.find({ $or: [
+    { status: 'trialing', trialEndsAt: { $lte: new Date(now.getTime() + 3 * DAY_MS) } },
+    { trialUsedAt: { $ne: null }, trialNumberReleaseAt: { $lte: now, $ne: null } },
+    { status: 'active', $or: [{ provisioningCheckAt: { $lte: now } }, { provisioningCheckAt: null }] },
+  ] }).sort({ _id: 1 }).maxTimeMS(5000).cursor({ batchSize: 100 });
 
   let processed = 0;
-  for (const subscription of subscriptions) {
+  for await (const subscription of subscriptions) {
     processed += 1;
 
     if (getSubscriptionAccess(subscription, now).level === ACCESS_LEVELS.FULL) {
@@ -968,6 +892,9 @@ export const processTrialLifecycle = async (now = new Date()) => {
       if (!business?.phone || business?.trackingNumber?.status !== "active") {
         await safeProvisionNumber(subscription.business);
       }
+      await Subscription.updateOne({ _id: subscription._id }, {
+        $set: { provisioningCheckAt: new Date(now.getTime() + DAY_MS) },
+      });
     }
 
     const trialEnd = subscription.trialEndsAt
@@ -1008,7 +935,7 @@ export const processTrialLifecycle = async (now = new Date()) => {
             subscription.trialNumberReleaseAt ||
             new Date(now.getTime() + releaseGraceMsForStatus("paused"));
           await Subscription.updateOne(
-            { _id: subscription._id },
+            { _id: subscription._id, status: 'trialing', trialEndsAt: subscription.trialEndsAt },
             {
               $set: {
                 status: "expired",
@@ -1021,7 +948,7 @@ export const processTrialLifecycle = async (now = new Date()) => {
           );
           const refreshed = await Subscription.findById(subscription._id);
           await setBusinessAccessState(subscription.business, refreshed || "expired");
-          await sendTrialLifecycleMessage(refreshed, "expired").catch(() => {});
+          await sendTrialLifecycleMessage(refreshed, "expired").catch(error => safeConsole.error("Trial lifecycle notice failed:", error));
         }
       }
     }
@@ -1078,7 +1005,7 @@ export const processTrialLifecycle = async (now = new Date()) => {
         await sendTrialLifecycleMessage(
           afterRelease,
           "number_released",
-        ).catch(() => {});
+        ).catch(error => safeConsole.error("Trial lifecycle notice failed:", error));
       }
     }
   }
@@ -1086,100 +1013,7 @@ export const processTrialLifecycle = async (now = new Date()) => {
   return { processed };
 };
 
-export const extendTrialByAdmin = async ({
-  businessId,
-  adminUserId,
-  days = 7,
-  reason = "",
-}) => {
-  const safeDays = Math.max(1, Math.min(14, Number(days) || 7));
-  const maxLifetimeExtensionDays = configuredLimit(
-    "TRIAL_MAX_ADMIN_EXTENSION_DAYS",
-    14,
-  );
-  const cleanReason = String(reason || "").trim();
-  if (!cleanReason) {
-    throw lifecycleError(
-      "TRIAL_EXTENSION_REASON_REQUIRED",
-      "A reason is required for an administrative trial extension.",
-    );
-  }
-
-  const subscription = await Subscription.findOne({ business: businessId });
-  if (
-    !subscription ||
-    subscription.status !== "trialing" ||
-    !subscription.trialUsedAt ||
-    !subscription.stripeSubscriptionId ||
-    !subscription.trialEndsAt ||
-    new Date(subscription.trialEndsAt) <= new Date()
-  ) {
-    throw lifecycleError(
-      "ACTIVE_TRIAL_REQUIRED",
-      "Only an active Stripe trial can be extended. Lifetime trial identity locks are never deleted.",
-      409,
-    );
-  }
-
-  const extensionHistory = await TrialExtensionGrant.find({
-    business: businessId,
-  })
-    .select("days")
-    .lean();
-  const extensionDaysUsed = extensionHistory.reduce(
-    (sum, grant) => sum + Math.max(0, Number(grant.days) || 0),
-    0,
-  );
-  if (
-    maxLifetimeExtensionDays > 0 &&
-    extensionDaysUsed + safeDays > maxLifetimeExtensionDays
-  ) {
-    throw lifecycleError(
-      "TRIAL_EXTENSION_LIMIT_REACHED",
-      `This lifetime trial has already used its administrative extension allowance (${maxLifetimeExtensionDays} days maximum).`,
-      409,
-    );
-  }
-
-  const previousTrialEndsAt = new Date(subscription.trialEndsAt);
-  const newTrialEndsAt = new Date(
-    previousTrialEndsAt.getTime() + safeDays * DAY_MS,
-  );
-
-  const stripe = getStripeClient();
-  const remote = await stripe.subscriptions.update(
-    subscription.stripeSubscriptionId,
-    {
-      trial_end: Math.floor(newTrialEndsAt.getTime() / 1000),
-      proration_behavior: "none",
-    },
-  );
-
-  const updated = await Subscription.findOneAndUpdate(
-    { _id: subscription._id },
-    {
-      $set: {
-        trialEndsAt: toDateFromUnix(remote.trial_end) || newTrialEndsAt,
-        currentPeriodEnd:
-          getPeriodDates(remote).currentPeriodEnd || newTrialEndsAt,
-      },
-    },
-    { returnDocument: "after", runValidators: true },
-  );
-
-  await TrialExtensionGrant.create({
-    business: businessId,
-    subscription: subscription._id,
-    grantedBy: adminUserId,
-    days: safeDays,
-    reason: cleanReason,
-    previousTrialEndsAt,
-    newTrialEndsAt: updated.trialEndsAt,
-    stripeSubscriptionId: subscription.stripeSubscriptionId,
-  });
-
-  return updated;
-};
+export { extendTrial as extendTrialByAdmin } from './trialExtension.service.js';
 
 export default {
   createSubscriptionCheckout,

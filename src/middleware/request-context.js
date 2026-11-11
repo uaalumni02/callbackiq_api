@@ -17,6 +17,15 @@ const requestContext = (req, res, next) => {
   };
 
   res.setHeader("X-Request-Id", requestId);
+  if (typeof res.json === 'function') {
+    const json = res.json.bind(res);
+    res.json = body => {
+      if (res.statusCode < 400 || !body || typeof body !== 'object') return json(body);
+      const retryable = res.statusCode === 429 || res.statusCode >= 500;
+      return json({ code: res.statusCode >= 500 ? 'INTERNAL_ERROR' : 'REQUEST_REJECTED',
+        retryable, requestId, ...body });
+    };
+  }
 
   res.on("finish", () => {
     const durationMs =
@@ -25,7 +34,7 @@ const requestContext = (req, res, next) => {
     const metadata = {
       requestId,
       method: req.method,
-      path: req.originalUrl,
+      path: req.baseUrl + (req.route?.path || req.path.replace(/[^/]+/g, ":segment")),
       statusCode: res.statusCode,
       durationMs: Number(durationMs.toFixed(2)),
       userId: req.user?.userId,

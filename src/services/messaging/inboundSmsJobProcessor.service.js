@@ -35,15 +35,18 @@ const persistOutboundReply = createSmsOutboundDelivery({ Message, Conversation, 
 async function resolveSmsRecords(job) {
   const [business, inboundMessage, conversation, lead] = await Promise.all([
     Business.findById(job.business),
-    Message.findById(job.inboundMessage),
-    Conversation.findById(job.conversation),
-    Lead.findById(job.lead),
+    Message.findOne({ _id: job.inboundMessage, business: job.business, conversation: job.conversation }),
+    Conversation.findOne({ _id: job.conversation, business: job.business }),
+    Lead.findOne({ _id: job.lead, business: job.business }),
   ]);
 
   if (!business || !inboundMessage || !conversation || !lead) {
     const error = new Error("SMS processing job references missing records");
     error.code = "SMS_JOB_RECORD_MISSING";
     throw error;
+  }
+  if (conversation.lead && String(conversation.lead) !== String(lead._id)) {
+    throw Object.assign(new Error('SMS job references a different request'), { code: 'SMS_JOB_RECORD_MISMATCH' });
   }
   return { job, business, inboundMessage, conversation, lead };
 }

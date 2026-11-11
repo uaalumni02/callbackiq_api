@@ -163,7 +163,7 @@ export async function guardServiceRequest({ business, lead, conversation, custom
     // Explicit self-identification is factual data; do not treat it as a job.
     const declaredName = text.match(/^\s*my name is\s+([a-z][a-z' -]{1,70}?)(?=\s*(?:[.!?,]|you can|my number|$))/i)?.[1]?.trim();
     const placeholder = name => !clean(name) || /^(?:missed call lead|new sms lead|unknown|customer)$/i.test(clean(name));
-    if (declaredName && /^([a-z][a-z'\-]*)(?:\s+[a-z][a-z'\-]*){1,3}$/i.test(declaredName) &&
+    if (declaredName && /^([a-z][a-z'-]*)(?:\s+[a-z][a-z'-]*){1,3}$/i.test(declaredName) &&
         placeholder(lead.customerName)) {
       lead.customerName = declaredName;
       if (placeholder(conversation.customerName)) conversation.customerName = declaredName;

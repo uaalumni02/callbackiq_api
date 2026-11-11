@@ -9,33 +9,17 @@ import {
 
 const clean = (value) => String(value || "").replace(/\s+/g, " ").trim();
 
-const PRICING_PATTERNS = [
-  /\bhow much\b/i,
-  /\b(?:price|pricing|cost|quote|estimate|service call fee|diagnostic fee)\b/i,
-  /\bwhat (?:will|would|does|do) (?:it|this|that|you) cost\b/i,
-];
 
-const HUMAN_PATTERNS = [
-  /\b(?:human|representative|agent|manager|owner|staff member)\b/i,
-  /\b(?:talk|speak|connect|transfer)\s+(?:me\s+)?(?:to|with)\s+(?:a\s+)?(?:person|someone|human|representative|agent|manager|owner|staff member)\b/i,
-  /\b(?:call me|have someone call me|can a person call me)\b/i,
-];
 
-const STATUS_PATTERNS = [
-  /\b(?:where is|where's|status|eta|on the way|coming|arriving|still coming)\b/i,
-];
 
-const CANCEL_PATTERNS = [
-  /\b(?:cancel|cancellation|don't come|do not come|no longer need|never mind|nevermind)\b/i,
-];
 
-const RESCHEDULE_PATTERNS = [
-  /\b(?:reschedule|change (?:my|the) appointment|different time|different day|move (?:it|the appointment))\b/i,
-];
 
-const SERVICE_PATTERNS = [
-  /\b(?:i have|i've got|we have|we've got|need help with|help with|problem is|issue is)\s+(.{3,120})$/i,
-];
+
+
+
+
+
+
 
 const ACTIVE_URGENCY =
   /\b(?:overflow(?:ing)?|flood(?:ing|ed)?|burst|gushing|won't stop|will not stop|no heat|no ac|no a\/c|no power|sparking|smoke|burning|gas smell|sewage|completely blocked|unusable|locked out)\b/i;
@@ -46,33 +30,16 @@ const GENERIC_SCHEDULING_REPLY =
 const ACKNOWLEDGED_PREFERENCE_REPLY =
   /\b(?:noted|got|have).{0,35}\b(?:preferred|preference|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|time)\b/i;
 
-const normalizeExtractedService = (value) => {
-  const service = clean(value)
-    .replace(/[?.!]+$/, "")
-    .replace(
-      /\s+(?:and|but)\s+(?:can|could|will|would|are|is|do)\s+you\b[\s\S]*$/i,
-      "",
-    )
-    .trim();
 
-  if (!service || service.length < 3 || service.length > 100) return "";
-  if (PRICING_PATTERNS.some((pattern) => pattern.test(service))) return "";
-  return service;
-};
 
 export const extractServiceNeed = (message, context = {}) =>
   extractService(clean(message), context).replace(/^(?:my|our)\s+/i, "");
 
-const hasPricingIntent = (text) =>
-  PRICING_PATTERNS.some((pattern) => pattern.test(text));
-const hasHumanIntent = (text) =>
-  HUMAN_PATTERNS.some((pattern) => pattern.test(text));
-const hasStatusIntent = (text) =>
-  STATUS_PATTERNS.some((pattern) => pattern.test(text));
-const hasCancelIntent = (text) =>
-  CANCEL_PATTERNS.some((pattern) => pattern.test(text));
-const hasRescheduleIntent = (text) =>
-  RESCHEDULE_PATTERNS.some((pattern) => pattern.test(text));
+
+
+
+
+
 
 const fixedResult = ({
   reply,

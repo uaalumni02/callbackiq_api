@@ -1,3 +1,4 @@
+import { guardTenantReferences } from '../helpers/model/tenantReferences.js';
 import mongoose from "mongoose";
 const { Schema } = mongoose;
 
@@ -267,6 +268,8 @@ CallLogSchema.index(
   { business: 1, smsProviderMessageId: 1 },
   { partialFilterExpression: { smsProviderMessageId: { $gt: "" } } },
 );
+guardTenantReferences(CallLogSchema, ['lead', 'conversation']);
+
 const CallLog =
   mongoose.models.CallLog || mongoose.model("CallLog", CallLogSchema);
 

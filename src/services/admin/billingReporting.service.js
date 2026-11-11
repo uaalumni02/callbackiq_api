@@ -1,5 +1,6 @@
+import { createStripeClient } from '../../integrations/providerClients.js';
 import { invoiceSubscriptionId } from "../../helpers/billing/invoiceSubscriptionId.js";
-import Stripe from "stripe";
+
 import Subscription from "../../models/subscription.js";
 import {
   AdminBillingFact,
@@ -7,8 +8,7 @@ import {
 } from "../../models/adminReporting.js";
 const fromUnix = (n) =>
   Number.isFinite(n) && n > 0 ? new Date(n * 1000) : null;
-const stripeId = (value) =>
-  typeof value === "string" ? value : value?.id || "";
+
 export const normalizeReportingInvoice = (
   invoice,
   business,
@@ -96,7 +96,7 @@ export const syncBusinessBillingReport = async (
   if (!stripe) {
     if (!key || process.env.ADMIN_REPORTING_STRIPE_SYNC === "false")
       return current?.data || null;
-    stripe = new Stripe(key, { timeout: 10000, maxNetworkRetries: 1 });
+    stripe = createStripeClient(key, { timeout: 10000, maxNetworkRetries: 1 });
   }
   const sub = await Subscription.findOne({ business })
     .select("stripeSubscriptionId")

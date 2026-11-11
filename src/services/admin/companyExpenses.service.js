@@ -1,8 +1,9 @@
+import { createOpenAIClient, createStripeClient, createTwilioClient } from '../../integrations/providerClients.js';
 import { providerBalanceSummary } from "./providerBalances.service.js";
 import { infrastructureExpenseSummary, syncInfrastructureExpenses } from "./infrastructureExpenses.service.js";
-import twilio from "twilio";
-import Stripe from "stripe";
-import OpenAI from "openai";
+
+
+
 import {
   AdminCompanyExpense,
   AdminExpenseRule,
@@ -143,7 +144,7 @@ const providerReaders = () => {
     readers.twilio = {
       read: (range) =>
         fetchTwilioExpense(
-          twilio(username, password, {
+          createTwilioClient(username, password, {
             accountSid: sid,
             timeout: 10000,
             autoRetry: false,
@@ -159,7 +160,7 @@ const providerReaders = () => {
     readers.stripe = {
       read: (range) =>
         fetchStripeExpense(
-          new Stripe(process.env.STRIPE_SECRET_KEY, {
+          createStripeClient(process.env.STRIPE_SECRET_KEY, {
             timeout: 10000,
             maxNetworkRetries: 0,
           }),
@@ -172,7 +173,7 @@ const providerReaders = () => {
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
-    const client = new OpenAI({
+    const client = createOpenAIClient('companyExpenses', {
       apiKey: process.env.OPENAI_ADMIN_KEY,
       adminAPIKey: process.env.OPENAI_ADMIN_KEY,
       timeout: 10000,

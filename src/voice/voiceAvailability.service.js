@@ -12,14 +12,8 @@ import {
 export { timeToMinutes, windowKind, withinTimeWindow };
 
 const DEFAULT_TIMEZONE = "America/New_York";
-const CLOSED_EXCEPTION_TYPES = new Set([
-  "holiday",
-  "closure",
-  "fully_booked",
-  "technician_meeting",
-  "emergency_only",
-]);
-const DAY_NAMES = Object.freeze([
+
+Object.freeze([
   "Sunday",
   "Monday",
   "Tuesday",
@@ -81,38 +75,14 @@ const getLocalParts = (date, timeZone) => {
   };
 };
 
-const previousDateKey = (dateKey) => {
-  const [year, month, day] = String(dateKey).split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  date.setUTCDate(date.getUTCDate() - 1);
-  return date.toISOString().slice(0, 10);
-};
 
-const exceptionClosesDate = (exception) =>
-  Boolean(exception) &&
-  (CLOSED_EXCEPTION_TYPES.has(exception.type) ||
-    (exception.allDay && exception.type !== "special_hours"));
 
-const anyCurrentWindowOpen = (windows, minutes) =>
-  (windows || []).some((window) => withinTimeWindow(minutes, window));
-const anySpilloverWindowOpen = (windows, minutes) =>
-  (windows || []).some((window) =>
-    withinTimeWindow(minutes, window, { previousDaySpillover: true }),
-  );
 
-const describeWindow = (window) => {
-  const kind = windowKind(window);
-  if (kind === "all_day") return "all day";
-  if (kind === "invalid") return "an invalid time window";
 
-  const [startHour, startMinute] = String(window.startTime).split(":");
-  const [endHour, endMinute] = String(window.endTime).split(":");
-  const start = formatClockTimeForSpeech(startHour, startMinute);
-  const end = formatClockTimeForSpeech(endHour, endMinute);
-  return kind === "overnight"
-    ? `${start} to ${end} the next day`
-    : `${start} to ${end}`;
-};
+
+
+
+
 
 class VoiceAvailabilityService {
   static async isBusinessOpen(business, at = new Date()) {

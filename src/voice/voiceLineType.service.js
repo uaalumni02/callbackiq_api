@@ -1,4 +1,5 @@
-import twilio from "twilio";
+import { createTwilioClient } from '../integrations/providerClients.js';
+
 import { logOperationalWarning } from "../helpers/logging/safeLogger.js";
 import { isUsableCallerId, normalizePhoneToE164 } from "./voicePhone.service.js";
 
@@ -13,7 +14,7 @@ const getClient = () => {
   const authToken = String(process.env.TWILIO_AUTH_TOKEN || "").trim();
   if (!accountSid || !authToken) return null;
   if (!client || accountSid !== cachedSid || authToken !== cachedToken) {
-    client = twilio(accountSid, authToken);
+    client = createTwilioClient(accountSid, authToken);
     cachedSid = accountSid;
     cachedToken = authToken;
   }

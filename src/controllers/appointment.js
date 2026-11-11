@@ -50,10 +50,10 @@ class AppointmentController {
     try {
       const business = await getOwnedBusiness({ user: req.user, requestedBusinessId: req.query.businessId });
       if (req.query.view || req.query.pageSize || req.query.cursor) {
-        return res.status(200).json({ success: true, ...await listAppointmentPage({ businessId: business._id, query: req.query }) });
+        return res.status(200).json({ success: true, timezone: business.timezone, ...await listAppointmentPage({ businessId: business._id, query: req.query }) });
       }
       const appointments = await AppointmentService.list({ businessId: business._id, query: req.query });
-      return res.status(200).json({ success: true, data: await presentAppointments(appointments, business._id) });
+      return res.status(200).json({ success: true, timezone: business.timezone, data: await presentAppointments(appointments, business._id) });
     } catch (error) {
       return next(error);
     }
@@ -69,7 +69,7 @@ class AppointmentController {
       if (!appointment) {
         return res.status(404).json({ success: false, message: "Appointment not found." });
       }
-      return res.status(200).json({ success: true, data: await presentAppointment(appointment, business._id) });
+      return res.status(200).json({ success: true, timezone: business.timezone, data: await presentAppointment(appointment, business._id) });
     } catch (error) {
       return next(error);
     }
@@ -83,7 +83,7 @@ class AppointmentController {
         appointmentId: req.params.id,
         changes: req.body,
       });
-      return res.status(200).json({ success: true, data: await presentAppointment(appointment, business._id) });
+      return res.status(200).json({ success: true, timezone: business.timezone, data: await presentAppointment(appointment, business._id) });
     } catch (error) {
       return next(error);
     }
@@ -97,7 +97,7 @@ class AppointmentController {
         appointmentId: req.params.id,
         approvedBy: req.user?.userId || null,
       });
-      return res.status(200).json({ success: true, data: await presentAppointment(appointment, business._id) });
+      return res.status(200).json({ success: true, timezone: business.timezone, data: await presentAppointment(appointment, business._id) });
     } catch (error) {
       return next(error);
     }
@@ -115,7 +115,7 @@ class AppointmentController {
         reason: req.body.reason || "",
         declinedBy: req.user?.userId || null,
       });
-      return res.status(200).json({ success: true, data: await presentAppointment(appointment, business._id) });
+      return res.status(200).json({ success: true, timezone: business.timezone, data: await presentAppointment(appointment, business._id) });
     } catch (error) {
       return next(error);
     }
@@ -129,7 +129,7 @@ class AppointmentController {
         appointmentId: req.params.id,
         reason: req.body.reason || "",
       });
-      return res.status(200).json({ success: true, data: await presentAppointment(appointment, business._id) });
+      return res.status(200).json({ success: true, timezone: business.timezone, data: await presentAppointment(appointment, business._id) });
     } catch (error) {
       return next(error);
     }
@@ -145,7 +145,7 @@ class AppointmentController {
         ownerValuationAuthorized: true,
         idempotencyKey: getIdempotencyKey(req),
       });
-      return res.status(200).json({ success: true, data: await presentAppointment(appointment, business._id) });
+      return res.status(200).json({ success: true, timezone: business.timezone, data: await presentAppointment(appointment, business._id) });
     } catch (error) {
       return next(error);
     }
@@ -154,7 +154,7 @@ class AppointmentController {
     try {
       const business = await getOwnedBusiness({ user: req.user, requestedBusinessId: req.body.businessId });
       const appointment = await declineRescheduleRequest({ business, appointmentId: req.params.id, requestId: req.body.requestId, reason: req.body.reason });
-      return res.status(200).json({ success: true, data: await presentAppointment(appointment, business._id) });
+      return res.status(200).json({ success: true, timezone: business.timezone, data: await presentAppointment(appointment, business._id) });
     } catch (error) { return next(error); }
   }
   static async approveProviderChange(req, res, next) {
@@ -168,7 +168,7 @@ class AppointmentController {
         appointmentId: req.params.id,
         reviewedBy: req.user.userId,
       });
-      return res.status(200).json({ success: true, data: await presentAppointment(appointment, business._id) });
+      return res.status(200).json({ success: true, timezone: business.timezone, data: await presentAppointment(appointment, business._id) });
     } catch (error) {
       return next(error);
     }
@@ -185,7 +185,7 @@ class AppointmentController {
         appointmentId: req.params.id,
         reviewedBy: req.user.userId,
       });
-      return res.status(200).json({ success: true, data: await presentAppointment(appointment, business._id) });
+      return res.status(200).json({ success: true, timezone: business.timezone, data: await presentAppointment(appointment, business._id) });
     } catch (error) {
       return next(error);
     }

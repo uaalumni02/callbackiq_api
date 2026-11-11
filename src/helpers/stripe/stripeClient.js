@@ -1,4 +1,5 @@
-import Stripe from "stripe";
+import { createStripeClient } from '../../integrations/providerClients.js';
+
 
 let stripeClient = null;
 let cachedSecretKey = "";
@@ -15,7 +16,7 @@ const getStripeClient = () => {
    * importing this module.
    */
   if (!stripeClient || secretKey !== cachedSecretKey) {
-    stripeClient = new Stripe(secretKey);
+    stripeClient = createStripeClient(secretKey);
     cachedSecretKey = secretKey;
   }
 

@@ -1,3 +1,4 @@
+import { providerCapabilities } from './providerCapabilities.js';
 import GoogleCalendarProvider from "../../integrations/scheduling/googleCalendar.provider.js";
 import HousecallProProvider from "../../integrations/scheduling/housecallPro.provider.js";
 import InternalSchedulingProvider from "../../integrations/scheduling/internalScheduling.provider.js";
@@ -32,7 +33,9 @@ class SchedulingProviderFactory {
       throw error;
     }
 
-    return new Provider({ business });
+    const provider = new Provider({ business });
+    provider.capabilities = providerCapabilities(providerName);
+    return provider;
   }
 }
 

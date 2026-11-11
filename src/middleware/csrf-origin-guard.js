@@ -15,10 +15,7 @@ const isEnabled = () => {
   return ["production", "staging"].includes(process.env.NODE_ENV);
 };
 
-const getBearerToken = (authorizationHeader) => {
-  if (typeof authorizationHeader !== "string") return "";
-  return authorizationHeader.match(/^Bearer\s+(.+)$/i)?.[1]?.trim() || "";
-};
+
 
 const getRefererOrigin = (referer) => {
   if (!referer) return "";

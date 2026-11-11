@@ -39,7 +39,7 @@ const memoryMaxEntries = () =>
     max: 100000,
   });
 
-const serialize = (value) => JSON.stringify(value);
+
 
 const parseEnvelope = (raw) => {
   try {

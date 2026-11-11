@@ -132,7 +132,7 @@ for (const [file, changedLines] of changed.entries()) {
   const branchPct = changedBranches.length
     ? (coveredBranches.length / changedBranches.length) * 100
     : 100;
-  const critical = criticalFiles.has(file);
+  const critical = criticalFiles.has(file) || (policy.criticalPrefixes || []).some(prefix => file.startsWith(prefix));
   const minLines = critical ? thresholds.criticalLines : thresholds.lines;
   const minBranches = critical ? thresholds.criticalBranches : thresholds.branches;
 

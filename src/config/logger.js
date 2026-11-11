@@ -1,4 +1,3 @@
-import { safeConsole } from "../helpers/logging/safeLogger.js";
 const SECRET_KEY_PATTERN =
   /(authorization|cookie|token|secret|password|passcode|api[-_]?key|auth[-_]?token|private[-_]?key|signature)/i;
 
@@ -22,6 +21,8 @@ export const redactLogValue = (value, key = "", seen = new WeakSet()) => {
   if (SECRET_KEY_PATTERN.test(String(key))) return "[REDACTED]";
 
   if (value?._bsontype === "ObjectId" && typeof value.toHexString === "function") return value.toHexString();
+  if (['production', 'staging'].includes(process.env.NODE_ENV) && /body|message|transcript|prompt|address/i.test(key)) return '[REDACTED]';
+  if (typeof value === 'string' && /^(requestId|businessId|userId|leadId|conversationId|appointmentId|event|code|method|level)$/.test(key) && /^[a-zA-Z0-9:_-]{1,128}$/.test(value)) return value;
   if (typeof value === "string") return sanitizeString(value);
   if (value === null || value === undefined) return value;
   if (typeof value !== "object") return value;
@@ -32,7 +33,7 @@ export const redactLogValue = (value, key = "", seen = new WeakSet()) => {
   if (value instanceof Error) {
     return {
       name: value.name,
-      message: sanitizeString(value.message),
+      message: ['production', 'staging'].includes(process.env.NODE_ENV) ? '[REDACTED]' : sanitizeString(value.message),
       code: value.code,
       stack:
         process.env.NODE_ENV === "production"
@@ -65,11 +66,11 @@ const emit = (level, event, metadata = {}) => {
   const line = JSON.stringify(record);
 
   if (level === "error" || level === "fatal") {
-    safeConsole.error(line);
+    console.error(line);
   } else if (level === "warn") {
-    safeConsole.warn(line);
+    console.warn(line);
   } else {
-    safeConsole.log(line);
+    console.log(line);
   }
 
   return record;

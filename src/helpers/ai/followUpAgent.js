@@ -1,8 +1,9 @@
+import { createOpenAIClient } from '../../integrations/providerClients.js';
 import { currentConstraints } from '../../services/conversationCondition.service.js';
 import { classifySmsIntent } from "../../services/messaging/smsIntentClassifier.service.js";
 import { safeConsole } from "../logging/safeLogger.js";
 import { parseAiOutput } from "./validateAiOutput.js";
-import OpenAI from "openai";
+
 
 import {
   ALERT_PRIORITIES,
@@ -35,7 +36,7 @@ const getOpenAIClient = () => {
   }
 
   if (!openaiClient || apiKey !== cachedApiKey) {
-    openaiClient = new OpenAI({
+    openaiClient = createOpenAIClient('followUpAgent', {
       apiKey,
       timeout: toBoundedInteger(
         process.env.OPENAI_FOLLOW_UP_TIMEOUT_MS,

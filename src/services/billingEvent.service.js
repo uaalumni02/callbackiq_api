@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+import { withDistributedLease } from './distributedLease.service.js';
 import BillingEvent from "../models/billingEvent.js";
 
 const PROCESSING_LEASE_MS = 10 * 60 * 1000;
@@ -20,6 +22,7 @@ const reserveNewStripeEvent = async (event, requestId) => {
     eventType: event.type,
     livemode: Boolean(event.livemode),
     status: "processing",
+    processingToken: randomUUID(),
     business: getBusinessId(event),
     resourceId: getResourceId(event),
     requestId,
@@ -71,6 +74,7 @@ export const reserveStripeEvent = async (event, requestId = "") => {
       {
         $set: {
           status: "processing",
+          processingToken: randomUUID(),
           requestId,
           failureReason: "",
           failedAt: null,
@@ -116,7 +120,7 @@ export const reserveStripeEvent = async (event, requestId = "") => {
 
 export const markStripeEventProcessed = async (
   providerEventId,
-  { ignored = false, businessId = null } = {},
+  { ignored = false, businessId = null, processingToken = null } = {},
 ) => {
   const set = {
     status: ignored ? "ignored" : "processed",
@@ -124,6 +128,7 @@ export const markStripeEventProcessed = async (
     failureReason: "",
     failedAt: null,
     processingStartedAt: null,
+    processingToken: null,
   };
 
   if (businessId) set.business = businessId;
@@ -132,6 +137,8 @@ export const markStripeEventProcessed = async (
     {
       provider: "stripe",
       providerEventId,
+      processingToken,
+      status: "processing",
     },
     {
       $set: set,
@@ -142,17 +149,20 @@ export const markStripeEventProcessed = async (
   );
 };
 
-export const markStripeEventFailed = async (providerEventId, error) => {
+export const markStripeEventFailed = async (providerEventId, error, processingToken = null) => {
   return BillingEvent.findOneAndUpdate(
     {
       provider: "stripe",
       providerEventId,
+      processingToken,
+      status: "processing",
     },
     {
       $set: {
         status: "failed",
         failedAt: new Date(),
         processingStartedAt: null,
+        processingToken: null,
         failureReason: String(error?.message || error || "Unknown failure").slice(
           0,
           1000,
@@ -186,6 +196,7 @@ export const processStripeEventOnce = async ({
   if (!handler) {
     const record = await markStripeEventProcessed(event.id, {
       ignored: true,
+      processingToken: reservation.record.processingToken,
     });
 
     return {
@@ -198,11 +209,21 @@ export const processStripeEventOnce = async ({
   }
 
   try {
-    const result = await handler(event.data.object);
+    const object = event.data.object;
+    const resource = object.customer?.id || object.customer || object.metadata?.businessId || object.subscription || object.id;
+    const execution = await withDistributedLease(`stripe-sync:${resource}`, () => handler(object));
+    if (!execution.acquired) throw Object.assign(new Error('Billing reconciliation is already running'), {
+      statusCode: 503, code: 'BILLING_RESOURCE_BUSY',
+    });
+    const result = execution.value;
     const record = await markStripeEventProcessed(event.id, {
       businessId: result?.business || result?.businessId || null,
+      processingToken: reservation.record.processingToken,
     });
 
+    if (!record) throw Object.assign(new Error('Billing event processing claim was replaced'), {
+      code: 'BILLING_EVENT_CLAIM_LOST', statusCode: 503,
+    });
     return {
       duplicate: false,
       retried: reservation.retry,
@@ -211,7 +232,7 @@ export const processStripeEventOnce = async ({
       record,
     };
   } catch (error) {
-    await markStripeEventFailed(event.id, error);
+    await markStripeEventFailed(event.id, error, reservation.record.processingToken);
     throw error;
   }
 };

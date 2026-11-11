@@ -61,6 +61,7 @@ const BillingEventSchema = new Schema(
       type: Date,
       default: Date.now,
     },
+    processingToken: { type: String, default: null },
     processingStartedAt: {
       type: Date,
       default: null,

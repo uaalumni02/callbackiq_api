@@ -1,7 +1,8 @@
+import { createTwilioClient } from '../integrations/providerClients.js';
 import { resolveSmsUsageClass } from "./messaging/smsUsageClass.service.js";
 import crypto from "node:crypto";
 import { ownerTextSuppressionReason } from "./messaging/ownerTextPolicy.service.js";
-import twilio from "twilio";
+
 
 import Business from "../models/business.js";
 import TrackingNumber from "../models/trackingNumber.js"; // CALLBACKIQ_MARKETING_ATTRIBUTION_V1
@@ -61,7 +62,7 @@ export const getTwilioClient = () => {
     throw error;
   }
   if (!twilioClient || accountSid !== cachedAccountSid || authToken !== cachedAuthToken) {
-    twilioClient = twilio(accountSid, authToken);
+    twilioClient = createTwilioClient(accountSid, authToken);
     cachedAccountSid = accountSid;
     cachedAuthToken = authToken;
   }

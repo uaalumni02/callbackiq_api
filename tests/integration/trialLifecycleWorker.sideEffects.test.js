@@ -71,10 +71,10 @@ describe("trialLifecycle.worker real lifecycle side effects", () => {
       _id: businessId,
       trackingNumber: { status: "released" },
     }));
-    mockSendTrialWelcomeEmail.mockResolvedValue(true);
-    mockSendTrialReminderEmail.mockResolvedValue(true);
-    mockSendTrialExpiredEmail.mockResolvedValue(true);
-    mockSendTrackingNumberReleasedEmail.mockResolvedValue(true);
+    mockSendTrialWelcomeEmail.mockResolvedValue({ messageId: "synthetic-mail-receipt" });
+    mockSendTrialReminderEmail.mockResolvedValue({ messageId: "synthetic-mail-receipt" });
+    mockSendTrialExpiredEmail.mockResolvedValue({ messageId: "synthetic-mail-receipt" });
+    mockSendTrackingNumberReleasedEmail.mockResolvedValue({ messageId: "synthetic-mail-receipt" });
   });
 
   afterEach(clearTestDB);

@@ -6,7 +6,7 @@ const read = (relative) =>
 
 describe("voice conversation experience regression", () => {
   test("caller activity pauses termination and replies re-arm after playback grace", () => {
-    const source = read("src/voice/conversationRelay.server.js");
+    const source = ["context", "Timers", "Turns", "Input", "Setup"].map(name => read(`src/voice/relay/${name}.js`)).join("\n").replaceAll("runtime.", "").replaceAll("state.", "");
     expect(source).toContain("const DEFAULT_IDLE_END_MS = 45_000;");
     expect(source).toContain("const estimatedPlaybackMs = boundedInteger(");
     expect(source).toContain("if (!result?.handoff) armIdleTimersAfterReply(reply);");

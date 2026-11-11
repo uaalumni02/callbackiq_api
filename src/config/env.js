@@ -1,3 +1,4 @@
+import { validateWorkerSettings } from './workerSettings.js';
 import { getMongoUrl } from "./runtime-environment.js";
 
 const VALID_ENVIRONMENTS = new Set([
@@ -84,6 +85,7 @@ export const validateEnvironment = (
   ).toLowerCase();
 
   const errors = [];
+  try { validateWorkerSettings(source); } catch (error) { errors.push(error.message); }
   const warnings = [];
 
   if (!VALID_ENVIRONMENTS.has(appEnv)) {

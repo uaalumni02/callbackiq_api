@@ -2715,6 +2715,24 @@
     "options": {}
   },
   {
+    "collection": "subscriptions",
+    "key": {
+      "status": 1,
+      "provisioningCheckAt": 1,
+      "_id": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "subscriptions",
+    "key": {
+      "trialNumberReleaseAt": 1,
+      "trialUsedAt": 1,
+      "_id": 1
+    },
+    "options": {}
+  },
+  {
     "collection": "supporttickets",
     "key": {
       "business": 1,
@@ -2827,8 +2845,40 @@
   {
     "collection": "trialextensiongrants",
     "key": {
+      "operationKey": 1
+    },
+    "options": {
+      "unique": true,
+      "partialFilterExpression": {
+        "operationKey": {
+          "$type": "string"
+        }
+      }
+    }
+  },
+  {
+    "collection": "trialextensiongrants",
+    "key": {
       "business": 1,
       "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "triallifecycledeliveries",
+    "key": {
+      "status": 1,
+      "availableAt": 1,
+      "_id": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "triallifecycledeliveries",
+    "key": {
+      "status": 1,
+      "leaseUntil": 1,
+      "reviewRecorded": 1
     },
     "options": {}
   },

@@ -4,7 +4,7 @@
 // import strings and literal CommonJS requires. It is NOT a complete JS parser.
 import fs from 'node:fs';
 import path from 'node:path';
-import crypto from 'node:crypto';
+import "node:crypto";
 
 const root = process.cwd();
 const mode = process.argv[2] || '--check';

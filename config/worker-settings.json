@@ -1,0 +1,6 @@
+{
+  "WEBHOOK_WORK_CONCURRENCY": { "default": 5, "min": 1, "max": 25, "role": "worker-sms" },
+  "WORKER_DRAIN_TIMEOUT_MS": { "default": 120000, "min": 1, "max": 600000, "role": "worker" },
+  "TRIAL_LIFECYCLE_INTERVAL_MS": { "default": 3600000, "min": 1, "max": 86400000, "role": "worker-lifecycle" },
+  "BILLING_INTEGRITY_INTERVAL_MS": { "default": 86400000, "min": 1, "max": 604800000, "role": "worker-lifecycle" }
+}

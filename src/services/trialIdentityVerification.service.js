@@ -1,5 +1,6 @@
+import { createTwilioClient } from '../integrations/providerClients.js';
 import crypto from "crypto";
-import twilio from "twilio";
+
 
 import Business from "../models/business.js";
 import User from "../models/user.js";
@@ -42,7 +43,7 @@ const getVerifyClient = () => {
   }
 
   return {
-    client: twilio(accountSid, authToken),
+    client: createTwilioClient(accountSid, authToken),
     serviceSid,
   };
 };

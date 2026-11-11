@@ -1,5 +1,6 @@
+import { createOpenAIClient } from '../integrations/providerClients.js';
 import { safeConsole } from "../helpers/logging/safeLogger.js";
-import OpenAI from "openai";
+
 
 import * as Guardrails from "../helpers/ai/aiGuardrails.js";
 
@@ -95,7 +96,7 @@ const getOpenAIClient = () => {
   }
 
   if (!openaiClient || cachedApiKey !== apiKey) {
-    openaiClient = new OpenAI({
+    openaiClient = createOpenAIClient('safetyAssessmentService', {
       apiKey,
       timeout: toBoundedInteger(
         process.env.OPENAI_SAFETY_TIMEOUT_MS,
@@ -257,7 +258,7 @@ const normalizeClassifierResult = (result) => {
   );
 
   if (
-    !Boolean(result?.isEmergency) ||
+    !result?.isEmergency ||
     !hazardType ||
     confidence < emergencyThreshold
   ) {

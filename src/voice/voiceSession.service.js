@@ -492,7 +492,7 @@ class VoiceSessionService {
       suppressionReason = 'A safety concern was recorded; no ordinary missed-call recovery text is appropriate.';
     } else if (session.metadata?.sharedRequestReadOnly) {
       suppressionReason = "Another call owns the shared request; no additional recovery text was sent.";
-    } else if (Boolean(ownerTextSuppressionReason({ business, source: "voice_fallback" }))) {
+    } else if (ownerTextSuppressionReason({ business, source: "voice_fallback" })) {
       suppressionReason = "The business disabled missed-call SMS.";
     } else if (!isUsableCallerId(to) || !from) {
       suppressionReason = "A usable caller or business phone number was unavailable.";

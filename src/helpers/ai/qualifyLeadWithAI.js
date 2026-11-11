@@ -1,6 +1,7 @@
+import { createOpenAIClient } from '../../integrations/providerClients.js';
 import { safeConsole } from "../logging/safeLogger.js";
 import { parseAiOutput } from "./validateAiOutput.js";
-import OpenAI from "openai";
+
 
 import {
   ALERT_PRIORITIES,
@@ -29,7 +30,7 @@ const getOpenAIClient = () => {
   }
 
   if (!openaiClient || apiKey !== cachedApiKey) {
-    openaiClient = new OpenAI({
+    openaiClient = createOpenAIClient('qualifyLeadWithAI', {
       apiKey,
       timeout: toBoundedInteger(
         process.env.OPENAI_QUALIFICATION_TIMEOUT_MS,

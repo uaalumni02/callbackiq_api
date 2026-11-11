@@ -38,6 +38,8 @@ const errorHandler = (error, req, res, next) => {
 
   return res.status(statusCode).json({
     success: false,
+    code: error.code || (statusCode >= 500 ? 'INTERNAL_ERROR' : 'REQUEST_REJECTED'),
+    retryable: statusCode === 429 || statusCode >= 500,
     message:
       statusCode >= 500
         ? "An unexpected server error occurred."

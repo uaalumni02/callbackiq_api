@@ -5,7 +5,7 @@ const getClientUrl = () => process.env.CLIENT_URL || "http://localhost:3001";
 
 const createTransporter = () => nodemailer.createTransport(emailConfiguration().transport);
 
-const sendEmail = async ({ to, subject, text, testMessageId }) => {
+const sendEmail = async ({ to, subject, text, testMessageId, messageId }) => {
   if (!to) return null;
 
   if (process.env.NODE_ENV === "test") {
@@ -24,7 +24,8 @@ const sendEmail = async ({ to, subject, text, testMessageId }) => {
   }
 
   return createTransporter().sendMail({
-    from: `"${process.env.EMAIL_SENDER_NAME || "CallBackIQ"}" <${emailConfiguration().from}>`,
+    from: `"${process.env.EMAIL_SENDER_NAME || "MeekCall"}" <${emailConfiguration().from}>`,
+    messageId,
     to,
     subject,
     text,
@@ -36,9 +37,9 @@ const sendPasswordResetEmail = async (email, resetToken) => {
 
   const result = await sendEmail({
     to: email,
-    subject: "Reset your CallBackIQ password",
+    subject: "Reset your MeekCall password",
     testMessageId: "test-password-reset-email",
-    text: `Click this link to reset your CallBackIQ password: ${resetLink}
+    text: `Click this link to reset your MeekCall password: ${resetLink}
 
 This link expires in 30 minutes.
 If you did not request this password reset, you can ignore this email.`,
@@ -54,28 +55,30 @@ If you did not request this password reset, you can ignore this email.`,
 export const sendEmailVerificationEmail = async ({ email, token }) =>
   sendEmail({
     to: email,
-    subject: "Verify your CallBackIQ business email",
+    subject: "Verify your MeekCall business email",
     testMessageId: "test-email-verification",
-    text: `Verify your business email before activating your CallBackIQ free trial.
+    text: `Verify your business email before activating your MeekCall free trial.
 
 Verify email: ${getClientUrl()}/verify-email?token=${encodeURIComponent(token)}
 
-This verification link expires in 24 hours. If you did not create a CallBackIQ account, you can ignore this email.`,
+This verification link expires in 24 hours. If you did not create a MeekCall account, you can ignore this email.`,
   });
 
 export const sendTrialWelcomeEmail = async ({
   email,
   businessName,
   trialEndsAt,
+  messageId,
 }) =>
   sendEmail({
     to: email,
-    subject: "Your 14-day CallBackIQ trial is active",
+    subject: "Your 14-day MeekCall trial is active",
+    messageId,
     testMessageId: "test-trial-welcome-email",
-    text: `${businessName || "Your business"} is now on a 14-day CallBackIQ trial.
+    text: `${businessName || "Your business"} is now on a 14-day MeekCall trial.
 
 Your trial ends ${new Date(trialEndsAt).toLocaleDateString("en-US")}.
-Your CallBackIQ tracking number is being prepared so you can test the real call-recovery workflow.
+Your MeekCall tracking number is being prepared so you can test the real call-recovery workflow.
 
 Finish setup: ${getClientUrl()}/setup
 Manage billing: ${getClientUrl()}/billing`,
@@ -86,12 +89,14 @@ export const sendTrialReminderEmail = async ({
   businessName,
   trialEndsAt,
   daysRemaining,
+  messageId,
 }) =>
   sendEmail({
     to: email,
-    subject: `Your CallBackIQ trial ends in ${daysRemaining} day${daysRemaining === 1 ? "" : "s"}`,
+    subject: `Your MeekCall trial ends in ${daysRemaining} day${daysRemaining === 1 ? "" : "s"}`,
+    messageId,
     testMessageId: `test-trial-${daysRemaining}d-reminder-email`,
-    text: `${businessName || "Your business"} has ${daysRemaining} day${daysRemaining === 1 ? "" : "s"} remaining in its CallBackIQ trial.
+    text: `${businessName || "Your business"} has ${daysRemaining} day${daysRemaining === 1 ? "" : "s"} remaining in its MeekCall trial.
 
 Trial end date: ${new Date(trialEndsAt).toLocaleDateString("en-US")}
 
@@ -100,29 +105,32 @@ Add a payment method or choose your plan before the trial ends to keep call reco
 Manage billing: ${getClientUrl()}/billing`,
   });
 
-export const sendTrialExpiredEmail = async ({ email, businessName }) =>
+export const sendTrialExpiredEmail = async ({ email, businessName, messageId }) =>
   sendEmail({
     to: email,
-    subject: "Your CallBackIQ trial has ended",
+    subject: "Your MeekCall trial has ended",
+    messageId,
     testMessageId: "test-trial-expired-email",
-    text: `${businessName || "Your business"}'s CallBackIQ trial has ended.
+    text: `${businessName || "Your business"}'s MeekCall trial has ended.
 
 Automated call recovery is paused. Your tracking number is held for a limited grace period before release.
 
-Reactivate CallBackIQ: ${getClientUrl()}/billing`,
+Reactivate MeekCall: ${getClientUrl()}/billing`,
   });
 
 export const sendTrackingNumberReleasedEmail = async ({
   email,
   businessName,
+  messageId,
 }) =>
   sendEmail({
     to: email,
-    subject: "Your CallBackIQ trial number was released",
+    subject: "Your MeekCall trial number was released",
+    messageId,
     testMessageId: "test-trial-number-released-email",
     text: `${businessName || "Your business"}'s trial tracking number has been released after the post-trial grace period.
 
-You can still subscribe to CallBackIQ. A new tracking number will be provisioned when eligible access is restored.
+You can still subscribe to MeekCall. A new tracking number will be provisioned when eligible access is restored.
 
 Subscribe: ${getClientUrl()}/billing`,
   });
@@ -137,7 +145,7 @@ export const sendStaffReviewEmail = ({ email, businessName, alertId, appointment
   const link = new URL(appointmentId ? "/appointments" : "/intervention-center", clientUrl);
   link.searchParams.set(appointmentId ? "appointmentId" : "alertId", appointmentId || alertId);
   return sendEmail({ to: email,
-    subject: stage === "expired" ? "CallBackIQ: appointment request needs an availability recheck" : stage === "overdue" ? "CallBackIQ: staff review is overdue" : "CallBackIQ: customer request needs review",
+    subject: stage === "expired" ? "MeekCall: appointment request needs an availability recheck" : stage === "overdue" ? "MeekCall: staff review is overdue" : "MeekCall: customer request needs review",
     text: `${businessName || "Your business"} has a customer request requiring staff review.\n\nOpen Needs Attention and acknowledge the request: ${link}\n\nThis email does not confirm that anyone has accepted the request or booked an appointment.`,
   });
 };

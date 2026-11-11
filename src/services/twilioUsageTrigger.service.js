@@ -1,4 +1,5 @@
-import twilio from "twilio";
+import { createTwilioClient } from '../integrations/providerClients.js';
+
 
 const client = () => {
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -6,8 +7,8 @@ const client = () => {
   const apiSecret = process.env.TWILIO_API_SECRET;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
   if (!accountSid) throw new Error("TWILIO_ACCOUNT_SID is required.");
-  if (apiKey && apiSecret) return twilio(apiKey, apiSecret, { accountSid });
-  if (authToken) return twilio(accountSid, authToken);
+  if (apiKey && apiSecret) return createTwilioClient(apiKey, apiSecret, { accountSid });
+  if (authToken) return createTwilioClient(accountSid, authToken);
   throw new Error("Twilio API credentials are required.");
 };
 

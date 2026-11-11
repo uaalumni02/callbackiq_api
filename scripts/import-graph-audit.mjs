@@ -3,7 +3,7 @@
 // dynamic imports, computed requires and resolver aliases require separate manual review.
 import fs from 'node:fs';
 import path from 'node:path';
-import {execFileSync} from 'node:child_process';
+import "node:child_process";
 const walk=d=>fs.existsSync(d)?fs.readdirSync(d,{withFileTypes:true}).flatMap(e=>e.isDirectory()?walk(path.join(d,e.name)):/\.(?:js|jsx|mjs|cjs)$/.test(e.name)?[path.join(d,e.name)]:[]):[];
 const files=walk('src').map(x=>x.replaceAll('\\','/'));
 const available=new Set(files);

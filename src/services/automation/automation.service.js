@@ -68,10 +68,10 @@ class AutomationService {
     const [business, conversation, lead, preference, confirmedAppointment, safetyAlert] =
       await Promise.all([
         Business.findById(businessId).lean(),
-        conversationId ? Conversation.findById(conversationId).lean() : null,
-        leadId ? Lead.findById(leadId).lean() : null,
+        conversationId ? Conversation.findOne({ _id: conversationId, business: businessId }).lean() : null,
+        leadId ? Lead.findOne({ _id: leadId, business: businessId }).lean() : null,
         conversationId
-          ? Conversation.findById(conversationId)
+          ? Conversation.findOne({ _id: conversationId, business: businessId })
               .select("customerPhone")
               .lean()
               .then((item) =>
@@ -129,6 +129,10 @@ class AutomationService {
       .populate("appointment");
 
     if (!populated || populated.status !== "processing") return null;
+    if ([populated.conversation, populated.lead, populated.appointment].filter(Boolean)
+      .some(record => String(record.business?._id || record.business) !== String(populated.business?._id))) {
+      throw Object.assign(new Error('Automation job references another business'), { code: 'AUTOMATION_TENANT_MISMATCH' });
+    }
     const reason = await this.suppressionReason(populated);
 
     if (reason) {

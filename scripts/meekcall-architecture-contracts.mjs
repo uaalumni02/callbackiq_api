@@ -56,9 +56,10 @@ requireTokens('src/services/scaleHealth.service.js', [
   'automationWorkerReady', 'missingRoles', 'recoveryOldestAgeMs',
   'appointmentNoticeOldestAgeMs',
 ]);
-requireTokens('src/controllers/auth.js', [
-  'httpOnly: true', 'res.cookie("token", token, cookieOptions)',
-  'res.clearCookie("token", clearCookieOptions)',
+requireTokens('src/controllers/auth/context.js', ['httpOnly: true']);
+requireTokens('src/controllers/auth/Registration.js', ['res.cookie("token", token, cookieOptions)']);
+requireTokens('src/controllers/auth/Session.js', [
+  'res.cookie("token", token, cookieOptions)', 'res.clearCookie("token", clearCookieOptions)',
 ]);
 requireTokens('scripts/audit-repository-hygiene.mjs', [
   'isSafeMongoFixture', 'possible_secret', 'trackedFiles',

@@ -24,7 +24,7 @@ try {
   const safeName = /(load|test|perf|benchmark)/i.test(dbName);
   if (!safeName && !flag("VOICE_LOAD_ALLOW_NONTEST_DB")) {
     throw new Error(
-      `Refusing to modify database \"${dbName}\". Use a database name containing load/test/perf/benchmark or explicitly set VOICE_LOAD_ALLOW_NONTEST_DB=true.`,
+      `Refusing to modify database "${dbName}". Use a database name containing load/test/perf/benchmark or explicitly set VOICE_LOAD_ALLOW_NONTEST_DB=true.`,
     );
   }
 

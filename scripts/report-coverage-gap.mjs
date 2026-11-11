@@ -13,11 +13,7 @@ const targets = { lines: 85, statements: 85, functions: 80, branches: 75 };
 const normalize = (name) =>
   name.replaceAll("\\", "/").replace(`${process.cwd().replaceAll("\\", "/")}/`, "");
 
-const unitGap = (entry, metric, target) => {
-  const item = entry?.[metric];
-  if (!item || !Number(item.total)) return 0;
-  return Math.max(0, Math.ceil((target / 100) * item.total) - item.covered);
-};
+
 
 console.log("\nGlobal target gaps:");
 for (const [metric, target] of Object.entries(targets)) {

@@ -174,7 +174,7 @@ const parseExplicitCalendarDate = (text, todayKey) => {
     return validDateParts(year, month, day) ? dateKey(year, month, day) : null;
   }
 
-  const numeric = text.match(/\b(\d{1,2})[\/-](\d{1,2})(?:[\/-](\d{2}|\d{4}))?\b/);
+  const numeric = text.match(/\b(\d{1,2})[-/](\d{1,2})(?:[-/](\d{2}|\d{4}))?\b/);
   if (numeric) {
     const month = Number(numeric[1]);
     const day = Number(numeric[2]);

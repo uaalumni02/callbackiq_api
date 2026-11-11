@@ -75,7 +75,7 @@ export const setPaginationHeaders = (res, page) => {
 };
 
 const escapeRegex = (value) =>
-  String(value || "").replace(/[.*+?^$\{\}()|[\]\\]/g, "\\$&");
+  String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const paginationMeta = (page) => ({
   limit: page.limit,
@@ -334,7 +334,7 @@ export const getConversationsPage = async (businessId, query = {}) => {
     ]).option({ maxTimeMS: queryBudgetMs() });
     documents = await Conversation.populate(documents, [
       { path: "business", select: "businessName phone owner" },
-      { path: "lead", select: "customerName phone serviceNeeded urgency status" },
+      { path: "lead", select: "customerName phone serviceNeeded urgency status", match: { business: businessId } },
       { path: "archivedBy", select: "userName email role" },
     ]);
   } else {

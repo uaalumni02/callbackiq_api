@@ -1,9 +1,11 @@
+import Appointment from '../../src/models/appointment.js';
+jest.mock('../../src/models/appointment.js', () => ({ __esModule: true, default: { exists: jest.fn(async () => true) } }));
 import AppointmentNotificationJob from '../../src/models/appointmentNotificationJob.js';
 import Message from '../../src/models/message.js';
 import Conversation from '../../src/models/conversation.js';
 import { sendSms } from '../../src/services/twilioSmsService.js';
 import { processNextAppointmentNotification } from '../../src/services/scheduling/appointmentNotification.service.js';
-jest.mock('../../src/models/appointmentNotificationJob.js',()=>({__esModule:true,default:{findOneAndUpdate:jest.fn(),findById:jest.fn()}}));
+jest.mock('../../src/models/appointmentNotificationJob.js',()=>({__esModule:true,default:{findOneAndUpdate:jest.fn(),findById:jest.fn(),exists:jest.fn(async()=>true)}}));
 jest.mock('../../src/models/message.js',()=>({__esModule:true,default:{findOneAndUpdate:jest.fn()}}));
 jest.mock('../../src/models/conversation.js',()=>({__esModule:true,default:{updateOne:jest.fn()}}));
 jest.mock('../../src/services/twilioSmsService.js',()=>({sendSms:jest.fn()}));

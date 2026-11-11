@@ -2,7 +2,7 @@ import { companyExpenseSummary } from "./companyExpenses.service.js";
 import SmsProcessingJob from "../../models/smsProcessingJob.js";
 import BillingAnomaly from "../../models/billingAnomaly.js";
 import { syncBusinessBillingReport } from "./billingReporting.service.js";
-import mongoose from "mongoose";
+import "mongoose";
 import Business from "../../models/business.js";
 import User from "../../models/user.js";
 import Subscription from "../../models/subscription.js";

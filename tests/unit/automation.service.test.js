@@ -20,8 +20,8 @@ jest.mock("../../src/models/appointment.js", () => ({ __esModule: true, default:
 jest.mock("../../src/models/automationJob.js", () => ({ __esModule: true, default: { findById: jest.fn(), updateMany: jest.fn() } }));
 jest.mock("../../src/models/business.js", () => ({ __esModule: true, default: { findById: jest.fn() } }));
 jest.mock("../../src/models/contactPreference.js", () => ({ __esModule: true, default: { findOne: jest.fn() } }));
-jest.mock("../../src/models/conversation.js", () => ({ __esModule: true, default: { findById: jest.fn() } }));
-jest.mock("../../src/models/lead.js", () => ({ __esModule: true, default: { findById: jest.fn() } }));
+jest.mock("../../src/models/conversation.js", () => ({ __esModule: true, default: { findOne: jest.fn() } }));
+jest.mock("../../src/models/lead.js", () => ({ __esModule: true, default: { findOne: jest.fn() } }));
 jest.mock("../../src/models/message.js", () => ({ __esModule: true, default: { countDocuments: jest.fn(), findOneAndUpdate: jest.fn() } }));
 jest.mock("../../src/services/socket.service.js", () => ({
   __esModule: true,
@@ -37,6 +37,9 @@ const leanQuery = (value) => {
 };
 
 const populatedQuery = (value) => {
+  if (value) for (const field of ['conversation', 'lead', 'appointment']) {
+    if (value[field] && !value[field].business) value[field].business = value.business?._id;
+  }
   const query = {
     populate: jest.fn(() => query),
     then: (resolve, reject) => Promise.resolve(value).then(resolve, reject),
@@ -104,13 +107,13 @@ describe("AutomationService", () => {
       isActive: true,
       features: { automatedFollowUpEnabled: true },
     }));
-    Conversation.findById.mockReturnValue(leanQuery({
+    Conversation.findOne.mockReturnValue(leanQuery({
       _id: "c1",
       status: "open",
       humanTakeover: false,
       customerPhone: "+14045550100",
     }));
-    Lead.findById.mockReturnValue(leanQuery({ _id: "l1", status: "new" }));
+    Lead.findOne.mockReturnValue(leanQuery({ _id: "l1", status: "new" }));
     ContactPreference.findOne.mockReturnValue(leanQuery(null));
     Appointment.findOne.mockReturnValue(leanQuery(null));
     Alert.findOne.mockReturnValue(leanQuery(null));
@@ -120,7 +123,7 @@ describe("AutomationService", () => {
   });
 
   test.each(['unsupported', 'needs_clarification', 'needs_staff_review'])('suppresses queued follow-up for %s service eligibility', async decision => {
-    Conversation.findById.mockReturnValue(leanQuery({ _id: 'c1', status: 'open', customerPhone: '+14045550100', serviceEligibility: { decision } }));
+    Conversation.findOne.mockReturnValue(leanQuery({ _id: 'c1', status: 'open', customerPhone: '+14045550100', serviceEligibility: { decision } }));
     expect(await AutomationService.suppressionReason(doc())).toBe('service_eligibility_required');
     expect(sendSms).not.toHaveBeenCalled();
   });
@@ -152,8 +155,8 @@ describe("AutomationService", () => {
     ["safety_condition", { alert: { type: "safety_emergency" } }],
   ])("returns suppression reason %s", async (expected, setup) => {
     if (setup.business !== undefined) Business.findById.mockReturnValue(leanQuery(setup.business));
-    if (setup.conversation !== undefined) Conversation.findById.mockReturnValue(leanQuery(setup.conversation));
-    if (setup.lead !== undefined) Lead.findById.mockReturnValue(leanQuery(setup.lead));
+    if (setup.conversation !== undefined) Conversation.findOne.mockReturnValue(leanQuery(setup.conversation));
+    if (setup.lead !== undefined) Lead.findOne.mockReturnValue(leanQuery(setup.lead));
     if (setup.preference !== undefined) ContactPreference.findOne.mockReturnValue(leanQuery(setup.preference));
     if (setup.appointment !== undefined) Appointment.findOne.mockReturnValue(leanQuery(setup.appointment));
     if (setup.alert !== undefined) Alert.findOne.mockReturnValue(leanQuery(setup.alert));
@@ -165,7 +168,7 @@ describe("AutomationService", () => {
 
   test("handles jobs without optional entity references", async () => {
     await expect(AutomationService.suppressionReason({ business: "b1" })).resolves.toBe("conversation_not_open");
-    expect(Lead.findById).not.toHaveBeenCalled();
+    expect(Lead.findOne).not.toHaveBeenCalled();
     expect(Appointment.findOne).not.toHaveBeenCalled();
   });
 
@@ -182,7 +185,7 @@ describe("AutomationService", () => {
   });
 
   test("loads contact preference only when a customer phone exists", async () => {
-    Conversation.findById.mockReturnValue(leanQuery({ status: "open", humanTakeover: false, customerPhone: "" }));
+    Conversation.findOne.mockReturnValue(leanQuery({ status: "open", humanTakeover: false, customerPhone: "" }));
     await AutomationService.suppressionReason({ business: "b1", conversation: "c1" });
     expect(ContactPreference.findOne).not.toHaveBeenCalled();
   });

@@ -60,6 +60,7 @@ class JobberProvider extends SchedulingProvider {
       if (!operation?.query) {
         return {
           provider: "jobber",
+          kind: 'handoff',
           externalAppointmentId: handoff.requestId,
           externalCalendarId: "jobber-request",
           raw: { handoff, schedulingAuthority: "callbackiq" },
@@ -111,6 +112,17 @@ class JobberProvider extends SchedulingProvider {
     };
   }
 
+  async findConfirmation({ appointment }) {
+    const mapping = await ExternalRecordMapping.findOne({ business: this.business._id,
+      provider: 'jobber', localModel: 'Appointment', localId: appointment._id, syncStatus: 'synced',
+    }).lean();
+    if (!mapping) return null;
+    const observed = await this.getAppointment({ appointment: { ...appointment.toObject(),
+      externalAppointmentId: mapping.externalId, externalCalendarId: 'jobber' } });
+    return observed?.id ? { provider: 'jobber', kind: 'external_appointment',
+      externalAppointmentId: mapping.externalId, externalCalendarId: 'jobber' } : null;
+  }
+
   async updateAppointment({ appointment, changes }) {
     if (appointment.externalCalendarId === "jobber-request") {
       return {
@@ -160,7 +172,13 @@ class JobberProvider extends SchedulingProvider {
       query: operation.query,
       variables: { id: appointment.externalAppointmentId },
     });
-    return getAtPath(data, operation.resultPath);
+    const record = getAtPath(data, operation.resultPath);
+    if (!record) return null;
+    return { ...record, id: getAtPath(record, operation.externalIdPath || 'id'),
+      startAt: getAtPath(record, operation.startAtPath || 'startAt'),
+      endAt: getAtPath(record, operation.endAtPath || 'endAt'),
+      status: getAtPath(record, operation.statusPath || 'status') };
+
   }
 
   async testConnection() {

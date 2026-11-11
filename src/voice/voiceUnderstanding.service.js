@@ -1,5 +1,6 @@
+import { createOpenAIClient } from '../integrations/providerClients.js';
 import { extractService } from "../services/messaging/smsIntentClassifier.service.js";
-import OpenAI from "openai";
+
 import {
   evaluateDeterministicInboundGuardrails,
   getEmergencyReply,
@@ -49,10 +50,12 @@ const COMPLAINT =
   /\b(?:complaint|refund|manager|ripped off|terrible service|dispute|chargeback)\b/i;
 
 let client;
+let cachedApiKey;
 const getClient = () => {
   if (!process.env.OPENAI_API_KEY) return null;
-  if (!client) {
-    client = new OpenAI({
+  if (!client || cachedApiKey !== process.env.OPENAI_API_KEY) {
+    cachedApiKey = process.env.OPENAI_API_KEY;
+    client = createOpenAIClient('voiceUnderstanding', {
       apiKey: process.env.OPENAI_API_KEY,
       timeout:
         Number(process.env.OPENAI_VOICE_CLASSIFIER_TIMEOUT_MS) || 2200,

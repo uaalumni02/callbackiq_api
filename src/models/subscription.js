@@ -60,6 +60,9 @@ const SubscriptionSchema = new Schema(
       ],
     },
 
+    trialExtensionDaysReserved: { type: Number, default: 0 },
+    trialExtensionIntent: { type: Schema.Types.Mixed, default: null },
+    provisioningCheckAt: { type: Date, default: null },
     trialStartedAt: {
       type: Date,
       default: null,
@@ -180,6 +183,9 @@ SubscriptionSchema.index({
   status: 1,
   currentPeriodEnd: 1,
 });
+
+SubscriptionSchema.index({ status: 1, provisioningCheckAt: 1, _id: 1 });
+SubscriptionSchema.index({ trialNumberReleaseAt: 1, trialUsedAt: 1, _id: 1 });
 
 const Subscription =
   mongoose.models.Subscription ||

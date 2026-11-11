@@ -11,7 +11,7 @@ import Conversation from "../models/conversation.js";
 import Message from "../models/message.js";
 import { sendSms } from "../services/twilioSmsService.js";
 import { withDistributedLease } from "../services/distributedLease.service.js";
-import { logOperationalError, logOperationalEvent } from "../helpers/logging/safeLogger.js";
+import { safeConsole, logOperationalError, logOperationalEvent } from "../helpers/logging/safeLogger.js";
 
 let timer = null;
 let running = false;

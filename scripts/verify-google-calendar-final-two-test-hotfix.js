@@ -25,7 +25,7 @@ for (const filePath of [availabilityPath, controllerTestPath]) {
 if (!process.exitCode) {
   const availability = fs.readFileSync(availabilityPath, "utf8");
   const unsupportedBlock = availability.match(
-    /if \(!serviceArea\.supported\) \{([\s\S]*?)\n    \}/,
+    /if \(!serviceArea\.supported\) \{([\s\S]*?)\n {4}\}/,
   )?.[1];
   if (!unsupportedBlock) {
     fail("could not locate the unsupported service-area response");

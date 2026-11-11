@@ -1,3 +1,8 @@
+jest.mock('../../src/services/distributedLease.service.js', () => ({ assertDistributedLeaseActive: jest.fn(), withDistributedLease: jest.fn(async (_key, run) => ({ acquired: true, value: await run() })) }));
+jest.mock('../../src/models/trialLifecycleDelivery.js', () => ({ __esModule: true, default: {
+  findOneAndUpdate: jest.fn(async (_filter, update) => ({ _id: 'notice', status: 'queued', sentAt: new Date(), ...update.$set })),
+  updateOne: jest.fn(), updateMany: jest.fn(), find: jest.fn(() => ({ sort: () => ({ limit: () => ({ lean: async () => [] }) }) })),
+} }));
 import Business from "../../src/models/business.js";
 import Subscription from "../../src/models/subscription.js";
 import TrialExtensionGrant from "../../src/models/trialExtensionGrant.js";
@@ -24,7 +29,7 @@ import {
 
 jest.mock("mongoose", () => ({
   __esModule: true,
-  default: { startSession: jest.fn() },
+  default: { ...jest.requireActual("mongoose"), startSession: jest.fn() },
 }));
 
 jest.mock("../../src/models/business.js", () => ({
@@ -59,7 +64,7 @@ jest.mock("../../src/models/trialRedemption.js", () => ({
 jest.mock("../../src/models/trialExtensionGrant.js", () => ({
   __esModule: true,
   default: {
-    find: jest.fn(),
+    find: jest.fn(), findOne: jest.fn().mockResolvedValue(null), findOneAndUpdate: jest.fn(),
     create: jest.fn(),
   },
 }));
@@ -179,10 +184,10 @@ beforeEach(() => {
 
   getStripeClient.mockReturnValue(makeStripe());
 
-  sendTrialWelcomeEmail.mockResolvedValue(true);
-  sendTrialReminderEmail.mockResolvedValue(true);
-  sendTrialExpiredEmail.mockResolvedValue(true);
-  sendTrackingNumberReleasedEmail.mockResolvedValue(true);
+  sendTrialWelcomeEmail.mockResolvedValue({ messageId: "synthetic-mail-receipt" });
+  sendTrialReminderEmail.mockResolvedValue({ messageId: "synthetic-mail-receipt" });
+  sendTrialExpiredEmail.mockResolvedValue({ messageId: "synthetic-mail-receipt" });
+  sendTrackingNumberReleasedEmail.mockResolvedValue({ messageId: "synthetic-mail-receipt" });
 });
 
 describe("trial lifecycle branch hardening", () => {
@@ -378,7 +383,7 @@ describe("trial lifecycle branch hardening", () => {
       }),
     );
     expect(Subscription.updateOne).toHaveBeenCalledWith(
-      { _id: "sub-1", [field]: null },
+      { _id: "sub-1", business: "biz-1", [field]: null },
       { $set: { [field]: expect.any(Date) } },
     );
   });
@@ -450,12 +455,9 @@ describe("trial lifecycle branch hardening", () => {
       trialEndsAt: new Date(Date.now() + 14 * 86400000),
     };
     Subscription.findOneAndUpdate.mockResolvedValue(updated);
-    TrialExtensionGrant.create.mockResolvedValue({ _id: "grant-1" });
+    TrialExtensionGrant.findOneAndUpdate.mockResolvedValue({ _id: "grant-1" });
     const stripe = makeStripe();
-    stripe.subscriptions.update.mockResolvedValue({
-      id: "sub_remote",
-      trial_end: Math.floor(updated.trialEndsAt.getTime() / 1000),
-    });
+    stripe.subscriptions.update.mockImplementation(async (_id, input) => ({ id: "sub_remote", status: "trialing", trial_end: input.trial_end }));
     getStripeClient.mockReturnValue(stripe);
 
     await expect(
@@ -470,15 +472,18 @@ describe("trial lifecycle branch hardening", () => {
     expect(stripe.subscriptions.update).toHaveBeenCalledWith(
       "sub_remote",
       expect.objectContaining({ trial_end: expect.any(Number), proration_behavior: "none" }),
+      expect.objectContaining({ idempotencyKey: expect.any(String) }),
     );
-    expect(TrialExtensionGrant.create).toHaveBeenCalledWith(
-      expect.objectContaining({
+    expect(TrialExtensionGrant.findOneAndUpdate).toHaveBeenCalledWith(
+      { operationKey: expect.any(String) },
+      { $setOnInsert: expect.objectContaining({
         business: "biz-1",
         subscription: "sub-1",
         grantedBy: "admin-1",
         days: 14,
         reason: "Service recovery",
-      }),
+      }) },
+      expect.objectContaining({ upsert: true }),
     );
   });
 

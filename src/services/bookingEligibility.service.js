@@ -8,7 +8,7 @@ import SchedulingPolicy from "../models/schedulingPolicy.js";
 import ServiceArea from "../models/serviceArea.js";
 import ServiceOffering from "../models/serviceOffering.js";
 
-const normalize = (value) => String(value || "").trim().toLowerCase();
+
 
 
 const getZonedParts = (date, timeZone) => {

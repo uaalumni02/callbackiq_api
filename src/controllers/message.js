@@ -7,7 +7,7 @@ import Db from "../db/db.js";
 import Business from "../models/business.js";
 import Conversation from "../models/conversation.js";
 import Message from "../models/message.js";
-import messageValidator from "../validator/message.js";
+import "../validator/message.js";
 import * as Response from "../helpers/response/response.js";
 import SocketService from "../services/socket.service.js";
 

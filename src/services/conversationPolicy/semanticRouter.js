@@ -1,8 +1,9 @@
+import { createOpenAIClient } from '../../integrations/providerClients.js';
 /** Optional metered LLM adapter for unfamiliar read-only status questions.
  * Does not write state or authorize actions. Invoked only when configured in
  * the existing guarded SMS/voice pipeline, after safety and control checks.
  */
-import OpenAI from 'openai';
+
 import { detectDialogAct } from './dialogPolicy.js';
 const INTENTS = new Set(['progress_question','arrival_question','confirmation_question','other']);
 const schema = {
@@ -26,7 +27,7 @@ export async function classifyReadOnlyQuestion({ customerMessage, recentMessages
   if (env.MEEKCALL_DIALOG_SEMANTIC_ENABLED !== 'true' || !env.OPENAI_API_KEY && !client) return null;
   const message = String(customerMessage || '').trim();
   if (!message || message.length > 700 || detectDialogAct(message)) return null;
-  const api = client || new OpenAI({ apiKey: env.OPENAI_API_KEY, timeout: 1800, maxRetries: 0 });
+  const api = client || createOpenAIClient('semanticRouter', { apiKey: env.OPENAI_API_KEY, timeout: 1800, maxRetries: 0 });
   try {
     const r = await api.responses.create({
       model: env.MEEKCALL_DIALOG_SEMANTIC_MODEL || 'gpt-4.1-mini',

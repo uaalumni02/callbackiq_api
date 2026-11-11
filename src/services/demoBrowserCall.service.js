@@ -1,5 +1,7 @@
+import twilio from 'twilio';
+import "../integrations/providerClients.js";
 import crypto from "crypto";
-import twilio from "twilio";
+
 
 const E164_PATTERN = /^\+[1-9]\d{7,14}$/;
 const TOKEN_TTL_SECONDS = 600;

@@ -5,7 +5,7 @@ const registerSchema = Joi.object({
   // userName is retained for compatibility with older clients. New trial
   // signup clients omit it and the controller generates an internal username.
   userName: Joi.string()
-    .regex(/^[A-Za-z0-9]+([,'\-\.]?[ ]?[A-Za-z0-9]+)*$/)
+    .regex(/^[A-Za-z0-9]+([,'\-.]?[ ]?[A-Za-z0-9]+)*$/)
     .min(3)
     .max(30)
     .optional(),

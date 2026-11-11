@@ -546,7 +546,7 @@ export const attentionSummary = async (businessId, limit = 5) => {
 
 class OwnerExperienceService {
   static resolvePeriod(options) {
-    return resolvePeriod(options);
+    return resolveOwnerPeriod(options);
   }
 
   static async dashboard({ business, period = "today", now = new Date() }) {

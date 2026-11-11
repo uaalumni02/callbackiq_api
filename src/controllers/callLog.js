@@ -5,7 +5,8 @@ import mongoose from "mongoose";
 import Db from "../db/db.js";
 import Business from "../models/business.js";
 import CallLog from "../models/callLog.js";
-import callLogValidator from "../validator/callLog.js";
+import callLogValidator, { callLogUpdateSchema } from "../validator/callLog.js";
+import { assertTenantReferences } from "../services/tenantReferences.service.js";
 import * as Response from "../helpers/response/response.js";
 import SocketService from "../services/socket.service.js";
 import {
@@ -28,13 +29,7 @@ const updateCallLogForBusiness = async (id, businessId, data) => {
   return Db.updateCallLog(CallLog, id, data);
 };
 
-const deleteCallLogForBusiness = async (id, businessId) => {
-  if (typeof Db.deleteCallLogForBusiness === "function") {
-    return Db.deleteCallLogForBusiness(CallLog, id, businessId);
-  }
 
-  return Db.deleteCallLog(CallLog, id);
-};
 
 
 class CallLogController {
@@ -46,7 +41,7 @@ class CallLogController {
         return Response.responseBadAuth(res, "Not authenticated");
       }
 
-      await callLogValidator.validateAsync(req.body);
+      const validatedBody = await callLogValidator.validateAsync(req.body);
 
       const business = await getBusinessForOwner(ownerId);
 
@@ -54,8 +49,9 @@ class CallLogController {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
+      await assertTenantReferences(business._id, validatedBody);
       const callLog = await Db.saveCallLog(CallLog, {
-        ...req.body,
+        ...validatedBody,
         business: business._id,
       });
 
@@ -173,7 +169,7 @@ class CallLogController {
         return Response.responseInvalidInput(res, "Invalid call log ID");
       }
 
-      await callLogValidator.validateAsync(req.body);
+      const validatedBody = await callLogUpdateSchema.validateAsync(req.body);
 
       const business = await getBusinessForOwner(ownerId);
 
@@ -191,7 +187,12 @@ class CallLogController {
         return Response.responseBadAuth(res, "You cannot update this call log");
       }
 
-      const updatedCallLog = await updateCallLogForBusiness(id, business._id, req.body);
+      if (validatedBody.business && String(validatedBody.business) !== String(business._id)) {
+        return Response.responseInvalidInput(res, "Business ownership cannot be changed");
+      }
+      delete validatedBody.business;
+      await assertTenantReferences(business._id, validatedBody);
+      const updatedCallLog = await updateCallLogForBusiness(id, business._id, { $set: validatedBody });
 
       if (!updatedCallLog) {
         return Response.responseInvalidInput(res, "Call log not found");

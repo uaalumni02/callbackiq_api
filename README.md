@@ -1,6 +1,10 @@
-# CallBackIQ API
+# MeekCall
 
-CallBackIQ is an AI-powered call recovery, scheduling, marketing attribution, and revenue visibility platform for home-service businesses.
+Current engineering setup and remediation boundaries: [docs/ENGINEERING.md](docs/ENGINEERING.md). Use this guide for a new checkout; historical release sections below are retained for compatibility.
+
+# MeekCall API
+
+MeekCall is an AI-powered call recovery, scheduling, marketing attribution, and revenue visibility platform for home-service businesses.
 
 This repository contains the backend API and operational services responsible for authentication, tenant isolation, Voice AI, SMS recovery, customer qualification, appointments, marketing attribution, revenue recovery, telecom provisioning, A2P messaging readiness, trials, Stripe billing, provider integrations, real-time events, background workers, and production safety controls.
 
@@ -10,10 +14,10 @@ The customer-facing React application lives in the separate `callbackiq_frontend
 
 ## Product Overview
 
-CallBackIQ helps call-driven service businesses prevent unanswered opportunities from automatically becoming lost revenue.
+MeekCall helps call-driven service businesses prevent unanswered opportunities from automatically becoming lost revenue.
 
 ```text
-Customer calls a CallBackIQ number
+Customer calls a MeekCall number
               ↓
 Business / tracking source identified
               ↓
@@ -67,7 +71,7 @@ The platform stores and enforces business-specific configuration including:
 - Business identity
 - Business type
 - Forwarding phone
-- CallBackIQ/tracking numbers
+- MeekCall/tracking numbers
 - Timezone
 - Business hours
 - Service-area rules
@@ -81,7 +85,7 @@ The platform stores and enforces business-specific configuration including:
 
 ## Voice AI
 
-CallBackIQ supports controlled Voice AI workflows including:
+MeekCall supports controlled Voice AI workflows including:
 
 - Overflow answering
 - After-hours answering
@@ -145,7 +149,7 @@ Automated tests should normally mock live model calls where practical.
 
 ## Scheduling and Appointments
 
-CallBackIQ uses a provider-neutral scheduling model.
+MeekCall uses a provider-neutral scheduling model.
 
 Capabilities include:
 
@@ -211,11 +215,11 @@ Example sources include:
 - Referral
 - Other configured sources
 
-The primary CallBackIQ recovery number remains separate from optional marketing-source tracking numbers.
+The primary MeekCall recovery number remains separate from optional marketing-source tracking numbers.
 
 The current Pro product model includes:
 
-- 1 primary CallBackIQ recovery number
+- 1 primary MeekCall recovery number
 - Up to 3 additional marketing-source tracking numbers by default
 
 Current owner-facing attribution functionality includes APIs such as:
@@ -233,7 +237,7 @@ Marketing-source reporting is also available through revenue-recovery analytics.
 
 ## Revenue Recovery
 
-CallBackIQ tracks business outcomes associated with recovery activity.
+MeekCall tracks business outcomes associated with recovery activity.
 
 Reporting can include:
 
@@ -279,7 +283,7 @@ Provider webhook authenticity must be validated and protected telecom callbacks 
 
 Phone-number provisioning and SMS readiness are separate states.
 
-CallBackIQ models messaging readiness through workflows including:
+MeekCall models messaging readiness through workflows including:
 
 - Business/customer onboarding
 - Campaign state
@@ -301,7 +305,7 @@ Current customer-facing terms include:
 
 - **14-day free trial**
 - **No credit card required for the trial**
-- **CallBackIQ Pro: $99/month**
+- **MeekCall Pro: $99/month**
 
 The backend owns authoritative trial, entitlement, subscription, and billing state.
 
@@ -328,7 +332,7 @@ Production `STRIPE_PRO_PRICE_ID` must reference the intended recurring Stripe Pr
 
 ## Real-Time Operations
 
-CallBackIQ uses authenticated Socket.IO communication for business-scoped real-time updates including:
+MeekCall uses authenticated Socket.IO communication for business-scoped real-time updates including:
 
 - Dashboard activity
 - Lead changes
@@ -363,7 +367,7 @@ Workers should preserve idempotency, retry safety, reentrancy, lease/ownership c
 ## High-Level Architecture
 
 ```text
-                    CallBackIQ Frontend
+                    MeekCall Frontend
                            │
                     HTTPS / Socket.IO
                            │
@@ -611,4 +615,4 @@ The backend exists to make that path reliable across telecom, AI, customer messa
 
 ---
 
-**CallBackIQ — Voice AI, SMS recovery, scheduling, marketing attribution, and revenue visibility for home-service businesses.**
+**MeekCall — Voice AI, SMS recovery, scheduling, marketing attribution, and revenue visibility for home-service businesses.**

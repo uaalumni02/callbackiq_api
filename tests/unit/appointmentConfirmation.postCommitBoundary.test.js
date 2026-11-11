@@ -383,7 +383,7 @@ describe('confirmation compatibility', () => {
     expect(f.deps.intent.begin).not.toHaveBeenCalled();
   });
 
-  test('provider outside recovery scope keeps the legacy provider call and reminder schedule', async () => {
+  test('all providers enter durable confirmation recovery and schedule reminders', async () => {
     const f = fixture();
     f.deps.businessCalendarProviderName.mockReturnValue('jobber');
     f.provider.createAppointment.mockResolvedValue({ provider: 'jobber', externalAppointmentId: 'visit', externalCalendarId: 'jobber' });
@@ -391,22 +391,22 @@ describe('confirmation compatibility', () => {
     await expect(f.confirm({ business: f.business, appointmentId: 'a1', approvedBy: 'staff' })).resolves.toMatchObject({
       status: 'confirmed', externalAppointmentId: 'visit', approvalDecisionBy: 'staff',
     });
-    expect(f.provider.createAppointment).toHaveBeenCalledWith({ appointment: f.appointment, service: { _id: 's1' } });
-    expect(f.deps.intent.begin).not.toHaveBeenCalled();
-    expect(f.deps.scheduleAppointmentReminders).toHaveBeenCalledWith({ appointment: f.appointment });
+    expect(f.provider.createAppointment).toHaveBeenCalledWith(expect.objectContaining({ appointment: f.appointment, service: { _id: 's1' } }));
+    expect(f.deps.intent.begin).toHaveBeenCalled();
+    expect(f.deps.scheduleAppointmentReminders).toHaveBeenCalledWith(expect.objectContaining({ appointment: f.appointment }));
   });
 
-  test('provider outside recovery scope retains catch-path compensation', async () => {
+  test('all providers retain fenced compensation after a local failure', async () => {
     const f = fixture();
     f.deps.businessCalendarProviderName.mockReturnValue('jobber');
     f.provider.createAppointment.mockResolvedValue({ provider: 'jobber', externalAppointmentId: 'visit' });
     f.appointment.save.mockRejectedValueOnce(Error('Mongo unavailable'));
     await expect(f.confirm({ business: f.business, appointmentId: 'a1' })).rejects.toThrow('Mongo unavailable');
     expect(f.provider.cancelAppointment).toHaveBeenCalledTimes(1);
-    expect(f.deps.intent.begin).not.toHaveBeenCalled();
+    expect(f.deps.intent.begin).toHaveBeenCalled();
   });
 
-  test('provider outside recovery scope retains legacy failed-compensation alert', async () => {
+  test('all providers retain failed-compensation review', async () => {
     const f = fixture();
     f.deps.businessCalendarProviderName.mockReturnValue('jobber');
     f.provider.createAppointment.mockResolvedValue({ provider: 'jobber', externalAppointmentId: 'visit' });
@@ -414,9 +414,9 @@ describe('confirmation compatibility', () => {
     f.provider.cancelAppointment.mockRejectedValueOnce(Error('provider cleanup error'));
     await expect(f.confirm({ business: f.business, appointmentId: 'a1' })).rejects.toThrow('Mongo unavailable');
     expect(f.deps.InterventionService.create).toHaveBeenCalledWith(expect.objectContaining({
-      dedupeKey: 'google_orphan_cleanup:a1:visit',
+      dedupeKey: 'appointment_confirmation_cleanup:a1:visit',
     }));
-    expect(f.deps.intent.begin).not.toHaveBeenCalled();
+    expect(f.deps.intent.begin).toHaveBeenCalled();
   });
 });
 
@@ -429,12 +429,30 @@ test('a concurrent confirmation winning the intent compare-and-set prevents prov
   expect(f.provider.createAppointment).not.toHaveBeenCalled();
 });
 
-test('legacy provider rejection without an external receipt retains the default intervention provider', async () => {
+test('legacy provider rejection without an external receipt records the actual intervention provider', async () => {
   const f = fixture();
   f.deps.businessCalendarProviderName.mockReturnValue('jobber');
   f.appointment.provider = '';
   f.provider.createAppointment.mockRejectedValue(Error('legacy provider unavailable'));
   await expect(f.confirm({ business: f.business, appointmentId: 'a1' })).rejects.toThrow('legacy provider unavailable');
   expect(f.provider.cancelAppointment).not.toHaveBeenCalled();
-  expect(f.deps.InterventionService.integrationFailure).toHaveBeenCalledWith(expect.objectContaining({ provider: 'internal' }));
+  expect(f.deps.InterventionService.integrationFailure).toHaveBeenCalledWith(expect.objectContaining({ provider: 'jobber' }));
+});
+
+test.each([null, 'wrong-time', 'canceled'])('external provider acknowledgement requires persisted matching time and status (%s)', async mismatch => {
+ const f=fixture(); f.deps.businessCalendarProviderName.mockReturnValue('jobber');
+ f.provider.capabilities={confirmation:'verify_external_record'};
+ f.provider.createAppointment.mockResolvedValue({provider:'jobber',externalAppointmentId:'verified-visit'});
+ f.provider.getAppointment=jest.fn(async()=>mismatch===null?{id:'verified-visit'}:{id:'verified-visit',
+  startAt:mismatch==='wrong-time'?new Date('2028-01-01T00:00:00Z'):f.appointment.startAt,
+  endAt:f.appointment.endAt,status:mismatch==='canceled'?'canceled':'scheduled'});
+ await expect(f.confirm({business:f.business,appointmentId:'a1'})).rejects.toMatchObject({code:'PROVIDER_CONFIRMATION_UNCERTAIN'});
+ expect(f.appointment.status).toBe('held');expect(f.deps.intent.defer).toHaveBeenCalled();
+});
+
+test('external confirmation succeeds only with the persisted matching appointment',async()=>{
+ const f=fixture();f.deps.businessCalendarProviderName.mockReturnValue('jobber');f.provider.capabilities={confirmation:'verify_external_record'};
+ f.provider.createAppointment.mockResolvedValue({provider:'jobber',externalAppointmentId:'verified-visit'});
+ f.provider.getAppointment=jest.fn(async()=>({id:'verified-visit',startAt:f.appointment.startAt.toISOString(),endAt:f.appointment.endAt.toISOString(),status:'scheduled'}));
+ await expect(f.confirm({business:f.business,appointmentId:'a1'})).resolves.toMatchObject({status:'confirmed',externalAppointmentId:'verified-visit'});
 });

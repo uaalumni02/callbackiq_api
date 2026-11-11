@@ -18,7 +18,7 @@ describe("SMS hardening compatibility v3.2 contracts", () => {
   });
 
   test("conversation creation reuses the normalized active thread", () => {
-    const source = read("src/controllers/conversation.js");
+    const source = read("src/controllers/conversation/Records.js") + read("src/controllers/conversation/context.js");
 
     expect(source).toContain("createOrReuseConversation");
     expect(source).toContain("normalizedCustomerPhone");
@@ -28,7 +28,7 @@ describe("SMS hardening compatibility v3.2 contracts", () => {
     expect(source).toContain("Number(error?.code) !== 11000");
     expect(source).toContain('updates.reopenReason = "conversation_create_reused"');
     expect(source).toMatch(/existingConversation\.humanTakeover\s*!==\s*true/);
-    expect(source).toMatch(/createOrReuseConversation\(\{[\s\S]{0,250}businessId:\s*business\._id[\s\S]{0,250}payload:\s*req\.body/);
+    expect(source).toMatch(/createOrReuseConversation\(\{[\s\S]{0,250}businessId:\s*business\._id[\s\S]{0,250}payload:\s*validatedBody/);
   });
 
   test("message route tests isolate provider delivery", () => {

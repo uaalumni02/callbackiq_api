@@ -4,6 +4,7 @@ const { Schema } = mongoose;
 
 const TrialExtensionGrantSchema = new Schema(
   {
+    operationKey: { type: String },
     business: {
       type: Schema.Types.ObjectId,
       ref: "Business",
@@ -49,6 +50,7 @@ const TrialExtensionGrantSchema = new Schema(
   { timestamps: true },
 );
 
+TrialExtensionGrantSchema.index({ operationKey: 1 }, { unique: true, partialFilterExpression: { operationKey: { $type: 'string' } } });
 TrialExtensionGrantSchema.index({ business: 1, createdAt: -1 });
 
 const TrialExtensionGrant =

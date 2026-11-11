@@ -486,41 +486,7 @@ export const handleTwilioStatusWebhook = async (req, res) => {
   }
 };
 
-const sendCommandReply = async ({ business, conversation, lead, to, commandResult }) => {
-  if (!commandResult.reply) return null;
-  const sent = await sendSms({
-    business,
-    businessId: business._id,
-    from: conversation.replyFromPhone || business.phone,
-    to,
-    body: commandResult.reply,
-    allowOptedOut: commandResult.allowOptedOutReply,
-    bypassUsageLimits: true,
-    actorType: "webhook",
-    source: "inbound_sms_command",
-    usageCategory: "compliance",
-    conversationId: conversation._id,
-    leadId: lead._id,
-    directResponse: true,
-    metadata: { action: commandResult.action },
-  });
-  if (!sent?.suppressed) {
-    await saveOutbound({
-      business,
-      conversation,
-      lead,
-      from: conversation.replyFromPhone || business.phone,
-      to,
-      body: commandResult.reply,
-      sent,
-      generatedBy: "guardrail",
-      usageCategory: "compliance",
-      actorType: "webhook",
-      metadata: { source: "inbound_sms_command", action: commandResult.action },
-    });
-  }
-  return sent;
-};
+
 
 export const handleInboundSmsWebhook = async (req, res) => {
   let webhookEvent = null;

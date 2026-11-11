@@ -1,3 +1,9 @@
+const cursor = values => ({ sort() { return this; }, maxTimeMS() { return this; }, cursor() { return { async *[Symbol.asyncIterator]() { yield* values; } }; } });
+jest.mock('../../src/services/distributedLease.service.js', () => ({ assertDistributedLeaseActive: jest.fn(), withDistributedLease: jest.fn(async (_key, run) => ({ acquired: true, value: await run() })) }));
+jest.mock('../../src/models/trialLifecycleDelivery.js', () => ({ __esModule: true, default: {
+  findOneAndUpdate: jest.fn(async (_filter, update) => ({ _id: 'notice', status: 'queued', sentAt: new Date(), ...update.$set })),
+  updateOne: jest.fn(), updateMany: jest.fn(), find: jest.fn(() => ({ sort: () => ({ limit: () => ({ lean: async () => [] }) }) })),
+} }));
 import Business from "../../src/models/business.js";
 import Subscription from "../../src/models/subscription.js";
 import { getStripeClient } from "../../src/helpers/stripe/stripeClient.js";
@@ -15,7 +21,7 @@ import { processTrialLifecycle } from "../../src/services/trialLifecycle.service
 
 jest.mock("mongoose", () => ({
   __esModule: true,
-  default: { startSession: jest.fn() },
+  default: { ...jest.requireActual("mongoose"), startSession: jest.fn() },
 }));
 
 jest.mock("../../src/models/business.js", () => ({
@@ -126,9 +132,9 @@ beforeEach(() => {
   Subscription.updateOne.mockResolvedValue({ modifiedCount: 1 });
   provisionTrackingNumber.mockResolvedValue({ _id: "biz-1", phone: "+14045550123" });
   releaseTrackingNumber.mockResolvedValue({ _id: "biz-1", phone: "" });
-  sendTrialReminderEmail.mockResolvedValue(true);
-  sendTrialExpiredEmail.mockResolvedValue(true);
-  sendTrackingNumberReleasedEmail.mockResolvedValue(true);
+  sendTrialReminderEmail.mockResolvedValue({ messageId: "synthetic-mail-receipt" });
+  sendTrialExpiredEmail.mockResolvedValue({ messageId: "synthetic-mail-receipt" });
+  sendTrackingNumberReleasedEmail.mockResolvedValue({ messageId: "synthetic-mail-receipt" });
   getSubscriptionAccess.mockReturnValue({
     level: "none",
     status: "expired",
@@ -143,7 +149,7 @@ beforeEach(() => {
 
 describe("trial lifecycle worker target coverage", () => {
   test("processes an empty lifecycle batch", async () => {
-    Subscription.find.mockResolvedValue([]);
+    Subscription.find.mockReturnValue(cursor([]));
 
     await expect(processTrialLifecycle(NOW)).resolves.toEqual({ processed: 0 });
   });
@@ -152,7 +158,7 @@ describe("trial lifecycle worker target coverage", () => {
     const subscription = makeSubscription({
       trialEndsAt: new Date(NOW.getTime() + 12 * 60 * 60 * 1000),
     });
-    Subscription.find.mockResolvedValue([subscription]);
+    Subscription.find.mockReturnValue(cursor([subscription]));
     Subscription.findById.mockResolvedValue(subscription);
     getSubscriptionAccess.mockReturnValue({
       level: "full",
@@ -180,7 +186,7 @@ describe("trial lifecycle worker target coverage", () => {
       }),
     );
     expect(Subscription.updateOne).toHaveBeenCalledWith(
-      { _id: "sub-1", trialReminder1dSentAt: null },
+      { _id: "sub-1", business: "biz-1", trialReminder1dSentAt: null },
       { $set: { trialReminder1dSentAt: expect.any(Date) } },
     );
   });
@@ -189,7 +195,7 @@ describe("trial lifecycle worker target coverage", () => {
     const subscription = makeSubscription({
       trialEndsAt: new Date(NOW.getTime() + 2 * DAY_MS),
     });
-    Subscription.find.mockResolvedValue([subscription]);
+    Subscription.find.mockReturnValue(cursor([subscription]));
     Subscription.findById.mockResolvedValue(subscription);
     getSubscriptionAccess.mockReturnValue({
       level: "full",
@@ -229,7 +235,7 @@ describe("trial lifecycle worker target coverage", () => {
       trialNumberReleaseAt: expectedReleaseAt,
     };
 
-    Subscription.find.mockResolvedValue([subscription]);
+    Subscription.find.mockReturnValue(cursor([subscription]));
     Subscription.findById.mockResolvedValue(refreshed);
     Business.findById.mockReturnValue(populated(businessForEmail));
     const stripe = {
@@ -244,7 +250,7 @@ describe("trial lifecycle worker target coverage", () => {
     spy.mockRestore();
 
     expect(Subscription.updateOne).toHaveBeenCalledWith(
-      { _id: "sub-1" },
+      { _id: "sub-1", status: "trialing", trialEndsAt: subscription.trialEndsAt },
       {
         $set: expect.objectContaining({
           status: "expired",
@@ -268,7 +274,7 @@ describe("trial lifecycle worker target coverage", () => {
       trialEndsAt: new Date(NOW.getTime() - DAY_MS),
       trialNumberReleaseAt: releaseAt,
     });
-    Subscription.find.mockResolvedValue([subscription]);
+    Subscription.find.mockReturnValue(cursor([subscription]));
     Subscription.findById.mockResolvedValue(subscription);
     getStripeClient.mockReturnValue({
       subscriptions: {
@@ -300,7 +306,7 @@ describe("trial lifecycle worker target coverage", () => {
     });
     const afterRelease = { ...subscription, trialNumberReleaseAt: null };
 
-    Subscription.find.mockResolvedValue([subscription]);
+    Subscription.find.mockReturnValue(cursor([subscription]));
     Subscription.findById
       .mockResolvedValueOnce(subscription)
       .mockResolvedValueOnce(afterRelease);
@@ -328,7 +334,7 @@ describe("trial lifecycle worker target coverage", () => {
       trialEndsAt: new Date(NOW.getTime() - DAY_MS),
       trialNumberReleaseAt: new Date(NOW.getTime() - 1000),
     });
-    Subscription.find.mockResolvedValue([subscription]);
+    Subscription.find.mockReturnValue(cursor([subscription]));
     Subscription.findById.mockResolvedValue(subscription);
     releaseTrackingNumber.mockRejectedValue(new Error("Twilio unavailable"));
 

@@ -361,7 +361,8 @@
       "name": "confirm",
       "module": "src/services/scheduling/commands/confirm-1.js",
       "kind": "method",
-      "sha": "2bba83193877a7c736baf2abbc30803e76e200a09272f1b758a94e37818e8d7b"
+      "sha": "f12a5b20671b98f8c53ec19c554c1fbcd53822663350607ba1ec171a60f2ffe0",
+      "review": "All providers now use durable confirmation intent; characterization tests cover compensation and post-commit behavior."
     },
     {
       "name": "cancel",

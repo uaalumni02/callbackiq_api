@@ -6,7 +6,22 @@ const retryDelay = (attempts) => Math.min(15 * 60_000, 30_000 * 2 ** Math.min(at
 const rejection = (message) => Object.assign(new Error(message), { confirmationRejected: true });
 
 const isDefiniteRejection = (error, provider, earlierAttempts) =>
-  error.confirmationRejected || provider === 'internal' || (earlierAttempts === 0 && error.confirmationCreateRejected);
+  error.confirmationRejected || error.code === 'PROVIDER_NOT_CONFIGURED' || provider === 'internal' || (earlierAttempts === 0 && error.confirmationCreateRejected);
+
+async function verifyExternalConfirmation({ appointment, provider, receipt }) {
+    if (provider.capabilities?.confirmation === 'verify_external_record') {
+      const observed = await provider.getAppointment({ appointment: { ...appointment.toObject(),
+        externalAppointmentId: receipt.externalAppointmentId, externalCalendarId: receipt.externalCalendarId } });
+      if (!observed?.id || String(observed.id) !== String(receipt.externalAppointmentId)) throw Object.assign(new Error('External appointment persistence is unverified'), { code: 'PROVIDER_CONFIRMATION_UNCERTAIN' });
+      const start = observed.startAt || observed.start || observed.startsAt;
+      const end = observed.endAt || observed.end || observed.endsAt;
+      if (new Date(start).getTime() !== new Date(appointment.startAt).getTime() ||
+          new Date(end).getTime() !== new Date(appointment.endAt).getTime() ||
+          ['canceled', 'cancelled', 'deleted'].includes(String(observed.status || '').toLowerCase())) {
+        throw Object.assign(new Error('External appointment time or status does not verify this booking'), { code: 'PROVIDER_CONFIRMATION_UNCERTAIN' });
+      }
+    }
+}
 
 export function createConfirmationRecovery({
   intent, InterventionService, Business = BusinessModel, ServiceOffering, SchedulingProviderFactory, safeConsole,
@@ -128,6 +143,11 @@ export function createConfirmationRecovery({
       const receipt = await provider.findConfirmation({ appointment, target });
       if (receipt) return receipt;
     }
+    if (attempts > 0 && provider.capabilities?.confirmation === 'verify_external_record') {
+      throw Object.assign(new Error('An earlier provider mutation has an unverified outcome. Review its record before retrying.'), {
+        code: 'PROVIDER_CONFIRMATION_UNCERTAIN',
+      });
+    }
     // An earlier HTTP request can still land after a missing-event lookup.
     // Keep its original intent recoverable when retry policy blocks a new insert.
     const stopRetry = (message) => attempts === 0 ? rejection(message) : new Error(message);
@@ -188,6 +208,19 @@ export function createConfirmationRecovery({
         assertDistributedLeaseActive();
         receipt = await provider.createAppointment({ appointment, service, target: appointment.confirmationIntent.target });
       }
+    } catch (error) {
+      await handleProviderFailure(appointment, error, attempts);
+      throw error;
+    }
+    try {
+    if (!receipt) throw Object.assign(new Error('Provider returned no confirmation receipt'), { code: 'PROVIDER_CONFIRMATION_UNCERTAIN' });
+    if (receipt.kind === 'handoff') {
+      const error = Object.assign(new Error('The provider saved a handoff request. An appointment has not been verified.'), {
+        code: 'PROVIDER_HANDOFF_ONLY', confirmationRejected: true,
+      });
+      throw error;
+    }
+    await verifyExternalConfirmation({ appointment, provider, receipt });
     } catch (error) {
       await handleProviderFailure(appointment, error, attempts);
       throw error;

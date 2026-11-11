@@ -6,6 +6,11 @@ import { logOperationalError } from '../../helpers/logging/safeLogger.js';
 
 const id = value => String(value?._id || value || '');
 const plain = value => value?.toObject?.() || value;
+const actionsFor = row => ({
+  requiresApproval: row.requiresBusinessApproval === true && !row.approvalDecisionAt &&
+    (row.status === 'held' || (row.status === 'failed' && /hold expired/i.test(row.failureReason || ''))),
+  requestedChange: row.status === 'confirmed' && row.rescheduleRequest?.status === 'pending',
+});
 
 // One bounded batch per page, never a per-row query. State is read from the
 // linked notice/receipt, not inferred from a confirmed appointment.
@@ -28,13 +33,13 @@ export async function presentAppointments(appointments, businessId) {
       const noticeFailures = jobs.filter(job => id(job.appointment) === id(row) && !job.resolutionAt &&
         (job.status === 'failed' || (job.status === 'sent' && !['delivered', 'read'].includes(byReceipt.get(job.providerMessageId)?.deliveryStatus || byReceipt.get(job.providerMessageId)?.status || job.deliveryStatus))))
         .map(job => ({ ...confirmationNoticeState(appointment, job, byReceipt.get(job.providerMessageId)), kind: job.key }));
-      return { ...appointment, noticeFailures, confirmationNotice: notice, confirmationNoticeStatus: notice.status };
+      return { ...appointment, actions: actionsFor(appointment), noticeFailures, confirmationNotice: notice, confirmationNoticeStatus: notice.status };
     });
   } catch (error) {
     // A completed mutation must not appear to fail merely because its readback
     // could not verify delivery. Explicitly expose unavailable evidence.
     logOperationalError('appointment.delivery_read_failed', error, { businessId });
-    return appointments.map(row => ({ ...plain(row), confirmationNoticeStatus: 'unavailable',
+    return appointments.map(row => ({ ...plain(row), actions: actionsFor(plain(row)), confirmationNoticeStatus: 'unavailable',
       confirmationNotice: { status: 'unavailable', deliveryStatus: 'unverified' } }));
   }
 }

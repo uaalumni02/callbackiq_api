@@ -35,6 +35,7 @@ const AppointmentNotificationJobSchema = new Schema(
       default: "scheduled",
     },
     attempts: { type: Number, min: 0, default: 0 },
+    claimToken: { type: String, default: null },
     lockedAt: { type: Date, default: null },
     lockedBy: { type: String, trim: true, default: "" },
     sentAt: { type: Date, default: null },

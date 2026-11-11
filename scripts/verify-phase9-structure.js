@@ -26,11 +26,7 @@ const requireAll = (relative, tokens) => {
   return text;
 };
 
-const requirePattern = (relative, pattern, message) => {
-  const text = read(relative);
-  if (!pattern.test(text)) failures.push(message || `${relative} failed ${pattern}`);
-  return text;
-};
+
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const getPostRoute = (text, routePath) => {

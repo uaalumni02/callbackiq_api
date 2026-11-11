@@ -63,6 +63,7 @@ export const cancelAppointmentNotifications = async ({
       $set: {
         status: "canceled",
         canceledAt: new Date(),
+        claimToken: null,
         lockedAt: null,
         lockedBy: "",
         failureReason: reason,
@@ -116,7 +117,8 @@ export const scheduleAppointmentReminders = async ({
             hoursBefore,
             scheduledFor,
             status: "scheduled",
-            lockedAt: null,
+            claimToken: null,
+        lockedAt: null,
             lockedBy: "",
             sentAt: null,
             canceledAt: null,
@@ -191,6 +193,7 @@ export const scheduleAppointmentChangeNotice = async ({
         body: String(body || "").trim(),
         scheduledFor: new Date(),
         status: "scheduled",
+        claimToken: null,
         lockedAt: null,
         lockedBy: "",
         sentAt: null,
@@ -234,6 +237,7 @@ export const schedulePostAppointmentFollowUp = async ({ appointment }) => {
         hoursBefore: null,
         scheduledFor,
         status: "scheduled",
+        claimToken: null,
         lockedAt: null,
         lockedBy: "",
         sentAt: null,
@@ -313,6 +317,7 @@ export const recoverStaleAppointmentNotificationLocks = async () => {
       $set: {
         status: "scheduled",
         scheduledFor: new Date(),
+        claimToken: null,
         lockedAt: null,
         lockedBy: "",
         failureReason: "Recovered stale notification worker lock.",
@@ -333,6 +338,7 @@ export const processNextAppointmentNotification = async () => {
         status: "processing",
         lockedAt: new Date(),
         lockedBy: instanceId,
+        claimToken: crypto.randomUUID(),
       },
       $inc: { attempts: 1 },
     },
@@ -354,6 +360,15 @@ export const processNextAppointmentNotification = async () => {
     return populated || job;
   }
   job = populated;
+  const claimToken = job.claimToken;
+  const persistClaim = async () => AppointmentNotificationJob.findOneAndUpdate({
+    _id: job._id, status: 'processing', claimToken, lockedBy: instanceId,
+    lockedAt: { $gt: new Date(Date.now() - 15 * 60_000) },
+  }, { $set: {
+    status: job.status, scheduledFor: job.scheduledFor, sentAt: job.sentAt,
+    canceledAt: job.canceledAt, providerMessageId: job.providerMessageId,
+    failureReason: job.failureReason, lockedAt: null, lockedBy: '', claimToken: null,
+  } }, { returnDocument: 'after' });
   const appointment = job.appointment;
   const business = job.business;
   const requiredStatus =
@@ -380,7 +395,7 @@ export const processNextAppointmentNotification = async () => {
     job.lockedAt = null;
     job.lockedBy = "";
     job.failureReason = "Appointment no longer qualifies for this notification.";
-    await job.save();
+    await persistClaim();
     return job;
   }
   if (
@@ -392,7 +407,7 @@ export const processNextAppointmentNotification = async () => {
     job.lockedAt = null;
     job.lockedBy = "";
     job.failureReason = "Appointment start time passed before reminder delivery.";
-    await job.save();
+    await persistClaim();
     return job;
   }
 
@@ -401,7 +416,7 @@ export const processNextAppointmentNotification = async () => {
     if (!(job.type === 'reminder' ? settings.customerRemindersEnabled : settings.postAppointmentFollowUpEnabled)) {
       job.status = 'canceled'; job.canceledAt = new Date(); job.lockedAt = null; job.lockedBy = '';
       job.failureReason = 'Customer notification disabled in scheduling preferences.';
-      await job.save(); return job;
+      await persistClaim(); return job;
     }
   }
 
@@ -410,6 +425,18 @@ export const processNextAppointmentNotification = async () => {
       ? String(job.body).trim()
       : reminderBody({ job, appointment, business });
   try {
+    const stillOwned = await AppointmentNotificationJob.exists({
+      _id: job._id, status: 'processing', claimToken, lockedBy: instanceId,
+    });
+    const sameAppointment = await Appointment.exists({
+      _id: appointment._id, business: business._id, updatedAt: appointment.updatedAt,
+    });
+    if (!stillOwned || !sameAppointment) {
+      job.status = 'canceled'; job.canceledAt = new Date();
+      job.failureReason = 'Appointment or notification changed before dispatch.';
+      await persistClaim();
+      return job;
+    }
     const result = await sendSms({
       business,
       to: appointment.customerPhone,
@@ -447,7 +474,7 @@ export const processNextAppointmentNotification = async () => {
       job.lockedAt = null;
       job.lockedBy = "";
       job.failureReason = result.reason || "SMS send window blocked delivery.";
-      await job.save();
+      await persistClaim();
       return job;
     }
     if (result.suppressed) {
@@ -456,7 +483,7 @@ export const processNextAppointmentNotification = async () => {
       job.lockedAt = null;
       job.lockedBy = "";
       job.failureReason = result.reason || "Customer SMS is suppressed.";
-      await job.save();
+      await persistClaim();
       return job;
     }
 
@@ -468,7 +495,7 @@ export const processNextAppointmentNotification = async () => {
     job.lockedAt = null;
     job.lockedBy = "";
     job.failureReason = "";
-    await job.save();
+    await persistClaim();
     return job;
   } catch (error) {
     job.status = job.attempts >= 3 ? "failed" : "scheduled";
@@ -476,7 +503,7 @@ export const processNextAppointmentNotification = async () => {
     job.lockedAt = null;
     job.lockedBy = "";
     job.failureReason = error.message;
-    await job.save();
+    await persistClaim();
     return job;
   }
 };

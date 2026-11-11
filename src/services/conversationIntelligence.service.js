@@ -1,8 +1,9 @@
+import { createOpenAIClient } from '../integrations/providerClients.js';
 import { VALID_INTENT_CATEGORIES, VALID_SENTIMENT_LABELS, VALID_URGENCY_LEVELS, VALID_ACTION_TYPES, LEGACY_ACTION_TYPE_ALIASES, VALID_ACTION_PRIORITIES, VALID_OBJECTION_CATEGORIES, VALID_RISK_TYPES, VALID_RISK_SEVERITIES, ANALYSIS_TEXT_LIMITS } from "./conversationIntelligence.contract.js";
 import { safeConsole } from "../helpers/logging/safeLogger.js";
 import ServiceOffering from "../models/serviceOffering.js";
 import { resolveOpportunityValue } from "./valuation/opportunityValue.js";
-import OpenAI from "openai";
+
 
 import {
   buildBusinessCapabilities,
@@ -12,14 +13,16 @@ import {
 } from "../helpers/ai/aiGuardrails.js";
 
 let openai = null;
+let cachedApiKey = "";
 
 const getOpenAIClient = () => {
   if (!process.env.OPENAI_API_KEY) {
     throw new Error("OPENAI_API_KEY is not configured");
   }
 
-  if (!openai) {
-    openai = new OpenAI({
+  if (!openai || cachedApiKey !== process.env.OPENAI_API_KEY) {
+    cachedApiKey = process.env.OPENAI_API_KEY;
+    openai = createOpenAIClient('conversationIntelligence', {
       apiKey: process.env.OPENAI_API_KEY,
       timeout: 60000,
       maxRetries: 1,

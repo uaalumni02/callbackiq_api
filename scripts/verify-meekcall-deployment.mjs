@@ -3,7 +3,7 @@
  * READ-ONLY MeekCall deployment smoke test. Never places calls, sends SMS,
  * signs in, exposes credentials, or modifies production services.
  */
-import { argv, exitCode } from "node:process";
+import { argv } from "node:process";
 const arg = (name) => {
   const index = argv.indexOf(name);
   return index >= 0 ? argv[index + 1] : undefined;

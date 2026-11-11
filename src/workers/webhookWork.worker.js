@@ -1,3 +1,4 @@
+import { workerSetting } from '../config/workerSettings.js';
 import WebhookWork from "../models/webhookWork.js";
 import { claimWebhookWork } from "../services/webhooks/webhookWork.service.js";
 import { withDeadline } from "../services/boundedRedis.service.js";
@@ -18,7 +19,7 @@ export const processWebhookWork = async (job) => {
     if (job.attempts > 8) throw Object.assign(new Error("Retry budget exhausted after an interrupted attempt"), { code: "RETRY_EXHAUSTED" });
     if (job.kind === "recovery_sms") {
       const { processRecoveryIntroductionJob } = await import("../services/twilioSmsWebhook.service.js");
-      await processRecoveryIntroductionJob(job.payload);
+      await processRecoveryIntroductionJob({ ...job.payload, businessId: job.business });
     } else if (job.kind === "missed_followup") {
       const { scheduleMissedCallFollowUp } = await import("../middleware/missed-call-automation-lifecycle.js");
       await scheduleMissedCallFollowUp({ body: job.payload, businessId: job.business, retryMissingConversation: true });
@@ -42,7 +43,7 @@ export const processWebhookWork = async (job) => {
 
 export const drainWebhookWorkOnce = async () => {
   if (current) return current;
-  const concurrency = Math.max(1, Math.min(25, Number(process.env.WEBHOOK_WORK_CONCURRENCY) || 5));
+  const concurrency = workerSetting('WEBHOOK_WORK_CONCURRENCY');
   current = Promise.all(Array.from({ length: concurrency }, async () => {
     for (let n = 0; n < 5 && !stopping; n++) {
       const job = await claimWebhookWork();
@@ -63,5 +64,5 @@ export const startWebhookWorkWorker = async () => {
 };
 export const stopWebhookWorkWorker = async () => {
   stopping = true; clearTimeout(timer); timer = null;
-  if (current) await withDeadline(current, Number(process.env.WORKER_DRAIN_TIMEOUT_MS) || 120000, "WORKER_DRAIN_TIMEOUT");
+  if (current) await withDeadline(current, workerSetting('WORKER_DRAIN_TIMEOUT_MS'), "WORKER_DRAIN_TIMEOUT");
 };

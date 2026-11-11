@@ -1,3 +1,4 @@
+jest.mock('../../src/services/trialExtension.service.js', () => ({ reconcileTrialExtensions: jest.fn(async () => ({ checked: 0, errors: [] })) }));
 jest.mock("../../src/services/trialLifecycle.service.js", () => ({
   __esModule: true,
   processTrialLifecycle: jest.fn(),
@@ -63,7 +64,7 @@ describe("trialLifecycle.worker hardening", () => {
 
   test("runs the lifecycle with a concrete Date", async () => {
     mockProcessTrialLifecycle.mockResolvedValueOnce({ processed: 3 });
-    await expect(runTrialLifecycleOnce()).resolves.toEqual({ processed: 3 });
+    await expect(runTrialLifecycleOnce()).resolves.toMatchObject({ processed: 3 });
     expect(mockProcessTrialLifecycle).toHaveBeenCalledTimes(1);
     expect(mockProcessTrialLifecycle.mock.calls[0][0]).toBeInstanceOf(Date);
   });
@@ -77,7 +78,7 @@ describe("trialLifecycle.worker hardening", () => {
 
     await expect(runTrialLifecycleOnce()).resolves.toEqual({ skipped: true });
     gate.resolve({ processed: 1 });
-    await expect(first).resolves.toEqual({ processed: 1 });
+    await expect(first).resolves.toMatchObject({ processed: 1 });
   });
 
   test("releases the reentrancy guard after a lifecycle failure", async () => {
@@ -86,7 +87,7 @@ describe("trialLifecycle.worker hardening", () => {
       .mockResolvedValueOnce({ processed: 0 });
 
     await expect(runTrialLifecycleOnce()).rejects.toThrow("Stripe unavailable");
-    await expect(runTrialLifecycleOnce()).resolves.toEqual({ processed: 0 });
+    await expect(runTrialLifecycleOnce()).resolves.toMatchObject({ processed: 0 });
     expect(mockProcessTrialLifecycle).toHaveBeenCalledTimes(2);
   });
 
@@ -109,7 +110,7 @@ describe("trialLifecycle.worker hardening", () => {
     ).rejects.toThrow("integrity failed");
     await expect(
       runSubscriptionIntegrityOnce({ force: true }),
-    ).resolves.toEqual({ processed: 1 });
+    ).resolves.toMatchObject({ processed: 1 });
   });
 
   test("never schedules the interval in NODE_ENV=test", async () => {

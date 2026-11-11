@@ -1,5 +1,6 @@
+import { createTwilioClient } from '../integrations/providerClients.js';
 import { safeConsole } from "../helpers/logging/safeLogger.js";
-import twilio from "twilio";
+
 
 import Business from "../models/business.js";
 import Subscription from "../models/subscription.js";
@@ -43,7 +44,7 @@ const getClient = () => {
       503,
     );
   }
-  return twilio(accountSid, authToken);
+  return createTwilioClient(accountSid, authToken);
 };
 
 const getWebhookBaseUrl = () => {

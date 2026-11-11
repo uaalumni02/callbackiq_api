@@ -107,6 +107,18 @@ for (const [relativeFile, minimums] of Object.entries(policy.criticalFiles || {}
   check(relativeFile, record, minimums);
 }
 
+// A moved controller cannot satisfy a critical gate through its facade alone.
+for (const [name, domain] of Object.entries(policy.criticalDomains || {})) {
+  const records = summaryEntries.filter(([file]) => domain.prefixes.some(prefix => normalizePath(file).includes('/' + prefix) || normalizePath(file).startsWith(prefix)));
+  if (!records.length) { violations.push(name + ': critical domain is absent from coverage'); continue; }
+  const aggregate = Object.fromEntries(metrics.map(metric => {
+    const total = records.reduce((sum, [, record]) => sum + Number(record[metric]?.total || 0), 0);
+    const covered = records.reduce((sum, [, record]) => sum + Number(record[metric]?.covered || 0), 0);
+    return [metric, { pct: total ? covered * 100 / total : 100 }];
+  }));
+  check('domain:' + name, aggregate, domain.minimums);
+}
+
 const targetMinimums = policy.policy?.targetMinimums || {};
 const targetGaps = metrics
   .map((metric) => ({

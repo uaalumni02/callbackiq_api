@@ -34,7 +34,7 @@ describe("10/10 repository contract guards", () => {
   });
 
   test("interventions are priority-sorted before limit", () => {
-    const source = file("src/controllers/intervention.js");
+    const source = file("src/controllers/intervention/Reads.js");
     const aggregate = source.indexOf("Alert.aggregate");
     const sort = source.indexOf("$sort", aggregate);
     const limit = source.indexOf("$limit", aggregate);

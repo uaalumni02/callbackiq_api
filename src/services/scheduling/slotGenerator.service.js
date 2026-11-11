@@ -3,14 +3,7 @@ import { effectiveSchedulingPolicy } from "./effectiveSchedulingPolicy.service.j
 import Appointment from "../../models/appointment.js";
 import AvailabilityException from "../../models/availabilityException.js";
 import AvailabilityRule from "../../models/availabilityRule.js";
-import {
-  addMinutes,
-  enumerateDateKeys,
-  getUtcDayOfWeekForDateKey,
-  minutesFromTimeKey,
-  timeKeyFromMinutes,
-  zonedDateTimeToUtc,
-} from "./timezone.service.js";
+import { addMinutes, enumerateDateKeys, getUtcDayOfWeekForDateKey, timeKeyFromMinutes, zonedDateTimeToUtc } from "./timezone.service.js";
 import {
   getBookableService,
   getSchedulingPolicy,

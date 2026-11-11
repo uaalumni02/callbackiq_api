@@ -23,7 +23,7 @@ describe("Google Calendar customer experience completion contract", () => {
 
   test("exposes a working settings endpoint and canonical calendar endpoint", () => {
     const routes = read("src/routes/integration.routes.js");
-    const frontendContract = read("src/controllers/integration.js");
+    const frontendContract = read("src/controllers/integration/GoogleSettings.js");
 
     expect(routes).toContain('"/google/settings"');
     expect(routes).toContain('"/google/calendar"');
