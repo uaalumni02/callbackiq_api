@@ -151,3 +151,15 @@ test('support and subscription owner reads require context, and support updates 
  await expect(Db.updateSupportTicketForBusiness(SupportTicket,ticket._id,business._id,{business:new mongoose.Types.ObjectId()})).rejects.toMatchObject({code:'INVALID_TENANT_UPDATE'});
  expect((await SupportTicket.findById(ticket._id)).business).toEqual(business._id);
 });
+test('privileged audit records retain validated numeric ObjectIds as operational identities',async()=>{
+ const {business}=await fixture();
+ const actorId=new mongoose.Types.ObjectId('000000000000000000000001'),resourceId=new mongoose.Types.ObjectId('000000000000000000000002');
+ await User.create({_id:actorId,userName:'numeric-audit-admin',email:'numeric-admin@example.test',password:'synthetic',businessName:'Synthetic admin',role:'admin'});
+ await Conversation.create({_id:resourceId,business:business._id,customerPhone:'+14045550129'});
+ const output=jest.spyOn(console,'log').mockImplementation(()=>{});
+ try{
+  expect((await adminReadById({model:Conversation,id:resourceId,actorId,reason:'AUDIT_IDENTITY_CONTRACT'}))._id).toEqual(resourceId);
+  const event=output.mock.calls.map(([line])=>JSON.parse(line)).find(record=>record.event==='repository.privileged_access');
+  expect(event.actorId).toBe(String(actorId));expect(event.resourceId).toBe(String(resourceId));
+ }finally{output.mockRestore();}
+});

@@ -222,8 +222,8 @@ class CallLogController {
 
       // CALLBACKIQ_ATTRIBUTION_10OF10_FULL_V2:
       // Hide the operational record without destroying attribution history.
-      const deleted = await CallLog.findOneAndUpdate(
-        { _id: id, business: business._id, deletedAt: null },
+      const deleted = await updateCallLogForBusiness(
+        id,business._id,
         {
           $set: {
             deletedAt: new Date(),
@@ -231,7 +231,6 @@ class CallLogController {
             deletionReason: "Deleted from Call Activity",
           },
         },
-        { returnDocument: "after" },
       );
 
       if (!deleted) {

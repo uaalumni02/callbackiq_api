@@ -77,3 +77,11 @@ test('ancillary lead update failure cannot relabel a durable completed analysis'
  await Controller.analyzeConversation(req,res);
  expect(res.status).toHaveBeenCalledWith(200);expect((await Intelligence.findOne({conversation:conversation._id})).status).toBe('completed');
 });
+
+test('a conversation without a lead can be analyzed without fabricating or changing a lead',async()=>{
+ await Conversation.updateOne({_id:conversation._id},{$set:{lead:null}});
+ await Controller.analyzeConversation(req,res);
+ expect(res.status).toHaveBeenCalledWith(200);expect(Service.analyze).toHaveBeenCalledWith(expect.objectContaining({lead:null}));
+ expect((await Intelligence.findOne({conversation:conversation._id})).toObject()).toMatchObject({status:'completed',lead:null});
+ expect((await Lead.findById(lead._id)).summary).not.toBe('Repair request');
+});

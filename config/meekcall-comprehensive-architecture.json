@@ -489,7 +489,8 @@
       "tests/integration/scaleRelease.persistence.test.js",
       "tests/routes/support.test.js",
       "tests/unit/conversationIntelligence.controller.test.js",
-      "tests/unit/subscriptionReadBudget.test.js"
+      "tests/unit/subscriptionReadBudget.test.js",
+      "tests/integration/tenantOwnerHttp.contract.test.js"
     ]
   }
 }
