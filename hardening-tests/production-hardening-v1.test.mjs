@@ -1,88 +1,33 @@
-// CALLBACKIQ_PRODUCTION_HARDENING_V1
-import assert from "node:assert/strict";
-import fs from "node:fs";
-import test from "node:test";
+import test from 'node:test';
+import { behavioralContract } from './support/behavioralContract.mjs';
 
-const read = (path) => fs.readFileSync(path, "utf8");
+test("canonical MongoDB configuration supports MONGODB_URI", () => behavioralContract(["tests/unit/productionHardening.runtimeEnvironment.test.js"]));
 
-test("canonical MongoDB configuration supports MONGODB_URI", () => {
-  const connection = read("src/db/connection.js");
-  const runtime = read("src/config/runtime-environment.js");
-  assert.match(connection, /getMongoUrl/);
-  assert.match(runtime, /MONGODB_URI/);
-  assert.match(runtime, /MONGO_URL/);
+test("startup validates environment before connecting", () => behavioralContract(["tests/integration/releaseSecurity.behavior.test.js"]));
+
+test("production CORS does not always trust localhost", () => behavioralContract(["tests/integration/cors.idempotencyPreflight.10of10.test.js", "tests/config/env.test.js"]));
+
+test("password reset tokens are hashed before persistence and lookup", () => behavioralContract(["tests/routes/auth.routes.test.js"]));
+
+test("production auth response does not expose bearer token", () => behavioralContract(["tests/integration/releaseSecurity.behavior.test.js"]));
+
+test("conversation admin bypass re-checks current database role", () => behavioralContract(["tests/integration/releaseSecurity.behavior.test.js"]));
+
+test("registration is transaction-backed", () => behavioralContract(["tests/integration/registrationTransactionReplicaSet.contract.test.js"]));
+
+test("growth endpoints use bounded cursor pagination", () => behavioralContract(["tests/integration/scaleQueryPersistence.test.js", "tests/unit/productionHardening.cursorPagination.test.js"]));
+
+test("A2P reconciliation uses a distributed lease", () => behavioralContract(["tests/integration/providerBoundaries.behavior.test.js"]));
+
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+test('production CORS rejects an unconfigured localhost origin', () => {
+  const result = spawnSync(process.execPath,['--input-type=module','-e',
+    "import {isAllowedOrigin} from './src/config/cors.js'; if(isAllowedOrigin('http://localhost:3001')) process.exit(1);"],
+    {env:{...process.env,NODE_ENV:'production',CLIENT_URL:'https://meekcall.com',FRONTEND_URL:'',ALLOWED_ORIGINS:''},encoding:'utf8'});
+  assert.equal(result.status,0,result.stderr);
 });
-
-test("startup validates environment before connecting", () => {
-  const server = read("src/server.js");
-  const validationCall = server.match(
-    /validateEnvironment\(\s*(?:process\.env\s*,\s*)?\{\s*throwOnError:\s*true\s*\}\s*\)/,
-  );
-  const validateAt = validationCall?.index ?? -1;
-  const connectAt = server.indexOf("await connectDB()");
-  assert.ok(validateAt >= 0, "validateEnvironment startup call missing");
-  assert.ok(connectAt >= 0, "connectDB startup call missing");
-  assert.ok(validateAt < connectAt, "environment validation must precede Mongo");
-});
-
-test("production CORS does not always trust localhost", () => {
-  const cors = read("src/config/cors.js");
-  assert.match(cors, /developmentOrigins/);
-  assert.match(cors, /production|staging/);
-});
-
-test("password reset tokens are hashed before persistence and lookup", () => {
-  const auth = read("src/controllers/auth.js");
-  assert.match(auth, /hashPasswordResetToken/);
-  assert.match(auth, /savePasswordResetToken[\s\S]*resetTokenHash/);
-  assert.match(auth, /findUserByPasswordResetToken[\s\S]*resetTokenHash/);
-});
-
-test("production auth response does not expose bearer token", () => {
-  const auth = read("src/controllers/auth.js");
-  assert.match(auth, /shouldExposeAuthToken/);
-  assert.match(auth, /!isProduction/);
-});
-
-test("conversation admin bypass re-checks current database role", () => {
-  const controller = read("src/controllers/conversation.js");
-  const routes = read("src/routes/conversation.routes.js");
-  assert.match(controller, /await isCurrentAdminRequest\(req\)/);
-  assert.match(routes, /await isCurrentAdminRequest\(req\)/);
-});
-
-test("registration is transaction-backed", () => {
-  const auth = read("src/controllers/auth.js");
-  const transactionService = read("src/services/registrationTransaction.service.js");
-
-  // The controller delegates the transaction boundary to a dedicated service.
-  assert.match(auth, /runRegistrationTransaction\(persistRegistration\)/);
-  assert.match(auth, /registrationSession/);
-
-  // Production/staging must fail closed unless the deployment supports
-  // transactions; the service owns session creation and withTransaction.
-  assert.match(transactionService, /registrationTransactionsRequired/);
-  assert.match(transactionService, /mongoose\.startSession\(\)/);
-  assert.match(transactionService, /session\.withTransaction/);
-});
-
-test("growth endpoints use bounded cursor pagination", () => {
-  const service = read("src/services/cursorPagination.service.js");
-  assert.match(service, /MAX_LIMIT = 200/);
-  assert.match(read("src/controllers/conversation.js"), /getConversationsPage/);
-  assert.match(read("src/controllers/message.js"), /getMessagesPage/);
-  assert.match(read("src/controllers/lead.js"), /getLeadsPage/);
-});
-
-test("A2P reconciliation uses a distributed lease", () => {
-  const worker = read("src/workers/a2pReconciliation.worker.js");
-  assert.match(worker, /withDistributedLease/);
-  assert.match(worker, /a2p-reconcile:/);
-});
-
-test("release and index gates are installed", () => {
-  const packageJson = JSON.parse(read("package.json"));
-  assert.ok(packageJson.scripts["migrate:indexes"]);
-  assert.ok(packageJson.scripts["release:gate"]);
-  assert.ok(packageJson.scripts["release:certify"]);
+test('release and index gates execute their validation contracts', () => {
+  const result = spawnSync(process.execPath,['scripts/migrate-required-indexes.mjs','--check-manifest'],{encoding:'utf8'});
+  assert.equal(result.status,0,result.stderr);
 });

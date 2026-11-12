@@ -1,4 +1,6 @@
 module.exports = {
+  // Coverage inherits the same runtime compatibility and provider isolation as ordinary Jest.
+  ...require('./package.json').jest,
   rootDir: ".",
   watchman: false,
   testEnvironment: "node",

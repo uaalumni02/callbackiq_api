@@ -1,6 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { transformFileAsync } from '@babel/core';
+import { auditImports } from './import-graph-audit.mjs';
+auditImports();
 const source = path.resolve('src'); const destination = path.resolve('build');
 await fs.rm(destination, { recursive: true, force: true });
 let count = 0;

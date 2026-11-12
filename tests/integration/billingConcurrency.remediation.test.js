@@ -18,7 +18,7 @@ beforeAll(async () => { await connectTestDB(); await BillingEvent.createIndexes(
 afterEach(async () => { jest.restoreAllMocks(); await clearTestDB(); });
 afterAll(closeTestDB);
 beforeEach(() => {
- process.env.STRIPE_SECRET_KEY = 'sk_test_remediation_synthetic';
+ process.env.STRIPE_SECRET_KEY = 'sk_test_placeholder';
  process.env.STRIPE_WEBHOOK_SECRET = 'whsec_remediation_synthetic'; resetStripeClient();
  sendTrialReminderEmail.mockReset().mockResolvedValue({ messageId: 'synthetic-email-receipt' });
 });

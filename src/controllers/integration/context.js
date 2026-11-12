@@ -156,7 +156,7 @@ const frontendBaseUrl = () =>
   );
 
 const loadGoogleCalendarSyncService = () =>
-  import("../services/integrations/googleCalendarSync.service.js");
+  import("../../services/integrations/googleCalendarSync.service.js");
 
 const shouldStartWatch = (connection) => {
   const settings = getGoogleSettings(connection);

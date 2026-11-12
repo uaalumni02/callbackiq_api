@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
+import { behavioralContract } from "./support/behavioralContract.mjs";
 const root = process.cwd();
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
@@ -89,29 +90,10 @@ test("voice usage reconciliation cannot steal an active worker lease", () => {
   assert.match(source, /state: "releasing"/);
 });
 
-test("voice turns propagate cancellation and fence side effects", () => {
-  const relay = read("src/voice/conversationRelay.server.js");
-  const agent = read("src/voice/voiceAgent.service.js");
-  const understanding = read("src/voice/voiceUnderstanding.service.js");
-  const booking = read("src/services/booking/bookingConfirmationTurn.service.js");
-  assert.match(relay, /AbortController/);
-  assert.match(relay, /runWithVoiceTurnContext/);
-  assert.match(relay, /signal: abortController\.signal/);
-  assert.match(agent, /assertVoiceTurnActive/);
-  assert.match(understanding, /signal/);
-  assert.match(booking, /assertVoiceTurnActive\(\);[\s\S]*createAppointmentTool/);
-});
-
-test("voice settings use server contracts, versioning and rollback", () => {
-  const controller = read("src/controllers/voiceSettings.js");
-  const versions = read("src/services/voiceSettingsVersion.service.js");
-  const contract = read("src/services/voiceSettingsContract.service.js");
-  assert.match(controller, /previousVoiceSettingsSnapshot/);
-  assert.match(controller, /publishVoiceSettingsVersion/);
-  assert.match(versions, /withTransaction/);
-  assert.match(versions, /MAX_PUBLICATION_ATTEMPTS|attempt/);
-  assert.match(contract, /allowedVoiceNames/);
-});
+test("voice turns propagate cancellation and fence side effects", () => behavioralContract(['tests/unit/conversationRelay.server.test.js']));
+test("voice settings use server contracts, versioning and rollback", () => behavioralContract([
+  'tests/unit/voiceSettings.controller.test.js','tests/integration/registrationTransactionReplicaSet.contract.test.js',
+]));
 
 test("tests isolate distributed connection leases from real MongoDB", () => {
   for (const relative of [

@@ -172,7 +172,8 @@
     "maintainability:remediation": "node --test hardening-tests/request-booking-state-authority.test.mjs && node scripts/remediation-metrics.cjs --check",
     "lint": "eslint src scripts --ext .js,.mjs,.cjs",
     "config:inventory": "node scripts/config-inventory.cjs",
-    "maintainability:complexity": "node scripts/complexity-budget.cjs"
+    "maintainability:complexity": "node scripts/complexity-budget.cjs",
+    "audit:imports": "node scripts/import-graph-audit.mjs"
   },
   "keywords": [],
   "author": "",
@@ -182,6 +183,7 @@
     "@babel/plugin-syntax-object-rest-spread": "^7.8.3",
     "@babel/plugin-transform-runtime": "^7.29.7",
     "@babel/register": "^7.29.7",
+    "@babel/runtime": "^7.29.7",
     "@socket.io/redis-adapter": "^8.3.0",
     "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
@@ -191,34 +193,33 @@
     "express-rate-limit": "^8.5.2",
     "joi": "^18.2.9",
     "jsonwebtoken": "^9.0.3",
-    "mongoose": "9.7.2",
+    "mongoose": "^9.12.1",
     "nodemailer": "^10.0.8",
     "openai": "^6.42.0",
     "redis": "^6.2.1",
     "resend": "^6.17.1",
     "socket.io": "^4.8.3",
+    "socket.io-adapter": "^2.5.8",
     "stripe": "^22.2.1",
     "twilio": "^6.0.2",
-    "ws": "^8.18.3",
-    "socket.io-adapter": "^2.5.8",
-    "@babel/runtime": "^7.29.7"
+    "ws": "^8.18.3"
   },
   "devDependencies": {
+    "@babel/core": "^7.29.7",
+    "@babel/parser": "^7.29.7",
     "@babel/preset-env": "^7.29.7",
+    "@babel/traverse": "^7.29.7",
+    "@eslint/js": "^9.39.1",
     "ajv": "8.20.0",
     "babel-jest": "^29.7.0",
+    "bcryptjs": "^3.0.3",
+    "eslint": "^9.39.1",
+    "globals": "^16.5.0",
     "jest": "^29.7.0",
     "mongodb-memory-server": "^10.4.3",
     "playwright": "^1.62.1",
     "socket.io-client": "^4.8.3",
-    "supertest": "^7.2.2",
-    "eslint": "^9.39.1",
-    "@eslint/js": "^9.39.1",
-    "globals": "^16.5.0",
-    "@babel/core": "^7.29.7",
-    "@babel/parser": "^7.29.7",
-    "@babel/traverse": "^7.29.7",
-    "bcryptjs": "^3.0.3"
+    "supertest": "^7.2.2"
   },
   "jest": {
     "testEnvironment": "node",
@@ -262,7 +263,10 @@
       "<rootDir>/tests/setup/externalProviderSafety.js"
     ],
     "maxWorkers": 1,
-    "workerIdleMemoryLimit": "768MB"
+    "workerIdleMemoryLimit": "768MB",
+    "transformIgnorePatterns": [
+      "/node_modules/(?!mongodb/lib/runtime_adapters\\.js$)"
+    ]
   },
   "engines": {
     "node": ">=24.19.0"
