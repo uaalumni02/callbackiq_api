@@ -1,3 +1,5 @@
+import {conditionalWrite} from './database/conditionalWrite.js';
+import {observeSubscriptionState} from './subscriptionState.service.js';
 import { createHash } from 'node:crypto';
 import Subscription from '../models/subscription.js';
 import TrialExtensionGrant from '../models/trialExtensionGrant.js';
@@ -41,6 +43,13 @@ async function reserveExtension({ businessId, adminUserId, days, reason, operati
   return { subscription, intent };
 }
 
+// The grant ledger is immutable evidence. Marking its matching pending intent
+// is a monotonic receipt fact; it must not overwrite current entitlement fields.
+const recordExtensionReceipt = (subscription,businessId,key) => conditionalWrite({model:Subscription,
+  identity:{_id:subscription._id,business:businessId},
+  observed:{'trialExtensionIntent.key':key,'trialExtensionIntent.status':'pending'},
+  update:{$set:{'trialExtensionIntent.status':'applied'}}});
+
 export async function extendTrial({ businessId, adminUserId, days = 7, reason = '', operationKey = '' }) {
   const safeDays = Math.max(1, Math.min(14, Number(days) || 7));
   const cleanReason = String(reason).trim().slice(0, 500);
@@ -48,7 +57,7 @@ export async function extendTrial({ businessId, adminUserId, days = 7, reason = 
   const execution = await withDistributedLease(`trial-extension:${businessId}`, async () => {
     const { subscription, intent, applied } = await reserveExtension({ businessId, adminUserId,
       days: safeDays, reason: cleanReason, operationKey });
-    if (applied) return subscription;
+    if (applied) return (await recordExtensionReceipt(subscription,businessId,intent.key)).current;
     const remote = await getStripeClient().subscriptions.update(intent.stripeSubscriptionId, {
       trial_end: Math.floor(new Date(intent.newTrialEndsAt).getTime() / 1000), proration_behavior: 'none',
     }, { idempotencyKey: `trial-extension:${intent.key}` });
@@ -56,20 +65,19 @@ export async function extendTrial({ businessId, adminUserId, days = 7, reason = 
     if (remote.status !== 'trialing' || remote.trial_end !== Math.floor(new Date(intent.newTrialEndsAt).getTime() / 1000)) {
       throw failure('TRIAL_EXTENSION_UNVERIFIED', 'Stripe has not verified the requested trial extension.');
     }
-    const updated = await Subscription.findOneAndUpdate({ _id: subscription._id, status: 'trialing',
-      'trialExtensionIntent.key': intent.key,
-    }, { $max: { trialEndsAt: new Date(remote.trial_end * 1000) },
-      $set: { currentPeriodEnd: stripePeriodDates(remote).currentPeriodEnd || new Date(intent.newTrialEndsAt) },
-    }, { returnDocument: 'after', runValidators: true });
-    if (!updated) throw failure('TRIAL_EXTENSION_PENDING', 'The subscription changed. Verify the Stripe outcome before another extension.');
+    const completion=await conditionalWrite({model:Subscription,identity:{_id:subscription._id,business:businessId},
+      observed:{...observeSubscriptionState(subscription),'trialExtensionIntent.key':intent.key},
+      update:{$max:{trialEndsAt:new Date(remote.trial_end*1000)},$set:{currentPeriodEnd:
+        stripePeriodDates(remote).currentPeriodEnd || new Date(intent.newTrialEndsAt)},$inc:{__v:1}}});
+    if (!completion.applied) throw Object.assign(failure('TRIAL_EXTENSION_PENDING',
+      'The subscription changed. Verify the Stripe outcome before another extension.'),{current:completion.current});
+    const updated=completion.current;
     await TrialExtensionGrant.findOneAndUpdate({ operationKey: intent.key }, { $setOnInsert: {
       business: intent.business, subscription: intent.subscription, grantedBy: intent.grantedBy,
       days: intent.days, reason: intent.reason, previousTrialEndsAt: intent.previousTrialEndsAt,
       newTrialEndsAt: intent.newTrialEndsAt, stripeSubscriptionId: intent.stripeSubscriptionId,
     } }, { upsert: true, returnDocument: 'after', runValidators: true });
-    await Subscription.updateOne({ _id: updated._id, 'trialExtensionIntent.key': intent.key },
-      { $set: { 'trialExtensionIntent.status': 'applied' } });
-    return updated;
+    return (await recordExtensionReceipt(updated,businessId,intent.key)).current;
   });
   if (!execution.acquired) throw failure('TRIAL_EXTENSION_PENDING', 'A trial extension is already being processed.');
   return execution.value;

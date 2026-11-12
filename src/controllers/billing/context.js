@@ -1,3 +1,4 @@
+import { expireTrialIfNeeded } from '../../services/trialExpiry.service.js';
 import { canonicalInvoiceProjection, stripePeriodDates } from '../../helpers/billing/stripeSubscriptionSnapshot.js';
 
 import { getDefaultPaymentMethod, getDefaultNextCharge, getPaymentMethodSummary, getNextChargeDetails, mapStripeInvoice } from "../../helpers/billing/stripeBillingDetails.js";
@@ -66,39 +67,6 @@ const getClientUrl = () => {
 
 const isAccessStatus = (status) => {
   return ["trialing", "active"].includes(status);
-};
-
-const expireTrialIfNeeded = async (subscription) => {
-  if (!subscription) return subscription;
-
-  const trialEndsAt = subscription.trialEndsAt
-    ? new Date(subscription.trialEndsAt)
-    : null;
-
-  const expired =
-    subscription.status === "trialing" &&
-    trialEndsAt &&
-    trialEndsAt <= new Date();
-
-  if (!expired) {
-    return subscription;
-  }
-
-  return Subscription.findByIdAndUpdate(
-    subscription._id,
-    {
-      $set: {
-        status: "expired",
-        lastPaymentStatus: "trial_expired",
-        isActive: false,
-        aiEnabled: false,
-      },
-    },
-    {
-      returnDocument: "after",
-      runValidators: true,
-    },
-  );
 };
 
 const getRequestBusiness = async (req, ownerId) => {

@@ -1,3 +1,4 @@
+import { reconcileTrackingNumberReleases } from '../services/trackingNumberProvisioning.service.js';
 import { reconcileTrialExtensions } from '../services/trialExtension.service.js';
 import { workerSetting } from '../config/workerSettings.js';
 import { safeConsole } from "../helpers/logging/safeLogger.js";
@@ -15,6 +16,7 @@ export const runTrialLifecycleOnce = async () => {
   running = true;
   try {
     const extensions = await reconcileTrialExtensions();
+    await reconcileTrackingNumberReleases();
     const lifecycle = await processTrialLifecycle(new Date());
     if (extensions.errors.length) safeConsole.error("trial.extension.reconciliation_incomplete", extensions);
     return lifecycle;

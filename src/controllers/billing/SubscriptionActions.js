@@ -1,4 +1,5 @@
-import { Db, Response, Subscription, createTrialPaymentMethodCheckout, getRequestBusiness, getRequestSubscription, getStripeClient, resumeCanonicalSubscription, safeConsole, stripePeriodDates } from './context.js';
+import {completeObservedSubscription} from '../../services/subscriptionState.service.js';
+import { Response, createTrialPaymentMethodCheckout, getRequestBusiness, getRequestSubscription, getStripeClient, resumeCanonicalSubscription, safeConsole, stripePeriodDates } from './context.js';
 
 export default class BillingSubscriptionActionsController {
 static async createTrialPaymentMethodSession(req, res) {
@@ -79,17 +80,14 @@ static async cancelSubscription(req, res) {
         },
       );
 
-      const updatedSubscription = await Db.upsertSubscriptionByBusiness(
-        Subscription,
-        business._id,
-        {
-          cancelAtPeriodEnd: true,
-          status: canceledSubscription.status || subscription.status,
-          lastPaymentStatus:
-            canceledSubscription.status || subscription.lastPaymentStatus,
-          ...stripePeriodDates(canceledSubscription, subscription),
-        },
-      );
+      const completion=await completeObservedSubscription({businessId:business._id,observed:subscription,fields:{
+        cancelAtPeriodEnd:true,status:canceledSubscription.status || subscription.status,
+        lastPaymentStatus:canceledSubscription.status || subscription.lastPaymentStatus,
+        ...stripePeriodDates(canceledSubscription,subscription),
+      }});
+      if (!completion.applied) return res.status(409).json({success:false,code:'SUBSCRIPTION_STATE_CHANGED',
+        message:'Subscription changed while cancellation was being scheduled. Reload Billing.'});
+      const updatedSubscription=completion.current;
 
       return Response.responseOk(
         res,

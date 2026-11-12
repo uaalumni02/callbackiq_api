@@ -6,7 +6,7 @@ import Subscription from "../../src/models/subscription.js";
 import User from "../../src/models/user.js";
 import TrialRedemption from "../../src/models/trialRedemption.js";
 import { getStripeClient } from "../../src/helpers/stripe/stripeClient.js";
-import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testDb.js";
+import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testReplicaDb.js";
 
 jest.mock("../../src/helpers/stripe/stripeClient.js", () => ({
   getStripeClient: jest.fn(),

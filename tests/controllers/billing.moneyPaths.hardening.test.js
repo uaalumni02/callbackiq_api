@@ -577,27 +577,7 @@ describe("BillingController money paths", () => {
       expectResponse(res, 200, { success: true });
     });
 
-    test("schedules cancellation only on the canonical local Stripe id and persists returned period state", async () => {
-      const stripe = makeStripe();
-      mockGetStripeClient.mockReturnValue(stripe);
-      mockUpsertSubscriptionByBusiness.mockResolvedValue({
-        ...LOCAL,
-        cancelAtPeriodEnd: true,
-      });
-      const res = makeRes();
-
-      await BillingController.cancelSubscription(makeReq(), res);
-
-      expect(stripe.subscriptions.update).toHaveBeenCalledWith("sub_123", {
-        cancel_at_period_end: true,
-      });
-      expect(mockUpsertSubscriptionByBusiness).toHaveBeenCalledWith(
-        expect.anything(),
-        "biz_123",
-        expect.objectContaining({ cancelAtPeriodEnd: true, status: "active" }),
-      );
-      expectResponse(res, 200, { success: true });
-    });
+    // Behavioral persistence contract: tests/integration/subscriptionCompletion.rootCause.test.js.
   });
 
   describe("Stripe webhook verification/idempotency", () => {
@@ -748,40 +728,7 @@ describe("BillingController money paths", () => {
       expect(stripe.subscriptions.retrieve).not.toHaveBeenCalled();
     });
 
-    test.each([
-      ["handleInvoicePaid", "paid"],
-      ["handleInvoicePaymentFailed", "failed"],
-    ].flatMap(row => ["legacy", "modern", "expanded"].map(shape => [...row, shape])))("%s retrieves, syncs and stamps the canonical invoice outcome (%s, %s)", async (method, outcome, shape) => {
-      const stripe = makeStripe();
-      const remote = { id: "sub_123", status: outcome === "paid" ? "active" : "past_due" };
-      stripe.subscriptions.retrieve.mockResolvedValue(remote);
-      mockGetStripeClient.mockReturnValue(stripe);
-      mockSyncStripeSubscription.mockResolvedValue(LOCAL);
-      mockSubscriptionFindByIdAndUpdate.mockResolvedValue({
-        ...LOCAL,
-        latestInvoiceId: "in_123",
-        lastPaymentStatus: outcome,
-      });
-
-      const result = await BillingController[method](
-        { id: "in_123", ...(shape === "legacy" ? { subscription: "sub_123" } : { parent: { subscription_details: { subscription: shape === "expanded" ? { id: "sub_123" } : "sub_123" } } }) },
-        "evt_123",
-      );
-
-      expect(stripe.subscriptions.retrieve).toHaveBeenCalledWith("sub_123", {
-        expand: ["latest_invoice"],
-      });
-      expect(mockSyncStripeSubscription).toHaveBeenCalledWith({
-        stripeSubscription: remote,
-        refreshFromStripe: false,
-      });
-      expect(mockSubscriptionFindByIdAndUpdate).toHaveBeenCalledWith(
-        "local_123",
-        { $set: { latestInvoiceId: "in_123", lastPaymentStatus: outcome } },
-        { returnDocument: "after", runValidators: true },
-      );
-      expect(result.lastPaymentStatus).toBe(outcome);
-    });
+    // Behavioral persistence contract: tests/integration/subscriptionCompletion.rootCause.test.js.
   });
 });
 

@@ -8,7 +8,7 @@ import TrialRedemption from "../../src/models/trialRedemption.js";
 import TrialExtensionGrant from "../../src/models/trialExtensionGrant.js";
 import User from "../../src/models/user.js";
 import { getStripeClient } from "../../src/helpers/stripe/stripeClient.js";
-import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testDb.js";
+import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testReplicaDb.js";
 
 jest.mock("../../src/helpers/stripe/stripeClient.js", () => ({
   __esModule: true,

@@ -1,3 +1,4 @@
+import TrackingNumberSchema from './schemas/trackingNumber.js';
 import { BUSINESS_TYPES } from "../helpers/businessTypes.js";
 import { installAccessRevocation } from "../helpers/model/accessRevocation.js";
 import { normalizePhoneToE164 as normalizeVoicePhone } from "../voice/voicePhone.service.js";
@@ -356,25 +357,6 @@ const VoiceSettingsSchema = new Schema(
     agentConfirmationRequired: { type: Boolean, default: true },
     answeringMachineDetectionEnabled: { type: Boolean, default: true },
     recordingEnabled: { type: Boolean, default: false },
-  },
-  { _id: false },
-);
-
-const TrackingNumberSchema = new Schema(
-  {
-    provider: { type: String, enum: ["twilio"], default: "twilio" },
-    status: {
-      type: String,
-      enum: ["unassigned", "assigned", "verified", "active"],
-      default: "unassigned",
-      index: true,
-    },
-    providerSid: { type: String, trim: true, default: "", select: false },
-    assignedAt: { type: Date, default: null },
-    verifiedAt: { type: Date, default: null },
-    activatedAt: { type: Date, default: null },
-    lastError: { type: String, trim: true, maxlength: 1000, default: "" },
-    updatedAt: { type: Date, default: null },
   },
   { _id: false },
 );

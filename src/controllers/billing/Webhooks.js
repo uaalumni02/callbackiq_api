@@ -1,4 +1,4 @@
-import { Subscription, canonicalInvoiceProjection, completeTrialPaymentMethodCheckout, getStripeClient, guardInvoiceAgainstCanonicalSubscription, invoiceSubscriptionId, processStripeEventOnce, safeConsole, sendTrialLifecycleMessage, syncCheckoutSession, syncStripeSubscription } from './context.js';
+import { completeTrialPaymentMethodCheckout, getStripeClient, guardInvoiceAgainstCanonicalSubscription, invoiceSubscriptionId, processStripeEventOnce, safeConsole, sendTrialLifecycleMessage, syncCheckoutSession, syncStripeSubscription } from './context.js';
 
 export default class BillingWebhooksController {
 static async handleStripeWebhook(req, res, dispatcher = BillingWebhooksController) {
@@ -113,21 +113,13 @@ static async handleInvoicePaid(invoice, eventId = "") {
       subscriptionId,
       { expand: ["latest_invoice"] },
     );
-    const subscription = await syncStripeSubscription({
+    const subscription=await syncStripeSubscription({
       stripeSubscription,
-      refreshFromStripe: false,
+      observedSubscription:invoiceGuard.subscription,
+      invoiceEvent:{invoice,status:'paid'},
+      refreshFromStripe:false,
     });
-    if (!subscription) return null;
-
-    return Subscription.findByIdAndUpdate(
-      subscription._id,
-      {
-        $set: {
-          ...canonicalInvoiceProjection(stripeSubscription, invoice, 'paid'),
-        },
-      },
-      { returnDocument: "after", runValidators: true },
-    );
+    return subscription || null;
   }
 
 static async handleInvoicePaymentFailed(invoice, eventId = "") {
@@ -146,20 +138,12 @@ static async handleInvoicePaymentFailed(invoice, eventId = "") {
       subscriptionId,
       { expand: ["latest_invoice"] },
     );
-    const subscription = await syncStripeSubscription({
+    const subscription=await syncStripeSubscription({
       stripeSubscription,
-      refreshFromStripe: false,
+      observedSubscription:invoiceGuard.subscription,
+      invoiceEvent:{invoice,status:'failed'},
+      refreshFromStripe:false,
     });
-    if (!subscription) return null;
-
-    return Subscription.findByIdAndUpdate(
-      subscription._id,
-      {
-        $set: {
-          ...canonicalInvoiceProjection(stripeSubscription, invoice, 'failed'),
-        },
-      },
-      { returnDocument: "after", runValidators: true },
-    );
+    return subscription || null;
   }
 }

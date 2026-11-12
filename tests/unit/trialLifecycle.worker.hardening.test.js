@@ -1,3 +1,4 @@
+jest.mock('../../src/services/trackingNumberProvisioning.service.js', () => ({ reconcileTrackingNumberReleases: jest.fn(async () => ({ examined: 0 })) }));
 jest.mock('../../src/services/trialExtension.service.js', () => ({ reconcileTrialExtensions: jest.fn(async () => ({ checked: 0, errors: [] })) }));
 jest.mock("../../src/services/trialLifecycle.service.js", () => ({
   __esModule: true,

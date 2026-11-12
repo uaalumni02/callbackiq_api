@@ -1,6 +1,11 @@
+import {planSubscriptionProjection} from '../helpers/billing/subscriptionProjection.js';
+import {applyObservedTrial,completeObservedSubscription,subscriptionObservationMatches} from './subscriptionState.service.js';
+import { projectCurrentEntitlement } from './subscriptionEntitlement.service.js';
+import { expireObservedTrial, observeTrialState } from './trialExpiry.service.js';
+import { conditionalWrite } from './database/conditionalWrite.js';
 import { extendTrial as extendTrialByAdmin } from './trialExtension.service.js';
 import { sendTrialNotice, reconcileTrialNotices } from './trialLifecycleDelivery.service.js';
-import { stripePeriodDates } from '../helpers/billing/stripeSubscriptionSnapshot.js';
+import { canonicalInvoiceProjection, stripePeriodDates } from '../helpers/billing/stripeSubscriptionSnapshot.js';
 import { safeConsole } from "../helpers/logging/safeLogger.js";
 import mongoose from "mongoose";
 
@@ -18,7 +23,7 @@ import {
 import { getStripeSubscriptionPriceSnapshot } from "../helpers/billing/stripeSubscriptionPrice.js";
 import {
   provisionTrackingNumber,
-  releaseTrackingNumber,
+  releaseTrackingNumberWithReceipt,
 } from "./trackingNumberProvisioning.service.js";
 import { getSubscriptionAccess, ACCESS_LEVELS } from "./subscriptionAccess.service.js";
 import {
@@ -85,36 +90,8 @@ const trialRedemptionQuery = ({ ownerId, emailKey, phoneKey }) => {
   return or.length ? { $or: or } : { _id: null };
 };
 
-const setBusinessAccessState = async (businessId, subscriptionOrStatus) => {
-  const status =
-    typeof subscriptionOrStatus === "string"
-      ? subscriptionOrStatus
-      : String(subscriptionOrStatus?.status || "none");
-  const subscriptionActivated =
-    typeof subscriptionOrStatus === "string"
-      ? status === "active"
-      : getSubscriptionAccess(subscriptionOrStatus).level === ACCESS_LEVELS.FULL;
-  const trialCostControlsEnabled =
-    subscriptionActivated && status === "trialing";
-
-  // Business.isActive is an account/suspension flag enforced by
-  // check-active-business. Never toggle it for billing state; a prospect must
-  // be able to log back in and reach Billing before trial activation, and an
-  // expired customer should remain able to recover access.
-  await Business.findByIdAndUpdate(
-    businessId,
-    {
-      $set: {
-        "trialCostControls.enabled": trialCostControlsEnabled,
-        "setupProgress.subscriptionActivated": subscriptionActivated,
-        "setupProgress.updatedAt": new Date(),
-      },
-    },
-    { runValidators: true },
-  );
-
-  return subscriptionActivated;
-};
+// Always reload the authority inside the shared transactional projection boundary.
+const setBusinessAccessState = businessId => projectCurrentEntitlement(businessId);
 
 const safeProvisionNumber = async (businessId) => {
   try {
@@ -132,6 +109,7 @@ const safeProvisionNumber = async (businessId) => {
 };
 
 const buildTrialSubscriptionUpdate = ({
+  invoiceProjection = {},
   existingSubscription,
   stripeSubscription,
   checkoutSessionId,
@@ -167,6 +145,7 @@ const buildTrialSubscriptionUpdate = ({
     isActive: true,
     aiEnabled: true,
     trialNumberReleaseAt: null,
+    ...invoiceProjection,
   };
 };
 
@@ -196,10 +175,16 @@ const consumeTrialWithoutTransaction = async ({
   identity,
   trialStartedAt,
   trialEndsAt,
+  observedSubscription,
+  invoiceProjection = {},
 }) => {
   let existingSubscription = await Subscription.findOne({
     business: business._id,
   });
+
+  if (!subscriptionObservationMatches(observedSubscription,existingSubscription)) {
+    throw Object.assign(lifecycleError('TRIAL_STATE_CHANGED','Subscription changed before trial redemption.',409),{current:existingSubscription});
+  }
 
   let existingRedemption = await TrialRedemption.findOne(
     trialRedemptionQuery(identity),
@@ -262,26 +247,15 @@ const consumeTrialWithoutTransaction = async ({
   }
 
   try {
-    return await Subscription.findOneAndUpdate(
-      { business: business._id },
-      {
-        $setOnInsert: { business: business._id },
-        $set: buildTrialSubscriptionUpdate({
+    return await applyObservedTrial({businessId:business._id,observed:existingSubscription,fields:buildTrialSubscriptionUpdate({
+          invoiceProjection,
           existingSubscription,
           stripeSubscription,
           checkoutSessionId,
           plan,
           trialStartedAt,
           trialEndsAt,
-        }),
-      },
-      {
-        upsert: true,
-        returnDocument: "after",
-        runValidators: true,
-        setDefaultsOnInsert: true,
-      },
-    );
+        })});
   } catch (error) {
     // On standalone MongoDB (notably mongodb-memory-server in tests), compensate
     // a newly-created lock if the subscription write itself failed. Production
@@ -302,6 +276,8 @@ const consumeTrialTransaction = async ({
   stripeSubscription,
   checkoutSessionId = "",
   plan = "pro",
+  observedSubscription,
+  invoiceProjection = {},
 }) => {
   const identity = buildTrialIdentity(business, ownerId);
   if (!identity.emailKey) {
@@ -331,6 +307,9 @@ const consumeTrialTransaction = async ({
           business: business._id,
         }).session(dbSession);
 
+        if (!subscriptionObservationMatches(observedSubscription,existingSubscription)) {
+          throw Object.assign(lifecycleError('TRIAL_STATE_CHANGED','Subscription changed before trial redemption.',409),{current:existingSubscription});
+        }
         const existingRedemption = await TrialRedemption.findOne(
           trialRedemptionQuery(identity),
         ).session(dbSession);
@@ -368,33 +347,23 @@ const consumeTrialTransaction = async ({
           );
         }
 
-        updatedSubscription = await Subscription.findOneAndUpdate(
-          { business: business._id },
-          {
-            $setOnInsert: { business: business._id },
-            $set: buildTrialSubscriptionUpdate({
+        updatedSubscription = await applyObservedTrial({businessId:business._id,observed:existingSubscription,fields:buildTrialSubscriptionUpdate({
+          invoiceProjection,
               existingSubscription,
               stripeSubscription,
               checkoutSessionId,
               plan,
               trialStartedAt,
               trialEndsAt,
-            }),
-          },
-          {
-            upsert: true,
-            returnDocument: "after",
-            runValidators: true,
-            setDefaultsOnInsert: true,
-            session: dbSession,
-          },
-        );
+            }),session:dbSession});
       });
 
       return updatedSubscription;
     } catch (error) {
       if (!isTransactionUnsupported(error)) throw error;
-
+      if (['production','staging'].includes(String(process.env.NODE_ENV).toLowerCase())) {
+        throw lifecycleError('TRIAL_TRANSACTION_REQUIRED','Trial activation requires transaction-capable MongoDB.',503);
+      }
       return await consumeTrialWithoutTransaction({
         business,
         ownerId,
@@ -404,6 +373,8 @@ const consumeTrialTransaction = async ({
         identity,
         trialStartedAt,
         trialEndsAt,
+        observedSubscription,
+        invoiceProjection,
       });
     }
   } finally {
@@ -416,6 +387,7 @@ const denyDuplicateStripeTrial = async ({
   stripeSubscriptionId,
   reason,
 }) => {
+  const observed=await Subscription.findOne({business:businessId});
   const stripe = getStripeClient();
 
   if (stripeSubscriptionId) {
@@ -430,18 +402,13 @@ const denyDuplicateStripeTrial = async ({
     }
   }
 
-  const subscription = await Subscription.findOneAndUpdate(
-    { business: businessId },
-    {
-      $set: {
+  if (!observed || (observed.stripeSubscriptionId && observed.stripeSubscriptionId !== stripeSubscriptionId)) return observed;
+  const subscription = (await completeObservedSubscription({businessId:businessId,observed:observed,fields:{
         status: "canceled",
         isActive: false,
         aiEnabled: false,
         lastPaymentStatus: reason || "trial_identity_rejected",
-      },
-    },
-    { returnDocument: "after" },
-  );
+      }})).current;
   await setBusinessAccessState(businessId, subscription || "canceled");
   return subscription;
 };
@@ -651,11 +618,7 @@ export const createSubscriptionCheckout = async ({
     },
   );
 
-  const subscription = await Subscription.findOneAndUpdate(
-    { business: business._id },
-    {
-      $setOnInsert: { business: business._id },
-      $set: {
+  const completion = await completeObservedSubscription({businessId:business._id,observed:existing,fields:{
         stripeCustomerId,
         stripePriceId: priceId,
         checkoutSessionId: checkout.id,
@@ -667,15 +630,10 @@ export const createSubscriptionCheckout = async ({
         isActive: false,
         aiEnabled: false,
         priceMonthly: TRIAL_PRICE_MONTHLY,
-      },
-    },
-    {
-      upsert: true,
-      returnDocument: "after",
-      runValidators: true,
-      setDefaultsOnInsert: true,
-    },
-  );
+      }});
+  if (!completion.applied) throw Object.assign(lifecycleError('CHECKOUT_STATE_CHANGED',
+    'Subscription changed while checkout was being created. Reload Billing before continuing.',409),{current:completion.current});
+  const subscription=completion.current;
 
   return {
     checkoutUrl: checkout.url,
@@ -692,7 +650,12 @@ export const syncStripeSubscription = async ({
   fallbackOwnerId = "",
   fallbackPlan = "pro",
   refreshFromStripe = true,
+  observedSubscription,
+  invoiceEvent,
 }) => {
+  const observedBusinessId=stripeSubscription?.metadata?.businessId || fallbackBusinessId;
+  const observed=observedSubscription===undefined && observedBusinessId
+    ? await Subscription.findOne({business:observedBusinessId}) : observedSubscription;
   const stripe = getStripeClient();
 
   if (
@@ -706,6 +669,7 @@ export const syncStripeSubscription = async ({
     );
   }
 
+  const invoiceProjection=invoiceEvent ? canonicalInvoiceProjection(stripeSubscription,invoiceEvent.invoice,invoiceEvent.status) : {};
   const businessId =
     stripeSubscription?.metadata?.businessId || fallbackBusinessId;
   if (!businessId) return null;
@@ -727,6 +691,7 @@ export const syncStripeSubscription = async ({
   if (!canonicalGuard.allowed) {
     return canonicalGuard.current || null;
   }
+  if (!subscriptionObservationMatches(observed,canonicalGuard.current)) return canonicalGuard.current;
   const ownerId =
     stripeSubscription?.metadata?.ownerId ||
     fallbackOwnerId ||
@@ -755,6 +720,8 @@ export const syncStripeSubscription = async ({
         stripeSubscription,
         checkoutSessionId,
         plan,
+        observedSubscription:observed,
+        invoiceProjection,
       });
 
       await setBusinessAccessState(businessId, subscription);
@@ -764,6 +731,7 @@ export const syncStripeSubscription = async ({
       });
       return subscription;
     } catch (error) {
+      if (error?.code === 'TRIAL_STATE_CHANGED') return error.current || await Subscription.findOne({business:businessId});
       const capacityRejected = [
         "TRIAL_DAILY_CAPACITY_REACHED",
         "TRIAL_CONCURRENT_CAPACITY_REACHED",
@@ -788,55 +756,13 @@ export const syncStripeSubscription = async ({
     }
   }
 
-  const isActive = status === "active";
-  const terminalTrialStatus = ["paused", "canceled", "unpaid", "incomplete_expired"].includes(
-    status,
-  );
-  const current = await Subscription.findOne({ business: businessId });
-  const priceSnapshot = getStripeSubscriptionPriceSnapshot(
-    stripeSubscription,
-    {
-      fallbackPriceMonthly: current?.priceMonthly ?? TRIAL_PRICE_MONTHLY,
-      fallbackStripePriceId: current?.stripePriceId || "",
-    },
-  );
-
-  const update = {
-    stripeCustomerId: stripeSubscription?.customer || current?.stripeCustomerId || "",
-    stripeSubscriptionId: stripeSubscription?.id || current?.stripeSubscriptionId || "",
-    stripePriceId: priceSnapshot.stripePriceId,
-    checkoutSessionId: checkoutSessionId || current?.checkoutSessionId || "",
-    latestInvoiceId: latestInvoiceId(stripeSubscription),
-    plan,
-    status,
-    lastPaymentStatus: status,
-    ...getPeriodDates(stripeSubscription),
-    trialStartedAt: toDateFromUnix(stripeSubscription?.trial_start) || current?.trialStartedAt || null,
-    trialEndsAt: toDateFromUnix(stripeSubscription?.trial_end) || current?.trialEndsAt || null,
-    cancelAtPeriodEnd: Boolean(stripeSubscription?.cancel_at_period_end),
-    isActive,
-    aiEnabled: isActive,
-    priceMonthly: priceSnapshot.priceMonthly ?? TRIAL_PRICE_MONTHLY,
-  };
-
-  if (isActive) {
-    update.trialNumberReleaseAt = null;
-  } else if (terminalTrialStatus && current?.trialUsedAt) {
-    update.trialNumberReleaseAt =
-      current.trialNumberReleaseAt ||
-      new Date(Date.now() + releaseGraceMsForStatus(status));
-  }
-
-  const subscription = await Subscription.findOneAndUpdate(
-    { business: businessId },
-    { $setOnInsert: { business: businessId }, $set: update },
-    {
-      upsert: true,
-      returnDocument: "after",
-      runValidators: true,
-      setDefaultsOnInsert: true,
-    },
-  );
+  const {fields:update,active:isActive,terminal:terminalTrialStatus}=planSubscriptionProjection({
+    remote:stripeSubscription,current:canonicalGuard.current,checkoutSessionId,plan,now:new Date(),
+    releaseGraceMs:releaseGraceMsForStatus(status),invoiceProjection,
+  });
+  const completion=await completeObservedSubscription({businessId,observed,fields:update});
+  const subscription=completion.current;
+  if (!completion.applied) return subscription;
 
   await setBusinessAccessState(businessId, subscription);
 
@@ -856,6 +782,8 @@ export const syncCheckoutSession = async (checkoutSession) => {
   const subscriptionId = checkoutSession?.subscription;
   if (!subscriptionId || !stripe?.subscriptions?.retrieve) return null;
 
+  const observedSubscription=checkoutSession.metadata?.businessId
+    ? await Subscription.findOne({business:checkoutSession.metadata.businessId}) : undefined;
   const stripeSubscription = await stripe.subscriptions.retrieve(
     subscriptionId,
     { expand: ["latest_invoice"] },
@@ -867,6 +795,7 @@ export const syncCheckoutSession = async (checkoutSession) => {
     fallbackBusinessId: checkoutSession.metadata?.businessId || "",
     fallbackOwnerId: checkoutSession.metadata?.ownerId || "",
     fallbackPlan: checkoutSession.metadata?.plan || "pro",
+    observedSubscription,
     refreshFromStripe: false,
   });
 };
@@ -892,9 +821,8 @@ export const processTrialLifecycle = async (now = new Date()) => {
       if (!business?.phone || business?.trackingNumber?.status !== "active") {
         await safeProvisionNumber(subscription.business);
       }
-      await Subscription.updateOne({ _id: subscription._id }, {
-        $set: { provisioningCheckAt: new Date(now.getTime() + DAY_MS) },
-      });
+      await conditionalWrite({model:Subscription,identity:{_id:subscription._id,business:subscription.business},
+        observed:observeTrialState(subscription),update:{$set:{provisioningCheckAt:new Date(now.getTime()+DAY_MS)}}});
     }
 
     const trialEnd = subscription.trialEndsAt
@@ -924,7 +852,7 @@ export const processTrialLifecycle = async (now = new Date()) => {
             : null;
 
           if (remote) {
-            await syncStripeSubscription({ stripeSubscription: remote });
+            await syncStripeSubscription({ stripeSubscription: remote, observedSubscription: subscription });
           } else {
             throw new Error("Stripe subscription unavailable");
           }
@@ -934,21 +862,16 @@ export const processTrialLifecycle = async (now = new Date()) => {
           const releaseAt =
             subscription.trialNumberReleaseAt ||
             new Date(now.getTime() + releaseGraceMsForStatus("paused"));
-          await Subscription.updateOne(
-            { _id: subscription._id, status: 'trialing', trialEndsAt: subscription.trialEndsAt },
-            {
-              $set: {
-                status: "expired",
-                isActive: false,
-                aiEnabled: false,
-                lastPaymentStatus: "trial_expired_reconcile_pending",
-                trialNumberReleaseAt: releaseAt,
-              },
-            },
-          );
-          const refreshed = await Subscription.findById(subscription._id);
-          await setBusinessAccessState(subscription.business, refreshed || "expired");
-          await sendTrialLifecycleMessage(refreshed, "expired").catch(error => safeConsole.error("Trial lifecycle notice failed:", error));
+          const expiry = await expireObservedTrial(subscription, {
+            now, releaseAt, lastPaymentStatus: 'trial_expired_reconcile_pending',
+          });
+          // A stale expiry must not send an expiry notice or project expired access.
+          if (expiry.applied) {
+            await setBusinessAccessState(subscription.business, expiry.current);
+            await sendTrialLifecycleMessage(expiry.current, 'expired').catch(
+              error => safeConsole.error('Trial lifecycle notice failed:', error),
+            );
+          }
         }
       }
     }
@@ -973,14 +896,14 @@ export const processTrialLifecycle = async (now = new Date()) => {
           await syncStripeSubscription({
             stripeSubscription: remote,
             refreshFromStripe: false,
+            observedSubscription: refreshed,
           });
           refreshed = await Subscription.findById(refreshed._id);
         } catch (error) {
           safeConsole.error("Trial number release reconciliation failed:", error);
-          await Subscription.updateOne(
-            { _id: refreshed._id },
-            { $set: { trialNumberReleaseAt: new Date(now.getTime() + DAY_MS) } },
-          );
+          await conditionalWrite({ model: Subscription,
+            identity: { _id: refreshed._id, business: refreshed.business }, observed: observeTrialState(refreshed),
+            update: { $set: { trialNumberReleaseAt: new Date(now.getTime() + DAY_MS) } } });
           continue;
         }
       }
@@ -989,23 +912,23 @@ export const processTrialLifecycle = async (now = new Date()) => {
         continue;
       }
 
-      const released = await releaseTrackingNumber(refreshed.business).catch(
+      const released = await releaseTrackingNumberWithReceipt(refreshed.business, {
+        authorization: { kind: 'trial_expiry', subscription: { subscriptionId: refreshed._id, ...observeTrialState(refreshed) } },
+      }).catch(
         (error) => {
           safeConsole.error("Trial number release failed:", error);
           return null;
         },
       );
 
-      if (released) {
-        await Subscription.updateOne(
-          { _id: refreshed._id },
-          { $set: { trialNumberReleaseAt: null } },
-        );
-        const afterRelease = await Subscription.findById(refreshed._id);
-        await sendTrialLifecycleMessage(
-          afterRelease,
-          "number_released",
-        ).catch(error => safeConsole.error("Trial lifecycle notice failed:", error));
+      if (released && ['released', 'already_released'].includes(released.outcome)) {
+        const completion = await conditionalWrite({ model: Subscription,
+          identity: { _id: refreshed._id, business: refreshed.business }, observed: observeTrialState(refreshed),
+          update: { $set: { trialNumberReleaseAt: null } } });
+        if (completion.applied && released.intentId) {
+          await sendTrialLifecycleMessage(completion.current, 'number_released')
+            .catch(error => safeConsole.error('Trial lifecycle notice failed:', error));
+        }
       }
     }
   }

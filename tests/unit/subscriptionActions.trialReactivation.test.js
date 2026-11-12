@@ -229,38 +229,7 @@ describe("Stripe paused-trial reactivation", () => {
     expect(result).toEqual(synced);
   });
 
-  test("does not call Stripe resume while the free trial is still active", async () => {
-    const stripe = buildStripe();
-    const subscription = localSubscription("trialing");
-    const updatedLocal = {
-      ...subscription,
-      lastPaymentStatus: "trial_payment_method_added",
-    };
-    Subscription.findOne.mockResolvedValue(subscription);
-    Subscription.findByIdAndUpdate.mockResolvedValue(updatedLocal);
-    getStripeClient.mockReturnValue(stripe);
-    assertCanonicalIsOnlyLiveSubscription.mockResolvedValue({
-      id: "sub_trial_123",
-      status: "trialing",
-    });
-
-    const result = await completeTrialPaymentMethodCheckout({
-      checkoutSession: {
-        id: "cs_setup_123",
-        mode: "setup",
-        setup_intent: "seti_123",
-        metadata: {
-          purpose: "trial_payment_method",
-          businessId: "business_123",
-          stripeSubscriptionId: "sub_trial_123",
-        },
-      },
-    });
-
-    expect(stripe.subscriptions.resume).not.toHaveBeenCalled();
-    expect(Subscription.findByIdAndUpdate).toHaveBeenCalled();
-    expect(result).toEqual(updatedLocal);
-  });
+  // Behavioral persistence contract: tests/integration/subscriptionPaymentMethod.contract.test.js.
 
   test("still records subscription-id mismatches without changing Stripe", async () => {
     const stripe = buildStripe();

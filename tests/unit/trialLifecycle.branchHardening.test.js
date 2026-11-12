@@ -271,50 +271,9 @@ describe("trial lifecycle branch hardening", () => {
     });
   });
 
-  test("reuses an existing Stripe customer instead of creating a duplicate", async () => {
-    const stripe = makeStripe();
-    getStripeClient.mockReturnValue(stripe);
-    findExistingStripeCustomerForBusiness.mockResolvedValue({ id: "cus_existing" });
+  // Behavioral persistence contract: tests/integration/checkoutCompletion.rootCause.test.js.
 
-    const result = await createSubscriptionCheckout(
-      checkoutInput({ requireTrial: false }),
-    );
-
-    expect(stripe.customers.create).not.toHaveBeenCalled();
-    expect(stripe.checkout.sessions.create).toHaveBeenCalledWith(
-      expect.objectContaining({ customer: "cus_existing", mode: "subscription" }),
-      expect.any(Object),
-    );
-    expect(result).toMatchObject({ checkoutSessionId: "cs_test", trialOffered: false });
-  });
-
-  test("creates a no-card trial checkout with stable idempotency keys", async () => {
-    const stripe = makeStripe();
-    getStripeClient.mockReturnValue(stripe);
-
-    await createSubscriptionCheckout(checkoutInput());
-
-    expect(stripe.customers.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: "Atlanta Pro Plumbing & Drain",
-        email: "owner@example.com",
-      }),
-      expect.objectContaining({ idempotencyKey: "callbackiq:customer:biz-1" }),
-    );
-    expect(stripe.checkout.sessions.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        mode: "subscription",
-        payment_method_collection: "if_required",
-        subscription_data: expect.objectContaining({
-          trial_period_days: 14,
-          trial_settings: {
-            end_behavior: { missing_payment_method: "pause" },
-          },
-        }),
-      }),
-      expect.objectContaining({ idempotencyKey: expect.stringContaining("callbackiq:checkout:biz-1") }),
-    );
-  });
+  // Behavioral persistence contract: tests/integration/checkoutCompletion.rootCause.test.js.
 
   test.each([
     [null, "welcome"],
@@ -388,104 +347,13 @@ describe("trial lifecycle branch hardening", () => {
     );
   });
 
-  test("requires an auditable reason for admin trial extensions", async () => {
-    await expect(
-      extendTrialByAdmin({
-        businessId: "biz-1",
-        days: 2,
-        reason: "   ",
-        adminUserId: "admin-1",
-      }),
-    ).rejects.toMatchObject({ code: "TRIAL_EXTENSION_REASON_REQUIRED" });
-  });
+  // Contract moved to real MongoDB: tests/integration/trialExtension.contract.test.js.
 
-  test("rejects extension attempts without a live Stripe trial", async () => {
-    Subscription.findOne.mockResolvedValue({
-      _id: "sub-1",
-      business: "biz-1",
-      status: "active",
-    });
+  // Contract moved to real MongoDB: tests/integration/trialExtension.contract.test.js.
 
-    await expect(
-      extendTrialByAdmin({
-        businessId: "biz-1",
-        days: 2,
-        reason: "Support adjustment",
-        adminUserId: "admin-1",
-      }),
-    ).rejects.toMatchObject({ code: "ACTIVE_TRIAL_REQUIRED" });
-  });
+  // Contract moved to real MongoDB: tests/integration/trialExtension.contract.test.js.
 
-  test("enforces the lifetime admin extension allowance", async () => {
-    process.env.TRIAL_MAX_ADMIN_EXTENSION_DAYS = "14";
-    Subscription.findOne.mockResolvedValue({
-      _id: "sub-1",
-      business: "biz-1",
-      status: "trialing",
-      trialUsedAt: new Date(),
-      stripeSubscriptionId: "sub_remote",
-      trialEndsAt: new Date(Date.now() + 86400000),
-    });
-    TrialExtensionGrant.find.mockReturnValue(selectedLean([{ days: 10 }, { days: 3 }]));
-
-    await expect(
-      extendTrialByAdmin({
-        businessId: "biz-1",
-        days: 2,
-        reason: "Customer support recovery",
-        adminUserId: "admin-1",
-      }),
-    ).rejects.toMatchObject({ code: "TRIAL_EXTENSION_LIMIT_REACHED" });
-  });
-
-  test("clamps an admin extension to 14 days and records the audit grant", async () => {
-    process.env.TRIAL_MAX_ADMIN_EXTENSION_DAYS = "14";
-    const existing = {
-      _id: "sub-1",
-      business: "biz-1",
-      status: "trialing",
-      trialUsedAt: new Date(),
-      stripeSubscriptionId: "sub_remote",
-      trialEndsAt: new Date(Date.now() + 86400000),
-    };
-    Subscription.findOne.mockResolvedValue(existing);
-    TrialExtensionGrant.find.mockReturnValue(selectedLean([]));
-    const updated = {
-      ...existing,
-      trialEndsAt: new Date(Date.now() + 14 * 86400000),
-    };
-    Subscription.findOneAndUpdate.mockResolvedValue(updated);
-    TrialExtensionGrant.findOneAndUpdate.mockResolvedValue({ _id: "grant-1" });
-    const stripe = makeStripe();
-    stripe.subscriptions.update.mockImplementation(async (_id, input) => ({ id: "sub_remote", status: "trialing", trial_end: input.trial_end }));
-    getStripeClient.mockReturnValue(stripe);
-
-    await expect(
-      extendTrialByAdmin({
-        businessId: "biz-1",
-        days: 99,
-        reason: "  Service recovery  ",
-        adminUserId: "admin-1",
-      }),
-    ).resolves.toBe(updated);
-
-    expect(stripe.subscriptions.update).toHaveBeenCalledWith(
-      "sub_remote",
-      expect.objectContaining({ trial_end: expect.any(Number), proration_behavior: "none" }),
-      expect.objectContaining({ idempotencyKey: expect.any(String) }),
-    );
-    expect(TrialExtensionGrant.findOneAndUpdate).toHaveBeenCalledWith(
-      { operationKey: expect.any(String) },
-      { $setOnInsert: expect.objectContaining({
-        business: "biz-1",
-        subscription: "sub-1",
-        grantedBy: "admin-1",
-        days: 14,
-        reason: "Service recovery",
-      }) },
-      expect.objectContaining({ upsert: true }),
-    );
-  });
+  // Contract moved to real MongoDB: tests/integration/trialExtension.contract.test.js.
 
   test("syncCheckoutSession exits safely when Stripe has not attached a subscription", async () => {
     await expect(

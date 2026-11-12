@@ -394,54 +394,9 @@ describe("subscriptionActions.service billing action matrix", () => {
       );
     });
 
-    test("retrieves a string setup_intent and sets both subscription and customer defaults", async () => {
-      mockSubscriptionFindOne.mockResolvedValue(localSubscription());
-      const stripe = makeStripe();
-      stripe.setupIntents.retrieve.mockResolvedValue({ payment_method: "pm_string" });
-      mockGetStripeClient.mockReturnValue(stripe);
-      mockAssertCanonical.mockResolvedValue({ id: "sub_123", status: "trialing" });
-      mockSubscriptionFindByIdAndUpdate.mockResolvedValue({
-        ...localSubscription(),
-        lastPaymentStatus: "trial_payment_method_added",
-      });
+    // Behavioral persistence contract: tests/integration/subscriptionPaymentMethod.contract.test.js.
 
-      const result = await completeTrialPaymentMethodCheckout({
-        checkoutSession: setupSession({ setup_intent: "seti_123" }),
-      });
-
-      expect(stripe.setupIntents.retrieve).toHaveBeenCalledWith("seti_123", {
-        expand: ["payment_method"],
-      });
-      expect(stripe.subscriptions.update).toHaveBeenCalledWith(
-        "sub_123",
-        { default_payment_method: "pm_string" },
-        { idempotencyKey: "callbackiq:trial-default-payment-method:cs_setup_123" },
-      );
-      expect(stripe.customers.update).toHaveBeenCalledWith(
-        "cus_123",
-        { invoice_settings: { default_payment_method: "pm_string" } },
-        { idempotencyKey: "callbackiq:customer-default-payment-method:cs_setup_123" },
-      );
-      expect(mockSubscriptionFindByIdAndUpdate).toHaveBeenCalledWith(
-        "local_sub_123",
-        { $set: { lastPaymentStatus: "trial_payment_method_added" } },
-        { returnDocument: "after", runValidators: true },
-      );
-      expect(result.lastPaymentStatus).toBe("trial_payment_method_added");
-    });
-
-    test("does not require a Stripe customer update API to complete a trial", async () => {
-      mockSubscriptionFindOne.mockResolvedValue(localSubscription());
-      const stripe = makeStripe({ customers: {} });
-      mockGetStripeClient.mockReturnValue(stripe);
-      mockAssertCanonical.mockResolvedValue({ id: "sub_123", status: "trialing" });
-      mockSubscriptionFindByIdAndUpdate.mockResolvedValue(localSubscription());
-
-      await expect(
-        completeTrialPaymentMethodCheckout({ checkoutSession: setupSession() }),
-      ).resolves.toBeTruthy();
-      expect(stripe.subscriptions.update).toHaveBeenCalledTimes(1);
-    });
+    // Behavioral persistence contract: tests/integration/subscriptionPaymentMethod.contract.test.js.
 
     test("requires the Stripe resume API for paused-trial reactivation", async () => {
       mockSubscriptionFindOne.mockResolvedValue(localSubscription());
@@ -482,6 +437,7 @@ describe("subscriptionActions.service billing action matrix", () => {
       );
       expect(mockSyncStripeSubscription).toHaveBeenCalledWith({
         stripeSubscription: resumed,
+        observedSubscription:expect.objectContaining({business:BUSINESS._id,stripeSubscriptionId:"sub_123"}),
         refreshFromStripe: false,
       });
       expect(result).toEqual({ synced: resumed });
@@ -530,6 +486,7 @@ describe("subscriptionActions.service billing action matrix", () => {
       expect(stripe.subscriptions.update).not.toHaveBeenCalled();
       expect(mockSyncStripeSubscription).toHaveBeenCalledWith({
         stripeSubscription: remote,
+        observedSubscription:expect.objectContaining({business:BUSINESS._id,stripeSubscriptionId:"sub_123"}),
         refreshFromStripe: false,
       });
       expect(result).toEqual({ synced: remote });
@@ -558,6 +515,7 @@ describe("subscriptionActions.service billing action matrix", () => {
       );
       expect(mockSyncStripeSubscription).toHaveBeenCalledWith({
         stripeSubscription: updated,
+        observedSubscription:expect.objectContaining({business:BUSINESS._id,stripeSubscriptionId:"sub_123"}),
         refreshFromStripe: false,
       });
       expect(result).toEqual({ synced: updated });

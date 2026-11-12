@@ -135,22 +135,8 @@ describe("A2P security hardening regression", () => {
     ).toBe("");
   });
 
-  test("tracking-number provisioning is lease-protected and compensates orphan purchases", () => {
-    const source = fs.readFileSync(
-      path.join(
-        process.cwd(),
-        "src/services/trackingNumberProvisioning.service.js",
-      ),
-      "utf8",
-    );
-
-    expect(source).toContain("acquireOperationLease");
-    expect(source).toContain("TRACKING_NUMBER_PROVISIONING_IN_PROGRESS");
-    expect(source).toContain("purchasedProviderSid");
-    expect(source).toContain("incomingPhoneNumbers(purchasedProviderSid).remove()");
-    expect(source).toContain('a2pStatus: "pending"');
-    expect(source).toContain("TRACKING_NUMBER_PROVISIONING_WAIT_MS");
-  });
+  // Lease, compensation and managed A2P guarantees now use real persistence in
+  // tests/integration/trackingNumberCoordination.rootCause.test.js.
 
   test("OTP retries use atomic cooldown/window reservations", () => {
     const source = fs.readFileSync(

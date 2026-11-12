@@ -4,7 +4,7 @@ import app from "../../src/app.js";
 import Subscription from "../../src/models/subscription.js";
 import { getStripeClient } from "../../src/helpers/stripe/stripeClient.js";
 import { syncCheckoutSession } from "../../src/services/trialLifecycle.service.js";
-import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testDb.js";
+import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testReplicaDb.js";
 
 jest.mock("../../src/helpers/stripe/stripeClient.js", () => ({
   getStripeClient: jest.fn(),

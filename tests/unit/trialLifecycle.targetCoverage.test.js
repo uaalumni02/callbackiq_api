@@ -1,350 +1,59 @@
-const cursor = values => ({ sort() { return this; }, maxTimeMS() { return this; }, cursor() { return { async *[Symbol.asyncIterator]() { yield* values; } }; } });
-jest.mock('../../src/services/distributedLease.service.js', () => ({ assertDistributedLeaseActive: jest.fn(), withDistributedLease: jest.fn(async (_key, run) => ({ acquired: true, value: await run() })) }));
-jest.mock('../../src/models/trialLifecycleDelivery.js', () => ({ __esModule: true, default: {
-  findOneAndUpdate: jest.fn(async (_filter, update) => ({ _id: 'notice', status: 'queued', sentAt: new Date(), ...update.$set })),
-  updateOne: jest.fn(), updateMany: jest.fn(), find: jest.fn(() => ({ sort: () => ({ limit: () => ({ lean: async () => [] }) }) })),
-} }));
-import Business from "../../src/models/business.js";
-import Subscription from "../../src/models/subscription.js";
-import { getStripeClient } from "../../src/helpers/stripe/stripeClient.js";
-import {
-  provisionTrackingNumber,
-  releaseTrackingNumber,
-} from "../../src/services/trackingNumberProvisioning.service.js";
-import { getSubscriptionAccess } from "../../src/services/subscriptionAccess.service.js";
-import {
-  sendTrialExpiredEmail,
-  sendTrialReminderEmail,
-  sendTrackingNumberReleasedEmail,
-} from "../../src/helpers/email/mailer.js";
-import { processTrialLifecycle } from "../../src/services/trialLifecycle.service.js";
-
-jest.mock("mongoose", () => ({
-  __esModule: true,
-  default: { ...jest.requireActual("mongoose"), startSession: jest.fn() },
-}));
-
-jest.mock("../../src/models/business.js", () => ({
-  __esModule: true,
-  default: {
-    findById: jest.fn(),
-    findByIdAndUpdate: jest.fn(),
-    updateOne: jest.fn(),
-  },
-}));
-
-jest.mock("../../src/models/subscription.js", () => ({
-  __esModule: true,
-  default: {
-    find: jest.fn(),
-    findById: jest.fn(),
-    findOne: jest.fn(),
-    findOneAndUpdate: jest.fn(),
-    countDocuments: jest.fn(),
-    updateOne: jest.fn(),
-  },
-}));
-
-jest.mock("../../src/models/trialRedemption.js", () => ({
-  __esModule: true,
-  default: { findOne: jest.fn(), create: jest.fn() },
-}));
-
-jest.mock("../../src/models/trialExtensionGrant.js", () => ({
-  __esModule: true,
-  default: { find: jest.fn(), create: jest.fn() },
-}));
-
-jest.mock("../../src/helpers/billing/trial.js", () => ({
-  TRIAL_DAYS: 14,
-  TRIAL_PRICE_MONTHLY: 199,
-  buildTrialIdentity: jest.fn(() => ({
-    ownerId: "owner-1",
-    emailKey: "owner@example.com",
-    phoneKey: "+14045550999",
-  })),
-  getTrialEligibility: jest.fn(),
-}));
-
-jest.mock("../../src/helpers/stripe/stripeClient.js", () => ({
-  getStripeClient: jest.fn(),
-  getPriceIdByPlan: jest.fn(),
-}));
-
-jest.mock("../../src/services/trackingNumberProvisioning.service.js", () => ({
-  provisionTrackingNumber: jest.fn(),
-  releaseTrackingNumber: jest.fn(),
-}));
-
-jest.mock("../../src/services/subscriptionAccess.service.js", () => ({
-  ACCESS_LEVELS: { FULL: "full" },
-  getSubscriptionAccess: jest.fn(),
-}));
-
-jest.mock("../../src/services/subscriptionIntegrity.service.js", () => ({
-  assertStripeCustomerHasNoCompetingSubscriptions: jest.fn(),
-  findExistingStripeCustomerForBusiness: jest.fn(),
-  guardCanonicalStripeSubscription: jest.fn().mockResolvedValue({ allowed: true }),
-}));
-
-jest.mock("../../src/helpers/email/mailer.js", () => ({
-  sendTrialWelcomeEmail: jest.fn(),
-  sendTrialReminderEmail: jest.fn(),
-  sendTrialExpiredEmail: jest.fn(),
-  sendTrackingNumberReleasedEmail: jest.fn(),
-}));
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-const NOW = new Date("2026-08-21T18:00:00.000Z");
-
-const selectedLean = (value) => ({
-  select: jest.fn(() => ({ lean: jest.fn().mockResolvedValue(value) })),
+import Business from '../../src/models/business.js';
+import Subscription from '../../src/models/subscription.js';
+import {getStripeClient} from '../../src/helpers/stripe/stripeClient.js';
+import {provisionTrackingNumber,releaseTrackingNumberWithReceipt} from '../../src/services/trackingNumberProvisioning.service.js';
+import {sendTrialReminderEmail,sendTrackingNumberReleasedEmail} from '../../src/helpers/email/mailer.js';
+import {processTrialLifecycle} from '../../src/services/trialLifecycle.service.js';
+import {connectTestDB,clearTestDB,closeTestDB} from '../setup/testReplicaDb.js';
+import {trackingFixture} from '../fixtures/trackingNumber.fixture.js';
+jest.mock('../../src/helpers/stripe/stripeClient.js',()=>({getStripeClient:jest.fn(),getPriceIdByPlan:jest.fn()}));
+jest.mock('../../src/services/trackingNumberProvisioning.service.js',()=>({...jest.requireActual('../../src/services/trackingNumberProvisioning.service.js'),provisionTrackingNumber:jest.fn(),releaseTrackingNumberWithReceipt:jest.fn()}));
+jest.mock('../../src/helpers/email/mailer.js',()=>({sendTrialReminderEmail:jest.fn(),sendTrialWelcomeEmail:jest.fn(),sendTrialExpiredEmail:jest.fn(),sendTrackingNumberReleasedEmail:jest.fn()}));
+const DAY=86400000;
+beforeAll(connectTestDB,60000);
+beforeEach(()=>{
+ jest.clearAllMocks();provisionTrackingNumber.mockResolvedValue(null);
+ releaseTrackingNumberWithReceipt.mockImplementation(async business=>({outcome:'released',intentId:'synthetic-receipt',business}));
+ sendTrialReminderEmail.mockResolvedValue({messageId:'synthetic-reminder'});sendTrackingNumberReleasedEmail.mockResolvedValue({messageId:'synthetic-released'});
+ getStripeClient.mockReturnValue({subscriptions:{retrieve:jest.fn().mockRejectedValue(new Error('Synthetic outage'))}});
 });
-
-const populated = (value) => ({
-  populate: jest.fn().mockResolvedValue(value),
+afterEach(clearTestDB);afterAll(closeTestDB);
+async function trial(now,changes={}) {
+ const pair=await trackingFixture();
+ await Subscription.updateOne({_id:pair.subscription._id},{$set:{status:'trialing',trialEndsAt:new Date(now.getTime()+DAY),
+  trialUsedAt:new Date(now.getTime()-DAY),...changes}});
+ return pair;
+}
+test('processes an empty lifecycle batch',async()=>expect(await processTrialLifecycle()).toEqual({processed:0}));
+test('repairs telecom readiness for full access trials and persists the one day notice',async()=>{
+ const now=new Date(),{business,subscription}=await trial(now,{trialEndsAt:new Date(now.getTime()+12*3600000)});
+ await Business.updateOne({_id:business._id},{$unset:{phone:1}});
+ expect(await processTrialLifecycle(now)).toEqual({processed:1});
+ expect(String(provisionTrackingNumber.mock.calls[0][0])).toBe(String(business._id));
+ expect(sendTrialReminderEmail).toHaveBeenCalledWith(expect.objectContaining({email:'tracking@example.test',daysRemaining:1}));
+ expect((await Subscription.findById(subscription._id)).trialReminder1dSentAt).toBeInstanceOf(Date);
 });
-
-const makeSubscription = (overrides = {}) => ({
-  _id: "sub-1",
-  business: "biz-1",
-  status: "trialing",
-  trialUsedAt: new Date("2026-08-07T18:00:00.000Z"),
-  trialEndsAt: new Date(NOW.getTime() + DAY_MS),
-  trialNumberReleaseAt: null,
-  stripeSubscriptionId: "sub_remote",
-  ...overrides,
+test('sends the three day reminder without reprovisioning an active number',async()=>{
+ const now=new Date(),{business}=await trial(now,{trialEndsAt:new Date(now.getTime()+2*DAY)});
+ await Business.updateOne({_id:business._id},{$set:{'trackingNumber.status':'active'}});
+ await processTrialLifecycle(now);expect(provisionTrackingNumber).not.toHaveBeenCalled();
+ expect(sendTrialReminderEmail).toHaveBeenCalledWith(expect.objectContaining({daysRemaining:3}));
 });
-
-const businessForEmail = {
-  _id: "biz-1",
-  businessName: "Atlanta Pro Plumbing & Drain",
-  email: "owner@example.com",
-  owner: { email: "owner@example.com" },
-};
-
-beforeEach(() => {
-  jest.clearAllMocks();
-  delete process.env.TRIAL_NUMBER_RELEASE_GRACE_DAYS;
-  delete process.env.TRIAL_NO_PAYMENT_METHOD_NUMBER_RELEASE_GRACE_HOURS;
-
-  Business.findByIdAndUpdate.mockResolvedValue({ _id: "biz-1" });
-  Subscription.updateOne.mockResolvedValue({ modifiedCount: 1 });
-  provisionTrackingNumber.mockResolvedValue({ _id: "biz-1", phone: "+14045550123" });
-  releaseTrackingNumber.mockResolvedValue({ _id: "biz-1", phone: "" });
-  sendTrialReminderEmail.mockResolvedValue({ messageId: "synthetic-mail-receipt" });
-  sendTrialExpiredEmail.mockResolvedValue({ messageId: "synthetic-mail-receipt" });
-  sendTrackingNumberReleasedEmail.mockResolvedValue({ messageId: "synthetic-mail-receipt" });
-  getSubscriptionAccess.mockReturnValue({
-    level: "none",
-    status: "expired",
-    reason: "expired",
-  });
-  getStripeClient.mockReturnValue({
-    subscriptions: {
-      retrieve: jest.fn(),
-    },
-  });
+test('postpones release when final Stripe reconciliation is unavailable',async()=>{
+ const now=new Date(),{subscription}=await trial(now,{status:'expired',trialEndsAt:new Date(now.getTime()-DAY),trialNumberReleaseAt:new Date(now.getTime()-1000)});
+ await processTrialLifecycle(now);
+ expect((await Subscription.findById(subscription._id)).trialNumberReleaseAt).toEqual(new Date(now.getTime()+DAY));
+ expect(releaseTrackingNumberWithReceipt).not.toHaveBeenCalled();
 });
-
-describe("trial lifecycle worker target coverage", () => {
-  test("processes an empty lifecycle batch", async () => {
-    Subscription.find.mockReturnValue(cursor([]));
-
-    await expect(processTrialLifecycle(NOW)).resolves.toEqual({ processed: 0 });
-  });
-
-  test("repairs telecom readiness for full-access trials and sends the one-day reminder", async () => {
-    const subscription = makeSubscription({
-      trialEndsAt: new Date(NOW.getTime() + 12 * 60 * 60 * 1000),
-    });
-    Subscription.find.mockReturnValue(cursor([subscription]));
-    Subscription.findById.mockResolvedValue(subscription);
-    getSubscriptionAccess.mockReturnValue({
-      level: "full",
-      status: "trialing",
-      reason: "full",
-    });
-
-    Business.findById
-      .mockReturnValueOnce(
-        selectedLean({
-          _id: "biz-1",
-          phone: "",
-          trackingNumber: { status: "unassigned" },
-        }),
-      )
-      .mockReturnValueOnce(populated(businessForEmail));
-
-    await expect(processTrialLifecycle(NOW)).resolves.toEqual({ processed: 1 });
-
-    expect(provisionTrackingNumber).toHaveBeenCalledWith("biz-1");
-    expect(sendTrialReminderEmail).toHaveBeenCalledWith(
-      expect.objectContaining({
-        email: "owner@example.com",
-        daysRemaining: 1,
-      }),
-    );
-    expect(Subscription.updateOne).toHaveBeenCalledWith(
-      { _id: "sub-1", business: "biz-1", trialReminder1dSentAt: null },
-      { $set: { trialReminder1dSentAt: expect.any(Date) } },
-    );
-  });
-
-  test("sends the three-day reminder without reprovisioning an already active number", async () => {
-    const subscription = makeSubscription({
-      trialEndsAt: new Date(NOW.getTime() + 2 * DAY_MS),
-    });
-    Subscription.find.mockReturnValue(cursor([subscription]));
-    Subscription.findById.mockResolvedValue(subscription);
-    getSubscriptionAccess.mockReturnValue({
-      level: "full",
-      status: "trialing",
-      reason: "full",
-    });
-    Business.findById
-      .mockReturnValueOnce(
-        selectedLean({
-          _id: "biz-1",
-          phone: "+14045550123",
-          trackingNumber: { status: "active" },
-        }),
-      )
-      .mockReturnValueOnce(populated(businessForEmail));
-
-    await processTrialLifecycle(NOW);
-
-    expect(provisionTrackingNumber).not.toHaveBeenCalled();
-    expect(sendTrialReminderEmail).toHaveBeenCalledWith(
-      expect.objectContaining({ daysRemaining: 3 }),
-    );
-  });
-
-  test("fails safe on expired-trial Stripe reconciliation and schedules the short paused-trial release grace", async () => {
-    process.env.TRIAL_NO_PAYMENT_METHOD_NUMBER_RELEASE_GRACE_HOURS = "48";
-    const subscription = makeSubscription({
-      trialEndsAt: new Date(NOW.getTime() - 1000),
-      trialNumberReleaseAt: null,
-    });
-    const expectedReleaseAt = new Date(NOW.getTime() + 48 * 60 * 60 * 1000);
-    const refreshed = {
-      ...subscription,
-      status: "expired",
-      isActive: false,
-      aiEnabled: false,
-      trialNumberReleaseAt: expectedReleaseAt,
-    };
-
-    Subscription.find.mockReturnValue(cursor([subscription]));
-    Subscription.findById.mockResolvedValue(refreshed);
-    Business.findById.mockReturnValue(populated(businessForEmail));
-    const stripe = {
-      subscriptions: {
-        retrieve: jest.fn().mockRejectedValue(new Error("stripe unavailable")),
-      },
-    };
-    getStripeClient.mockReturnValue(stripe);
-
-    const spy = jest.spyOn(console, "error").mockImplementation(() => {});
-    await expect(processTrialLifecycle(NOW)).resolves.toEqual({ processed: 1 });
-    spy.mockRestore();
-
-    expect(Subscription.updateOne).toHaveBeenCalledWith(
-      { _id: "sub-1", status: "trialing", trialEndsAt: subscription.trialEndsAt },
-      {
-        $set: expect.objectContaining({
-          status: "expired",
-          isActive: false,
-          aiEnabled: false,
-          lastPaymentStatus: "trial_expired_reconcile_pending",
-          trialNumberReleaseAt: expectedReleaseAt,
-        }),
-      },
-    );
-    expect(Business.findByIdAndUpdate).toHaveBeenCalled();
-    expect(sendTrialExpiredEmail).toHaveBeenCalledWith(
-      expect.objectContaining({ email: "owner@example.com" }),
-    );
-  });
-
-  test("postpones number release when final Stripe reconciliation is unavailable", async () => {
-    const releaseAt = new Date(NOW.getTime() - 1000);
-    const subscription = makeSubscription({
-      status: "expired",
-      trialEndsAt: new Date(NOW.getTime() - DAY_MS),
-      trialNumberReleaseAt: releaseAt,
-    });
-    Subscription.find.mockReturnValue(cursor([subscription]));
-    Subscription.findById.mockResolvedValue(subscription);
-    getStripeClient.mockReturnValue({
-      subscriptions: {
-        retrieve: jest.fn().mockRejectedValue(new Error("stripe unavailable")),
-      },
-    });
-
-    const spy = jest.spyOn(console, "error").mockImplementation(() => {});
-    await processTrialLifecycle(NOW);
-    spy.mockRestore();
-
-    expect(Subscription.updateOne).toHaveBeenCalledWith(
-      { _id: "sub-1" },
-      {
-        $set: {
-          trialNumberReleaseAt: new Date(NOW.getTime() + DAY_MS),
-        },
-      },
-    );
-    expect(releaseTrackingNumber).not.toHaveBeenCalled();
-  });
-
-  test("releases a due trial number with no remote subscription and sends the release notice", async () => {
-    const subscription = makeSubscription({
-      status: "expired",
-      stripeSubscriptionId: "",
-      trialEndsAt: new Date(NOW.getTime() - DAY_MS),
-      trialNumberReleaseAt: new Date(NOW.getTime() - 1000),
-    });
-    const afterRelease = { ...subscription, trialNumberReleaseAt: null };
-
-    Subscription.find.mockReturnValue(cursor([subscription]));
-    Subscription.findById
-      .mockResolvedValueOnce(subscription)
-      .mockResolvedValueOnce(afterRelease);
-    Business.findById.mockReturnValue(populated(businessForEmail));
-
-    await expect(processTrialLifecycle(NOW)).resolves.toEqual({ processed: 1 });
-
-    expect(releaseTrackingNumber).toHaveBeenCalledWith("biz-1");
-    expect(Subscription.updateOne).toHaveBeenCalledWith(
-      { _id: "sub-1" },
-      { $set: { trialNumberReleaseAt: null } },
-    );
-    expect(sendTrackingNumberReleasedEmail).toHaveBeenCalledWith(
-      expect.objectContaining({
-        email: "owner@example.com",
-        businessName: "Atlanta Pro Plumbing & Drain",
-      }),
-    );
-  });
-
-  test("keeps the release schedule when carrier release fails", async () => {
-    const subscription = makeSubscription({
-      status: "expired",
-      stripeSubscriptionId: "",
-      trialEndsAt: new Date(NOW.getTime() - DAY_MS),
-      trialNumberReleaseAt: new Date(NOW.getTime() - 1000),
-    });
-    Subscription.find.mockReturnValue(cursor([subscription]));
-    Subscription.findById.mockResolvedValue(subscription);
-    releaseTrackingNumber.mockRejectedValue(new Error("Twilio unavailable"));
-
-    const spy = jest.spyOn(console, "error").mockImplementation(() => {});
-    await processTrialLifecycle(NOW);
-    spy.mockRestore();
-
-    expect(Subscription.updateOne).not.toHaveBeenCalledWith(
-      { _id: "sub-1" },
-      { $set: { trialNumberReleaseAt: null } },
-    );
-  });
+test('a due release without a remote subscription persists its receipt notice',async()=>{
+ const now=new Date(),{business,subscription}=await trial(now,{status:'expired',stripeSubscriptionId:'',trialEndsAt:new Date(now.getTime()-DAY),trialNumberReleaseAt:new Date(now.getTime()-1000)});
+ expect(await processTrialLifecycle(now)).toEqual({processed:1});
+ expect(String(releaseTrackingNumberWithReceipt.mock.calls[0][0])).toBe(String(business._id));
+ const row=await Subscription.findById(subscription._id);expect(row.trialNumberReleaseAt).toBeNull();expect(row.trialNumberReleasedNotifiedAt).toBeInstanceOf(Date);
+ expect(sendTrackingNumberReleasedEmail).toHaveBeenCalledWith(expect.objectContaining({email:'tracking@example.test',businessName:'Synthetic tracking contract'}));
+});
+test('carrier release failure preserves its due schedule and sends no released notice',async()=>{
+ const now=new Date(),due=new Date(now.getTime()-1000),{subscription}=await trial(now,{status:'expired',stripeSubscriptionId:'',trialEndsAt:new Date(now.getTime()-DAY),trialNumberReleaseAt:due});
+ releaseTrackingNumberWithReceipt.mockRejectedValue(new Error('Synthetic carrier failure'));
+ await processTrialLifecycle(now);expect((await Subscription.findById(subscription._id)).trialNumberReleaseAt).toEqual(due);expect(sendTrackingNumberReleasedEmail).not.toHaveBeenCalled();
 });

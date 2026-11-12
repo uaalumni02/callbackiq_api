@@ -116,14 +116,14 @@
   ],
   "CLIENT_URL": [
     "src/config/cors.js:30",
-    "src/controllers/billing/context.js:64",
+    "src/controllers/billing/context.js:65",
     "src/helpers/email/mailer.js:4",
     "src/services/scheduling/approvalSms.service.js:54",
     "src/services/scheduling/approvalSms.service.js:55",
     "src/services/staffSms.service.js:50",
     "src/services/staffSms.service.js:51",
-    "src/services/subscriptionActions.service.js:16",
-    "src/services/trialLifecycle.service.js:631"
+    "src/services/subscriptionActions.service.js:17",
+    "src/services/trialLifecycle.service.js:598"
   ],
   "COMMUNICATION_RESERVATION_LEASE_MS": [
     "src/services/communicationUsageReservation.service.js:16"
@@ -452,6 +452,7 @@
     "src/services/smsContactDisclosure.service.js:23",
     "src/services/trialIdentityVerification.service.js:26",
     "src/services/trialIdentityVerification.service.js:101",
+    "src/services/trialLifecycle.service.js:364",
     "src/services/twilioSmsService.js:43",
     "src/services/twilioSmsService.js:118",
     "src/services/twilioSmsService.js:379",
@@ -467,7 +468,7 @@
     "src/voice/voiceRouting.service.js:141",
     "src/workers/adminReporting.worker.js:85",
     "src/workers/smsProcessing.worker.js:45",
-    "src/workers/trialLifecycle.worker.js:43",
+    "src/workers/trialLifecycle.worker.js:45",
     "src/workers/voiceUsageReconciliation.worker.js:49"
   ],
   "OAUTH_STATE_SECRET": [
@@ -601,7 +602,7 @@
   ],
   "PUBLIC_API_URL": [
     "src/services/marketingSource.service.js:42",
-    "src/services/trackingNumberProvisioning.service.js:54"
+    "src/services/trackingNumberProvisioning.service.js:56"
   ],
   "PUBLIC_APP_URL": [
     "src/services/demoNotification.service.js:17"
@@ -882,10 +883,10 @@
     "src/middleware/auth-public-rate-limits.js:11"
   ],
   "TRACKING_NUMBER_PROVISIONING_LEASE_MS": [
-    "src/services/trackingNumberProvisioning.service.js:286"
+    "src/services/trackingNumberState.service.js:47"
   ],
   "TRACKING_NUMBER_PROVISIONING_WAIT_MS": [
-    "src/services/trackingNumberProvisioning.service.js:291"
+    "src/services/trackingNumberState.service.js:48"
   ],
   "TRIAL_ACTIVATION_ATTEMPTS_PER_HOUR": [
     "src/middleware/trial-activation-rate-limit.js:13"
@@ -909,13 +910,13 @@
     "config/worker-settings.json"
   ],
   "TRIAL_MAX_ADMIN_EXTENSION_DAYS": [
-    "src/services/trialExtension.service.js:28"
+    "src/services/trialExtension.service.js:30"
   ],
   "TRIAL_NO_PAYMENT_METHOD_NUMBER_RELEASE_GRACE_HOURS": [
-    "src/services/trialLifecycle.service.js:38"
+    "src/services/trialLifecycle.service.js:43"
   ],
   "TRIAL_NUMBER_RELEASE_GRACE_DAYS": [
-    "src/services/trialLifecycle.service.js:34"
+    "src/services/trialLifecycle.service.js:39"
   ],
   "TRIAL_RISK_HASH_SALT": [
     "src/services/trialRisk.service.js:18"
@@ -970,7 +971,11 @@
     "src/services/admin/providerBalances.service.js:83",
     "src/services/demoBrowserCall.service.js:54",
     "src/services/ownerBrowserCall.service.js:33",
-    "src/services/trackingNumberProvisioning.service.js:38",
+    "src/services/trackingNumberProvisioning.service.js:40",
+    "src/services/trackingNumberProvisioning.service.js:432",
+    "src/services/trackingNumberProvisioning.service.js:434",
+    "src/services/trackingNumberProvisioning.service.js:567",
+    "src/services/trackingNumberProvisioning.service.js:570",
     "src/services/trialIdentityVerification.service.js:33",
     "src/services/twilioSmsService.js:53",
     "src/services/twilioUsageTrigger.service.js:5",
@@ -1004,7 +1009,7 @@
     "src/middleware/validate-twilio-signature.js:36",
     "src/services/admin/companyExpenses.service.js:142",
     "src/services/admin/providerBalances.service.js:85",
-    "src/services/trackingNumberProvisioning.service.js:39",
+    "src/services/trackingNumberProvisioning.service.js:41",
     "src/services/trialIdentityVerification.service.js:34",
     "src/services/twilioSignatureRotation.service.js:5",
     "src/services/twilioSignatureRotation.service.js:25",
@@ -1040,10 +1045,10 @@
     "src/services/admin/providerBalances.service.js:81"
   ],
   "TWILIO_GLOBAL_PROVISIONING_LEASE_MS": [
-    "src/services/trackingNumberProvisioning.service.js:325"
+    "src/services/trackingNumberProvisioning.service.js:307"
   ],
   "TWILIO_GLOBAL_PROVISIONING_WAIT_MS": [
-    "src/services/trackingNumberProvisioning.service.js:332"
+    "src/services/trackingNumberProvisioning.service.js:314"
   ],
   "TWILIO_MESSAGING_SERVICE_SID": [
     "src/services/automation/automation.service.js:58"
@@ -1085,7 +1090,7 @@
     "src/services/demoBrowserCall.service.js:89",
     "src/services/marketingSource.service.js:40",
     "src/services/ownerBrowserCall.service.js:79",
-    "src/services/trackingNumberProvisioning.service.js:52",
+    "src/services/trackingNumberProvisioning.service.js:54",
     "src/services/twilioSmsService.js:120",
     "src/voice/voiceRouting.service.js:113"
   ],
@@ -1126,7 +1131,7 @@
     "src/services/demoBrowserCall.service.js:89",
     "src/services/marketingSource.service.js:41",
     "src/services/ownerBrowserCall.service.js:79",
-    "src/services/trackingNumberProvisioning.service.js:53",
+    "src/services/trackingNumberProvisioning.service.js:55",
     "src/services/twilioSmsService.js:120",
     "src/voice/voiceRouting.service.js:112"
   ],

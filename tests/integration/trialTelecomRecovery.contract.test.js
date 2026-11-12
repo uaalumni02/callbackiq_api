@@ -15,7 +15,7 @@ import {
   connectTestDB,
   clearTestDB,
   closeTestDB,
-} from "../setup/testDb.js";
+} from "../setup/testReplicaDb.js";
 
 const mockAvailableList = jest.fn();
 const mockIncomingCreate = jest.fn();

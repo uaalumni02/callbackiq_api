@@ -11,7 +11,7 @@ import { reserveStripeEvent, markStripeEventProcessed, markStripeEventFailed, pr
 import { sendTrialNotice, reconcileTrialNotices } from '../../src/services/trialLifecycleDelivery.service.js';
 import { extendTrial, reconcileTrialExtensions } from '../../src/services/trialExtension.service.js';
 import { sendTrialReminderEmail } from '../../src/helpers/email/mailer.js';
-import { connectTestDB, clearTestDB, closeTestDB } from '../setup/testDb.js';
+import { connectTestDB, clearTestDB, closeTestDB } from '../setup/testReplicaDb.js';
 jest.mock('../../src/helpers/email/mailer.js', () => ({ sendTrialReminderEmail: jest.fn(),
  sendTrialWelcomeEmail: jest.fn(), sendTrialExpiredEmail: jest.fn(), sendTrackingNumberReleasedEmail: jest.fn(), sendPasswordResetEmail: jest.fn() }));
 beforeAll(async () => { await connectTestDB(); await BillingEvent.createIndexes(); await Grant.createIndexes(); }, 60000);

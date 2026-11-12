@@ -1,3 +1,4 @@
+import {completeObservedSubscription} from './subscriptionState.service.js';
 import Subscription from "../models/subscription.js";
 import { getStripeClient } from "../helpers/stripe/stripeClient.js";
 import {
@@ -214,18 +215,12 @@ export const completeTrialPaymentMethodCheckout = async ({ checkoutSession }) =>
     return syncStripeSubscription({
       stripeSubscription: resumedSubscription,
       refreshFromStripe: false,
+      observedSubscription:subscription,
     });
   }
 
-  return Subscription.findByIdAndUpdate(
-    subscription._id,
-    {
-      $set: {
-        lastPaymentStatus: "trial_payment_method_added",
-      },
-    },
-    { returnDocument: "after", runValidators: true },
-  );
+  return (await completeObservedSubscription({businessId:subscription.business,observed:subscription,
+    fields:{lastPaymentStatus:'trial_payment_method_added'}})).current;
 };
 export const resumeCanonicalSubscription = async ({ businessId }) => {
   const subscription = await Subscription.findOne({ business: businessId });
@@ -249,6 +244,7 @@ export const resumeCanonicalSubscription = async ({ businessId }) => {
     return syncStripeSubscription({
       stripeSubscription: canonicalRemote,
       refreshFromStripe: false,
+      observedSubscription:subscription,
     });
   }
 
@@ -263,6 +259,7 @@ export const resumeCanonicalSubscription = async ({ businessId }) => {
   return syncStripeSubscription({
     stripeSubscription: updated,
     refreshFromStripe: false,
+    observedSubscription:subscription,
   });
 };
 

@@ -1,3 +1,5 @@
+import { withTrackingNumberOperation, completeTrackingState, writeTrackingState } from './trackingNumberState.service.js';
+import { planUnattachedNumberRelease, releaseTrackingNumberWithReceipt as releaseNumberOperation, reconcileTrackingNumberReleases as reconcileReleaseOperations } from './trackingNumberRelease.service.js';
 import { createTwilioClient } from '../integrations/providerClients.js';
 import { safeConsole } from "../helpers/logging/safeLogger.js";
 
@@ -103,18 +105,11 @@ const webhookUrls = () => {
   return buildTwilioWebhookUrls(getWebhookBaseUrl());
 };
 
-const setFailure = async (businessId, error) => {
-  await Business.updateOne(
-    { _id: businessId },
-    {
-      $set: {
-        "trackingNumber.lastError": `${error?.code || "error"}: ${
-          error?.message || "Tracking number operation failed"
-        }`.slice(0, 1000),
-        "trackingNumber.updatedAt": new Date(),
-      },
-    },
-  ).catch(() => {});
+const setFailure = async (business, error) => {
+  await writeTrackingState(business, { $set: {
+    'trackingNumber.lastError': `${error?.code || 'error'}: ${error?.message || 'Tracking number operation failed'}`.slice(0, 1000),
+    'trackingNumber.updatedAt': new Date(),
+  } }).catch(() => {});
 };
 
 export const isTrackingNumberStateInconsistent = (business) => {
@@ -151,10 +146,10 @@ const findProviderNumberByPhone = async (client, phone) => {
   );
 };
 
-export const reconcileExistingTrackingNumber = async ({
+const reconcileExistingTrackingNumberObserved = async function reconcileExistingTrackingNumber({
   business,
   client = getClient(),
-}) => {
+}) {
   const normalized = normalizePhoneToE164(business?.phone);
   if (!normalized) {
     throw provisioningError(
@@ -201,8 +196,8 @@ export const reconcileExistingTrackingNumber = async ({
     ? new Date(incoming.dateCreated)
     : now;
 
-  return Business.findByIdAndUpdate(
-    business._id,
+  return completeTrackingState(
+    business,
     {
       $set: {
         phone: normalized,
@@ -224,11 +219,10 @@ export const reconcileExistingTrackingNumber = async ({
         "setupProgress.updatedAt": now,
       },
     },
-    { returnDocument: "after" },
-  ).select("+trackingNumber.providerSid");
+  );
 };
 
-export const assignTrackingNumber = async (businessOrId) => {
+const assignTrackingNumberObserved = async function assignTrackingNumber(businessOrId) {
   const initialBusiness = await loadBusiness(businessOrId);
   if (!initialBusiness) {
     throw provisioningError("BUSINESS_NOT_FOUND", "Business not found.", 404);
@@ -275,23 +269,11 @@ export const assignTrackingNumber = async (businessOrId) => {
     return initialBusiness;
   }
 
-  let lease = null;
   let globalProvisionLease = null;
   let purchasedProviderSid = "";
   let purchasePersisted = false;
 
   try {
-    lease = await acquireOperationLease({
-      key: `tracking-number:${initialBusiness._id}`,
-      ttlMs: Number(process.env.TRACKING_NUMBER_PROVISIONING_LEASE_MS || 120_000),
-      busyCode: "TRACKING_NUMBER_PROVISIONING_IN_PROGRESS",
-      busyMessage:
-        "A CallBackIQ number is already being assigned to this business. Retry shortly.",
-      busyStatusCode: 409,
-      waitMs: Number(process.env.TRACKING_NUMBER_PROVISIONING_WAIT_MS || 3_000),
-      retryDelayMs: 100,
-    });
-
     // Re-read after obtaining the cross-process lease. A request that finished
     // while this one was waiting must win without purchasing a second number.
     const business = await loadBusiness(initialBusiness._id);
@@ -412,8 +394,8 @@ export const assignTrackingNumber = async (businessOrId) => {
       incoming.phoneNumber || selected,
     );
     const now = new Date();
-    const updated = await Business.findByIdAndUpdate(
-      business._id,
+    const updated = await completeTrackingState(
+      business,
       {
         $set: {
           ...toMessagingComplianceUpdate(managedA2pState),
@@ -431,8 +413,7 @@ export const assignTrackingNumber = async (businessOrId) => {
           "setupProgress.updatedAt": now,
         },
       },
-      { returnDocument: "after" },
-    ).select("+trackingNumber.providerSid");
+    );
 
     if (!updated) {
       throw provisioningError(
@@ -447,8 +428,10 @@ export const assignTrackingNumber = async (businessOrId) => {
   } catch (error) {
     if (purchasedProviderSid && !purchasePersisted) {
       try {
-        const cleanupClient = getClient();
-        await cleanupClient.incomingPhoneNumbers(purchasedProviderSid).remove();
+        await planUnattachedNumberRelease({ business: initialBusiness, providerSid: purchasedProviderSid,
+          accountSid: process.env.TWILIO_ACCOUNT_SID });
+        await releaseNumberOperation(initialBusiness._id, { clientFactory: getClient,
+          accountSid: process.env.TWILIO_ACCOUNT_SID, targetProviderSid: purchasedProviderSid });
       } catch (cleanupError) {
         const status = Number(
           cleanupError?.status || cleanupError?.statusCode || 0,
@@ -463,15 +446,14 @@ export const assignTrackingNumber = async (businessOrId) => {
       }
     }
 
-    await setFailure(initialBusiness._id, error);
+    await setFailure(initialBusiness, error);
     throw error;
   } finally {
     await releaseOperationLease(globalProvisionLease);
-    await releaseOperationLease(lease);
   }
 };
 
-export const verifyTrackingNumber = async (businessOrId) => {
+const verifyTrackingNumberObserved = async function verifyTrackingNumber(businessOrId) {
   const business = await loadBusiness(businessOrId);
   if (!business) {
     throw provisioningError("BUSINESS_NOT_FOUND", "Business not found.", 404);
@@ -526,8 +508,8 @@ export const verifyTrackingNumber = async (businessOrId) => {
     }
 
     const now = new Date();
-    return Business.findByIdAndUpdate(
-      business._id,
+    return completeTrackingState(
+      business,
       {
         $set: {
           "trackingNumber.status": "verified",
@@ -539,15 +521,14 @@ export const verifyTrackingNumber = async (businessOrId) => {
           "setupProgress.updatedAt": now,
         },
       },
-      { returnDocument: "after" },
-    ).select("+trackingNumber.providerSid");
+    );
   } catch (error) {
-    await setFailure(business._id, error);
+    await setFailure(business, error);
     throw error;
   }
 };
 
-export const activateTrackingNumber = async (businessOrId) => {
+const activateTrackingNumberObserved = async function activateTrackingNumber(businessOrId) {
   let business = await loadBusiness(businessOrId);
   if (!business) {
     throw provisioningError("BUSINESS_NOT_FOUND", "Business not found.", 404);
@@ -565,8 +546,8 @@ export const activateTrackingNumber = async (businessOrId) => {
   if (business.trackingNumber?.status === "active") return business;
 
   const now = new Date();
-  return Business.findByIdAndUpdate(
-    business._id,
+  return completeTrackingState(
+    business,
     {
       $set: {
         "trackingNumber.status": "active",
@@ -579,71 +560,39 @@ export const activateTrackingNumber = async (businessOrId) => {
         "setupProgress.updatedAt": now,
       },
     },
-    { returnDocument: "after" },
-  ).select("+trackingNumber.providerSid");
+  );
 };
 
-export const releaseTrackingNumber = async (businessOrId) => {
-  const business = await loadBusiness(businessOrId);
-  if (!business) {
-    throw provisioningError("BUSINESS_NOT_FOUND", "Business not found.", 404);
-  }
+export const releaseTrackingNumberWithReceipt = (businessOrId, options = {}) => releaseNumberOperation(businessOrId, {
+  ...options, clientFactory: getClient, accountSid: process.env.TWILIO_ACCOUNT_SID,
+});
+export const reconcileTrackingNumberReleases = (options = {}) => reconcileReleaseOperations({
+  ...options, clientFactory: getClient, accountSid: process.env.TWILIO_ACCOUNT_SID,
+});
+// Compatibility facade: side-effect owners use the explicit receipt operation.
+export const releaseTrackingNumber = async (businessOrId, options = {}) =>
+  (await releaseTrackingNumberWithReceipt(businessOrId, options)).business;
 
-  const providerSid = business.trackingNumber?.providerSid;
-
-  try {
-    if (providerSid) {
-      const client = getClient();
-      try {
-        await client.incomingPhoneNumbers(providerSid).remove();
-      } catch (error) {
-        // If Twilio already considers the number gone, converge local state
-        // instead of retrying forever. Other provider failures remain retryable.
-        const status = Number(error?.status || error?.statusCode || 0);
-        if (status !== 404) throw error;
-      }
-    }
-
-    const now = new Date();
-    return Business.findByIdAndUpdate(
-      business._id,
-      {
-        $unset: {
-          phone: 1,
-          phoneLookup: 1,
-        },
-        $set: {
-          "messagingCompliance.smsReady": false,
-          "messagingCompliance.senderAttached": false,
-          "messagingCompliance.senderAttachedAt": null,
-          "messagingCompliance.lastCheckedAt": new Date(),
-          "trackingNumber.status": "unassigned",
-          "trackingNumber.provider": "twilio",
-          "trackingNumber.providerSid": "",
-          "trackingNumber.assignedAt": null,
-          "trackingNumber.verifiedAt": null,
-          "trackingNumber.activatedAt": null,
-          "trackingNumber.lastError": "",
-          "trackingNumber.updatedAt": now,
-          "setupProgress.trackingNumberAssigned": false,
-          "setupProgress.trackingNumberVerified": false,
-          "setupProgress.trackingNumberActive": false,
-          "setupProgress.updatedAt": now,
-        },
-      },
-      { returnDocument: "after" },
-    ).select("+trackingNumber.providerSid");
-  } catch (error) {
-    await setFailure(business._id, error);
-    throw error;
-  }
-};
-
-export const provisionTrackingNumber = async (businessOrId) => {
+const provisionTrackingNumberObserved = async function provisionTrackingNumber(businessOrId) {
   let business = await assignTrackingNumber(businessOrId);
   business = await verifyTrackingNumber(business);
   return activateTrackingNumber(business);
 };
+
+export const assignTrackingNumber = businessOrId => withTrackingNumberOperation(businessOrId, 'assignTrackingNumber',
+  business => assignTrackingNumberObserved(business));
+
+export const verifyTrackingNumber = businessOrId => withTrackingNumberOperation(businessOrId, 'verifyTrackingNumber',
+  business => verifyTrackingNumberObserved(business));
+
+export const activateTrackingNumber = businessOrId => withTrackingNumberOperation(businessOrId, 'activateTrackingNumber',
+  business => activateTrackingNumberObserved(business));
+
+export const provisionTrackingNumber = businessOrId => withTrackingNumberOperation(businessOrId, 'provisionTrackingNumber',
+  business => provisionTrackingNumberObserved(business));
+
+export const reconcileExistingTrackingNumber = options => withTrackingNumberOperation(options.business, 'reconcile',
+  business => reconcileExistingTrackingNumberObserved({ ...options, business }));
 
 export default {
   assignTrackingNumber,

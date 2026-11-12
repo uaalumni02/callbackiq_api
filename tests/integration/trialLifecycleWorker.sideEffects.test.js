@@ -10,7 +10,7 @@ import {
   connectTestDB,
   clearTestDB,
   closeTestDB,
-} from "../setup/testDb.js";
+} from "../setup/testReplicaDb.js";
 
 jest.mock("../../src/helpers/stripe/stripeClient.js", () => ({
   __esModule: true,
@@ -26,7 +26,7 @@ jest.mock("../../src/services/trackingNumberProvisioning.service.js", () => {
     __esModule: true,
     ...actual,
     provisionTrackingNumber: jest.fn(),
-    releaseTrackingNumber: jest.fn(),
+    releaseTrackingNumberWithReceipt: jest.fn(),
   };
 });
 
@@ -44,7 +44,7 @@ jest.mock("../../src/helpers/email/mailer.js", () => {
 
 import {
   provisionTrackingNumber,
-  releaseTrackingNumber,
+  releaseTrackingNumberWithReceipt,
 } from "../../src/services/trackingNumberProvisioning.service.js";
 import {
   sendTrialWelcomeEmail,
@@ -55,7 +55,7 @@ import {
 import { runTrialLifecycleOnce } from "../../src/workers/trialLifecycle.worker.js";
 
 const mockProvisionTrackingNumber = provisionTrackingNumber;
-const mockReleaseTrackingNumber = releaseTrackingNumber;
+const mockReleaseTrackingNumber = releaseTrackingNumberWithReceipt;
 const mockSendTrialWelcomeEmail = sendTrialWelcomeEmail;
 const mockSendTrialReminderEmail = sendTrialReminderEmail;
 const mockSendTrialExpiredEmail = sendTrialExpiredEmail;
@@ -69,7 +69,7 @@ describe("trialLifecycle.worker real lifecycle side effects", () => {
     mockProvisionTrackingNumber.mockResolvedValue(null);
     mockReleaseTrackingNumber.mockImplementation(async (businessId) => ({
       _id: businessId,
-      trackingNumber: { status: "released" },
+      outcome: "released", intentId: "synthetic-release-receipt",
     }));
     mockSendTrialWelcomeEmail.mockResolvedValue({ messageId: "synthetic-mail-receipt" });
     mockSendTrialReminderEmail.mockResolvedValue({ messageId: "synthetic-mail-receipt" });

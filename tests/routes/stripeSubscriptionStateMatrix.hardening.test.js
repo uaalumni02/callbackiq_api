@@ -11,7 +11,7 @@ import {
   connectTestDB,
   clearTestDB,
   closeTestDB,
-} from "../setup/testDb.js";
+} from "../setup/testReplicaDb.js";
 
 jest.mock("../../src/helpers/stripe/stripeClient.js", () => ({
   __esModule: true,

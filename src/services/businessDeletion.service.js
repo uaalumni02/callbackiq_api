@@ -1,7 +1,11 @@
+import {conditionalWrite} from './database/conditionalWrite.js';
+import {logOperationalError} from '../helpers/logging/safeLogger.js';
 import Business from "../models/business.js";
 import Subscription from "../models/subscription.js";
 import { getStripeClient } from "../helpers/stripe/stripeClient.js";
-import { releaseTrackingNumber } from "./trackingNumberProvisioning.service.js";
+import Intent from '../models/trackingNumberReleaseIntent.js';
+import {withTrackingNumberOperation,assertTrackingClaim,observeTrackingState} from './trackingNumberState.service.js';
+import { releaseTrackingNumberWithReceipt } from "./trackingNumberProvisioning.service.js";
 
 const cleanupError = (code, message, statusCode = 503) => {
   const error = new Error(message);
@@ -48,6 +52,34 @@ const cancelStripeSubscription = async (subscription) => {
   }
 };
 
+/** Atomic local cleanup after verified external receipts. Changed observations roll back both deletes. */
+const deleteObservedLocalState = async (business, subscription, now) => {
+    await Subscription.db.transaction(async session => {
+      if (subscription) {
+        const removed = await Subscription.deleteOne({_id:subscription._id,business:business._id,
+          stripeSubscriptionId:subscription.stripeSubscriptionId,status:subscription.status,
+          trialEndsAt:subscription.trialEndsAt,__v:subscription.__v},{session});
+        if (!removed.deletedCount) throw cleanupError('BUSINESS_DELETION_SUBSCRIPTION_CHANGED','Subscription changed during cleanup.');
+      }
+      const removed = await Business.deleteOne({_id:business._id,...observeTrackingState(business),
+        'accountLifecycle.status':'deleting','accountLifecycle.deletionStartedAt':now},{session});
+      if (!removed.deletedCount) throw cleanupError('BUSINESS_DELETION_RELEASE_CHANGED','Business changed during cleanup.');
+    });
+};
+
+/** A failure receipt belongs to the same observed deletion and number revision. */
+const recordCleanupFailure = async (business, startedAt, error) => {
+  try {
+    await conditionalWrite({model:Business,identity:{_id:business._id},
+      observed:{...observeTrackingState(business),'accountLifecycle.status':'deleting',
+        'accountLifecycle.deletionStartedAt':startedAt},
+      update:{$set:{'accountLifecycle.lastError':`${error?.code || 'BUSINESS_DELETION_CLEANUP_FAILED'}: ${error?.message || 'Cleanup failed'}`.slice(0,1000)}}});
+  } catch (receiptError) {
+    logOperationalError('business_deletion.failure_receipt_failed',receiptError,
+      {businessId:business._id,code:'BUSINESS_DELETION_RECEIPT_FAILED'});
+  }
+};
+
 export const deleteBusinessSafely = async ({
   ownerId = null,
   businessId = null,
@@ -56,7 +88,9 @@ export const deleteBusinessSafely = async ({
   let current = await loadBusiness({ ownerId, businessId, business });
   if (!current) return null;
 
-  const now = new Date();
+  return withTrackingNumberOperation(current, 'release', async reserved => {
+  current = reserved;
+  const now = current.accountLifecycle?.deletionStartedAt || new Date();
   await Business.updateOne(
     { _id: current._id },
     {
@@ -74,12 +108,11 @@ export const deleteBusinessSafely = async ({
       "+trackingNumber.providerSid",
     );
 
-    if (
-      current?.trackingNumber?.providerSid ||
-      current?.phone ||
-      current?.trackingNumber?.status !== "unassigned"
-    ) {
-      await releaseTrackingNumber(current);
+    const receipt = await releaseTrackingNumberWithReceipt(current, {authorization:{kind:'business_deletion',deletionStartedAt:now}});
+    current = receipt.business;
+    if (receipt.outcome === 'superseded' || current?.phone || current?.trackingNumber?.providerSid ||
+        await Intent.exists({business:current._id,status:{$in:['pending','dispatching','uncertain']}})) {
+      throw cleanupError('BUSINESS_DELETION_RELEASE_CHANGED','Release state changed. Reconcile before deleting the business.');
     }
 
     const subscription = await Subscription.findOne({
@@ -88,23 +121,12 @@ export const deleteBusinessSafely = async ({
 
     await cancelStripeSubscription(subscription);
 
-    await Subscription.deleteOne({ business: current._id });
-    await Business.deleteOne({ _id: current._id });
+    await assertTrackingClaim();
+    await deleteObservedLocalState(current, subscription, now);
 
     return current;
   } catch (error) {
-    await Business.updateOne(
-      { _id: current._id },
-      {
-        $set: {
-          isActive: false,
-          "accountLifecycle.status": "deleting",
-          "accountLifecycle.lastError": `${error?.code || "error"}: ${
-            error?.message || "Cleanup failed"
-          }`.slice(0, 1000),
-        },
-      },
-    ).catch(() => {});
+    await recordCleanupFailure(current, now, error);
 
     throw cleanupError(
       error?.code || "BUSINESS_DELETION_CLEANUP_FAILED",
@@ -113,6 +135,7 @@ export const deleteBusinessSafely = async ({
       error?.statusCode || 503,
     );
   }
+  });
 };
 
 export default { deleteBusinessSafely };
