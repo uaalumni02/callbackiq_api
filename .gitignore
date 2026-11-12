@@ -76,3 +76,8 @@ staging-browser-report.json
 # Local patch installer manifests
 /.callbackiq-*.json
 /VOICE_HARDENING_APPLIED.json
+
+# Local check evidence and dependency links in isolated working copies.
+/.verification/
+/ci-diagnostics/
+/node_modules

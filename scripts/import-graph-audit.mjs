@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { parse } from '@babel/parser';
 
@@ -13,13 +14,22 @@ const profiles = {
     'src/features/conversations/createManualReplyAction.js'],
 };
 const code = /\.(?:[cm]?js|jsx|tsx?)$/;
+const ignored = new Set(['node_modules','coverage','build','dist','.git','test-results','playwright-report']);
 const walk = directory => fs.existsSync(directory)
   ? fs.readdirSync(directory, { withFileTypes: true }).flatMap(entry => entry.isDirectory()
-    ? walk(path.join(directory, entry.name)) : code.test(entry.name) ? [path.join(directory, entry.name)] : []) : [];
+    ? ignored.has(entry.name) ? [] : walk(path.join(directory, entry.name)) : code.test(entry.name) ? [path.join(directory, entry.name)] : []) : [];
 const literal = node => node?.type === 'StringLiteral' ? node.value
   : node?.type === 'TemplateLiteral' && !node.expressions.length ? node.quasis[0].value.cooked : null;
 
-function importsIn(file) {
+function sourceFiles(root) {
+  if (!fs.existsSync(path.join(root,'.git'))) return walk(root);
+  return [...new Set(execFileSync('git',['ls-files','--cached','--others','--exclude-standard','-z'],
+    {cwd:root,encoding:'utf8',maxBuffer:10*1024*1024}).split('\0').filter(Boolean))]
+    .filter(file=>code.test(file) && !file.split('/').some(part=>ignored.has(part)))
+    .map(file=>path.join(root,file)).filter(file=>fs.existsSync(file));
+}
+
+export function importsIn(file) {
   const ast = parse(fs.readFileSync(file, 'utf8'), { sourceType: 'unambiguous', createImportExpressions: true,
     plugins: ['jsx', ...(/\.tsx?$/.test(file) ? ['typescript'] : [])] });
   const result = [];
@@ -41,7 +51,11 @@ function importsIn(file) {
   visit(ast); return result;
 }
 
-function resolveTarget(file, specifier, repository) {
+export function resolveTarget(file, specifier, repository, kind) {
+  if (kind === 'Identifier' && repository === 'callbackiq_api') {
+    try {return createRequire(file).resolve(specifier);}
+    catch (error) {if(specifier.startsWith('.') || specifier.startsWith('/')) throw new Error(`missing target ${specifier}`);throw error;}
+  }
   if (!specifier.startsWith('.') && !specifier.startsWith('/')) return createRequire(file).resolve(specifier);
   const raw = path.resolve(path.dirname(file), specifier.split(/[?#]/)[0]);
   const candidates = repository === 'callbackiq_api' ? [raw]
@@ -61,14 +75,14 @@ export function auditImports(root = process.cwd()) {
   root = path.resolve(root);
   const repository = JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8')).name;
   if (!profiles[repository]) throw new Error(`Unknown repository package: ${repository}`);
-  const files = walk(path.join(root,'src')), graph = new Map(), failures = [];
+  const files = sourceFiles(root), graph = new Map(), failures = [];
   let edges = 0, dynamicImports = 0;
   for (const file of files) {
     const targets = [];
     try {
       for (const dependency of importsIn(file)) {
         try {
-          const target = resolveTarget(file,dependency.specifier,repository);
+          const target = resolveTarget(file,dependency.specifier,repository,dependency.kind);
           if (dependency.specifier.startsWith('.')) { targets.push(target); edges += 1; }
           if (['ImportExpression','Import'].includes(dependency.kind)) dynamicImports += 1;
         } catch (error) { failures.push(`${path.relative(root,file)}:${dependency.line}: ${error.message}`); }

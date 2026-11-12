@@ -58,6 +58,10 @@ test('concurrent duplicate reply operations call provider at most once',async()=
  const reply=await inbound();const results=await Promise.allSettled([send(reply),send(reply),send(reply)]);
  expect(results.some(result=>result.status==='fulfilled'&&result.value.sid)).toBe(true);
  expect(provider).toHaveBeenCalledTimes(1);expect(await Reservation.countDocuments({state:'committed'})).toBe(1);
+ const winner=await Reservation.findOne({state:'committed'});
+ const counters=await Usage.find({_id:{$in:winner.counterIds}});
+ expect(counters.length).toBeGreaterThan(0);
+ expect(counters.every(counter=>counter.count===1)).toBe(true);
 });
 test('forged and cross-business inbound context cannot bypass proactive quota',async()=>{
  for(let i=0;i<4;i++)await send();

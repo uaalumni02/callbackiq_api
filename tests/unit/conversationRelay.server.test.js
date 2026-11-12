@@ -88,6 +88,22 @@ const collectUntil = (socket, predicate, timeoutMs = 1500) =>
     socket.on("message", onMessage);
   });
 
+test('connection lease outage rejects the actual WebSocket upgrade with HTTP 503',async()=>{
+ const acquire=jest.fn().mockRejectedValue(new Error('Synthetic lease outage'));
+ const server=await startServer({signatureValidator:()=>true,voiceConnectionLeaseService:{
+  acquireVoiceConnectionLease:acquire,releaseVoiceConnectionLease:jest.fn(),
+ }});
+ const socket=new WebSocket(server.url);
+ try{
+  const status=await new Promise((resolve,reject)=>{
+   socket.on('unexpected-response',(_request,response)=>{response.resume();resolve(response.statusCode)});
+   socket.on('open',()=>reject(new Error('Lease outage incorrectly admitted a WebSocket')));
+   socket.on('error',reject);
+  });
+  expect(status).toBe(503);expect(acquire).toHaveBeenCalledTimes(1);
+ }finally{socket.terminate();await server.close();}
+});
+
 describe("ConversationRelay WebSocket signature validation", () => {
   const originalEnv = process.env;
 

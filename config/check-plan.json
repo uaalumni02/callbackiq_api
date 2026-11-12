@@ -1,0 +1,53 @@
+{
+  "repository": "callbackiq_api",
+  "profiles": {
+    "check": [
+      "lint",
+      "audit:imports",
+      "config:inventory",
+      "contracts:check",
+      "maintainability:complexity",
+      "test:ordinary",
+      "test:hardening",
+      "build:certification"
+    ],
+    "check:release": [
+      "lint",
+      "audit:imports",
+      "config:inventory",
+      "contracts:check",
+      "maintainability:complexity",
+      "maintainability:remediation",
+      "maintainability:check",
+      "maintainability:boundaries",
+      "maintainability:release9",
+      "maintainability:architecture",
+      "architecture:invariants",
+      "verify:index-manifest",
+      "test:scale-readiness",
+      "test:durable-persistence",
+      "test:scale-release",
+      "test:scale-fleet",
+      "test:scale-fleet:persistence",
+      "test:scale-capacity",
+      "test:scale-query-fixes",
+      "test:scale-query-fixes:persistence",
+      "release:gate",
+      "audit:repository-hygiene",
+      "benchmark:customer-truth",
+      "test:ordinary",
+      "test:coverage",
+      "coverage:risk-report",
+      "verify:coverage-ratchet",
+      "verify:diff-coverage",
+      "test:hardening",
+      "test:replica-set",
+      "test:production-certification",
+      "test:voice-concurrency",
+      "build:certification",
+      "audit:source-security",
+      "audit:runtime-security",
+      "audit:full-security"
+    ]
+  }
+}

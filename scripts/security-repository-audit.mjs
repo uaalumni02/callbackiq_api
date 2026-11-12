@@ -108,7 +108,7 @@ const unique = (items) =>
   [...new Map(items.map((item) => [`${item.rule}:${item.file}`, item])).values()];
 
 const result = {
-  repository: path.basename(root),
+  repository: JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")).name,
   trackedFiles: tracked.length,
   failures: unique(fail),
   warnings: unique(warn),

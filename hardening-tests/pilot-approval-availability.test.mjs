@@ -1,15 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { resolve, dirname } from 'node:path';
+import {behavioralGuarantee,confirmationContracts} from './support/behavioralGuarantee.mjs';
 import { preservePendingApprovalOnAvailabilityConflict } from '../src/services/scheduling/approvalAvailabilityFailurePolicy.js';
 import { assertConfirmationNotPending } from '../src/services/scheduling/appointmentConfirmationIntent.repository.js';
 import { createAppointmentconfirm1Methods } from '../src/services/scheduling/commands/confirm-1.js';
-
-const source = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../src/services/scheduling/appointment.service.js'), 'utf8');
-const confirmationSource = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../src/services/scheduling/commands/confirm-1.js'), 'utf8');
-const expirySource = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../src/services/scheduling/appointmentHoldExpiry.service.js'), 'utf8');
 
 test('pending staff approval remains reviewable when a final slot check fails', () => {
   assert.equal(preservePendingApprovalOnAvailabilityConflict({ status: 'held', requiresBusinessApproval: true, approvalDecisionAt: null }), true);
@@ -26,27 +20,7 @@ test('automatic, staff-created, and decided appointments retain their original b
   ]) assert.equal(preservePendingApprovalOnAvailabilityConflict(appointment), false);
 });
 
-test('the production confirmation path uses the guard before mutating failed status', () => {
-  assert.ok(source.includes(
-    '__meekcallGetAppointmentconfirm1Methods().confirm.apply(this, args)'
-  ), 'facade must delegate to the extracted confirmation command');
-  assert.ok(source.includes('createAppointmentconfirm1Methods({'),
-    'extracted confirmation command must be wired');
-
-  const start = confirmationSource.indexOf(
-    'if (!stillAvailable) {',
-    confirmationSource.indexOf('async confirm(')
-  );
-  const end = confirmationSource.indexOf(
-    'const service = await ServiceOffering.findById', start
-  );
-  assert.ok(start > 0 && end > start,
-    'expected bounded final availability branch');
-  const branch = confirmationSource.slice(start, end);
-  assert.match(branch, /preservePendingApprovalOnAvailabilityConflict\(appointment\)/);
-  assert.ok(branch.indexOf('preservePendingApprovalOnAvailabilityConflict(appointment)') < branch.indexOf('appointment.status = "failed"'), 'preservation must occur before failure persistence');
-  assert.match(branch, /SLOT_UNAVAILABLE/);
-});
+test('the production confirmation path preserves review before failed persistence',()=>behavioralGuarantee(confirmationContracts,/lost slot before any provider attempt|staff approval persists/));
 
 test('unavailable slot preserves pending approval without persistence', async () => {
   const events = [];
@@ -95,16 +69,4 @@ test('unavailable slot preserves pending approval without persistence', async ()
   assert.equal(appointment.approvalDecisionAt, null);
 });
 
-test('expired holds still have the existing reconciliation mechanism', () => {
-  assert.match(source, /static async releaseExpiredHolds\(/);
-  // Release 9 delegates the original hold-expiry reconciliation to an extracted module.
-  assert.match(source, /const releaseExpiredHolds = createExpiredHoldReconciler\(/);
-  assert.match(source, /return releaseExpiredHolds\(businessId\);/);
-  assert.match(expirySource, /await reconcileApprovalRequests\(\{ businessId \}\)/);
-  assert.match(expirySource, /await repairPendingAppointmentLifecycles\(\{ businessId \}\)/);
-  assert.match(expirySource, /await repairPendingAppointmentProjections\(\{ businessId \}\)/);
-  assert.match(expirySource, /await repairRescheduleReviews\(\{ businessId \}\)/);
-  assert.match(expirySource, /await reconcileAppointmentNoticeFailures\(\{ businessId \}\)/);
-  assert.match(expirySource, /await runApprovalSms\(\)/);
-  assert.match(source, /static async recheckAndConfirm\(/);
-});
+test('expired holds still have the existing reconciliation mechanism',()=>behavioralGuarantee(confirmationContracts,/pending intent prevents hold expiry|hold expiry retains tenant scope|failed persistence short-circuits/));

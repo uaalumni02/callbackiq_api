@@ -17,7 +17,7 @@ Paste the generated value into `.env` as `JWT_SECRET`. Run `npm run validate:env
 
 From the frontend checkout run `npm ci`, `cp .env.example .env.development.local`, then `npm start`. Open http://localhost:3001. Register an owner through the public registration page. Blank provider credentials deliberately do not fabricate paid access, trial activation or telecom readiness. Use the offline tests for those workflows, or separate Stripe/Twilio/OpenAI test accounts and a publicly reachable, signed webhook URL. Local UI startup does not certify those integrations.
 
-`npm test -- --coverage` uses one recyclable Jest worker. Jest creates isolated MongoMemoryServer databases. Never set tests to a production DB. `MONGOMS_SYSTEM_BINARY` can select a compatible local mongod when downloads are blocked. On environments prohibiting Unix sockets, wrap mongod with `--nounixsocket`; this is an environment limitation, not a production configuration requirement.
+Use `npm run check` while editing and `npm run check:release -- --base <comparison-commit>` on a clean committed candidate. [CHECKS.md](CHECKS.md) defines the canonical profiles, pinned child runtime, inert provider environment, retained legacy aliases and exact evidence limits. The release coverage step uses one recyclable Jest worker. Jest creates isolated MongoMemoryServer databases. Never set tests to a production DB. `MONGOMS_SYSTEM_BINARY` can select a compatible local mongod when downloads are blocked. On environments prohibiting Unix sockets, wrap mongod with `--nounixsocket`; this is an environment limitation, not a production configuration requirement.
 
 ## Domain ownership
 

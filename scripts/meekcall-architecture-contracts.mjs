@@ -6,6 +6,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
+import yaml from 'js-yaml';
+import {validatePlan} from './check.mjs';
 
 const root = process.cwd();
 const failures = [];
@@ -64,10 +66,16 @@ requireTokens('src/controllers/auth/Session.js', [
 requireTokens('scripts/audit-repository-hygiene.mjs', [
   'isSafeMongoFixture', 'possible_secret', 'trackedFiles',
 ]);
-requireTokens('.github/workflows/ci.yml', [
-  'node scripts/meekcall-architecture-contracts.mjs',
-  'npm run release:certify:ci',
-]);
+try {
+  const workflow=yaml.safeLoad(source('.github/workflows/ci.yml'));
+  const plan=JSON.parse(source('config/check-plan.json'));
+  validatePlan(JSON.parse(source('package.json')).name,plan,JSON.parse(source('config/legacy-check-aliases.json')));
+  checks+=4;
+  if(!workflow.jobs.release.steps.some(step=>/^npm run check:release(?:\s|$)/.test(step.run || '')))
+    failures.push('CI does not invoke the authoritative release profile');
+  for(const required of ['architecture:invariants','test:hardening','build:certification'])
+    if(!plan.profiles['check:release'].includes(required))failures.push(`Release profile omits ${required}`);
+} catch(error){failures.push(`Invalid release wiring: ${error.message}`);}
 requireTokens('.github/workflows/browser-workflows.yml', [
   "vars.CALLBACKIQ_FRONTEND_REF || 'main'",
   'CALLBACKIQ_CROSS_REPO_READ_TOKEN',

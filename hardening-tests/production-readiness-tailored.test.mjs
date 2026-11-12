@@ -1,111 +1,16 @@
-import assert from "node:assert/strict";
-import fs from "node:fs";
-import path from "node:path";
-import test from "node:test";
-
-import { behavioralContract } from "./support/behavioralContract.mjs";
-const root = process.cwd();
-const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
-
-test("SMS usage and idempotency are reserved in one transaction", () => {
-  const source = read("src/services/communicationUsageReservation.service.js");
-  assert.match(source, /reserveCommunicationUsageOperation/);
-  assert.match(source, /withTransaction/);
-  assert.match(source, /reserveCommunicationUsage\(\{[\s\S]*mongoSession/);
-  assert.match(source, /CommunicationUsageReservation\.create\([\s\S]*session: mongoSession/);
-  assert.match(source, /COMMUNICATION_OPERATION_CONFLICT/);
-});
-
-test("SMS release is claim-fenced and counters cannot go below zero", () => {
-  const reservation = read("src/services/communicationUsageReservation.service.js");
-  const usage = read("src/services/communicationUsage.service.js");
-  assert.match(reservation, /state: "releasing"/);
-  assert.match(reservation, /ownerToken/);
-  assert.match(reservation, /releaseClaimTransactionally/);
-  assert.match(usage, /\$max:\s*\[\s*0,/);
-});
-
-test("first-contact disclosure cannot be released by a concurrent sender", () => {
-  const source = read("src/services/smsContactDisclosure.service.js");
-  assert.match(source, /claim: null, concurrent: true/);
-  assert.match(source, /ownerToken: claim\.ownerToken/);
-  assert.match(source, /businessId,[\s\S]*phone,[\s\S]*operationKey/);
-});
-
-test("Twilio send uses the transactional operation reservation", () => {
-  const source = read("src/services/twilioSmsService.js");
-  assert.match(source, /reserveCommunicationUsageOperation/);
-  assert.doesNotMatch(source, /reserveSmsUsage\(/);
-  assert.match(source, /SMS_PROVIDER_OUTCOME_UNCERTAIN/);
-  assert.match(source, /commitSmsContactDisclosure\(\{[\s\S]*businessId:[\s\S]*phone:/);
-});
-
-test("manual SMS changes conversation state only after provider acceptance", () => {
-  const source = read("src/services/messaging/manualSmsOperation.service.js");
-  const sendIndex = source.indexOf("const sent = await sendSms(");
-  const acceptedIndex = source.indexOf('operation.state = "provider_accepted"', sendIndex);
-  const persistIndex = source.indexOf("return await persistAcceptedOperation", acceptedIndex);
-  const takeoverIndex = source.indexOf("humanTakeover", source.indexOf("const persistAcceptedOperation"));
-  assert.ok(sendIndex >= 0, "manual operation must dispatch through sendSms");
-  assert.ok(acceptedIndex > sendIndex, "provider acceptance must be persisted after dispatch");
-  assert.ok(persistIndex > acceptedIndex, "conversation persistence must follow provider acceptance");
-  assert.ok(takeoverIndex >= 0, "accepted persistence must activate human takeover");
-  assert.match(source, /idempotencyKey/);
-  assert.match(source, /SMS_PROVIDER_OUTCOME_UNCERTAIN|deliveryUncertain/);
-});
-
-test("provider delivery and call states advance monotonically", () => {
-  const sms = read("src/services/messaging/smsDeliveryStatus.service.js");
-  const call = read("src/services/twilioCallStatus.service.js");
-  assert.match(sms, /ALLOWED_CURRENT_STATUSES/);
-  assert.match(sms, /deliveryEvents/);
-  assert.match(sms, /conflict: true/);
-  assert.match(call, /ALLOWED_CURRENT/);
-  assert.match(call, /providerStatusEvents/);
-  assert.match(call, /conflict: true/);
-});
-
-test("status callbacks resolve ownership from provider identifiers first", () => {
-  const source = read("src/services/twilioStatusBusinessResolver.service.js");
-  assert.match(source, /providerMessageId/);
-  assert.match(source, /providerCallId/);
-  assert.match(source, /business/);
-});
-
-test("voice WebSocket admission is distributed and fails closed on lease outage", () => {
-  const relay = read("src/voice/conversationRelay.server.js");
-  const lease = read("src/services/voiceConnectionLease.service.js");
-  assert.match(relay, /connection_lease_acquire_failed/);
-  assert.match(relay, /rejectUpgrade\(socket, 503, "Service Unavailable"\)/);
-  assert.match(relay, /resolveTrustedRemoteAddress/);
-  assert.match(lease, /VoiceConnectionBucket\.findOneAndUpdate/);
-  assert.match(lease, /releaseVoiceConnectionLease = async \(lease = \{\}\)/);
-});
-
-test("voice usage reconciliation cannot steal an active worker lease", () => {
-  const source = read("src/services/voiceUsage.service.js");
-  assert.match(source, /state: "processing", leaseExpiresAt: \{ \$lte: now \}/);
-  assert.match(source, /releaseVoiceUsageReservation/);
-  assert.match(source, /withTransaction/);
-  assert.match(source, /state: "releasing"/);
-});
-
-test("voice turns propagate cancellation and fence side effects", () => behavioralContract(['tests/unit/conversationRelay.server.test.js']));
-test("voice settings use server contracts, versioning and rollback", () => behavioralContract([
-  'tests/unit/voiceSettings.controller.test.js','tests/integration/registrationTransactionReplicaSet.contract.test.js',
-]));
-
-test("tests isolate distributed connection leases from real MongoDB", () => {
-  for (const relative of [
-    "tests/unit/conversationRelay.server.test.js",
-    "tests/unit/communicationSafety.voiceRelayLimits.test.js",
-    "tests/integration/voiceAbandonmentRecovery.integration.test.js",
-  ]) {
-    assert.match(read(relative), /voiceConnectionLeaseService/);
-  }
-});
-
-test("case-sensitive Stripe route import matches the source file", () => {
-  assert.match(read("src/app.js"), /stripeWebHook\.routes\.js/);
-  assert.ok(fs.existsSync(path.join(root, "src/routes/stripeWebHook.routes.js")));
-});
+import test from 'node:test';
+import {behavioralGuarantee,persistenceContracts} from './support/behavioralGuarantee.mjs';
+test("SMS usage and idempotency are reserved in one transaction",()=>behavioralGuarantee(persistenceContracts,new RegExp("concurrent duplicate reply operations")));
+test("SMS release is claim-fenced and counters cannot go below zero",()=>behavioralGuarantee(persistenceContracts,new RegExp("actual MongoDB rollback|delayed rejection cannot release")));
+test("first-contact disclosure cannot be released by a concurrent sender",()=>behavioralGuarantee(persistenceContracts,new RegExp("concurrent first-contact senders")));
+test("Twilio send uses the transactional operation reservation",()=>behavioralGuarantee(persistenceContracts,new RegExp("concurrent duplicate reply operations|restart sweep preserves")));
+test("manual SMS changes conversation state only after provider acceptance",()=>behavioralGuarantee(persistenceContracts,new RegExp("manual SMS preserves the conversation|uncertain manual SMS")));
+test("provider delivery and call states advance monotonically",()=>behavioralGuarantee(persistenceContracts,new RegExp("late SMS and call callbacks")));
+test("status callbacks resolve ownership from provider identifiers first",()=>behavioralGuarantee(persistenceContracts,new RegExp("status ownership follows stored provider")));
+test("voice WebSocket admission is distributed and fails closed on lease outage",()=>behavioralGuarantee(['tests/unit/conversationRelay.server.test.js'],new RegExp("connection lease outage rejects")));
+test("voice usage reconciliation cannot steal an active worker lease",()=>behavioralGuarantee(persistenceContracts,new RegExp("voice reconciliation cannot steal")));
+test("voice turns propagate cancellation and fence side effects",()=>behavioralGuarantee(['tests/unit/conversationRelay.server.test.js'],new RegExp("fences an unfinished turn")));
+test("voice settings use server contracts, versioning and rollback",()=>behavioralGuarantee(['tests/integration/registrationTransactionReplicaSet.contract.test.js'],new RegExp("voice settings publication and rollback")));
+test("tests isolate external providers before any live request can leave",()=>behavioralGuarantee(['tests/unit/externalProviderSafety.test.js'],new RegExp("fails before a live Twilio fetch")));
+test("case-sensitive Stripe route imports load through the real application",()=>behavioralGuarantee(persistenceContracts,new RegExp("appointment approval requires authentication")));
+test('MongoDB admission is shared across competing connections',()=>behavioralGuarantee(persistenceContracts,/separate connection attempts share/));

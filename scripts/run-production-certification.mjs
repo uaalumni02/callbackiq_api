@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import {verificationEnvironment} from './check.mjs';
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -10,32 +11,7 @@ import {
 
 const root = process.cwd();
 
-const inertProviderEnvironment = () => ({
-  ...process.env,
-  NODE_ENV: "test",
-  TZ: "UTC",
-  CALLBACKIQ_CERTIFICATION_MODE: "deterministic",
-  CALLBACKIQ_DISABLE_EXTERNAL_WRITES: "1",
-  CALLBACKIQ_TEST_EXTERNAL_PROVIDER_NETWORK: "blocked",
-
-  /*
-   * Never inherit live provider credentials into the certification child
-   * process. These are syntactically plausible but intentionally inert test
-   * placeholders. Even if a provider SDK is accidentally constructed, the
-   * global Jest network guard prevents the request from leaving the process.
-   */
-  TWILIO_ACCOUNT_SID: "AC00000000000000000000000000000000",
-  TWILIO_AUTH_TOKEN: "callbackiq_test_auth_token",
-  TWILIO_API_KEY: "SK00000000000000000000000000000000",
-  TWILIO_API_SECRET: "callbackiq_test_api_secret",
-  TWILIO_MESSAGING_SERVICE_SID: "MG00000000000000000000000000000000",
-  STRIPE_SECRET_KEY: "sk_test_callbackiq_certification_only",
-  STRIPE_WEBHOOK_SECRET: "whsec_callbackiq_certification_only",
-  OPENAI_API_KEY: "inert-openai-test-certification-only",
-  GOOGLE_CLIENT_ID: "callbackiq-certification.apps.googleusercontent.com",
-  GOOGLE_CLIENT_SECRET: "callbackiq-certification-secret",
-  RESEND_API_KEY: "re_test_callbackiq_certification_only",
-});
+const inertProviderEnvironment = () => ({...verificationEnvironment('callbackiq_api'),TZ:'UTC'});
 
 const tests = [
   "tests/unit/externalProviderSafety.test.js",

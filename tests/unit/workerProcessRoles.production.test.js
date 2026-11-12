@@ -32,6 +32,12 @@ describe("production PROCESS_ROLE boot matrix", () => {
     const { roleMap } = await import("../../src/worker.js");
     expect(roleMap.worker.map(([name]) => name)).toContain("voice-usage");
   });
+  test('maintenance and SMS process roles own distinct worker responsibilities',async()=>{
+    const {roleMap}=await import('../../src/worker.js');
+    expect(roleMap['worker-maintenance'].map(([name])=>name)).toEqual(['maintenance']);
+    expect(roleMap['worker-sms'].map(([name])=>name)).not.toContain('maintenance');
+    expect(roleMap['worker-sms'].map(([name])=>name)).toContain('sms');
+  });
 
   test.each([
     "worker",

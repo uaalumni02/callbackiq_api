@@ -1,6 +1,6 @@
 # MeekCall
 
-Current engineering setup and remediation boundaries: [docs/ENGINEERING.md](docs/ENGINEERING.md). Use this guide for a new checkout; historical release sections below are retained for compatibility.
+Current engineering setup and remediation boundaries: [docs/ENGINEERING.md](docs/ENGINEERING.md). Use `npm run check` locally and `npm run check:release -- --base <comparison-commit>` before release; [docs/CHECKS.md](docs/CHECKS.md) defines the full gate and labeled compatibility aliases. Historical release sections below are retained for compatibility.
 
 # MeekCall API
 
