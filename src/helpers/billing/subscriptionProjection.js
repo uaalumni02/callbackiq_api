@@ -40,3 +40,12 @@ export function planSubscriptionProjection({ remote, current, checkoutSessionId,
   }
   return { fields, active, terminal };
 }
+
+/** A lost CAS may acknowledge the same immutable checkout receipt, but must
+ * never expose an older checkout URL after entitlement advanced. */
+export function matchesCheckoutReceipt(current,{sessionId,customerId,priceId,plan,trialOffered}) {
+  return current?.status==='incomplete' && current.isActive===false && current.aiEnabled===false &&
+    current.checkoutSessionId===sessionId && current.stripeCustomerId===customerId &&
+    current.stripePriceId===priceId && current.plan===plan &&
+    current.lastPaymentStatus===(trialOffered?'trial_checkout_started':'checkout_started');
+}

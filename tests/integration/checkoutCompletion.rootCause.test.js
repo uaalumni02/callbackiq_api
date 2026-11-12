@@ -38,3 +38,15 @@ test('an older checkout completion cannot demote a concurrent paid conversion',a
  await expect(createSubscriptionCheckout(input(pair))).rejects.toMatchObject({code:'CHECKOUT_STATE_CHANGED',current:expect.objectContaining({status:'active'})});
  expect(await Subscription.findById(pair.subscription._id)).toMatchObject({status:'active',isActive:true,aiEnabled:true,checkoutSessionId:'cs_paid'});
 });
+
+test('concurrent completions of the same provider checkout both acknowledge the one stored operation',async()=>{
+ const pair=await fixture(),waiting=[];
+ stripe.checkout.sessions.create.mockImplementation(()=>new Promise(resolve=>{
+  waiting.push(resolve);if(waiting.length===2)waiting.forEach(done=>done({id:'cs_same',url:'https://checkout.example.test/same'}));
+ }));
+ const outcomes=await Promise.all([1,2].map(()=>createSubscriptionCheckout(input(pair))
+  .then(result=>({session:result.checkoutSessionId,status:result.subscription.status}),error=>({error:error.code}))));
+ expect(outcomes).toEqual([{session:'cs_same',status:'incomplete'},{session:'cs_same',status:'incomplete'}]);
+ expect(await Subscription.countDocuments({business:pair.business._id})).toBe(1);
+ expect(new Set(stripe.checkout.sessions.create.mock.calls.map(([,options])=>options.idempotencyKey)).size).toBe(1);
+});

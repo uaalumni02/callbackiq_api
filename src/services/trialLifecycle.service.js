@@ -1,4 +1,4 @@
-import {planSubscriptionProjection} from '../helpers/billing/subscriptionProjection.js';
+import {matchesCheckoutReceipt,planSubscriptionProjection} from '../helpers/billing/subscriptionProjection.js';
 import {applyObservedTrial,completeObservedSubscription,subscriptionObservationMatches} from './subscriptionState.service.js';
 import { projectCurrentEntitlement } from './subscriptionEntitlement.service.js';
 import { expireObservedTrial, observeTrialState } from './trialExpiry.service.js';
@@ -631,7 +631,8 @@ export const createSubscriptionCheckout = async ({
         aiEnabled: false,
         priceMonthly: TRIAL_PRICE_MONTHLY,
       }});
-  if (!completion.applied) throw Object.assign(lifecycleError('CHECKOUT_STATE_CHANGED',
+  if (!completion.applied && !matchesCheckoutReceipt(completion.current,{sessionId:checkout.id,
+    customerId:stripeCustomerId,priceId,plan,trialOffered:offerTrial})) throw Object.assign(lifecycleError('CHECKOUT_STATE_CHANGED',
     'Subscription changed while checkout was being created. Reload Billing before continuing.',409),{current:completion.current});
   const subscription=completion.current;
 

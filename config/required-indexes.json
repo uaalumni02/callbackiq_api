@@ -2836,6 +2836,42 @@
     "options": {}
   },
   {
+    "collection": "trackingnumberreleaseintents",
+    "key": {
+      "status": 1,
+      "claimExpiresAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "trackingnumberreleaseintents",
+    "key": {
+      "business": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "trackingnumberreleaseintents",
+    "key": {
+      "providerAccountSid": 1,
+      "providerSid": 1
+    },
+    "options": {
+      "unique": true,
+      "name": "one_unresolved_resource_release",
+      "partialFilterExpression": {
+        "status": {
+          "$in": [
+            "pending",
+            "dispatching",
+            "uncertain"
+          ]
+        }
+      }
+    }
+  },
+  {
     "collection": "trialextensiongrants",
     "key": {
       "business": 1
@@ -3355,41 +3391,5 @@
       "_id": 1
     },
     "options": {}
-  },
-  {
-    "collection": "trackingnumberreleaseintents",
-    "key": {
-      "status": 1,
-      "claimExpiresAt": 1
-    },
-    "options": {}
-  },
-  {
-    "collection": "trackingnumberreleaseintents",
-    "key": {
-      "business": 1,
-      "createdAt": -1
-    },
-    "options": {}
-  },
-  {
-    "collection": "trackingnumberreleaseintents",
-    "key": {
-      "providerAccountSid": 1,
-      "providerSid": 1
-    },
-    "options": {
-      "unique": true,
-      "name": "one_unresolved_resource_release",
-      "partialFilterExpression": {
-        "status": {
-          "$in": [
-            "pending",
-            "dispatching",
-            "uncertain"
-          ]
-        }
-      }
-    }
   }
 ]
