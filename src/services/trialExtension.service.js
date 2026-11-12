@@ -4,8 +4,7 @@ import {observeSubscriptionState} from './subscriptionState.service.js';
 import { createHash } from 'node:crypto';
 import Subscription from '../models/subscription.js';
 import TrialExtensionGrant from '../models/trialExtensionGrant.js';
-import { getStripeClient } from '../helpers/stripe/stripeClient.js';
-import { stripePeriodDates } from '../helpers/billing/stripeSubscriptionSnapshot.js';
+import {requestTrialExtension,requireBillingReceipt} from '../integrations/billingOperations.js';
 import { assertDistributedLeaseActive, withDistributedLease } from './distributedLease.service.js';
 
 const failure = (code, message) => Object.assign(new Error(message), { code, statusCode: 409 });
@@ -58,17 +57,13 @@ export async function extendTrial({ businessId, adminUserId, days = 7, reason = 
     const { subscription, intent, applied } = await reserveExtension({ businessId, adminUserId,
       days: safeDays, reason: cleanReason, operationKey });
     if (applied) return (await recordExtensionReceipt(subscription,businessId,intent.key)).current;
-    const remote = await getStripeClient().subscriptions.update(intent.stripeSubscriptionId, {
-      trial_end: Math.floor(new Date(intent.newTrialEndsAt).getTime() / 1000), proration_behavior: 'none',
-    }, { idempotencyKey: `trial-extension:${intent.key}` });
+    const receipt=requireBillingReceipt(await requestTrialExtension({subscriptionId:intent.stripeSubscriptionId,
+      trialEndsAt:new Date(intent.newTrialEndsAt),idempotencyKey:`trial-extension:${intent.key}`}));
     assertDistributedLeaseActive();
-    if (remote.status !== 'trialing' || remote.trial_end !== Math.floor(new Date(intent.newTrialEndsAt).getTime() / 1000)) {
-      throw failure('TRIAL_EXTENSION_UNVERIFIED', 'Stripe has not verified the requested trial extension.');
-    }
     const completion=await conditionalWrite({model:Subscription,identity:{_id:subscription._id,business:businessId},
       observed:{...observeSubscriptionState(subscription),'trialExtensionIntent.key':intent.key},
-      update:{$max:{trialEndsAt:new Date(remote.trial_end*1000)},$set:{currentPeriodEnd:
-        stripePeriodDates(remote).currentPeriodEnd || new Date(intent.newTrialEndsAt)},$inc:{__v:1}}});
+      update:{$max:{trialEndsAt:receipt.trialEndsAt},$set:{currentPeriodEnd:
+        receipt.currentPeriodEnd},$inc:{__v:1}}});
     if (!completion.applied) throw Object.assign(failure('TRIAL_EXTENSION_PENDING',
       'The subscription changed. Verify the Stripe outcome before another extension.'),{current:completion.current});
     const updated=completion.current;

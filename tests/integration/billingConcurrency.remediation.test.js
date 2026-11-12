@@ -82,7 +82,8 @@ test('extension reconciles a lost acknowledgement; replay never adds days twice'
  jest.spyOn(getStripeClient().subscriptions,'update').mockImplementation(async(_id,body,options)=>{targets.push({body,options});
  if(targets.length===1)throw new Error('connection lost after provider accepted');return{status:'trialing',trial_end:body.trial_end};});
  const input={businessId:business.id,adminUserId:String(owner),days:7,reason:'Synthetic support incident',operationKey:'stable-operation'};
- await expect(extendTrial(input)).rejects.toThrow('connection lost');
+ await expect(extendTrial(input)).rejects.toMatchObject({providerOutcome:'uncertain',code:'BILLING_PROVIDER_FAILED',
+  cause:expect.objectContaining({message:'connection lost after provider accepted'})});
  expect((await Subscription.findById(subscription._id)).trialExtensionIntent.status).toBe('pending');
  expect((await reconcileTrialExtensions()).errors).toEqual([]);await extendTrial(input);
  const stored=await Subscription.findById(subscription._id);
