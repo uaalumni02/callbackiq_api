@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import {execFileSync} from 'node:child_process';
 import {
   certificationStages,
   providerContractGroups,
@@ -76,9 +77,20 @@ describe("CallBackIQ production certification structure", () => {
       fs.readFileSync(path.join(root, "package.json"), "utf8"),
     );
 
-    expect(packageJson.scripts?.["test:production-certification"]).toBeTruthy();
-    expect(packageJson.scripts?.["test:ci"]).toContain(
-      "test:production-certification",
-    );
+    const proof=execFileSync(process.execPath,['--input-type=module','-e',`
+      import fs from 'node:fs';
+      import {validatePlan} from './scripts/check.mjs';
+      const pkg=JSON.parse(fs.readFileSync('package.json','utf8'));
+      const plan=JSON.parse(fs.readFileSync('config/check-plan.json','utf8'));
+      const aliases=JSON.parse(fs.readFileSync('config/legacy-check-aliases.json','utf8'));
+      validatePlan(pkg.name,plan,aliases);
+      const broken=structuredClone(plan);
+      broken.profiles['check:release']=broken.profiles['check:release'].filter(step=>step!=='test:production-certification');
+      let rejected=false;
+      try{validatePlan(pkg.name,broken,aliases);}catch(error){rejected=error.message.includes('test:production-certification');}
+      console.log(JSON.stringify({productionRequired:rejected,legacyCiStillCertifies:aliases['test:ci'].profile==='check:release'}));
+    `],{cwd:root,encoding:'utf8'});
+    expect(JSON.parse(proof)).toEqual({productionRequired:true,legacyCiStillCertifies:true});
+    expect(packageJson.scripts?.['check:release']).toBe('node scripts/check.mjs check:release');
   });
 });
