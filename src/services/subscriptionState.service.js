@@ -25,7 +25,7 @@ export async function completeObservedSubscription({businessId,observed,fields,s
  }
 }
 
-/** Trial redemption rolls back (or compensates the local-only fallback) on a lost observation. */
+/** Trial redemption rolls back its transaction on a lost observation. */
 export async function applyObservedTrial(input) {
  const completion=await completeObservedSubscription(input);
  if(!completion.applied)throw Object.assign(new Error('Subscription changed before trial completion.'),

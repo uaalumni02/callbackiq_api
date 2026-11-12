@@ -1,15 +1,16 @@
+import mongoose from 'mongoose';
 import BillingController from '../../src/controllers/billing.js';
 import Subscription from '../../src/models/subscription.js';
 import '../../src/models/user.js';
 import Grant from '../../src/models/trialExtensionGrant.js';
-import {syncStripeSubscription} from '../../src/services/trialLifecycle.service.js';
+import {syncStripeSubscription,syncCheckoutSession} from '../../src/services/trialLifecycle.service.js';
 import {extendTrial} from '../../src/services/trialExtension.service.js';
 import {getStripeClient} from '../../src/helpers/stripe/stripeClient.js';
 import {trackingFixture} from '../fixtures/trackingNumber.fixture.js';
 import {connectTestDB,clearTestDB,closeTestDB} from '../setup/testReplicaDb.js';
 jest.mock('../../src/helpers/stripe/stripeClient.js',()=>({getStripeClient:jest.fn()}));
 jest.mock('../../src/services/trackingNumberProvisioning.service.js',()=>({provisionTrackingNumber:jest.fn()}));
-beforeAll(connectTestDB,60000);afterEach(async()=>{jest.clearAllMocks();await clearTestDB()});afterAll(closeTestDB);
+beforeAll(connectTestDB,60000);afterEach(async()=>{jest.restoreAllMocks();jest.clearAllMocks();await clearTestDB()});afterAll(closeTestDB);
 test.each(['conversion','extension'])('a delayed Stripe refresh cannot overwrite a newer %s',async change=>{
  const {business,subscription}=await trackingFixture(),later=new Date(Date.now()+7*86400000);
  await Subscription.updateOne({_id:subscription._id},{$set:{status:'trialing',trialEndsAt:new Date(Date.now()-1000),trialUsedAt:new Date()}});
@@ -98,4 +99,52 @@ test.each(['handleInvoicePaid','handleInvoicePaymentFailed'])('%s cannot resurre
  })}});
  expect(await BillingController[method]({id:'in_removed',subscription:'sub_tracking',customer:'cus_tracking'})).toBeNull();
  expect(await Subscription.countDocuments({business:business._id})).toBe(0);
+});
+
+test('a legacy checkout without business metadata cannot overwrite a conversion during provider retrieval',async()=>{
+ const {business,subscription}=await trackingFixture();
+ await Subscription.updateOne({_id:subscription._id},{$set:{status:'paused',isActive:false}});
+ const remote={id:'sub_tracking',customer:'cus_tracking',status:'paused',metadata:{businessId:String(business._id)},items:{data:[]}};
+ getStripeClient.mockReturnValue({subscriptions:{retrieve:jest.fn(async()=>{
+  await Subscription.updateOne({_id:subscription._id},{$set:{status:'active',isActive:true,latestInvoiceId:'in_new',lastPaymentStatus:'paid'},$inc:{__v:1}});
+  return remote;
+ })}});
+ const result=await syncCheckoutSession({id:'cs_legacy',subscription:'sub_tracking'});
+ expect(result.status).toBe('active');
+ expect(await Subscription.findById(subscription._id)).toMatchObject({status:'active',latestInvoiceId:'in_new',lastPaymentStatus:'paid'});
+});
+
+test('a paid conversion between the guard and atomic write rejects the stale completion',async()=>{
+ const {business,subscription}=await trackingFixture();
+ const remote={id:'sub_tracking',customer:'cus_tracking',status:'paused',metadata:{businessId:String(business._id)},items:{data:[]}};
+ const update=Subscription.findOneAndUpdate.bind(Subscription);let interleaved=false;
+ jest.spyOn(Subscription,'findOneAndUpdate').mockImplementation((...args)=>{
+  const query=update(...args),exec=query.exec.bind(query);
+  query.exec=async function(){
+   if(!interleaved&&args[0].$and&&args[1].$set?.status==='paused'){
+    interleaved=true;await Subscription.collection.updateOne({_id:subscription._id},{$set:{status:'active',latestInvoiceId:'in_winner',lastPaymentStatus:'paid'},$inc:{__v:1}});
+   }return exec();
+  };return query;
+ });
+ const result=await syncStripeSubscription({stripeSubscription:remote,refreshFromStripe:false});
+ expect(interleaved).toBe(true);expect(result.status).toBe('active');
+ expect(await Subscription.findById(subscription._id)).toMatchObject({latestInvoiceId:'in_winner',lastPaymentStatus:'paid'});
+});
+test.each(['converted','deleted'])('a trial grant cannot overwrite an account %s before the transaction starts',async outcome=>{
+ const {business,subscription}=await trackingFixture();
+ await Subscription.updateOne({_id:subscription._id},{$set:{status:'incomplete',isActive:false}});
+ const started=Math.floor(Date.now()/1000),remote={id:'sub_tracking',customer:'cus_tracking',status:'trialing',trial_start:started,trial_end:started+14*86400,
+  metadata:{businessId:String(business._id),ownerId:String(business.owner)},items:{data:[]}};
+ const start=mongoose.startSession.bind(mongoose);let entered=false;
+ jest.spyOn(mongoose,'startSession').mockImplementation(async(...args)=>{
+  if(!entered){entered=true;
+   if(outcome==='converted')await Subscription.updateOne({_id:subscription._id},{$set:{status:'active',lastPaymentStatus:'paid'},$inc:{__v:1}});
+   else {await Subscription.deleteOne({_id:subscription._id});await business.constructor.deleteOne({_id:business._id});}
+  }return start(...args);
+ });
+ const result=await syncStripeSubscription({stripeSubscription:remote,refreshFromStripe:false});
+ expect(entered).toBe(true);
+ if(outcome==='converted')expect(result).toMatchObject({status:'active',lastPaymentStatus:'paid'});
+ else {expect(result).toBeNull();expect(await Subscription.countDocuments({business:business._id})).toBe(0);}
+ expect(await mongoose.connection.collection('trialredemptions').countDocuments()).toBe(0);
 });

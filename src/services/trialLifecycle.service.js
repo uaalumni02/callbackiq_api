@@ -665,8 +665,10 @@ export const syncCheckoutSession = async (checkoutSession) => {
   const subscriptionId = checkoutSession?.subscription;
   if (!subscriptionId || !stripe?.subscriptions?.retrieve) return null;
 
-  const observedSubscription=checkoutSession.metadata?.businessId
-    ? await Subscription.findOne({business:checkoutSession.metadata.businessId}) : undefined;
+  // Legacy checkout sessions may omit tenant metadata. Capture the canonical
+  // SID's local state before the provider await rather than observing its result.
+  const observedSubscription=await Subscription.findOne(checkoutSession.metadata?.businessId
+    ? {business:checkoutSession.metadata.businessId} : {stripeSubscriptionId:subscriptionId});
   const stripeSubscription = await stripe.subscriptions.retrieve(
     subscriptionId,
     { expand: ["latest_invoice"] },
