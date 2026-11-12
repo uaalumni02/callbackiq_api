@@ -1,4 +1,5 @@
-import { Db, Lead, Response, getBusinessForOwner, getLeadsOverview, getLeadsPage, mongoose, queryFailure, safeConsole, setPaginationHeaders } from './context.js';
+import {readTenantResource} from '../shared/tenantResource.js';
+import {  Lead, Response, getBusinessForOwner, getLeadsOverview, getLeadsPage, mongoose, queryFailure, safeConsole, setPaginationHeaders } from './context.js';
 
 export default class LeadReadsController {
 static async getMyLeads(req, res) {
@@ -80,26 +81,10 @@ static async getLeadById(req, res) {
        * The authenticated Business is already request-scoped. Avoid another
        * Business populate solely for tenant comparison/serialization.
        */
-      const lead = await Db.getLeadById(
-        Lead,
-        id,
-        {
-          populateBusiness: false,
-          lean: true,
-        },
-      );
-
-      if (!lead) {
-        return Response.responseInvalidInput(res, "Lead not found");
-      }
-
-      const leadBusinessId =
-        lead.business?._id ||
-        lead.business;
-
-      if (String(leadBusinessId) !== String(business._id)) {
-        return Response.responseBadAuth(res, "You cannot access this lead");
-      }
+      const lead=await readTenantResource({model:Lead,businessId:business._id,id:id,res,
+        missingMessage:"Lead not found",deniedMessage:"You cannot access this lead",
+        populateBusiness: false});
+      if(!lead)return undefined;
 
       const payload = {
         ...lead,

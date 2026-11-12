@@ -132,9 +132,10 @@ const delegatedMethods = [...facade.matchAll(
   /static async (\w+)\(\.\.\.args\)\s*\{\s*return __meekcallGetDb\w+Methods\(\)\.\1\.apply\(this,\s*args\);\s*\}/g,
 )].map(m => m[1]);
 
-test('the complete 57-method extracted facade remains available', () => {
-  expect(delegatedMethods).toHaveLength(57);
-  expect(new Set(delegatedMethods).size).toBe(57);
+test('the owner facade retains unique forwarding names without exposing removed ID-only capabilities',()=>{
+ expect(delegatedMethods.length).toBeGreaterThan(0);
+ expect(new Set(delegatedMethods).size).toBe(delegatedMethods.length);
+ for(const name of ['getLeadById','getConversationById','getCallLogById','updateConversation','deleteConversation','updateCallLog','deleteBusiness'])expect(Db[name]).toBeUndefined();
 });
 
 test.each(delegatedMethods)('Db.%s preserves arguments, receiver and return value', async (name) => {

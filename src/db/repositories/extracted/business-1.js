@@ -14,19 +14,7 @@ async getBusinessScopeByOwner(model, ownerId) {
     }
   },
 
-async updateBusiness(model, id, data) {
-    try {
-      return await model
-        .findByIdAndUpdate(id, data, {
-          returnDocument: "after",
-          runValidators: true,
-        })
-        .populate("owner", "userName email role");
-    } catch (error) {
-      safeConsole.error("Error updating business:", error);
-      throw error;
-    }
-  },
+
 
 async updateBusinessByOwner(model, ownerId, data) {
     try {
@@ -60,17 +48,7 @@ async deleteBusinessByOwner(model, ownerId) {
     }
   },
 
-async deleteBusiness(model, id) {
-    try {
-      const { deleteBusinessSafely } = await import(
-        "../../../services/businessDeletion.service.js"
-      );
-      return await deleteBusinessSafely({ businessId: id });
-    } catch (error) {
-      safeConsole.error("Error deleting business:", error);
-      throw error;
-    }
-  },
+
 
 async getBusinessByPhone(model, phone) {
     try {

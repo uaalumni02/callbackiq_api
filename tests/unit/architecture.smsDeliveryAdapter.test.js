@@ -10,12 +10,14 @@ function harness(overrides={}) {
  const deps={Message,Conversation,AlertService,SocketService,sendSms,logOperationalEvent:jest.fn(),applySmsProductionInvariants:({result})=>result,describeSmsWorkflowDecision:()=>({type:'reply'}),assertDistributedLeaseActive:jest.fn(),respectCustomerConstraints:reply=>reply,getSmsAutomationSuppressionReason:jest.fn().mockResolvedValue(null),...overrides};
  return {deps,send:createSmsOutboundDelivery(deps)};
 }
-test('conversation message reader keeps original fallback behavior',async()=>{
- const db={getMessagesByConversation:jest.fn().mockResolvedValue(['fallback'])},model={};
- expect(await createSmsMessageReader({Db:db,Message:model})('conv')).toEqual(['fallback']);
- expect(db.getMessagesByConversation).toHaveBeenCalledWith(model,'conv');
- db.getMessagesForAI=jest.fn().mockResolvedValue(['ai']);
- expect(await createSmsMessageReader({Db:db,Message:model})('conv')).toEqual(['ai']);
+test('conversation message reader forwards the required tenant to the bounded AI history capability',async()=>{
+ const db={getMessagesForAI:jest.fn().mockResolvedValue(['ai']),getMessagesByConversation:jest.fn()},model={};
+ expect(await createSmsMessageReader({Db:db,Message:model})('conv','tenant')).toEqual(['ai']);
+ expect(db.getMessagesForAI).toHaveBeenCalledWith(model,'conv','tenant');
+ expect(db.getMessagesByConversation).not.toHaveBeenCalled();
+ delete db.getMessagesForAI;
+ await expect(createSmsMessageReader({Db:db,Message:model})('conv','tenant')).rejects.toThrow(TypeError);
+ expect(db.getMessagesByConversation).not.toHaveBeenCalled();
 });
 test('no-reply decision records workflow and never contacts provider',async()=>{
  const {deps,send}=harness();

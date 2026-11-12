@@ -47,3 +47,19 @@ test('a newer projection cannot strand a verified extension receipt in pending s
   expect(await Grant.countDocuments()).toBe(1);expect(update).toHaveBeenCalledTimes(1);
  } finally {spy.mockRestore()}
 });
+
+test.each(['','   '])('blank admin allowance %p remains the finite default rather than unlimited',async value=>{
+ process.env.TRIAL_MAX_ADMIN_EXTENSION_DAYS=value;
+ const pair=await trial(),end=new Date(Date.now()+86400000);
+ await Grant.create({business:pair.business._id,subscription:pair.subscription._id,grantedBy:pair.business.owner,
+  days:13,reason:'Prior grant',previousTrialEndsAt:end,newTrialEndsAt:end,operationKey:'prior-blank'});
+ await expect(extendTrial(input(pair))).rejects.toMatchObject({code:'TRIAL_EXTENSION_LIMIT_REACHED'});
+ expect(update).not.toHaveBeenCalled();expect(await Grant.countDocuments()).toBe(1);
+});
+test('explicit zero retains the documented unlimited lifetime allowance',async()=>{
+ process.env.TRIAL_MAX_ADMIN_EXTENSION_DAYS='0';
+ const pair=await trial(),end=new Date(Date.now()+86400000);
+ await Grant.create({business:pair.business._id,subscription:pair.subscription._id,grantedBy:pair.business.owner,
+  days:14,reason:'Prior grant',previousTrialEndsAt:end,newTrialEndsAt:end,operationKey:'prior-explicit-zero'});
+ await extendTrial(input(pair));expect(update).toHaveBeenCalledTimes(1);expect(await Grant.countDocuments()).toBe(2);
+});

@@ -66,3 +66,16 @@ export const CONVERSATION_INTELLIGENCE_LEAD_FIELDS = [
   "updatedAt",
   "__v",
 ].join(" ");
+
+/** Default owner read projections; repository population always adds its tenant predicate. */
+const leadContact='customerName phone serviceNeeded urgency status serviceEligibility';
+export const OWNER_RESOURCE_POPULATIONS=Object.freeze({
+ Lead:[{path:'business',select:'businessName businessType phone'}],
+ Conversation:[{path:'business',select:'businessName phone owner'},{path:'lead',select:leadContact},{path:'archivedBy',select:'userName email role'}],
+ CallLog:[{path:'business',select:'businessName businessType phone smsTemplate estimatedJobValue'},
+  {path:'lead',select:leadContact},{path:'conversation',select:'customerPhone customerName status'}],
+ Message:[{path:'lead',select:'customerName phone serviceNeeded'},{path:'conversation',select:'customerPhone customerName status'}],
+ Alert:[{path:'business',select:'businessName businessType phone'},{path:'lead',select:leadContact}],
+ ConversationIntelligence:[{path:'conversation',select:CONVERSATION_INTELLIGENCE_CONVERSATION_FIELDS},
+  {path:'lead',select:CONVERSATION_INTELLIGENCE_LEAD_FIELDS}],
+});

@@ -4,7 +4,7 @@
   "reason": "Owned, measured temporary allowances. Growth and new exceptions require separate architecture review; --tighten cannot approve either.",
   "files": {
     "src/db/db.js": {
-      "maxLines": 590,
+      "maxLines": 472,
       "owner": "@uaalumni02",
       "expiresAtOrBelow": 400,
       "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."
@@ -100,7 +100,7 @@
       "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."
     },
     "src/services/cursorPagination.service.js": {
-      "maxLines": 437,
+      "maxLines": 433,
       "owner": "@uaalumni02",
       "expiresAtOrBelow": 400,
       "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."
@@ -222,7 +222,7 @@
       "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."
     },
     "src/controllers/agent.js#replyToConversation": {
-      "maxLines": 242,
+      "maxLines": 232,
       "owner": "@uaalumni02",
       "expiresAtOrBelow": 60,
       "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."
@@ -305,38 +305,14 @@
       "expiresAtOrBelow": 60,
       "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."
     },
-    "src/controllers/callLog.js#deleteCallLog": {
-      "maxLines": 63,
-      "owner": "@uaalumni02",
-      "expiresAtOrBelow": 60,
-      "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."
-    },
-    "src/controllers/conversation/Access.js#getAuthorizedConversation": {
-      "maxLines": 102,
-      "owner": "@uaalumni02",
-      "expiresAtOrBelow": 60,
-      "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."
-    },
     "src/controllers/conversationIntelligence/Analysis.js#analyzeConversation": {
-      "maxLines": 133,
-      "owner": "@uaalumni02",
-      "expiresAtOrBelow": 60,
-      "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."
-    },
-    "src/controllers/conversationIntelligence/Feedback.js#updateFeedback": {
-      "maxLines": 73,
+      "maxLines": 121,
       "owner": "@uaalumni02",
       "expiresAtOrBelow": 60,
       "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."
     },
     "src/controllers/conversationIntelligence/Feedback.js#updateRecommendedAction": {
-      "maxLines": 74,
-      "owner": "@uaalumni02",
-      "expiresAtOrBelow": 60,
-      "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."
-    },
-    "src/controllers/conversationIntelligence/Feedback.js#deleteConversationIntelligence": {
-      "maxLines": 67,
+      "maxLines": 61,
       "owner": "@uaalumni02",
       "expiresAtOrBelow": 60,
       "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."
@@ -396,13 +372,13 @@
       "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."
     },
     "src/controllers/lead/Commands.js#updateLead": {
-      "maxLines": 70,
+      "maxLines": 64,
       "owner": "@uaalumni02",
       "expiresAtOrBelow": 60,
       "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."
     },
     "src/controllers/lead/Commands.js#updateLeadStatus": {
-      "maxLines": 73,
+      "maxLines": 64,
       "owner": "@uaalumni02",
       "expiresAtOrBelow": 60,
       "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."
@@ -413,20 +389,8 @@
       "expiresAtOrBelow": 60,
       "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."
     },
-    "src/controllers/lead/Reads.js#getLeadById": {
-      "maxLines": 68,
-      "owner": "@uaalumni02",
-      "expiresAtOrBelow": 60,
-      "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."
-    },
-    "src/controllers/message.js#getMessagesByConversation": {
-      "maxLines": 74,
-      "owner": "@uaalumni02",
-      "expiresAtOrBelow": 60,
-      "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."
-    },
     "src/controllers/support/Administration.js#updateTicketAdmin": {
-      "maxLines": 105,
+      "maxLines": 101,
       "owner": "@uaalumni02",
       "expiresAtOrBelow": 60,
       "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."
@@ -485,26 +449,8 @@
       "expiresAtOrBelow": 60,
       "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."
     },
-    "src/db/repositories/extracted/alerts-1.js#createDbalerts1Methods": {
-      "maxLines": 170,
-      "owner": "@uaalumni02",
-      "expiresAtOrBelow": 60,
-      "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."
-    },
     "src/db/repositories/extracted/business-1.js#createDbbusiness1Methods": {
-      "maxLines": 120,
-      "owner": "@uaalumni02",
-      "expiresAtOrBelow": 60,
-      "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."
-    },
-    "src/db/repositories/extracted/calls-1.js#createDbcalls1Methods": {
-      "maxLines": 122,
-      "owner": "@uaalumni02",
-      "expiresAtOrBelow": 60,
-      "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."
-    },
-    "src/db/repositories/extracted/conversations-1.js#createDbconversations1Methods": {
-      "maxLines": 119,
+      "maxLines": 98,
       "owner": "@uaalumni02",
       "expiresAtOrBelow": 60,
       "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."
@@ -516,31 +462,25 @@
       "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."
     },
     "src/db/repositories/extracted/intelligence-1.js#createDbintelligence1Methods": {
-      "maxLines": 338,
+      "maxLines": 246,
       "owner": "@uaalumni02",
       "expiresAtOrBelow": 60,
       "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."
     },
     "src/db/repositories/extracted/intelligence-1.js#getConversationIntelligenceByBusiness": {
-      "maxLines": 71,
+      "maxLines": 62,
       "owner": "@uaalumni02",
       "expiresAtOrBelow": 60,
       "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."
     },
     "src/db/repositories/extracted/intelligence-1.js#getConversationIntelligenceOpportunities": {
-      "maxLines": 70,
+      "maxLines": 61,
       "owner": "@uaalumni02",
       "expiresAtOrBelow": 60,
       "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."
     },
     "src/db/repositories/extracted/intelligence-1.js#getConversationIntelligenceDashboard": {
       "maxLines": 95,
-      "owner": "@uaalumni02",
-      "expiresAtOrBelow": 60,
-      "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."
-    },
-    "src/db/repositories/extracted/leads-1.js#createDbleads1Methods": {
-      "maxLines": 112,
       "owner": "@uaalumni02",
       "expiresAtOrBelow": 60,
       "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."
@@ -1075,12 +1015,6 @@
     },
     "src/services/cursorPagination.service.js#getConversationsPage": {
       "maxLines": 68,
-      "owner": "@uaalumni02",
-      "expiresAtOrBelow": 60,
-      "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."
-    },
-    "src/services/cursorPagination.service.js#getMessagesPage": {
-      "maxLines": 65,
       "owner": "@uaalumni02",
       "expiresAtOrBelow": 60,
       "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."

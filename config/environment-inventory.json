@@ -42,7 +42,7 @@
     "src/middleware/twilio-webhook-rate-limit.js:227"
   ],
   "AI_ANALYSIS_HISTORY_LIMIT": [
-    "src/db/repositories/extracted/messages-1.js:20"
+    "config/numeric-settings.json"
   ],
   "AI_DUPLICATE_MESSAGE_THRESHOLD": [
     "src/helpers/ai/aiGuardrails.js:507"
@@ -909,7 +909,7 @@
     "config/worker-settings.json"
   ],
   "TRIAL_MAX_ADMIN_EXTENSION_DAYS": [
-    "src/services/trialExtension.service.js:30"
+    "config/numeric-settings.json"
   ],
   "TRIAL_NO_PAYMENT_METHOD_NUMBER_RELEASE_GRACE_HOURS": [
     "src/services/trialLifecycle.service.js:43"

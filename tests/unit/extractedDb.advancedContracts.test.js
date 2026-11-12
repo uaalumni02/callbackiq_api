@@ -1,5 +1,6 @@
 /** Trial redemption, intelligence query scoping, and dashboard aggregation. */
 import assert from 'node:assert/strict';
+import mongoose from 'mongoose';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createDbtrial1Methods } from '../../src/db/repositories/extracted/trial-1.js';
@@ -14,6 +15,7 @@ function queryRecorder(value = []) {
     return (...args) => { events.push([name, args]); return query; };
   }});
   const model = {
+    schema:new mongoose.Schema({business:mongoose.Schema.Types.ObjectId,conversation:mongoose.Schema.Types.ObjectId}),db:{models:{}},modelName:"ConversationIntelligence",
     find: (...args) => { events.push(['find', args]); return query; },
     findOne: (...args) => { events.push(['findOne', args]); return query; },
     findOneAndUpdate: (...args) => { events.push(['findOneAndUpdate', args]); return query; },
@@ -85,14 +87,16 @@ for (const config of [
 ]) {
   test(`intelligence paged listing filters are tenant-scoped ${JSON.stringify(config)}`, async () => {
     const { model, events } = queryRecorder([{ id: 'analysis-1' }]);
-    const out = await intel.getConversationIntelligenceByBusiness(model, 'tenant-one', config);
-    const query = events.find(x => x[0] === 'find')[1][0];
-    assert.equal(query.business, 'tenant-one');
+    const out = await intel.getConversationIntelligenceByBusiness(model, '000000000000000000000001', config);
+    const filter=events.find(x=>x[0]==='find')[1][0];
+    const query=filter.$and[0];
+    assert.equal(String(filter.business),'000000000000000000000001');
+    assert.equal(query.business, '000000000000000000000001');
     if (config.status) assert.equal(query.status, config.status);
     if (config.minimumScore !== undefined) assert.deepEqual(query['buyingLikelihood.score'], { $gte: config.minimumScore });
     if (config.actionCompleted !== undefined) assert.equal(query['nextBestAction.completed'], config.actionCompleted);
     if (config.urgency) assert.equal(query['urgency.level'], config.urgency);
-    assert.deepEqual(events.find(x => x[0] === 'countDocuments')[1][0], query);
+    assert.deepEqual(events.find(x => x[0] === 'countDocuments')[1][0], filter);
     assert.equal(out.pagination.total, 7);
     assert.equal(out.pagination.page, config.page || 1);
     assert.equal(out.pagination.limit, config.limit || 25);
@@ -107,66 +111,63 @@ for (const config of [
 ]) {
   test(`intelligence opportunities apply revenue, consented action and urgency filters ${JSON.stringify(config)}`, async () => {
     const { model, events } = queryRecorder([{ id: 'opportunity-1' }]);
-    const out = await intel.getConversationIntelligenceOpportunities(model, 'tenant-one', config);
-    const query = events.find(x => x[0] === 'find')[1][0];
-    assert.equal(query.business, 'tenant-one');
+    const out = await intel.getConversationIntelligenceOpportunities(model, '000000000000000000000001', config);
+    const filter=events.find(x=>x[0]==='find')[1][0];
+    const query=filter.$and[0];
+    assert.equal(String(filter.business),'000000000000000000000001');
+    assert.equal(query.business, '000000000000000000000001');
     assert.equal(query.status, 'completed');
     assert.deepEqual(query['buyingLikelihood.score'], { $gte: config.minimumScore ?? 70 });
     assert.deepEqual(query['estimatedRevenue.likely'], { $gte: config.minimumRevenue ?? 0 });
     if (config.urgency?.length) assert.deepEqual(query['urgency.level'], { $in: config.urgency });
     else assert.equal(query['urgency.level'], undefined);
     if (config.actionCompleted !== undefined) assert.equal(query['nextBestAction.completed'], config.actionCompleted);
-    assert.deepEqual(events.find(x => x[0] === 'countDocuments')[1][0], query);
+    assert.deepEqual(events.find(x => x[0] === 'countDocuments')[1][0], filter);
     assert.equal(out.pagination.total, 7);
   });
 }
 
-test('intelligence direct and tenant-scoped reads preserve conversation and lead projections', async () => {
-  const { model, events } = queryRecorder({ _id: 'analysis-1' });
-  await intel.getConversationIntelligenceByConversation(model, 'conversation-one');
-  await intel.getConversationIntelligenceForBusinessByConversation(model, 'conversation-one', 'tenant-one');
-  assert.deepEqual(events.filter(x => x[0] === 'findOne').map(x => x[1][0]), [
-    { conversation: 'conversation-one' },
-    { conversation: 'conversation-one', business: 'tenant-one' },
-  ]);
-  const projections = events.filter(x => x[0] === 'populate').map(x => x[1][0]);
-  assert.ok(projections.some(x => x.path === 'lead' && x.select === 'status customerName'));
+test('intelligence reads require context and preserve conversation/lead projections',async()=>{
+ const {model,events}=queryRecorder({_id:'analysis-1'});
+ assert.equal(intel.getConversationIntelligenceByConversation,undefined);
+ await assert.rejects(()=>intel.getConversationIntelligenceForBusinessByConversation(model,'000000000000000000000002'),error=>error.code==='TENANT_CONTEXT_REQUIRED');
+ await intel.getConversationIntelligenceForBusinessByConversation(model,'000000000000000000000002','000000000000000000000001');
+ assert.deepEqual(events.filter(x=>x[0]==='findOne').map(x=>x[1][0]),[{conversation:'000000000000000000000002',business:new mongoose.Types.ObjectId('000000000000000000000001')}]);
+ const projections=events.filter(x=>x[0]==='populate').map(x=>x[1][0]);
+ assert.ok(projections.some(x=>x.path==='lead'&&x.select==='status customerName'));
 });
-
-test('intelligence mutation commands retain tenant boundaries and validators', async () => {
-  const { model, events } = queryRecorder({ _id: 'analysis-1' });
-  await intel.saveConversationIntelligence(model, { conversation: 'c1', status: 'pending' });
-  await intel.updateConversationIntelligence(model, 'c1', { status: 'completed' });
-  await intel.updateConversationIntelligenceForBusiness(model, 'c1', 'tenant-one', { status: 'completed' });
-  const updates = events.filter(x => x[0] === 'findOneAndUpdate').map(x => x[1]);
-  assert.deepEqual(updates[0][0], { conversation: 'c1' });
-  assert.equal(updates[0][2].upsert, true);
-  assert.deepEqual(updates[2][0], { conversation: 'c1', business: 'tenant-one' });
-  assert.ok(updates.every(x => x[2].runValidators === true));
+test('intelligence mutations require context, retain validators and cannot upsert an arbitrary conversation',async()=>{
+ const {model,events}=queryRecorder({_id:'analysis-1'});
+ assert.equal(intel.saveConversationIntelligence,undefined);assert.equal(intel.updateConversationIntelligence,undefined);
+ await assert.rejects(()=>intel.updateConversationIntelligenceForBusiness(model,'000000000000000000000002',undefined,{status:'completed'}),error=>error.code==='TENANT_CONTEXT_REQUIRED');
+ await intel.updateConversationIntelligenceForBusiness(model,'000000000000000000000002','000000000000000000000001',{status:'completed'});
+ const [filter,update,options]=events.find(x=>x[0]==='findOneAndUpdate')[1];
+ assert.deepEqual(filter,{conversation:'000000000000000000000002',business:new mongoose.Types.ObjectId('000000000000000000000001')});
+ assert.deepEqual(update,{$set:{status:'completed'}});assert.equal(options.runValidators,true);assert.notEqual(options.upsert,true);
 });
 
 test('intelligence dashboard returns zero metrics when no matching analyses exist', async () => {
   const { model, events } = queryRecorder([]);
-  const out = await intel.getConversationIntelligenceDashboard(model, 'tenant-one');
+  const out = await intel.getConversationIntelligenceDashboard(model, '000000000000000000000001');
   assert.equal(out.totalAnalyzed, 0);
   assert.equal(out.pendingActions, 0);
-  assert.deepEqual(events[0][1][0][0].$match, { business: 'tenant-one', status: 'completed' });
+  assert.deepEqual(events[0][1][0][0].$match,{business:new mongoose.Types.ObjectId('000000000000000000000001'),status:'completed'});
 });
 
 test('intelligence dashboard preserves actual aggregation totals', async () => {
   const expected = { totalAnalyzed: 4, pendingActions: 2 };
   const { model } = queryRecorder([expected]);
-  assert.equal(await intel.getConversationIntelligenceDashboard(model, 'tenant-one'), expected);
+  assert.equal(await intel.getConversationIntelligenceDashboard(model, '000000000000000000000001'), expected);
 });
 
 test('dashboard metrics never return another tenant when business lookup misses', async () => {
   const events = [];
   const q = { select: () => q, lean: async () => null };
   const data = { Business: { findOne: x => { events.push(x); return q; } },
-    CallLog: {}, Lead: {}, Conversation: {}, Message: {}, ownerId: 'owner-one', businessId: 'tenant-one' };
+    CallLog: {}, Lead: {}, Conversation: {}, Message: {}, ownerId: 'owner-one', businessId: '000000000000000000000001' };
   const metrics = createDbreporting1Methods({ safeConsole: noLogger, verifiedAmountExpression: '$valuation' });
   assert.equal(await metrics.getDashboardMetrics(data), null);
-  assert.deepEqual(events, [{ _id: 'tenant-one', owner: 'owner-one' }]);
+  assert.deepEqual(events, [{ _id: '000000000000000000000001', owner: 'owner-one' }]);
 });
 
 test('dashboard aggregate errors are surfaced, never replaced with fabricated zero metrics', async () => {

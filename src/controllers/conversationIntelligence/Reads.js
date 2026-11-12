@@ -1,3 +1,4 @@
+import {readTenantResource} from '../shared/tenantResource.js';
 import { Business, ConversationIntelligence, Db, Response, listQuerySchema, mongoose, opportunityQuerySchema, safeConsole } from './context.js';
 
 export default class ConversationIntelligenceReadsController {
@@ -60,24 +61,10 @@ static async getConversationIntelligence(req, res) {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      const intelligence = await Db.getConversationIntelligenceByConversation(
-        ConversationIntelligence,
-        conversationId,
-      );
-
-      if (!intelligence) {
-        return Response.responseInvalidInput(
-          res,
-          "Conversation intelligence not found",
-        );
-      }
-
-      if (String(intelligence.business) !== String(business._id)) {
-        return Response.responseBadAuth(
-          res,
-          "You cannot access this conversation intelligence",
-        );
-      }
+      const intelligence=await readTenantResource({model:ConversationIntelligence,businessId:business._id,id:conversationId,res,
+        missingMessage:"Conversation intelligence not found",deniedMessage:"You cannot access this conversation intelligence",
+        identityField:'conversation'});
+      if(!intelligence)return undefined;
 
       return Response.responseOk(
         res,

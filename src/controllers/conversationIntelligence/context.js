@@ -32,10 +32,6 @@ import ConversationIntelligenceService from "../../services/conversationIntellig
 
 import SocketService from "../../services/socket.service.js";
 
-const getMessagesForAnalysis = async (conversationId) => {
-  return typeof Db.getMessagesForAI === "function"
-    ? Db.getMessagesForAI(Message, conversationId)
-    : Db.getMessagesByConversation(Message, conversationId);
-};
+const getMessagesForAnalysis = (conversationId,businessId) => Db.getMessagesForAI(Message,conversationId,businessId);
 
 export { Business, Conversation, ConversationIntelligence, ConversationIntelligenceService, Db, Lead, Response, SocketService, analysisIdentity, analysisUpdate, analyzeConversationSchema, beginValuation, claimAnalysis, finishValuation, getMessagesForAnalysis, mongoose, safeConsole, updateAnalyzedLead, listQuerySchema, opportunityQuerySchema, feedbackSchema, actionSchema };

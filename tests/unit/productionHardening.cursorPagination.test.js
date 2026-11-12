@@ -17,7 +17,7 @@ jest.mock("../../src/models/conversation.js", () => ({
 }));
 jest.mock("../../src/models/message.js", () => ({
   __esModule: true,
-  default: { find: jest.fn() },
+  default: { find: jest.fn(),schema:new (jest.requireActual("mongoose").Schema)({business:jest.requireActual("mongoose").Schema.Types.ObjectId}) },
 }));
 
 import {
@@ -116,7 +116,7 @@ describe("cursor pagination", () => {
     await getConversationsPage("biz", {
       limit: "2",
       cursor: page.nextCursor,
-    });
+    },{businessId:id(90)});
     expect(Conversation.find).toHaveBeenLastCalledWith(
       expect.objectContaining({ $or: expect.any(Array) }),
     );
@@ -129,17 +129,17 @@ describe("cursor pagination", () => {
     ];
     Message.find.mockReturnValue(makeChain(documents));
 
-    const page = await getMessagesPage("conversation", { limit: "1" });
+    const page = await getMessagesPage(id(7), { limit: "1" },{businessId:id(90)});
     expect(page.items).toHaveLength(1);
     expect(page.hasMore).toBe(true);
 
     Message.find.mockReturnValue(makeChain([]));
-    await getMessagesPage("conversation", {
+    await getMessagesPage(id(7), {
       limit: "1",
       cursor: page.nextCursor,
-    });
+    },{businessId:id(90)});
     expect(Message.find).toHaveBeenLastCalledWith(
-      expect.objectContaining({ $or: expect.any(Array) }),
+      expect.objectContaining({business:expect.anything(),$and:[expect.objectContaining({$or:expect.any(Array)})]}),
     );
   });
 
@@ -276,7 +276,7 @@ describe("scale pagination read contracts", () => {
 
   test("default message page and final-page headers omit continuation", async () => {
     Message.find.mockReturnValue(makeChain([]));
-    const page = await getMessagesPage(id(1));
+    const page = await getMessagesPage(id(1),{},{businessId:business});
     expect(page).toEqual({ items: [], limit: 100, hasMore: false, nextCursor: null });
     const response = { set: jest.fn() };
     setPaginationHeaders(response, page);

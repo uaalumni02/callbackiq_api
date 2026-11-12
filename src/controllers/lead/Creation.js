@@ -24,7 +24,7 @@ static async createLead(req, res) {
         ...req.body,
         ...(Object.prototype.hasOwnProperty.call(req.body, "estimatedValue") ? ownerEstimate(req.body.estimatedValue, ownerId) : unknownEstimate()),
         business: business._id,
-      });
+      }, business._id);
 
       SocketService.emitLeadCreated(business._id, lead);
       SocketService.emitDashboardRefresh(business._id, "lead_created");

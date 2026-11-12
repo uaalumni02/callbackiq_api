@@ -1,3 +1,4 @@
+import {tenantRepository,tenantContext} from './repositories/tenantRepository.js';
 import { createDbidentity1Methods } from './repositories/extracted/identity-1.js';
 import { createDboperations1Methods } from './repositories/extracted/operations-1.js';
 import { createDbbusiness1Methods } from './repositories/extracted/business-1.js';
@@ -188,95 +189,64 @@ class Db {
     }
   }
 
-  static async updateBusiness(...args) { return __meekcallGetDbbusiness1Methods().updateBusiness.apply(this, args); }
+
 
   static async updateBusinessByOwner(...args) { return __meekcallGetDbbusiness1Methods().updateBusinessByOwner.apply(this, args); }
 
   static async deleteBusinessByOwner(...args) { return __meekcallGetDbbusiness1Methods().deleteBusinessByOwner.apply(this, args); }
 
-  static async deleteBusiness(...args) { return __meekcallGetDbbusiness1Methods().deleteBusiness.apply(this, args); }
+
   // ----- Lead methods -----
 
-  static async saveLead(model, data) {
-    try {
-      const lead = new model(data);
-      return await lead.save();
-    } catch (error) {
-      safeConsole.error("Error saving lead:", error);
-      throw error;
-    }
+  static async saveLead(model,data,businessId) {
+    return tenantRepository(model,tenantContext(businessId)).create(data);
   }
 
   static async getLeadsByBusiness(...args) { return __meekcallGetDbleads1Methods().getLeadsByBusiness.apply(this, args); }
-  static async getLeadById(...args) { return __meekcallGetDbleads1Methods().getLeadById.apply(this, args); }
-  static async updateLead(...args) { return __meekcallGetDbleads1Methods().updateLead.apply(this, args); }
+
+
 
   static async updateLeadForBusiness(...args) { return __meekcallGetDbleads1Methods().updateLeadForBusiness.apply(this, args); }
 
-  static async deleteLead(model, id) {
-    try {
-      return await model.findByIdAndDelete(id);
-    } catch (error) {
-      safeConsole.error("Error deleting lead:", error);
-      throw error;
-    }
-  }
 
-  static async deleteLeadForBusiness(model, id, businessId) {
-    try {
-      return await model.findOneAndDelete({
-        _id: id,
-        business: businessId,
-      });
-    } catch (error) {
-      safeConsole.error("Error deleting lead for business:", error);
-      throw error;
-    }
+
+  static async deleteLeadForBusiness(model,id,businessId) {
+    return tenantRepository(model,tenantContext(businessId)).remove(id);
   }
   // ----- Conversation methods -----
 
-  static async saveConversation(model, data) {
-    try {
-      const conversation = new model(data);
-      return await conversation.save();
-    } catch (error) {
-      safeConsole.error("Error saving conversation:", error);
-      throw error;
-    }
+  static async saveConversation(model,data,businessId) {
+    return tenantRepository(model,tenantContext(businessId)).create(data);
   }
 
   static async getConversationsByBusiness(...args) { return __meekcallGetDbconversations1Methods().getConversationsByBusiness.apply(this, args); }
-  static async getConversationById(...args) { return __meekcallGetDbconversations1Methods().getConversationById.apply(this, args); }
+
   static async getConversationForBusiness(...args) { return __meekcallGetDbconversations1Methods().getConversationForBusiness.apply(this, args); }
-  static async updateConversationForBusiness(model, id, businessId, update) {
-    return model.findOneAndUpdate({ _id: id, business: businessId }, update, {
-      returnDocument: 'after', runValidators: true,
-    }).populate('business', 'businessName phone owner')
-      .populate('lead', 'customerName phone serviceNeeded urgency status serviceEligibility')
-      .populate('archivedBy', 'userName email role');
+  static async updateConversationForBusiness(model,id,businessId,update) {
+    return tenantRepository(model,tenantContext(businessId)).update(id,update,{populate:[
+      {path:'business',select:'businessName phone owner'},
+      {path:'lead',select:'customerName phone serviceNeeded urgency status serviceEligibility'},
+      {path:'archivedBy',select:'userName email role'},
+    ]});
   }
 
-  static async updateConversation(...args) { return __meekcallGetDbconversations1Methods().updateConversation.apply(this, args); }
-
-  static async deleteConversation(model, id) {
-    try {
-      return await model.findByIdAndDelete(id);
-    } catch (error) {
-      safeConsole.error("Error deleting conversation:", error);
-      throw error;
-    }
+  static async deleteConversationForBusiness(model,id,businessId) {
+    return tenantRepository(model,tenantContext(businessId)).remove(id);
   }
+  static async qualifyLeadForBusiness(model,id,businessId,data) {
+    return tenantRepository(model,tenantContext(businessId)).update(id,data,{populate:[
+      {path:'business',select:'businessName businessType phone estimatedJobValue'},
+    ]});
+  }
+
+
+
+
 
   // ----- Message methods -----
 
-  static async saveMessage(model, data) {
-    try {
-      const message = new model(data);
-      return await message.save();
-    } catch (error) {
-      safeConsole.error("Error saving message:", error);
-      throw error;
-    }
+  static async saveMessage(model,data,businessId) {
+    return tenantRepository(model,tenantContext(businessId)).create(data);
   }
 
   static async getMessagesByConversation(...args) { return __meekcallGetDbmessages1Methods().getMessagesByConversation.apply(this, args); }
@@ -286,66 +256,30 @@ class Db {
    * keeps inbound-SMS and conversation-analysis requests lightweight.
    */
   static async getMessagesForAI(...args) { return __meekcallGetDbmessages1Methods().getMessagesForAI.apply(this, args); }
-  static async getMessageById(...args) { return __meekcallGetDbmessages1Methods().getMessageById.apply(this, args); }
-  static async getMessageForBusiness(...args) { return __meekcallGetDbmessages1Methods().getMessageForBusiness.apply(this, args); }
-  static async deleteMessage(model, id) {
-    try {
-      return await model.findByIdAndDelete(id);
-    } catch (error) {
-      safeConsole.error("Error deleting message:", error);
-      throw error;
-    }
-  }
 
-  static async deleteMessageForBusiness(model, id, businessId) {
-    try {
-      return await model.findOneAndDelete({
-        _id: id,
-        business: businessId,
-      });
-    } catch (error) {
-      safeConsole.error("Error deleting message for business:", error);
-      throw error;
-    }
+  static async getMessageForBusiness(...args) { return __meekcallGetDbmessages1Methods().getMessageForBusiness.apply(this, args); }
+
+
+  static async deleteMessageForBusiness(model,id,businessId) {
+    return tenantRepository(model,tenantContext(businessId)).remove(id);
   }
   // ----- Call Log methods -----
 
-  static async saveCallLog(model, data) {
-    try {
-      const callLog = new model(data);
-      return await callLog.save();
-    } catch (error) {
-      safeConsole.error("Error saving call log:", error);
-      throw error;
-    }
+  static async saveCallLog(model,data,businessId) {
+    return tenantRepository(model,tenantContext(businessId)).create(data);
   }
 
   static async getCallLogsByBusiness(...args) { return __meekcallGetDbcalls1Methods().getCallLogsByBusiness.apply(this, args); }
-  static async getCallLogById(...args) { return __meekcallGetDbcalls1Methods().getCallLogById.apply(this, args); }
+
   static async getCallLogForBusiness(...args) { return __meekcallGetDbcalls1Methods().getCallLogForBusiness.apply(this, args); }
-  static async updateCallLog(...args) { return __meekcallGetDbcalls1Methods().updateCallLog.apply(this, args); }
+
 
   static async updateCallLogForBusiness(...args) { return __meekcallGetDbcalls1Methods().updateCallLogForBusiness.apply(this, args); }
 
-  static async deleteCallLog(model, id) {
-    try {
-      return await model.findByIdAndDelete(id);
-    } catch (error) {
-      safeConsole.error("Error deleting call log:", error);
-      throw error;
-    }
-  }
 
-  static async deleteCallLogForBusiness(model, id, businessId) {
-    try {
-      return await model.findOneAndDelete({
-        _id: id,
-        business: businessId,
-      });
-    } catch (error) {
-      safeConsole.error("Error deleting call log for business:", error);
-      throw error;
-    }
+
+  static async deleteCallLogForBusiness(model,id,businessId) {
+    return tenantRepository(model,tenantContext(businessId)).remove(id);
   }
   // ----- Twilio helper methods -----
 
@@ -363,67 +297,38 @@ class Db {
 
   static async getLeadByBusinessAndPhone(...args) { return __meekcallGetDbleads1Methods().getLeadByBusinessAndPhone.apply(this, args); }
   static async getConversationByBusinessAndPhone(...args) { return __meekcallGetDbconversations1Methods().getConversationByBusinessAndPhone.apply(this, args); }
-  static async updateCallLogByProviderCallId(...args) { return __meekcallGetDbcalls1Methods().updateCallLogByProviderCallId.apply(this, args); }
+
   // ----- Dashboard methods -----
 
   static async getDashboardMetrics(...args) { return __meekcallGetDbreporting1Methods().getDashboardMetrics.apply(this, args); }
-  static async getLeadForBusiness(model, leadId, businessId) {
-    try {
-      return await model.findOne({
-        _id: leadId,
-        business: businessId,
-      });
-    } catch (error) {
-      safeConsole.error("Error fetching lead for business:", error);
-      throw error;
-    }
+  static async getLeadForBusiness(model,id,businessId) {
+    return tenantRepository(model,tenantContext(businessId)).read(id);
   }
-  static async qualifyLead(...args) { return __meekcallGetDbleads1Methods().qualifyLead.apply(this, args); }
+
   // ----- Alert methods -----
 
-  static async saveAlert(model, data) {
-    try {
-      const alert = new model(data);
-      return await alert.save();
-    } catch (error) {
-      safeConsole.error("Error saving alert:", error);
-      throw error;
-    }
+  static async saveAlert(model,data,businessId) {
+    return tenantRepository(model,tenantContext(businessId)).create(data);
   }
 
   static async getAlertsByBusiness(...args) { return __meekcallGetDbalerts1Methods().getAlertsByBusiness.apply(this, args); }
   static async getUnreadAlertsByBusiness(...args) { return __meekcallGetDbalerts1Methods().getUnreadAlertsByBusiness.apply(this, args); }
-  static async getAlertById(...args) { return __meekcallGetDbalerts1Methods().getAlertById.apply(this, args); }
+
   static async getAlertForBusiness(...args) { return __meekcallGetDbalerts1Methods().getAlertForBusiness.apply(this, args); }
-  static async updateAlert(...args) { return __meekcallGetDbalerts1Methods().updateAlert.apply(this, args); }
+
 
   static async updateAlertForBusiness(...args) { return __meekcallGetDbalerts1Methods().updateAlertForBusiness.apply(this, args); }
 
-  static async markAlertAsRead(...args) { return __meekcallGetDbalerts1Methods().markAlertAsRead.apply(this, args); }
+
 
   static async markAlertAsReadForBusiness(...args) { return __meekcallGetDbalerts1Methods().markAlertAsReadForBusiness.apply(this, args); }
 
   static async markAllAlertsAsRead(...args) { return __meekcallGetDbalerts1Methods().markAllAlertsAsRead.apply(this, args); }
 
-  static async deleteAlert(model, id) {
-    try {
-      return await model.findByIdAndDelete(id);
-    } catch (error) {
-      safeConsole.error("Error deleting alert:", error);
-      throw error;
-    }
-  }
 
-  static async deleteAlertForBusiness(model, id, businessId) {
-    try {
-      return await model.findOneAndDelete({
-        _id: id,
-        business: businessId,
-      });
-    } catch (error) {
-      safeConsole.error("Error deleting alert for business:", error);
-      throw error;
-    }
+
+  static async deleteAlertForBusiness(model,id,businessId) {
+    return tenantRepository(model,tenantContext(businessId)).remove(id);
   }
   // ----- Subscription / Billing methods -----
   static async getSubscriptionByBusiness(...args) {
@@ -471,9 +376,7 @@ class Db {
     return supportTicketRepository.getAllSupportTickets(...args);
   }
 
-  static async updateSupportTicketAdmin(...args) {
-    return supportTicketRepository.updateSupportTicketAdmin(...args);
-  }
+
 
   // ----- Admin methods -----
 
@@ -544,44 +447,23 @@ class Db {
       throw error;
     }
   }
-  static async getConversationIntelligenceByConversation(...args) { return __meekcallGetDbintelligence1Methods().getConversationIntelligenceByConversation.apply(this, args); }
+
 
   static async getConversationIntelligenceForBusinessByConversation(...args) { return __meekcallGetDbintelligence1Methods().getConversationIntelligenceForBusinessByConversation.apply(this, args); }
-  static async getConversationIntelligenceDocument(
-    ConversationIntelligence,
-    conversationId,
-  ) {
-    return ConversationIntelligence.findOne({
-      conversation: conversationId,
-    });
-  }
+
 
   static async getConversationIntelligenceByBusiness(...args) { return __meekcallGetDbintelligence1Methods().getConversationIntelligenceByBusiness.apply(this, args); }
   static async getConversationIntelligenceOpportunities(...args) { return __meekcallGetDbintelligence1Methods().getConversationIntelligenceOpportunities.apply(this, args); }
-  static async saveConversationIntelligence(...args) { return __meekcallGetDbintelligence1Methods().saveConversationIntelligence.apply(this, args); }
 
-  static async updateConversationIntelligence(...args) { return __meekcallGetDbintelligence1Methods().updateConversationIntelligence.apply(this, args); }
+
+
 
   static async updateConversationIntelligenceForBusiness(...args) { return __meekcallGetDbintelligence1Methods().updateConversationIntelligenceForBusiness.apply(this, args); }
 
-  static async deleteConversationIntelligence(
-    ConversationIntelligence,
-    conversationId,
-  ) {
-    return ConversationIntelligence.findOneAndDelete({
-      conversation: conversationId,
-    });
-  }
 
-  static async deleteConversationIntelligenceForBusiness(
-    ConversationIntelligence,
-    conversationId,
-    businessId,
-  ) {
-    return ConversationIntelligence.findOneAndDelete({
-      conversation: conversationId,
-      business: businessId,
-    });
+
+  static async deleteConversationIntelligenceForBusiness(model,conversationId,businessId) {
+    return tenantRepository(model,tenantContext(businessId),{identityField:'conversation'}).remove(conversationId);
   }
 
   static async getConversationIntelligenceDashboard(...args) { return __meekcallGetDbintelligence1Methods().getConversationIntelligenceDashboard.apply(this, args); }

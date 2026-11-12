@@ -48,10 +48,10 @@ test('latest message cursor searches older messages and keeps customer conversat
  const chain={};for(const method of ['sort','limit','populate','maxTimeMS'])chain[method]=jest.fn(()=>chain);chain.lean=async()=>rows;
  jest.spyOn(Message,'find').mockReturnValue(chain);
  const conversation={_id:id,customerPhone:'+14045550123'};
- const first=await getMessagesPage(id,{order:'latest',limit:1},{conversation});
+ const first=await getMessagesPage(id,{order:'latest',limit:1},{conversation,businessId:id});
  expect(first.items[0].conversation.customerPhone).toBe(conversation.customerPhone);
- await getMessagesPage(id,{order:'latest',limit:1,cursor:first.nextCursor},{conversation});
- expect(Message.find.mock.calls[1][0].$or[0].createdAt.$lt).toEqual(new Date(3));
+ await getMessagesPage(id,{order:'latest',limit:1,cursor:first.nextCursor},{conversation,businessId:id});
+ expect(Message.find.mock.calls[1][0].$and[0].$or[0].createdAt.$lt).toEqual(new Date(3));
 });
 test.each([['10',100],['9000',5000],['invalid',2000]])('queue claim deadline is bounded for %s',async(value,expected)=>{
  process.env.SMS_CLAIM_MAX_TIME_MS=value;jest.spyOn(Job,'findOneAndUpdate').mockResolvedValue(null);

@@ -1,3 +1,4 @@
+import {tenantRepository,tenantContext} from '../db/repositories/tenantRepository.js';
 import { queryBudgetMs } from "./scale/queryBudget.js";
 import { verifiedAmountExpression, estimateCoverageGroup } from "./valuation/opportunityValue.js";
 // CALLBACKIQ_PRODUCTION_HARDENING_V1
@@ -362,7 +363,7 @@ export const getConversationsPage = async (businessId, query = {}) => {
 export const getMessagesPage = async (
   conversationId,
   query = {},
-  { conversation = null } = {},
+  { conversation = null, businessId } = {},
 ) => {
   const limit = normalizePageLimit(query.limit);
   const cursor = decodeCursor(query.cursor);
@@ -378,24 +379,19 @@ export const getMessagesPage = async (
     ];
   }
 
-  const messageQuery = Message.find(filter)
-    .sort({ createdAt: latest ? -1 : 1, _id: latest ? -1 : 1 })
-    .limit(limit + 1)
-    .populate("lead", "customerName phone serviceNeeded");
+  const repo=tenantRepository(Message,tenantContext(businessId));
+  const populate=[{path:"lead",select:"customerName phone serviceNeeded"}];
 
   /*
    * If the controller has already authorized and loaded the Conversation,
    * do not query it again through populate().
    */
   if (!conversation) {
-    messageQuery.populate(
-      "conversation",
-      "customerPhone customerName status",
-    );
+    populate.push({path:"conversation",select:"customerPhone customerName status"});
   }
 
-  const documents = await messageQuery.maxTimeMS(queryBudgetMs())
-    .lean();
+  const documents=await repo.list(filter,{sort:{createdAt:latest?-1:1,_id:latest?-1:1},limit:limit+1,
+    populate,maxTimeMS:queryBudgetMs()});
 
   const conversationSummary = conversation
     ? {

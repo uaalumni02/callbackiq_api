@@ -1,3 +1,4 @@
+import {readTenantResource} from './shared/tenantResource.js';
 import { queryFailure } from "../services/scale/queryBudget.js";
 import { safeConsole } from "../helpers/logging/safeLogger.js";
 import { handleConversationManualMessage } from "../services/messaging/manualConversationMessage.service.js";
@@ -18,13 +19,7 @@ const getBusinessForOwner = async (ownerId) => {
     : Db.getBusinessByOwner(Business, ownerId);
 };
 
-const deleteMessageForBusiness = async (id, businessId) => {
-  if (typeof Db.deleteMessageForBusiness === "function") {
-    return Db.deleteMessageForBusiness(Message, id, businessId);
-  }
-
-  return Db.deleteMessage(Message, id);
-};
+const deleteMessageForBusiness = (id,businessId) => Db.deleteMessageForBusiness(Message,id,businessId);
 
 
 class MessageController {
@@ -63,39 +58,17 @@ class MessageController {
        * Conversation. Business/lead/archive documents would immediately be
        * discarded before the actual message query.
        */
-      const conversation = await Db.getConversationById(
-        Conversation,
-        conversationId,
-        {
-          populateBusiness: false,
-          populateLead: false,
-          populateArchivedBy: false,
-          lean: true,
-          select:
-            "_id business customerPhone customerName status",
-        },
-      );
-
-      if (!conversation) {
-        return Response.responseInvalidInput(res, "Conversation not found");
-      }
-
-      const conversationBusinessId =
-        conversation.business?._id ||
-        conversation.business;
-
-      if (String(conversationBusinessId) !== String(business._id)) {
-        return Response.responseBadAuth(
-          res,
-          "You cannot access these messages",
-        );
-      }
+      const conversation=await readTenantResource({model:Conversation,businessId:business._id,id:conversationId,res,
+        missingMessage:"Conversation not found",deniedMessage:"You cannot access these messages",
+        populateBusiness: false, populateLead: false, populateArchivedBy: false, select:
+            "_id business customerPhone customerName status"});
+      if(!conversation)return undefined;
 
       // CALLBACKIQ_MESSAGE_CURSOR_PAGINATION_V1
       const page = await getMessagesPage(
         conversationId,
         req.query,
-        { conversation },
+        { conversation,businessId:business._id },
       );
       setPaginationHeaders(res, page);
       return Response.responseOk(res, page.items, "Messages fetched");
@@ -126,15 +99,9 @@ class MessageController {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      const message = await Db.getMessageById(Message, id);
-
-      if (!message) {
-        return Response.responseInvalidInput(res, "Message not found");
-      }
-
-      if (String(message.business) !== String(business._id)) {
-        return Response.responseBadAuth(res, "You cannot access this message");
-      }
+      const message=await readTenantResource({model:Message,businessId:business._id,id:id,res,
+        missingMessage:"Message not found",deniedMessage:"You cannot access this message"});
+      if(!message)return undefined;
 
       return Response.responseOk(res, message, "Message fetched");
     } catch (error) {
@@ -163,15 +130,9 @@ class MessageController {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      const message = await Db.getMessageById(Message, id);
-
-      if (!message) {
-        return Response.responseInvalidInput(res, "Message not found");
-      }
-
-      if (String(message.business) !== String(business._id)) {
-        return Response.responseBadAuth(res, "You cannot delete this message");
-      }
+      const message=await readTenantResource({model:Message,businessId:business._id,id:id,res,
+        missingMessage:"Message not found",deniedMessage:"You cannot delete this message"});
+      if(!message)return undefined;
 
       await deleteMessageForBusiness(id, business._id);
 

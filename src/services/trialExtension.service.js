@@ -1,3 +1,4 @@
+import {numericSetting} from '../config/numericSettings.js';
 import {conditionalWrite} from './database/conditionalWrite.js';
 import {observeSubscriptionState} from './subscriptionState.service.js';
 import { createHash } from 'node:crypto';
@@ -10,6 +11,7 @@ import { assertDistributedLeaseActive, withDistributedLease } from './distribute
 const failure = (code, message) => Object.assign(new Error(message), { code, statusCode: 409 });
 
 async function reserveExtension({ businessId, adminUserId, days, reason, operationKey }) {
+  const maximum=numericSetting('TRIAL_MAX_ADMIN_EXTENSION_DAYS');
   let subscription = await Subscription.findOne({ business: businessId });
   if (!subscription) throw failure('ACTIVE_TRIAL_REQUIRED', 'Only an active Stripe trial can be extended.');
   const key = createHash('sha256').update(JSON.stringify([businessId, operationKey || [adminUserId, days, reason]])).digest('hex');
@@ -27,8 +29,6 @@ async function reserveExtension({ businessId, adminUserId, days, reason, operati
   const history = await TrialExtensionGrant.find({ business: businessId }).select('days').lean();
   const used = history.reduce((sum, grant) => sum + grant.days, 0);
   await Subscription.updateOne({ _id: subscription._id }, { $max: { trialExtensionDaysReserved: used } });
-  const configured = Number(process.env.TRIAL_MAX_ADMIN_EXTENSION_DAYS ?? 14);
-  const maximum = Number.isFinite(configured) && configured >= 0 ? configured : 14;
   if (maximum > 0 && used + days > maximum) throw failure('TRIAL_EXTENSION_LIMIT_REACHED', 'The lifetime trial extension allowance is exhausted.');
   const intent = { key, status: 'pending', business: businessId, subscription: subscription._id,
     grantedBy: adminUserId, days, reason, previousTrialEndsAt: subscription.trialEndsAt,

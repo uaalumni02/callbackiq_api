@@ -1,3 +1,4 @@
+import {updateSupportTicketAsAdmin} from '../../db/repositories/privileged/supportTickets.js';
 import { Db, SupportTicket, getUserId, mongoose, validCategories, validPriorities, validStatuses } from './context.js';
 
 const getAllTicketsAdmin = async (req, res) => {
@@ -112,11 +113,7 @@ const updateTicketAdmin = async (req, res) => {
       updateQuery.$push = pushUpdate;
     }
 
-    const ticket = await Db.updateSupportTicketAdmin(
-      SupportTicket,
-      id,
-      updateQuery,
-    );
+    const ticket=await updateSupportTicketAsAdmin({id,update:updateQuery,actorId:getUserId(req)});
 
     if (!ticket) {
       return res.status(404).json({

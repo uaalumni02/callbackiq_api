@@ -17,15 +17,15 @@ afterEach(async()=>{delete process.env.STAFF_NOTIFICATION_EMAIL_ENABLED;if (mong
 afterAll(async()=>{if(mongoose.connection.readyState === 1) await closeTestDB();});
 const oid=()=>new mongoose.Types.ObjectId();
 test('latest messages remain chronological and all 205 messages are reachable without overlap',async()=>{
- const conversation=oid();
- await Message.collection.insertMany(Array.from({length:205},(_,i)=>({_id:oid(),conversation,body:String(i),createdAt:new Date(1700000000000+i)})));
- const first=await getMessagesPage(conversation,{order:'latest'});
+ const conversation=oid(),business=oid();
+ await Message.collection.insertMany(Array.from({length:205},(_,i)=>({_id:oid(),conversation,business,body:String(i),createdAt:new Date(1700000000000+i)})));
+ const first=await getMessagesPage(conversation,{order:'latest'},{businessId:business});
  expect(first.items[0].body).toBe('105');expect(first.items.at(-1).body).toBe('204');
- const second=await getMessagesPage(conversation,{order:'latest',cursor:first.nextCursor});
- const third=await getMessagesPage(conversation,{order:'latest',cursor:second.nextCursor});
+ const second=await getMessagesPage(conversation,{order:'latest',cursor:first.nextCursor},{businessId:business});
+ const third=await getMessagesPage(conversation,{order:'latest',cursor:second.nextCursor},{businessId:business});
  expect(new Set([...first.items,...second.items,...third.items].map(x=>String(x._id))).size).toBe(205);
  expect(third.hasMore).toBe(false);
- const legacy=await getMessagesPage(conversation,{});expect(legacy.items[0].body).toBe('0');
+ const legacy=await getMessagesPage(conversation,{},{businessId:business});expect(legacy.items[0].body).toBe('0');
 });
 test('search can reach leads and conversations outside the first page and remains tenant scoped',async()=>{
  const business=oid(), foreign=oid(), lead=oid();

@@ -9,6 +9,8 @@ const traverse=require('@babel/traverse').default;
 const root=path.resolve(__dirname,'..');
 const cfg=JSON.parse(fs.readFileSync(path.join(root,'config/meekcall-comprehensive-architecture.json'),'utf8'));
 const errors=[];
+const tenantContracts=cfg.tenantCapabilityContracts;
+const tenantModules=new Set((tenantContracts?.reviewedChanges || []).map(row=>row.module));
 const hash=s=>crypto.createHash('sha256').update(s).digest('hex');
 
 // The two reviewed business-deletion methods were moved deeper
@@ -48,7 +50,7 @@ const grouped=new Map();for(const r of cfg.records){const a=grouped.get(r.module
 for(const [module,rows] of grouped){
   const file=read(module);if(!file)continue;
   if(Buffer.byteLength(file.code)>30000)errors.push(`oversized extracted module ${module}`);
-  if(/^\s*(?:import\s|(?:const|var)\s+\w+\s*=\s*require\()/m.test(file.code))errors.push(`extracted module has direct imports: ${module}; dependencies must remain injected`);
+  if(!tenantModules.has(module) && /^\s*(?:import\s|(?:const|var)\s+\w+\s*=\s*require\()/m.test(file.code))errors.push(`extracted module has direct imports: ${module}; dependencies must remain injected`);
   const found=[];
   traverse(file.ast,{
     ObjectMethod(p){if(!p.parentPath?.isObjectExpression()||!p.parentPath?.parentPath?.isReturnStatement())return;const key=p.node.key?.name;if(key)found.push({name:key,kind:'method',text:file.code.slice(p.node.body.start,p.node.body.end)})},
@@ -67,6 +69,29 @@ const owners={
   'src/features/conversations/':'src/pages/Conversations.js',
 };
 for(const r of cfg.records){const pair=Object.entries(owners).find(([prefix])=>r.module.startsWith(prefix));if(!pair)errors.push(`unknown architecture boundary ${r.module}`)}
+if(tenantContracts){
+ for(const module of tenantModules){
+  const file=read(module);if(!file)continue;
+  traverse(file.ast,{ImportDeclaration(p){if(!tenantContracts.allowedImports.includes(p.node.source.value))errors.push(`unreviewed tenant dependency: ${module}:${p.node.source.value}`);}});
+  for(const row of tenantContracts.reviewedChanges.filter(row=>row.module===module&&row.retired)){
+   traverse(file.ast,{ObjectMethod(p){if(p.node.key.name===row.name)errors.push(`retired ID-only owner capability restored: ${module}:${row.name}`);}});
+  }
+ }
+ if(!errors.length){
+  const {spawnSync}=require('node:child_process'),os=require('node:os');
+  const folder=fs.mkdtempSync(path.join(os.tmpdir(),'tenant-contracts-'));
+  try{
+   const output=path.join(folder,'results.json');
+   const run=spawnSync(process.execPath,[path.join(root,'node_modules/jest/bin/jest.js'),'--runInBand','--runTestsByPath',...tenantContracts.tests,'--json',`--outputFile=${output}`],{cwd:root,env:process.env,encoding:'utf8',timeout:180000,maxBuffer:16*1024*1024});
+   if(run.error||run.status!==0)errors.push('tenant behavioral contracts failed: '+(run.error?.message||run.stderr));
+   else{
+    const result=JSON.parse(fs.readFileSync(output));
+    if(!result.success||result.numPendingTests||result.numTodoTests||result.numPendingTestSuites||!result.numPassedTests)errors.push('tenant contracts must pass with no skipped or todo tests');
+    else console.log(`PASS: ${result.numPassedTests} tenant behavioral contracts across ${result.numPassedTestSuites} suites`);
+   }
+  }finally{fs.rmSync(folder,{recursive:true,force:true});}
+ }
+}
 if(errors.length){errors.forEach(e=>console.error('FAIL:',e));process.exitCode=1}
-else console.log(`PASS: ${cfg.records.length} source-exact domain extractions checked across ${grouped.size} modules; no direct module imports`);
-console.log('This checks source parity, not production workflow correctness.');
+else console.log(`PASS: ${cfg.records.length} unchanged source-parity contracts across ${grouped.size} modules; reviewed tenant changes require executable contracts`);
+console.log('Source parity alone does not certify production workflow correctness.');

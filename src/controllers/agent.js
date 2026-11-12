@@ -1,3 +1,4 @@
+import {readTenantResource} from './shared/tenantResource.js';
 import { beginValuation, finishValuation } from "../services/valuation/opportunityValuation.service.js";
 import mongoose from "mongoose";
 
@@ -63,19 +64,9 @@ class AgentController {
         });
       }
 
-      const conversation = await Db.getConversationById(
-        Conversation,
-        conversationId,
-      );
-      if (!conversation) {
-        return Response.responseInvalidInput(res, "Conversation not found");
-      }
-      if (String(conversation.business?._id || conversation.business) !== String(business._id)) {
-        return Response.responseBadAuth(
-          res,
-          "You cannot access this conversation",
-        );
-      }
+      const conversation=await readTenantResource({model:Conversation,businessId:business._id,id:conversationId,res,
+        missingMessage:"Conversation not found",deniedMessage:"You cannot access this conversation"});
+      if(!conversation)return undefined;
 
       let lead = null;
       if (leadId) {
@@ -94,7 +85,7 @@ class AgentController {
       const recentMessages = await Db.getMessagesByConversation(
         Message,
         conversationId,
-      );
+        business._id);
       const aiUsage = await reserveAiUsage({
         business,
         customerPhone: conversation.customerPhone,
@@ -126,7 +117,7 @@ class AgentController {
         actorId: ownerId,
         usageCategory: "agent_reply_input",
         metadata: { source: "agent_reply_endpoint" },
-      });
+      }, business._id);
 
       const valuationTicket = await beginValuation(lead, business._id);
       const agentResult = await runFollowUpAgent({
@@ -159,7 +150,7 @@ class AgentController {
             summary: agentResult.summary || lead.summary || "",
           status: lead.status === "booked" ? "booked" : "contacted",
         };
-        updatedLead = await Db.qualifyLead(Lead, lead._id, updateData);
+        updatedLead = await Db.qualifyLeadForBusiness(Lead,lead._id,business._id,updateData);
         updatedLead = await finishValuation(valuationTicket, { businessId: business._id, evidence: [...recentMessages.filter(message => message.direction === "inbound").map(message => message.body), customerMessage].join("\n"), proposedService: agentResult.serviceNeeded }) || updatedLead;
       }
 
@@ -218,9 +209,9 @@ class AgentController {
           smsSuppressed,
           smsFailureReason,
         },
-      });
+      }, business._id);
 
-      await Db.updateConversation(Conversation, conversation._id, {
+      await Db.updateConversationForBusiness(Conversation,conversation._id,business._id,{
         lastMessage: aiReply,
         lastMessageAt: new Date(),
       });
@@ -248,7 +239,7 @@ class AgentController {
             inboundMessage: inboundMessage._id,
             outboundMessage: outboundMessage._id,
           },
-        });
+        }, business._id);
       }
 
       return Response.responseOk(

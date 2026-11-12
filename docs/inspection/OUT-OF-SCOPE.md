@@ -15,3 +15,14 @@ These are not claimed production incidents or closed findings from the supplied
   journey with no initial subscription plus concurrent business deletion. Normal
   registered-business flows already have a Subscription observation. No parent-
   creation migration or provider compensation policy is introduced here.
+
+## Newly observed: legacy ID-only populated reads can return reference IDs
+
+A real MongoDB7/Mongoose9.12.1 diagnostic with the baseline tenant-reference hook
+returned an ObjectId instead of the owned lead fields when using a function match
+with a projection that omits business. An equivalent static business match returns
+the owned record. The root3 shared repository requires a bound business query and
+uses a static tenant predicate, so its population contract is covered by the real
+persistence regression. The legacy ID-only read interfaces are not yet migrated;
+the remaining behavior is tracked separately and is not claimed fixed by the
+mutation-interface changes. No collection schema or migration was changed.

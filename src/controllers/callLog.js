@@ -1,3 +1,4 @@
+import {readTenantResource} from './shared/tenantResource.js';
 import { queryFailure } from "../services/scale/queryBudget.js";
 import { safeConsole } from "../helpers/logging/safeLogger.js";
 import mongoose from "mongoose";
@@ -21,13 +22,7 @@ const getBusinessForOwner = async (ownerId) => {
     : Db.getBusinessByOwner(Business, ownerId);
 };
 
-const updateCallLogForBusiness = async (id, businessId, data) => {
-  if (typeof Db.updateCallLogForBusiness === "function") {
-    return Db.updateCallLogForBusiness(CallLog, id, businessId, data);
-  }
-
-  return Db.updateCallLog(CallLog, id, data);
-};
+const updateCallLogForBusiness = (id,businessId,data) => Db.updateCallLogForBusiness(CallLog,id,businessId,data);
 
 
 
@@ -53,7 +48,7 @@ class CallLogController {
       const callLog = await Db.saveCallLog(CallLog, {
         ...validatedBody,
         business: business._id,
-      });
+      }, business._id);
 
       return res.status(201).json({
         success: true,
@@ -138,15 +133,9 @@ class CallLogController {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      const callLog = await Db.getCallLogById(CallLog, id);
-
-      if (!callLog || callLog.deletedAt) {
-        return Response.responseInvalidInput(res, "Call log not found");
-      }
-
-      if (String(callLog.business._id) !== String(business._id)) {
-        return Response.responseBadAuth(res, "You cannot access this call log");
-      }
+      const callLog=await readTenantResource({model:CallLog,businessId:business._id,id:id,res,
+        missingMessage:"Call log not found",deniedMessage:"You cannot access this call log"});
+      if(!callLog)return undefined;
 
       return Response.responseOk(res, callLog, "Call log fetched");
     } catch (error) {
@@ -177,15 +166,9 @@ class CallLogController {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      const callLog = await Db.getCallLogById(CallLog, id);
-
-      if (!callLog || callLog.deletedAt) {
-        return Response.responseInvalidInput(res, "Call log not found");
-      }
-
-      if (String(callLog.business._id) !== String(business._id)) {
-        return Response.responseBadAuth(res, "You cannot update this call log");
-      }
+      const callLog=await readTenantResource({model:CallLog,businessId:business._id,id:id,res,
+        missingMessage:"Call log not found",deniedMessage:"You cannot update this call log"});
+      if(!callLog)return undefined;
 
       if (validatedBody.business && String(validatedBody.business) !== String(business._id)) {
         return Response.responseInvalidInput(res, "Business ownership cannot be changed");
@@ -233,15 +216,9 @@ class CallLogController {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      const callLog = await Db.getCallLogById(CallLog, id);
-
-      if (!callLog || callLog.deletedAt) {
-        return Response.responseInvalidInput(res, "Call log not found");
-      }
-
-      if (String(callLog.business._id) !== String(business._id)) {
-        return Response.responseBadAuth(res, "You cannot delete this call log");
-      }
+      const callLog=await readTenantResource({model:CallLog,businessId:business._id,id:id,res,
+        missingMessage:"Call log not found",deniedMessage:"You cannot delete this call log"});
+      if(!callLog)return undefined;
 
       // CALLBACKIQ_ATTRIBUTION_10OF10_FULL_V2:
       // Hide the operational record without destroying attribution history.

@@ -1,3 +1,4 @@
+import {tenantRepository,tenantContext} from '../../db/repositories/tenantRepository.js';
 import { Conversation, Db, Message, Response, SocketService, deleteOptionalConversationRecords, emitConversationUpdated, queryFailure, safeConsole, withConversationPermissions } from './context.js';
 import ConversationAccessController from './Access.js';
 
@@ -26,9 +27,10 @@ static async archiveConversation(req, res) {
         ? access.conversation.status
         : "closed";
 
-      const updatedConversation = await Db.updateConversation(
+      const updatedConversation = await Db.updateConversationForBusiness(
         Conversation,
         req.params.id,
+        access.businessId,
         {
           status: "archived",
           archivedAt: new Date(),
@@ -89,9 +91,10 @@ static async restoreConversation(req, res) {
           ? snapshot.humanTakeover
           : true;
 
-      const updatedConversation = await Db.updateConversation(
+      const updatedConversation = await Db.updateConversationForBusiness(
         Conversation,
         req.params.id,
+        access.businessId,
         {
           status: restoredStatus,
           aiEnabled: restoredAiEnabled,
@@ -130,15 +133,16 @@ static async deleteConversation(req, res) {
       if (!access) return undefined;
 
       await Promise.all([
-        Message.deleteMany({ conversation: req.params.id }),
+        tenantRepository(Message,tenantContext(access.businessId)).removeManyByReference('conversation',req.params.id),
         deleteOptionalConversationRecords(
           "ConversationIntelligence",
           req.params.id,
+          access.businessId,
         ),
-        deleteOptionalConversationRecords("Alert", req.params.id),
+        deleteOptionalConversationRecords("Alert",req.params.id,access.businessId),
       ]);
 
-      await Db.deleteConversation(Conversation, req.params.id);
+      await Db.deleteConversationForBusiness(Conversation,req.params.id,access.businessId);
 
       // Include all common ID shapes so existing and updated socket clients
       // can remove the deleted conversation immediately.

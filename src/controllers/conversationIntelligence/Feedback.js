@@ -1,3 +1,4 @@
+import {readTenantResource} from '../shared/tenantResource.js';
 import { Business, ConversationIntelligence, Db, Response, SocketService, actionSchema, feedbackSchema, mongoose, safeConsole } from './context.js';
 
 export default class ConversationIntelligenceFeedbackController {
@@ -22,28 +23,15 @@ static async updateFeedback(req, res) {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      const existing = await Db.getConversationIntelligenceDocument(
+      const existing=await readTenantResource({model:ConversationIntelligence,businessId:business._id,id:conversationId,res,
+        missingMessage:"Conversation intelligence not found",deniedMessage:"You cannot update this conversation intelligence",
+        identityField:'conversation'});
+      if(!existing)return undefined;
+
+      const updated = await Db.updateConversationIntelligenceForBusiness(
         ConversationIntelligence,
         conversationId,
-      );
-
-      if (!existing) {
-        return Response.responseInvalidInput(
-          res,
-          "Conversation intelligence not found",
-        );
-      }
-
-      if (String(existing.business) !== String(business._id)) {
-        return Response.responseBadAuth(
-          res,
-          "You cannot update this conversation intelligence",
-        );
-      }
-
-      const updated = await Db.updateConversationIntelligence(
-        ConversationIntelligence,
-        conversationId,
+        business._id,
         {
           feedback: {
             ...feedback,
@@ -98,28 +86,15 @@ static async updateRecommendedAction(req, res) {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      const existing = await Db.getConversationIntelligenceDocument(
+      const existing=await readTenantResource({model:ConversationIntelligence,businessId:business._id,id:conversationId,res,
+        missingMessage:"Conversation intelligence not found",deniedMessage:"You cannot update this recommended action",
+        identityField:'conversation'});
+      if(!existing)return undefined;
+
+      const updated = await Db.updateConversationIntelligenceForBusiness(
         ConversationIntelligence,
         conversationId,
-      );
-
-      if (!existing) {
-        return Response.responseInvalidInput(
-          res,
-          "Conversation intelligence not found",
-        );
-      }
-
-      if (String(existing.business) !== String(business._id)) {
-        return Response.responseBadAuth(
-          res,
-          "You cannot update this recommended action",
-        );
-      }
-
-      const updated = await Db.updateConversationIntelligence(
-        ConversationIntelligence,
-        conversationId,
+        business._id,
         {
           "nextBestAction.completed": completed,
           "nextBestAction.completedAt": completed ? new Date() : null,
@@ -169,28 +144,15 @@ static async deleteConversationIntelligence(req, res) {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      const existing = await Db.getConversationIntelligenceDocument(
+      const existing=await readTenantResource({model:ConversationIntelligence,businessId:business._id,id:conversationId,res,
+        missingMessage:"Conversation intelligence not found",deniedMessage:"You cannot delete this conversation intelligence",
+        identityField:'conversation'});
+      if(!existing)return undefined;
+
+      await Db.deleteConversationIntelligenceForBusiness(
         ConversationIntelligence,
         conversationId,
-      );
-
-      if (!existing) {
-        return Response.responseInvalidInput(
-          res,
-          "Conversation intelligence not found",
-        );
-      }
-
-      if (String(existing.business) !== String(business._id)) {
-        return Response.responseBadAuth(
-          res,
-          "You cannot delete this conversation intelligence",
-        );
-      }
-
-      await Db.deleteConversationIntelligence(
-        ConversationIntelligence,
-        conversationId,
+        business._id,
       );
 
       SocketService.emitToBusiness(

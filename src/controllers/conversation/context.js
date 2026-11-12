@@ -1,3 +1,4 @@
+import {tenantRepository,tenantContext} from '../../db/repositories/tenantRepository.js';
 import { queryFailure } from "../../services/scale/queryBudget.js";
 
 import { safeConsole } from "../../helpers/logging/safeLogger.js";
@@ -75,12 +76,13 @@ const emitConversationUpdated = (businessId, conversation) => {
   return payload;
 };
 
-const deleteOptionalConversationRecords = async (modelName, conversationId) => {
+const deleteOptionalConversationRecords = async (modelName, conversationId, businessId) => {
+  const context=tenantContext(businessId);
   const model = mongoose.models[modelName];
 
   if (!model || !model.schema?.path("conversation")) return;
 
-  await model.deleteMany({ conversation: conversationId });
+  await tenantRepository(model,context).removeManyByReference('conversation',conversationId);
 };
 
 const createOrReuseConversation = async ({ businessId, payload }) => {
@@ -108,7 +110,7 @@ const createOrReuseConversation = async ({ businessId, payload }) => {
         ...payload,
         customerPhone: normalizedCustomerPhone || payload.customerPhone,
         business: businessId,
-      });
+      }, businessId);
     } catch (error) {
       if (Number(error?.code) !== 11000) throw error;
       existingConversation = await findExisting();
@@ -135,7 +137,7 @@ const createOrReuseConversation = async ({ businessId, payload }) => {
   }
 
   return Object.keys(updates).length
-    ? Db.updateConversation(Conversation, existingConversation._id, updates)
+    ? Db.updateConversationForBusiness(Conversation,existingConversation._id,businessId,updates)
     : existingConversation;
 };
 

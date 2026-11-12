@@ -2,6 +2,8 @@
  * Source-equivalent behavioral coverage for the three uncovered extracted-Db paths.
  * No real database, business deletion, network, or customer messages are invoked.
  */
+import mongoose from 'mongoose';
+import Alert from '../../src/models/alert.js';
 import { createDbalerts1Methods } from '../../src/db/repositories/extracted/alerts-1.js';
 import { createDbbusiness1Methods } from '../../src/db/repositories/extracted/business-1.js';
 import { createDbidentity1Methods } from '../../src/db/repositories/extracted/identity-1.js';
@@ -22,16 +24,16 @@ function collector() {
 test('markAllAlertsAsRead defaults to a real timestamp and scopes its update to the business', async () => {
   const { safeConsole, errors } = collector();
   const result = { matchedCount: 2, modifiedCount: 2 };
-  const model = { updateMany: jest.fn().mockResolvedValue(result) };
+  const model = {schema:Alert.schema,modelName:'Alert',updateMany:jest.fn().mockResolvedValue(result)};
   const methods = createDbalerts1Methods({ safeConsole });
   const before = Date.now();
-  const returned = await methods.markAllAlertsAsRead(model, 'business-scope-1');
+  const returned = await methods.markAllAlertsAsRead(model, '000000000000000000000001');
   const after = Date.now();
 
   expect(returned).toBe(result);
   expect(model.updateMany).toHaveBeenCalledTimes(1);
   const [filter, update] = model.updateMany.mock.calls[0];
-  expect(filter).toEqual({ business: 'business-scope-1', readAt: null });
+  expect(filter).toEqual({business:new mongoose.Types.ObjectId('000000000000000000000001'),$and:[{readAt:null}]});
   expect(update.$set.status).toBe('read');
   expect(update.$set.readAt).toBeInstanceOf(Date);
   expect(update.$set.readAt.getTime()).toBeGreaterThanOrEqual(before);
@@ -71,18 +73,11 @@ test('deleteBusinessByOwner delegates only the owner identifier to the existing 
   expect(errors).toHaveLength(0);
 });
 
-test('deleteBusiness delegates only the business identifier to the existing deletion service', async () => {
-  const { safeConsole, errors } = collector();
-  const expected = { deleted: true, scope: 'business' };
-  deleteBusinessSafely.mockResolvedValueOnce(expected);
-  const methods = createDbbusiness1Methods({ safeConsole, BUSINESS_SCOPE_FIELDS: '_id owner' });
-  const model = { deleteMany: jest.fn() };
-
-  await expect(methods.deleteBusiness(model, 'business-456')).resolves.toBe(expected);
-  expect(deleteBusinessSafely).toHaveBeenCalledTimes(1);
-  expect(deleteBusinessSafely).toHaveBeenCalledWith({ businessId: 'business-456' });
-  expect(model.deleteMany).not.toHaveBeenCalled();
-  expect(errors).toHaveLength(0);
+test('owner business repository cannot dispatch deletion by an unscoped business ID',()=>{
+ const methods=createDbbusiness1Methods({safeConsole:{error:jest.fn()},BUSINESS_SCOPE_FIELDS:'_id owner'});
+ expect(methods.deleteBusiness).toBeUndefined();
+ expect(()=>methods.deleteBusiness({},'business-456')).toThrow(TypeError);
+ expect(deleteBusinessSafely).not.toHaveBeenCalled();
 });
 
 test.each([
@@ -90,6 +85,11 @@ test.each([
   ['deleteBusiness', 'business-456', { businessId: 'business-456' }],
 ])('%s propagates deletion failure and logs exactly once', async (method, id, scope) => {
   const { safeConsole, errors } = collector();
+  if(method==='deleteBusiness'){
+    const methods=createDbbusiness1Methods({safeConsole});
+    expect(()=>methods[method]({},id)).toThrow(TypeError);
+    expect(deleteBusinessSafely).not.toHaveBeenCalled();return;
+  }
   const failure = new Error('business deletion refused');
   deleteBusinessSafely.mockRejectedValueOnce(failure);
   const methods = createDbbusiness1Methods({ safeConsole, BUSINESS_SCOPE_FIELDS: '_id owner' });

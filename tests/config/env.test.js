@@ -112,3 +112,11 @@ describe("MongoDB URL aliases in environment validation", () => {
     expect(result.valid).toBe(false);
   });
 });
+
+test.each(['unlimited','NaN','Infinity','-1','1.5','14days'])('startup rejects invalid admin extension allowance %p',value=>{
+ const result=validateEnvironment({...production,TRIAL_MAX_ADMIN_EXTENSION_DAYS:value},{throwOnError:false});
+ expect(result.valid).toBe(false);expect(result.errors.join(' ')).toContain('TRIAL_MAX_ADMIN_EXTENSION_DAYS');
+});
+test.each(['','   ','0','14'])('startup accepts an absent or explicit valid admin allowance %p',value=>{
+ expect(validateEnvironment({...production,TRIAL_MAX_ADMIN_EXTENSION_DAYS:value},{throwOnError:false}).valid).toBe(true);
+});

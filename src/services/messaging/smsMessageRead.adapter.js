@@ -1,5 +1,3 @@
-// Original message read/fallback contract; database adapter.
-export const createSmsMessageReader = ({ Db, Message }) => async (conversationId) =>
-  typeof Db.getMessagesForAI === "function"
-    ? Db.getMessagesForAI(Message, conversationId)
-    : Db.getMessagesByConversation(Message, conversationId);
+// Message history capabilities require explicit tenant context.
+export const createSmsMessageReader = ({ Db, Message }) => async (conversationId,businessId) =>
+  Db.getMessagesForAI(Message,conversationId,businessId);

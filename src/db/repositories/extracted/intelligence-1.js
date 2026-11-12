@@ -1,43 +1,20 @@
+import mongoose from 'mongoose';
+import {tenantRepository,tenantContext} from '../tenantRepository.js';
 /* Source-exact Db extraction. Preserve order and outcome contracts. */
 export function createDbintelligence1Methods(deps) {
   const { CONVERSATION_INTELLIGENCE_CONVERSATION_FIELDS, CONVERSATION_INTELLIGENCE_LEAD_FIELDS } = deps;
   return {
-async getConversationIntelligenceByConversation(
-    ConversationIntelligence,
-    conversationId,
-  ) {
-    return ConversationIntelligence.findOne({
-      conversation: conversationId,
-    })
-      .populate({
-        path: "conversation",
-        select: CONVERSATION_INTELLIGENCE_CONVERSATION_FIELDS,
-      })
-      .populate({
-        path: "lead",
-        select: CONVERSATION_INTELLIGENCE_LEAD_FIELDS,
-      })
-      .lean();
-  },
+
 
 async getConversationIntelligenceForBusinessByConversation(
     ConversationIntelligence,
     conversationId,
     businessId,
   ) {
-    return ConversationIntelligence.findOne({
-      conversation: conversationId,
-      business: businessId,
-    })
-      .populate({
-        path: "conversation",
-        select: CONVERSATION_INTELLIGENCE_CONVERSATION_FIELDS,
-      })
-      .populate({
-        path: "lead",
-        select: CONVERSATION_INTELLIGENCE_LEAD_FIELDS,
-      })
-      .lean();
+    return tenantRepository(ConversationIntelligence,tenantContext(businessId),{identityField:'conversation'}).read(conversationId,{populate:[
+      {path:'conversation',select:CONVERSATION_INTELLIGENCE_CONVERSATION_FIELDS},
+      {path:'lead',select:CONVERSATION_INTELLIGENCE_LEAD_FIELDS},
+    ]});
   },
 
 async getConversationIntelligenceByBusiness(
@@ -76,29 +53,20 @@ async getConversationIntelligenceByBusiness(
       query["nextBestAction.completed"] = actionCompleted;
     }
 
+    const repo=tenantRepository(ConversationIntelligence,tenantContext(businessId));
     const skip = (page - 1) * limit;
 
     const [records, total] = await Promise.all([
-      ConversationIntelligence.find(query)
-        .populate({
-          path: "conversation",
-          select: CONVERSATION_INTELLIGENCE_CONVERSATION_FIELDS,
-        })
-        .populate({
-          path: "lead",
-          select: CONVERSATION_INTELLIGENCE_LEAD_FIELDS,
-        })
-        .sort({
+      repo.list(query,{populate:[
+        {path:'conversation',select:CONVERSATION_INTELLIGENCE_CONVERSATION_FIELDS},
+        {path:'lead',select:CONVERSATION_INTELLIGENCE_LEAD_FIELDS},
+      ],sort:{
           "urgency.score": -1,
           "buyingLikelihood.score": -1,
           "estimatedRevenue.likely": -1,
           updatedAt: -1,
-        })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-
-      ConversationIntelligence.countDocuments(query),
+        },skip,limit}),
+      repo.count(query),
     ]);
 
     return {
@@ -147,29 +115,20 @@ async getConversationIntelligenceOpportunities(
       query["nextBestAction.completed"] = actionCompleted;
     }
 
+    const repo=tenantRepository(ConversationIntelligence,tenantContext(businessId));
     const skip = (page - 1) * limit;
 
     const [records, total] = await Promise.all([
-      ConversationIntelligence.find(query)
-        .populate({
-          path: "conversation",
-          select: CONVERSATION_INTELLIGENCE_CONVERSATION_FIELDS,
-        })
-        .populate({
-          path: "lead",
-          select: CONVERSATION_INTELLIGENCE_LEAD_FIELDS,
-        })
-        .sort({
+      repo.list(query,{populate:[
+        {path:'conversation',select:CONVERSATION_INTELLIGENCE_CONVERSATION_FIELDS},
+        {path:'lead',select:CONVERSATION_INTELLIGENCE_LEAD_FIELDS},
+      ],sort:{
           "urgency.score": -1,
           "buyingLikelihood.score": -1,
           "appointmentProbability.score": -1,
           "estimatedRevenue.likely": -1,
-        })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-
-      ConversationIntelligence.countDocuments(query),
+        },skip,limit}),
+      repo.count(query),
     ]);
 
     return {
@@ -183,71 +142,22 @@ async getConversationIntelligenceOpportunities(
     };
   },
 
-async saveConversationIntelligence(ConversationIntelligence, payload) {
-    return ConversationIntelligence.findOneAndUpdate(
-      {
-        conversation: payload.conversation,
-      },
-      {
-        $set: payload,
-      },
-      {
-        returnDocument: "after",
-        upsert: true,
-        runValidators: true,
-        setDefaultsOnInsert: true,
-      },
-    );
-  },
 
-async updateConversationIntelligence(
-    ConversationIntelligence,
-    conversationId,
-    updates,
-  ) {
-    return ConversationIntelligence.findOneAndUpdate(
-      {
-        conversation: conversationId,
-      },
-      {
-        $set: updates,
-      },
-      {
-        returnDocument: "after",
-        runValidators: true,
-      },
-    );
-  },
 
-async updateConversationIntelligenceForBusiness(
-    ConversationIntelligence,
-    conversationId,
-    businessId,
-    updates,
-  ) {
-    return ConversationIntelligence.findOneAndUpdate(
-      {
-        conversation: conversationId,
-        business: businessId,
-      },
-      {
-        $set: updates,
-      },
-      {
-        returnDocument: "after",
-        runValidators: true,
-      },
-    );
+
+
+async updateConversationIntelligenceForBusiness(model,conversationId,businessId,updates) {
+    return tenantRepository(model,tenantContext(businessId),{identityField:'conversation'}).update(conversationId,{$set:updates});
   },
 
 async getConversationIntelligenceDashboard(
     ConversationIntelligence,
     businessId,
   ) {
-    const results = await ConversationIntelligence.aggregate([
+    const {businessId:validatedBusiness}=tenantContext(businessId);const results = await ConversationIntelligence.aggregate([
       {
         $match: {
-          business: businessId,
+          business: new mongoose.Types.ObjectId(validatedBusiness),
           status: "completed",
         },
       },

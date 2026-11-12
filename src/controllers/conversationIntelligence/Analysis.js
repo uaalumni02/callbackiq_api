@@ -1,3 +1,5 @@
+import {tenantRepository,tenantContext} from '../../db/repositories/tenantRepository.js';
+import {readTenantResource} from '../shared/tenantResource.js';
 import { Business, Conversation, ConversationIntelligence, ConversationIntelligenceService, Db, Lead, Response, SocketService, analysisIdentity, analysisUpdate, analyzeConversationSchema, beginValuation, claimAnalysis, finishValuation, getMessagesForAnalysis, mongoose, safeConsole, updateAnalyzedLead } from './context.js';
 
 export default class ConversationIntelligenceAnalysisController {
@@ -24,27 +26,15 @@ static async analyzeConversation(req, res) {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      const conversation = await Db.getConversationById(
-        Conversation,
-        conversationId,
-      );
-
-      if (!conversation) {
-        return Response.responseInvalidInput(res, "Conversation not found");
-      }
-
-      if (String(conversation.business._id) !== String(business._id)) {
-        return Response.responseBadAuth(
-          res,
-          "You cannot analyze this conversation",
-        );
-      }
+      const conversation=await readTenantResource({model:Conversation,businessId:business._id,id:conversationId,res,
+        missingMessage:"Conversation not found",deniedMessage:"You cannot analyze this conversation"});
+      if(!conversation)return undefined;
 
       const lead = conversation.lead
-        ? await Db.getLeadById(Lead, conversation.lead._id || conversation.lead)
+        ? await tenantRepository(Lead,tenantContext(business._id)).read(conversation.lead._id || conversation.lead)
         : null;
 
-      const messages = await getMessagesForAnalysis(conversationId);
+      const messages = await getMessagesForAnalysis(conversationId,business._id);
 
       if (!messages?.length) {
         return Response.responseInvalidInput(
@@ -60,7 +50,7 @@ static async analyzeConversation(req, res) {
       try {
         const valuationTicket = await beginValuation(lead, business._id);
         // Reservation itself changes updatedAt. Read a fresh snapshot for guarded lead writes.
-        const analysisLead = lead ? await Db.getLeadById(Lead, lead._id) : null;
+        const analysisLead = lead ? await tenantRepository(Lead,tenantContext(business._id)).read(lead._id) : null;
         const analysis = await ConversationIntelligenceService.analyze({
           business,
           conversation,

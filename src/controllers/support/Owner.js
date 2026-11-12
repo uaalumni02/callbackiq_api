@@ -40,7 +40,7 @@ const createTicket = async (req, res) => {
       category,
       priority,
       message: message.trim(),
-    });
+    },business._id);
 
     return res.status(201).json({
       success: true,

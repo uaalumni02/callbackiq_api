@@ -34,7 +34,7 @@ const methods = [
   ["updateSupportTicketForBusiness", supportTicketRepository],
   ["closeSupportTicketForBusiness", supportTicketRepository],
   ["getAllSupportTickets", supportTicketRepository],
-  ["updateSupportTicketAdmin", supportTicketRepository],
+
 ];
 
 beforeEach(() => jest.resetAllMocks());
@@ -56,3 +56,5 @@ test.each(methods)("Db.%s preserves errors", async (method, repository) => {
   await expect(Db[method]({})).rejects.toBe(failure);
   expect(repository[method]).toHaveBeenCalledTimes(1);
 });
+
+test('support administration is not an owner facade capability',()=>{expect(Db.updateSupportTicketAdmin).toBeUndefined();});

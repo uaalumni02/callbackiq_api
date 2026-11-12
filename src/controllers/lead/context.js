@@ -32,21 +32,9 @@ const getBusinessForOwner = async (ownerId) => {
     : Db.getBusinessByOwner(Business, ownerId);
 };
 
-const updateLeadForBusiness = async (id, businessId, data) => {
-  if (typeof Db.updateLeadForBusiness === "function") {
-    return Db.updateLeadForBusiness(Lead, id, businessId, data);
-  }
+const updateLeadForBusiness = (id,businessId,data) => Db.updateLeadForBusiness(Lead,id,businessId,data);
+const deleteLeadForBusiness = (id,businessId) => Db.deleteLeadForBusiness(Lead,id,businessId);
 
-  return Db.updateLead(Lead, id, data);
-};
-
-const deleteLeadForBusiness = async (id, businessId) => {
-  if (typeof Db.deleteLeadForBusiness === "function") {
-    return Db.deleteLeadForBusiness(Lead, id, businessId);
-  }
-
-  return Db.deleteLead(Lead, id);
-};
 
 const isHotLead = (lead) => {
   return (

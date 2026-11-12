@@ -1,55 +1,27 @@
+import {numericSetting} from '../../../config/numericSettings.js';
+import {OWNER_RESOURCE_POPULATIONS} from '../dbProjectionFields.js';
+import {tenantRepository,tenantContext} from '../tenantRepository.js';
 /* Source-exact Db extraction. Preserve order and outcome contracts. */
-export function createDbmessages1Methods(deps) {
-  const { safeConsole } = deps;
+export function createDbmessages1Methods() {
   return {
-async getMessagesByConversation(model, conversationId) {
-    try {
-      return await model
-        .find({ conversation: conversationId })
-        .sort({ createdAt: 1 })
-        .populate("lead", "customerName phone serviceNeeded")
-        .populate("conversation", "customerPhone customerName status")
-        .lean();
-    } catch (error) {
-      safeConsole.error("Error fetching messages:", error);
-      throw error;
-    }
+async getMessagesByConversation(model,conversationId,businessId) {
+    return tenantRepository(model,tenantContext(businessId)).list({conversation:conversationId},{sort:{createdAt:1},populate:OWNER_RESOURCE_POPULATIONS.Message});
   },
 
-async getMessagesForAI(model, conversationId) {
-    const limit = Math.max(20, Math.min(500, Number(process.env.AI_ANALYSIS_HISTORY_LIMIT) || 200));
-    const messages = await model.find({ conversation: conversationId })
-      .select("_id business conversation lead direction from to body provider providerMessageId status isAiGenerated generatedBy usageCategory actorType actorId metadata createdAt updatedAt")
-      .sort({ createdAt: -1, _id: -1 }).limit(limit);
+async getMessagesForAI(model,conversationId,businessId) {
+    const repo=tenantRepository(model,tenantContext(businessId));
+    const limit=numericSetting('AI_ANALYSIS_HISTORY_LIMIT');
+    const messages=await repo.list({conversation:conversationId},{
+      select:'_id business conversation lead direction from to body provider providerMessageId status isAiGenerated generatedBy usageCategory actorType actorId metadata createdAt updatedAt',
+      sort:{createdAt:-1,_id:-1},limit,
+    });
     return messages.reverse();
   },
 
-async getMessageById(model, id) {
-    try {
-      return await model
-        .findById(id)
-        .populate("lead", "customerName phone serviceNeeded")
-        .populate("conversation", "customerPhone customerName status");
-    } catch (error) {
-      safeConsole.error("Error fetching message:", error);
-      throw error;
-    }
-  },
 
-async getMessageForBusiness(model, id, businessId) {
-    try {
-      return await model
-        .findOne({
-          _id: id,
-          business: businessId,
-        })
-        .populate("lead", "customerName phone serviceNeeded")
-        .populate("conversation", "customerPhone customerName status")
-        .lean();
-    } catch (error) {
-      safeConsole.error("Error fetching message for business:", error);
-      throw error;
-    }
+
+async getMessageForBusiness(model,id,businessId) {
+    return tenantRepository(model,tenantContext(businessId)).read(id,{populate:OWNER_RESOURCE_POPULATIONS.Message});
   }
   };
 }

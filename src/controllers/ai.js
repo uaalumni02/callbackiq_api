@@ -89,7 +89,7 @@ class AiController {
         status: lead.status === "booked" ? "booked" : "contacted",
       };
 
-      let qualifiedLead = await Db.qualifyLead(Lead, leadId, updateData);
+      let qualifiedLead = await Db.qualifyLeadForBusiness(Lead,leadId,business._id,updateData);
       qualifiedLead = await finishValuation(valuationTicket, { businessId: business._id, evidence: messageBody, proposedService: aiResult.serviceNeeded }) || qualifiedLead;
 
       SocketService.emitLeadUpdated(business._id, qualifiedLead);

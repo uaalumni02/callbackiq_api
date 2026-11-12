@@ -52,12 +52,6 @@
       "sha": "e77370520e5bd1f9676f36c1305c5c0d30ecd82627e14125e80dadf829a013e5"
     },
     {
-      "name": "updateBusiness",
-      "module": "src/db/repositories/extracted/business-1.js",
-      "kind": "method",
-      "sha": "df81f74b3e14c8ec5c1b71ae5a3d963f1e43f732c537284971ac8a4586da841c"
-    },
-    {
       "name": "updateBusinessByOwner",
       "module": "src/db/repositories/extracted/business-1.js",
       "kind": "method",
@@ -68,12 +62,6 @@
       "module": "src/db/repositories/extracted/business-1.js",
       "kind": "method",
       "sha": "9420d41c637f67d66e7562176da50466cdeab11abfc36ba1c4f2f96377fb1084"
-    },
-    {
-      "name": "deleteBusiness",
-      "module": "src/db/repositories/extracted/business-1.js",
-      "kind": "method",
-      "sha": "a60f81afd55cd1fc31aa19e42b714ffecf014ef0bf5035e0ed59bbbb6a6c50ea"
     },
     {
       "name": "getBusinessByPhone",
@@ -94,190 +82,10 @@
       "sha": "089d3e951a8ecd55c9f9fbb6163d92cc007080a9b667ffecee0978e3d368bc5c"
     },
     {
-      "name": "getLeadsByBusiness",
-      "module": "src/db/repositories/extracted/leads-1.js",
-      "kind": "method",
-      "sha": "5218e5a60ddc6dd425d0878aba534bf9867f7ef909ce054a3f40f30a0102f7d3"
-    },
-    {
-      "name": "getLeadById",
-      "module": "src/db/repositories/extracted/leads-1.js",
-      "kind": "method",
-      "sha": "108120fb11134bf9227dbd7633b2f72ed2c31655a9fa6aee0b34d3ed07babe37"
-    },
-    {
-      "name": "updateLead",
-      "module": "src/db/repositories/extracted/leads-1.js",
-      "kind": "method",
-      "sha": "17e3ef5da89b7c7faf3059d2774d385c829b25081a1245565b8337a0f5701a95"
-    },
-    {
-      "name": "updateLeadForBusiness",
-      "module": "src/db/repositories/extracted/leads-1.js",
-      "kind": "method",
-      "sha": "8313bf55b62e98dbb81ff8ca266d9a6952a68cde94370d46fae1173ee3b5ebbf"
-    },
-    {
-      "name": "getLeadByBusinessAndPhone",
-      "module": "src/db/repositories/extracted/leads-1.js",
-      "kind": "method",
-      "sha": "5c9466ef419af246be3561570520cc8c8412b343a1441e649f7148c55e77b8d1"
-    },
-    {
-      "name": "qualifyLead",
-      "module": "src/db/repositories/extracted/leads-1.js",
-      "kind": "method",
-      "sha": "a4281377d986f819f716359f8bbd9c51864821bc892ad41be7eb29dc543097ef"
-    },
-    {
-      "name": "getConversationsByBusiness",
-      "module": "src/db/repositories/extracted/conversations-1.js",
-      "kind": "method",
-      "sha": "b6c2acd1133da3422799b275e3f6a6427fa2dcf15bc225647716b3db9cd6dcfe"
-    },
-    {
-      "name": "getConversationById",
-      "module": "src/db/repositories/extracted/conversations-1.js",
-      "kind": "method",
-      "sha": "499628b444d8dabec1d820a1dba604bfc859aa77a79165258deaeabf1eb78bc4"
-    },
-    {
-      "name": "getConversationForBusiness",
-      "module": "src/db/repositories/extracted/conversations-1.js",
-      "kind": "method",
-      "sha": "a271fc2ca639fca9906c3149a16240143e8c832dd9c184a4b019b1e5e2f6ef3f"
-    },
-    {
-      "name": "updateConversation",
-      "module": "src/db/repositories/extracted/conversations-1.js",
-      "kind": "method",
-      "sha": "c483182b0e92d8ceece1bafc65f4a53d310da1dd390ad935f5844e0cae388b6a"
-    },
-    {
-      "name": "getConversationByBusinessAndPhone",
-      "module": "src/db/repositories/extracted/conversations-1.js",
-      "kind": "method",
-      "sha": "e919700083155b172a1e12a9cc5211ae800904cfc098aadfabc18ab0bebd1e6d"
-    },
-    {
-      "name": "getMessagesByConversation",
-      "module": "src/db/repositories/extracted/messages-1.js",
-      "kind": "method",
-      "sha": "c75ef2f7aae0dd9e7cd695f8de5252ac1564ed97fa92e69982764c68d5508f75"
-    },
-    {
-      "name": "getMessagesForAI",
-      "module": "src/db/repositories/extracted/messages-1.js",
-      "kind": "method",
-      "sha": "2a5c45070483080b116590d2d379df41be280606b32892ad2cc4a79a5e8660ab"
-    },
-    {
-      "name": "getMessageById",
-      "module": "src/db/repositories/extracted/messages-1.js",
-      "kind": "method",
-      "sha": "6ac0aec75c169284ec524e201749deabc083accb1bd0d45ea130be231791831f"
-    },
-    {
-      "name": "getMessageForBusiness",
-      "module": "src/db/repositories/extracted/messages-1.js",
-      "kind": "method",
-      "sha": "f757947b06f86f94faf199fd90e0ad0232cf03af090fa48322f5e6a56c3d9ca0"
-    },
-    {
-      "name": "getCallLogsByBusiness",
-      "module": "src/db/repositories/extracted/calls-1.js",
-      "kind": "method",
-      "sha": "06effc948aca1abcea0a29590faae39cf41b525143e8c245a935f414fe7c1cc8"
-    },
-    {
-      "name": "getCallLogById",
-      "module": "src/db/repositories/extracted/calls-1.js",
-      "kind": "method",
-      "sha": "dfe44c25dac2fe44caabce0dc69724e8edbc3e9eefb56dbfea608424e56bc90b"
-    },
-    {
-      "name": "getCallLogForBusiness",
-      "module": "src/db/repositories/extracted/calls-1.js",
-      "kind": "method",
-      "sha": "09f9fffa0e7ff9e60fdf33b42059b0ca4e7fd613292bd50ebf94075046ac0f6e"
-    },
-    {
-      "name": "updateCallLog",
-      "module": "src/db/repositories/extracted/calls-1.js",
-      "kind": "method",
-      "sha": "bf0315e382894e61cbcd9b907340a4f897e18bb4a766c9906d9bb5c4cc68ca83"
-    },
-    {
-      "name": "updateCallLogForBusiness",
-      "module": "src/db/repositories/extracted/calls-1.js",
-      "kind": "method",
-      "sha": "039a8e42e909ac2ee5cf8f12d585f6c6e811f82e5410a4626a823b478994d5b3"
-    },
-    {
-      "name": "updateCallLogByProviderCallId",
-      "module": "src/db/repositories/extracted/calls-1.js",
-      "kind": "method",
-      "sha": "6db27ccfade0ea23026f0e2d7cc2982a2bf02401f03af6746eec52a6f8d0a384"
-    },
-    {
       "name": "getDashboardMetrics",
       "module": "src/db/repositories/extracted/reporting-1.js",
       "kind": "method",
       "sha": "87f6799272a45609d5c0eb6a7beaa6acf4907b3f655fe0e3d5f94d5bb5f7b5df"
-    },
-    {
-      "name": "getAlertsByBusiness",
-      "module": "src/db/repositories/extracted/alerts-1.js",
-      "kind": "method",
-      "sha": "881f1cca26997a42d9c9380acb04109593c1917d4b454d61b80366429db171b9"
-    },
-    {
-      "name": "getUnreadAlertsByBusiness",
-      "module": "src/db/repositories/extracted/alerts-1.js",
-      "kind": "method",
-      "sha": "f93309f95ca262ef84fba694f8709c89523cee63e1a6d73bd6f28b69a492787d"
-    },
-    {
-      "name": "getAlertById",
-      "module": "src/db/repositories/extracted/alerts-1.js",
-      "kind": "method",
-      "sha": "03a6dca1a3e8459de152ffe3cee1875d685a8ea1102b7512b9d665b01a29c85d"
-    },
-    {
-      "name": "getAlertForBusiness",
-      "module": "src/db/repositories/extracted/alerts-1.js",
-      "kind": "method",
-      "sha": "27542c604a0e216830fe02f14b11043fa65e1d1934cb289a296b59566ed45f04"
-    },
-    {
-      "name": "updateAlert",
-      "module": "src/db/repositories/extracted/alerts-1.js",
-      "kind": "method",
-      "sha": "a37d1bcfc57791207493b7ab71fe3ef800e64c61491e93147570bda9bb8e8c39"
-    },
-    {
-      "name": "updateAlertForBusiness",
-      "module": "src/db/repositories/extracted/alerts-1.js",
-      "kind": "method",
-      "sha": "d03643b0ce4c267d0308d4036c3e78ff8624b6750725975a1506cbf4cdc442eb"
-    },
-    {
-      "name": "markAlertAsRead",
-      "module": "src/db/repositories/extracted/alerts-1.js",
-      "kind": "method",
-      "sha": "47d89fd8946f4b1d21739714b5091b47d8efe67f89997a24701d105fe8d15723"
-    },
-    {
-      "name": "markAlertAsReadForBusiness",
-      "module": "src/db/repositories/extracted/alerts-1.js",
-      "kind": "method",
-      "sha": "25e6c8027d8c073917417cef9dc00568fe31035bab234e7aa55613e397d10d44"
-    },
-    {
-      "name": "markAllAlertsAsRead",
-      "module": "src/db/repositories/extracted/alerts-1.js",
-      "kind": "method",
-      "sha": "f287c831f9521127e6e43d7d2219f1dd218feb44b8b7406d351acb645f9fd1f8"
     },
     {
       "name": "findTrialRedemption",
@@ -296,54 +104,6 @@
       "module": "src/db/repositories/extracted/demo-1.js",
       "kind": "method",
       "sha": "a111f28e99afc19aefe6cd72c23923ba0a865f5270af292c3ebde6673245d8f1"
-    },
-    {
-      "name": "getConversationIntelligenceByConversation",
-      "module": "src/db/repositories/extracted/intelligence-1.js",
-      "kind": "method",
-      "sha": "90389f7967e1f30a3af37c309143ec754c92f509ef88791e793c19412bc944ac"
-    },
-    {
-      "name": "getConversationIntelligenceForBusinessByConversation",
-      "module": "src/db/repositories/extracted/intelligence-1.js",
-      "kind": "method",
-      "sha": "32ed81911933ce5a379fbbe4215a324388e331fcda7e4ce83c633f3e6e9ac5dc"
-    },
-    {
-      "name": "getConversationIntelligenceByBusiness",
-      "module": "src/db/repositories/extracted/intelligence-1.js",
-      "kind": "method",
-      "sha": "69688f05b1817aeaee4a30dde1babcea7179f69047d1ab072fd91840c2fcb731"
-    },
-    {
-      "name": "getConversationIntelligenceOpportunities",
-      "module": "src/db/repositories/extracted/intelligence-1.js",
-      "kind": "method",
-      "sha": "7437cd3930fd1d435fec45f6577fc65c336ee65a20b5767ea7743563a1cedbd4"
-    },
-    {
-      "name": "saveConversationIntelligence",
-      "module": "src/db/repositories/extracted/intelligence-1.js",
-      "kind": "method",
-      "sha": "76a4bb685d947a73b1203b0ac4f2af2c73f8564f88f831e0cbeef7363752b68d"
-    },
-    {
-      "name": "updateConversationIntelligence",
-      "module": "src/db/repositories/extracted/intelligence-1.js",
-      "kind": "method",
-      "sha": "a85c90161bce833f386f59019f66de288d931ece3ef686fc1f431d8ad265c528"
-    },
-    {
-      "name": "updateConversationIntelligenceForBusiness",
-      "module": "src/db/repositories/extracted/intelligence-1.js",
-      "kind": "method",
-      "sha": "3d4ddf0c4c3051ed9f2b9392b14352a4342c3683a82db6eb5fdce55d8124df41"
-    },
-    {
-      "name": "getConversationIntelligenceDashboard",
-      "module": "src/db/repositories/extracted/intelligence-1.js",
-      "kind": "method",
-      "sha": "5e4cb30d14b7091a3b3ce0ba40d3b50390210eb6db1bd0767c7727fde5160ba0"
     },
     {
       "name": "recheckAndConfirm",
@@ -424,5 +184,312 @@
       "kind": "declaration",
       "sha": "cc93d612a87f9acb651ff0395e2a880627a497977c66838ab68d52484632c536"
     }
-  ]
+  ],
+  "tenantCapabilityContracts": {
+    "reviewedChanges": [
+      {
+        "name": "updateBusiness",
+        "module": "src/db/repositories/extracted/business-1.js",
+        "kind": "method",
+        "sha": "df81f74b3e14c8ec5c1b71ae5a3d963f1e43f732c537284971ac8a4586da841c",
+        "retired": true
+      },
+      {
+        "name": "deleteBusiness",
+        "module": "src/db/repositories/extracted/business-1.js",
+        "kind": "method",
+        "sha": "a60f81afd55cd1fc31aa19e42b714ffecf014ef0bf5035e0ed59bbbb6a6c50ea",
+        "retired": true
+      },
+      {
+        "name": "getLeadsByBusiness",
+        "module": "src/db/repositories/extracted/leads-1.js",
+        "kind": "method",
+        "sha": "5218e5a60ddc6dd425d0878aba534bf9867f7ef909ce054a3f40f30a0102f7d3",
+        "retired": false
+      },
+      {
+        "name": "getLeadById",
+        "module": "src/db/repositories/extracted/leads-1.js",
+        "kind": "method",
+        "sha": "108120fb11134bf9227dbd7633b2f72ed2c31655a9fa6aee0b34d3ed07babe37",
+        "retired": true
+      },
+      {
+        "name": "updateLead",
+        "module": "src/db/repositories/extracted/leads-1.js",
+        "kind": "method",
+        "sha": "17e3ef5da89b7c7faf3059d2774d385c829b25081a1245565b8337a0f5701a95",
+        "retired": true
+      },
+      {
+        "name": "updateLeadForBusiness",
+        "module": "src/db/repositories/extracted/leads-1.js",
+        "kind": "method",
+        "sha": "8313bf55b62e98dbb81ff8ca266d9a6952a68cde94370d46fae1173ee3b5ebbf",
+        "retired": false
+      },
+      {
+        "name": "getLeadByBusinessAndPhone",
+        "module": "src/db/repositories/extracted/leads-1.js",
+        "kind": "method",
+        "sha": "5c9466ef419af246be3561570520cc8c8412b343a1441e649f7148c55e77b8d1",
+        "retired": false
+      },
+      {
+        "name": "qualifyLead",
+        "module": "src/db/repositories/extracted/leads-1.js",
+        "kind": "method",
+        "sha": "a4281377d986f819f716359f8bbd9c51864821bc892ad41be7eb29dc543097ef",
+        "retired": true
+      },
+      {
+        "name": "getConversationsByBusiness",
+        "module": "src/db/repositories/extracted/conversations-1.js",
+        "kind": "method",
+        "sha": "b6c2acd1133da3422799b275e3f6a6427fa2dcf15bc225647716b3db9cd6dcfe",
+        "retired": false
+      },
+      {
+        "name": "getConversationById",
+        "module": "src/db/repositories/extracted/conversations-1.js",
+        "kind": "method",
+        "sha": "499628b444d8dabec1d820a1dba604bfc859aa77a79165258deaeabf1eb78bc4",
+        "retired": true
+      },
+      {
+        "name": "getConversationForBusiness",
+        "module": "src/db/repositories/extracted/conversations-1.js",
+        "kind": "method",
+        "sha": "a271fc2ca639fca9906c3149a16240143e8c832dd9c184a4b019b1e5e2f6ef3f",
+        "retired": false
+      },
+      {
+        "name": "updateConversation",
+        "module": "src/db/repositories/extracted/conversations-1.js",
+        "kind": "method",
+        "sha": "c483182b0e92d8ceece1bafc65f4a53d310da1dd390ad935f5844e0cae388b6a",
+        "retired": true
+      },
+      {
+        "name": "getConversationByBusinessAndPhone",
+        "module": "src/db/repositories/extracted/conversations-1.js",
+        "kind": "method",
+        "sha": "e919700083155b172a1e12a9cc5211ae800904cfc098aadfabc18ab0bebd1e6d",
+        "retired": false
+      },
+      {
+        "name": "getMessagesByConversation",
+        "module": "src/db/repositories/extracted/messages-1.js",
+        "kind": "method",
+        "sha": "c75ef2f7aae0dd9e7cd695f8de5252ac1564ed97fa92e69982764c68d5508f75",
+        "retired": false
+      },
+      {
+        "name": "getMessagesForAI",
+        "module": "src/db/repositories/extracted/messages-1.js",
+        "kind": "method",
+        "sha": "2a5c45070483080b116590d2d379df41be280606b32892ad2cc4a79a5e8660ab",
+        "retired": false
+      },
+      {
+        "name": "getMessageById",
+        "module": "src/db/repositories/extracted/messages-1.js",
+        "kind": "method",
+        "sha": "6ac0aec75c169284ec524e201749deabc083accb1bd0d45ea130be231791831f",
+        "retired": true
+      },
+      {
+        "name": "getMessageForBusiness",
+        "module": "src/db/repositories/extracted/messages-1.js",
+        "kind": "method",
+        "sha": "f757947b06f86f94faf199fd90e0ad0232cf03af090fa48322f5e6a56c3d9ca0",
+        "retired": false
+      },
+      {
+        "name": "getCallLogsByBusiness",
+        "module": "src/db/repositories/extracted/calls-1.js",
+        "kind": "method",
+        "sha": "06effc948aca1abcea0a29590faae39cf41b525143e8c245a935f414fe7c1cc8",
+        "retired": false
+      },
+      {
+        "name": "getCallLogById",
+        "module": "src/db/repositories/extracted/calls-1.js",
+        "kind": "method",
+        "sha": "dfe44c25dac2fe44caabce0dc69724e8edbc3e9eefb56dbfea608424e56bc90b",
+        "retired": true
+      },
+      {
+        "name": "getCallLogForBusiness",
+        "module": "src/db/repositories/extracted/calls-1.js",
+        "kind": "method",
+        "sha": "09f9fffa0e7ff9e60fdf33b42059b0ca4e7fd613292bd50ebf94075046ac0f6e",
+        "retired": false
+      },
+      {
+        "name": "updateCallLog",
+        "module": "src/db/repositories/extracted/calls-1.js",
+        "kind": "method",
+        "sha": "bf0315e382894e61cbcd9b907340a4f897e18bb4a766c9906d9bb5c4cc68ca83",
+        "retired": true
+      },
+      {
+        "name": "updateCallLogForBusiness",
+        "module": "src/db/repositories/extracted/calls-1.js",
+        "kind": "method",
+        "sha": "039a8e42e909ac2ee5cf8f12d585f6c6e811f82e5410a4626a823b478994d5b3",
+        "retired": false
+      },
+      {
+        "name": "updateCallLogByProviderCallId",
+        "module": "src/db/repositories/extracted/calls-1.js",
+        "kind": "method",
+        "sha": "6db27ccfade0ea23026f0e2d7cc2982a2bf02401f03af6746eec52a6f8d0a384",
+        "retired": true
+      },
+      {
+        "name": "getAlertsByBusiness",
+        "module": "src/db/repositories/extracted/alerts-1.js",
+        "kind": "method",
+        "sha": "881f1cca26997a42d9c9380acb04109593c1917d4b454d61b80366429db171b9",
+        "retired": false
+      },
+      {
+        "name": "getUnreadAlertsByBusiness",
+        "module": "src/db/repositories/extracted/alerts-1.js",
+        "kind": "method",
+        "sha": "f93309f95ca262ef84fba694f8709c89523cee63e1a6d73bd6f28b69a492787d",
+        "retired": false
+      },
+      {
+        "name": "getAlertById",
+        "module": "src/db/repositories/extracted/alerts-1.js",
+        "kind": "method",
+        "sha": "03a6dca1a3e8459de152ffe3cee1875d685a8ea1102b7512b9d665b01a29c85d",
+        "retired": true
+      },
+      {
+        "name": "getAlertForBusiness",
+        "module": "src/db/repositories/extracted/alerts-1.js",
+        "kind": "method",
+        "sha": "27542c604a0e216830fe02f14b11043fa65e1d1934cb289a296b59566ed45f04",
+        "retired": false
+      },
+      {
+        "name": "updateAlert",
+        "module": "src/db/repositories/extracted/alerts-1.js",
+        "kind": "method",
+        "sha": "a37d1bcfc57791207493b7ab71fe3ef800e64c61491e93147570bda9bb8e8c39",
+        "retired": true
+      },
+      {
+        "name": "updateAlertForBusiness",
+        "module": "src/db/repositories/extracted/alerts-1.js",
+        "kind": "method",
+        "sha": "d03643b0ce4c267d0308d4036c3e78ff8624b6750725975a1506cbf4cdc442eb",
+        "retired": false
+      },
+      {
+        "name": "markAlertAsRead",
+        "module": "src/db/repositories/extracted/alerts-1.js",
+        "kind": "method",
+        "sha": "47d89fd8946f4b1d21739714b5091b47d8efe67f89997a24701d105fe8d15723",
+        "retired": true
+      },
+      {
+        "name": "markAlertAsReadForBusiness",
+        "module": "src/db/repositories/extracted/alerts-1.js",
+        "kind": "method",
+        "sha": "25e6c8027d8c073917417cef9dc00568fe31035bab234e7aa55613e397d10d44",
+        "retired": false
+      },
+      {
+        "name": "markAllAlertsAsRead",
+        "module": "src/db/repositories/extracted/alerts-1.js",
+        "kind": "method",
+        "sha": "f287c831f9521127e6e43d7d2219f1dd218feb44b8b7406d351acb645f9fd1f8",
+        "retired": false
+      },
+      {
+        "name": "getConversationIntelligenceByConversation",
+        "module": "src/db/repositories/extracted/intelligence-1.js",
+        "kind": "method",
+        "sha": "90389f7967e1f30a3af37c309143ec754c92f509ef88791e793c19412bc944ac",
+        "retired": true
+      },
+      {
+        "name": "getConversationIntelligenceForBusinessByConversation",
+        "module": "src/db/repositories/extracted/intelligence-1.js",
+        "kind": "method",
+        "sha": "32ed81911933ce5a379fbbe4215a324388e331fcda7e4ce83c633f3e6e9ac5dc",
+        "retired": false
+      },
+      {
+        "name": "getConversationIntelligenceByBusiness",
+        "module": "src/db/repositories/extracted/intelligence-1.js",
+        "kind": "method",
+        "sha": "69688f05b1817aeaee4a30dde1babcea7179f69047d1ab072fd91840c2fcb731",
+        "retired": false
+      },
+      {
+        "name": "getConversationIntelligenceOpportunities",
+        "module": "src/db/repositories/extracted/intelligence-1.js",
+        "kind": "method",
+        "sha": "7437cd3930fd1d435fec45f6577fc65c336ee65a20b5767ea7743563a1cedbd4",
+        "retired": false
+      },
+      {
+        "name": "saveConversationIntelligence",
+        "module": "src/db/repositories/extracted/intelligence-1.js",
+        "kind": "method",
+        "sha": "76a4bb685d947a73b1203b0ac4f2af2c73f8564f88f831e0cbeef7363752b68d",
+        "retired": true
+      },
+      {
+        "name": "updateConversationIntelligence",
+        "module": "src/db/repositories/extracted/intelligence-1.js",
+        "kind": "method",
+        "sha": "a85c90161bce833f386f59019f66de288d931ece3ef686fc1f431d8ad265c528",
+        "retired": true
+      },
+      {
+        "name": "updateConversationIntelligenceForBusiness",
+        "module": "src/db/repositories/extracted/intelligence-1.js",
+        "kind": "method",
+        "sha": "3d4ddf0c4c3051ed9f2b9392b14352a4342c3683a82db6eb5fdce55d8124df41",
+        "retired": false
+      },
+      {
+        "name": "getConversationIntelligenceDashboard",
+        "module": "src/db/repositories/extracted/intelligence-1.js",
+        "kind": "method",
+        "sha": "5e4cb30d14b7091a3b3ce0ba40d3b50390210eb6db1bd0767c7727fde5160ba0",
+        "retired": false
+      }
+    ],
+    "allowedImports": [
+      "mongoose",
+      "../tenantRepository.js",
+      "../dbProjectionFields.js",
+      "../../../config/numericSettings.js"
+    ],
+    "tests": [
+      "tests/integration/tenantRepository.rootCause.test.js",
+      "tests/routes/conversation.routes.test.js",
+      "tests/routes/callLog.routes.test.js",
+      "tests/routes/lead.socket.test.js",
+      "tests/routes/message.routes.test.js",
+      "tests/routes/conversationIntelligence.routes.test.js",
+      "tests/routes/agent.routes.test.js",
+      "tests/routes/ai.routes.test.js",
+      "tests/unit/extractedDb.runtimeContracts.test.js",
+      "tests/unit/extractedDb.advancedContracts.test.js",
+      "tests/unit/extractedDb.remainingBranches.test.js",
+      "tests/integration/scaleRelease.persistence.test.js",
+      "tests/routes/support.test.js",
+      "tests/unit/conversationIntelligence.controller.test.js",
+      "tests/unit/subscriptionReadBudget.test.js"
+    ]
+  }
 }

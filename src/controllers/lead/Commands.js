@@ -1,4 +1,5 @@
-import { AlertService, Db, Lead, Response, SocketService, createHotLeadAlertWhenNeeded, deleteLeadForBusiness, getBusinessForOwner, leadValidator, mongoose, queryFailure, safeConsole, updateLeadForBusiness, updateOwnerLead } from './context.js';
+import {readTenantResource} from '../shared/tenantResource.js';
+import { AlertService, Lead, Response, SocketService, createHotLeadAlertWhenNeeded, deleteLeadForBusiness, getBusinessForOwner, leadValidator, mongoose, queryFailure, safeConsole, updateLeadForBusiness, updateOwnerLead } from './context.js';
 
 export default class LeadCommandsController {
 static async updateLead(req, res) {
@@ -22,15 +23,9 @@ static async updateLead(req, res) {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      const lead = await Db.getLeadById(Lead, id);
-
-      if (!lead) {
-        return Response.responseInvalidInput(res, "Lead not found");
-      }
-
-      if (String(lead.business._id) !== String(business._id)) {
-        return Response.responseBadAuth(res, "You cannot update this lead");
-      }
+      const lead=await readTenantResource({model:Lead,businessId:business._id,id:id,res,
+        missingMessage:"Lead not found",deniedMessage:"You cannot update this lead"});
+      if(!lead)return undefined;
 
       const previousStatus = lead.status;
       const updatedLead = await updateOwnerLead({ lead, businessId: business._id, changes: req.body, actorId: ownerId });
@@ -98,18 +93,9 @@ static async updateLeadStatus(req, res) {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      const lead = await Db.getLeadById(Lead, id);
-
-      if (!lead) {
-        return Response.responseInvalidInput(res, "Lead not found");
-      }
-
-      if (String(lead.business._id) !== String(business._id)) {
-        return Response.responseBadAuth(
-          res,
-          "You cannot update this lead status",
-        );
-      }
+      const lead=await readTenantResource({model:Lead,businessId:business._id,id:id,res,
+        missingMessage:"Lead not found",deniedMessage:"You cannot update this lead status"});
+      if(!lead)return undefined;
 
       const previousStatus = lead.status;
       const updatedLead = await updateLeadForBusiness(id, business._id, {
@@ -165,15 +151,9 @@ static async deleteLead(req, res) {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      const lead = await Db.getLeadById(Lead, id);
-
-      if (!lead) {
-        return Response.responseInvalidInput(res, "Lead not found");
-      }
-
-      if (String(lead.business._id) !== String(business._id)) {
-        return Response.responseBadAuth(res, "You cannot delete this lead");
-      }
+      const lead=await readTenantResource({model:Lead,businessId:business._id,id:id,res,
+        missingMessage:"Lead not found",deniedMessage:"You cannot delete this lead"});
+      if(!lead)return undefined;
 
       await deleteLeadForBusiness(id, business._id);
 

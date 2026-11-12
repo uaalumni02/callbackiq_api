@@ -1,0 +1,17 @@
+{
+  "TRIAL_MAX_ADMIN_EXTENSION_DAYS": {
+    "default": 14,
+    "min": 0,
+    "max": 9007199254740991,
+    "zero": "unlimited",
+    "unit": "days"
+  },
+  "AI_ANALYSIS_HISTORY_LIMIT": {
+    "default": 200,
+    "min": 20,
+    "max": 500,
+    "zero": "default",
+    "unit": "messages",
+    "clamp": true
+  }
+}

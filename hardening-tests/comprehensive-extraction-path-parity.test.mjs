@@ -21,7 +21,9 @@ const config = JSON.parse(fs.readFileSync(
 const records = config.records.filter(
   record => record.module === modulePath
 );
-assert.equal(records.length, 8);
+assert.ok(records.some(row=>row.name==='deleteBusinessByOwner'));
+assert.ok(records.some(row=>row.name==='getBusinessByPhone'));
+assert.ok(!records.some(row=>['deleteBusiness','updateBusiness'].includes(row.name)));
 
 function replaceOnce(text, before, after) {
   assert.equal(text.split(before).length - 1, 1);

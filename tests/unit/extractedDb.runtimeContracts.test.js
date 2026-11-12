@@ -3,6 +3,9 @@
  * Side effects are replaced by inert recording models only.
  */
 import assert from 'node:assert/strict';
+import mongoose from 'mongoose';
+import logger from '../../src/config/logger.js';
+import {tenantRepository,tenantContext} from '../../src/db/repositories/tenantRepository.js';
 import { createDbalerts1Methods } from '../../src/db/repositories/extracted/alerts-1.js';
 import { createDbbusiness1Methods } from '../../src/db/repositories/extracted/business-1.js';
 import { createDbcalls1Methods } from '../../src/db/repositories/extracted/calls-1.js';
@@ -13,9 +16,14 @@ import { createDbleads1Methods } from '../../src/db/repositories/extracted/leads
 import { createDbmessages1Methods } from '../../src/db/repositories/extracted/messages-1.js';
 import { createDboperations1Methods } from '../../src/db/repositories/extracted/operations-1.js';
 
-const tenant = 'business-tenant-123';
-const sampleId = 'record-456';
+jest.mock('../../src/config/logger.js',()=>({__esModule:true,default:{error:jest.fn()}}));
+
+const tenant = '000000000000000000000001';
+const sampleId = '000000000000000000000002';
 const opts = { status: 'review', markedBy: 'staff' };
+const ownedFamilies=new Set(['alerts','calls','conversations','leads','messages']);
+const removed=new Set(['getAlertById','updateAlert','markAlertAsRead','updateBusiness','getCallLogById','updateCallLog','updateCallLogByProviderCallId','getConversationById','updateConversation','getLeadById','updateLead','qualifyLead','getMessageById']);
+const schema=new mongoose.Schema({business:mongoose.Schema.Types.ObjectId});
 const now = new Date('2026-11-01T10:00:00Z');
 
 function recordingModel(result = { _id: sampleId, business: tenant }, fail = null) {
@@ -30,6 +38,9 @@ function recordingModel(result = { _id: sampleId, business: tenant }, fail = nul
   });
   const model = new Proxy(Object.create(null), {
     get(_target, key) {
+      if(key==='schema')return schema;
+      if(key==='modelName')return 'ContractResource';
+      if(key==='db')return {models:{}};
       return (...args) => {
         events.push([key, args]);
         if (fail) throw fail;
@@ -78,7 +89,7 @@ const families = [
     getLeadByBusinessAndPhone: [tenant, '+15550123000'], qualifyLead: [sampleId, opts],
   }],
   ['messages', createDbmessages1Methods, {
-    getMessagesByConversation: ['conv-1'], getMessageById: [sampleId],
+    getMessagesByConversation: [sampleId,tenant], getMessageById: [sampleId],
     getMessageForBusiness: [sampleId, tenant],
   }],
   ['operations', createDboperations1Methods, {
@@ -95,6 +106,7 @@ for (const [family, factory, argsByMethod] of families) {
   for (const [name, args] of Object.entries(argsByMethod)) {
     test(`${family}.${name}: real repository returns query result and forwards data`, async () => {
       const { model, events, result } = recordingModel();
+      if(removed.has(name)){assert.equal(methods[name],undefined,'ID-only capability must not be exposed to owner callers');assert.equal(events.length,0);return;}
       const input = name === 'adminUpdateBusinessStatus'
         ? [{ ...args[0], Business: model }]
         : [model, ...args];
@@ -124,12 +136,14 @@ for (const [family, factory, argsByMethod] of families) {
         assert.ok(first[1][1].length >= 5, 'must retain account lockout policy pipeline');
       }
       if (name === 'markAllAlertsAsRead') {
-        assert.deepEqual(first[1][0], { business: tenant, readAt: null });
+        assert.deepEqual(first[1][0], { business:new mongoose.Types.ObjectId(tenant),$and:[{readAt:null}] });
         assert.deepEqual(first[1][1], { $set: { status: 'read', readAt: now } });
       }
     });
     test(`${family}.${name}: database error path preserves logging contract`, async () => {
       const exception = new Error('database unavailable');
+      if(removed.has(name)){await assert.rejects(async()=>methods[name](),TypeError);return;}
+      const named=logger.error;named.mockClear();
       const errors = [];
       const failing = factory({ safeConsole: { error: (...x) => errors.push(x) }, BUSINESS_SCOPE_FIELDS: '_id owner' });
       const { model } = recordingModel(undefined, exception);
@@ -138,26 +152,19 @@ for (const [family, factory, argsByMethod] of families) {
         : [model, ...args];
       await assert.rejects(() => failing[name](...input), err =>
         name === 'findUserByLogin' ? err.message === 'Database error while finding user' : err === exception);
-      assert.equal(errors.length, 1, 'repository must log exactly one failure');
+      if(ownedFamilies.has(family)){assert.equal(named.mock.calls.length,1);assert.equal(named.mock.calls[0][0],'repository.tenant_operation_failed');assert.equal(named.mock.calls[0][1].businessId,tenant);}
+      else assert.equal(errors.length,1,'legacy non-tenant repository logs once');
+
     });
   }
 }
 
-test('lead and conversation optional-population controls preserve lean/select semantics', async () => {
-  const deps = { safeConsole: { error: () => {} } };
-  const lead = createDbleads1Methods(deps);
-  const conv = createDbconversations1Methods(deps);
-  for (const [method, data] of [
-    [lead.getLeadById, { populateBusiness: false, lean: true }],
-    [conv.getConversationById, { populateBusiness: false, populateLead: false, populateArchivedBy: false, lean: true, select: '_id status' }],
-  ]) {
-    const { model, events } = recordingModel();
-    await method(model, sampleId, data);
-    assert.ok(events.some(([name]) => name === 'lean'));
-    assert.equal(events.filter(([name]) => name === 'populate').length, 0,
-      'disabled populates must not query unrelated tenant data');
-    if (data.select) assert.deepEqual(events.find(([name]) => name === 'select')[1], [data.select]);
-  }
+test('tenant capabilities preserve explicit lean/select without querying unrelated populations',async()=>{
+ const {model,events}=recordingModel();
+ await tenantRepository(model,tenantContext(tenant)).read(sampleId,{select:'_id status'});
+ assert.ok(events.some(([name])=>name==='lean'));
+ assert.equal(events.filter(([name])=>name==='populate').length,0);
+ assert.deepEqual(events.find(([name])=>name==='select')[1],['_id status']);
 });
 
 test('getMessagesForAI preserves chronological order and bounded projection', async () => {
@@ -167,7 +174,7 @@ test('getMessagesForAI preserves chronological order and bounded projection', as
     const records = [{ _id: 'new' }, { _id: 'old' }];
     const { model, events } = recordingModel(records);
     const methods = createDbmessages1Methods({ safeConsole: { error: () => {} } });
-    const out = await methods.getMessagesForAI(model, 'conv-1');
+    const out = await methods.getMessagesForAI(model,sampleId,tenant);
     assert.deepEqual(out.map(x => x._id), ['old', 'new']);
     assert.deepEqual(events.find(([name]) => name === 'limit')[1], [500]);
     assert.ok(events.some(([name, a]) => name === 'select' && a[0].includes('providerMessageId')));
