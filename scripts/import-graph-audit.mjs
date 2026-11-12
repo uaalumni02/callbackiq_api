@@ -14,7 +14,7 @@ const profiles = {
     'src/features/conversations/createManualReplyAction.js'],
 };
 const code = /\.(?:[cm]?js|jsx|tsx?)$/;
-const ignored = new Set(['node_modules','coverage','build','dist','.git','test-results','playwright-report']);
+const ignored = new Set(['node_modules','coverage','coverage-full-suite','coverage-diff-release','build','dist','.git','test-results','playwright-report']);
 const walk = directory => fs.existsSync(directory)
   ? fs.readdirSync(directory, { withFileTypes: true }).flatMap(entry => entry.isDirectory()
     ? ignored.has(entry.name) ? [] : walk(path.join(directory, entry.name)) : code.test(entry.name) ? [path.join(directory, entry.name)] : []) : [];
