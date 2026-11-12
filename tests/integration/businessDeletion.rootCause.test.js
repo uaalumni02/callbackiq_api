@@ -38,3 +38,28 @@ test('confirmed cleanup retains its durable intent after deleting the business a
  expect(await Business.findById(business._id)).toBeNull();expect(await Subscription.findOne({business:business._id})).toBeNull();
  expect((await Intent.findOne({business:business._id})).status).toBe('completed');
 });
+
+test('deleting an unallocated account without a subscription never calls billing',async()=>{
+ const {business,subscription}=await trackingFixture({phone:undefined});
+ await Subscription.deleteOne({_id:subscription._id});
+ await deleteBusinessSafely({businessId:business._id});
+ expect(await Business.findById(business._id)).toBeNull();expect(getStripeClient().subscriptions.cancel).not.toHaveBeenCalled();
+});
+test.each(['subscription','business'])('a changed %s observation aborts both local deletes',async resource=>{
+ const {business,subscription}=await trackingFixture({phone:undefined});
+ getStripeClient().subscriptions.cancel.mockImplementation(async()=>{
+  if(resource==='subscription')await Subscription.updateOne({_id:subscription._id},{$inc:{__v:1}});
+  else await Business.updateOne({_id:business._id},{$inc:{'trackingNumber.revision':1}});
+  return {status:'canceled'};
+ });
+ await expect(deleteBusinessSafely({businessId:business._id})).rejects.toMatchObject({code:resource==='subscription'?'BUSINESS_DELETION_SUBSCRIPTION_CHANGED':'BUSINESS_DELETION_RELEASE_CHANGED'});
+ expect(await Business.findById(business._id)).not.toBeNull();expect(await Subscription.findById(subscription._id)).not.toBeNull();
+});
+test('a provider failure without structured fields retains a stable retryable cleanup receipt',async()=>{
+ const {business}=await trackingFixture({phone:undefined});
+ getStripeClient().subscriptions.cancel.mockRejectedValue({});
+ await expect(deleteBusinessSafely({businessId:business._id})).rejects.toMatchObject({code:'BUSINESS_DELETION_CLEANUP_FAILED',statusCode:503});
+ const retained=await Business.findById(business._id);
+ expect(retained.accountLifecycle.lastError).toBe('BUSINESS_DELETION_CLEANUP_FAILED: Cleanup failed');
+ expect(await Subscription.findOne({business:business._id})).not.toBeNull();
+});

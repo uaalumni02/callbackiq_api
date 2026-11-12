@@ -29,3 +29,12 @@ test('late activation cannot activate a newly assigned replacement',async()=>{
  const row=await Business.findById(business._id).select('+trackingNumber.providerSid');
  expect(row.trackingNumber.providerSid).toBe('PN_NEW');expect(row.trackingNumber.status).toBe('assigned');
 });
+
+test('a provider failure without a message retains the same number and a bounded diagnostic',async()=>{
+ const {business}=await trackingFixture({trackingNumber:{providerSid:'PN123',status:'assigned'}}),state=providerFixture();
+ createTwilioClient.mockReturnValue(state.client);state.fetch.mockRejectedValue({status:503});
+ await expect(verifyTrackingNumber(business._id)).rejects.toBeDefined();
+ const row=await Business.findById(business._id).select('+trackingNumber.providerSid');
+ expect(row.trackingNumber.providerSid).toBe('PN123');expect(row.trackingNumber.status).toBe('assigned');
+ expect(row.trackingNumber.lastError).toBeTruthy();expect(row.trackingNumber.lastError.length).toBeLessThanOrEqual(1000);
+});

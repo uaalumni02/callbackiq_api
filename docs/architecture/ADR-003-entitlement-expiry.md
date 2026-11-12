@@ -32,3 +32,12 @@ refresh, transactional projection conflicts, checkout completion during conversi
 invoice/payment-method/cancellation races, extension receipt reconciliation,
 and replica-set duplicate trial redemption. See the rootCause/contract tests in
 `tests/integration` and `tests/unit/subscriptionProjection.contract.test.js`.
+
+Trial redemption and the entitlement projection both require transactions.
+Every environment rejects an unsupported standalone MongoDB transaction with
+`TRIAL_TRANSACTION_REQUIRED` (503) before consuming a redemption or changing a
+subscription. There is no compensating standalone fallback: it could consume
+one side of the grant before the entitlement projection failed. Local development
+uses the documented replica set. The standalone persistence regression exercises
+all four runtime modes; the replica-set concurrency contracts verify successful
+activation and duplicate rejection.

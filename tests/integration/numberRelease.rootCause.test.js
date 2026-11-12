@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import Business from '../../src/models/business.js';
 import Intent from '../../src/models/trackingNumberReleaseIntent.js';
 import OperationLease from '../../src/models/operationLease.js';
+import {planUnattachedNumberRelease} from '../../src/services/trackingNumberRelease.service.js';
 import { releaseTrackingNumberWithReceipt, reconcileTrackingNumberReleases } from '../../src/services/trackingNumberProvisioning.service.js';
 import { createTwilioClient } from '../../src/integrations/providerClients.js';
 import { releaseTrackingNumber } from '../../src/services/trackingNumberProvisioning.service.js';
@@ -126,4 +127,74 @@ test.each([false,undefined,null,{}])('an unverified provider return cannot clear
  await expect(releaseTrackingNumber(business._id)).rejects.toMatchObject({code:'TRACKING_NUMBER_RELEASE_UNCERTAIN'});
  expect((await Business.findById(business._id)).phone).toBe('+14045550123');
  expect((await readIntent(business)).status).toBe('uncertain');
+});
+
+test('an account with no number needs neither a provider client nor a release intent',async()=>{
+ const business=await releaseFixture();
+ await Business.updateOne({_id:business._id},{$unset:{phone:1},$set:{'trackingNumber.providerSid':'','trackingNumber.status':'unassigned'}});
+ expect(await releaseTrackingNumberWithReceipt(business._id)).toMatchObject({outcome:'already_released',intentId:null});
+ expect(createTwilioClient).not.toHaveBeenCalled();expect(await Intent.countDocuments()).toBe(0);
+});
+test('a stored phone without provider identity is retained for reconciliation',async()=>{
+ const business=await releaseFixture();await Business.updateOne({_id:business._id},{$set:{'trackingNumber.providerSid':''}});
+ await expect(releaseTrackingNumberWithReceipt(business._id)).rejects.toMatchObject({code:'TRACKING_NUMBER_STATE_INCONSISTENT'});
+ expect((await Business.findById(business._id)).phone).toBe('+14045550123');expect(await Intent.countDocuments()).toBe(0);
+});
+test('an explicit provider rejection remains pending and does not clear the phone',async()=>{
+ const business=await releaseFixture(),remove=jest.fn().mockRejectedValue({status:403,code:20003});
+ createTwilioClient.mockReturnValue({incomingPhoneNumbers:()=>({remove})});
+ await expect(releaseTrackingNumberWithReceipt(business._id)).rejects.toMatchObject({code:'TRACKING_NUMBER_RELEASE_REJECTED'});
+ expect((await readIntent(business)).status).toBe('pending');expect((await Business.findById(business._id)).phone).toBe('+14045550123');
+});
+
+test('orphan cleanup planning is idempotent and never clears the assigned number',async()=>{
+ const business=await releaseFixture(),input={business,providerSid:'PN_ORPHAN',accountSid:process.env.TWILIO_ACCOUNT_SID};
+ const first=await planUnattachedNumberRelease(input),second=await planUnattachedNumberRelease(input);
+ expect(second._id).toBe(first._id);expect(await Intent.countDocuments()).toBe(1);
+ const remove=jest.fn().mockResolvedValue(true),numbers=jest.fn(()=>({remove}));
+ createTwilioClient.mockReturnValue({incomingPhoneNumbers:numbers});
+ expect(await releaseTrackingNumberWithReceipt(business._id)).toMatchObject({outcome:'released_unattached'});
+ expect(numbers).toHaveBeenCalledWith('PN_ORPHAN');expect(remove).toHaveBeenCalledTimes(1);
+ expect((await Business.findById(business._id)).phone).toBe('+14045550123');
+ expect((await Intent.findById(first._id)).status).toBe('completed');
+});
+test('an uncertain orphan release reconciles exact SID absence without dispatching twice',async()=>{
+ const business=await releaseFixture();
+ await planUnattachedNumberRelease({business,providerSid:'PN_ORPHAN',accountSid:process.env.TWILIO_ACCOUNT_SID});
+ const remove=jest.fn().mockRejectedValue({code:'ETIMEDOUT'}),fetch=jest.fn().mockRejectedValue({status:404,code:20404});
+ createTwilioClient.mockReturnValue({incomingPhoneNumbers:()=>({remove,fetch})});
+ await expect(releaseTrackingNumberWithReceipt(business._id)).rejects.toMatchObject({code:'TRACKING_NUMBER_RELEASE_UNCERTAIN'});
+ expect(await releaseTrackingNumberWithReceipt(business._id)).toMatchObject({outcome:'released_unattached'});
+ expect(remove).toHaveBeenCalledTimes(1);expect(fetch).toHaveBeenCalledTimes(1);
+ expect((await Business.findById(business._id)).phone).toBe('+14045550123');
+});
+test('a number adopted by another tenant supersedes orphan cleanup without provider removal',async()=>{
+ const business=await releaseFixture();
+ await planUnattachedNumberRelease({business,providerSid:'PN_ADOPTED',accountSid:process.env.TWILIO_ACCOUNT_SID});
+ await Business.create({owner:new mongoose.Types.ObjectId(),businessName:'Synthetic other tenant',businessType:'plumbing',email:'adopted@example.test',
+  trackingNumber:{providerSid:'PN_ADOPTED',status:'active'},phone:'+14045550124'});
+ const remove=jest.fn();createTwilioClient.mockReturnValue({incomingPhoneNumbers:()=>({remove})});
+ expect(await releaseTrackingNumberWithReceipt(business._id)).toMatchObject({outcome:'superseded'});
+ expect(remove).not.toHaveBeenCalled();expect((await readIntent(business)).lastErrorCode).toBe('RELEASE_AUTHORIZATION_CHANGED');
+});
+test('an intent for a different provider account cannot be dispatched',async()=>{
+ const business=await releaseFixture();await planUnattachedNumberRelease({business,providerSid:'PN_ORPHAN',accountSid:'AC_DIFFERENT'});
+ const remove=jest.fn();createTwilioClient.mockReturnValue({incomingPhoneNumbers:()=>({remove})});
+ await expect(releaseTrackingNumberWithReceipt(business._id)).rejects.toMatchObject({code:'TRACKING_NUMBER_RELEASE_UNCERTAIN'});
+ expect(remove).not.toHaveBeenCalled();expect((await readIntent(business)).status).toBe('pending');
+});
+test('an expiry release without an observed subscription is superseded before provider dispatch',async()=>{
+ const business=await releaseFixture(),remove=jest.fn();createTwilioClient.mockReturnValue({incomingPhoneNumbers:()=>({remove})});
+ expect(await releaseTrackingNumberWithReceipt(business._id,{authorization:{kind:'trial_expiry'}})).toMatchObject({outcome:'superseded'});
+ expect(remove).not.toHaveBeenCalled();expect((await Business.findById(business._id)).phone).toBe('+14045550123');
+});
+test('the worker reports uncertain reconciliation separately from a missing business',async()=>{
+ const business=await releaseFixture(),remove=jest.fn().mockRejectedValue({code:'ETIMEDOUT'}),fetch=jest.fn().mockResolvedValue({sid:'PN_RECEIPT'});
+ createTwilioClient.mockReturnValue({incomingPhoneNumbers:()=>({remove,fetch})});
+ await expect(releaseTrackingNumberWithReceipt(business._id)).rejects.toMatchObject({code:'TRACKING_NUMBER_RELEASE_UNCERTAIN'});
+ await Intent.updateOne({business:business._id},{$set:{claimExpiresAt:new Date(0)}});
+ expect(await reconcileTrackingNumberReleases()).toMatchObject({examined:1,uncertain:1,failed:0});
+ await Intent.updateOne({business:business._id},{$set:{claimExpiresAt:new Date(0)}});await Business.deleteOne({_id:business._id});
+ expect(await reconcileTrackingNumberReleases()).toMatchObject({examined:1,uncertain:0,failed:1});
+ expect(remove).toHaveBeenCalledTimes(1);
 });

@@ -1,5 +1,6 @@
 import Business from '../../src/models/business.js';
 import Subscription from '../../src/models/subscription.js';
+import * as conditionalWrites from '../../src/services/database/conditionalWrite.js';
 import {projectCurrentEntitlement} from '../../src/services/subscriptionEntitlement.service.js';
 import {trackingFixture} from '../fixtures/trackingNumber.fixture.js';
 import {connectTestDB,clearTestDB,closeTestDB} from '../setup/testReplicaDb.js';
@@ -29,4 +30,19 @@ test('projection preserves the account suspension flag and applies current trial
  await projectCurrentEntitlement(business._id);
  const row=await Business.findById(business._id);
  expect(row.isActive).toBe(false);expect(row.setupProgress.subscriptionActivated).toBe(true);expect(row.trialCostControls.enabled).toBe(true);
+});
+
+test('an absent subscription does not fabricate a business entitlement projection',async()=>{
+ const {business,subscription}=await trackingFixture();
+ await Subscription.deleteOne({_id:subscription._id});
+ expect(await projectCurrentEntitlement(business._id)).toBe(false);
+ expect((await Business.findById(business._id)).setupProgress.subscriptionActivated).toBe(false);
+});
+
+test('a refused conditional-write receipt aborts the projection transaction',async()=>{
+ const {business,subscription}=await trackingFixture();
+ jest.spyOn(conditionalWrites,'conditionalWrite').mockResolvedValue({applied:false,current:subscription});
+ await expect(projectCurrentEntitlement(business._id)).rejects.toMatchObject({code:'ENTITLEMENT_STATE_CHANGED'});
+ expect((await Business.findById(business._id)).setupProgress.subscriptionActivated).toBe(false);
+ expect((await Subscription.findById(subscription._id)).__v).toBe(subscription.__v);
 });

@@ -123,7 +123,7 @@
     "src/services/staffSms.service.js:50",
     "src/services/staffSms.service.js:51",
     "src/services/subscriptionActions.service.js:17",
-    "src/services/trialLifecycle.service.js:598"
+    "src/services/trialLifecycle.service.js:480"
   ],
   "COMMUNICATION_RESERVATION_LEASE_MS": [
     "src/services/communicationUsageReservation.service.js:16"
@@ -452,7 +452,6 @@
     "src/services/smsContactDisclosure.service.js:23",
     "src/services/trialIdentityVerification.service.js:26",
     "src/services/trialIdentityVerification.service.js:101",
-    "src/services/trialLifecycle.service.js:364",
     "src/services/twilioSmsService.js:43",
     "src/services/twilioSmsService.js:118",
     "src/services/twilioSmsService.js:379",

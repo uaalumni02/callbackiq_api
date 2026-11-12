@@ -78,3 +78,24 @@ test('cancellation targets the exact canonical SID and persists returned billing
  expect(update).toHaveBeenCalledWith('sub_tracking',{cancel_at_period_end:true});expect(response.status).toHaveBeenCalledWith(200);
  expect(await Subscription.findById(subscription._id)).toMatchObject({cancelAtPeriodEnd:true,status:'active',currentPeriodEnd:new Date(1900000000*1000)});
 });
+
+test('a partial cancellation acknowledgement preserves the observed paid subscription state',async()=>{
+ const {business,subscription}=await trackingFixture();
+ await Subscription.updateOne({_id:subscription._id},{$set:{lastPaymentStatus:'paid'}});
+ getStripeClient.mockReturnValue({subscriptions:{update:jest.fn().mockResolvedValue({id:'sub_tracking'})}});
+ const response={status:jest.fn().mockReturnThis(),json:jest.fn().mockReturnThis()};
+ await BillingController.cancelSubscription({user:{userId:String(business.owner)},business,subscription:await Subscription.findById(subscription._id)},response);
+ expect(response.status).toHaveBeenCalledWith(200);
+ expect(await Subscription.findById(subscription._id)).toMatchObject({status:'active',lastPaymentStatus:'paid',cancelAtPeriodEnd:true});
+});
+test.each(['handleInvoicePaid','handleInvoicePaymentFailed'])('%s cannot resurrect an account deleted during the provider read',async method=>{
+ const {business,subscription}=await trackingFixture();
+ const remote={id:'sub_tracking',customer:'cus_tracking',status:'active',metadata:{businessId:String(business._id)},items:{data:[]}};
+ getStripeClient.mockReturnValue({subscriptions:{retrieve:jest.fn(async()=>{
+  await Subscription.deleteOne({_id:subscription._id});
+  await business.constructor.deleteOne({_id:business._id});
+  return remote;
+ })}});
+ expect(await BillingController[method]({id:'in_removed',subscription:'sub_tracking',customer:'cus_tracking'})).toBeNull();
+ expect(await Subscription.countDocuments({business:business._id})).toBe(0);
+});

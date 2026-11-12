@@ -166,110 +166,6 @@ const isSameStripeTrialRedemption = ({
       ),
   );
 
-const consumeTrialWithoutTransaction = async ({
-  business,
-  ownerId,
-  stripeSubscription,
-  checkoutSessionId,
-  plan,
-  identity,
-  trialStartedAt,
-  trialEndsAt,
-  observedSubscription,
-  invoiceProjection = {},
-}) => {
-  let existingSubscription = await Subscription.findOne({
-    business: business._id,
-  });
-
-  if (!subscriptionObservationMatches(observedSubscription,existingSubscription)) {
-    throw Object.assign(lifecycleError('TRIAL_STATE_CHANGED','Subscription changed before trial redemption.',409),{current:existingSubscription});
-  }
-
-  let existingRedemption = await TrialRedemption.findOne(
-    trialRedemptionQuery(identity),
-  );
-
-  if (
-    existingRedemption &&
-    !isSameStripeTrialRedemption({
-      redemption: existingRedemption,
-      existingSubscription,
-      businessId: business._id,
-      stripeSubscriptionId: stripeSubscription.id,
-    })
-  ) {
-    throw lifecycleError(
-      "TRIAL_ALREADY_USED",
-      "This customer or business identity has already used its lifetime free trial.",
-      409,
-    );
-  }
-
-  let createdRedemption = null;
-  if (!existingRedemption) {
-    try {
-      createdRedemption = await TrialRedemption.create({
-        business: business._id,
-        owner: ownerId,
-        emailKey: identity.emailKey,
-        phoneKey: identity.phoneKey,
-        stripeSubscriptionId: stripeSubscription.id || "",
-        grantedBy: "self",
-        redeemedAt: trialStartedAt,
-      });
-      existingRedemption = createdRedemption;
-    } catch (error) {
-      if (error?.code !== 11000) throw error;
-
-      existingSubscription = await Subscription.findOne({
-        business: business._id,
-      });
-      existingRedemption = await TrialRedemption.findOne(
-        trialRedemptionQuery(identity),
-      );
-
-      if (
-        !isSameStripeTrialRedemption({
-          redemption: existingRedemption,
-          existingSubscription,
-          businessId: business._id,
-          stripeSubscriptionId: stripeSubscription.id,
-        })
-      ) {
-        throw lifecycleError(
-          "TRIAL_ALREADY_USED",
-          "This customer or business identity has already used its lifetime free trial.",
-          409,
-        );
-      }
-    }
-  }
-
-  try {
-    return await applyObservedTrial({businessId:business._id,observed:existingSubscription,fields:buildTrialSubscriptionUpdate({
-          invoiceProjection,
-          existingSubscription,
-          stripeSubscription,
-          checkoutSessionId,
-          plan,
-          trialStartedAt,
-          trialEndsAt,
-        })});
-  } catch (error) {
-    // On standalone MongoDB (notably mongodb-memory-server in tests), compensate
-    // a newly-created lock if the subscription write itself failed. Production
-    // replica sets use the transaction path below.
-    if (createdRedemption?._id) {
-      await TrialRedemption.deleteOne({
-        _id: createdRedemption._id,
-        stripeSubscriptionId: stripeSubscription.id || "",
-      }).catch(error => safeConsole.error("Trial lifecycle notice failed:", error));
-    }
-    throw error;
-  }
-};
-
 const consumeTrialTransaction = async ({
   business,
   ownerId,
@@ -361,21 +257,7 @@ const consumeTrialTransaction = async ({
       return updatedSubscription;
     } catch (error) {
       if (!isTransactionUnsupported(error)) throw error;
-      if (['production','staging'].includes(String(process.env.NODE_ENV).toLowerCase())) {
-        throw lifecycleError('TRIAL_TRANSACTION_REQUIRED','Trial activation requires transaction-capable MongoDB.',503);
-      }
-      return await consumeTrialWithoutTransaction({
-        business,
-        ownerId,
-        stripeSubscription,
-        checkoutSessionId,
-        plan,
-        identity,
-        trialStartedAt,
-        trialEndsAt,
-        observedSubscription,
-        invoiceProjection,
-      });
+      throw lifecycleError('TRIAL_TRANSACTION_REQUIRED','Trial activation requires transaction-capable MongoDB.',503);
     }
   } finally {
     await dbSession.endSession();
