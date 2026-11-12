@@ -36,7 +36,8 @@
       "src/db/repositories/dbProjectionFields.js",
       "src/db/repositories/subscriptionRepository.js",
       "src/db/repositories/supportTicketRepository.js",
-      "src/db/repositories/userIdentityRepository.js"
+      "src/db/repositories/userIdentityRepository.js",
+      "src/db/repositories/tenantRepository.js"
     ]
   },
   "existingCycles": [],
@@ -50,5 +51,14 @@
     "src/db/db.js": 58231
   },
   "approvedAtCommit": "bf2e92d898811afdb829eaa8cc81f1ced08e5ee3",
-  "note": "Snapshot only; CI checks for new coupling and cycles."
+  "note": "Snapshot only; CI checks for new coupling and cycles.",
+  "reviewedTenantInterface": {
+    "edge": [
+      "src/db/db.js",
+      "src/db/repositories/tenantRepository.js"
+    ],
+    "adr": "docs/architecture/ADR-005-tenant-repositories.md",
+    "behavioralGate": "maintainability:architecture",
+    "reason": "Owner operations bind one required tenant capability; no models or providers added to the facade."
+  }
 }

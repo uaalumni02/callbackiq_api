@@ -61,3 +61,10 @@ cannot be restored. Unchanged source-parity and import-boundary checks remain.
 
 No schema change or migration is required. Legacy invalid cross-tenant records
 are excluded during reads; this change does not rewrite stored data.
+
+## Reviewed dependency
+
+The facade gains exactly one local dependency on `tenantRepository.js`. The
+release9 dependency guard keeps all other existing edge and cycle restrictions;
+its reviewed baseline records this edge and this ADR. The architecture command
+executes the tenant contracts rather than accepting a hash refresh alone.
