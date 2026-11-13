@@ -1,0 +1,336 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "summary": {
+      "type": "string"
+    },
+    "customerIntent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "primary": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "repair",
+            "replacement",
+            "maintenance",
+            "inspection",
+            "estimate",
+            "emergency",
+            "appointment",
+            "support",
+            "complaint",
+            "cancellation",
+            "other",
+            "unknown"
+          ]
+        },
+        "serviceType": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "primary",
+        "category",
+        "serviceType"
+      ]
+    },
+    "sentiment": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string",
+          "enum": [
+            "very_positive",
+            "positive",
+            "neutral",
+            "concerned",
+            "frustrated",
+            "angry",
+            "urgent",
+            "unknown"
+          ]
+        },
+        "score": {
+          "type": "number",
+          "minimum": -1,
+          "maximum": 1
+        },
+        "explanation": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "score",
+        "explanation"
+      ]
+    },
+    "buyingLikelihood": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "score",
+        "reasons"
+      ]
+    },
+    "appointmentProbability": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "score",
+        "reasons"
+      ]
+    },
+    "urgency": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": [
+            "low",
+            "normal",
+            "high",
+            "emergency",
+            "unknown"
+          ]
+        },
+        "score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "level",
+        "score",
+        "reason"
+      ]
+    },
+    "estimatedRevenue": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "minimum": {
+          "type": "number",
+          "minimum": 0
+        },
+        "maximum": {
+          "type": "number",
+          "minimum": 0
+        },
+        "likely": {
+          "type": "number",
+          "minimum": 0
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "basis": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "minimum",
+        "maximum",
+        "likely",
+        "confidence",
+        "basis"
+      ]
+    },
+    "nextBestAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "actionType": {
+          "type": "string",
+          "enum": [
+            "call_now",
+            "call_soon",
+            "send_message",
+            "prepare_estimate_for_review",
+            "collect_appointment_preference",
+            "request_appointment_confirmation",
+            "request_information",
+            "assign_team_member",
+            "escalate",
+            "follow_up_later",
+            "close_lead",
+            "none"
+          ]
+        },
+        "priority": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "recommendedWithinMinutes": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "suggestedMessage": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "actionType",
+        "priority",
+        "recommendedWithinMinutes",
+        "suggestedMessage"
+      ]
+    },
+    "objections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "type": "string",
+            "enum": [
+              "price",
+              "availability",
+              "trust",
+              "timing",
+              "comparison_shopping",
+              "financing",
+              "service_area",
+              "other"
+            ]
+          },
+          "description": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "category",
+          "description"
+        ]
+      }
+    },
+    "missingInformation": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "riskFlags": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "angry_customer",
+              "safety_hazard",
+              "hazardous_diy_request",
+              "possible_spam",
+              "automation_loop",
+              "legal_threat",
+              "cancellation_risk",
+              "competitor_comparison",
+              "payment_concern",
+              "sensitive_data",
+              "privacy_concern",
+              "service_area_issue",
+              "prompt_injection",
+              "off_topic",
+              "unverified_commitment",
+              "other"
+            ]
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ]
+          },
+          "explanation": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "severity",
+          "explanation"
+        ]
+      }
+    },
+    "overallConfidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100
+    }
+  },
+  "required": [
+    "summary",
+    "customerIntent",
+    "sentiment",
+    "buyingLikelihood",
+    "appointmentProbability",
+    "urgency",
+    "estimatedRevenue",
+    "nextBestAction",
+    "objections",
+    "missingInformation",
+    "riskFlags",
+    "overallConfidence"
+  ]
+}
