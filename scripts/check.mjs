@@ -174,6 +174,6 @@ async function main() {
    plan:readJson(path.join(root,'config/check-plan.json')),env:runtime.env,output,base});
  }finally{runtime.dispose();}
 }
-if(process.argv[1] && path.resolve(process.argv[1])===filename){
+if(process.argv[1] && fs.realpathSync(process.argv[1])===fs.realpathSync(filename)){
  main().then(code=>{process.exitCode=code}).catch(error=>{console.error(error.message);process.exitCode=1});
 }

@@ -56,3 +56,21 @@ test('a dirty source tree cannot receive a release certificate',t=>{
  const result=spawnSync(process.execPath,[path.join(root,'scripts/check.mjs'),'check:release'],{encoding:'utf8'});
  assert.equal(result.status,1);assert.match(result.stderr,/committed, clean source tree/);
 });
+
+// macOS temp directories commonly resolve /var through /private/var.
+test('the CLI executes through a symlinked checkout and still rejects dirty release source',t=>{
+ const parent=fs.mkdtempSync(path.join(os.tmpdir(),'check-cli-link-'));
+ t.after(()=>fs.rmSync(parent,{recursive:true,force:true}));
+ const real=path.join(parent,'real');fs.mkdirSync(real);fs.mkdirSync(path.join(real,'scripts'));
+ fs.mkdirSync(path.join(real,'config'));
+ fs.copyFileSync(fileURLToPath(new URL('../scripts/check.mjs',import.meta.url)),path.join(real,'scripts/check.mjs'));
+ fs.writeFileSync(path.join(real,'package.json'),JSON.stringify({name:'callbackiq_frontend'}));
+ const steps=['lint','audit:imports','test:ci','test:coverage','coverage:changed-risk','test:hardening:remediation','build:certification','verify:built','audit:source-security','audit:runtime-security'];
+ fs.writeFileSync(path.join(real,'config/check-plan.json'),JSON.stringify({repository:'callbackiq_frontend',profiles:{check:['lint'],'check:release':steps}}));
+ fs.writeFileSync(path.join(real,'config/legacy-check-aliases.json'),JSON.stringify({...Object.fromEntries(steps.map(step=>[step,'true'])),probe:'node -p process.version'}));
+ const alias=path.join(parent,'alias');fs.symlinkSync(real,alias,'dir');
+ const probe=spawnSync(process.execPath,[path.join(alias,'scripts/check.mjs'),'--legacy','probe'],{encoding:'utf8'});
+ assert.equal(probe.status,0,probe.stderr);assert.match(probe.stdout,/v24\.\d+\.\d+/);
+ const release=spawnSync(process.execPath,[path.join(alias,'scripts/check.mjs'),'check:release'],{encoding:'utf8'});
+ assert.equal(release.status,1);assert.match(release.stderr,/committed, clean source tree/);
+});
