@@ -6,12 +6,12 @@ Typed settings in `config/worker-settings.json` and `config/numeric-settings.jso
 
 | Name | Consumers |
 |---|---|
-| A2P_EVENT_PROCESSING_LEASE_MS | `src/services/a2pCustomerOnboarding.service.js:1024` |
+| A2P_EVENT_PROCESSING_LEASE_MS | `src/services/a2pCustomerOnboarding.service.js:947` |
 | A2P_EVENT_STREAM_PASSWORD | `src/controllers/a2pEvents.controller.js:13` |
 | A2P_EVENT_STREAM_USERNAME | `src/controllers/a2pEvents.controller.js:12` |
-| A2P_OTP_RETRY_COOLDOWN_MS | `src/services/a2pCustomerOnboarding.service.js:738` |
-| A2P_OTP_RETRY_MAX_PER_WINDOW | `src/services/a2pCustomerOnboarding.service.js:746` |
-| A2P_OTP_RETRY_WINDOW_MS | `src/services/a2pCustomerOnboarding.service.js:742` |
+| A2P_OTP_RETRY_COOLDOWN_MS | `src/services/a2pCustomerOnboarding.service.js:749` |
+| A2P_OTP_RETRY_MAX_PER_WINDOW | `src/services/a2pCustomerOnboarding.service.js:757` |
+| A2P_OTP_RETRY_WINDOW_MS | `src/services/a2pCustomerOnboarding.service.js:753` |
 | A2P_RECONCILIATION_BATCH_LIMIT | `src/workers/a2pReconciliation.worker.js:26` |
 | A2P_RECONCILIATION_INITIAL_DELAY_MS | `src/workers/a2pReconciliation.worker.js:22` |
 | A2P_RECONCILIATION_INTERVAL_MS | `src/workers/a2pReconciliation.worker.js:18` |
@@ -28,7 +28,7 @@ Typed settings in `config/worker-settings.json` and `config/numeric-settings.jso
 | ALLOWED_ORIGINS | `src/config/cors.js:32` |
 | API_BODY_LIMIT | `src/app.js:53` |
 | API_INSTANCE_COUNT | `src/services/scaleHealth.service.js:32` |
-| API_PUBLIC_URL | `src/services/a2pCustomerOnboarding.service.js:75` |
+| API_PUBLIC_URL | `src/services/a2pCustomerOnboarding.service.js:86` |
 | APP_ENV | `src/config/logger.js:62`, `src/controllers/health.js:26`, `src/services/securityAlert.service.js:80`, `src/voice/voiceRouting.service.js:141` |
 | APPOINTMENT_MAINTENANCE_INTERVAL_MS | `src/workers/appointmentMaintenance.worker.js:10` |
 | APPOINTMENT_NOTIFICATION_BATCH_SIZE | `src/workers/automation.worker.js:137` |
@@ -47,8 +47,8 @@ Typed settings in `config/worker-settings.json` and `config/numeric-settings.jso
 | COMMUNICATION_RESERVATION_LEASE_MS | `src/services/communicationUsageReservation.service.js:16` |
 | COMMUNICATION_ROUTE_RATE_LIMIT_FAIL_CLOSED | `src/middleware/twilio-webhook-rate-limit.js:68` |
 | COMMUNICATION_USAGE_FAIL_CLOSED | `src/services/communicationUsage.service.js:365`, `src/services/communicationUsage.service.js:366` |
-| CONVERSATION_INTELLIGENCE_MAX_CHARACTERS | `src/services/conversationIntelligence.service.js:59` |
-| CONVERSATION_INTELLIGENCE_MAX_MESSAGES | `src/services/conversationIntelligence.service.js:52` |
+| CONVERSATION_INTELLIGENCE_MAX_CHARACTERS | `src/services/conversationIntelligence.service.js:60` |
+| CONVERSATION_INTELLIGENCE_MAX_MESSAGES | `src/services/conversationIntelligence.service.js:53` |
 | CSRF_ALLOW_MISSING_ORIGIN | `src/middleware/csrf-origin-guard.js:62` |
 | CSRF_ORIGIN_GUARD_ENABLED | `src/middleware/csrf-origin-guard.js:7`, `src/middleware/csrf-origin-guard.js:11` |
 | DATABASE_URL | `src/scripts/backfill-customer-lifecycle.mjs:13`, `src/scripts/migrate-tracking-number-separation.mjs:9` |
@@ -136,15 +136,15 @@ Typed settings in `config/worker-settings.json` and `config/numeric-settings.jso
 | NODE_ENV | `src/config/cors.js:21`, `src/config/logger.js:24`, `src/config/logger.js:36`, `src/config/logger.js:39`, `src/config/logger.js:62`, `src/controllers/auth/context.js:50`, `src/controllers/health.js:26`, `src/controllers/voiceWebhook/context.js:47`, `src/helpers/email/mailer.js:11`, `src/helpers/email/mailer.js:48`, `src/helpers/logging/safeLogger.js:4`, `src/helpers/logging/safeLogger.js:4`, `src/middleware/auth-public-rate-limits.js:10`, `src/middleware/csrf-origin-guard.js:15`, `src/middleware/security-headers.js:1`, `src/middleware/validate-twilio-signature.js:7`, `src/middleware/validate-twilio-signature.js:8`, `src/middleware/validate-twilio-signature.js:42`, `src/services/communicationUsage.service.js:367`, `src/services/communicationUsageReservation.service.js:153`, `src/services/communicationUsageReservation.service.js:439`, `src/services/scaleCache.service.js:23`, `src/services/scheduling/appointmentConfirmationRecovery.service.js:32`, `src/services/securityAlert.service.js:19`, `src/services/securityAlert.service.js:80`, `src/services/smsContactDisclosure.service.js:23`, `src/services/trialIdentityVerification.service.js:26`, `src/services/trialIdentityVerification.service.js:101`, `src/services/twilioSmsService.js:43`, `src/services/twilioSmsService.js:118`, `src/services/twilioSmsService.js:379`, `src/services/twilioSmsWebhook.service.js:73`, `src/services/twilioSmsWebhook.service.js:726`, `src/services/voiceCapacity.service.js:23`, `src/services/voiceSettingsVersion.service.js:175`, `src/services/voiceUsage.service.js:832`, `src/voice/conversationRelaySignature.js:23`, `src/voice/relay/Input.js:127`, `src/voice/relay/Setup.js:153`, `src/voice/voicePreflight.service.js:13`, `src/voice/voiceRouting.service.js:141`, `src/workers/adminReporting.worker.js:85`, `src/workers/smsProcessing.worker.js:45`, `src/workers/trialLifecycle.worker.js:45`, `src/workers/voiceUsageReconciliation.worker.js:49` |
 | OAUTH_STATE_SECRET | `src/services/integrations/jobberOAuth.service.js:14` |
 | OPENAI_ADMIN_KEY | `src/services/admin/companyExpenses.service.js:171`, `src/services/admin/companyExpenses.service.js:177`, `src/services/admin/companyExpenses.service.js:178` |
-| OPENAI_API_KEY | `src/helpers/ai/followUpAgent.js:32`, `src/helpers/ai/qualifyLeadWithAI.js:26`, `src/services/conversationIntelligence.service.js:19`, `src/services/conversationIntelligence.service.js:23`, `src/services/conversationIntelligence.service.js:24`, `src/services/conversationIntelligence.service.js:26`, `src/services/conversationIntelligence.service.js:801`, `src/services/safetyAssessmentService.js:92`, `src/voice/voiceUnderstanding.service.js:55`, `src/voice/voiceUnderstanding.service.js:56`, `src/voice/voiceUnderstanding.service.js:57`, `src/voice/voiceUnderstanding.service.js:59` |
-| OPENAI_CONVERSATION_MODEL | `src/services/conversationIntelligence.service.js:775`, `src/services/conversationIntelligence.service.js:830` |
+| OPENAI_API_KEY | `src/helpers/ai/followUpAgent.js:32`, `src/helpers/ai/qualifyLeadWithAI.js:26`, `src/services/conversationIntelligence.service.js:20`, `src/services/conversationIntelligence.service.js:24`, `src/services/conversationIntelligence.service.js:25`, `src/services/conversationIntelligence.service.js:27`, `src/services/conversationIntelligence.service.js:520`, `src/services/safetyAssessmentService.js:92`, `src/voice/voiceUnderstanding.service.js:55`, `src/voice/voiceUnderstanding.service.js:56`, `src/voice/voiceUnderstanding.service.js:57`, `src/voice/voiceUnderstanding.service.js:59` |
+| OPENAI_CONVERSATION_MODEL | `src/services/conversationIntelligence.service.js:494`, `src/services/conversationIntelligence.service.js:549` |
 | OPENAI_COST_PROJECT_IDS | `src/services/admin/companyExpenses.service.js:172` |
 | OPENAI_FOLLOW_UP_MAX_HISTORY_CHARACTERS | `src/helpers/ai/followUpAgent.js:90` |
 | OPENAI_FOLLOW_UP_MAX_MESSAGES | `src/helpers/ai/followUpAgent.js:83` |
 | OPENAI_FOLLOW_UP_MAX_RETRIES | `src/helpers/ai/followUpAgent.js:48` |
 | OPENAI_FOLLOW_UP_MODEL | `src/helpers/ai/followUpAgent.js:436` |
 | OPENAI_FOLLOW_UP_TIMEOUT_MS | `src/helpers/ai/followUpAgent.js:42` |
-| OPENAI_MODEL | `src/helpers/ai/followUpAgent.js:438`, `src/helpers/ai/qualifyLeadWithAI.js:254`, `src/services/conversationIntelligence.service.js:776`, `src/services/conversationIntelligence.service.js:831`, `src/services/safetyAssessmentService.js:343` |
+| OPENAI_MODEL | `src/helpers/ai/followUpAgent.js:438`, `src/helpers/ai/qualifyLeadWithAI.js:254`, `src/services/conversationIntelligence.service.js:495`, `src/services/conversationIntelligence.service.js:550`, `src/services/safetyAssessmentService.js:343` |
 | OPENAI_QUALIFICATION_MAX_RETRIES | `src/helpers/ai/qualifyLeadWithAI.js:42` |
 | OPENAI_QUALIFICATION_MODEL | `src/helpers/ai/qualifyLeadWithAI.js:253`, `src/services/safetyAssessmentService.js:342` |
 | OPENAI_QUALIFICATION_TIMEOUT_MS | `src/helpers/ai/qualifyLeadWithAI.js:36` |
@@ -305,7 +305,7 @@ Typed settings in `config/worker-settings.json` and `config/numeric-settings.jso
 | TWILIO_VERIFY_SERVICE_SID | `src/services/trialIdentityVerification.service.js:35` |
 | TWILIO_VOICE_WEBHOOK_P95_BUDGET_MS | `src/middleware/twilio-webhook-latency.js:10` |
 | TWILIO_VOICE_WEBHOOKS_PER_MINUTE | `src/middleware/twilio-webhook-rate-limit.js:184` |
-| TWILIO_WEBHOOK_BASE_URL | `src/middleware/validate-twilio-signature.js:20`, `src/services/a2pCustomerOnboarding.service.js:73`, `src/services/demoBrowserCall.service.js:89`, `src/services/marketingSource.service.js:40`, `src/services/ownerBrowserCall.service.js:79`, `src/services/trackingNumberProvisioning.service.js:54`, `src/services/twilioSmsService.js:120`, `src/voice/voiceRouting.service.js:113` |
+| TWILIO_WEBHOOK_BASE_URL | `src/middleware/validate-twilio-signature.js:20`, `src/services/a2pCustomerOnboarding.service.js:84`, `src/services/demoBrowserCall.service.js:89`, `src/services/marketingSource.service.js:40`, `src/services/ownerBrowserCall.service.js:79`, `src/services/trackingNumberProvisioning.service.js:54`, `src/services/twilioSmsService.js:120`, `src/voice/voiceRouting.service.js:113` |
 | TWILIO_WEBHOOK_LEASE_MS | `src/services/twilioSmsWebhook.service.js:77`, `src/services/webhooks/twilioWebhookEvent.service.js:15` |
 | VERCEL_BILLING_TEAM_ID | `src/services/admin/infrastructureExpenses.service.js:42`, `src/services/admin/infrastructureExpenses.service.js:82` |
 | VERCEL_BILLING_TOKEN | `src/services/admin/infrastructureExpenses.service.js:46`, `src/services/admin/infrastructureExpenses.service.js:82` |
@@ -315,7 +315,7 @@ Typed settings in `config/worker-settings.json` and `config/numeric-settings.jso
 | VOICE_CAPACITY_REDIS_URL | `src/services/voiceAdmission.service.js:5` |
 | VOICE_DRAIN_TIMEOUT_MS | `src/server.js:170`, `src/server.js:185` |
 | VOICE_DURATION_WARNING_SECONDS | `src/voice/relay/Timers.js:107` |
-| VOICE_HTTP_PUBLIC_URL | `src/services/a2pCustomerOnboarding.service.js:74`, `src/services/demoBrowserCall.service.js:89`, `src/services/marketingSource.service.js:41`, `src/services/ownerBrowserCall.service.js:79`, `src/services/trackingNumberProvisioning.service.js:55`, `src/services/twilioSmsService.js:120`, `src/voice/voiceRouting.service.js:112` |
+| VOICE_HTTP_PUBLIC_URL | `src/services/a2pCustomerOnboarding.service.js:85`, `src/services/demoBrowserCall.service.js:89`, `src/services/marketingSource.service.js:41`, `src/services/ownerBrowserCall.service.js:79`, `src/services/trackingNumberProvisioning.service.js:55`, `src/services/twilioSmsService.js:120`, `src/voice/voiceRouting.service.js:112` |
 | VOICE_INSTANCE_MAX_AI_TURNS | `src/services/voiceAdmission.service.js:29` |
 | VOICE_INSTANCE_MAX_PENDING | `src/services/voiceAdmission.service.js:27` |
 | VOICE_INSTANCE_MAX_SESSIONS | `src/services/voiceAdmission.service.js:28` |

@@ -1,6 +1,6 @@
 {
   "A2P_EVENT_PROCESSING_LEASE_MS": [
-    "src/services/a2pCustomerOnboarding.service.js:1024"
+    "src/services/a2pCustomerOnboarding.service.js:947"
   ],
   "A2P_EVENT_STREAM_PASSWORD": [
     "src/controllers/a2pEvents.controller.js:13"
@@ -9,13 +9,13 @@
     "src/controllers/a2pEvents.controller.js:12"
   ],
   "A2P_OTP_RETRY_COOLDOWN_MS": [
-    "src/services/a2pCustomerOnboarding.service.js:738"
+    "src/services/a2pCustomerOnboarding.service.js:749"
   ],
   "A2P_OTP_RETRY_MAX_PER_WINDOW": [
-    "src/services/a2pCustomerOnboarding.service.js:746"
+    "src/services/a2pCustomerOnboarding.service.js:757"
   ],
   "A2P_OTP_RETRY_WINDOW_MS": [
-    "src/services/a2pCustomerOnboarding.service.js:742"
+    "src/services/a2pCustomerOnboarding.service.js:753"
   ],
   "A2P_RECONCILIATION_BATCH_LIMIT": [
     "src/workers/a2pReconciliation.worker.js:26"
@@ -66,7 +66,7 @@
     "src/services/scaleHealth.service.js:32"
   ],
   "API_PUBLIC_URL": [
-    "src/services/a2pCustomerOnboarding.service.js:75"
+    "src/services/a2pCustomerOnboarding.service.js:86"
   ],
   "APP_ENV": [
     "src/config/logger.js:62",
@@ -136,10 +136,10 @@
     "src/services/communicationUsage.service.js:366"
   ],
   "CONVERSATION_INTELLIGENCE_MAX_CHARACTERS": [
-    "src/services/conversationIntelligence.service.js:59"
+    "src/services/conversationIntelligence.service.js:60"
   ],
   "CONVERSATION_INTELLIGENCE_MAX_MESSAGES": [
-    "src/services/conversationIntelligence.service.js:52"
+    "src/services/conversationIntelligence.service.js:53"
   ],
   "CSRF_ALLOW_MISSING_ORIGIN": [
     "src/middleware/csrf-origin-guard.js:62"
@@ -481,11 +481,11 @@
   "OPENAI_API_KEY": [
     "src/helpers/ai/followUpAgent.js:32",
     "src/helpers/ai/qualifyLeadWithAI.js:26",
-    "src/services/conversationIntelligence.service.js:19",
-    "src/services/conversationIntelligence.service.js:23",
+    "src/services/conversationIntelligence.service.js:20",
     "src/services/conversationIntelligence.service.js:24",
-    "src/services/conversationIntelligence.service.js:26",
-    "src/services/conversationIntelligence.service.js:801",
+    "src/services/conversationIntelligence.service.js:25",
+    "src/services/conversationIntelligence.service.js:27",
+    "src/services/conversationIntelligence.service.js:520",
     "src/services/safetyAssessmentService.js:92",
     "src/voice/voiceUnderstanding.service.js:55",
     "src/voice/voiceUnderstanding.service.js:56",
@@ -493,8 +493,8 @@
     "src/voice/voiceUnderstanding.service.js:59"
   ],
   "OPENAI_CONVERSATION_MODEL": [
-    "src/services/conversationIntelligence.service.js:775",
-    "src/services/conversationIntelligence.service.js:830"
+    "src/services/conversationIntelligence.service.js:494",
+    "src/services/conversationIntelligence.service.js:549"
   ],
   "OPENAI_COST_PROJECT_IDS": [
     "src/services/admin/companyExpenses.service.js:172"
@@ -517,8 +517,8 @@
   "OPENAI_MODEL": [
     "src/helpers/ai/followUpAgent.js:438",
     "src/helpers/ai/qualifyLeadWithAI.js:254",
-    "src/services/conversationIntelligence.service.js:776",
-    "src/services/conversationIntelligence.service.js:831",
+    "src/services/conversationIntelligence.service.js:495",
+    "src/services/conversationIntelligence.service.js:550",
     "src/services/safetyAssessmentService.js:343"
   ],
   "OPENAI_QUALIFICATION_MAX_RETRIES": [
@@ -1085,7 +1085,7 @@
   ],
   "TWILIO_WEBHOOK_BASE_URL": [
     "src/middleware/validate-twilio-signature.js:20",
-    "src/services/a2pCustomerOnboarding.service.js:73",
+    "src/services/a2pCustomerOnboarding.service.js:84",
     "src/services/demoBrowserCall.service.js:89",
     "src/services/marketingSource.service.js:40",
     "src/services/ownerBrowserCall.service.js:79",
@@ -1126,7 +1126,7 @@
     "src/voice/relay/Timers.js:107"
   ],
   "VOICE_HTTP_PUBLIC_URL": [
-    "src/services/a2pCustomerOnboarding.service.js:74",
+    "src/services/a2pCustomerOnboarding.service.js:85",
     "src/services/demoBrowserCall.service.js:89",
     "src/services/marketingSource.service.js:41",
     "src/services/ownerBrowserCall.service.js:79",
