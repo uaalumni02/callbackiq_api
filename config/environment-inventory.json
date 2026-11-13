@@ -136,10 +136,10 @@
     "src/services/communicationUsage.service.js:366"
   ],
   "CONVERSATION_INTELLIGENCE_MAX_CHARACTERS": [
-    "src/services/conversationIntelligence.service.js:60"
+    "src/services/conversationIntelligence.service.js:63"
   ],
   "CONVERSATION_INTELLIGENCE_MAX_MESSAGES": [
-    "src/services/conversationIntelligence.service.js:53"
+    "src/services/conversationIntelligence.service.js:56"
   ],
   "CSRF_ALLOW_MISSING_ORIGIN": [
     "src/middleware/csrf-origin-guard.js:62"
@@ -481,11 +481,11 @@
   "OPENAI_API_KEY": [
     "src/helpers/ai/followUpAgent.js:32",
     "src/helpers/ai/qualifyLeadWithAI.js:26",
-    "src/services/conversationIntelligence.service.js:20",
-    "src/services/conversationIntelligence.service.js:24",
-    "src/services/conversationIntelligence.service.js:25",
+    "src/services/conversationIntelligence.service.js:23",
     "src/services/conversationIntelligence.service.js:27",
-    "src/services/conversationIntelligence.service.js:520",
+    "src/services/conversationIntelligence.service.js:28",
+    "src/services/conversationIntelligence.service.js:30",
+    "src/services/conversationIntelligence.service.js:197",
     "src/services/safetyAssessmentService.js:92",
     "src/voice/voiceUnderstanding.service.js:55",
     "src/voice/voiceUnderstanding.service.js:56",
@@ -493,8 +493,8 @@
     "src/voice/voiceUnderstanding.service.js:59"
   ],
   "OPENAI_CONVERSATION_MODEL": [
-    "src/services/conversationIntelligence.service.js:494",
-    "src/services/conversationIntelligence.service.js:549"
+    "src/services/conversationIntelligence.service.js:191",
+    "src/services/conversationIntelligence.service.js:226"
   ],
   "OPENAI_COST_PROJECT_IDS": [
     "src/services/admin/companyExpenses.service.js:172"
@@ -517,8 +517,8 @@
   "OPENAI_MODEL": [
     "src/helpers/ai/followUpAgent.js:438",
     "src/helpers/ai/qualifyLeadWithAI.js:254",
-    "src/services/conversationIntelligence.service.js:495",
-    "src/services/conversationIntelligence.service.js:550",
+    "src/services/conversationIntelligence.service.js:191",
+    "src/services/conversationIntelligence.service.js:227",
     "src/services/safetyAssessmentService.js:343"
   ],
   "OPENAI_QUALIFICATION_MAX_RETRIES": [
