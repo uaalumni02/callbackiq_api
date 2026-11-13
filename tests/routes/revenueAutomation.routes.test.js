@@ -11,7 +11,10 @@ import InternalRevenueRecord from '../../src/models/internalRevenueRecord.js';
 import RevenueAutomationCampaign from '../../src/models/revenueAutomationCampaign.js';
 const app=express();app.use(express.json());app.use('/api/revenue-automation',routes);
 const id=()=>new mongoose.Types.ObjectId();let ownerA,ownerB,bizA,bizB,tokenA,tokenB;
-beforeAll(connectTestDB,120000);afterEach(clearTestDB);afterAll(closeTestDB);
+beforeAll(async()=>{
+ await connectTestDB();
+ await InternalRevenueRecord.init();
+},120000);afterEach(clearTestDB);afterAll(closeTestDB);
 beforeEach(async()=>{
  [ownerA,ownerB,bizA,bizB]=[id(),id(),id(),id()];
  await User.collection.insertMany([
