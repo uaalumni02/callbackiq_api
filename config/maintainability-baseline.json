@@ -52,6 +52,17 @@
       "/workers/",
       "twilio",
       "stripe"
+    ],
+    "src/services/conversationIntelligenceNormalization.policy.js": [
+      "/models/",
+      "/db/",
+      "/controllers/",
+      "/workers/",
+      "/integrations/",
+      "process.env",
+      "Date",
+      "console.",
+      "Math.random"
     ]
   },
   "release9Target": "Reduce outstanding modules through test-proven responsibility separation; size budgets only prevent regression."
