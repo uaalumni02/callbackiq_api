@@ -1,5 +1,10 @@
 # MeekCall Remediation Log — API
 
+> Historical preparation log. The unchecked stages and "Vite plan only" entry
+> describe their original dates, not current implementation status. The frontend
+> now uses Vite. See [current maintenance notes](docs/MAINTENANCE_20261114.md),
+> [ENGINEERING](docs/ENGINEERING.md) and [CHECKS](docs/CHECKS.md).
+
 ## BLOCKED — NEEDS OWNER DECISION
 
 - **Browser verification:** Both repositories are now public. The new browser workflow uses the built-in read-only `github.token` fallback; Playwright must still pass on the PRs. Do not reintroduce a mandatory PAT for public checkout.

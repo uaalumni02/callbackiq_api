@@ -1,5 +1,10 @@
 # MeekCall — Current customer-request architecture (Phase 0 working map)
 
+> Historical snapshot from the reference commit below. File sizes and line
+> references are not a current source inventory. See
+> [the bounded maintenance map](../MAINTENANCE_20261114.md) and
+> [ENGINEERING](../ENGINEERING.md) for current entry points and deferred work.
+
 **Reference commit:** `e51679e1d65e851dda31806604b7cf649fb7f0fe` (API main/development, inspected 2026-11-05).
 
 **Scope:** This is the evidence-backed initial map of the high-risk paths. It is **not** the exhaustive file:line write inventory or an accepted authoritative design. Before using it for state migration, expand it with a whole-repo reference search and real integration traces.

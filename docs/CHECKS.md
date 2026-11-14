@@ -24,6 +24,21 @@ Existing npm check names are labeled aliases in `config/legacy-check-aliases.jso
 
 The import audit resolves static imports, reexports, CommonJS requires and every literal dynamic import, including zero-expression template literals. It scans tracked and nonignored engineering files as well as production source. A missing local target fails before bundling without needing to execute the lazy branch. Protected dependency boundaries remain acyclic.
 
+The additional selected API boundary covers production `.policy.js` files under
+`src/services/booking/` and their resolved local dependency closure. Cycles and
+imports reaching controllers, routes, db, models, integrations or workers fail;
+mongoose, twilio, stripe, openai and redis package imports also fail. Indirect
+imports through helpers are checked. Computed/nonliteral imports and runtime
+effects are outside this static guarantee. The original named cycle set and all
+existing token/path/body-hash guards remain unchanged. Negative fixtures live in
+`hardening-tests/feature-boundaries.test.mjs`.
+
+Browser PR jobs on `maintenance/paired-*` branches check out the same named
+partner branch and record both exact commits before building/testing. Publish
+both branches before opening their PRs, and stop pushing while collecting pair
+evidence. Other branches retain the existing repository-variable/main fallback.
+Read-only tokens, paths, credential persistence and browser tests are unchanged.
+
 The default budgets remain 400 lines per production file and 60 per function. Temporary exceptions have an owner and a machine-checked expiry condition: remove them when the code reaches the default. Each exception equals its measured size. Distinct anonymous callbacks and repeated function names have independent ordinal identities, so smaller functions cannot hide growth behind another function's allowance. The version-2 file makes previously collapsed callbacks visible separately. No production responsibility was moved to manufacture a smaller measurement.
 
 ```sh
