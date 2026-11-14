@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { parse } from '@babel/parser';
+import { auditFeatureBoundaries } from './feature-boundaries.mjs';
 
 const profiles = {
   callbackiq_api: ['src/services/booking/bookingClassification.policy.js',
@@ -75,20 +76,23 @@ export function auditImports(root = process.cwd()) {
   root = path.resolve(root);
   const repository = JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8')).name;
   if (!profiles[repository]) throw new Error(`Unknown repository package: ${repository}`);
-  const files = sourceFiles(root), graph = new Map(), failures = [];
+  const files = sourceFiles(root), graph = new Map(), dependencies = new Map(), failures = [];
   let edges = 0, dynamicImports = 0;
   for (const file of files) {
     const targets = [];
+    const resolved = [];
     try {
       for (const dependency of importsIn(file)) {
         try {
           const target = resolveTarget(file,dependency.specifier,repository,dependency.kind);
+          resolved.push({ ...dependency, target });
           if (dependency.specifier.startsWith('.')) { targets.push(target); edges += 1; }
           if (['ImportExpression','Import'].includes(dependency.kind)) dynamicImports += 1;
         } catch (error) { failures.push(`${path.relative(root,file)}:${dependency.line}: ${error.message}`); }
       }
     } catch (error) { failures.push(`${path.relative(root,file)}: ${error.message}`); }
     graph.set(file,[...new Set(targets)]);
+    dependencies.set(file,resolved);
   }
   for (const relative of profiles[repository]) {
     const file = path.join(root,relative);
@@ -98,8 +102,11 @@ export function auditImports(root = process.cwd()) {
       if (cycle) failures.push(`Protected module cycle: ${[file,...cycle].map(p=>path.relative(root,p)).join(' -> ')}`);
     }
   }
+  const featureBoundaries = auditFeatureBoundaries({ root, repository, dependencies });
+  failures.push(...featureBoundaries.failures);
   if (failures.length) throw new Error(failures.join('\n'));
-  return {repository,files:files.length,localImportEdges:edges,literalDynamicImports:dynamicImports};
+  return {repository,files:files.length,localImportEdges:edges,literalDynamicImports:dynamicImports,
+    featureBoundaryFiles:featureBoundaries.protectedFiles};
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
