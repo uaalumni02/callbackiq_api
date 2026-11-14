@@ -24,7 +24,7 @@ jobs:
           repository: uaalumni02/callbackiq_frontend
           token: ${{ secrets.CALLBACKIQ_CROSS_REPO_READ_TOKEN || github.token }}
           persist-credentials: false
-          ref: ${{ vars.CALLBACKIQ_FRONTEND_REF || 'main' }}
+          ref: ${{ startsWith(github.head_ref, 'maintenance/paired-') && github.head_ref || vars.CALLBACKIQ_FRONTEND_REF || 'main' }}
           path: frontend
       - name: Record exact API and frontend revisions
         run: |
