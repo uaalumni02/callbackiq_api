@@ -73,7 +73,7 @@ let originalEnvironment;
 beforeEach(() => {
   originalEnvironment = Object.fromEntries(environmentNames.map(key => [key, process.env[key]]));
   environmentNames.forEach(key => delete process.env[key]);
-  process.env.OPENAI_API_KEY = "synthetic-ci-characterization-key";
+  process.env.OPENAI_API_KEY = "test-openai-key";
   mockTrace = []; mockRequest = undefined;
   jest.spyOn(console, "error").mockImplementation((...args) => mockTrace.push({ fn: "console.error", args: mockCopy(args) }));
 });
