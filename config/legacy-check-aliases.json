@@ -162,5 +162,6 @@
   "architecture:invariants": "node scripts/meekcall-architecture-contracts.mjs",
   "build:certification": "node scripts/build-production.mjs",
   "audit:full-security": "npm audit --audit-level=high",
-  "audit:source-security": "node scripts/security-repository-audit.mjs"
+  "audit:source-security": "node scripts/security-repository-audit.mjs",
+  "contracts:state-writers": "node scripts/state-writers.mjs"
 }

@@ -180,7 +180,9 @@
     "audit:full-security": "node scripts/check.mjs --legacy audit:full-security",
     "check": "node scripts/check.mjs check",
     "check:release": "node scripts/check.mjs check:release",
-    "audit:source-security": "node scripts/check.mjs --legacy audit:source-security"
+    "audit:source-security": "node scripts/check.mjs --legacy audit:source-security",
+    "contracts:state-writers": "node scripts/check.mjs --legacy contracts:state-writers",
+    "contracts:state-writers:generate": "node scripts/state-writers.mjs --write"
   },
   "keywords": [],
   "author": "",

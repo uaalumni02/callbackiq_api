@@ -13,7 +13,7 @@ const quote=value=>`'${String(value).replaceAll("'","'\\''")}'`;
 const requirements={
  callbackiq_frontend:['lint','audit:imports','test:ci','test:coverage','coverage:changed-risk',
   'test:hardening:remediation','build:certification','verify:built','audit:source-security','audit:runtime-security'],
- callbackiq_api:['lint','audit:imports','test:ordinary','test:coverage','verify:coverage-ratchet',
+ callbackiq_api:['lint','contracts:state-writers','audit:imports','test:ordinary','test:coverage','verify:coverage-ratchet',
   'verify:diff-coverage','test:hardening','release:gate','test:replica-set',
   'test:production-certification','test:voice-concurrency','build:certification','audit:source-security','audit:runtime-security'],
 };
