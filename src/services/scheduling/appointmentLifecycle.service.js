@@ -22,7 +22,7 @@ export function lifecycleMessage(appointment, business) {
 
 // Written with the appointment decision. Repair is idempotent, scoped to the
 // current event, and never guesses that an old appointment needs a new SMS.
-export async function repairAppointmentLifecycle(appointment, business = null) {
+export async function repairAppointmentLifecycle(appointment, business = null, { repairMissingOnly = false } = {}) {
   const marker = appointment.lifecycleNotice;
   if (!marker?.pending) return;
   const ownerBusiness = business || await Business.findById(appointment.business).lean();
@@ -51,7 +51,7 @@ export async function repairAppointmentLifecycle(appointment, business = null) {
     await applyAppointmentBookingTransition(Conversation, 'appointment_rescheduled', appointment);
     if (appointment.lead) await Lead.updateOne({ _id: appointment.lead, business: appointment.business, appointment: original._id },
       { $set: { appointment: appointment._id, bookedAt: appointment.confirmedAt } });
-    await scheduleAppointmentReminders({ appointment });
+    await scheduleAppointmentReminders({ appointment, ...(repairMissingOnly ? { repairMissingOnly: true } : {}) });
   }
   if (['lifecycle_canceled', 'lifecycle_declined'].includes(key)) {
     await cancelAppointmentNotifications({ businessId: appointment.business, appointmentId: appointment._id, types: ['reminder', 'follow_up'] });
@@ -65,8 +65,8 @@ export async function repairAppointmentLifecycle(appointment, business = null) {
   await Appointment.updateOne(filter, { $set: { 'lifecycleNotice.pending': false, 'lifecycleNotice.lastError': '' } });
 }
 
-export async function tryRepairAppointmentLifecycle(appointment, business) {
-  try { await repairAppointmentLifecycle(appointment, business); }
+export async function tryRepairAppointmentLifecycle(appointment, business, options) {
+  try { await repairAppointmentLifecycle(appointment, business, options); }
   catch (error) {
     // Report pending evidence in the API; maintenance retries the saved marker.
     try { await Appointment.updateOne({ _id: appointment._id, 'lifecycleNotice.key': appointment.lifecycleNotice?.key },

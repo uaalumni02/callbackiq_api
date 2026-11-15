@@ -50,7 +50,10 @@ const grouped=new Map();for(const r of cfg.records){const a=grouped.get(r.module
 for(const [module,rows] of grouped){
   const file=read(module);if(!file)continue;
   if(Buffer.byteLength(file.code)>30000)errors.push(`oversized extracted module ${module}`);
-  if(!tenantModules.has(module) && /^\s*(?:import\s|(?:const|var)\s+\w+\s*=\s*require\()/m.test(file.code))errors.push(`extracted module has direct imports: ${module}; dependencies must remain injected`);
+  if(!tenantModules.has(module) && !cfg.reviewedModuleImports?.[module] && /^\s*(?:import\s|(?:const|var)\s+\w+\s*=\s*require\()/m.test(file.code))errors.push(`extracted module has direct imports: ${module}; dependencies must remain injected`);
+  if(cfg.reviewedModuleImports?.[module])traverse(file.ast,{ImportDeclaration(p){
+    if(!cfg.reviewedModuleImports[module].includes(p.node.source.value))errors.push(`unreviewed dependency: ${module}:${p.node.source.value}`);
+  }});
   const found=[];
   traverse(file.ast,{
     ObjectMethod(p){if(!p.parentPath?.isObjectExpression()||!p.parentPath?.parentPath?.isReturnStatement())return;const key=p.node.key?.name;if(key)found.push({name:key,kind:'method',text:file.code.slice(p.node.body.start,p.node.body.end)})},
@@ -65,6 +68,7 @@ for(const [module,rows] of grouped){
 const owners={
   'src/db/repositories/extracted/':'src/db/db.js',
   'src/services/scheduling/commands/':'src/services/scheduling/appointment.service.js',
+  'src/services/scheduling/reschedule/':'src/services/scheduling/appointment.service.js',
   'src/services/booking/inquiry/':'src/services/booking/bookingStateMachine.service.js',
   'src/features/conversations/':'src/pages/Conversations.js',
 };

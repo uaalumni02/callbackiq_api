@@ -6,7 +6,7 @@ import { createAppointmentconfirm1Methods } from './commands/confirm-1.js';
 import { assertConfirmationNotPending, confirmationPending, createConfirmationIntentRepository } from './appointmentConfirmationIntent.repository.js';
 import { createConfirmationRecovery } from './appointmentConfirmationRecovery.service.js';
 import { createAppointmentcancel1Methods } from './commands/cancel-1.js';
-import { createAppointmentreschedule1Methods } from './commands/reschedule-1.js';
+import { createRescheduleCommand } from './reschedule/command.js';
 import { createAppointmentupdate1Methods } from './commands/update-1.js';
 import { createExpiredHoldReconciler } from './appointmentHoldExpiry.service.js';
 import { resolveAppointmentAttribution } from './appointmentAttribution.repository.js';
@@ -303,10 +303,10 @@ function __meekcallGetAppointmentcancel1Methods() {
   return __meekcallAppointmentcancel1Cache;
 }
 
-let __meekcallAppointmentreschedule1Cache;
-function __meekcallGetAppointmentreschedule1Methods() {
-  if (!__meekcallAppointmentreschedule1Cache) __meekcallAppointmentreschedule1Cache = createAppointmentreschedule1Methods({ Appointment, InterventionService, Lead, SchedulingProviderFactory, SocketService, addMinutes, assertTransition, cancelAppointmentNotifications, createHold, crypto, exactSlotAvailable, getAppointmentForBusiness, getBookableService, lifecycleMarker, normalizeAddress, runNonBlockingAppointmentSideEffect, scheduleAppointmentReminders, tryRepairAppointmentLifecycle });
-  return __meekcallAppointmentreschedule1Cache;
+let rescheduleCommandCache;
+function getRescheduleCommand() {
+  if (!rescheduleCommandCache) rescheduleCommandCache = createRescheduleCommand({ Appointment, InterventionService, Lead, SchedulingProviderFactory, SocketService, addMinutes, assertTransition, cancelAppointmentNotifications, createHold, crypto, exactSlotAvailable, getAppointmentForBusiness, getBookableService, lifecycleMarker, normalizeAddress, runNonBlockingAppointmentSideEffect, scheduleAppointmentReminders, tryRepairAppointmentLifecycle });
+  return rescheduleCommandCache;
 }
 
 let __meekcallAppointmentupdate1Cache;
@@ -390,7 +390,7 @@ class AppointmentService {
 
   static async cancel(...args) { return __meekcallGetAppointmentcancel1Methods().cancel.apply(this, args); }
 
-  static async reschedule(...args) { return __meekcallGetAppointmentreschedule1Methods().reschedule.apply(this, args); }
+  static async reschedule(...args) { return getRescheduleCommand().reschedule.apply(this, args); }
 
   static async update(...args) { return __meekcallGetAppointmentupdate1Methods().update.apply(this, args); }
 

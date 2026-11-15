@@ -56,15 +56,15 @@ describe("Google Calendar production contract", () => {
     );
     expect(appointmentService).toContain("__meekcallGetAppointmentconfirm1Methods().confirm.apply(this, args)");
     expect(appointmentService).toContain("__meekcallGetAppointmentcancel1Methods().cancel.apply(this, args)");
-    expect(appointmentService).toContain("__meekcallGetAppointmentreschedule1Methods().reschedule.apply(this, args)");
+    expect(appointmentService).toContain("getRescheduleCommand().reschedule.apply(this, args)");
     expect(require("node:fs").readFileSync(require("node:path").resolve(process.cwd(), "src/services/scheduling/commands/confirm-1.js"), "utf8")).toContain("SchedulingProviderFactory.getProvider(business)");
     expect(require("node:fs").readFileSync(require("node:path").resolve(process.cwd(), "src/services/scheduling/commands/cancel-1.js"), "utf8")).toContain("InterventionService.integrationFailure");
-    expect(require("node:fs").readFileSync(require("node:path").resolve(process.cwd(), "src/services/scheduling/commands/reschedule-1.js"), "utf8")).toContain("InterventionService.integrationFailure");
+    expect(require("node:fs").readFileSync(require("node:path").resolve(process.cwd(), "src/services/scheduling/reschedule/recovery.js"), "utf8")).toContain("InterventionService.integrationFailure");
     expect(appointmentService + "\n" + require("node:fs").readFileSync(require("node:path").resolve(process.cwd(), "src/services/scheduling/commands/confirm-1.js"), "utf8")).toContain(
       "SchedulingProviderFactory.getProvider(business)",
     );
     expect(appointmentService).toContain("exactSlotAvailable");
     expect(appointmentService).toContain("idempotencyKey");
-    expect(appointmentService + "\n" + require("node:fs").readFileSync(require("node:path").resolve(process.cwd(), "src/services/scheduling/commands/cancel-1.js"), "utf8") + "\n" + require("node:fs").readFileSync(require("node:path").resolve(process.cwd(), "src/services/scheduling/commands/reschedule-1.js"), "utf8")).toContain("InterventionService.integrationFailure");
+    expect(appointmentService + "\n" + require("node:fs").readFileSync(require("node:path").resolve(process.cwd(), "src/services/scheduling/commands/cancel-1.js"), "utf8") + "\n" + require("node:fs").readFileSync(require("node:path").resolve(process.cwd(), "src/services/scheduling/reschedule/recovery.js"), "utf8")).toContain("InterventionService.integrationFailure");
   });
 });

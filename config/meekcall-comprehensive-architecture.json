@@ -132,9 +132,10 @@
     },
     {
       "name": "reschedule",
-      "module": "src/services/scheduling/commands/reschedule-1.js",
-      "kind": "method",
-      "sha": "a9a07703d1551074b7ef3b97746b11429c85499bb41210495983147c0ccdd99a"
+      "module": "src/services/scheduling/reschedule/command.js",
+      "kind": "callback",
+      "sha": "c583343e57b8daa412b25c26a543aa9725106a75ae3f2e9016984f5b08493325",
+      "review": "Four explicit phases; unchanged six-test characterization plus scheduling contracts. Lost-finalization acknowledgement recovery is an authorized correction. Retired body SHA a9a07703d1551074b7ef3b97746b11429c85499bb41210495983147c0ccdd99a."
     },
     {
       "name": "update",
@@ -491,6 +492,15 @@
       "tests/unit/conversationIntelligence.controller.test.js",
       "tests/unit/subscriptionReadBudget.test.js",
       "tests/integration/tenantOwnerHttp.contract.test.js"
+    ]
+  },
+  "reviewedModuleImports": {
+    "src/services/scheduling/reschedule/command.js": [
+      "./prepare.js",
+      "./providerHandoff.js",
+      "./finalize.js",
+      "./recovery.js",
+      "./followUp.js"
     ]
   }
 }

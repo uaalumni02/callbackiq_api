@@ -138,3 +138,12 @@ for (const repository of Object.keys(profiles)) {
     assert.throws(() => auditImports(f.root), /Protected module cycle/);
   });
 }
+
+test('callbackiq_api: reschedule phases reject a transitive infrastructure import', t => {
+  const f = fixture(t, 'callbackiq_api');
+  const entry = 'src/services/scheduling/reschedule/providerHandoff.js';
+  f.write(entry, "import '../../../lib/intermediate.js';");
+  f.write('src/lib/intermediate.js', "import '../models/record.js';");
+  f.write('src/models/record.js', 'export const record = true;');
+  assert.throws(() => auditImports(f.root), /Reschedule command forbidden import/);
+});

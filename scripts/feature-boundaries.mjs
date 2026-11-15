@@ -7,6 +7,11 @@ const boundaries = {
     includes: file => file.startsWith('src/services/booking/') && file.endsWith('.policy.js'),
     forbiddenPaths: ['src/controllers/', 'src/routes/', 'src/db/', 'src/models/', 'src/integrations/', 'src/workers/'],
     forbiddenPackages: ['mongoose', 'twilio', 'stripe', 'openai', 'redis'],
+  }, {
+    name: 'Reschedule command',
+    includes: file => file.startsWith('src/services/scheduling/reschedule/'),
+    forbiddenPaths: ['src/controllers/', 'src/routes/', 'src/db/', 'src/models/', 'src/integrations/', 'src/workers/', 'src/voice/'],
+    forbiddenPackages: ['mongoose', 'twilio', 'stripe', 'openai', 'redis'],
   }],
   callbackiq_frontend: [{
     name: 'Leads feature',

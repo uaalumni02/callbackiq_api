@@ -49,3 +49,37 @@ Every tenant-linked create/update must validate foreign references against the a
 ## Compatibility and historical tooling
 
 Historical phase-named scripts remain runnable for earlier release investigation. New work uses the domain map and one verification command, not a new numbered phase script. Do not delete scripts referenced by CI or the release runbooks without replacing those callers. Source parity hashes are reviewed change alarms, not a ban on refactoring: update a specific hash only with behavior evidence for that change. Existing logo filenames, environment aliases, old provider IDs and support addresses remain stable until their replacements are independently verified.
+
+## Reschedule ownership
+
+`src/services/scheduling/reschedule/command.js` composes `createRescheduleCommand`.
+`prepare.js` performs validation, identity/replay lookup and availability reads;
+it never creates a hold. `finalize.js` owns hold reservation, receipt staging,
+provider-link release and durable confirmation/lineage writes. `providerHandoff.js`
+is the only calendar mutation. `followUp.js` repairs projections, creates missing
+notification jobs and updates the lead. Its reschedule lifecycle repair uses
+`repairMissingOnly` so repeated follow-up preserves sent delivery receipts.
+Inputs/results are documented in `reschedule/types.js` and each phase's JSDoc.
+Phase dependencies are injected; transitive imports into infrastructure are
+forbidden by the import audit. The old `commands/reschedule-1.js` export remains
+an import-compatibility facade, while production composition uses the new name.
+
+A replacement finalizes only while its held status, original lineage and staged
+provider receipt still match its observed claim. Existing document sessions,
+validators and save hooks are preserved. Error recovery reads durable confirmation
+before restoring pending state and never demotes a possible confirmation when
+that read is unavailable. Pending restoration is itself conditional on a held
+replacement. This corrects the characterized lost-finalization acknowledgement
+case: same-key replay now repairs the confirmed replacement rather than returning
+an orphaned hold. Normal route and response contracts are unchanged. The separate
+legacy behavior of a concurrent cancellation of the original remains pinned;
+this extraction does not claim to correct every original-appointment race.
+
+Run `npx jest --runInBand rescheduleBoundaries.characterization reschedulePhases.contract`
+on every change to these phases, plus related scheduling tests. The six original
+characterization cases are frozen; their SHA-256 is recorded in the maintenance
+report. The original first run demonstrated the failed replay before extraction.
+The reviewed source-parity record now protects the new composition callback,
+with the explicitly permitted phase imports; behavioral contracts protect the
+replacement phases. Complexity exceptions for the retired 427-line method and
+432-line factory are removed rather than transferred to the new modules.
