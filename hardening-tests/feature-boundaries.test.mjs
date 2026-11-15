@@ -109,6 +109,28 @@ for (const repository of Object.keys(profiles)) {
     assert.throws(() => auditImports(f.root), /dependency cycle/);
   });
 
+  for (const kind of ['static', 'reexport', 'dynamic', 'require']) {
+    for (const violation of ['forbidden import', 'dependency cycle']) {
+      test(`${repository}: ${kind} absolute import through a path alias rejects ${violation}`, t => {
+        const f = fixture(t, repository);
+        const aliases = fs.mkdtempSync(path.join(os.tmpdir(), 'feature-target-alias-'));
+        t.after(() => fs.rmSync(aliases, { recursive: true, force: true }));
+        const alias = path.join(aliases, 'checkout');
+        fs.symlinkSync(fs.realpathSync(f.root), alias, 'dir');
+        const destination = violation === 'forbidden import' ? f.forbidden : 'src/lib/value.js';
+        f.write(destination, violation === 'forbidden import' ? 'export const valid = true;'
+          : `import '${f.specifier(destination, f.entry)}';`);
+        const target = JSON.stringify(path.join(alias, destination));
+        const sources = {
+          static: `import ${target};`, reexport: `export * from ${target};`,
+          dynamic: `export const load = () => import(${target});`, require: `const load = require(${target});`,
+        };
+        f.write(f.entry, sources[kind]);
+        assert.throws(() => auditImports(f.root), new RegExp(violation));
+      });
+    }
+  }
+
   test(`${repository}: the original named cycle set still fails independently`, t => {
     const f = fixture(t, repository), original = f.protected[0];
     f.write(original, `import '${f.specifier(original, 'src/lib/value.js')}';`);

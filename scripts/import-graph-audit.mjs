@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { createRequire } from 'node:module';
+import { createRequire, isBuiltin } from 'node:module';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { parse } from '@babel/parser';
@@ -84,7 +84,8 @@ export function auditImports(root = process.cwd()) {
     try {
       for (const dependency of importsIn(file)) {
         try {
-          const target = resolveTarget(file,dependency.specifier,repository,dependency.kind);
+          const resolution = resolveTarget(file,dependency.specifier,repository,dependency.kind);
+          const target = isBuiltin(resolution) ? resolution : fs.realpathSync(resolution);
           resolved.push({ ...dependency, target });
           if (dependency.specifier.startsWith('.')) { targets.push(target); edges += 1; }
           if (['ImportExpression','Import'].includes(dependency.kind)) dynamicImports += 1;
