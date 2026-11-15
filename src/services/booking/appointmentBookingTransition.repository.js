@@ -1,3 +1,4 @@
+import { requestStateOptions } from './requestStateTransaction.service.js';
 import { bookingStateFields } from './requestBookingState.js';
 
 const linked = id => ({ 'bookingState.appointment': id });
@@ -97,12 +98,13 @@ export async function applyAppointmentBookingTransition(Conversation, event, app
       !transition.statuses.includes(appointment.status)) return null;
   const filter = transition.filter(appointment);
   if (!filter) return null;
+  const options = requestStateOptions(details.session);
   return Conversation.updateOne(
     { _id: appointment.conversation, business: appointment.business, ...filter },
     { $set: {
       ...bookingStateFields(transition.fields(appointment)),
       ...transition.conversationFields?.(appointment, details),
     } },
-    ...(details.session ? [{ session: details.session }] : []),
+    ...(options.session ? [options] : []),
   );
 }

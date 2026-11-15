@@ -1,3 +1,4 @@
+import { createRequestBookingGuard, saveRequestBookingDocument } from '../booking/requestBookingPersistence.service.js';
 import { applyBookingStateTransition } from '../booking/requestBookingState.js';
 import { isContextualSymptomAnswer } from '../booking/contextualServiceAnswer.service.js';
 import { classifyLeakActivityAnswer } from '../booking/leakActivityAnswer.service.js';
@@ -17,8 +18,6 @@ import { classifySmsIntent, extractService } from '../messaging/smsIntentClassif
 import { evaluateDeterministicInboundGuardrails } from '../../helpers/ai/aiGuardrails.js';
 import { qualifyLeadWithAI } from '../../helpers/ai/qualifyLeadWithAI.js';
 import { reserveAiUsage } from '../communicationUsage.service.js';
-import { assertVoiceTurnActive } from '../voiceTurnContext.service.js';
-import { assertDistributedLeaseActive } from '../distributedLease.service.js';
 import { evaluateServicePolicy, eligibilityReply, serviceDomains, blocksServiceAutomation } from './policy.js';
 import { additionalServiceText } from '../messaging/customerTurnPlan.service.js';
 import { preserveAdditionalServiceRequest } from './additionalServiceRequest.service.js';
@@ -26,7 +25,7 @@ import { assertRecoveryCaseAcceptance } from '../recoveryCoordinator/acceptanceG
 
 const clean = value => String(value || '').trim();
 const known = value => clean(value) && !/^(unknown|not provided|n\/a)$/i.test(clean(value));
-const checkActive = () => { assertVoiceTurnActive(); assertDistributedLeaseActive(); };
+const checkActive = createRequestBookingGuard('voice', { voiceFirst: true });
 export { blocksServiceAutomation } from './policy.js';
 
 export async function evaluateServiceEligibility({ businessId, request, semanticService = '', confidence = 0 }) {
@@ -189,9 +188,9 @@ export async function guardServiceRequest({ business, lead, conversation, custom
     }
   }
   checkActive();
-  if (typeof lead?.save === 'function') await lead.save();
+  if (typeof lead?.save === 'function') await saveRequestBookingDocument({ document: lead, before: false, after: false });
   checkActive();
-  if (typeof conversation.save === 'function') await conversation.save();
+  if (typeof conversation.save === 'function') await saveRequestBookingDocument({ document: conversation, before: false, after: false });
   if (eligibility.decision === 'supported') return null;
   let reply = eligibilityReply(eligibility, business.businessName);
   if (eligibility.decision === 'needs_staff_review' && !state.reviewDeclined) {

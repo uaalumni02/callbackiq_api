@@ -1,4 +1,5 @@
-import { assertDistributedLeaseActive, assertVoiceTurnActive, businessHoursQuestion, classifySmsIntent, controlMessage, isCoverageQuestion, selectOfferedSlot, updateRequestQuestions } from './context.js';
+import { createRequestBookingGuard } from '../requestBookingPersistence.service.js';
+import { businessHoursQuestion, classifySmsIntent, controlMessage, isCoverageQuestion, selectOfferedSlot, updateRequestQuestions } from './context.js';
 
 export async function classifyRequestContext(context) {
   const { lead, conversation, business, text, now, channel, session, reviewOnly, capturedAddress, turnId, recentMessages } = context;
@@ -16,7 +17,7 @@ if (typeof lead.save !== 'function' || typeof conversation.save !== 'function') 
   // such as "Yes, confirm" must not be consumed as extra intake details.
   if (bookingActive && !reviewOnly && !classification.intents?.availabilityInquiry && !capturedAddress && !classification.entities?.serviceNeeded &&
       (selectOfferedSlot(text, conversation.bookingState?.offeredSlots || [], business.timezone || 'America/New_York') || /^(?:option\s*)?\d+[.! ]*$/i.test(text) || (classification.response?.affirmative || classification.response?.negative) || classification.intents?.scheduling)) return { completed: true, value: null };
-  const checkActive = () => { assertDistributedLeaseActive(); if (channel === 'voice') assertVoiceTurnActive(); };
+  const checkActive = createRequestBookingGuard(channel);
   const timezone = business.timezone || 'America/New_York';
   const journeyKey = conversation.orchestration?.recoveryJourneyKey || '';
   const oldState = conversation.conversationMemory?.recoveryIntake;

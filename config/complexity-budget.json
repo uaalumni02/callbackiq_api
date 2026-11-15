@@ -875,12 +875,6 @@
       "expiresAtOrBelow": 60,
       "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."
     },
-    "src/services/booking/recoveryIntake/createIntakeActions.js#createIntakeActions": {
-      "maxLines": 64,
-      "owner": "@uaalumni02",
-      "expiresAtOrBelow": 60,
-      "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."
-    },
     "src/services/booking/recoveryIntake/routeScheduling.js#routeScheduling": {
       "maxLines": 74,
       "owner": "@uaalumni02",
@@ -918,19 +912,19 @@
       "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."
     },
     "src/services/businessRequestWorkflow.service.js#updateRequestWorkflow": {
-      "maxLines": 100,
+      "maxLines": 99,
       "owner": "@uaalumni02",
       "expiresAtOrBelow": 60,
       "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."
     },
     "src/services/businessRequestWorkflow.service.js#run": {
-      "maxLines": 91,
+      "maxLines": 90,
       "owner": "@uaalumni02",
       "expiresAtOrBelow": 60,
       "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."
     },
     "src/services/businessRequestWorkflow.service.js#<callback>@29": {
-      "maxLines": 77,
+      "maxLines": 76,
       "owner": "@uaalumni02",
       "expiresAtOrBelow": 60,
       "reason": "Temporary existing hotspot; remove this allowance as soon as its measured size reaches the standard limit. Behavioral contracts must precede responsibility changes."

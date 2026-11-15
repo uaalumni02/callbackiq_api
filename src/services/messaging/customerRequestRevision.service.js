@@ -1,9 +1,8 @@
+import { createRequestBookingGuard, saveRequestBookingDocument } from '../booking/requestBookingPersistence.service.js';
 import { applyBookingStateTransition } from '../booking/requestBookingState.js';
 import crypto from 'node:crypto';
 import { addressFromTurn } from '../booking/customerAddress.service.js';
 import AlertService from '../alert.service.js';
-import { assertDistributedLeaseActive } from '../distributedLease.service.js';
-import { assertVoiceTurnActive } from '../voiceTurnContext.service.js';
 
 // Called only after consent/safety/withdrawal precedence. A question or callback
 // must not discard a supplied address. Journal before projecting facts so a retry
@@ -11,7 +10,7 @@ import { assertVoiceTurnActive } from '../voiceTurnContext.service.js';
 export async function applyCustomerAddressRevision({ business, lead, conversation, customerMessage, turnId = '', recentMessages = [] }) {
   if (!lead?.save || !conversation?.save || conversation.humanTakeover || conversation.aiEnabled === false ||
       ['closed', 'archived'].includes(conversation.status)) return { addressChanged: false };
-  const check = () => { assertDistributedLeaseActive(); assertVoiceTurnActive(); };
+  const check = createRequestBookingGuard('voice');
   const key = crypto.createHash('sha256').update(`${turnId}:${customerMessage}`).digest('hex');
   let intake = conversation.conversationMemory?.recoveryIntake || {};
   let revision = intake.addressRevision;
@@ -27,11 +26,11 @@ export async function applyCustomerAddressRevision({ business, lead, conversatio
     if (conversation.set) conversation.set('conversationMemory.recoveryIntake', intake);
     else conversation.conversationMemory = { ...(conversation.conversationMemory || {}), recoveryIntake: intake };
     conversation.markModified?.('conversationMemory.recoveryIntake');
-    check(); await conversation.save(); check();
+    await saveRequestBookingDocument({ document: conversation, guard: check });
   }
   if (!revision.applied) {
     lead.address = revision.address;
-    check(); await lead.save(); check();
+    await saveRequestBookingDocument({ document: lead, guard: check });
     if (conversation.bookingState?.appointment) {
       const saved = await AlertService.create({ businessId: business._id, leadId: lead._id, conversationId: conversation._id,
         type: 'system', priority: 'high', actionRequired: true, title: 'Customer changed the service address',
@@ -42,7 +41,7 @@ export async function applyCustomerAddressRevision({ business, lead, conversatio
     }
     check(); revision.applied = true;
     conversation.markModified?.('conversationMemory.recoveryIntake');
-    await conversation.save(); check();
+    await saveRequestBookingDocument({ document: conversation, guard: check, before: false });
   }
   return { addressChanged: true };
 }

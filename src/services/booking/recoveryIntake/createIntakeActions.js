@@ -1,3 +1,4 @@
+import { createIntakePersistence } from '../requestBookingPersistence.service.js';
 import { AlertService, buildRequestReadiness, extractCustomerPostalCode, fixed, getApprovedServiceEstimate, isRepeatCorrection, known, logOperationalError, resetUncertainTurns } from './context.js';
 
 export async function createIntakeActions(context) {
@@ -14,20 +15,8 @@ if (!understoodAnswer && !classification.intents?.pricing && !classification.int
   if (approvedEstimate) state.unresolvedQuestions = state.unresolvedQuestions.filter(q => q.kind !== 'price');
   const timingPrefix = questions.duration || questions.completionDate ? 'The team needs to assess the job scope before estimating how long the work will take or when it can be completed. ' : '';
   const pricingPrefix = timingPrefix + (classification.intents?.pricing ? `${approvedEstimate || "I don't have a confirmed price for that work."} ` : '');
-  const persist = async () => {
-    checkActive(); await lead.save(); checkActive();
-    if (understoodAnswer) { await resetUncertainTurns(conversation); checkActive(); }
-    state.serviceNeeded = lead.serviceNeeded; state.address = lead.address || '';
-    state.preferredAppointmentTime = lead.preferredAppointmentTime || '';
-    state.eligibility = conversation.serviceEligibility?.decision || 'not_checked';
-    state.scope = { tradeQualification: state.tradeQualification || null, detail: state.serviceDetail || lead.serviceNeeded, triageAnswer: state.triageAnswer || '', problem: state.problem || null };
-    state.activePreference = { date: state.date || '', time: state.time || '', label: lead.preferredAppointmentTime || '' };
-    state.readiness = buildRequestReadiness({ lead, conversation, state, now });
-    if (conversation.set) conversation.set('conversationMemory.recoveryIntake', state);
-    else conversation.conversationMemory = { ...(conversation.conversationMemory || {}), recoveryIntake: state };
-    conversation.markModified?.('conversationMemory.recoveryIntake');
-    await conversation.save(); checkActive();
-  };
+  const persist = createIntakePersistence({ checkActive, lead, understoodAnswer, conversation, state, now },
+    { resetUncertainTurns, buildRequestReadiness });
   const ask = async (field, reply) => {
     const facts = JSON.stringify([lead.serviceNeeded, lead.address, lead.preferredAppointmentTime, state.triageResolved]);
     if (!turnId || state.lastTurnId !== String(turnId)) state.failures = !understoodAnswer && state.field === field && state.lastFacts === facts ? Math.min(2, (state.failures || 0) + 1) : 0;

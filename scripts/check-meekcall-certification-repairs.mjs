@@ -11,7 +11,8 @@ const checks=[
   ], ["MongoMemoryServer.create()"]],
   ['.github/workflows/browser-workflows.yml', ["vars.CALLBACKIQ_FRONTEND_REF || 'main'"],['998a89366203f183e7a0a0bb41912c46ac6a668d']],
   ['src/services/serviceEligibility/serviceEligibility.service.js', ['REQUEST_QUALIFICATION_REQUIRED'],[]],
-  ['src/services/businessRequestWorkflow.service.js', ['mongoose.connection.transaction'],[]],
+  ['src/services/businessRequestWorkflow.service.js', ['withRequestStateTransaction'],[]],
+  ['src/services/booking/requestStateTransaction.service.js', ['mongoose.connection.transaction', 'transactions.run'],[]],
 ];
 let failures=0;
 for(const [file,required,forbidden] of checks){

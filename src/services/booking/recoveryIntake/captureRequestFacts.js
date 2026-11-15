@@ -1,4 +1,7 @@
-import { addressFromTurn, applyBookingStateTransition, assertDistributedLeaseActive, assertVoiceTurnActive, clean, confirmationTimingReply, fixed, guardServiceRequest, isConfirmationQuestion, isSoftOptOutPhrase, known, resolveRequestAddress } from './context.js';
+import { createRequestBookingGuard, saveRequestBookingDocument } from '../requestBookingPersistence.service.js';
+import { addressFromTurn, applyBookingStateTransition, clean, confirmationTimingReply, fixed, guardServiceRequest, isConfirmationQuestion, isSoftOptOutPhrase, known, resolveRequestAddress } from './context.js';
+const checkRequestBookingWrite = createRequestBookingGuard('voice');
+
 
 export async function captureRequestFacts(context) {
   const { customerMessage, lead, conversation, recentMessages, business, channel, turnId, semanticAssessment } = context;
@@ -8,11 +11,11 @@ const text = clean(customerMessage);
   const existingAddress = resolveRequestAddress({ lead, conversation });
   const capturedAddress = addressFromTurn({ customerMessage: text, recentMessages, conversation, knownAddress: existingAddress });
   if (!capturedAddress && existingAddress && existingAddress !== lead.address) {
-    assertDistributedLeaseActive(); assertVoiceTurnActive();
-    lead.address = existingAddress; await lead.save?.();
+    checkRequestBookingWrite();
+    lead.address = existingAddress; await saveRequestBookingDocument({ document: lead, guard: checkRequestBookingWrite, before: false, after: false, optional: true });
   }
   if (capturedAddress) {
-    assertDistributedLeaseActive(); assertVoiceTurnActive();
+    checkRequestBookingWrite();
     if (known(lead.address) && capturedAddress !== lead.address && !conversation.bookingState?.appointment) {
       applyBookingStateTransition(conversation, 'intake_address_changed');
       if (conversation.conversationMemory?.recoveryIntake) {
@@ -20,10 +23,9 @@ const text = clean(customerMessage);
         conversation.conversationMemory.recoveryIntake.submitted = false;
         conversation.markModified?.('conversationMemory.recoveryIntake');
       }
-      await conversation.save?.();
-      assertDistributedLeaseActive(); assertVoiceTurnActive();
+      await saveRequestBookingDocument({ document: conversation, guard: checkRequestBookingWrite, before: false, optional: true });
     }
-    lead.address = capturedAddress; await lead.save?.();
+    lead.address = capturedAddress; await saveRequestBookingDocument({ document: lead, guard: checkRequestBookingWrite, before: false, after: false, optional: true });
   }
   const serviceGuard = await guardServiceRequest({ business, lead, conversation, customerMessage, channel, turnId, semanticAssessment, recentMessages });
   if (serviceGuard) return { completed: true, value: serviceGuard };

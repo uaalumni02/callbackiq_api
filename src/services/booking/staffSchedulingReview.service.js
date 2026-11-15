@@ -1,12 +1,11 @@
+import { createRequestBookingGuard, saveRequestBookingDocument } from './requestBookingPersistence.service.js';
 import { applyBookingStateTransition } from './requestBookingState.js';
 import { dialogMode } from '../conversationPolicy/dialogPolicy.js';
 import { captureTurnFacts } from './turnFactCapture.service.js';
 import AlertService from '../alert.service.js';
-import { assertDistributedLeaseActive } from '../distributedLease.service.js';
-import { assertVoiceTurnActive } from '../voiceTurnContext.service.js';
 
 export async function requestStaffSchedulingReview({ business, lead, conversation, customerMessage, channel = 'sms', now = new Date() }) {
-  const check = () => { assertDistributedLeaseActive(); if (channel === 'voice') assertVoiceTurnActive(); };
+  const check = createRequestBookingGuard(channel);
   check();
   const facts = captureTurnFacts({ customerMessage, business, lead, now });
   const result = {
@@ -21,7 +20,7 @@ export async function requestStaffSchedulingReview({ business, lead, conversatio
   };
   if (lead && typeof lead.save === 'function') {
     lead.preferredAppointmentTime = result.preferredAppointmentTime;
-    await lead.save(); check();
+    await saveRequestBookingDocument({ document: lead, guard: check, before: false });
   }
   if (channel === 'voice') {
     await AlertService.createHumanHandoffAlert({ businessId: business._id, leadId: lead?._id,
@@ -41,7 +40,7 @@ export async function requestStaffSchedulingReview({ business, lead, conversatio
         handoffRequestedAt: now, handoffAcknowledgedAt: null };
       conversation.markModified?.('orchestration');
     }
-    check(); await conversation.save(); check();
+    await saveRequestBookingDocument({ document: conversation, guard: check });
   }
   return result;
 }

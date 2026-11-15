@@ -1,3 +1,4 @@
+import { withRequestStateTransaction, requestStateRead, requestStateWrite } from './booking/requestStateTransaction.service.js';
 import { bookingTransitionFields } from './booking/requestBookingState.js';
 import { confirmationNoticeState } from './scheduling/appointmentConfirmationState.js';
 import crypto from 'node:crypto';
@@ -10,7 +11,7 @@ import Message from '../models/message.js';
 import AppointmentNotificationJob from '../models/appointmentNotificationJob.js';
 import VoiceSession from '../models/voiceSession.js';
 import { requestReviewKey } from './requestReview.service.js';
-import { withDistributedLease, assertDistributedLeaseActive } from './distributedLease.service.js';
+import { withDistributedLease } from './distributedLease.service.js';
 import { queryBudgetMs } from './scale/queryBudget.js';
 import { unknownEstimate } from './valuation/opportunityValue.js';
 import { extractCustomerPostalCode } from './booking/customerAddress.service.js';
@@ -104,26 +105,26 @@ export async function listBusinessRequests({ businessId, query }) {
   return {data,total,skip,hasMore:skip+data.length<total};
 }
 
-export async function readRequestWorkflow({businessId,alertId,session=null}) {
+export async function readRequestWorkflow({businessId,alertId}) {
   if(!mongoose.isObjectIdOrHexString(alertId)) throw fail('Invalid review ID',400);
-  let alert=await Alert.findOne({_id:alertId,business:businessId}).session(session).lean();
-  if(alert?.metadata?.supersededBy) alert=await Alert.findOne({_id:alert.metadata.supersededBy,business:businessId}).session(session).lean();
+  let alert=await requestStateRead(Alert.findOne({_id:alertId,business:businessId})).lean();
+  if(alert?.metadata?.supersededBy) alert=await requestStateRead(Alert.findOne({_id:alert.metadata.supersededBy,business:businessId})).lean();
   if(!alert) throw fail('Review not found',404);
-  const conversation=alert.conversation?await Conversation.findOne({_id:alert.conversation,business:businessId}).session(session).lean():null;
-  const lead=alert.lead?await Lead.findOne({_id:alert.lead,business:businessId}).session(session).lean():null;
+  const conversation=alert.conversation?await requestStateRead(Conversation.findOne({_id:alert.conversation,business:businessId})).lean():null;
+  const lead=alert.lead?await requestStateRead(Lead.findOne({_id:alert.lead,business:businessId})).lean():null;
   const journey=reviewJourney(alert,conversation);
   let members=[alert];
   if(journey!==null && !alert.resolvedAt) {
-    const candidates=await Alert.find({business:businessId,conversation:alert.conversation,type:'human_requested',resolvedAt:null,'metadata.supersededBy':{$exists:false}}).limit(251).session(session).lean();
+    const candidates=await requestStateRead(Alert.find({business:businessId,conversation:alert.conversation,type:'human_requested',resolvedAt:null,'metadata.supersededBy':{$exists:false}}).limit(251)).lean();
     if(candidates.length>250) throw fail('This conversation has too many legacy reviews for automatic consolidation. Review it with support.');
     members=candidates.filter(row=>reviewJourney(row,conversation)===journey && id(row.lead)===id(alert.lead));
   }
   const apptId=alert.metadata?.approvalRequest ? alert.appointment : conversation?.bookingState?.appointment || alert.appointment;
-  const appointment=apptId?await Appointment.findOne({_id:apptId,business:businessId,conversation:alert.conversation}).session(session).lean():null;
-  const latestOutbound=conversation?await Message.findOne({business:businessId,conversation:conversation._id,direction:'outbound'}).sort({createdAt:-1,_id:-1})
-    .select('body status deliveryStatus deliveryUncertain createdAt').session(session).lean():null;
-  const confirmationJob=appointment?await AppointmentNotificationJob.findOne({business:businessId,appointment:appointment._id,key:`change_notice:${appointment.lifecycleNotice?.key || 'business_approval_confirmed'}`}).session(session).lean():null;
-  const confirmationMessage=confirmationJob?.providerMessageId?await Message.findOne({business:businessId,conversation:alert.conversation,direction:'outbound',providerMessageId:confirmationJob.providerMessageId}).select('status deliveryStatus deliveryUncertain createdAt').session(session).lean():null;
+  const appointment=apptId?await requestStateRead(Appointment.findOne({_id:apptId,business:businessId,conversation:alert.conversation})).lean():null;
+  const latestOutbound=conversation?await requestStateRead(Message.findOne({business:businessId,conversation:conversation._id,direction:'outbound'}).sort({createdAt:-1,_id:-1})
+    .select('body status deliveryStatus deliveryUncertain createdAt')).lean():null;
+  const confirmationJob=appointment?await requestStateRead(AppointmentNotificationJob.findOne({business:businessId,appointment:appointment._id,key:`change_notice:${appointment.lifecycleNotice?.key || 'business_approval_confirmed'}`})).lean():null;
+  const confirmationMessage=confirmationJob?.providerMessageId?await requestStateRead(Message.findOne({business:businessId,conversation:alert.conversation,direction:'outbound',providerMessageId:confirmationJob.providerMessageId}).select('status deliveryStatus deliveryUncertain createdAt')).lean():null;
   const confirmationNotice=appointment?confirmationNoticeState(appointment,confirmationJob,confirmationMessage):null;
   const data={review:combinedReview(members),members,conversation,lead,appointment,latestOutbound,confirmationNotice,journey};
   data.version=workflowVersion(data);
@@ -147,11 +148,11 @@ export function validateFacts(changes) {
   return Object.fromEntries(Object.entries(changes).map(([key,value])=>[key,value.trim()]));
 }
 
-async function consolidate(snapshot,businessId,session,now) {
+async function consolidate(snapshot,businessId,now) {
   const {review,members,conversation,journey}=snapshot;
   if(!ordinaryReview(review)||journey===null) return review._id;
   const key=requestReviewKey(conversation._id,journey);
-  const existing=await Alert.findOne({business:businessId,dedupeKey:key}).session(session).lean();
+  const existing=await requestStateRead(Alert.findOne({business:businessId,dedupeKey:key})).lean();
   if(existing&&!members.some(row=>id(row)===id(existing))) throw fail('A different canonical review exists. Refresh before continuing.');
   const owners=new Set(members.map(row=>id(row.assignedTo)).filter(Boolean));
   if(owners.size>1) throw fail('These reviews have conflicting owners. Resolve assignment before combining them.');
@@ -159,15 +160,15 @@ async function consolidate(snapshot,businessId,session,now) {
   const canonical=existing||members.find(row=>id(row)===id(review));
   if(members.length===1 && existing) return canonical._id;
   const duplicateIds=members.filter(row=>id(row)!==id(canonical)).map(row=>row._id);
-  await Alert.updateOne({_id:canonical._id,business:businessId},{$set:{dedupeKey:key,title:review.title,message:review.message,
+  await requestStateWrite({ model: Alert, method: 'updateOne', filter: {_id:canonical._id,business:businessId}, changes: {$set:{dedupeKey:key,title:review.title,message:review.message,
     recommendedAction:review.recommendedAction,aiSummary:review.aiSummary,lastCustomerMessage:review.lastCustomerMessage,priority:review.priority,
     metadata:{...canonical.metadata,...review.metadata,requestReview:true,reviewJourneyKey:journey},reviewEvents:review.reviewEvents,
     reviewPhase:review.metadata?.intakeReview?2:1,reviewLatestAt:members.map(row=>row.reviewLatestAt||row.createdAt).sort((a,b)=>new Date(b)-new Date(a))[0],
     ...(assigned?{assignedTo:assigned.assignedTo,assignedAt:assigned.assignedAt,assignedBy:assigned.assignedBy}:{}),
     ...(ack?{acknowledgedAt:ack.acknowledgedAt,acknowledgedBy:ack.acknowledgedBy,status:'acknowledged'}:{}),
-    dueAt:members.map(row=>row.dueAt).filter(Boolean).sort((a,b)=>new Date(a)-new Date(b))[0]||null}}, {session,runValidators:true});
-  if(duplicateIds.length) await Alert.updateMany({_id:{$in:duplicateIds},business:businessId},{$set:{actionRequired:false,status:'resolved',resolvedAt:now,
-    resolution:`Consolidated into active request ${canonical._id}.`, 'metadata.supersededBy':id(canonical),'metadata.consolidatedAt':now}},{session});
+    dueAt:members.map(row=>row.dueAt).filter(Boolean).sort((a,b)=>new Date(a)-new Date(b))[0]||null}}, options: {runValidators:true} });
+  if(duplicateIds.length) await requestStateWrite({ model: Alert, method: 'updateMany', filter: {_id:{$in:duplicateIds},business:businessId}, changes: {$set:{actionRequired:false,status:'resolved',resolvedAt:now,
+    resolution:`Consolidated into active request ${canonical._id}.`, 'metadata.supersededBy':id(canonical),'metadata.consolidatedAt':now}} });
   return canonical._id;
 }
 
@@ -178,8 +179,8 @@ export async function updateRequestWorkflow({business,userId,alertId,input}) {
   const run=async()=>{
     let resultId;
     try {
-      await mongoose.connection.transaction(async session=>{
-        const snapshot=await readRequestWorkflow({businessId:business._id,alertId,session});
+      await withRequestStateTransaction(async()=>{
+        const snapshot=await readRequestWorkflow({businessId:business._id,alertId});
         const priorOperation=snapshot.review.reviewEvents?.find(event=>event.key===`staff:${input.operationId}`);
         if(priorOperation) {
           if(priorOperation.operationHash!==operationHash) throw fail('This operation ID was already used for a different action. Reload before continuing.');
@@ -195,8 +196,8 @@ export async function updateRequestWorkflow({business,userId,alertId,input}) {
         if(input.action==='facts'&&(!ordinary||!snapshot.lead||!snapshot.conversation)) throw fail('Request details are unavailable for this action.');
         if(['facts','outcome'].includes(input.action)&&(!snapshot.review.acknowledgedAt||!snapshot.review.assignedTo||(snapshot.conversation&&!snapshot.conversation.humanTakeover))) throw fail('Accept this request and pause AI before saving changes.');
         if(input.action==='facts' && (snapshot.appointment&&!['canceled','failed','expired'].includes(snapshot.appointment.status))) throw fail('Edit the existing appointment through scheduling. Its confirmed details cannot be changed here.');
-        if(snapshot.conversation&&await VoiceSession.exists({business:business._id,conversation:snapshot.conversation._id,status:{$in:['routing','connecting','active','capturing_callback','completing']}}).session(session)) throw fail('Wait for the active voice call to finish before changing this request.');
-        resultId=await consolidate(snapshot,business._id,session,now);
+        if(snapshot.conversation&&await requestStateRead(VoiceSession.exists({business:business._id,conversation:snapshot.conversation._id,status:{$in:['routing','connecting','active','capturing_callback','completing']}}))) throw fail('Wait for the active voice call to finish before changing this request.');
+        resultId=await consolidate(snapshot,business._id,now);
         const alertSet={},conversationSet={};
         if(input.action==='accept') {
           if(!snapshot.conversation) throw fail('No conversation is linked to this review.');
@@ -213,7 +214,7 @@ export async function updateRequestWorkflow({business,userId,alertId,input}) {
             leadSet.serviceEligibility={decision:'needs_staff_review',reason:'staff_corrected_request',request:changes.serviceNeeded??snapshot.lead.serviceNeeded};
             conversationSet.serviceEligibility=leadSet.serviceEligibility;
           }
-          await Lead.updateOne({_id:snapshot.lead._id,business:business._id},{$set:leadSet,...(serviceChanged?{$inc:{valuationVersion:1}}:{})},{session,runValidators:true});
+          await requestStateWrite({ model: Lead, method: 'updateOne', filter: {_id:snapshot.lead._id,business:business._id}, changes: {$set:leadSet,...(serviceChanged?{$inc:{valuationVersion:1}}:{})}, options: {runValidators:true} });
           for(const [field,value] of Object.entries(changes)) {
             if(field==='customerName') conversationSet.customerName=value;
             else {conversationSet[`conversationMemory.${field}`]=value;conversationSet[`conversationMemory.recoveryIntake.${field}`]=value;}
@@ -237,7 +238,7 @@ export async function updateRequestWorkflow({business,userId,alertId,input}) {
             if(ordinary&&snapshot.conversation) {
               conversationSet['conversationMemory.recoveryIntake.review.status']='resolved';
               if(input.outcome!=='booked') Object.assign(conversationSet,{'conversationMemory.recoveryIntake.withdrawnAt':now,...bookingTransitionFields('staff_request_resolved')});
-              if(snapshot.lead) await Lead.updateOne({_id:snapshot.lead._id,business:business._id},{$set:{status:input.outcome==='booked'?'booked':'lost'}},{session});
+              if(snapshot.lead) await requestStateWrite({ model: Lead, method: 'updateOne', filter: {_id:snapshot.lead._id,business:business._id}, changes: {$set:{status:input.outcome==='booked'?'booked':'lost'}} });
             }
           }
         }
@@ -245,16 +246,15 @@ export async function updateRequestWorkflow({business,userId,alertId,input}) {
           message:input.action==='outcome'?`${outcomeLabels[input.outcome]}: ${input.reason.trim()}`:input.action==='facts'?Object.keys(changes).map(key=>factLabels[key]).join(', '):'Saved by the business owner.',actorId:id(userId),
           outcome:input.outcome||'',followUpAt:input.outcome==='follow_up'?new Date(input.followUpAt):null,
           changes:changes?Object.fromEntries(Object.entries(changes).map(([key,value])=>[key,{before:snapshot.lead[key]||'',after:value}])):undefined};
-        await Alert.updateOne({_id:resultId,business:business._id},{$set:alertSet,$push:{reviewEvents:event}},{session,runValidators:true});
+        await requestStateWrite({ model: Alert, method: 'updateOne', filter: {_id:resultId,business:business._id}, changes: {$set:alertSet,$push:{reviewEvents:event}}, options: {runValidators:true} });
         if(snapshot.conversation) {
           if(ordinary) conversationSet['conversationMemory.recoveryIntake.review.alertId']=id(resultId);
           // Touch the shared conversation in the transaction to detect a racing
           // inbound turn or booking operation, even for an outcome-only change.
           conversationSet['conversationMemory.lastUpdatedAt']=now;
-          await Conversation.updateOne({_id:snapshot.conversation._id,business:business._id},{$set:conversationSet},{session,runValidators:true});
+          await requestStateWrite({ model: Conversation, method: 'updateOne', filter: {_id:snapshot.conversation._id,business:business._id}, changes: {$set:conversationSet}, options: {runValidators:true} });
         }
-        assertDistributedLeaseActive();
-      });
+      }, { guardAtCommit: true });
     } catch(error) {
       if(error.code===20||error.codeName==='IllegalOperation') throw fail('This action needs a transaction-capable MongoDB connection (Atlas or a replica set). No changes were saved.',503);
       throw error;

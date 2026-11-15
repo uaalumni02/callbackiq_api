@@ -27,7 +27,7 @@ const writesBookingMember = (node) => {
 
 const lowLevelOwners = new Map([
   ['services/booking/appointmentBookingTransition.repository.js', new Set(['bookingStateFields'])],
-  ['services/booking/bookingTurnState.repository.js', new Set(['applyBookingStateFields', 'bookingTransitionChanges'])],
+  ['services/booking/requestBookingPersistence.service.js', new Set(['applyBookingStateFields', 'bookingTransitionChanges'])],
 ]);
 const rawHelpers = new Set(['bookingStateFields', 'applyBookingStateFields', 'bookingStateReplacement',
   'replaceBookingState', 'bookingTransitionChanges']);

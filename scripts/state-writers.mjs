@@ -9,9 +9,9 @@ const traverse = require('@babel/traverse').default;
 const digest = text => crypto.createHash('sha256').update(text).digest('hex');
 const resources = new Map([['appointment','Appointment'],['conversation','Conversation'],['alert','Alert'],['recoverycase','RecoveryCase'],['lead','Lead']]);
 const mutations = new Set(['save','create','insertOne','insertMany','updateOne','updateMany','findOneAndUpdate','findByIdAndUpdate','replaceOne','findOneAndReplace','bulkWrite','deleteOne','deleteMany','findOneAndDelete','findByIdAndDelete']);
-const transitionNames = /^(?:applyBookingStateTransition|applyBookingStateFields|saveBookingTransition|applyBookingEvent|applyAppointmentBookingTransition|bookingTransitionFields|bookingStateFields|commitRequestBookingTransition|persistBookingDocument|persistBookingUpdate)$/;
+const transitionNames = /^(?:applyBookingStateTransition|applyBookingStateFields|saveBookingTransition|applyBookingEvent|applyAppointmentBookingTransition|bookingTransitionFields|bookingStateFields|commitRequestBookingTransition|persistBookingDocument|persistBookingUpdate|saveRequestBookingDocument|requestStateWrite)$/;
 const protectedPath = value => /^(?:bookingState|conversationMemory|orchestration|lifecycle)(?:\.|$)|(?:^|\.)(?:status|reviewStatus|staffReview|resolvedAt|acknowledgedAt|actionRequired)(?:\.|$)/.test(value);
-const central = file => /src\/services\/(?:booking\/(?:requestBookingState|bookingTurnState\.repository|appointmentBookingTransition\.repository|requestBookingPersistence)|scheduling\/reschedule\/(?:finalize|recovery))/.test(file);
+const central = file => /src\/services\/(?:booking\/(?:requestBookingState|bookingTurnState\.repository|appointmentBookingTransition\.repository|requestBookingPersistence|requestStateTransaction|intakeHoldTransition\.repository)|scheduling\/reschedule\/(?:finalize|recovery))/.test(file);
 const ignored = file => /(?:^|\/)(?:__tests__|__mocks__|fixtures)(?:\/|$)|\.(?:test|spec)\./.test(file);
 function filesAt(folder) {
   return fs.readdirSync(folder,{withFileTypes:true}).flatMap(entry => {
@@ -55,6 +55,7 @@ function authority(node,p,file,seen=new Set()) {
   }
   if(binding?.path.isVariableDeclarator())return authority(binding.path.node.init,binding.path,file,seen);
   if(name==='model'&&/src\/db\/repositories/.test(file))return 'DynamicTenantRecord';
+  if(name==='model'&&file.endsWith('/requestStateTransaction.service.js'))return 'RegisteredStateRecord';
   return null;
 }
 function keysIn(node) {
@@ -67,9 +68,12 @@ function keysIn(node) {
   visit(node);return [...new Set(keys.filter(protectedPath))].sort();
 }
 function metadata(record,source,kind,file,name) {
-  const guards=[...new Set((source.match(/\b(?:assertDistributedLeaseActive|assertVoiceTurnActive|withDistributedLease|withBookingTransaction|bookingDecisionFilter|saveClaimed|intakeReviewVersion|claimToken|confirmationIntent|idempotencyKey|operationId|valuationVersion|session|\$where|__v)\b/g)||[]))].sort();
+  const guards=[...new Set((source.match(/\b(?:assertDistributedLeaseActive|assertVoiceTurnActive|withDistributedLease|withBookingTransaction|bookingDecisionFilter|saveClaimed|intakeReviewVersion|claimToken|confirmationIntent|idempotencyKey|operationId|valuationVersion|updatedAt|version|session|\$where|__v|createRequestBookingGuard|saveRequestBookingDocument|requestStateWrite|withRequestStateTransaction)\b/g)||[]))].sort();
   const repairs=[...new Set(source.match(/\b(?:repair\w+|tryRepair\w+|reconcile\w+|resolveRescheduleReviews|scheduleAppointmentReminders|scheduleAppointmentChangeNotice)\b/g)||[])].sort();
-  const updatedRecords=[...new Set([...source.matchAll(/\b(Appointment|Conversation|Lead|Alert|RecoveryCase)\.(?:updateOne|updateMany|findOneAndUpdate|create|deleteMany)\b/g)].map(match=>match[1]))].filter(name=>name!==record).sort();
+  const modelWrites=[...source.matchAll(/\b(Appointment|Conversation|Lead|Alert|RecoveryCase)\.(?:updateOne|updateMany|findOneAndUpdate|create|deleteMany)\b/g)].map(match=>match[1]);
+  const delegatedWrites=[...source.matchAll(/\bmodel:\s*(Appointment|Conversation|Lead|Alert|RecoveryCase)\b/g)].map(match=>match[1]);
+  const documentWrites=[...source.matchAll(/\b(appointment|conversation|lead|alert)\.(?:save|set)\b/g)].map(match=>resources.get(match[1]));
+  const updatedRecords=[...new Set([...modelWrites,...delegatedWrites,...documentWrites])].filter(name=>name!==record).sort();
   return { authoritativeRecord:record,
     allowedCommand:{module:file,function:name,mode:central(file)?'transition-layer':'registered-domain-command'},
     versionOrClaim:{kind:kind==='save'?'hydrated-document-session-and-hooks':'source-filter-or-command',evidence:guards,
@@ -85,19 +89,24 @@ export function scanStateWriters(root) {
     const ast=parse(source,{sourceType:'unambiguous',plugins:['jsx','importAttributes']});
     const ordinals=new Map();
     const importSha256=digest(ast.program.body.filter(node=>node.type==='ImportDeclaration'||node.source).map(node=>source.slice(node.start,node.end)).join('\n'));
-    const add=(p,record,kind,fields)=>{
+    const add=(p,record,kind,fields,predicateNode=null)=>{
       const name=nearestName(p),fn=p.getFunctionParent()?.node||ast.program;
       const owner=source.slice(fn.start,fn.end),key=`${relative}#${name}#${kind}`,ordinal=(ordinals.get(key)||0)+1;
       ordinals.set(key,ordinal);
       entries.push({id:`${key}#${ordinal}`,file:relative,line:p.node.loc.start.line,kind,fields,
         writerSha256:digest(source.slice(p.node.start,p.node.end)),ownerSha256:digest(owner),importSha256,
-        predicateSource: /^(?:update|find|replace|delete)/.test(kind)&&p.node.arguments?.[0]?source.slice(p.node.arguments[0].start,p.node.arguments[0].end):null,
+        predicateSource: predicateNode?source.slice(predicateNode.start,predicateNode.end):/^(?:update|find|replace|delete)/.test(kind)&&p.node.arguments?.[0]?source.slice(p.node.arguments[0].start,p.node.arguments[0].end):null,
         ...metadata(record,owner,kind,relative,name)});
     };
     traverse(ast,{
       CallExpression(p){
         const node=p.node,name=literal(node.callee.property)||literal(node.callee);
-        if(transitionNames.test(name)) { add(p,'Conversation','transition-command',[name]);return; }
+        if(transitionNames.test(name)) {
+          const properties=node.arguments[0]?.type==='ObjectExpression'?node.arguments[0].properties:[];
+          const value=key=>properties.find(property=>literal(property.key)===key)?.value;
+          const record=authority(value('model')||value('document'),p,relative)||'Conversation';
+          add(p,record,'transition-command',[name,...keysIn(value('changes'))],value('filter'));return;
+        }
         if(!mutations.has(name)&&name!=='set'&&name!=='assign'&&!node.callee.computed)return;
         const target=name==='assign'?node.arguments[0]:node.callee.object;
         const record=authority(target,p,relative)||(name==='save'?'DynamicDocument':null);

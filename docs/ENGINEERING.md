@@ -83,3 +83,48 @@ The reviewed source-parity record now protects the new composition callback,
 with the explicitly permitted phase imports; behavioral contracts protect the
 replacement phases. Complexity exceptions for the retired 427-line method and
 432-line factory are removed rather than transferred to the new modules.
+
+## State-writer registration and request persistence
+
+`contracts/state-writers.json` is the generated, reviewed inventory of durable
+record mutations and conservative writer candidates. `scripts/state-writers.mjs`
+uses the AST, resolves model/document aliases, and records each owner, authority,
+command, exact predicate, guard evidence and local projection/repair references.
+Full document saves, caller-bound tenant records and extracted write capabilities
+are included conservatively. Empty guard/repair evidence is an explicit review
+item; registration is not a correctness certificate or a whole-program dynamic
+JavaScript proof.
+
+`npm run contracts:state-writers` runs inside both canonical profiles. A new
+writer, a changed owning function/import binding, or a retired entry left behind
+fails the check. `npm run contracts:state-writers:generate` refreshes reviewed
+changes, but cannot register a newly introduced raw writer outside the transition
+layer. New domain code must call an approved transition command. The negative
+tests plant real source changes and assert that both the checker and regeneration
+reject an unregistered/bypassing writer. Existing registered domain commands keep
+their documented boundaries; this is a source enforcement path, not a runtime
+permission system for MongoDB.
+
+`requestBookingPersistence.service.js` owns booking decision filters, document
+saves and lease/turn fencing. `bookingTurnState.repository.js` is a compatibility
+export. Intake, request revision, withdrawal, eligibility and staff-review stages
+use its persistence commands and shared guard policy; they keep pure fact changes
+and existing observable ordering. The intake persist closure now belongs to this
+layer rather than the orchestration stage. Document-attached sessions, validators
+and save hooks remain intact.
+
+`requestStateTransaction.service.js` owns request-review MongoDB transactions,
+session binding, retry-attempt isolation and the final lease fence. Staff workflow
+commands receive no MongoDB session. `requestStateRead` and `requestStateWrite`
+bind their work to the current attempt. An idempotent replay that returns before
+writing retains the previous no-final-fence behavior. The stale-intake hold claim,
+retirement and review/projection writes belong to
+`intakeHoldTransition.repository.js`; the review service only requests that
+transition. Appointment-to-conversation projection inherits the owning transaction
+without requiring the caller to pass a session.
+
+Run `npx jest --runInBand requestBookingPersistence.characterization requestStateTransaction.contract rescheduleBoundaries.characterization reschedulePhases.contract`
+on every change to this layer, plus the related booking/intake/staff workflow
+suites. The baseline request-booking characterization is frozen. For shared
+persistence changes, include the complete booking-related test folder selection,
+then run the full canonical check at the end of the part.

@@ -1,3 +1,4 @@
+import { createRequestBookingGuard, saveRequestBookingDocument } from './booking/requestBookingPersistence.service.js';
 import { applyBookingStateTransition } from './booking/requestBookingState.js';
 import { isRequestWithdrawal, requestWasWithdrawn } from './conversationControlPolicy.js';
 export { isRequestWithdrawal, requestWasWithdrawn } from './conversationControlPolicy.js';
@@ -5,8 +6,6 @@ import AlertService from './alert.service.js';
 import cancelAppointment from '../helpers/ai/tools/cancelAppointment.tool.js';
 import { bookingQuestionReply } from './booking/conversationQuestions.service.js';
 import { respectCustomerConstraints } from './conversationCondition.service.js';
-import { assertDistributedLeaseActive } from './distributedLease.service.js';
-import { assertVoiceTurnActive } from './voiceTurnContext.service.js';
 
 const clean = value => String(value || '').replace(/\s+/g, ' ').trim();
 
@@ -29,7 +28,7 @@ const saveStaffAction = async payload => {
 export async function handleConversationControl({ business, lead, conversation, customerMessage, channel = 'sms' }) {
   if (!conversation || conversation.humanTakeover || conversation.aiEnabled === false || ['closed', 'archived'].includes(conversation.status)) return null;
   const text = clean(customerMessage);
-  const check = () => { assertDistributedLeaseActive(); if (channel === 'voice') assertVoiceTurnActive(); };
+  const check = createRequestBookingGuard(channel);
   if (isRequestWithdrawal(text)) {
     if (typeof conversation.save !== 'function') return result('I could not save the cancellation. Please contact the business directly.', lead);
     check();
@@ -40,7 +39,7 @@ export async function handleConversationControl({ business, lead, conversation, 
     } };
     conversation.markModified?.('conversationMemory');
     if (conversation.lifecycle) conversation.lifecycle.nextRecoveryNudgeAt = null;
-    await conversation.save(); check();
+    await saveRequestBookingDocument({ document: conversation, guard: check, before: false });
     const appointmentId = conversation.bookingState?.appointment;
     if (appointmentId) {
       try {
@@ -62,8 +61,8 @@ export async function handleConversationControl({ business, lead, conversation, 
       dedupeKey: `withdrawal:${conversation._id}:${conversation.orchestration?.recoveryJourneyKey || 'current'}` });
     check();
     applyBookingStateTransition(conversation, 'request_withdrawn');
-    await conversation.save(); check();
-    if (lead?.save) { lead.status = 'lost'; await lead.save(); check(); }
+    await saveRequestBookingDocument({ document: conversation, guard: check, before: false });
+    if (lead?.save) { lead.status = 'lost'; await saveRequestBookingDocument({ document: lead, guard: check, before: false }); }
     return result(appointmentId ? 'Your appointment has been canceled. I’m sorry we weren’t helpful.' : 'Your service request has been withdrawn. I’m sorry we weren’t helpful.', lead, { messageCategory: 'appointment_status' });
   }
   if (/\bcancel(?:lation)?\b/i.test(text) && !isRequestWithdrawal(text)) {

@@ -25,7 +25,8 @@
       "versionOrClaim": {
         "kind": "hydrated-document-session-and-hooks",
         "evidence": [
-          "session"
+          "session",
+          "updatedAt"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
@@ -689,8 +690,10 @@
       },
       "versionOrClaim": {
         "kind": "hydrated-document-session-and-hooks",
-        "evidence": [],
-        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
+        "evidence": [
+          "updatedAt"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
         "updatedRecords": [],
@@ -716,8 +719,10 @@
       },
       "versionOrClaim": {
         "kind": "hydrated-document-session-and-hooks",
-        "evidence": [],
-        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
+        "evidence": [
+          "updatedAt"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
         "updatedRecords": [],
@@ -1756,12 +1761,12 @@
     {
       "id": "src/services/booking/appointmentBookingTransition.repository.js#applyAppointmentBookingTransition#updateOne#1",
       "file": "src/services/booking/appointmentBookingTransition.repository.js",
-      "line": 100,
+      "line": 102,
       "kind": "updateOne",
       "fields": [],
-      "writerSha256": "1288e3fea2491a5e499dc38cd7bf0bed4d6385585fd08379cab5e664a9ce2d1b",
-      "ownerSha256": "4c138b1548cb64c82e706f70d521b55ae8703eae1fb316f884f815690e56080b",
-      "importSha256": "0faf225a95e2ee5edaf1d7bd3b3c0384f92a52fec0b1d3c598261457e46a4e4e",
+      "writerSha256": "f41bffd4dc9851ae2a22e4ef596b50924be877eede5ca51f492b37a2e3b4c527",
+      "ownerSha256": "7eb8e0c1ffd64d6941e0a6d5ed7f2ce22ee4e47f09be7493c9e4fd0a522b18de",
+      "importSha256": "116d1e866f991d19c292eb8a78a5b9fa1767f98958abeca0cd51ef3a12b093f8",
       "predicateSource": "{ _id: appointment.conversation, business: appointment.business, ...filter }",
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -1785,14 +1790,14 @@
     {
       "id": "src/services/booking/appointmentBookingTransition.repository.js#applyAppointmentBookingTransition#transition-command#1",
       "file": "src/services/booking/appointmentBookingTransition.repository.js",
-      "line": 103,
+      "line": 105,
       "kind": "transition-command",
       "fields": [
         "bookingStateFields"
       ],
       "writerSha256": "12574720ab4acd7947a373a682703c219824f9189571be67e3feff8588c072e8",
-      "ownerSha256": "4c138b1548cb64c82e706f70d521b55ae8703eae1fb316f884f815690e56080b",
-      "importSha256": "0faf225a95e2ee5edaf1d7bd3b3c0384f92a52fec0b1d3c598261457e46a4e4e",
+      "ownerSha256": "7eb8e0c1ffd64d6941e0a6d5ed7f2ce22ee4e47f09be7493c9e4fd0a522b18de",
+      "importSha256": "116d1e866f991d19c292eb8a78a5b9fa1767f98958abeca0cd51ef3a12b093f8",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -2231,7 +2236,9 @@
         "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Lead"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -2260,7 +2267,9 @@
         "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Lead"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -2316,7 +2325,9 @@
         "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Lead"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -2372,7 +2383,9 @@
         "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Lead"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -2401,7 +2414,9 @@
         "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Lead"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -2457,7 +2472,9 @@
         "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Lead"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -2516,7 +2533,9 @@
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Conversation"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -2548,7 +2567,9 @@
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Lead"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -2580,7 +2601,9 @@
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Lead"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -2642,69 +2665,9 @@
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
-        "localRepairCommands": [],
-        "review": "No local repair path established by this scan; review this owner before changing its effects."
-      }
-    },
-    {
-      "id": "src/services/booking/bookingTurnState.repository.js#updateState#transition-command#1",
-      "file": "src/services/booking/bookingTurnState.repository.js",
-      "line": 9,
-      "kind": "transition-command",
-      "fields": [
-        "applyBookingStateFields"
-      ],
-      "writerSha256": "807ade35ce75e2db8965d15cbfc8c2b6898c17dda49dba8c1460c5d7918f0b56",
-      "ownerSha256": "04a9117abd1617c6e1c2b8b6677e042dd71c058aeacad2aba50c29aa98581f46",
-      "importSha256": "d2357f623f1a0a3f70cb0d6611713e87f7086faeabcd69140b12cae21b46d9ee",
-      "predicateSource": null,
-      "authoritativeRecord": "Conversation",
-      "allowedCommand": {
-        "module": "src/services/booking/bookingTurnState.repository.js",
-        "function": "updateState",
-        "mode": "transition-layer"
-      },
-      "versionOrClaim": {
-        "kind": "source-filter-or-command",
-        "evidence": [
-          "assertDistributedLeaseActive",
-          "assertVoiceTurnActive"
+        "updatedRecords": [
+          "Lead"
         ],
-        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
-      },
-      "projectionsAndRepair": {
-        "updatedRecords": [],
-        "localRepairCommands": [],
-        "review": "No local repair path established by this scan; review this owner before changing its effects."
-      }
-    },
-    {
-      "id": "src/services/booking/bookingTurnState.repository.js#updateState#save#1",
-      "file": "src/services/booking/bookingTurnState.repository.js",
-      "line": 10,
-      "kind": "save",
-      "fields": [],
-      "writerSha256": "f9d76d8688cf8709e471bba9fc7ddef4d4546b898b1f68b4ff07e3fe5efb0802",
-      "ownerSha256": "04a9117abd1617c6e1c2b8b6677e042dd71c058aeacad2aba50c29aa98581f46",
-      "importSha256": "d2357f623f1a0a3f70cb0d6611713e87f7086faeabcd69140b12cae21b46d9ee",
-      "predicateSource": null,
-      "authoritativeRecord": "Conversation",
-      "allowedCommand": {
-        "module": "src/services/booking/bookingTurnState.repository.js",
-        "function": "updateState",
-        "mode": "transition-layer"
-      },
-      "versionOrClaim": {
-        "kind": "hydrated-document-session-and-hooks",
-        "evidence": [
-          "assertDistributedLeaseActive",
-          "assertVoiceTurnActive"
-        ],
-        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
-      },
-      "projectionsAndRepair": {
-        "updatedRecords": [],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -3035,22 +2998,23 @@
       }
     },
     {
-      "id": "src/services/booking/intakeHoldReview.service.js#<callback>#findOneAndUpdate#1",
-      "file": "src/services/booking/intakeHoldReview.service.js",
-      "line": 34,
-      "kind": "findOneAndUpdate",
+      "id": "src/services/booking/intakeHoldTransition.repository.js#<callback>#transition-command#1",
+      "file": "src/services/booking/intakeHoldTransition.repository.js",
+      "line": 23,
+      "kind": "transition-command",
       "fields": [
+        "requestStateWrite",
         "status"
       ],
-      "writerSha256": "be35b16a303e72b895bb5aa65e686aad8bff6abae191a48157b12de876561982",
-      "ownerSha256": "7b085f8b7c587ae866a350a54acde782e94b2540de776d99702b98c688ebc96d",
-      "importSha256": "4439448a73f57809bcaa6771cbe6c8f9dfdd9ab024b76e75f5d8583a3097dd72",
+      "writerSha256": "0764a2dcef7788246200aa120b38e2625f6497516cd5012d5572ab61b9ca9ecd",
+      "ownerSha256": "05f757da4298609d532abfafd719a04587c609ebcc436d7e38271487ce6bf94c",
+      "importSha256": "b2e837bb68a266fd66e7bca142e526801df0f3f493f5424d52c9502e729d0719",
       "predicateSource": "{\n      _id: appointment._id, business: appointment.business, status: appointment.status,\n      idempotencyKey: appointment.idempotencyKey, updatedAt: appointment.updatedAt,\n      ...(pending ? {\n        'confirmationIntent.status': 'pending_provider', 'confirmationIntent.token': intent.token,\n        'confirmationIntent.leaseUntil': { $gt: new Date() }, 'confirmationIntent.attempts': 0,\n      } : { 'confirmationIntent.status': { $ne: 'pending_provider' } }),\n    }",
       "authoritativeRecord": "Appointment",
       "allowedCommand": {
-        "module": "src/services/booking/intakeHoldReview.service.js",
+        "module": "src/services/booking/intakeHoldTransition.repository.js",
         "function": "<callback>",
-        "mode": "registered-domain-command"
+        "mode": "transition-layer"
       },
       "versionOrClaim": {
         "kind": "source-filter-or-command",
@@ -3058,7 +3022,8 @@
           "assertDistributedLeaseActive",
           "confirmationIntent",
           "idempotencyKey",
-          "session"
+          "requestStateWrite",
+          "updatedAt"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
@@ -3073,22 +3038,22 @@
       }
     },
     {
-      "id": "src/services/booking/intakeHoldReview.service.js#<callback>#transition-command#1",
-      "file": "src/services/booking/intakeHoldReview.service.js",
-      "line": 52,
+      "id": "src/services/booking/intakeHoldTransition.repository.js#<callback>#transition-command#2",
+      "file": "src/services/booking/intakeHoldTransition.repository.js",
+      "line": 41,
       "kind": "transition-command",
       "fields": [
         "applyAppointmentBookingTransition"
       ],
-      "writerSha256": "d1b289bd5d9fe668a3a65a1348b2a7b6389a7df42007f54f61ec30dccc09b871",
-      "ownerSha256": "7b085f8b7c587ae866a350a54acde782e94b2540de776d99702b98c688ebc96d",
-      "importSha256": "4439448a73f57809bcaa6771cbe6c8f9dfdd9ab024b76e75f5d8583a3097dd72",
+      "writerSha256": "c05c21881368eb123bfca9d1c12245a9158ff86944280c27927e8bad11f1fa88",
+      "ownerSha256": "05f757da4298609d532abfafd719a04587c609ebcc436d7e38271487ce6bf94c",
+      "importSha256": "b2e837bb68a266fd66e7bca142e526801df0f3f493f5424d52c9502e729d0719",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
-        "module": "src/services/booking/intakeHoldReview.service.js",
+        "module": "src/services/booking/intakeHoldTransition.repository.js",
         "function": "<callback>",
-        "mode": "registered-domain-command"
+        "mode": "transition-layer"
       },
       "versionOrClaim": {
         "kind": "source-filter-or-command",
@@ -3096,7 +3061,8 @@
           "assertDistributedLeaseActive",
           "confirmationIntent",
           "idempotencyKey",
-          "session"
+          "requestStateWrite",
+          "updatedAt"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
@@ -3112,24 +3078,25 @@
       }
     },
     {
-      "id": "src/services/booking/intakeHoldReview.service.js#<callback>#updateMany#1",
-      "file": "src/services/booking/intakeHoldReview.service.js",
-      "line": 53,
-      "kind": "updateMany",
+      "id": "src/services/booking/intakeHoldTransition.repository.js#<callback>#transition-command#3",
+      "file": "src/services/booking/intakeHoldTransition.repository.js",
+      "line": 42,
+      "kind": "transition-command",
       "fields": [
+        "requestStateWrite",
         "actionRequired",
         "resolvedAt",
         "status"
       ],
-      "writerSha256": "fcea2b9a5be841019d909be5ede64349ed5b57bf0a8ff6ca3f841ebe603ecff9",
-      "ownerSha256": "7b085f8b7c587ae866a350a54acde782e94b2540de776d99702b98c688ebc96d",
-      "importSha256": "4439448a73f57809bcaa6771cbe6c8f9dfdd9ab024b76e75f5d8583a3097dd72",
+      "writerSha256": "b2fe4ccf08a622d36ea4114f0ec4907a3f487659c94d9aa4e1f6cc05310e19d1",
+      "ownerSha256": "05f757da4298609d532abfafd719a04587c609ebcc436d7e38271487ce6bf94c",
+      "importSha256": "b2e837bb68a266fd66e7bca142e526801df0f3f493f5424d52c9502e729d0719",
       "predicateSource": "{\n      business: retired.business, appointment: retired._id, 'metadata.approvalRequest': true, resolvedAt: null,\n    }",
       "authoritativeRecord": "Alert",
       "allowedCommand": {
-        "module": "src/services/booking/intakeHoldReview.service.js",
+        "module": "src/services/booking/intakeHoldTransition.repository.js",
         "function": "<callback>",
-        "mode": "registered-domain-command"
+        "mode": "transition-layer"
       },
       "versionOrClaim": {
         "kind": "source-filter-or-command",
@@ -3137,7 +3104,8 @@
           "assertDistributedLeaseActive",
           "confirmationIntent",
           "idempotencyKey",
-          "session"
+          "requestStateWrite",
+          "updatedAt"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
@@ -3327,16 +3295,16 @@
       }
     },
     {
-      "id": "src/services/booking/recoveryIntake/captureRequestFacts.js#captureRequestFacts#write-capability-reference#1",
+      "id": "src/services/booking/recoveryIntake/captureRequestFacts.js#captureRequestFacts#transition-command#1",
       "file": "src/services/booking/recoveryIntake/captureRequestFacts.js",
-      "line": 12,
-      "kind": "write-capability-reference",
+      "line": 15,
+      "kind": "transition-command",
       "fields": [
-        "save"
+        "saveRequestBookingDocument"
       ],
-      "writerSha256": "5356c700b9fe7b75d67139c1cf65af49d953a449f7fc2f1bfecd926b3b57cfa5",
-      "ownerSha256": "b06800b22951c3378a1ca994d10d39570809902e32c9e69738b725aecc7d1e5e",
-      "importSha256": "c6d6264bac31885b8f34ddd93a7bb661442d10a7b6ebb52924275b901b95ca53",
+      "writerSha256": "f0045d18f552b31b0dfddd987b4ac1afa9757f072fd0e65be6129afe9a677eb2",
+      "ownerSha256": "aebb34d55e48c3fa3b5971465ce309c551ba579b42ef358ff6168522837acb51",
+      "importSha256": "86e2cb81ed6f425a15e737850f6e243e73bac18d280ec579ea7a0e72aa277e82",
       "predicateSource": null,
       "authoritativeRecord": "Lead",
       "allowedCommand": {
@@ -3347,8 +3315,7 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
-          "assertDistributedLeaseActive",
-          "assertVoiceTurnActive"
+          "saveRequestBookingDocument"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
@@ -3359,16 +3326,16 @@
       }
     },
     {
-      "id": "src/services/booking/recoveryIntake/captureRequestFacts.js#captureRequestFacts#transition-command#1",
+      "id": "src/services/booking/recoveryIntake/captureRequestFacts.js#captureRequestFacts#transition-command#2",
       "file": "src/services/booking/recoveryIntake/captureRequestFacts.js",
-      "line": 17,
+      "line": 20,
       "kind": "transition-command",
       "fields": [
         "applyBookingStateTransition"
       ],
       "writerSha256": "4d2704b546a3a6539f675ea89711a392bdcf87bf5b413928559ac67a9a69c860",
-      "ownerSha256": "b06800b22951c3378a1ca994d10d39570809902e32c9e69738b725aecc7d1e5e",
-      "importSha256": "c6d6264bac31885b8f34ddd93a7bb661442d10a7b6ebb52924275b901b95ca53",
+      "ownerSha256": "aebb34d55e48c3fa3b5971465ce309c551ba579b42ef358ff6168522837acb51",
+      "importSha256": "86e2cb81ed6f425a15e737850f6e243e73bac18d280ec579ea7a0e72aa277e82",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -3379,8 +3346,7 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
-          "assertDistributedLeaseActive",
-          "assertVoiceTurnActive"
+          "saveRequestBookingDocument"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
@@ -3393,14 +3359,14 @@
     {
       "id": "src/services/booking/recoveryIntake/captureRequestFacts.js#captureRequestFacts#assignment#1",
       "file": "src/services/booking/recoveryIntake/captureRequestFacts.js",
-      "line": 19,
+      "line": 22,
       "kind": "assignment",
       "fields": [
         "conversationMemory.recoveryIntake.availability"
       ],
       "writerSha256": "08f548f7ba82106ef9f4dff8de3194cb4d56834911a6d234ca719fae8c0ce0c8",
-      "ownerSha256": "b06800b22951c3378a1ca994d10d39570809902e32c9e69738b725aecc7d1e5e",
-      "importSha256": "c6d6264bac31885b8f34ddd93a7bb661442d10a7b6ebb52924275b901b95ca53",
+      "ownerSha256": "aebb34d55e48c3fa3b5971465ce309c551ba579b42ef358ff6168522837acb51",
+      "importSha256": "86e2cb81ed6f425a15e737850f6e243e73bac18d280ec579ea7a0e72aa277e82",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -3411,8 +3377,7 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
-          "assertDistributedLeaseActive",
-          "assertVoiceTurnActive"
+          "saveRequestBookingDocument"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
@@ -3425,14 +3390,14 @@
     {
       "id": "src/services/booking/recoveryIntake/captureRequestFacts.js#captureRequestFacts#assignment#2",
       "file": "src/services/booking/recoveryIntake/captureRequestFacts.js",
-      "line": 20,
+      "line": 23,
       "kind": "assignment",
       "fields": [
         "conversationMemory.recoveryIntake.submitted"
       ],
       "writerSha256": "db0a88c5e8034da13636d47a5f21173a961028507fe4152b75d9673687c94b49",
-      "ownerSha256": "b06800b22951c3378a1ca994d10d39570809902e32c9e69738b725aecc7d1e5e",
-      "importSha256": "c6d6264bac31885b8f34ddd93a7bb661442d10a7b6ebb52924275b901b95ca53",
+      "ownerSha256": "aebb34d55e48c3fa3b5971465ce309c551ba579b42ef358ff6168522837acb51",
+      "importSha256": "86e2cb81ed6f425a15e737850f6e243e73bac18d280ec579ea7a0e72aa277e82",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -3443,8 +3408,7 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
-          "assertDistributedLeaseActive",
-          "assertVoiceTurnActive"
+          "saveRequestBookingDocument"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
@@ -3455,48 +3419,47 @@
       }
     },
     {
-      "id": "src/services/booking/recoveryIntake/captureRequestFacts.js#captureRequestFacts#write-capability-reference#2",
-      "file": "src/services/booking/recoveryIntake/captureRequestFacts.js",
-      "line": 23,
-      "kind": "write-capability-reference",
-      "fields": [
-        "save"
-      ],
-      "writerSha256": "5bb6b3f4eac04609eebd5f47d6923f43abf44399f9c75e0b2af2d68f6061cbdd",
-      "ownerSha256": "b06800b22951c3378a1ca994d10d39570809902e32c9e69738b725aecc7d1e5e",
-      "importSha256": "c6d6264bac31885b8f34ddd93a7bb661442d10a7b6ebb52924275b901b95ca53",
-      "predicateSource": null,
-      "authoritativeRecord": "Conversation",
-      "allowedCommand": {
-        "module": "src/services/booking/recoveryIntake/captureRequestFacts.js",
-        "function": "captureRequestFacts",
-        "mode": "registered-domain-command"
-      },
-      "versionOrClaim": {
-        "kind": "source-filter-or-command",
-        "evidence": [
-          "assertDistributedLeaseActive",
-          "assertVoiceTurnActive"
-        ],
-        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
-      },
-      "projectionsAndRepair": {
-        "updatedRecords": [],
-        "localRepairCommands": [],
-        "review": "No local repair path established by this scan; review this owner before changing its effects."
-      }
-    },
-    {
-      "id": "src/services/booking/recoveryIntake/captureRequestFacts.js#captureRequestFacts#write-capability-reference#3",
+      "id": "src/services/booking/recoveryIntake/captureRequestFacts.js#captureRequestFacts#transition-command#3",
       "file": "src/services/booking/recoveryIntake/captureRequestFacts.js",
       "line": 26,
-      "kind": "write-capability-reference",
+      "kind": "transition-command",
       "fields": [
-        "save"
+        "saveRequestBookingDocument"
       ],
-      "writerSha256": "5356c700b9fe7b75d67139c1cf65af49d953a449f7fc2f1bfecd926b3b57cfa5",
-      "ownerSha256": "b06800b22951c3378a1ca994d10d39570809902e32c9e69738b725aecc7d1e5e",
-      "importSha256": "c6d6264bac31885b8f34ddd93a7bb661442d10a7b6ebb52924275b901b95ca53",
+      "writerSha256": "7e9dd7d35cf8de4d39b957f231419ca07fd0babea144e796ffaaa8957d777167",
+      "ownerSha256": "aebb34d55e48c3fa3b5971465ce309c551ba579b42ef358ff6168522837acb51",
+      "importSha256": "86e2cb81ed6f425a15e737850f6e243e73bac18d280ec579ea7a0e72aa277e82",
+      "predicateSource": null,
+      "authoritativeRecord": "Conversation",
+      "allowedCommand": {
+        "module": "src/services/booking/recoveryIntake/captureRequestFacts.js",
+        "function": "captureRequestFacts",
+        "mode": "registered-domain-command"
+      },
+      "versionOrClaim": {
+        "kind": "source-filter-or-command",
+        "evidence": [
+          "saveRequestBookingDocument"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [],
+        "localRepairCommands": [],
+        "review": "No local repair path established by this scan; review this owner before changing its effects."
+      }
+    },
+    {
+      "id": "src/services/booking/recoveryIntake/captureRequestFacts.js#captureRequestFacts#transition-command#4",
+      "file": "src/services/booking/recoveryIntake/captureRequestFacts.js",
+      "line": 28,
+      "kind": "transition-command",
+      "fields": [
+        "saveRequestBookingDocument"
+      ],
+      "writerSha256": "f0045d18f552b31b0dfddd987b4ac1afa9757f072fd0e65be6129afe9a677eb2",
+      "ownerSha256": "aebb34d55e48c3fa3b5971465ce309c551ba579b42ef358ff6168522837acb51",
+      "importSha256": "86e2cb81ed6f425a15e737850f6e243e73bac18d280ec579ea7a0e72aa277e82",
       "predicateSource": null,
       "authoritativeRecord": "Lead",
       "allowedCommand": {
@@ -3507,8 +3470,7 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
-          "assertDistributedLeaseActive",
-          "assertVoiceTurnActive"
+          "saveRequestBookingDocument"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
@@ -3521,14 +3483,14 @@
     {
       "id": "src/services/booking/recoveryIntake/classifyRequestContext.js#classifyRequestContext#write-capability-reference#1",
       "file": "src/services/booking/recoveryIntake/classifyRequestContext.js",
-      "line": 5,
+      "line": 6,
       "kind": "write-capability-reference",
       "fields": [
         "save"
       ],
       "writerSha256": "5356c700b9fe7b75d67139c1cf65af49d953a449f7fc2f1bfecd926b3b57cfa5",
-      "ownerSha256": "1a0b06edb9a2b8ae4e7ddf30d397ab089d7e549bbd25f387c9dd6db7aadbfe7c",
-      "importSha256": "8043cc70091bd6eede29cccff046b03d2853d4c1e0d257f1bc2de0e2352d5be3",
+      "ownerSha256": "8bbca1f1ca8bcd825ade8f1493dd5102fc8b9262c0503ab9425f80402844fce6",
+      "importSha256": "d5cefe32a679dc42c5c6d7332ddddffc059bf0e46330117c184b4496b6b0a1f2",
       "predicateSource": null,
       "authoritativeRecord": "Lead",
       "allowedCommand": {
@@ -3539,14 +3501,15 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
-          "assertDistributedLeaseActive",
-          "assertVoiceTurnActive",
+          "createRequestBookingGuard",
           "session"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Conversation"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -3554,14 +3517,14 @@
     {
       "id": "src/services/booking/recoveryIntake/classifyRequestContext.js#classifyRequestContext#write-capability-reference#2",
       "file": "src/services/booking/recoveryIntake/classifyRequestContext.js",
-      "line": 5,
+      "line": 6,
       "kind": "write-capability-reference",
       "fields": [
         "save"
       ],
       "writerSha256": "5bb6b3f4eac04609eebd5f47d6923f43abf44399f9c75e0b2af2d68f6061cbdd",
-      "ownerSha256": "1a0b06edb9a2b8ae4e7ddf30d397ab089d7e549bbd25f387c9dd6db7aadbfe7c",
-      "importSha256": "8043cc70091bd6eede29cccff046b03d2853d4c1e0d257f1bc2de0e2352d5be3",
+      "ownerSha256": "8bbca1f1ca8bcd825ade8f1493dd5102fc8b9262c0503ab9425f80402844fce6",
+      "importSha256": "d5cefe32a679dc42c5c6d7332ddddffc059bf0e46330117c184b4496b6b0a1f2",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -3572,126 +3535,15 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
-          "assertDistributedLeaseActive",
-          "assertVoiceTurnActive",
+          "createRequestBookingGuard",
           "session"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
-        "localRepairCommands": [],
-        "review": "No local repair path established by this scan; review this owner before changing its effects."
-      }
-    },
-    {
-      "id": "src/services/booking/recoveryIntake/createIntakeActions.js#persist#save#1",
-      "file": "src/services/booking/recoveryIntake/createIntakeActions.js",
-      "line": 18,
-      "kind": "save",
-      "fields": [],
-      "writerSha256": "c1f33698a55b6088975bde334ddc88f09ad1de3d1e301d51008cf686fdb14849",
-      "ownerSha256": "daade720f7643ca257277232227a92bc85ea14b2299993fd1bd229a5c02a7fc2",
-      "importSha256": "69eb885fdba816f12b214de9310061c7adde23c25a00c8608b27beab25236857",
-      "predicateSource": null,
-      "authoritativeRecord": "Lead",
-      "allowedCommand": {
-        "module": "src/services/booking/recoveryIntake/createIntakeActions.js",
-        "function": "persist",
-        "mode": "registered-domain-command"
-      },
-      "versionOrClaim": {
-        "kind": "hydrated-document-session-and-hooks",
-        "evidence": [],
-        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
-      },
-      "projectionsAndRepair": {
-        "updatedRecords": [],
-        "localRepairCommands": [],
-        "review": "No local repair path established by this scan; review this owner before changing its effects."
-      }
-    },
-    {
-      "id": "src/services/booking/recoveryIntake/createIntakeActions.js#persist#set#1",
-      "file": "src/services/booking/recoveryIntake/createIntakeActions.js",
-      "line": 26,
-      "kind": "set",
-      "fields": [
-        "conversationMemory.recoveryIntake"
-      ],
-      "writerSha256": "1424c2e63529a0dfde28c230d75d62ce5d3a82680c80038e88e6464861cdee58",
-      "ownerSha256": "daade720f7643ca257277232227a92bc85ea14b2299993fd1bd229a5c02a7fc2",
-      "importSha256": "69eb885fdba816f12b214de9310061c7adde23c25a00c8608b27beab25236857",
-      "predicateSource": null,
-      "authoritativeRecord": "Conversation",
-      "allowedCommand": {
-        "module": "src/services/booking/recoveryIntake/createIntakeActions.js",
-        "function": "persist",
-        "mode": "registered-domain-command"
-      },
-      "versionOrClaim": {
-        "kind": "source-filter-or-command",
-        "evidence": [],
-        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
-      },
-      "projectionsAndRepair": {
-        "updatedRecords": [],
-        "localRepairCommands": [],
-        "review": "No local repair path established by this scan; review this owner before changing its effects."
-      }
-    },
-    {
-      "id": "src/services/booking/recoveryIntake/createIntakeActions.js#persist#assignment#1",
-      "file": "src/services/booking/recoveryIntake/createIntakeActions.js",
-      "line": 27,
-      "kind": "assignment",
-      "fields": [
-        "conversationMemory"
-      ],
-      "writerSha256": "7e6df5f98d33bea1c12f7031a9e8a722c1667e37e319c7fe75db3878303eaf0d",
-      "ownerSha256": "daade720f7643ca257277232227a92bc85ea14b2299993fd1bd229a5c02a7fc2",
-      "importSha256": "69eb885fdba816f12b214de9310061c7adde23c25a00c8608b27beab25236857",
-      "predicateSource": null,
-      "authoritativeRecord": "Conversation",
-      "allowedCommand": {
-        "module": "src/services/booking/recoveryIntake/createIntakeActions.js",
-        "function": "persist",
-        "mode": "registered-domain-command"
-      },
-      "versionOrClaim": {
-        "kind": "source-filter-or-command",
-        "evidence": [],
-        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
-      },
-      "projectionsAndRepair": {
-        "updatedRecords": [],
-        "localRepairCommands": [],
-        "review": "No local repair path established by this scan; review this owner before changing its effects."
-      }
-    },
-    {
-      "id": "src/services/booking/recoveryIntake/createIntakeActions.js#persist#save#2",
-      "file": "src/services/booking/recoveryIntake/createIntakeActions.js",
-      "line": 29,
-      "kind": "save",
-      "fields": [],
-      "writerSha256": "f9d76d8688cf8709e471bba9fc7ddef4d4546b898b1f68b4ff07e3fe5efb0802",
-      "ownerSha256": "daade720f7643ca257277232227a92bc85ea14b2299993fd1bd229a5c02a7fc2",
-      "importSha256": "69eb885fdba816f12b214de9310061c7adde23c25a00c8608b27beab25236857",
-      "predicateSource": null,
-      "authoritativeRecord": "Conversation",
-      "allowedCommand": {
-        "module": "src/services/booking/recoveryIntake/createIntakeActions.js",
-        "function": "persist",
-        "mode": "registered-domain-command"
-      },
-      "versionOrClaim": {
-        "kind": "hydrated-document-session-and-hooks",
-        "evidence": [],
-        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
-      },
-      "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Lead"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -3750,6 +3602,217 @@
       },
       "projectionsAndRepair": {
         "updatedRecords": [],
+        "localRepairCommands": [],
+        "review": "No local repair path established by this scan; review this owner before changing its effects."
+      }
+    },
+    {
+      "id": "src/services/booking/requestBookingPersistence.service.js#updateState#transition-command#1",
+      "file": "src/services/booking/requestBookingPersistence.service.js",
+      "line": 9,
+      "kind": "transition-command",
+      "fields": [
+        "applyBookingStateFields"
+      ],
+      "writerSha256": "807ade35ce75e2db8965d15cbfc8c2b6898c17dda49dba8c1460c5d7918f0b56",
+      "ownerSha256": "04a9117abd1617c6e1c2b8b6677e042dd71c058aeacad2aba50c29aa98581f46",
+      "importSha256": "d2357f623f1a0a3f70cb0d6611713e87f7086faeabcd69140b12cae21b46d9ee",
+      "predicateSource": null,
+      "authoritativeRecord": "Conversation",
+      "allowedCommand": {
+        "module": "src/services/booking/requestBookingPersistence.service.js",
+        "function": "updateState",
+        "mode": "transition-layer"
+      },
+      "versionOrClaim": {
+        "kind": "source-filter-or-command",
+        "evidence": [
+          "assertDistributedLeaseActive",
+          "assertVoiceTurnActive"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [],
+        "localRepairCommands": [],
+        "review": "No local repair path established by this scan; review this owner before changing its effects."
+      }
+    },
+    {
+      "id": "src/services/booking/requestBookingPersistence.service.js#updateState#save#1",
+      "file": "src/services/booking/requestBookingPersistence.service.js",
+      "line": 10,
+      "kind": "save",
+      "fields": [],
+      "writerSha256": "f9d76d8688cf8709e471bba9fc7ddef4d4546b898b1f68b4ff07e3fe5efb0802",
+      "ownerSha256": "04a9117abd1617c6e1c2b8b6677e042dd71c058aeacad2aba50c29aa98581f46",
+      "importSha256": "d2357f623f1a0a3f70cb0d6611713e87f7086faeabcd69140b12cae21b46d9ee",
+      "predicateSource": null,
+      "authoritativeRecord": "Conversation",
+      "allowedCommand": {
+        "module": "src/services/booking/requestBookingPersistence.service.js",
+        "function": "updateState",
+        "mode": "transition-layer"
+      },
+      "versionOrClaim": {
+        "kind": "hydrated-document-session-and-hooks",
+        "evidence": [
+          "assertDistributedLeaseActive",
+          "assertVoiceTurnActive"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [],
+        "localRepairCommands": [],
+        "review": "No local repair path established by this scan; review this owner before changing its effects."
+      }
+    },
+    {
+      "id": "src/services/booking/requestBookingPersistence.service.js#saveRequestBookingDocument#save#1",
+      "file": "src/services/booking/requestBookingPersistence.service.js",
+      "line": 134,
+      "kind": "save",
+      "fields": [],
+      "writerSha256": "d56e844db1a7176f9e0127337e85679972a74b1e2cd9e83f668b060ad560dee0",
+      "ownerSha256": "661e8806b3b50a70fed40b2b7b98f58979dc11750ecba551efa3ebc10dffbeee",
+      "importSha256": "d2357f623f1a0a3f70cb0d6611713e87f7086faeabcd69140b12cae21b46d9ee",
+      "predicateSource": null,
+      "authoritativeRecord": "DynamicDocument",
+      "allowedCommand": {
+        "module": "src/services/booking/requestBookingPersistence.service.js",
+        "function": "saveRequestBookingDocument",
+        "mode": "transition-layer"
+      },
+      "versionOrClaim": {
+        "kind": "hydrated-document-session-and-hooks",
+        "evidence": [
+          "saveRequestBookingDocument"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [],
+        "localRepairCommands": [],
+        "review": "No local repair path established by this scan; review this owner before changing its effects."
+      }
+    },
+    {
+      "id": "src/services/booking/requestBookingPersistence.service.js#<callback>#save#1",
+      "file": "src/services/booking/requestBookingPersistence.service.js",
+      "line": 142,
+      "kind": "save",
+      "fields": [],
+      "writerSha256": "c1f33698a55b6088975bde334ddc88f09ad1de3d1e301d51008cf686fdb14849",
+      "ownerSha256": "daade720f7643ca257277232227a92bc85ea14b2299993fd1bd229a5c02a7fc2",
+      "importSha256": "d2357f623f1a0a3f70cb0d6611713e87f7086faeabcd69140b12cae21b46d9ee",
+      "predicateSource": null,
+      "authoritativeRecord": "Lead",
+      "allowedCommand": {
+        "module": "src/services/booking/requestBookingPersistence.service.js",
+        "function": "<callback>",
+        "mode": "transition-layer"
+      },
+      "versionOrClaim": {
+        "kind": "hydrated-document-session-and-hooks",
+        "evidence": [],
+        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [
+          "Conversation"
+        ],
+        "localRepairCommands": [],
+        "review": "No local repair path established by this scan; review this owner before changing its effects."
+      }
+    },
+    {
+      "id": "src/services/booking/requestBookingPersistence.service.js#<callback>#set#1",
+      "file": "src/services/booking/requestBookingPersistence.service.js",
+      "line": 150,
+      "kind": "set",
+      "fields": [
+        "conversationMemory.recoveryIntake"
+      ],
+      "writerSha256": "1424c2e63529a0dfde28c230d75d62ce5d3a82680c80038e88e6464861cdee58",
+      "ownerSha256": "daade720f7643ca257277232227a92bc85ea14b2299993fd1bd229a5c02a7fc2",
+      "importSha256": "d2357f623f1a0a3f70cb0d6611713e87f7086faeabcd69140b12cae21b46d9ee",
+      "predicateSource": null,
+      "authoritativeRecord": "Conversation",
+      "allowedCommand": {
+        "module": "src/services/booking/requestBookingPersistence.service.js",
+        "function": "<callback>",
+        "mode": "transition-layer"
+      },
+      "versionOrClaim": {
+        "kind": "source-filter-or-command",
+        "evidence": [],
+        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [
+          "Lead"
+        ],
+        "localRepairCommands": [],
+        "review": "No local repair path established by this scan; review this owner before changing its effects."
+      }
+    },
+    {
+      "id": "src/services/booking/requestBookingPersistence.service.js#<callback>#assignment#1",
+      "file": "src/services/booking/requestBookingPersistence.service.js",
+      "line": 151,
+      "kind": "assignment",
+      "fields": [
+        "conversationMemory"
+      ],
+      "writerSha256": "7e6df5f98d33bea1c12f7031a9e8a722c1667e37e319c7fe75db3878303eaf0d",
+      "ownerSha256": "daade720f7643ca257277232227a92bc85ea14b2299993fd1bd229a5c02a7fc2",
+      "importSha256": "d2357f623f1a0a3f70cb0d6611713e87f7086faeabcd69140b12cae21b46d9ee",
+      "predicateSource": null,
+      "authoritativeRecord": "Conversation",
+      "allowedCommand": {
+        "module": "src/services/booking/requestBookingPersistence.service.js",
+        "function": "<callback>",
+        "mode": "transition-layer"
+      },
+      "versionOrClaim": {
+        "kind": "source-filter-or-command",
+        "evidence": [],
+        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [
+          "Lead"
+        ],
+        "localRepairCommands": [],
+        "review": "No local repair path established by this scan; review this owner before changing its effects."
+      }
+    },
+    {
+      "id": "src/services/booking/requestBookingPersistence.service.js#<callback>#save#2",
+      "file": "src/services/booking/requestBookingPersistence.service.js",
+      "line": 153,
+      "kind": "save",
+      "fields": [],
+      "writerSha256": "f9d76d8688cf8709e471bba9fc7ddef4d4546b898b1f68b4ff07e3fe5efb0802",
+      "ownerSha256": "daade720f7643ca257277232227a92bc85ea14b2299993fd1bd229a5c02a7fc2",
+      "importSha256": "d2357f623f1a0a3f70cb0d6611713e87f7086faeabcd69140b12cae21b46d9ee",
+      "predicateSource": null,
+      "authoritativeRecord": "Conversation",
+      "allowedCommand": {
+        "module": "src/services/booking/requestBookingPersistence.service.js",
+        "function": "<callback>",
+        "mode": "transition-layer"
+      },
+      "versionOrClaim": {
+        "kind": "hydrated-document-session-and-hooks",
+        "evidence": [],
+        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [
+          "Lead"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -3898,16 +3961,45 @@
       }
     },
     {
+      "id": "src/services/booking/requestStateTransaction.service.js#requestStateWrite#dynamic-method#1",
+      "file": "src/services/booking/requestStateTransaction.service.js",
+      "line": 33,
+      "kind": "dynamic-method",
+      "fields": [],
+      "writerSha256": "b15f02020c6d3a50e383629a32ee441bf5b2014c040500043873f7eafd40654d",
+      "ownerSha256": "4fbd05fccb84ca0ce360f9cca967479233278498d07a53a9188fabc5691da138",
+      "importSha256": "7f880b42354164fb2c62519952b76bcafe04695f920de59d57bd01ff454b85b6",
+      "predicateSource": null,
+      "authoritativeRecord": "RegisteredStateRecord",
+      "allowedCommand": {
+        "module": "src/services/booking/requestStateTransaction.service.js",
+        "function": "requestStateWrite",
+        "mode": "transition-layer"
+      },
+      "versionOrClaim": {
+        "kind": "source-filter-or-command",
+        "evidence": [
+          "requestStateWrite"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [],
+        "localRepairCommands": [],
+        "review": "No local repair path established by this scan; review this owner before changing its effects."
+      }
+    },
+    {
       "id": "src/services/booking/staffSchedulingReview.service.js#requestStaffSchedulingReview#write-capability-reference#1",
       "file": "src/services/booking/staffSchedulingReview.service.js",
-      "line": 22,
+      "line": 21,
       "kind": "write-capability-reference",
       "fields": [
         "save"
       ],
       "writerSha256": "5356c700b9fe7b75d67139c1cf65af49d953a449f7fc2f1bfecd926b3b57cfa5",
-      "ownerSha256": "765987fd75cc0029225dbe4332dd42661b7d9f808361a9723563672e24824119",
-      "importSha256": "2a81c2bb6524786cdf7918dfd1f7c009a1a4dc62fbe96e297608b9de8c22cd51",
+      "ownerSha256": "e17b557ec4f3c9ca2d355c812530111dafaca3d8df484cc9cff5e56212f4b89b",
+      "importSha256": "c5766275e7b9804366d4068cfc04a8efc874a54cbc2bf3ab1f37c0ea84366460",
       "predicateSource": null,
       "authoritativeRecord": "Lead",
       "allowedCommand": {
@@ -3918,75 +4010,15 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
-          "assertDistributedLeaseActive",
-          "assertVoiceTurnActive"
+          "createRequestBookingGuard",
+          "saveRequestBookingDocument"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
-        "localRepairCommands": [],
-        "review": "No local repair path established by this scan; review this owner before changing its effects."
-      }
-    },
-    {
-      "id": "src/services/booking/staffSchedulingReview.service.js#requestStaffSchedulingReview#save#1",
-      "file": "src/services/booking/staffSchedulingReview.service.js",
-      "line": 24,
-      "kind": "save",
-      "fields": [],
-      "writerSha256": "c1f33698a55b6088975bde334ddc88f09ad1de3d1e301d51008cf686fdb14849",
-      "ownerSha256": "765987fd75cc0029225dbe4332dd42661b7d9f808361a9723563672e24824119",
-      "importSha256": "2a81c2bb6524786cdf7918dfd1f7c009a1a4dc62fbe96e297608b9de8c22cd51",
-      "predicateSource": null,
-      "authoritativeRecord": "Lead",
-      "allowedCommand": {
-        "module": "src/services/booking/staffSchedulingReview.service.js",
-        "function": "requestStaffSchedulingReview",
-        "mode": "registered-domain-command"
-      },
-      "versionOrClaim": {
-        "kind": "hydrated-document-session-and-hooks",
-        "evidence": [
-          "assertDistributedLeaseActive",
-          "assertVoiceTurnActive"
+        "updatedRecords": [
+          "Conversation"
         ],
-        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
-      },
-      "projectionsAndRepair": {
-        "updatedRecords": [],
-        "localRepairCommands": [],
-        "review": "No local repair path established by this scan; review this owner before changing its effects."
-      }
-    },
-    {
-      "id": "src/services/booking/staffSchedulingReview.service.js#requestStaffSchedulingReview#write-capability-reference#2",
-      "file": "src/services/booking/staffSchedulingReview.service.js",
-      "line": 36,
-      "kind": "write-capability-reference",
-      "fields": [
-        "save"
-      ],
-      "writerSha256": "5bb6b3f4eac04609eebd5f47d6923f43abf44399f9c75e0b2af2d68f6061cbdd",
-      "ownerSha256": "765987fd75cc0029225dbe4332dd42661b7d9f808361a9723563672e24824119",
-      "importSha256": "2a81c2bb6524786cdf7918dfd1f7c009a1a4dc62fbe96e297608b9de8c22cd51",
-      "predicateSource": null,
-      "authoritativeRecord": "Conversation",
-      "allowedCommand": {
-        "module": "src/services/booking/staffSchedulingReview.service.js",
-        "function": "requestStaffSchedulingReview",
-        "mode": "registered-domain-command"
-      },
-      "versionOrClaim": {
-        "kind": "source-filter-or-command",
-        "evidence": [
-          "assertDistributedLeaseActive",
-          "assertVoiceTurnActive"
-        ],
-        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
-      },
-      "projectionsAndRepair": {
-        "updatedRecords": [],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -3994,14 +4026,48 @@
     {
       "id": "src/services/booking/staffSchedulingReview.service.js#requestStaffSchedulingReview#transition-command#1",
       "file": "src/services/booking/staffSchedulingReview.service.js",
-      "line": 37,
+      "line": 23,
       "kind": "transition-command",
       "fields": [
-        "applyBookingStateTransition"
+        "saveRequestBookingDocument"
       ],
-      "writerSha256": "78426d453d0f30015db141d8c55ec98e54a58df3bc06204874ab495176ab80f6",
-      "ownerSha256": "765987fd75cc0029225dbe4332dd42661b7d9f808361a9723563672e24824119",
-      "importSha256": "2a81c2bb6524786cdf7918dfd1f7c009a1a4dc62fbe96e297608b9de8c22cd51",
+      "writerSha256": "6a4f133c80d60297a05640ca2655cfbc78aac8c5aceca413dba419c046c69443",
+      "ownerSha256": "e17b557ec4f3c9ca2d355c812530111dafaca3d8df484cc9cff5e56212f4b89b",
+      "importSha256": "c5766275e7b9804366d4068cfc04a8efc874a54cbc2bf3ab1f37c0ea84366460",
+      "predicateSource": null,
+      "authoritativeRecord": "Lead",
+      "allowedCommand": {
+        "module": "src/services/booking/staffSchedulingReview.service.js",
+        "function": "requestStaffSchedulingReview",
+        "mode": "registered-domain-command"
+      },
+      "versionOrClaim": {
+        "kind": "source-filter-or-command",
+        "evidence": [
+          "createRequestBookingGuard",
+          "saveRequestBookingDocument"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [
+          "Conversation"
+        ],
+        "localRepairCommands": [],
+        "review": "No local repair path established by this scan; review this owner before changing its effects."
+      }
+    },
+    {
+      "id": "src/services/booking/staffSchedulingReview.service.js#requestStaffSchedulingReview#write-capability-reference#2",
+      "file": "src/services/booking/staffSchedulingReview.service.js",
+      "line": 35,
+      "kind": "write-capability-reference",
+      "fields": [
+        "save"
+      ],
+      "writerSha256": "5bb6b3f4eac04609eebd5f47d6923f43abf44399f9c75e0b2af2d68f6061cbdd",
+      "ownerSha256": "e17b557ec4f3c9ca2d355c812530111dafaca3d8df484cc9cff5e56212f4b89b",
+      "importSha256": "c5766275e7b9804366d4068cfc04a8efc874a54cbc2bf3ab1f37c0ea84366460",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -4012,13 +4078,49 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
-          "assertDistributedLeaseActive",
-          "assertVoiceTurnActive"
+          "createRequestBookingGuard",
+          "saveRequestBookingDocument"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Lead"
+        ],
+        "localRepairCommands": [],
+        "review": "No local repair path established by this scan; review this owner before changing its effects."
+      }
+    },
+    {
+      "id": "src/services/booking/staffSchedulingReview.service.js#requestStaffSchedulingReview#transition-command#2",
+      "file": "src/services/booking/staffSchedulingReview.service.js",
+      "line": 36,
+      "kind": "transition-command",
+      "fields": [
+        "applyBookingStateTransition"
+      ],
+      "writerSha256": "78426d453d0f30015db141d8c55ec98e54a58df3bc06204874ab495176ab80f6",
+      "ownerSha256": "e17b557ec4f3c9ca2d355c812530111dafaca3d8df484cc9cff5e56212f4b89b",
+      "importSha256": "c5766275e7b9804366d4068cfc04a8efc874a54cbc2bf3ab1f37c0ea84366460",
+      "predicateSource": null,
+      "authoritativeRecord": "Conversation",
+      "allowedCommand": {
+        "module": "src/services/booking/staffSchedulingReview.service.js",
+        "function": "requestStaffSchedulingReview",
+        "mode": "registered-domain-command"
+      },
+      "versionOrClaim": {
+        "kind": "source-filter-or-command",
+        "evidence": [
+          "createRequestBookingGuard",
+          "saveRequestBookingDocument"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [
+          "Lead"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -4026,14 +4128,14 @@
     {
       "id": "src/services/booking/staffSchedulingReview.service.js#requestStaffSchedulingReview#assignment#1",
       "file": "src/services/booking/staffSchedulingReview.service.js",
-      "line": 39,
+      "line": 38,
       "kind": "assignment",
       "fields": [
         "orchestration"
       ],
       "writerSha256": "8d6f7f30540f70c1063af2a854ad730279d76fa454c936b8e067c32fdf6dc02a",
-      "ownerSha256": "765987fd75cc0029225dbe4332dd42661b7d9f808361a9723563672e24824119",
-      "importSha256": "2a81c2bb6524786cdf7918dfd1f7c009a1a4dc62fbe96e297608b9de8c22cd51",
+      "ownerSha256": "e17b557ec4f3c9ca2d355c812530111dafaca3d8df484cc9cff5e56212f4b89b",
+      "importSha256": "c5766275e7b9804366d4068cfc04a8efc874a54cbc2bf3ab1f37c0ea84366460",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -4044,26 +4146,30 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
-          "assertDistributedLeaseActive",
-          "assertVoiceTurnActive"
+          "createRequestBookingGuard",
+          "saveRequestBookingDocument"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Lead"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
     },
     {
-      "id": "src/services/booking/staffSchedulingReview.service.js#requestStaffSchedulingReview#save#2",
+      "id": "src/services/booking/staffSchedulingReview.service.js#requestStaffSchedulingReview#transition-command#3",
       "file": "src/services/booking/staffSchedulingReview.service.js",
-      "line": 44,
-      "kind": "save",
-      "fields": [],
-      "writerSha256": "f9d76d8688cf8709e471bba9fc7ddef4d4546b898b1f68b4ff07e3fe5efb0802",
-      "ownerSha256": "765987fd75cc0029225dbe4332dd42661b7d9f808361a9723563672e24824119",
-      "importSha256": "2a81c2bb6524786cdf7918dfd1f7c009a1a4dc62fbe96e297608b9de8c22cd51",
+      "line": 43,
+      "kind": "transition-command",
+      "fields": [
+        "saveRequestBookingDocument"
+      ],
+      "writerSha256": "49132b27a5b4a43a24112f1821588cca7dc1d8726e359907ffa3499beaac2394",
+      "ownerSha256": "e17b557ec4f3c9ca2d355c812530111dafaca3d8df484cc9cff5e56212f4b89b",
+      "importSha256": "c5766275e7b9804366d4068cfc04a8efc874a54cbc2bf3ab1f37c0ea84366460",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -4072,31 +4178,34 @@
         "mode": "registered-domain-command"
       },
       "versionOrClaim": {
-        "kind": "hydrated-document-session-and-hooks",
+        "kind": "source-filter-or-command",
         "evidence": [
-          "assertDistributedLeaseActive",
-          "assertVoiceTurnActive"
+          "createRequestBookingGuard",
+          "saveRequestBookingDocument"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Lead"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
     },
     {
-      "id": "src/services/businessRequestWorkflow.service.js#consolidate#updateOne#1",
+      "id": "src/services/businessRequestWorkflow.service.js#consolidate#transition-command#1",
       "file": "src/services/businessRequestWorkflow.service.js",
-      "line": 162,
-      "kind": "updateOne",
+      "line": 163,
+      "kind": "transition-command",
       "fields": [
+        "requestStateWrite",
         "acknowledgedAt",
         "status"
       ],
-      "writerSha256": "dd8c2835eebc8c8d0d981da8672cf30108186fce9b65b5c538fbaf76aa442413",
-      "ownerSha256": "a7159aef964dbcc9d4eecba47851288f3a1a95d0b655fbe36b071d37332d842a",
-      "importSha256": "3aa12d8fbd64df99096f03f2ba9b58006379d3f1a8945f9509408139621f67cb",
+      "writerSha256": "62f694f0aec4c638a6e1d541173f546c4acda3c1ac17c7cc42e0e262397c6793",
+      "ownerSha256": "5db747ce266845d436b674cb018529e5c59a753534347f2600e0ce703a0b9535",
+      "importSha256": "1a3b483c8876b67eb8f991b6de15a6828e2c33599e1fd70e4fc38afdc16a43bd",
       "predicateSource": "{_id:canonical._id,business:businessId}",
       "authoritativeRecord": "Alert",
       "allowedCommand": {
@@ -4107,7 +4216,7 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
-          "session"
+          "requestStateWrite"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
@@ -4118,18 +4227,19 @@
       }
     },
     {
-      "id": "src/services/businessRequestWorkflow.service.js#consolidate#updateMany#1",
+      "id": "src/services/businessRequestWorkflow.service.js#consolidate#transition-command#2",
       "file": "src/services/businessRequestWorkflow.service.js",
-      "line": 169,
-      "kind": "updateMany",
+      "line": 170,
+      "kind": "transition-command",
       "fields": [
+        "requestStateWrite",
         "actionRequired",
         "resolvedAt",
         "status"
       ],
-      "writerSha256": "52c4b619b9884dc2e4d9c3235bfa1d2b00d9c2741faa3eabda79381258da111b",
-      "ownerSha256": "a7159aef964dbcc9d4eecba47851288f3a1a95d0b655fbe36b071d37332d842a",
-      "importSha256": "3aa12d8fbd64df99096f03f2ba9b58006379d3f1a8945f9509408139621f67cb",
+      "writerSha256": "ee2c32e8041b07efc0c769774e41e07a4f9aeb5a8437b22d0366ce37a38c9116",
+      "ownerSha256": "5db747ce266845d436b674cb018529e5c59a753534347f2600e0ce703a0b9535",
+      "importSha256": "1a3b483c8876b67eb8f991b6de15a6828e2c33599e1fd70e4fc38afdc16a43bd",
       "predicateSource": "{_id:{$in:duplicateIds},business:businessId}",
       "authoritativeRecord": "Alert",
       "allowedCommand": {
@@ -4140,7 +4250,7 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
-          "session"
+          "requestStateWrite"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
@@ -4151,14 +4261,16 @@
       }
     },
     {
-      "id": "src/services/businessRequestWorkflow.service.js#<callback>#updateOne#1",
+      "id": "src/services/businessRequestWorkflow.service.js#<callback>#transition-command#1",
       "file": "src/services/businessRequestWorkflow.service.js",
-      "line": 216,
-      "kind": "updateOne",
-      "fields": [],
-      "writerSha256": "54267ba1a72730019b0e3dda247391f90a025d8412b5cbd4aef19aeebf5d3d9d",
-      "ownerSha256": "13b7361866074b02b51f3147ea4f242dbad3691fd3453cd8c6414137022b2db7",
-      "importSha256": "3aa12d8fbd64df99096f03f2ba9b58006379d3f1a8945f9509408139621f67cb",
+      "line": 217,
+      "kind": "transition-command",
+      "fields": [
+        "requestStateWrite"
+      ],
+      "writerSha256": "7068d6d1d5ca8d2f0ffa60d58c01c8b793e572dcbc372abe60cd46323d0b0365",
+      "ownerSha256": "cba022971d2d61ee9c785e4d244628cdbda1583bc89aed3a05b799f6d52d8d73",
+      "importSha256": "1a3b483c8876b67eb8f991b6de15a6828e2c33599e1fd70e4fc38afdc16a43bd",
       "predicateSource": "{_id:snapshot.lead._id,business:business._id}",
       "authoritativeRecord": "Lead",
       "allowedCommand": {
@@ -4169,10 +4281,10 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
-          "assertDistributedLeaseActive",
           "operationId",
-          "session",
-          "valuationVersion"
+          "requestStateWrite",
+          "valuationVersion",
+          "version"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
@@ -4186,16 +4298,16 @@
       }
     },
     {
-      "id": "src/services/businessRequestWorkflow.service.js#<callback>#transition-command#1",
+      "id": "src/services/businessRequestWorkflow.service.js#<callback>#transition-command#2",
       "file": "src/services/businessRequestWorkflow.service.js",
-      "line": 221,
+      "line": 222,
       "kind": "transition-command",
       "fields": [
         "bookingTransitionFields"
       ],
       "writerSha256": "4e50bb490f2827f2c50fe21852294136d33fc2ed6899fca7ca326386625a6488",
-      "ownerSha256": "13b7361866074b02b51f3147ea4f242dbad3691fd3453cd8c6414137022b2db7",
-      "importSha256": "3aa12d8fbd64df99096f03f2ba9b58006379d3f1a8945f9509408139621f67cb",
+      "ownerSha256": "cba022971d2d61ee9c785e4d244628cdbda1583bc89aed3a05b799f6d52d8d73",
+      "importSha256": "1a3b483c8876b67eb8f991b6de15a6828e2c33599e1fd70e4fc38afdc16a43bd",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -4206,10 +4318,10 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
-          "assertDistributedLeaseActive",
           "operationId",
-          "session",
-          "valuationVersion"
+          "requestStateWrite",
+          "valuationVersion",
+          "version"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
@@ -4225,14 +4337,14 @@
     {
       "id": "src/services/businessRequestWorkflow.service.js#<callback>#assignment#1",
       "file": "src/services/businessRequestWorkflow.service.js",
-      "line": 238,
+      "line": 239,
       "kind": "assignment",
       "fields": [
         "conversationMemory.recoveryIntake.review.status"
       ],
       "writerSha256": "550b64f36fc2f5921fe24b48fc15d025028633af868e415f98f720bae491c115",
-      "ownerSha256": "13b7361866074b02b51f3147ea4f242dbad3691fd3453cd8c6414137022b2db7",
-      "importSha256": "3aa12d8fbd64df99096f03f2ba9b58006379d3f1a8945f9509408139621f67cb",
+      "ownerSha256": "cba022971d2d61ee9c785e4d244628cdbda1583bc89aed3a05b799f6d52d8d73",
+      "importSha256": "1a3b483c8876b67eb8f991b6de15a6828e2c33599e1fd70e4fc38afdc16a43bd",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -4243,10 +4355,10 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
-          "assertDistributedLeaseActive",
           "operationId",
-          "session",
-          "valuationVersion"
+          "requestStateWrite",
+          "valuationVersion",
+          "version"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
@@ -4260,16 +4372,16 @@
       }
     },
     {
-      "id": "src/services/businessRequestWorkflow.service.js#<callback>#transition-command#2",
+      "id": "src/services/businessRequestWorkflow.service.js#<callback>#transition-command#3",
       "file": "src/services/businessRequestWorkflow.service.js",
-      "line": 239,
+      "line": 240,
       "kind": "transition-command",
       "fields": [
         "bookingTransitionFields"
       ],
       "writerSha256": "9386b4f60ea01f78b7fbe28f656287d2737ec8e5fc9e1d7e6b516d4b24699f2b",
-      "ownerSha256": "13b7361866074b02b51f3147ea4f242dbad3691fd3453cd8c6414137022b2db7",
-      "importSha256": "3aa12d8fbd64df99096f03f2ba9b58006379d3f1a8945f9509408139621f67cb",
+      "ownerSha256": "cba022971d2d61ee9c785e4d244628cdbda1583bc89aed3a05b799f6d52d8d73",
+      "importSha256": "1a3b483c8876b67eb8f991b6de15a6828e2c33599e1fd70e4fc38afdc16a43bd",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -4280,10 +4392,10 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
-          "assertDistributedLeaseActive",
           "operationId",
-          "session",
-          "valuationVersion"
+          "requestStateWrite",
+          "valuationVersion",
+          "version"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
@@ -4297,16 +4409,17 @@
       }
     },
     {
-      "id": "src/services/businessRequestWorkflow.service.js#<callback>#updateOne#2",
+      "id": "src/services/businessRequestWorkflow.service.js#<callback>#transition-command#4",
       "file": "src/services/businessRequestWorkflow.service.js",
-      "line": 240,
-      "kind": "updateOne",
+      "line": 241,
+      "kind": "transition-command",
       "fields": [
+        "requestStateWrite",
         "status"
       ],
-      "writerSha256": "c790c91bed54a927edd59ac27bb648119c5e5501b0045c11631a96b7796d3e68",
-      "ownerSha256": "13b7361866074b02b51f3147ea4f242dbad3691fd3453cd8c6414137022b2db7",
-      "importSha256": "3aa12d8fbd64df99096f03f2ba9b58006379d3f1a8945f9509408139621f67cb",
+      "writerSha256": "b74392a8f1a0491b982791ff4bf785687549b17d50c05e1e267b3f01c9f84311",
+      "ownerSha256": "cba022971d2d61ee9c785e4d244628cdbda1583bc89aed3a05b799f6d52d8d73",
+      "importSha256": "1a3b483c8876b67eb8f991b6de15a6828e2c33599e1fd70e4fc38afdc16a43bd",
       "predicateSource": "{_id:snapshot.lead._id,business:business._id}",
       "authoritativeRecord": "Lead",
       "allowedCommand": {
@@ -4317,10 +4430,10 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
-          "assertDistributedLeaseActive",
           "operationId",
-          "session",
-          "valuationVersion"
+          "requestStateWrite",
+          "valuationVersion",
+          "version"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
@@ -4334,14 +4447,16 @@
       }
     },
     {
-      "id": "src/services/businessRequestWorkflow.service.js#<callback>#updateOne#3",
+      "id": "src/services/businessRequestWorkflow.service.js#<callback>#transition-command#5",
       "file": "src/services/businessRequestWorkflow.service.js",
-      "line": 248,
-      "kind": "updateOne",
-      "fields": [],
-      "writerSha256": "167f14ea24cf8d51f3b1e3f153dbfb3b2c33c7385071b6f0f032d064c92a54ef",
-      "ownerSha256": "13b7361866074b02b51f3147ea4f242dbad3691fd3453cd8c6414137022b2db7",
-      "importSha256": "3aa12d8fbd64df99096f03f2ba9b58006379d3f1a8945f9509408139621f67cb",
+      "line": 249,
+      "kind": "transition-command",
+      "fields": [
+        "requestStateWrite"
+      ],
+      "writerSha256": "f058bfb1b078900f01ae45fdfb732cca3f9ddb5f2e658aae6df65de169213c9d",
+      "ownerSha256": "cba022971d2d61ee9c785e4d244628cdbda1583bc89aed3a05b799f6d52d8d73",
+      "importSha256": "1a3b483c8876b67eb8f991b6de15a6828e2c33599e1fd70e4fc38afdc16a43bd",
       "predicateSource": "{_id:resultId,business:business._id}",
       "authoritativeRecord": "Alert",
       "allowedCommand": {
@@ -4352,10 +4467,10 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
-          "assertDistributedLeaseActive",
           "operationId",
-          "session",
-          "valuationVersion"
+          "requestStateWrite",
+          "valuationVersion",
+          "version"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
@@ -4371,14 +4486,14 @@
     {
       "id": "src/services/businessRequestWorkflow.service.js#<callback>#assignment#2",
       "file": "src/services/businessRequestWorkflow.service.js",
-      "line": 250,
+      "line": 251,
       "kind": "assignment",
       "fields": [
         "conversationMemory.recoveryIntake.review.alertId"
       ],
       "writerSha256": "bd061ea2f6c46839c3c53387f70cb4b16ac0ef8838d85e8508695d6ef5feab86",
-      "ownerSha256": "13b7361866074b02b51f3147ea4f242dbad3691fd3453cd8c6414137022b2db7",
-      "importSha256": "3aa12d8fbd64df99096f03f2ba9b58006379d3f1a8945f9509408139621f67cb",
+      "ownerSha256": "cba022971d2d61ee9c785e4d244628cdbda1583bc89aed3a05b799f6d52d8d73",
+      "importSha256": "1a3b483c8876b67eb8f991b6de15a6828e2c33599e1fd70e4fc38afdc16a43bd",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -4389,10 +4504,10 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
-          "assertDistributedLeaseActive",
           "operationId",
-          "session",
-          "valuationVersion"
+          "requestStateWrite",
+          "valuationVersion",
+          "version"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
@@ -4408,14 +4523,14 @@
     {
       "id": "src/services/businessRequestWorkflow.service.js#<callback>#assignment#3",
       "file": "src/services/businessRequestWorkflow.service.js",
-      "line": 253,
+      "line": 254,
       "kind": "assignment",
       "fields": [
         "conversationMemory.lastUpdatedAt"
       ],
       "writerSha256": "653cd2a65edbfbc73e45234450b87ede759c675595b8598d3e553bd3a765a152",
-      "ownerSha256": "13b7361866074b02b51f3147ea4f242dbad3691fd3453cd8c6414137022b2db7",
-      "importSha256": "3aa12d8fbd64df99096f03f2ba9b58006379d3f1a8945f9509408139621f67cb",
+      "ownerSha256": "cba022971d2d61ee9c785e4d244628cdbda1583bc89aed3a05b799f6d52d8d73",
+      "importSha256": "1a3b483c8876b67eb8f991b6de15a6828e2c33599e1fd70e4fc38afdc16a43bd",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -4426,10 +4541,10 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
-          "assertDistributedLeaseActive",
           "operationId",
-          "session",
-          "valuationVersion"
+          "requestStateWrite",
+          "valuationVersion",
+          "version"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
@@ -4443,14 +4558,16 @@
       }
     },
     {
-      "id": "src/services/businessRequestWorkflow.service.js#<callback>#updateOne#4",
+      "id": "src/services/businessRequestWorkflow.service.js#<callback>#transition-command#6",
       "file": "src/services/businessRequestWorkflow.service.js",
-      "line": 254,
-      "kind": "updateOne",
-      "fields": [],
-      "writerSha256": "c6b5f0979a3c55d8615df341173828f0ebf87f7edd6b225b29e73d5e81612e54",
-      "ownerSha256": "13b7361866074b02b51f3147ea4f242dbad3691fd3453cd8c6414137022b2db7",
-      "importSha256": "3aa12d8fbd64df99096f03f2ba9b58006379d3f1a8945f9509408139621f67cb",
+      "line": 255,
+      "kind": "transition-command",
+      "fields": [
+        "requestStateWrite"
+      ],
+      "writerSha256": "b495d8415367f62d36cc68a427ec67468bf1af949ebedd2f2fe298a390516582",
+      "ownerSha256": "cba022971d2d61ee9c785e4d244628cdbda1583bc89aed3a05b799f6d52d8d73",
+      "importSha256": "1a3b483c8876b67eb8f991b6de15a6828e2c33599e1fd70e4fc38afdc16a43bd",
       "predicateSource": "{_id:snapshot.conversation._id,business:business._id}",
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -4461,10 +4578,10 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
-          "assertDistributedLeaseActive",
           "operationId",
-          "session",
-          "valuationVersion"
+          "requestStateWrite",
+          "valuationVersion",
+          "version"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
@@ -4606,14 +4723,14 @@
     {
       "id": "src/services/conversationControl.service.js#handleConversationControl#write-capability-reference#1",
       "file": "src/services/conversationControl.service.js",
-      "line": 34,
+      "line": 33,
       "kind": "write-capability-reference",
       "fields": [
         "save"
       ],
       "writerSha256": "5bb6b3f4eac04609eebd5f47d6923f43abf44399f9c75e0b2af2d68f6061cbdd",
-      "ownerSha256": "e8376279df31dd63059c7e4fcea5aea30de392dc3e4fdff5c80108beb739231e",
-      "importSha256": "6f3a1c50662fa78c431703d508331afc845f2c150e236508161e0003cbae0772",
+      "ownerSha256": "4f01020232a19a703547b52cafec3b714c903f20f31a505a8e8b87394c53ad2c",
+      "importSha256": "3c0ec10927ad4d55f41f919869d554ed2e65660238ce9221161c99721c5f12be",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -4624,8 +4741,8 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
-          "assertDistributedLeaseActive",
-          "assertVoiceTurnActive"
+          "createRequestBookingGuard",
+          "saveRequestBookingDocument"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
@@ -4640,14 +4757,14 @@
     {
       "id": "src/services/conversationControl.service.js#handleConversationControl#assignment#1",
       "file": "src/services/conversationControl.service.js",
-      "line": 37,
+      "line": 36,
       "kind": "assignment",
       "fields": [
         "conversationMemory"
       ],
       "writerSha256": "4c84476b623427a392609f3c156e868fc75748e4ff6b6311daa43779f96d55bc",
-      "ownerSha256": "e8376279df31dd63059c7e4fcea5aea30de392dc3e4fdff5c80108beb739231e",
-      "importSha256": "6f3a1c50662fa78c431703d508331afc845f2c150e236508161e0003cbae0772",
+      "ownerSha256": "4f01020232a19a703547b52cafec3b714c903f20f31a505a8e8b87394c53ad2c",
+      "importSha256": "3c0ec10927ad4d55f41f919869d554ed2e65660238ce9221161c99721c5f12be",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -4658,8 +4775,8 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
-          "assertDistributedLeaseActive",
-          "assertVoiceTurnActive"
+          "createRequestBookingGuard",
+          "saveRequestBookingDocument"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
@@ -4674,14 +4791,14 @@
     {
       "id": "src/services/conversationControl.service.js#handleConversationControl#assignment#2",
       "file": "src/services/conversationControl.service.js",
-      "line": 42,
+      "line": 41,
       "kind": "assignment",
       "fields": [
         "lifecycle.nextRecoveryNudgeAt"
       ],
       "writerSha256": "6b78c16085f01f01265db098433f3bcb9c97815c1c24b759ac5ec3aceadfd1b7",
-      "ownerSha256": "e8376279df31dd63059c7e4fcea5aea30de392dc3e4fdff5c80108beb739231e",
-      "importSha256": "6f3a1c50662fa78c431703d508331afc845f2c150e236508161e0003cbae0772",
+      "ownerSha256": "4f01020232a19a703547b52cafec3b714c903f20f31a505a8e8b87394c53ad2c",
+      "importSha256": "3c0ec10927ad4d55f41f919869d554ed2e65660238ce9221161c99721c5f12be",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -4692,40 +4809,8 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
-          "assertDistributedLeaseActive",
-          "assertVoiceTurnActive"
-        ],
-        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
-      },
-      "projectionsAndRepair": {
-        "updatedRecords": [],
-        "localRepairCommands": [
-          "repairs"
-        ],
-        "review": "Repair commands referenced by the fingerprinted owner; downstream behavior remains covered by domain tests."
-      }
-    },
-    {
-      "id": "src/services/conversationControl.service.js#handleConversationControl#save#1",
-      "file": "src/services/conversationControl.service.js",
-      "line": 43,
-      "kind": "save",
-      "fields": [],
-      "writerSha256": "f9d76d8688cf8709e471bba9fc7ddef4d4546b898b1f68b4ff07e3fe5efb0802",
-      "ownerSha256": "e8376279df31dd63059c7e4fcea5aea30de392dc3e4fdff5c80108beb739231e",
-      "importSha256": "6f3a1c50662fa78c431703d508331afc845f2c150e236508161e0003cbae0772",
-      "predicateSource": null,
-      "authoritativeRecord": "Conversation",
-      "allowedCommand": {
-        "module": "src/services/conversationControl.service.js",
-        "function": "handleConversationControl",
-        "mode": "registered-domain-command"
-      },
-      "versionOrClaim": {
-        "kind": "hydrated-document-session-and-hooks",
-        "evidence": [
-          "assertDistributedLeaseActive",
-          "assertVoiceTurnActive"
+          "createRequestBookingGuard",
+          "saveRequestBookingDocument"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
@@ -4740,14 +4825,14 @@
     {
       "id": "src/services/conversationControl.service.js#handleConversationControl#transition-command#1",
       "file": "src/services/conversationControl.service.js",
-      "line": 64,
+      "line": 42,
       "kind": "transition-command",
       "fields": [
-        "applyBookingStateTransition"
+        "saveRequestBookingDocument"
       ],
-      "writerSha256": "b33a1b5cf1505215c33fcb8572609839760b83f83438d530eab1de2973b33f50",
-      "ownerSha256": "e8376279df31dd63059c7e4fcea5aea30de392dc3e4fdff5c80108beb739231e",
-      "importSha256": "6f3a1c50662fa78c431703d508331afc845f2c150e236508161e0003cbae0772",
+      "writerSha256": "718f458c9f3f826d1c3b3101ef8a4984aa2e47ea9fc07363735d157b2a80a050",
+      "ownerSha256": "4f01020232a19a703547b52cafec3b714c903f20f31a505a8e8b87394c53ad2c",
+      "importSha256": "3c0ec10927ad4d55f41f919869d554ed2e65660238ce9221161c99721c5f12be",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -4758,8 +4843,8 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
-          "assertDistributedLeaseActive",
-          "assertVoiceTurnActive"
+          "createRequestBookingGuard",
+          "saveRequestBookingDocument"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
@@ -4772,14 +4857,16 @@
       }
     },
     {
-      "id": "src/services/conversationControl.service.js#handleConversationControl#save#2",
+      "id": "src/services/conversationControl.service.js#handleConversationControl#transition-command#2",
       "file": "src/services/conversationControl.service.js",
-      "line": 65,
-      "kind": "save",
-      "fields": [],
-      "writerSha256": "f9d76d8688cf8709e471bba9fc7ddef4d4546b898b1f68b4ff07e3fe5efb0802",
-      "ownerSha256": "e8376279df31dd63059c7e4fcea5aea30de392dc3e4fdff5c80108beb739231e",
-      "importSha256": "6f3a1c50662fa78c431703d508331afc845f2c150e236508161e0003cbae0772",
+      "line": 63,
+      "kind": "transition-command",
+      "fields": [
+        "applyBookingStateTransition"
+      ],
+      "writerSha256": "b33a1b5cf1505215c33fcb8572609839760b83f83438d530eab1de2973b33f50",
+      "ownerSha256": "4f01020232a19a703547b52cafec3b714c903f20f31a505a8e8b87394c53ad2c",
+      "importSha256": "3c0ec10927ad4d55f41f919869d554ed2e65660238ce9221161c99721c5f12be",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -4788,10 +4875,44 @@
         "mode": "registered-domain-command"
       },
       "versionOrClaim": {
-        "kind": "hydrated-document-session-and-hooks",
+        "kind": "source-filter-or-command",
         "evidence": [
-          "assertDistributedLeaseActive",
-          "assertVoiceTurnActive"
+          "createRequestBookingGuard",
+          "saveRequestBookingDocument"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [],
+        "localRepairCommands": [
+          "repairs"
+        ],
+        "review": "Repair commands referenced by the fingerprinted owner; downstream behavior remains covered by domain tests."
+      }
+    },
+    {
+      "id": "src/services/conversationControl.service.js#handleConversationControl#transition-command#3",
+      "file": "src/services/conversationControl.service.js",
+      "line": 64,
+      "kind": "transition-command",
+      "fields": [
+        "saveRequestBookingDocument"
+      ],
+      "writerSha256": "718f458c9f3f826d1c3b3101ef8a4984aa2e47ea9fc07363735d157b2a80a050",
+      "ownerSha256": "4f01020232a19a703547b52cafec3b714c903f20f31a505a8e8b87394c53ad2c",
+      "importSha256": "3c0ec10927ad4d55f41f919869d554ed2e65660238ce9221161c99721c5f12be",
+      "predicateSource": null,
+      "authoritativeRecord": "Conversation",
+      "allowedCommand": {
+        "module": "src/services/conversationControl.service.js",
+        "function": "handleConversationControl",
+        "mode": "registered-domain-command"
+      },
+      "versionOrClaim": {
+        "kind": "source-filter-or-command",
+        "evidence": [
+          "createRequestBookingGuard",
+          "saveRequestBookingDocument"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
@@ -4806,14 +4927,14 @@
     {
       "id": "src/services/conversationControl.service.js#handleConversationControl#assignment#3",
       "file": "src/services/conversationControl.service.js",
-      "line": 66,
+      "line": 65,
       "kind": "assignment",
       "fields": [
         "status"
       ],
       "writerSha256": "ad25ed7aa5c877f920d1987df245dd28fe0d319198ced81cce04cc703c9181fd",
-      "ownerSha256": "e8376279df31dd63059c7e4fcea5aea30de392dc3e4fdff5c80108beb739231e",
-      "importSha256": "6f3a1c50662fa78c431703d508331afc845f2c150e236508161e0003cbae0772",
+      "ownerSha256": "4f01020232a19a703547b52cafec3b714c903f20f31a505a8e8b87394c53ad2c",
+      "importSha256": "3c0ec10927ad4d55f41f919869d554ed2e65660238ce9221161c99721c5f12be",
       "predicateSource": null,
       "authoritativeRecord": "Lead",
       "allowedCommand": {
@@ -4824,13 +4945,15 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
-          "assertDistributedLeaseActive",
-          "assertVoiceTurnActive"
+          "createRequestBookingGuard",
+          "saveRequestBookingDocument"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Conversation"
+        ],
         "localRepairCommands": [
           "repairs"
         ],
@@ -4838,14 +4961,16 @@
       }
     },
     {
-      "id": "src/services/conversationControl.service.js#handleConversationControl#save#3",
+      "id": "src/services/conversationControl.service.js#handleConversationControl#transition-command#4",
       "file": "src/services/conversationControl.service.js",
-      "line": 66,
-      "kind": "save",
-      "fields": [],
-      "writerSha256": "c1f33698a55b6088975bde334ddc88f09ad1de3d1e301d51008cf686fdb14849",
-      "ownerSha256": "e8376279df31dd63059c7e4fcea5aea30de392dc3e4fdff5c80108beb739231e",
-      "importSha256": "6f3a1c50662fa78c431703d508331afc845f2c150e236508161e0003cbae0772",
+      "line": 65,
+      "kind": "transition-command",
+      "fields": [
+        "saveRequestBookingDocument"
+      ],
+      "writerSha256": "6a4f133c80d60297a05640ca2655cfbc78aac8c5aceca413dba419c046c69443",
+      "ownerSha256": "4f01020232a19a703547b52cafec3b714c903f20f31a505a8e8b87394c53ad2c",
+      "importSha256": "3c0ec10927ad4d55f41f919869d554ed2e65660238ce9221161c99721c5f12be",
       "predicateSource": null,
       "authoritativeRecord": "Lead",
       "allowedCommand": {
@@ -4854,15 +4979,17 @@
         "mode": "registered-domain-command"
       },
       "versionOrClaim": {
-        "kind": "hydrated-document-session-and-hooks",
+        "kind": "source-filter-or-command",
         "evidence": [
-          "assertDistributedLeaseActive",
-          "assertVoiceTurnActive"
+          "createRequestBookingGuard",
+          "saveRequestBookingDocument"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Conversation"
+        ],
         "localRepairCommands": [
           "repairs"
         ],
@@ -4887,8 +5014,10 @@
       },
       "versionOrClaim": {
         "kind": "source-filter-or-command",
-        "evidence": [],
-        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
+        "evidence": [
+          "updatedAt"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
         "updatedRecords": [],
@@ -6078,7 +6207,9 @@
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Conversation"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -6110,7 +6241,9 @@
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Lead"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -6140,7 +6273,9 @@
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Conversation"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -6172,7 +6307,9 @@
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Lead"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -6204,7 +6341,9 @@
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Lead"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -6234,7 +6373,9 @@
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Lead"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -6264,7 +6405,9 @@
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Conversation"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -6334,14 +6477,14 @@
     {
       "id": "src/services/messaging/customerRequestRevision.service.js#applyCustomerAddressRevision#transition-command#1",
       "file": "src/services/messaging/customerRequestRevision.service.js",
-      "line": 25,
+      "line": 24,
       "kind": "transition-command",
       "fields": [
         "applyBookingStateTransition"
       ],
       "writerSha256": "f8201f3598032d5a00ff8ce4b2bbb0ae030a4b03671c5ce9d2d3a339c35cdbbd",
-      "ownerSha256": "185dc64a48fdeb1ddcb4338fc4c43a1155bf2542942d19eb30d616220966bf7c",
-      "importSha256": "d9de1bfb148d6d2e34f545cbabded026978cc7d1b187cf63a160e9c39d2cff48",
+      "ownerSha256": "0cde0703e962dfec998f663f3ffcf3f1624a5837b8df19e25cb420a0fc85377b",
+      "importSha256": "ed389ea8f5c6bb14205210c088f52b3eb6cf354dee0743848db28bde6c08cf32",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -6352,8 +6495,8 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
-          "assertDistributedLeaseActive",
-          "assertVoiceTurnActive"
+          "createRequestBookingGuard",
+          "saveRequestBookingDocument"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
@@ -6366,14 +6509,14 @@
     {
       "id": "src/services/messaging/customerRequestRevision.service.js#applyCustomerAddressRevision#set#1",
       "file": "src/services/messaging/customerRequestRevision.service.js",
-      "line": 27,
+      "line": 26,
       "kind": "set",
       "fields": [
         "conversationMemory.recoveryIntake"
       ],
       "writerSha256": "f2d4dc403c99575b7661740a91e97b8fc3f99f0fa3dfa1b911bacfa67658718b",
-      "ownerSha256": "185dc64a48fdeb1ddcb4338fc4c43a1155bf2542942d19eb30d616220966bf7c",
-      "importSha256": "d9de1bfb148d6d2e34f545cbabded026978cc7d1b187cf63a160e9c39d2cff48",
+      "ownerSha256": "0cde0703e962dfec998f663f3ffcf3f1624a5837b8df19e25cb420a0fc85377b",
+      "importSha256": "ed389ea8f5c6bb14205210c088f52b3eb6cf354dee0743848db28bde6c08cf32",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -6384,8 +6527,8 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
-          "assertDistributedLeaseActive",
-          "assertVoiceTurnActive"
+          "createRequestBookingGuard",
+          "saveRequestBookingDocument"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
@@ -6398,14 +6541,14 @@
     {
       "id": "src/services/messaging/customerRequestRevision.service.js#applyCustomerAddressRevision#assignment#1",
       "file": "src/services/messaging/customerRequestRevision.service.js",
-      "line": 28,
+      "line": 27,
       "kind": "assignment",
       "fields": [
         "conversationMemory"
       ],
       "writerSha256": "13cea8a535c94b9cbfb022d114da577a7f68e46498e8c7f8c4804a0a546e1b17",
-      "ownerSha256": "185dc64a48fdeb1ddcb4338fc4c43a1155bf2542942d19eb30d616220966bf7c",
-      "importSha256": "d9de1bfb148d6d2e34f545cbabded026978cc7d1b187cf63a160e9c39d2cff48",
+      "ownerSha256": "0cde0703e962dfec998f663f3ffcf3f1624a5837b8df19e25cb420a0fc85377b",
+      "importSha256": "ed389ea8f5c6bb14205210c088f52b3eb6cf354dee0743848db28bde6c08cf32",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -6416,8 +6559,8 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
-          "assertDistributedLeaseActive",
-          "assertVoiceTurnActive"
+          "createRequestBookingGuard",
+          "saveRequestBookingDocument"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
@@ -6428,14 +6571,16 @@
       }
     },
     {
-      "id": "src/services/messaging/customerRequestRevision.service.js#applyCustomerAddressRevision#save#1",
+      "id": "src/services/messaging/customerRequestRevision.service.js#applyCustomerAddressRevision#transition-command#2",
       "file": "src/services/messaging/customerRequestRevision.service.js",
-      "line": 30,
-      "kind": "save",
-      "fields": [],
-      "writerSha256": "f9d76d8688cf8709e471bba9fc7ddef4d4546b898b1f68b4ff07e3fe5efb0802",
-      "ownerSha256": "185dc64a48fdeb1ddcb4338fc4c43a1155bf2542942d19eb30d616220966bf7c",
-      "importSha256": "d9de1bfb148d6d2e34f545cbabded026978cc7d1b187cf63a160e9c39d2cff48",
+      "line": 29,
+      "kind": "transition-command",
+      "fields": [
+        "saveRequestBookingDocument"
+      ],
+      "writerSha256": "49132b27a5b4a43a24112f1821588cca7dc1d8726e359907ffa3499beaac2394",
+      "ownerSha256": "0cde0703e962dfec998f663f3ffcf3f1624a5837b8df19e25cb420a0fc85377b",
+      "importSha256": "ed389ea8f5c6bb14205210c088f52b3eb6cf354dee0743848db28bde6c08cf32",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -6444,10 +6589,10 @@
         "mode": "registered-domain-command"
       },
       "versionOrClaim": {
-        "kind": "hydrated-document-session-and-hooks",
+        "kind": "source-filter-or-command",
         "evidence": [
-          "assertDistributedLeaseActive",
-          "assertVoiceTurnActive"
+          "createRequestBookingGuard",
+          "saveRequestBookingDocument"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
@@ -6458,14 +6603,16 @@
       }
     },
     {
-      "id": "src/services/messaging/customerRequestRevision.service.js#applyCustomerAddressRevision#save#2",
+      "id": "src/services/messaging/customerRequestRevision.service.js#applyCustomerAddressRevision#transition-command#3",
       "file": "src/services/messaging/customerRequestRevision.service.js",
-      "line": 34,
-      "kind": "save",
-      "fields": [],
-      "writerSha256": "c1f33698a55b6088975bde334ddc88f09ad1de3d1e301d51008cf686fdb14849",
-      "ownerSha256": "185dc64a48fdeb1ddcb4338fc4c43a1155bf2542942d19eb30d616220966bf7c",
-      "importSha256": "d9de1bfb148d6d2e34f545cbabded026978cc7d1b187cf63a160e9c39d2cff48",
+      "line": 33,
+      "kind": "transition-command",
+      "fields": [
+        "saveRequestBookingDocument"
+      ],
+      "writerSha256": "714feb9baba001eb792464f6be3569496cbd7b5bf36916f57010c16d00d54480",
+      "ownerSha256": "0cde0703e962dfec998f663f3ffcf3f1624a5837b8df19e25cb420a0fc85377b",
+      "importSha256": "ed389ea8f5c6bb14205210c088f52b3eb6cf354dee0743848db28bde6c08cf32",
       "predicateSource": null,
       "authoritativeRecord": "Lead",
       "allowedCommand": {
@@ -6474,28 +6621,32 @@
         "mode": "registered-domain-command"
       },
       "versionOrClaim": {
-        "kind": "hydrated-document-session-and-hooks",
+        "kind": "source-filter-or-command",
         "evidence": [
-          "assertDistributedLeaseActive",
-          "assertVoiceTurnActive"
+          "createRequestBookingGuard",
+          "saveRequestBookingDocument"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Conversation"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
     },
     {
-      "id": "src/services/messaging/customerRequestRevision.service.js#applyCustomerAddressRevision#save#3",
+      "id": "src/services/messaging/customerRequestRevision.service.js#applyCustomerAddressRevision#transition-command#4",
       "file": "src/services/messaging/customerRequestRevision.service.js",
-      "line": 45,
-      "kind": "save",
-      "fields": [],
-      "writerSha256": "f9d76d8688cf8709e471bba9fc7ddef4d4546b898b1f68b4ff07e3fe5efb0802",
-      "ownerSha256": "185dc64a48fdeb1ddcb4338fc4c43a1155bf2542942d19eb30d616220966bf7c",
-      "importSha256": "d9de1bfb148d6d2e34f545cbabded026978cc7d1b187cf63a160e9c39d2cff48",
+      "line": 44,
+      "kind": "transition-command",
+      "fields": [
+        "saveRequestBookingDocument"
+      ],
+      "writerSha256": "718f458c9f3f826d1c3b3101ef8a4984aa2e47ea9fc07363735d157b2a80a050",
+      "ownerSha256": "0cde0703e962dfec998f663f3ffcf3f1624a5837b8df19e25cb420a0fc85377b",
+      "importSha256": "ed389ea8f5c6bb14205210c088f52b3eb6cf354dee0743848db28bde6c08cf32",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -6504,10 +6655,10 @@
         "mode": "registered-domain-command"
       },
       "versionOrClaim": {
-        "kind": "hydrated-document-session-and-hooks",
+        "kind": "source-filter-or-command",
         "evidence": [
-          "assertDistributedLeaseActive",
-          "assertVoiceTurnActive"
+          "createRequestBookingGuard",
+          "saveRequestBookingDocument"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
@@ -7980,8 +8131,10 @@
       },
       "versionOrClaim": {
         "kind": "source-filter-or-command",
-        "evidence": [],
-        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
+        "evidence": [
+          "updatedAt"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
         "updatedRecords": [],
@@ -8009,8 +8162,10 @@
       },
       "versionOrClaim": {
         "kind": "source-filter-or-command",
-        "evidence": [],
-        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
+        "evidence": [
+          "updatedAt"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
         "updatedRecords": [],
@@ -8188,7 +8343,8 @@
         "kind": "source-filter-or-command",
         "evidence": [
           "operationId",
-          "session"
+          "session",
+          "version"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
@@ -8218,8 +8374,11 @@
       },
       "versionOrClaim": {
         "kind": "source-filter-or-command",
-        "evidence": [],
-        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
+        "evidence": [
+          "updatedAt",
+          "version"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
         "updatedRecords": [],
@@ -8247,7 +8406,8 @@
         "kind": "source-filter-or-command",
         "evidence": [
           "operationId",
-          "session"
+          "session",
+          "version"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
@@ -8280,7 +8440,8 @@
         "kind": "source-filter-or-command",
         "evidence": [
           "operationId",
-          "session"
+          "session",
+          "version"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
@@ -8313,7 +8474,8 @@
         "kind": "source-filter-or-command",
         "evidence": [
           "operationId",
-          "session"
+          "session",
+          "version"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
@@ -8646,7 +8808,8 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
-          "confirmationIntent"
+          "confirmationIntent",
+          "updatedAt"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
@@ -9502,8 +9665,10 @@
       },
       "versionOrClaim": {
         "kind": "source-filter-or-command",
-        "evidence": [],
-        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
+        "evidence": [
+          "updatedAt"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
         "updatedRecords": [],
@@ -9538,8 +9703,10 @@
       },
       "versionOrClaim": {
         "kind": "source-filter-or-command",
-        "evidence": [],
-        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
+        "evidence": [
+          "updatedAt"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
         "updatedRecords": [
@@ -9574,8 +9741,10 @@
       },
       "versionOrClaim": {
         "kind": "source-filter-or-command",
-        "evidence": [],
-        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
+        "evidence": [
+          "updatedAt"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
         "updatedRecords": [],
@@ -9610,8 +9779,10 @@
       },
       "versionOrClaim": {
         "kind": "source-filter-or-command",
-        "evidence": [],
-        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
+        "evidence": [
+          "updatedAt"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
         "updatedRecords": [
@@ -9646,8 +9817,10 @@
       },
       "versionOrClaim": {
         "kind": "source-filter-or-command",
-        "evidence": [],
-        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
+        "evidence": [
+          "updatedAt"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
         "updatedRecords": [],
@@ -10700,8 +10873,10 @@
       },
       "versionOrClaim": {
         "kind": "source-filter-or-command",
-        "evidence": [],
-        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
+        "evidence": [
+          "updatedAt"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
         "updatedRecords": [],
@@ -10730,8 +10905,10 @@
       },
       "versionOrClaim": {
         "kind": "source-filter-or-command",
-        "evidence": [],
-        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
+        "evidence": [
+          "updatedAt"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
         "updatedRecords": [],
@@ -10871,14 +11048,14 @@
     {
       "id": "src/services/serviceEligibility/serviceEligibility.service.js#guardServiceRequest#transition-command#1",
       "file": "src/services/serviceEligibility/serviceEligibility.service.js",
-      "line": 142,
+      "line": 141,
       "kind": "transition-command",
       "fields": [
         "applyBookingStateTransition"
       ],
       "writerSha256": "380b1c4bdbd0bb02eb2e2eebbf92d41a40ce4237d172e6ea2af113b5f8333e0b",
-      "ownerSha256": "205d5e3b8588f5b26887b71ed90a6267af6a6815e83d5a30ef1ad413953dced4",
-      "importSha256": "5f6f3102593223814cc179b7a2a9673f5fa54be27a7e7a514977c332e47a6893",
+      "ownerSha256": "716668bc6cada343ede70077d6e0bc9a07ca2ff2f1f20686a3a2c688bf02c823",
+      "importSha256": "e898f8a972121538478ef5899628944c0973c174049e02c8e5ddf7dbe6155de0",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -10889,12 +11066,16 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
+          "saveRequestBookingDocument",
+          "updatedAt",
           "valuationVersion"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Lead"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -10902,14 +11083,14 @@
     {
       "id": "src/services/serviceEligibility/serviceEligibility.service.js#guardServiceRequest#assignment#1",
       "file": "src/services/serviceEligibility/serviceEligibility.service.js",
-      "line": 144,
+      "line": 143,
       "kind": "assignment",
       "fields": [
         "conversationMemory"
       ],
       "writerSha256": "b3aaa046742d5470f6c05130765c93a168011a1291b4fc9b1dce38691976c0fa",
-      "ownerSha256": "205d5e3b8588f5b26887b71ed90a6267af6a6815e83d5a30ef1ad413953dced4",
-      "importSha256": "5f6f3102593223814cc179b7a2a9673f5fa54be27a7e7a514977c332e47a6893",
+      "ownerSha256": "716668bc6cada343ede70077d6e0bc9a07ca2ff2f1f20686a3a2c688bf02c823",
+      "importSha256": "e898f8a972121538478ef5899628944c0973c174049e02c8e5ddf7dbe6155de0",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -10920,12 +11101,16 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
+          "saveRequestBookingDocument",
+          "updatedAt",
           "valuationVersion"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Lead"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -10933,14 +11118,14 @@
     {
       "id": "src/services/serviceEligibility/serviceEligibility.service.js#guardServiceRequest#assignment#2",
       "file": "src/services/serviceEligibility/serviceEligibility.service.js",
-      "line": 146,
+      "line": 145,
       "kind": "assignment",
       "fields": [
         "conversationMemory.serviceNeeded"
       ],
       "writerSha256": "bc03f246d20a759ae2ef8cb5743c63f0c75d13141334b9b96b4e94bb201ee87f",
-      "ownerSha256": "205d5e3b8588f5b26887b71ed90a6267af6a6815e83d5a30ef1ad413953dced4",
-      "importSha256": "5f6f3102593223814cc179b7a2a9673f5fa54be27a7e7a514977c332e47a6893",
+      "ownerSha256": "716668bc6cada343ede70077d6e0bc9a07ca2ff2f1f20686a3a2c688bf02c823",
+      "importSha256": "e898f8a972121538478ef5899628944c0973c174049e02c8e5ddf7dbe6155de0",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -10951,12 +11136,16 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
+          "saveRequestBookingDocument",
+          "updatedAt",
           "valuationVersion"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Lead"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -10964,14 +11153,14 @@
     {
       "id": "src/services/serviceEligibility/serviceEligibility.service.js#guardServiceRequest#assignment#3",
       "file": "src/services/serviceEligibility/serviceEligibility.service.js",
-      "line": 147,
+      "line": 146,
       "kind": "assignment",
       "fields": [
         "conversationMemory.summary"
       ],
       "writerSha256": "2d0743c1cca462fea679fea1e242af2918af5c7c6664c0ff45242bcaf25bfc84",
-      "ownerSha256": "205d5e3b8588f5b26887b71ed90a6267af6a6815e83d5a30ef1ad413953dced4",
-      "importSha256": "5f6f3102593223814cc179b7a2a9673f5fa54be27a7e7a514977c332e47a6893",
+      "ownerSha256": "716668bc6cada343ede70077d6e0bc9a07ca2ff2f1f20686a3a2c688bf02c823",
+      "importSha256": "e898f8a972121538478ef5899628944c0973c174049e02c8e5ddf7dbe6155de0",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -10982,12 +11171,16 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
+          "saveRequestBookingDocument",
+          "updatedAt",
           "valuationVersion"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Lead"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -10995,14 +11188,14 @@
     {
       "id": "src/services/serviceEligibility/serviceEligibility.service.js#guardServiceRequest#assignment#4",
       "file": "src/services/serviceEligibility/serviceEligibility.service.js",
-      "line": 150,
+      "line": 149,
       "kind": "assignment",
       "fields": [
         "lifecycle.nextRecoveryNudgeAt"
       ],
       "writerSha256": "6b78c16085f01f01265db098433f3bcb9c97815c1c24b759ac5ec3aceadfd1b7",
-      "ownerSha256": "205d5e3b8588f5b26887b71ed90a6267af6a6815e83d5a30ef1ad413953dced4",
-      "importSha256": "5f6f3102593223814cc179b7a2a9673f5fa54be27a7e7a514977c332e47a6893",
+      "ownerSha256": "716668bc6cada343ede70077d6e0bc9a07ca2ff2f1f20686a3a2c688bf02c823",
+      "importSha256": "e898f8a972121538478ef5899628944c0973c174049e02c8e5ddf7dbe6155de0",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -11013,12 +11206,16 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
+          "saveRequestBookingDocument",
+          "updatedAt",
           "valuationVersion"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Lead"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -11026,14 +11223,14 @@
     {
       "id": "src/services/serviceEligibility/serviceEligibility.service.js#guardServiceRequest#assignment#5",
       "file": "src/services/serviceEligibility/serviceEligibility.service.js",
-      "line": 187,
+      "line": 186,
       "kind": "assignment",
       "fields": [
         "conversationMemory"
       ],
       "writerSha256": "7cc498730098bde11ada17e84ae5bcbbff27c19d8ce52e5fcd1e506cd5eb60df",
-      "ownerSha256": "205d5e3b8588f5b26887b71ed90a6267af6a6815e83d5a30ef1ad413953dced4",
-      "importSha256": "5f6f3102593223814cc179b7a2a9673f5fa54be27a7e7a514977c332e47a6893",
+      "ownerSha256": "716668bc6cada343ede70077d6e0bc9a07ca2ff2f1f20686a3a2c688bf02c823",
+      "importSha256": "e898f8a972121538478ef5899628944c0973c174049e02c8e5ddf7dbe6155de0",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -11044,25 +11241,31 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
+          "saveRequestBookingDocument",
+          "updatedAt",
           "valuationVersion"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Lead"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
     },
     {
-      "id": "src/services/serviceEligibility/serviceEligibility.service.js#guardServiceRequest#save#1",
+      "id": "src/services/serviceEligibility/serviceEligibility.service.js#guardServiceRequest#transition-command#2",
       "file": "src/services/serviceEligibility/serviceEligibility.service.js",
-      "line": 192,
-      "kind": "save",
-      "fields": [],
-      "writerSha256": "c1f33698a55b6088975bde334ddc88f09ad1de3d1e301d51008cf686fdb14849",
-      "ownerSha256": "205d5e3b8588f5b26887b71ed90a6267af6a6815e83d5a30ef1ad413953dced4",
-      "importSha256": "5f6f3102593223814cc179b7a2a9673f5fa54be27a7e7a514977c332e47a6893",
+      "line": 191,
+      "kind": "transition-command",
+      "fields": [
+        "saveRequestBookingDocument"
+      ],
+      "writerSha256": "124a0cbfd1bfb1aa9d9c317df83a57d3b02eb5b3fd04b6aa5813ba10d6e2e600",
+      "ownerSha256": "716668bc6cada343ede70077d6e0bc9a07ca2ff2f1f20686a3a2c688bf02c823",
+      "importSha256": "e898f8a972121538478ef5899628944c0973c174049e02c8e5ddf7dbe6155de0",
       "predicateSource": null,
       "authoritativeRecord": "Lead",
       "allowedCommand": {
@@ -11071,14 +11274,18 @@
         "mode": "registered-domain-command"
       },
       "versionOrClaim": {
-        "kind": "hydrated-document-session-and-hooks",
+        "kind": "source-filter-or-command",
         "evidence": [
+          "saveRequestBookingDocument",
+          "updatedAt",
           "valuationVersion"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Conversation"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -11086,14 +11293,14 @@
     {
       "id": "src/services/serviceEligibility/serviceEligibility.service.js#guardServiceRequest#write-capability-reference#1",
       "file": "src/services/serviceEligibility/serviceEligibility.service.js",
-      "line": 194,
+      "line": 193,
       "kind": "write-capability-reference",
       "fields": [
         "save"
       ],
       "writerSha256": "5bb6b3f4eac04609eebd5f47d6923f43abf44399f9c75e0b2af2d68f6061cbdd",
-      "ownerSha256": "205d5e3b8588f5b26887b71ed90a6267af6a6815e83d5a30ef1ad413953dced4",
-      "importSha256": "5f6f3102593223814cc179b7a2a9673f5fa54be27a7e7a514977c332e47a6893",
+      "ownerSha256": "716668bc6cada343ede70077d6e0bc9a07ca2ff2f1f20686a3a2c688bf02c823",
+      "importSha256": "e898f8a972121538478ef5899628944c0973c174049e02c8e5ddf7dbe6155de0",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -11104,25 +11311,31 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
+          "saveRequestBookingDocument",
+          "updatedAt",
           "valuationVersion"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Lead"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
     },
     {
-      "id": "src/services/serviceEligibility/serviceEligibility.service.js#guardServiceRequest#save#2",
+      "id": "src/services/serviceEligibility/serviceEligibility.service.js#guardServiceRequest#transition-command#3",
       "file": "src/services/serviceEligibility/serviceEligibility.service.js",
-      "line": 194,
-      "kind": "save",
-      "fields": [],
-      "writerSha256": "f9d76d8688cf8709e471bba9fc7ddef4d4546b898b1f68b4ff07e3fe5efb0802",
-      "ownerSha256": "205d5e3b8588f5b26887b71ed90a6267af6a6815e83d5a30ef1ad413953dced4",
-      "importSha256": "5f6f3102593223814cc179b7a2a9673f5fa54be27a7e7a514977c332e47a6893",
+      "line": 193,
+      "kind": "transition-command",
+      "fields": [
+        "saveRequestBookingDocument"
+      ],
+      "writerSha256": "42537f898dbad007e019778d80d747932439b825c70634d0bb559c6c12505659",
+      "ownerSha256": "716668bc6cada343ede70077d6e0bc9a07ca2ff2f1f20686a3a2c688bf02c823",
+      "importSha256": "e898f8a972121538478ef5899628944c0973c174049e02c8e5ddf7dbe6155de0",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -11131,14 +11344,18 @@
         "mode": "registered-domain-command"
       },
       "versionOrClaim": {
-        "kind": "hydrated-document-session-and-hooks",
+        "kind": "source-filter-or-command",
         "evidence": [
+          "saveRequestBookingDocument",
+          "updatedAt",
           "valuationVersion"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Lead"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -11146,14 +11363,14 @@
     {
       "id": "src/services/serviceEligibility/serviceEligibility.service.js#guardServiceRequest#write-capability-reference#2",
       "file": "src/services/serviceEligibility/serviceEligibility.service.js",
-      "line": 212,
+      "line": 211,
       "kind": "write-capability-reference",
       "fields": [
         "save"
       ],
       "writerSha256": "5356c700b9fe7b75d67139c1cf65af49d953a449f7fc2f1bfecd926b3b57cfa5",
-      "ownerSha256": "205d5e3b8588f5b26887b71ed90a6267af6a6815e83d5a30ef1ad413953dced4",
-      "importSha256": "5f6f3102593223814cc179b7a2a9673f5fa54be27a7e7a514977c332e47a6893",
+      "ownerSha256": "716668bc6cada343ede70077d6e0bc9a07ca2ff2f1f20686a3a2c688bf02c823",
+      "importSha256": "e898f8a972121538478ef5899628944c0973c174049e02c8e5ddf7dbe6155de0",
       "predicateSource": null,
       "authoritativeRecord": "Lead",
       "allowedCommand": {
@@ -11164,12 +11381,16 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
+          "saveRequestBookingDocument",
+          "updatedAt",
           "valuationVersion"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Conversation"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -11177,14 +11398,14 @@
     {
       "id": "src/services/serviceEligibility/serviceEligibility.service.js#guardServiceRequest#write-capability-reference#3",
       "file": "src/services/serviceEligibility/serviceEligibility.service.js",
-      "line": 213,
+      "line": 212,
       "kind": "write-capability-reference",
       "fields": [
         "save"
       ],
       "writerSha256": "5bb6b3f4eac04609eebd5f47d6923f43abf44399f9c75e0b2af2d68f6061cbdd",
-      "ownerSha256": "205d5e3b8588f5b26887b71ed90a6267af6a6815e83d5a30ef1ad413953dced4",
-      "importSha256": "5f6f3102593223814cc179b7a2a9673f5fa54be27a7e7a514977c332e47a6893",
+      "ownerSha256": "716668bc6cada343ede70077d6e0bc9a07ca2ff2f1f20686a3a2c688bf02c823",
+      "importSha256": "e898f8a972121538478ef5899628944c0973c174049e02c8e5ddf7dbe6155de0",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -11195,12 +11416,16 @@
       "versionOrClaim": {
         "kind": "source-filter-or-command",
         "evidence": [
+          "saveRequestBookingDocument",
+          "updatedAt",
           "valuationVersion"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Lead"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -11225,8 +11450,11 @@
       },
       "versionOrClaim": {
         "kind": "source-filter-or-command",
-        "evidence": [],
-        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
+        "evidence": [
+          "updatedAt",
+          "version"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
         "updatedRecords": [],
@@ -12093,7 +12321,9 @@
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Lead"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -12123,7 +12353,9 @@
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Conversation"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -12153,7 +12385,10 @@
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Conversation",
+          "Lead"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -12247,7 +12482,8 @@
       },
       "projectionsAndRepair": {
         "updatedRecords": [
-          "Alert"
+          "Alert",
+          "Conversation"
         ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
@@ -12449,7 +12685,9 @@
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Conversation"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -12644,7 +12882,8 @@
       },
       "projectionsAndRepair": {
         "updatedRecords": [
-          "Alert"
+          "Alert",
+          "Conversation"
         ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
@@ -12678,7 +12917,9 @@
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Conversation"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -12796,7 +13037,9 @@
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Lead"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
@@ -12888,7 +13131,9 @@
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
-        "updatedRecords": [],
+        "updatedRecords": [
+          "Lead"
+        ],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
       }
