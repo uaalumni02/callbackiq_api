@@ -38,6 +38,17 @@ function fixture(t, repository) {
 }
 
 for (const repository of Object.keys(profiles)) {
+  test(`${repository}: forbidden require remains blocked through a symlinked checkout root`, t => {
+    const f = fixture(t, repository);
+    const aliases = fs.mkdtempSync(path.join(os.tmpdir(), 'feature-boundary-alias-'));
+    t.after(() => fs.rmSync(aliases, { recursive: true, force: true }));
+    const alias = path.join(aliases, 'checkout');
+    fs.symlinkSync(fs.realpathSync(f.root), alias, 'dir');
+    f.write(f.forbidden, 'export const valid = true;');
+    f.write(f.entry, `const load = require('${f.specifier(f.entry, f.forbidden)}');`);
+    assert.throws(() => auditImports(alias), /forbidden import/);
+  });
+
   test(`${repository}: an acyclic selected feature can depend on a shared pure helper`, t => {
     const f = fixture(t, repository);
     f.write('src/lib/value.js', 'export const value = 1;');

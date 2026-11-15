@@ -73,7 +73,7 @@ function pathBack(graph, start, target, visited = new Set()) {
 }
 
 export function auditImports(root = process.cwd()) {
-  root = path.resolve(root);
+  root = fs.realpathSync(path.resolve(root));
   const repository = JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8')).name;
   if (!profiles[repository]) throw new Error(`Unknown repository package: ${repository}`);
   const files = sourceFiles(root), graph = new Map(), dependencies = new Map(), failures = [];
