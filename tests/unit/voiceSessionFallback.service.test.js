@@ -1,5 +1,7 @@
 import { claimRecoveryIntroduction } from "../../src/services/messaging/recoveryIntroduction.service.js";
 jest.mock("../../src/services/messaging/recoveryIntroduction.service.js", () => ({ claimRecoveryIntroduction: jest.fn() }));
+import Conversation from "../../src/models/conversation.js";
+import SocketService from "../../src/services/socket.service.js";
 import Alert from "../../src/models/alert.js";
 import Message from "../../src/models/message.js";
 import VoiceSession from "../../src/models/voiceSession.js";
@@ -20,7 +22,7 @@ jest.mock("../../src/models/callLog.js", () => ({
 
 jest.mock("../../src/models/conversation.js", () => ({
   __esModule: true,
-  default: {},
+  default: { findOneAndUpdate: jest.fn() },
 }));
 
 jest.mock("../../src/models/lead.js", () => ({
@@ -54,7 +56,7 @@ jest.mock("../../src/services/twilioSmsService.js", () => ({
 
 jest.mock("../../src/services/socket.service.js", () => ({
   __esModule: true,
-  default: {},
+  default: { emitConversationUpdated: jest.fn() },
 }));
 
 jest.mock("../../src/voice/voiceTranscript.service.js", () => ({
@@ -262,6 +264,21 @@ describe("VoiceSessionService fallback", () => {
     await VoiceSessionService.sendFallbackSms({ sessionId: session._id });
     expect(sendSms).not.toHaveBeenCalled();
     expect(claimRecoveryIntroduction).not.toHaveBeenCalled();
+  });
+
+  test('an obsolete fallback preview cannot resave intake or emit a stale conversation', async () => {
+    conversation.lastMessage = 'Newer customer message';
+    Conversation.findOneAndUpdate.mockResolvedValueOnce(null);
+    await VoiceSessionService.sendFallbackSms({sessionId:session._id,failureReason:'disconnected'});
+    expect(Conversation.findOneAndUpdate).toHaveBeenCalledWith(expect.objectContaining({_id:conversation._id,business:session.business._id}),expect.any(Object),{returnDocument:'after'});
+    expect(conversation.save).not.toHaveBeenCalled();expect(conversation.lastMessage).toBe('Newer customer message');
+    expect(SocketService.emitConversationUpdated).not.toHaveBeenCalled();expect(sendSms).toHaveBeenCalledTimes(1);
+  });
+  test('an accepted fallback preview emits only the returned database projection', async () => {
+    const updated={_id:conversation._id,lastMessage:'Durable projection'};
+    Conversation.findOneAndUpdate.mockResolvedValueOnce(updated);
+    await VoiceSessionService.sendFallbackSms({sessionId:session._id,failureReason:'disconnected'});
+    expect(SocketService.emitConversationUpdated).toHaveBeenCalledWith(session.business._id,updated);expect(conversation.save).not.toHaveBeenCalled();
   });
 
 });
