@@ -9,19 +9,19 @@ export const consumeAdminChallenge = (challenge, session) => Challenge.findOneAn
   _id: challenge._id, consumedAt: null, expiresAt: { $gt: new Date() },
 }, { $set: { consumedAt: new Date() }, $unset: { enrollmentSecretEncrypted: '' } }, { session, returnDocument: 'after' });
 export const enableAdminMfa = ({ user, secret, step, hashes, session }) => User.findOneAndUpdate({
-  _id: user._id, role: 'admin', sessionVersion: user.sessionVersion || 0, mfaEnabled: { $ne: true },
+  _id: user._id, role: 'admin', sessionVersion: user.sessionVersion ? user.sessionVersion : { $in: [0, null] }, mfaEnabled: { $ne: true },
 }, { $set: { mfaEnabled: true, mfaSecretEncrypted: secret, mfaLastStep: step, mfaRecoveryHashes: hashes },
   $inc: { sessionVersion: 1 } }, { session, returnDocument: 'after' }).select('+sessionVersion');
 export const consumeAdminTotp = ({ user, step, session }) => User.findOneAndUpdate({
-  _id: user._id, role: 'admin', sessionVersion: user.sessionVersion || 0, mfaEnabled: true,
+  _id: user._id, role: 'admin', sessionVersion: user.sessionVersion ? user.sessionVersion : { $in: [0, null] }, mfaEnabled: true,
   mfaSecretEncrypted: user.mfaSecretEncrypted,
   $or: [{ mfaLastStep: { $lt: step } }, { mfaLastStep: { $exists: false } }],
 }, { $set: { mfaLastStep: step } }, { session, returnDocument: 'after' }).select('+sessionVersion');
 export const consumeAdminRecovery = ({ user, hash, session }) => User.findOneAndUpdate({
-  _id: user._id, role: 'admin', sessionVersion: user.sessionVersion || 0, mfaEnabled: true, mfaRecoveryHashes: hash,
+  _id: user._id, role: 'admin', sessionVersion: user.sessionVersion ? user.sessionVersion : { $in: [0, null] }, mfaEnabled: true, mfaRecoveryHashes: hash,
 }, { $pull: { mfaRecoveryHashes: hash } }, { session, returnDocument: 'after' }).select('+sessionVersion');
 export const replaceAdminRecovery = ({ user, step, hashes, session }) => User.findOneAndUpdate({
-  _id: user._id, role: 'admin', sessionVersion: user.sessionVersion || 0, mfaEnabled: true,
+  _id: user._id, role: 'admin', sessionVersion: user.sessionVersion ? user.sessionVersion : { $in: [0, null] }, mfaEnabled: true,
   mfaSecretEncrypted: user.mfaSecretEncrypted, mfaLastStep: { $lt: step },
 }, { $set: { mfaLastStep: step, mfaRecoveryHashes: hashes }, $inc: { sessionVersion: 1 } },
 { session, returnDocument: 'after' }).select('+sessionVersion');

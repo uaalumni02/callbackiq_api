@@ -20,8 +20,10 @@
       "name": "saveResetPassword",
       "module": "src/db/repositories/extracted/identity-1.js",
       "kind": "method",
-      "sha": "70b10664c57cec9dce83b4888174007da28c26f8db0d9bc1337f66ad27c11ee4",
-      "preTransitionMigrationSha": "4c77f3080b530ead758582cda7fbc9141e697f123709c85ab79ba8640152128b"
+      "sha": "e6d90b6414bae99c6ed83d441ba36d8aae43b4115d850d010339564fe86c3ed1",
+      "preTransitionMigrationSha": "4c77f3080b530ead758582cda7fbc9141e697f123709c85ab79ba8640152128b",
+      "preSecurityMaintenanceSha": "70b10664c57cec9dce83b4888174007da28c26f8db0d9bc1337f66ad27c11ee4",
+      "review": "Atomic reset now requires its hashed token at the final write; concurrent one-winner behavior is pinned by securityMaintenance.test.js."
     },
     {
       "name": "findUserByLogin",
@@ -505,7 +507,9 @@
       "tests/routes/support.test.js",
       "tests/unit/conversationIntelligence.controller.test.js",
       "tests/unit/subscriptionReadBudget.test.js",
-      "tests/integration/tenantOwnerHttp.contract.test.js"
+      "tests/integration/tenantOwnerHttp.contract.test.js",
+      "tests/integration/securityMaintenance.test.js",
+      "tests/integration/rescheduleBoundaries.characterization.test.js"
     ]
   },
   "reviewedModuleImports": {
@@ -514,7 +518,8 @@
       "./providerHandoff.js",
       "./finalize.js",
       "./recovery.js",
-      "./followUp.js"
+      "./followUp.js",
+      "../../stateTransitions/appointmentOwnership.js"
     ],
     "src/db/repositories/extracted/identity-1.js": [
       "../../../services/stateTransitions/accountRecords.js"

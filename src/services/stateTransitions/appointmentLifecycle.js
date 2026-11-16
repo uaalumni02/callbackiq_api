@@ -282,7 +282,10 @@ export function runApprovalSmsAlertUpdateOne3({ Alert, alert, error, now, path, 
 
 // src/services/scheduling/reschedule/followUp.js:18 — updateOne; predicate and write options are owned here.
 export function followUpTaskLeadUpdateOne({ Lead, business, replacement }) {
-  return (Lead.updateOne({ _id: replacement.lead, business: business._id },
+  return (Lead.updateOne({ _id: replacement.lead, business: business._id,
+        appointment: { $in: [replacement._id, replacement.rescheduledFrom, null].filter(id => id !== undefined) },
+        $or: [{ bookedAt: null }, { bookedAt: { $lte: replacement.confirmedAt } }],
+      },
       { $set: { appointment: replacement._id, bookedAt: replacement.confirmedAt } }));
 }
 

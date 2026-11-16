@@ -6,17 +6,29 @@ export const appointmentConflict = () => Object.assign(new Error('The appointmen
 export async function claimRescheduleOriginal({ Appointment, original, business, key, input }) {
   if (original.status === 'rescheduled') return original;
   const fingerprint = rescheduleReceiptIdentity(input);
+  const now = new Date(), token = crypto.randomUUID();
   if (original.rescheduleIntent?.fingerprint && original.rescheduleIntent.fingerprint !== fingerprint) throw appointmentConflict();
   const claimed = await Appointment.findOneAndUpdate({
     _id: original._id, business: business._id, status: 'confirmed',
     ...(original.updatedAt ? { updatedAt: original.updatedAt } : {}),
-    $or: [{ 'rescheduleIntent.key': key }, { 'rescheduleIntent.key': { $exists: false } }, { rescheduleIntent: null }],
+    $and: [
+      { $or: [{ 'rescheduleIntent.key': key }, { 'rescheduleIntent.key': { $exists: false } }, { rescheduleIntent: null }] },
+      { $or: [{ 'rescheduleIntent.leaseUntil': { $exists: false } }, { 'rescheduleIntent.leaseUntil': { $lte: now } }] },
+    ],
     'confirmationIntent.status': { $ne: 'pending_provider' },
-  }, { $set: { rescheduleIntent: { key, fingerprint, startedAt: new Date() } } },
+  }, { $set: { rescheduleIntent: { key, fingerprint, startedAt: now, leaseToken: token, leaseUntil: new Date(+now + 120000) } } },
   { returnDocument: 'after', runValidators: true }).select('+confirmationIntent');
   if (!claimed) throw appointmentConflict();
   claimed.$locals.rescheduleOperationKey = key;
+  claimed.$locals.rescheduleLeaseToken = token;
   return claimed;
+}
+/** Release only this invocation's lease; pre-provider reservation failure may abandon the intent. */
+export async function releaseRescheduleOriginal({ Appointment, original, abandon = false }) {
+  return Appointment.updateOne({ _id: original._id, business: original.business, status: 'confirmed',
+    'rescheduleIntent.key': original.$locals.rescheduleOperationKey,
+    'rescheduleIntent.leaseToken': original.$locals.rescheduleLeaseToken,
+  }, { $unset: abandon ? { rescheduleIntent: '' } : { 'rescheduleIntent.leaseToken': '', 'rescheduleIntent.leaseUntil': '' } });
 }
 /** Every loaded appointment save is fenced against a newer status or timestamp. */
 export function installAppointmentOwnership(schema) {
@@ -51,6 +63,7 @@ export function installAppointmentOwnership(schema) {
     if (this.rescheduleIntent?.key) {
       if (this.$locals.rescheduleOperationKey !== this.rescheduleIntent.key) throw appointmentConflict();
       claim['rescheduleIntent.key'] = this.rescheduleIntent.key;
+      if (this.$locals.rescheduleLeaseToken) claim['rescheduleIntent.leaseToken'] = this.$locals.rescheduleLeaseToken;
     }
     this.$locals.ownershipPreviousWhere = this.$where;
     this.$where = { $and: [this.$where || {}, claim] };

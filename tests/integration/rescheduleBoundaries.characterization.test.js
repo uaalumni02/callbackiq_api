@@ -170,3 +170,42 @@ test('same-status stale document saves cannot overwrite a newer edit',async()=>{
  first.notes='first update';await first.save();second.notes='stale update';await expect(second.save()).rejects.toMatchObject({name:'DocumentNotFoundError'});
  expect((await Appointment.findById(first._id)).notes).toBe('first update');
 });
+
+test('failed reservation releases its original claim so corrected details can be submitted', async () => {
+ const f=await fixture();const deps={...f.deps,createHold:jest.fn().mockRejectedValue(new Error('slot was taken'))};
+ await expect(createAppointmentreschedule1Methods(deps).reschedule({business:f.business,appointmentId:f.original._id,input:f.input,idempotencyKey:'failed-reservation'})).rejects.toThrow('slot was taken');
+ expect((await Appointment.findById(f.original._id)).rescheduleIntent?.key).toBeUndefined();
+ expect(f.provider.updateAppointment).not.toHaveBeenCalled();
+ await f.run();await expectConverged(f);
+});
+test('concurrent same-key retry cannot duplicate an in-flight provider mutation', async () => {
+ const f=await fixture();let release,started;const gate=new Promise(r=>{release=r}),ready=new Promise(r=>{started=r});
+ const update=f.provider.updateAppointment.getMockImplementation();f.provider.updateAppointment.mockImplementationOnce(async args=>{started();await gate;return update(args)});
+ const pending=f.run();await ready;
+ try {await expect(f.run()).rejects.toMatchObject({code:'APPOINTMENT_STATE_CONFLICT'});expect(f.provider.updateAppointment).toHaveBeenCalledTimes(1);}
+ finally {release();await pending;}
+ await expectConverged(f);
+});
+test('a crashed invocation can resume the same intent after its lease expires',async()=>{
+ const {claimRescheduleOriginal}=await import('../../src/services/stateTransitions/appointmentOwnership.js');const f=await fixture();
+ await claimRescheduleOriginal({Appointment,original:f.original,business:f.business,key:'same-reschedule',input:f.input});
+ await expect(f.run()).rejects.toMatchObject({code:'APPOINTMENT_STATE_CONFLICT'});
+ await Appointment.updateOne({_id:f.original._id},{$set:{'rescheduleIntent.leaseUntil':new Date(0)}});
+ await f.run();await expectConverged(f);
+});
+
+test('late lead linkage cannot overwrite a newer booking', async()=>{
+ const {followUpTaskLeadUpdateOne}=await import('../../src/services/stateTransitions/appointmentLifecycle.js');const f=await fixture();
+ const replacement=await f.run();const newer=objectId();
+ await Lead.updateOne({_id:f.lead._id},{$set:{appointment:newer,bookedAt:new Date(Date.now()+60000)}});
+ await followUpTaskLeadUpdateOne({Lead,business:f.business,replacement});
+ expect(String((await Lead.findById(f.lead._id)).appointment)).toBe(String(newer));
+});
+test('stale Google provider-change approval cannot move a canceled appointment',async()=>{
+ const {googleCalendarChangeReviewApproveMoveAppointmentAtomicUpdate:approve}=await import('../../src/services/stateTransitions/integrations.js');const f=await fixture();
+ await Appointment.updateOne({_id:f.original._id},{$set:{pendingProviderChange:{status:'pending_review'}}});
+ const observed=await Appointment.findById(f.original._id);
+ await Appointment.updateOne({_id:f.original._id},{$set:{status:'canceled'}});
+ const changed=await approve({Appointment,appointment:observed,business:f.business,capacityLane:1,change:{eventId:'event-1',calendarId:'calendar-1'},startAt:f.input.startAt,endAt:f.input.endAt,getSlotClaimKeys:()=>['new-slot']});
+ expect(changed).toBeNull();expect((await Appointment.findById(f.original._id)).startAt).toEqual(f.original.startAt);
+});

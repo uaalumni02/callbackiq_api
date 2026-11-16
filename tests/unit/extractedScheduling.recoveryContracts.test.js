@@ -84,6 +84,7 @@ test('expired hold claims a tenant-scoped lane and preserves business approval',
   assert.deepEqual(claim[1], {
     _id: 'original-1', business: 'tenant-1', status: 'held',
     'confirmationIntent.status': { $ne: 'pending_provider' },
+    'rescheduleIntent.key': { $exists: false },
   });
   assert.equal(claim[2].$set.capacityLane,1);
   assert.deepEqual(claim[2].$set.slotClaimKeys,['slot-claim']);

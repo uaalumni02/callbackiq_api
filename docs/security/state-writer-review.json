@@ -1,14 +1,14 @@
 {
   "baseline": "55362b127cc4a72453ca96e995fe54bea95c1333",
-  "total": 671,
+  "total": 673,
   "counts": {
-    "delegated-command-with-recorded-owner": 431,
+    "delegated-command-with-recorded-owner": 432,
     "atomic-query-with-recorded-filter": 142,
     "capability-inspection": 18,
     "model-persistence-and-unique-index-contract": 19,
     "staged-fields-with-persistence-owner": 55,
     "atomic-reset-token-consumption": 1,
-    "runtime-document-fence": 1,
+    "runtime-document-fence": 2,
     "durable-compensation": 4
   },
   "reviewedRuntimeBypasses": [
@@ -462,7 +462,7 @@
         "function": "<module>",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "8703156c7714e4dec63226c01632eef771f825e94b07bddaf8a2bd069f921a3b",
+      "sourceFingerprint": "4f43c97ef3bd374669c26d604a045f9c8b6bf0960d019ab6b73760533c1ae78c",
       "authority": "RegisteredStateRecord",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
@@ -5418,7 +5418,21 @@
         "function": "executeReschedule",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "848b1a6918e550ed3fdfbb53ed88e3ee1fd8f45339116a3e35215151047e8a8b",
+      "sourceFingerprint": "dd3d2c64d652cf048ee900733f5416b8f6c0d98d0c910d49d4c7a7eef81de686",
+      "authority": "RegisteredStateRecord",
+      "disposition": "delegated-command-with-recorded-owner",
+      "recordedPredicate": null,
+      "localClaimEvidence": [],
+      "enforcement": "Dispatch/capability remains bound by the recorded owner; inspect its model and caller. Registration is not proof of safety."
+    },
+    {
+      "id": "src/services/scheduling/reschedule/command.js#executeReschedule#transition-command#2",
+      "owner": {
+        "module": "src/services/scheduling/reschedule/command.js",
+        "function": "executeReschedule",
+        "mode": "registered-domain-command"
+      },
+      "sourceFingerprint": "dd3d2c64d652cf048ee900733f5416b8f6c0d98d0c910d49d4c7a7eef81de686",
       "authority": "RegisteredStateRecord",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
@@ -6983,10 +6997,10 @@
         "function": "followUpTaskLeadUpdateOne",
         "mode": "transition-layer"
       },
-      "sourceFingerprint": "63b2d443208a12fd8d1279f48231c0a7f3fc2a13673ecb6150d7a1d7d940c0af",
+      "sourceFingerprint": "3c3467d34802eb6a6eac14af4e2abb723e534ef3069dc733b247ae20b5161975",
       "authority": "Lead",
       "disposition": "atomic-query-with-recorded-filter",
-      "recordedPredicate": "{ _id: replacement.lead, business: business._id }",
+      "recordedPredicate": "{ _id: replacement.lead, business: business._id,\n        appointment: { $in: [replacement._id, replacement.rescheduledFrom, null].filter(id => id !== undefined) },\n        $or: [{ bookedAt: null }, { bookedAt: { $lte: replacement.confirmedAt } }],\n      }",
       "localClaimEvidence": [],
       "enforcement": "documentFence saves/query versions; tenantRepository scope; valuationVersion and booking projection predicates"
     },
@@ -7067,14 +7081,28 @@
         "function": "claimRescheduleOriginal",
         "mode": "transition-layer"
       },
-      "sourceFingerprint": "df69c54416338aa176d16e49a0738904d33e7f517a83e78b84ca6dcdcf909aed",
+      "sourceFingerprint": "abcc2fa56461f9fddc505865933070e54b5513860bff4b4ca559e5a19dacc445",
       "authority": "Appointment",
       "disposition": "runtime-document-fence",
-      "recordedPredicate": "{\n    _id: original._id, business: business._id, status: 'confirmed',\n    ...(original.updatedAt ? { updatedAt: original.updatedAt } : {}),\n    $or: [{ 'rescheduleIntent.key': key }, { 'rescheduleIntent.key': { $exists: false } }, { rescheduleIntent: null }],\n    'confirmationIntent.status': { $ne: 'pending_provider' },\n  }",
+      "recordedPredicate": "{\n    _id: original._id, business: business._id, status: 'confirmed',\n    ...(original.updatedAt ? { updatedAt: original.updatedAt } : {}),\n    $and: [\n      { $or: [{ 'rescheduleIntent.key': key }, { 'rescheduleIntent.key': { $exists: false } }, { rescheduleIntent: null }] },\n      { $or: [{ 'rescheduleIntent.leaseUntil': { $exists: false } }, { 'rescheduleIntent.leaseUntil': { $lte: now } }] },\n    ],\n    'confirmationIntent.status': { $ne: 'pending_provider' },\n  }",
       "localClaimEvidence": [
         "confirmationIntent",
         "updatedAt"
       ],
+      "enforcement": "appointmentOwnership schema fences; confirmation intent predicates; reschedule claim/fingerprint; compensation retry"
+    },
+    {
+      "id": "src/services/stateTransitions/appointmentOwnership.js#releaseRescheduleOriginal#updateOne#1",
+      "owner": {
+        "module": "src/services/stateTransitions/appointmentOwnership.js",
+        "function": "releaseRescheduleOriginal",
+        "mode": "transition-layer"
+      },
+      "sourceFingerprint": "a1144fae4b5a4e1ef4dd8eb86a68118ce0c664c6d150b58c7c025d27a1a2126d",
+      "authority": "Appointment",
+      "disposition": "runtime-document-fence",
+      "recordedPredicate": "{ _id: original._id, business: original.business, status: 'confirmed',\n    'rescheduleIntent.key': original.$locals.rescheduleOperationKey,\n    'rescheduleIntent.leaseToken': original.$locals.rescheduleLeaseToken,\n  }",
+      "localClaimEvidence": [],
       "enforcement": "appointmentOwnership schema fences; confirmation intent predicates; reschedule claim/fingerprint; compensation retry"
     },
     {
@@ -7810,11 +7838,14 @@
         "function": "googleCalendarChangeReviewApproveMoveAppointmentAtomicUpdate",
         "mode": "transition-layer"
       },
-      "sourceFingerprint": "93f66de0e9e57d3a4a24e7d44ce8b02c4767f3f8f24d23163743c51f2b90aa9a",
+      "sourceFingerprint": "97aac2833a4256821ea45520669fa85748d60f2ff96016ce0bbf29a44ef1cbd0",
       "authority": "Appointment",
       "disposition": "atomic-query-with-recorded-filter",
-      "recordedPredicate": "{\n          _id: appointment._id,\n          business: business._id,\n          \"pendingProviderChange.status\": \"pending_review\",\n        }",
-      "localClaimEvidence": [],
+      "recordedPredicate": "{\n          _id: appointment._id,\n          business: business._id,\n          \"pendingProviderChange.status\": \"pending_review\",\n          status: appointment.status,\n          stateVersion: appointment.stateVersion ? appointment.stateVersion : { $in: [0, null] },\n          ...(appointment.updatedAt ? { updatedAt: appointment.updatedAt } : {}),\n          'rescheduleIntent.key': { $exists: false },\n          'confirmationIntent.status': { $ne: 'pending_provider' },\n        }",
+      "localClaimEvidence": [
+        "confirmationIntent",
+        "updatedAt"
+      ],
       "enforcement": "appointmentOwnership schema fences; confirmation intent predicates; reschedule claim/fingerprint; compensation retry"
     },
     {

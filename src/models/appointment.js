@@ -208,7 +208,7 @@ const AppointmentSchema = new Schema(
 
     providerCompensation: { pending: Boolean, eventId: String, calendarId: String, provider: String, nextAttemptAt: Date, lastError: String, token: String, leaseUntil: Date },
     stateVersion: { type: Number, default: 0 },
-    rescheduleIntent: { key: String, fingerprint: String, startedAt: Date },
+    rescheduleIntent: { key: String, fingerprint: String, startedAt: Date, leaseToken: String, leaseUntil: Date },
     rescheduleInputFingerprint: String,
     rescheduledFrom: {
       type: Schema.Types.ObjectId,

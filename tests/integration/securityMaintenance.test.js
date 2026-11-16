@@ -80,3 +80,13 @@ test('concurrent enrollment and recovery redemption each have one winner',async(
  const redeemed=await Promise.allSettled([completeAdminChallenge({challengeToken:b.challengeToken,code:codes[0]}),completeAdminChallenge({challengeToken:c.challengeToken,code:codes[0]})]);
  expect(redeemed.filter(x=>x.status==='fulfilled')).toHaveLength(1);
 });
+
+test('legacy administrators without a persisted session counter can enroll securely',async()=>{
+ const {issueAdminChallenge,completeAdminChallenge}=await import('../../src/services/security/adminMfa.service.js');
+ const user=await User.create({userName:'LegacyAdmin',email:'legacy-admin@example.test',password:'unused-fixture-hash',businessName:'Legacy',role:'admin',termsAccepted:true,privacyAccepted:true});
+ await User.updateOne({_id:user._id},{$unset:{sessionVersion:''}});
+ const challenge=await issueAdminChallenge(user);
+ const {TOTP,Secret}=await import('otpauth');const code=new TOTP({secret:Secret.fromBase32(challenge.secret),algorithm:'SHA1',digits:6,period:30}).generate();
+ const result=await completeAdminChallenge({challengeToken:challenge.challengeToken,code});
+ expect(result.user.mfaEnabled).toBe(true);expect(result.user.sessionVersion).toBe(1);expect(result.recoveryCodes).toHaveLength(10);
+});

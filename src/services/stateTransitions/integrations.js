@@ -27,6 +27,11 @@ export function googleCalendarChangeReviewApproveMoveAppointmentAtomicUpdate({ A
           _id: appointment._id,
           business: business._id,
           "pendingProviderChange.status": "pending_review",
+          status: appointment.status,
+          stateVersion: appointment.stateVersion ? appointment.stateVersion : { $in: [0, null] },
+          ...(appointment.updatedAt ? { updatedAt: appointment.updatedAt } : {}),
+          'rescheduleIntent.key': { $exists: false },
+          'confirmationIntent.status': { $ne: 'pending_provider' },
         },
         {
           $set: {

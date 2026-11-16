@@ -582,68 +582,6 @@
       ]
     },
     {
-      "file": "src/services/integrations/googleCalendarChangeReview.service.js",
-      "baselineAstSha256": "65779f62842b31c0bed13c4642c48e79988ffc8aa1b7051874468ea1bf5ddc88",
-      "commands": [
-        {
-          "name": "googleCalendarChangeReviewResolveReviewAlertsAlertUpdateMany",
-          "call": "googleCalendarChangeReviewResolveReviewAlertsAlertUpdateMany({ Alert, appointmentId, businessId, resolution })",
-          "target": "src/services/stateTransitions/integrations.js",
-          "expression": "Alert.updateMany(\n    {\n      business: businessId,\n      appointment: appointmentId,\n      type: \"appointment_change_review\",\n      resolvedAt: null,\n    },\n    {\n      $set: {\n        status: \"resolved\",\n        resolvedAt: new Date(),\n        resolution,\n      },\n    },\n  )",
-          "legacyId": "src/services/integrations/googleCalendarChangeReview.service.js#resolveReviewAlerts#updateMany#1"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(appointment)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "appointment.save()",
-          "legacyId": "src/services/integrations/googleCalendarChangeReview.service.js#queueGoogleProviderChange#save#1"
-        },
-        {
-          "name": "googleCalendarChangeReviewApproveMoveAppointmentAtomicUpdate",
-          "call": "googleCalendarChangeReviewApproveMoveAppointmentAtomicUpdate({ Appointment, appointment, business, capacityLane, change, endAt, getSlotClaimKeys, reviewedBy, startAt })",
-          "target": "src/services/stateTransitions/integrations.js",
-          "expression": "Appointment.findOneAndUpdate(\n        {\n          _id: appointment._id,\n          business: business._id,\n          \"pendingProviderChange.status\": \"pending_review\",\n        },\n        {\n          $set: {\n            startAt,\n            endAt,\n            capacityLane,\n            activeSlotKey: `${startAt.toISOString()}|${endAt.toISOString()}|lane:${capacityLane}`,\n            slotClaimKeys: getSlotClaimKeys({\n              startAt,\n              endAt,\n              bufferBeforeMinutes: appointment.bufferBeforeMinutes,\n              bufferAfterMinutes: appointment.bufferAfterMinutes,\n              capacityLane,\n            }),\n            externalAppointmentId: change.eventId,\n            externalCalendarId: change.calendarId,\n            provider: \"google_calendar\",\n            \"pendingProviderChange.status\": \"approved\",\n            \"pendingProviderChange.reviewedAt\": new Date(),\n            \"pendingProviderChange.reviewedBy\": reviewedBy || null,\n          },\n        },\n        { returnDocument: \"after\", runValidators: true },\n      )",
-          "legacyId": "src/services/integrations/googleCalendarChangeReview.service.js#approveMove#findOneAndUpdate#1"
-        },
-        {
-          "name": "googleCalendarChangeReviewApproveCancelAppointmentFields",
-          "call": "googleCalendarChangeReviewApproveCancelAppointmentFields({ appointment })",
-          "target": "src/services/stateTransitions/integrations.js",
-          "expression": "appointment.status = \"canceled\"",
-          "legacyId": "src/services/integrations/googleCalendarChangeReview.service.js#approveCancel#assignment#1"
-        },
-        {
-          "name": "googleCalendarChangeReviewApproveCancelAppointmentFields2",
-          "call": "googleCalendarChangeReviewApproveCancelAppointmentFields2({ appointment })",
-          "target": "src/services/stateTransitions/integrations.js",
-          "expression": "appointment.pendingProviderChange.status = \"approved\"",
-          "legacyId": "src/services/integrations/googleCalendarChangeReview.service.js#approveCancel#assignment#2"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(appointment)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "appointment.save()",
-          "legacyId": "src/services/integrations/googleCalendarChangeReview.service.js#approveCancel#save#1"
-        },
-        {
-          "name": "googleCalendarChangeReviewRejectGoogleProviderChangeAppointmentFields",
-          "call": "googleCalendarChangeReviewRejectGoogleProviderChangeAppointmentFields({ appointment })",
-          "target": "src/services/stateTransitions/integrations.js",
-          "expression": "appointment.pendingProviderChange.status = \"rejected\"",
-          "legacyId": "src/services/integrations/googleCalendarChangeReview.service.js#rejectGoogleProviderChange#assignment#1"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(appointment)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "appointment.save()",
-          "legacyId": "src/services/integrations/googleCalendarChangeReview.service.js#rejectGoogleProviderChange#save#1"
-        }
-      ]
-    },
-    {
       "file": "src/services/integrations/googleCalendarConnection.service.js",
       "baselineAstSha256": "2ca39a0e7477074b034abebfec12fafbb8f961d825836308e5cb52918d7af24f",
       "commands": [
@@ -1699,19 +1637,6 @@
       ]
     },
     {
-      "file": "src/services/scheduling/reschedule/followUp.js",
-      "baselineAstSha256": "90c16a6c5755f787cd4e9912308f711508f75fecc0e436d640c95d49bd3ec71c",
-      "commands": [
-        {
-          "name": "followUpTaskLeadUpdateOne",
-          "call": "followUpTaskLeadUpdateOne({ Lead, business, replacement })",
-          "target": "src/services/stateTransitions/appointmentLifecycle.js",
-          "expression": "Lead.updateOne({ _id: replacement.lead, business: business._id },\n      { $set: { appointment: replacement._id, bookedAt: replacement.confirmedAt } })",
-          "legacyId": "src/services/scheduling/reschedule/followUp.js#task#updateOne#1"
-        }
-      ]
-    },
-    {
       "file": "src/services/scheduling/rescheduleRequest.service.js",
       "baselineAstSha256": "509b5a018d171796bfb3ae7bfd577fc66fa90e7e58279ea66233c6cb37f49688",
       "commands": [
@@ -2577,6 +2502,20 @@
       "tests": [
         "tests/integration/sms10of10.adversarial.mongo.test.js",
         "tests/integration/documentFence.security.test.js"
+      ]
+    },
+    {
+      "file": "src/services/scheduling/reschedule/followUp.js",
+      "reason": "Late projection or provider-change approval must not overwrite a newer appointment decision.",
+      "tests": [
+        "tests/integration/rescheduleBoundaries.characterization.test.js"
+      ]
+    },
+    {
+      "file": "src/services/integrations/googleCalendarChangeReview.service.js",
+      "reason": "Late projection or provider-change approval must not overwrite a newer appointment decision.",
+      "tests": [
+        "tests/integration/rescheduleBoundaries.characterization.test.js"
       ]
     }
   ]
