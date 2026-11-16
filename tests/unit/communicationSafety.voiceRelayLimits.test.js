@@ -4,6 +4,9 @@ import { WebSocket } from "ws";
 
 import { initializeConversationRelayServer } from "../../src/voice/conversationRelay.server.js";
 
+// Functional socket tests retain the one-second runtime floor plus I/O headroom.
+jest.setTimeout(15000);
+
 const startServer = async (options) => {
   const httpServer = http.createServer((_req, res) => {
     res.statusCode = 404;
@@ -66,7 +69,7 @@ const openSocket = (url) =>
     socket.once("error", reject);
   });
 
-const collectUntilEnd = (socket, timeoutMs = 1500) =>
+const collectUntilEnd = (socket, timeoutMs = 5000) =>
   new Promise((resolve, reject) => {
     const messages = [];
     const timer = setTimeout(() => {

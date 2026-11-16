@@ -34,13 +34,13 @@ test('administrator password login never establishes a session before MFA',async
  expect(verified.status).toBe(200);expect(verified.body.data.recoveryCodes).toHaveLength(10);expect(verified.headers['set-cookie'].join(';')).toContain('HttpOnly');
 });
 test('enrollment, challenge replay, TOTP replay, recovery reuse and pre-MFA sessions are enforced',async()=>{
- const u=await account('admin');const initial=await issueAdminChallenge(u);
- const result=await completeAdminChallenge({challengeToken:initial.challengeToken,code:otp(initial.secret)});
+ const u=await account('admin');const initial=await issueAdminChallenge(u);const enrolledCode=otp(initial.secret);
+ const result=await completeAdminChallenge({challengeToken:initial.challengeToken,code:enrolledCode});
  expect(result.recoveryCodes).toHaveLength(10);
- await expect(completeAdminChallenge({challengeToken:initial.challengeToken,code:otp(initial.secret)})).rejects.toMatchObject({code:'MFA_VERIFICATION_FAILED'});
+ await expect(completeAdminChallenge({challengeToken:initial.challengeToken,code:enrolledCode})).rejects.toMatchObject({code:'MFA_VERIFICATION_FAILED'});
  const user=await User.findById(u._id).select('+sessionVersion');
  const verify=await issueAdminChallenge(user);
- await expect(completeAdminChallenge({challengeToken:verify.challengeToken,code:otp(initial.secret)})).rejects.toMatchObject({code:'MFA_VERIFICATION_FAILED'});
+ await expect(completeAdminChallenge({challengeToken:verify.challengeToken,code:enrolledCode})).rejects.toMatchObject({code:'MFA_VERIFICATION_FAILED'});
  const login=await completeAdminChallenge({challengeToken:verify.challengeToken,code:result.recoveryCodes[0]});
  expect(login.user.role).toBe('admin');
  const retry=await issueAdminChallenge(user);
@@ -111,4 +111,11 @@ test('recovery sign-in returns only a verified session and malformed MFA bodies 
  const token=Token.sign({userId:u._id,role:'admin',sessionVersion:1,mfaVerified:true,authTime:Math.floor(Date.now()/1000)});
  expect((await request(app).post('/api/auth/mfa/recovery-codes').set('Authorization',`Bearer ${token}`)).status).toBe(401);
  for(const code of [{invalid:true},'x'.repeat(101)])expect((await request(app).post('/api/auth/mfa/recovery-codes').set('Authorization',`Bearer ${token}`).send({password,code})).status).toBe(401);
+});
+
+test('MFA failure budgets cannot be reset by issuing another challenge',async()=>{
+ const u=await account('admin'),a=await issueAdminChallenge(u),b=await issueAdminChallenge(u),c=await issueAdminChallenge(u);
+ for(const challenge of [a,b])for(let i=0;i<5;i++)await expect(completeAdminChallenge({challengeToken:challenge.challengeToken,code:'invalid'})).rejects.toMatchObject({code:'MFA_VERIFICATION_FAILED'});
+ await expect(completeAdminChallenge({challengeToken:c.challengeToken,code:otp(c.secret)})).rejects.toMatchObject({code:'MFA_RATE_LIMITED'});
+ expect((await User.findById(u._id)).mfaEnabled).not.toBe(true);
 });

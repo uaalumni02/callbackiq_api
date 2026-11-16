@@ -11,7 +11,7 @@ function hideVersion(schema, format) {
 export function installDocumentFence(schema) {
   schema.add({ stateVersion: { type: Number, default: 0, select: false } });
   hideVersion(schema, 'toJSON'); hideVersion(schema, 'toObject');
-  for (const operation of ['find', 'findOne']) schema.pre(operation, function () {
+  for (const operation of ['find', 'findOne', 'findOneAndUpdate']) schema.pre(operation, function () {
     if (!this.mongooseOptions().lean) this.select('+stateVersion');
   });
   const remember = doc => {
@@ -40,4 +40,22 @@ export function installDocumentFence(schema) {
       update.$inc = { ...update.$inc, stateVersion: 1 };
     }
   });
+}
+
+
+// A caller may continue from its own atomic update only if that update matched
+// the observed version and returned exactly its successor. Never refresh past
+// another writer's decision or bypass the next save's database predicate.
+export function observedDocumentVersion(document) {
+  const observed = document?.$locals?.stateFence;
+  if (!observed) return {};
+  return { stateVersion: observed.version ? observed.version : { $in: [0, null] } };
+}
+export function acceptOwnedDocumentUpdate(document, updated) {
+  const observed = document?.$locals?.stateFence;
+  if (!observed || !updated || String(updated._id) !== String(document._id) || updated.stateVersion !== observed.version + 1 ||
+      String(identity(updated.business)) !== String(observed.business)) return;
+  document.stateVersion = updated.stateVersion;
+  document.unmarkModified('stateVersion');
+  observed.version = updated.stateVersion;
 }

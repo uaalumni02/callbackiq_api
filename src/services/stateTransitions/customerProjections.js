@@ -113,15 +113,15 @@ export function marketingAttributionSyncLatestAttributionConversationUpdateOne({
 }
 
 // src/services/valuation/opportunityValuation.service.js:16 — findOneAndUpdate; predicate and write options are owned here.
-export function opportunityValuationReserveValuationLeadAtomicUpdate({ Lead, businessId, lead, unknownEstimate }) {
-  return (Lead.findOneAndUpdate({ _id: lead._id, business: businessId,
+export function opportunityValuationReserveValuationLeadAtomicUpdate({ Lead, businessId, lead, unknownEstimate, versionClaim = {} }) {
+  return (Lead.findOneAndUpdate({ _id: lead._id, business: businessId, ...versionClaim,
       "valuation.source": { $exists: false }, estimatedValue: null,
     }, { $set: { valuation: unknownEstimate().valuation }, $inc: { valuationVersion: 1 } }, { returnDocument: "after" }));
 }
 
 // src/services/valuation/opportunityValuation.service.js:21 — findOneAndUpdate; predicate and write options are owned here.
-export function opportunityValuationReserveValuationLeadAtomicUpdate2({ Lead, businessId, lead }) {
-  return (Lead.findOneAndUpdate({ _id: lead._id, business: businessId,
+export function opportunityValuationReserveValuationLeadAtomicUpdate2({ Lead, businessId, lead, versionClaim = {} }) {
+  return (Lead.findOneAndUpdate({ _id: lead._id, business: businessId, ...versionClaim,
     "valuation.source": { $in: ["unknown", "service_catalog", "historical"] },
   }, { $inc: { valuationVersion: 1 } }, { returnDocument: "after" }));
 }

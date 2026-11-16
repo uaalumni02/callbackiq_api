@@ -36,6 +36,7 @@ function minimizeSnapshot(value) {
 export function withSnapshotDefaults(Model, value) {
   if (value == null) return value;
   Model.applyDefaults(value);
+  if (Model.schema?.path?.('stateVersion')?.options?.select === false) delete value.stateVersion;
   normalizeDefaultDates(value, Model.schema);
   // Match the existing schemas' default toJSON/toObject minimize behavior.
   minimizeSnapshot(value);

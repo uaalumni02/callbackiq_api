@@ -29,6 +29,7 @@ const ownsVoiceIntake = async (session, conversation, businessId) => {
     const updated = await voiceConversationTurnOwnsVoiceIntakeConversationAtomicUpdate({ Conversation, businessId, conversation, owner, session });
     assertDistributedLeaseActive();
     if (!updated) return false;
+    conversation = updated; session.conversation = updated;
     voiceConversationTurnOwnsVoiceIntakeConversationFields({ conversation });
     voiceConversationTurnOwnsVoiceIntakeConversationFields2({ conversation, session });
   }

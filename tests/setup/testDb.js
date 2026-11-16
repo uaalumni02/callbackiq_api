@@ -1,6 +1,9 @@
 import mongoose from "mongoose";
 import { MongoMemoryServer } from "mongodb-memory-server";
 
+// Database I/O needs a bounded budget longer than MongoDB's shutdown grace.
+jest.setTimeout(30000);
+
 let mongoServer;
 
 const connectTestDB = async () => {
@@ -12,8 +15,8 @@ const connectTestDB = async () => {
     return mongoServer.getUri();
   } catch (error) {
     // Preserve the startup error; cleanup must not replace it or buffer queries.
-    try { if (mongoose.connection.readyState !== 0) await mongoose.connection.close(); } catch {}
-    try { await mongoServer.stop(); } catch {}
+    try { if (mongoose.connection.readyState !== 0) await mongoose.connection.close(); } catch { /* Preserve the original startup error. */ }
+    try { await mongoServer.stop(); } catch { /* Preserve the original startup error. */ }
     mongoServer = undefined;
     throw error;
   }

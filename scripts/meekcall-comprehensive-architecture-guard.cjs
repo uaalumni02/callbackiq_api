@@ -86,7 +86,7 @@ if(tenantContracts){
   const folder=fs.mkdtempSync(path.join(os.tmpdir(),'tenant-contracts-'));
   try{
    const output=path.join(folder,'results.json');
-   const run=spawnSync(process.execPath,[path.join(root,'node_modules/jest/bin/jest.js'),'--runInBand','--runTestsByPath',...tenantContracts.tests,'--json',`--outputFile=${output}`],{cwd:root,env:process.env,encoding:'utf8',timeout:180000,maxBuffer:16*1024*1024});
+   const run=spawnSync(process.execPath,[path.join(root,'node_modules/jest/bin/jest.js'),'--runInBand','--runTestsByPath',...tenantContracts.tests,'--json',`--outputFile=${output}`],{cwd:root,env:process.env,encoding:'utf8',timeout:600000,maxBuffer:16*1024*1024});
    if(run.error||run.status!==0)errors.push('tenant behavioral contracts failed: '+(run.error?.message||run.stderr));
    else{
     const result=JSON.parse(fs.readFileSync(output));

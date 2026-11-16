@@ -83,5 +83,5 @@ test('snapshot batching keeps every row tenant predicate and unordered partial-w
   const filter = { _id: 'c-a', business: 'tenant-a' };
   const updates = [{ lastMessage: 'message-a' }];
   updateSmsSnapshotBatch({ Conversation, rows: [{ filter }], updates });
-  expect(Conversation.bulkWrite).toHaveBeenCalledWith([{ updateOne: { filter, update: { $set: updates[0] } } }], { ordered: false });
+  expect(Conversation.bulkWrite).toHaveBeenCalledWith([{ updateOne: { filter, update: { $set: updates[0], $inc: { stateVersion: 1 } } } }], { ordered: false });
 });

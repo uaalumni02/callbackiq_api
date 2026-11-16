@@ -1814,87 +1814,6 @@
       ]
     },
     {
-      "file": "src/services/twilioSmsWebhook.service.js",
-      "baselineAstSha256": "c7fa75058b58c548a3a204535e85a55815623ecd7f3bf4baf065a5cd5dd56a8a",
-      "commands": [
-        {
-          "name": "twilioSmsWebhookUpdateConversationLastMessageConversationUpdateById",
-          "call": "twilioSmsWebhookUpdateConversationLastMessageConversationUpdateById({ Conversation, body, conversation })",
-          "target": "src/services/stateTransitions/customerRequest.js",
-          "expression": "Conversation.findByIdAndUpdate(\n    conversation._id,\n    { lastMessage: body, lastMessageAt: new Date() },\n    { returnDocument: \"after\" },\n  )",
-          "legacyId": "src/services/twilioSmsWebhook.service.js#updateConversationLastMessage#findByIdAndUpdate#1"
-        },
-        {
-          "name": "twilioSmsWebhookHandleInboundSmsWebhookConversationUpdateById",
-          "call": "twilioSmsWebhookHandleInboundSmsWebhookConversationUpdateById({ Conversation, conversation, updates })",
-          "target": "src/services/stateTransitions/customerRequest.js",
-          "expression": "Conversation.findByIdAndUpdate(\n        conversation._id,\n        updates,\n        { returnDocument: \"after\" },\n      )",
-          "legacyId": "src/services/twilioSmsWebhook.service.js#handleInboundSmsWebhook#findByIdAndUpdate#1"
-        }
-      ]
-    },
-    {
-      "file": "src/services/valuation/opportunityValuation.service.js",
-      "baselineAstSha256": "98eb8f326811e0c465289e1707901f61f8d4913fbb3f19005b2f8b9a438934da",
-      "commands": [
-        {
-          "name": "opportunityValuationReserveValuationLeadAtomicUpdate",
-          "call": "opportunityValuationReserveValuationLeadAtomicUpdate({ Lead, businessId, lead, unknownEstimate })",
-          "target": "src/services/stateTransitions/customerProjections.js",
-          "expression": "Lead.findOneAndUpdate({ _id: lead._id, business: businessId,\n      \"valuation.source\": { $exists: false }, estimatedValue: null,\n    }, { $set: { valuation: unknownEstimate().valuation }, $inc: { valuationVersion: 1 } }, { returnDocument: \"after\" })",
-          "legacyId": "src/services/valuation/opportunityValuation.service.js#reserveValuation#findOneAndUpdate#1"
-        },
-        {
-          "name": "opportunityValuationReserveValuationLeadAtomicUpdate2",
-          "call": "opportunityValuationReserveValuationLeadAtomicUpdate2({ Lead, businessId, lead })",
-          "target": "src/services/stateTransitions/customerProjections.js",
-          "expression": "Lead.findOneAndUpdate({ _id: lead._id, business: businessId,\n    \"valuation.source\": { $in: [\"unknown\", \"service_catalog\", \"historical\"] },\n  }, { $inc: { valuationVersion: 1 } }, { returnDocument: \"after\" })",
-          "legacyId": "src/services/valuation/opportunityValuation.service.js#reserveValuation#findOneAndUpdate#2"
-        },
-        {
-          "name": "opportunityValuationCommitValuationLeadAtomicUpdate",
-          "call": "opportunityValuationCommitValuationLeadAtomicUpdate({ Lead, businessId, ticket, value })",
-          "target": "src/services/stateTransitions/customerProjections.js",
-          "expression": "Lead.findOneAndUpdate({ _id: ticket._id, business: businessId,\n    valuationVersion: ticket.valuationVersion,\n    \"serviceEligibility.decision\": { $nin: [\"unsupported\", \"needs_clarification\", \"needs_staff_review\"] },\n    \"valuation.source\": { $in: [\"unknown\", \"service_catalog\", \"historical\"] },\n  }, { $set: value, $inc: { valuationVersion: 1 } }, { returnDocument: \"after\", runValidators: true })",
-          "legacyId": "src/services/valuation/opportunityValuation.service.js#commitValuation#findOneAndUpdate#1"
-        },
-        {
-          "name": "opportunityValuationUpdateOwnerLeadLeadAtomicUpdate",
-          "call": "opportunityValuationUpdateOwnerLeadLeadAtomicUpdate({ Lead, businessId, lead, update })",
-          "target": "src/services/stateTransitions/customerProjections.js",
-          "expression": "Lead.findOneAndUpdate({ _id: lead._id, business: businessId }, update,\n    { returnDocument: \"after\", runValidators: true })",
-          "legacyId": "src/services/valuation/opportunityValuation.service.js#updateOwnerLead#findOneAndUpdate#1"
-        }
-      ]
-    },
-    {
-      "file": "src/services/voiceConversationTurn.service.js",
-      "baselineAstSha256": "be33992601447a8bfdb9984a8946f522e9f70544faa5755375c4d57da43c8778",
-      "commands": [
-        {
-          "name": "voiceConversationTurnOwnsVoiceIntakeConversationAtomicUpdate",
-          "call": "voiceConversationTurnOwnsVoiceIntakeConversationAtomicUpdate({ Conversation, businessId, conversation, owner, session })",
-          "target": "src/services/stateTransitions/customerRequest.js",
-          "expression": "Conversation.findOneAndUpdate({\n      _id: conversation._id, business: businessId,\n      'orchestration.activeVoiceIntakeSession': owner || null,\n    }, { $set: { 'orchestration.activeVoiceIntakeSession': session._id } }, { returnDocument: 'after' })",
-          "legacyId": "src/services/voiceConversationTurn.service.js#ownsVoiceIntake#findOneAndUpdate#1"
-        },
-        {
-          "name": "voiceConversationTurnOwnsVoiceIntakeConversationFields",
-          "call": "voiceConversationTurnOwnsVoiceIntakeConversationFields({ conversation })",
-          "target": "src/services/stateTransitions/customerRequest.js",
-          "expression": "conversation.orchestration = conversation.orchestration || {}",
-          "legacyId": "src/services/voiceConversationTurn.service.js#ownsVoiceIntake#assignment#1"
-        },
-        {
-          "name": "voiceConversationTurnOwnsVoiceIntakeConversationFields2",
-          "call": "voiceConversationTurnOwnsVoiceIntakeConversationFields2({ conversation, session })",
-          "target": "src/services/stateTransitions/customerRequest.js",
-          "expression": "conversation.orchestration.activeVoiceIntakeSession = session._id",
-          "legacyId": "src/services/voiceConversationTurn.service.js#ownsVoiceIntake#assignment#2"
-        }
-      ]
-    },
-    {
       "file": "src/services/voiceSafetyReview.service.js",
       "baselineAstSha256": "3d379fb15fa1adb127477c14417d258cf74653afcadb7824dbcc6c5d9b7fc02c",
       "commands": [
@@ -2114,47 +2033,6 @@
           "target": "src/services/stateTransitions/voice.js",
           "expression": "Conversation.findByIdAndUpdate(\n      conversationId,\n      {\n        $set: {\n          aiEnabled: false,\n          humanTakeover: true,\n          humanTakeoverAt: now,\n          humanTakeoverBy: null,\n          ...bookingTransitionFields('voice_transfer_accepted'),\n          \"orchestration.phase\": \"human_takeover\",\n          \"orchestration.handoffStatus\": \"acknowledged\",\n          \"orchestration.handoffAcknowledgedAt\": now,\n        },\n      },\n      { returnDocument: \"after\" },\n    )",
           "legacyId": "src/voice/voiceOutcome.service.js#commitVoiceOutcome#findByIdAndUpdate#1"
-        }
-      ]
-    },
-    {
-      "file": "src/voice/voiceSession.service.js",
-      "baselineAstSha256": "a8e6bb4b091fa3cffaf28e230ef4b11e57e10a1de6c765be8138275c073b4209",
-      "commands": [
-        {
-          "name": "createVoiceLead",
-          "call": "createVoiceLead({ Lead, business, storedCaller, usableCaller })",
-          "target": "src/services/stateTransitions/voice.js",
-          "expression": "Lead.create({\n          business: business._id,\n          customerName: usableCaller ? \"Voice Caller\" : \"Anonymous Voice Caller\",\n          phone: storedCaller,\n          serviceNeeded: \"Unknown\",\n          urgency: \"medium\",\n          source: \"voice\",\n          status: \"new\",\n          estimatedValue: null,\n          valuation: { source: \"unknown\", basis: \"Not estimated\" },\n          valuationVersion: 0,\n          notes: usableCaller\n            ? \"Lead created automatically from a CallBackIQ voice session.\"\n            : \"Lead created from a blocked or unavailable caller ID. Obtain and confirm a callback number before promising follow-up.\",\n        })",
-          "legacyId": "src/voice/voiceSession.service.js#ensureContext#create#1"
-        },
-        {
-          "name": "createVoiceConversation",
-          "call": "createVoiceConversation({ Conversation, business, lead, normalizedTo, storedCaller })",
-          "target": "src/services/stateTransitions/voice.js",
-          "expression": "Conversation.create({\n          business: business._id,\n          lead: lead._id,\n          customerPhone: storedCaller,\n          customerName: lead.customerName || \"Voice Caller\",\n          status: \"open\",\n          aiEnabled: true,\n          humanTakeover: false,\n          lastMessage: \"Voice session started.\",\n          lastMessageAt: new Date(),\n          replyFromPhone: normalizedTo || business.phone,\n        })",
-          "legacyId": "src/voice/voiceSession.service.js#ensureContext#create#2"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(conversation)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "conversation.save()",
-          "legacyId": "src/voice/voiceSession.service.js#sendFallbackSms#save#1"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(callLog)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "callLog.save()",
-          "legacyId": "src/voice/voiceSession.service.js#sendFallbackSms#save#2"
-        },
-        {
-          "name": "upsertVoiceFallbackReview",
-          "call": "upsertVoiceFallbackReview({ Alert, business, conversation, failureReason, lead, providerMessageId, session, suppressionReason })",
-          "target": "src/services/stateTransitions/voice.js",
-          "expression": "Alert.findOneAndUpdate(\n        { business: business._id, dedupeKey: `voice_failure:${session._id}` },\n        {\n          $setOnInsert: {\n            business: business._id,\n            lead: lead?._id || null,\n            conversation: conversation?._id || null,\n            type: \"integration_failure\",\n            channel: \"in_app\",\n            title: \"Voice AI session failed\",\n            message: suppressionReason\n              ? `The voice session failed. The transcript was preserved, but SMS fallback was suppressed: ${suppressionReason}`\n              : \"The voice session failed. The transcript was preserved and the missed-call SMS fallback was attempted.\",\n            status: \"pending\",\n            priority: \"high\",\n            actionRequired: true,\n            reason: String(failureReason || \"Voice AI unavailable\").slice(0, 1000),\n            recommendedAction:\n              \"Review the partial transcript and contact the caller directly. For anonymous callers, review the call path because no callback number may be available.\",\n            lastCustomerMessage:\n              session.transcript\n                ?.filter((entry) => entry.role === \"customer\")\n                .at(-1)?.text || \"\",\n            dedupeKey: `voice_failure:${session._id}`,\n            metadata: {\n              voiceSessionId: session._id,\n              providerCallSid: session.providerCallSid,\n              fallbackSmsStatus: providerMessageId\n                ? \"sent\"\n                : suppressionReason\n                  ? \"suppressed\"\n                  : \"failed\",\n            },\n          },\n        },\n        { upsert: true, returnDocument: \"after\" },\n      )",
-          "legacyId": "src/voice/voiceSession.service.js#sendFallbackSms#findOneAndUpdate#1"
         }
       ]
     },
@@ -2516,6 +2394,38 @@
       "reason": "Late projection or provider-change approval must not overwrite a newer appointment decision.",
       "tests": [
         "tests/integration/rescheduleBoundaries.characterization.test.js"
+      ]
+    },
+    {
+      "file": "src/services/twilioSmsWebhook.service.js",
+      "reason": "Inline test processing uses the production conversation lease without consuming busy durable jobs.",
+      "tests": [
+        "tests/unit/recoveredBoundaryRegressions.test.js",
+        "tests/integration/sms10of10.adversarial.mongo.test.js"
+      ]
+    },
+    {
+      "file": "src/services/valuation/opportunityValuation.service.js",
+      "reason": "Valuation reserves the observed document version and may adopt only its exact atomic successor.",
+      "tests": [
+        "tests/integration/documentFence.security.test.js",
+        "tests/unit/recoveredBoundaryRegressions.test.js"
+      ]
+    },
+    {
+      "file": "src/services/voiceConversationTurn.service.js",
+      "reason": "Voice intake continues from the atomic ownership result rather than resaving its stale snapshot.",
+      "tests": [
+        "tests/integration/documentFence.security.test.js",
+        "tests/integration/voiceCustomerOutcome.persistence.test.js"
+      ]
+    },
+    {
+      "file": "src/voice/voiceSession.service.js",
+      "reason": "Sent fallback previews use a scoped timestamp projection instead of a stale intake document save.",
+      "tests": [
+        "tests/integration/documentFence.security.test.js",
+        "tests/unit/recoveredBoundaryRegressions.test.js"
       ]
     }
   ]

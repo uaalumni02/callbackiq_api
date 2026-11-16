@@ -129,6 +129,7 @@ async function runProfile(profile,{directory,packageName,aliases,plan,env,output
    if(result.exitCode===0 && step==='test:coverage'){
     verifyFresh(path.join(directory,'coverage/coverage-final.json'),started);
     verifyFresh(path.join(directory,'coverage/coverage-summary.json'),started);
+    fs.copyFileSync(path.join(directory,'coverage/coverage-summary.json'),path.join(output,'test-coverage.summary.json'));
    }
    if(result.exitCode===0 && step==='build:certification')for(const artifact of buildArtifacts[packageName])verifyFresh(path.join(directory,artifact),started);
    if(/(?:ℹ|#)\s*(?:skipped|todo)\s+[1-9]\d*/.test(result.tail))throw new Error('Skipped/todo Node contracts are forbidden in a release profile.');

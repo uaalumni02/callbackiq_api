@@ -1,3 +1,4 @@
+import { observedDocumentVersion, acceptOwnedDocumentUpdate } from '../stateTransitions/documentFence.js';
 import { opportunityValuationReserveValuationLeadAtomicUpdate, opportunityValuationReserveValuationLeadAtomicUpdate2, opportunityValuationCommitValuationLeadAtomicUpdate, opportunityValuationUpdateOwnerLeadLeadAtomicUpdate } from '../stateTransitions/customerProjections.js';
 import { blocksServiceAutomation } from '../serviceEligibility/policy.js';
 import { safeConsole } from "../../helpers/logging/safeLogger.js";
@@ -7,16 +8,23 @@ import { resolveOpportunityValue, ownerEstimate, unknownEstimate } from "./oppor
 export * from "./opportunityValue.js";
 import { assertVoiceTurnActive } from '../voiceTurnContext.service.js';
 import { assertDistributedLeaseActive } from '../distributedLease.service.js';
+async function ownedValuationSnapshot(query, lead) {
+  if (typeof query?.select === 'function') query = query.select('+stateVersion');
+  const updated = await query.lean();
+  acceptOwnedDocumentUpdate(lead, updated);
+  return updated;
+}
 // Reserve BEFORE asynchronous analysis. A later request invalidates earlier work.
 async function reserveValuation(lead, businessId) {
   if (!lead?._id || blocksServiceAutomation(lead)) return null;
+  const versionClaim = observedDocumentVersion(lead);
   if (!lead.valuation?.source && lead.estimatedValue == null) {
     // Compare against the stored absence of provenance so a concurrent owner
     // estimate cannot be converted into an automatic value.
-    return opportunityValuationReserveValuationLeadAtomicUpdate({ Lead, businessId, lead, unknownEstimate }).lean();
+    return ownedValuationSnapshot(opportunityValuationReserveValuationLeadAtomicUpdate({ Lead, businessId, lead, unknownEstimate, versionClaim }), lead);
   }
   if (!["unknown", "service_catalog", "historical"].includes(lead.valuation?.source)) return null;
-  return opportunityValuationReserveValuationLeadAtomicUpdate2({ Lead, businessId, lead }).lean();
+  return ownedValuationSnapshot(opportunityValuationReserveValuationLeadAtomicUpdate2({ Lead, businessId, lead, versionClaim }), lead);
 }
 async function commitValuation(ticket, { businessId, evidence, proposedService = "" }) {
   if (!ticket) return null;

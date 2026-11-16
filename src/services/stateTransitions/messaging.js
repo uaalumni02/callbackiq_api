@@ -324,3 +324,10 @@ export function setUncertainReplyMemory({ conversation, field, value }) {
 export function replaceUncertainReplyMemory({ conversation, field, value }) {
   return (conversation.conversationMemory = { ...(conversation.conversationMemory || {}), [field]: value });
 }
+
+// A sent-message preview is a projection; never resave an older intake snapshot.
+export function persistVoiceFallbackPreview({ Conversation, conversation, business, body, at }) {
+  return Conversation.findOneAndUpdate({ _id: conversation._id, business: business._id,
+    $or: [{ lastMessageAt: null }, { lastMessageAt: { $lte: at } }],
+  }, { $set: { lastMessage: body, lastMessageAt: at } }, { returnDocument: 'after' });
+}

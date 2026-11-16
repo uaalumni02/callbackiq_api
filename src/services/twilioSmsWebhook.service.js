@@ -10,7 +10,7 @@ import Lead from "../models/lead.js";
 import { durableWebhookWorkEnabled, enqueueWebhookWork } from "./webhooks/webhookWork.service.js";
 import { claimRecoveryIntroduction } from "./messaging/recoveryIntroduction.service.js";
 // CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1: webhook
-import { processInboundSmsJob } from "./messaging/inboundSmsJobProcessor.service.js";
+import { processInlineInboundSmsJob } from "./messaging/inlineSmsProcessing.service.js";
 import CallLog from "../models/callLog.js";
 import Conversation from "../models/conversation.js";
 import Message from "../models/message.js";
@@ -716,7 +716,7 @@ export const handleInboundSmsWebhook = async (req, res) => {
         { $set: { "metadata.processingEnqueuedAt": new Date() } },
       );
       if (process.env.NODE_ENV === "test" && req.app && queuedJob) {
-        await processInboundSmsJob(queuedJob);
+        await processInlineInboundSmsJob(queuedJob);
       }
       logOperationalEvent("twilio.sms.ai_queued", {
         businessId: business._id,

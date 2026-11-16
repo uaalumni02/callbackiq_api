@@ -11281,13 +11281,13 @@
     {
       "id": "src/services/scheduling/reschedule/finalize.js#reserveReplacement#transition-command#1",
       "file": "src/services/scheduling/reschedule/finalize.js",
-      "line": 19,
+      "line": 20,
       "kind": "transition-command",
       "fields": [
         "rescheduleReceiptIdentity"
       ],
-      "writerSha256": "ff7651518b6596b61d8e7f9ef19454b3cf37c8fac21f9cd2eba563040f9fdaeb",
-      "ownerSha256": "6400fa9d3c2d095fea84217b5fec26cc5e0389d167c650094da6d0eca50db1e7",
+      "writerSha256": "92762432022b990233a9ddebafe152f6b36a203191853474539cd51891a0d442",
+      "ownerSha256": "2729192f581cf63461d9e64af3459c5468fe89c19aafe2e69fa37dfc87b273f7",
       "importSha256": "6ca53d45e048d365994b5d3fd624ae110119ad5af1b48cc665d6607078db3e9e",
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
@@ -11312,11 +11312,11 @@
     {
       "id": "src/services/scheduling/reschedule/finalize.js#reserveReplacement#save#1",
       "file": "src/services/scheduling/reschedule/finalize.js",
-      "line": 20,
+      "line": 21,
       "kind": "save",
       "fields": [],
       "writerSha256": "b6e15c0686aa6cfcee8b9f289f7f18670900ef07fd2565fd3586907fc967d6dd",
-      "ownerSha256": "6400fa9d3c2d095fea84217b5fec26cc5e0389d167c650094da6d0eca50db1e7",
+      "ownerSha256": "2729192f581cf63461d9e64af3459c5468fe89c19aafe2e69fa37dfc87b273f7",
       "importSha256": "6ca53d45e048d365994b5d3fd624ae110119ad5af1b48cc665d6607078db3e9e",
       "predicateSource": null,
       "authoritativeRecord": "Appointment",
@@ -11341,7 +11341,7 @@
     {
       "id": "src/services/scheduling/reschedule/finalize.js#stageHandoff#save#1",
       "file": "src/services/scheduling/reschedule/finalize.js",
-      "line": 35,
+      "line": 36,
       "kind": "save",
       "fields": [],
       "writerSha256": "b6e15c0686aa6cfcee8b9f289f7f18670900ef07fd2565fd3586907fc967d6dd",
@@ -11368,7 +11368,7 @@
     {
       "id": "src/services/scheduling/reschedule/finalize.js#stageHandoff#save#2",
       "file": "src/services/scheduling/reschedule/finalize.js",
-      "line": 38,
+      "line": 39,
       "kind": "save",
       "fields": [],
       "writerSha256": "2945f00baa6d9837e047a3445a009ff84b270393ecaaf2a341c8b4d7a66e8f4c",
@@ -11395,7 +11395,7 @@
     {
       "id": "src/services/scheduling/reschedule/finalize.js#confirmReplacement#assignment#1",
       "file": "src/services/scheduling/reschedule/finalize.js",
-      "line": 49,
+      "line": 50,
       "kind": "assignment",
       "fields": [
         "status"
@@ -11426,7 +11426,7 @@
     {
       "id": "src/services/scheduling/reschedule/finalize.js#reconcileOriginal#assignment#1",
       "file": "src/services/scheduling/reschedule/finalize.js",
-      "line": 69,
+      "line": 70,
       "kind": "assignment",
       "fields": [
         "rescheduleRequest.status"
@@ -11460,7 +11460,7 @@
     {
       "id": "src/services/scheduling/reschedule/finalize.js#reconcileOriginal#assignment#2",
       "file": "src/services/scheduling/reschedule/finalize.js",
-      "line": 73,
+      "line": 74,
       "kind": "assignment",
       "fields": [
         "status"
@@ -14665,10 +14665,10 @@
       "line": 117,
       "kind": "findOneAndUpdate",
       "fields": [],
-      "writerSha256": "3dc4095101fae2d30dc997369ded23de662e8e2ff684512f9780905858e09f47",
-      "ownerSha256": "0812b9cfb0e8d164bd67ec3f42e10255afc9c36110f90aa10f7097be6042ae32",
+      "writerSha256": "8db99c11f89f599a3d01d42f771a94126361a66e18647db7da6ba13ab9b7e997",
+      "ownerSha256": "7f45b021813ebe204c017babf2b811198151630a50017ec005b01fd90892e89f",
       "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "predicateSource": "{ _id: lead._id, business: businessId,\n      \"valuation.source\": { $exists: false }, estimatedValue: null,\n    }",
+      "predicateSource": "{ _id: lead._id, business: businessId, ...versionClaim,\n      \"valuation.source\": { $exists: false }, estimatedValue: null,\n    }",
       "authoritativeRecord": "Lead",
       "allowedCommand": {
         "module": "src/services/stateTransitions/customerProjections.js",
@@ -14694,10 +14694,10 @@
       "line": 124,
       "kind": "findOneAndUpdate",
       "fields": [],
-      "writerSha256": "51378ddc5b6b4994807cb1041b625cc6d18919f4ae8c9ce7886c3b020c6b8838",
-      "ownerSha256": "1fd629be3e4c82371971c1c20ebda8b0912b102dbbf4e9253f29d221b3f9fed5",
+      "writerSha256": "b4006250b930bce1bb06c5f2fa029cd1df86d2dc225b3c3a929fe1f56f031a75",
+      "ownerSha256": "f08828f6dd6839dfd1307c587fd0f7ba17c0d3f17f51012efa0106dd76e67db2",
       "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "predicateSource": "{ _id: lead._id, business: businessId,\n    \"valuation.source\": { $in: [\"unknown\", \"service_catalog\", \"historical\"] },\n  }",
+      "predicateSource": "{ _id: lead._id, business: businessId, ...versionClaim,\n    \"valuation.source\": { $in: [\"unknown\", \"service_catalog\", \"historical\"] },\n  }",
       "authoritativeRecord": "Lead",
       "allowedCommand": {
         "module": "src/services/stateTransitions/customerProjections.js",
@@ -16967,6 +16967,33 @@
       }
     },
     {
+      "id": "src/services/stateTransitions/messaging.js#persistVoiceFallbackPreview#findOneAndUpdate#1",
+      "file": "src/services/stateTransitions/messaging.js",
+      "line": 330,
+      "kind": "findOneAndUpdate",
+      "fields": [],
+      "writerSha256": "11b90b00749ffa46d11da7f7ed8020dff5ce42b2f3c14af4922a55571ea30df7",
+      "ownerSha256": "8871ba7b00f42447707dc33ae1035c72fdc5ce39c00ce499b2168f503c12deff",
+      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "predicateSource": "{ _id: conversation._id, business: business._id,\n    $or: [{ lastMessageAt: null }, { lastMessageAt: { $lte: at } }],\n  }",
+      "authoritativeRecord": "Conversation",
+      "allowedCommand": {
+        "module": "src/services/stateTransitions/messaging.js",
+        "function": "persistVoiceFallbackPreview",
+        "mode": "transition-layer"
+      },
+      "versionOrClaim": {
+        "kind": "source-filter-or-command",
+        "evidence": [],
+        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [],
+        "localRepairCommands": [],
+        "review": "No local repair path established by this scan; review this owner before changing its effects."
+      }
+    },
+    {
       "id": "src/services/stateTransitions/recoveryCoordinator.js#persistRecoveryBookingEvidence#findOneAndUpdate#1",
       "file": "src/services/stateTransitions/recoveryCoordinator.js",
       "line": 6,
@@ -18703,7 +18730,7 @@
       ],
       "writerSha256": "f8eb18fdf082dd3f91377e0950198f10996599ff8fb691d859881f245d460d75",
       "ownerSha256": "1d75025172e853f6ea7f9ba0a356f570a34c65e60b93ed5afbe842f214c79177",
-      "importSha256": "6059925f3750057b7d1968265f8fee30ab2e77a51e28f4794baf80aec6e81b1a",
+      "importSha256": "8d2f9071ce5c147ecf427b446b9f8ac1a22658fd62eac44c6293d7eaf68716c8",
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
       "allowedCommand": {
@@ -18731,8 +18758,8 @@
         "twilioSmsWebhookHandleInboundSmsWebhookConversationUpdateById"
       ],
       "writerSha256": "866351ac8ed963d363ae8421b49937e91ebc30799c84eecfed83db4923cf9599",
-      "ownerSha256": "213c6375a533cfc022b328306721e4b3696357073f8cf1e23fd9df25f9689726",
-      "importSha256": "6059925f3750057b7d1968265f8fee30ab2e77a51e28f4794baf80aec6e81b1a",
+      "ownerSha256": "97cb168006280df4d7a8cd373a0f0be860e2c331ea2b1c11cbd628217cc80ca0",
+      "importSha256": "8d2f9071ce5c147ecf427b446b9f8ac1a22658fd62eac44c6293d7eaf68716c8",
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
       "allowedCommand": {
@@ -18752,18 +18779,47 @@
       }
     },
     {
-      "id": "src/services/valuation/opportunityValuation.service.js#reserveValuation#transition-command#1",
+      "id": "src/services/valuation/opportunityValuation.service.js#ownedValuationSnapshot#transition-command#1",
       "file": "src/services/valuation/opportunityValuation.service.js",
-      "line": 16,
+      "line": 14,
       "kind": "transition-command",
       "fields": [
-        "opportunityValuationReserveValuationLeadAtomicUpdate"
+        "acceptOwnedDocumentUpdate"
       ],
-      "writerSha256": "422ff480acb44614a9947f3d2ed4cac3f096d890807663ff555dfb89c512d7bd",
-      "ownerSha256": "2495057d36e21b26248677de8c89fd2a49bb6779190360238b490f453b2bb8ef",
-      "importSha256": "7efd88a0df3b46864386fa601f7e084a497db840f4aa2035daf5199c94477031",
+      "writerSha256": "69a1cf80e8a3e27cb43e477331bbdc26503edb08fefcec88579fa8a3ab620cd0",
+      "ownerSha256": "6508c060de8b6f566bb3980ffa678c67ad50c7c5243d53fcdaa2a3f641e231be",
+      "importSha256": "9f74825055cf75464ebb3e8c118120652266619ee9d54c75d9ea01c2efba2638",
       "predicateSource": null,
-      "authoritativeRecord": "RegisteredStateRecord",
+      "authoritativeRecord": "Lead",
+      "allowedCommand": {
+        "module": "src/services/valuation/opportunityValuation.service.js",
+        "function": "ownedValuationSnapshot",
+        "mode": "registered-domain-command"
+      },
+      "versionOrClaim": {
+        "kind": "source-filter-or-command",
+        "evidence": [],
+        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [],
+        "localRepairCommands": [],
+        "review": "No local repair path established by this scan; review this owner before changing its effects."
+      }
+    },
+    {
+      "id": "src/services/valuation/opportunityValuation.service.js#reserveValuation#transition-command#1",
+      "file": "src/services/valuation/opportunityValuation.service.js",
+      "line": 20,
+      "kind": "transition-command",
+      "fields": [
+        "observedDocumentVersion"
+      ],
+      "writerSha256": "567762b21ecd360a26bb5ba2771b28597f6ba5aa0e574faca91840fb9c88d45d",
+      "ownerSha256": "53f4442bbc1e2ea1e381d218b77cf84ee155c6e26d3d0b52d58a624a53ce82f0",
+      "importSha256": "9f74825055cf75464ebb3e8c118120652266619ee9d54c75d9ea01c2efba2638",
+      "predicateSource": null,
+      "authoritativeRecord": "Lead",
       "allowedCommand": {
         "module": "src/services/valuation/opportunityValuation.service.js",
         "function": "reserveValuation",
@@ -18783,14 +18839,43 @@
     {
       "id": "src/services/valuation/opportunityValuation.service.js#reserveValuation#transition-command#2",
       "file": "src/services/valuation/opportunityValuation.service.js",
-      "line": 19,
+      "line": 24,
+      "kind": "transition-command",
+      "fields": [
+        "opportunityValuationReserveValuationLeadAtomicUpdate"
+      ],
+      "writerSha256": "aa2e7b12d6de8e5b550dfbd6011e39189654bf20ee9285ede621fe1506772913",
+      "ownerSha256": "53f4442bbc1e2ea1e381d218b77cf84ee155c6e26d3d0b52d58a624a53ce82f0",
+      "importSha256": "9f74825055cf75464ebb3e8c118120652266619ee9d54c75d9ea01c2efba2638",
+      "predicateSource": null,
+      "authoritativeRecord": "RegisteredStateRecord",
+      "allowedCommand": {
+        "module": "src/services/valuation/opportunityValuation.service.js",
+        "function": "reserveValuation",
+        "mode": "registered-domain-command"
+      },
+      "versionOrClaim": {
+        "kind": "source-filter-or-command",
+        "evidence": [],
+        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [],
+        "localRepairCommands": [],
+        "review": "No local repair path established by this scan; review this owner before changing its effects."
+      }
+    },
+    {
+      "id": "src/services/valuation/opportunityValuation.service.js#reserveValuation#transition-command#3",
+      "file": "src/services/valuation/opportunityValuation.service.js",
+      "line": 27,
       "kind": "transition-command",
       "fields": [
         "opportunityValuationReserveValuationLeadAtomicUpdate2"
       ],
-      "writerSha256": "246a487ff34da36fe459784db04cfcb6f347f23dae3e71e380fbdec8e1c73064",
-      "ownerSha256": "2495057d36e21b26248677de8c89fd2a49bb6779190360238b490f453b2bb8ef",
-      "importSha256": "7efd88a0df3b46864386fa601f7e084a497db840f4aa2035daf5199c94477031",
+      "writerSha256": "4907dea096f6280572cf17b89a7a7aa4d3b605006ae7c74e5d6e5be608032cfa",
+      "ownerSha256": "53f4442bbc1e2ea1e381d218b77cf84ee155c6e26d3d0b52d58a624a53ce82f0",
+      "importSha256": "9f74825055cf75464ebb3e8c118120652266619ee9d54c75d9ea01c2efba2638",
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
       "allowedCommand": {
@@ -18812,14 +18897,14 @@
     {
       "id": "src/services/valuation/opportunityValuation.service.js#commitValuation#transition-command#1",
       "file": "src/services/valuation/opportunityValuation.service.js",
-      "line": 26,
+      "line": 34,
       "kind": "transition-command",
       "fields": [
         "opportunityValuationCommitValuationLeadAtomicUpdate"
       ],
       "writerSha256": "9243f189ee3cfb25bdf9cba761dcf7cebcb7ee5cc1d6e4ea2a781bd0b78c1b8d",
       "ownerSha256": "9b857b9568004f1db6a514c3fe19541068103006116628e85ea1762c273f9b39",
-      "importSha256": "7efd88a0df3b46864386fa601f7e084a497db840f4aa2035daf5199c94477031",
+      "importSha256": "9f74825055cf75464ebb3e8c118120652266619ee9d54c75d9ea01c2efba2638",
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
       "allowedCommand": {
@@ -18844,14 +18929,14 @@
     {
       "id": "src/services/valuation/opportunityValuation.service.js#updateOwnerLead#transition-command#1",
       "file": "src/services/valuation/opportunityValuation.service.js",
-      "line": 44,
+      "line": 52,
       "kind": "transition-command",
       "fields": [
         "opportunityValuationUpdateOwnerLeadLeadAtomicUpdate"
       ],
       "writerSha256": "a176128c2346b728f75c736776b5e2b98d2015f355c3331d4d97d6e9356f99a5",
       "ownerSha256": "13870a2a1ed06aa2094043a86ea343a20b31e4052e6decab5b460d3e0a65e97e",
-      "importSha256": "7efd88a0df3b46864386fa601f7e084a497db840f4aa2035daf5199c94477031",
+      "importSha256": "9f74825055cf75464ebb3e8c118120652266619ee9d54c75d9ea01c2efba2638",
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
       "allowedCommand": {
@@ -18881,7 +18966,7 @@
         "voiceConversationTurnOwnsVoiceIntakeConversationAtomicUpdate"
       ],
       "writerSha256": "d4c6879d313bf4ea6c052eeb9895d51a35697013bd5d8fd6957abfbda041e711",
-      "ownerSha256": "b314ac51005a6633d5ca74e95353e89034c1b5d2f682f962d537c73eed723439",
+      "ownerSha256": "1698ec26b0515901809f07eb195ff370161550e60b5415153247f4efc36fe2fd",
       "importSha256": "4521aefd13c4fe1a13c8b2b7f27f1f42817fde651dffa08667d4189d4fdbb551",
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
@@ -18907,13 +18992,13 @@
     {
       "id": "src/services/voiceConversationTurn.service.js#ownsVoiceIntake#transition-command#2",
       "file": "src/services/voiceConversationTurn.service.js",
-      "line": 32,
+      "line": 33,
       "kind": "transition-command",
       "fields": [
         "voiceConversationTurnOwnsVoiceIntakeConversationFields"
       ],
       "writerSha256": "0d9935281fa46118a4ea5450ac9e8dd73f8a8f2449c4df75f7e7df5130816562",
-      "ownerSha256": "b314ac51005a6633d5ca74e95353e89034c1b5d2f682f962d537c73eed723439",
+      "ownerSha256": "1698ec26b0515901809f07eb195ff370161550e60b5415153247f4efc36fe2fd",
       "importSha256": "4521aefd13c4fe1a13c8b2b7f27f1f42817fde651dffa08667d4189d4fdbb551",
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
@@ -18939,13 +19024,13 @@
     {
       "id": "src/services/voiceConversationTurn.service.js#ownsVoiceIntake#transition-command#3",
       "file": "src/services/voiceConversationTurn.service.js",
-      "line": 33,
+      "line": 34,
       "kind": "transition-command",
       "fields": [
         "voiceConversationTurnOwnsVoiceIntakeConversationFields2"
       ],
       "writerSha256": "0715c7a6b45ee55fa96fc84a4c24ddeca41069eaef5b2e1f1d5a9ecb7af56bea",
-      "ownerSha256": "b314ac51005a6633d5ca74e95353e89034c1b5d2f682f962d537c73eed723439",
+      "ownerSha256": "1698ec26b0515901809f07eb195ff370161550e60b5415153247f4efc36fe2fd",
       "importSha256": "4521aefd13c4fe1a13c8b2b7f27f1f42817fde651dffa08667d4189d4fdbb551",
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
@@ -19832,14 +19917,14 @@
     {
       "id": "src/voice/voiceSession.service.js#ensureContext#transition-command#1",
       "file": "src/voice/voiceSession.service.js",
-      "line": 185,
+      "line": 186,
       "kind": "transition-command",
       "fields": [
         "createVoiceLead"
       ],
       "writerSha256": "e5156bd3010bed23d7c0a6f732f2a156d81935fe5099c762004f8c108f5445f0",
       "ownerSha256": "13cd7b0bdd3efdcead42210b0b731600bd16f251dbe4116ebb9de4007bdd788b",
-      "importSha256": "ede2fed6874b9a8c9da73ae70329bfe9b4090e5c17b317947427c95f7c5593b8",
+      "importSha256": "80a7a2dbf91cb2dfc5f37578473409e66adcf19ae7e1c881ba39befc7c10b7e7",
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
       "allowedCommand": {
@@ -19865,14 +19950,14 @@
     {
       "id": "src/voice/voiceSession.service.js#ensureContext#transition-command#2",
       "file": "src/voice/voiceSession.service.js",
-      "line": 202,
+      "line": 203,
       "kind": "transition-command",
       "fields": [
         "createVoiceConversation"
       ],
       "writerSha256": "3a0f0db1801276712062001be39dbd49ef597373462532dfbef362d9b4d0344e",
       "ownerSha256": "13cd7b0bdd3efdcead42210b0b731600bd16f251dbe4116ebb9de4007bdd788b",
-      "importSha256": "ede2fed6874b9a8c9da73ae70329bfe9b4090e5c17b317947427c95f7c5593b8",
+      "importSha256": "80a7a2dbf91cb2dfc5f37578473409e66adcf19ae7e1c881ba39befc7c10b7e7",
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
       "allowedCommand": {
@@ -19898,16 +19983,16 @@
     {
       "id": "src/voice/voiceSession.service.js#sendFallbackSms#transition-command#1",
       "file": "src/voice/voiceSession.service.js",
-      "line": 570,
+      "line": 569,
       "kind": "transition-command",
       "fields": [
-        "saveStateDocument"
+        "persistVoiceFallbackPreview"
       ],
-      "writerSha256": "5b249d7af9537f980d9078d6268d34c8c8f2ff1b240c4a6a4b5bc94cd8ed870c",
-      "ownerSha256": "44c9b72bc9281dc1e52e22f3dc761bf20425faecc19ca1ec38f1d86293d9b896",
-      "importSha256": "ede2fed6874b9a8c9da73ae70329bfe9b4090e5c17b317947427c95f7c5593b8",
+      "writerSha256": "e49169f89eb71bb0063f8536960ebd7a3a531bc3654ed94a86f7a69012488550",
+      "ownerSha256": "c43114379cea3a95f0592d9d45d5e47829e007e72c1ecde44778fa614d5e8916",
+      "importSha256": "80a7a2dbf91cb2dfc5f37578473409e66adcf19ae7e1c881ba39befc7c10b7e7",
       "predicateSource": null,
-      "authoritativeRecord": "Conversation",
+      "authoritativeRecord": "RegisteredStateRecord",
       "allowedCommand": {
         "module": "src/voice/voiceSession.service.js",
         "function": "sendFallbackSms",
@@ -19930,14 +20015,14 @@
     {
       "id": "src/voice/voiceSession.service.js#sendFallbackSms#transition-command#2",
       "file": "src/voice/voiceSession.service.js",
-      "line": 603,
+      "line": 602,
       "kind": "transition-command",
       "fields": [
         "saveStateDocument"
       ],
       "writerSha256": "d16cf935350ffa1d363eddba1fc24817dc0647d6b3e3911864dcc9a1575a9981",
-      "ownerSha256": "44c9b72bc9281dc1e52e22f3dc761bf20425faecc19ca1ec38f1d86293d9b896",
-      "importSha256": "ede2fed6874b9a8c9da73ae70329bfe9b4090e5c17b317947427c95f7c5593b8",
+      "ownerSha256": "c43114379cea3a95f0592d9d45d5e47829e007e72c1ecde44778fa614d5e8916",
+      "importSha256": "80a7a2dbf91cb2dfc5f37578473409e66adcf19ae7e1c881ba39befc7c10b7e7",
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
       "allowedCommand": {
@@ -19962,14 +20047,14 @@
     {
       "id": "src/voice/voiceSession.service.js#sendFallbackSms#transition-command#3",
       "file": "src/voice/voiceSession.service.js",
-      "line": 608,
+      "line": 607,
       "kind": "transition-command",
       "fields": [
         "upsertVoiceFallbackReview"
       ],
       "writerSha256": "bbd024a028e6ba58d2938c99af39b286c75824db3a9610ab58a0571e4ad81812",
-      "ownerSha256": "44c9b72bc9281dc1e52e22f3dc761bf20425faecc19ca1ec38f1d86293d9b896",
-      "importSha256": "ede2fed6874b9a8c9da73ae70329bfe9b4090e5c17b317947427c95f7c5593b8",
+      "ownerSha256": "c43114379cea3a95f0592d9d45d5e47829e007e72c1ecde44778fa614d5e8916",
+      "importSha256": "80a7a2dbf91cb2dfc5f37578473409e66adcf19ae7e1c881ba39befc7c10b7e7",
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
       "allowedCommand": {

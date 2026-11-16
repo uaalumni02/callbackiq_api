@@ -11,12 +11,13 @@ export async function saveClaimed(document, claim) {
 /** @param {{business:BusinessScope, original:AppointmentRecord, replacement:AppointmentRecord|null, key?:string, service?:import('./types.js').Service, nextInput?:object}} input
  * @returns {Promise<{replacement:AppointmentRecord}>} */
 export async function reserveReplacement({ business, original, replacement, key, service, nextInput, input }, { createHold }) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw Object.assign(new Error('Reschedule input is required before reserving a replacement.'), { code: 'RESCHEDULE_INPUT_REQUIRED', statusCode: 400 });
   if (!replacement) replacement = await createHold({ business, service, input: nextInput,
     preservedValuation: { estimatedValue: original.estimatedValue, valuation: original.valuation || { source: 'legacy_unverified' } },
     idempotencyKey: key, excludeAppointmentId: original._id });
   if (!replacement.rescheduledFrom && replacement.status === 'held') {
     replacement.rescheduledFrom = original._id;
-    replacement.rescheduleInputFingerprint = rescheduleReceiptIdentity(input || {});
+    replacement.rescheduleInputFingerprint = rescheduleReceiptIdentity(input);
     await replacement.save();
   }
   return { replacement };

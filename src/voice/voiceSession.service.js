@@ -1,3 +1,4 @@
+import { persistVoiceFallbackPreview } from '../services/stateTransitions/messaging.js';
 import { createVoiceLead, createVoiceConversation, upsertVoiceFallbackReview } from '../services/stateTransitions/voice.js';
 import { saveStateDocument } from '../services/stateTransitions/documents.js';
 import { ownerTextSuppressionReason } from "../services/messaging/ownerTextPolicy.service.js";
@@ -565,10 +566,8 @@ class VoiceSessionService {
                 metadata: { source: "voice_fallback", voiceSessionId: session._id },
               });
               emit("emitMessageCreated", business._id, message);
-              conversation.lastMessage = body;
-              conversation.lastMessageAt = new Date();
-              await saveStateDocument(conversation);
-              emit("emitConversationUpdated", business._id, conversation);
+              const updated = await persistVoiceFallbackPreview({ Conversation, conversation, business, body, at: new Date() });
+              if (updated) emit("emitConversationUpdated", business._id, updated);
             } catch (error) {
               logOperationalError(
                 "voice.fallback_sms_local_persistence_failed",
