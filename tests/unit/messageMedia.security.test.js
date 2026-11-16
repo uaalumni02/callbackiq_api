@@ -8,7 +8,7 @@ jest.mock('../../src/services/security/providerMedia.js',()=>({...jest.requireAc
 const id='123456789012345678901234';
 function request(){return {user:{userId:'owner'},params:{messageId:id,mediaIndex:'0'}};}
 function response(){const res={headers:{},destroyed:false};res.status=jest.fn(()=>res);res.json=jest.fn(()=>res);res.send=jest.fn(()=>res);res.setHeader=jest.fn((key,value)=>{res.headers[key]=value});return res;}
-beforeEach(()=>{jest.clearAllMocks();process.env.TWILIO_ACCOUNT_SID='AC00000000000000000000000000000000';process.env.TWILIO_AUTH_TOKEN='synthetic-media-token';Db.getBusinessScopeByOwner.mockResolvedValue({_id:'business'});Message.findOne.mockResolvedValue({media:[{providerUrl:'https://api.twilio.com/media/one'}]});loadProviderMedia.mockResolvedValue({buffer:Buffer.from('image'),contentType:'image/png'});});
+beforeEach(()=>{jest.clearAllMocks();process.env.TWILIO_ACCOUNT_SID='AC00000000000000000000000000000000';process.env.TWILIO_AUTH_TOKEN='test-auth-token';Db.getBusinessScopeByOwner.mockResolvedValue({_id:'business'});Message.findOne.mockResolvedValue({media:[{providerUrl:'https://api.twilio.com/media/one'}]});loadProviderMedia.mockResolvedValue({buffer:Buffer.from('image'),contentType:'image/png'});});
 test('media query is tenant-scoped and passive previews have restrictive response headers',async()=>{
  const req=request(),res=response();await Controller.getMedia(req,res);
  expect(Message.findOne).toHaveBeenCalledWith({_id:id,business:'business'});expect(res.status).toHaveBeenCalledWith(200);expect(res.send).toHaveBeenCalledWith(Buffer.from('image'));
