@@ -1,3 +1,4 @@
+import { createTenantRecord, updateTenantRecord, updateTenantRecords, deleteTenantRecord, deleteTenantConversationRecords } from '../../services/stateTransitions/tenantRecords.js';
 import mongoose from 'mongoose';
 import logger from '../../config/logger.js';
 import { assertTenantReferences } from '../../services/tenantReferences.service.js';
@@ -8,7 +9,6 @@ const failure = (code, message) => Object.assign(new TypeError(message), {
   isJoi: code === 'INVALID_TENANT_UPDATE'
 });
 const scalarId = value => Boolean(value && (typeof value === 'string' || typeof value.toHexString === 'function') && mongoose.isValidObjectId(value));
-
 /** @typedef {{businessId:import('mongoose').Types.ObjectId|string}} TenantContext */
 export function tenantContext(businessId) {
   if (!scalarId(businessId)) throw failure('TENANT_CONTEXT_REQUIRED', 'A concrete business identity is required.');
@@ -113,37 +113,26 @@ function writes(scope) {
     async create(data) {
       if (!data || typeof data !== 'object' || Array.isArray(data) || data.business && String(data.business) !== String(business)) throw failure('INVALID_TENANT_UPDATE', 'Creation requires the bound business identity.');
       await checkedReferences(model, business, data);
-      const record = await model.create({
-        ...data,
-        business
-      });
+      const record = await createTenantRecord({ business, data, model });
       return record.toObject();
     },
     async update(id, update, options) {
       const filter = scope.identity(id),
         changes = checkedUpdate(update);
       await checkedReferences(model, business, changes.$set);
-      return queryOptions(model.findOneAndUpdate(filter, changes, {
-        returnDocument: 'after',
-        runValidators: true
-      }), scope, options);
+      return queryOptions(updateTenantRecord({ changes, filter, model }), scope, options);
     },
     async updateMany(criteria, update) {
       const changes = checkedUpdate(update);
       await checkedReferences(model, business, changes.$set);
-      return model.updateMany(scope.conditions(criteria), changes, {
-        runValidators: true
-      });
+      return updateTenantRecords({ changes, criteria, model, scope });
     },
     async remove(id) {
-      return model.findOneAndDelete(scope.identity(id)).lean();
+      return deleteTenantRecord({ id, model, scope }).lean();
     },
     async removeManyByReference(field, id) {
       if (field !== 'conversation' || !model.schema.path(field) || !scalarId(id)) throw failure('INVALID_TENANT_REFERENCE', 'A concrete conversation reference is required.');
-      return model.deleteMany({
-        business,
-        [field]: id
-      });
+      return deleteTenantConversationRecords({ business, field, id, model });
     }
   };
 }

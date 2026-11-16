@@ -1,5 +1,6 @@
+import { stageVoiceControlHandoff } from '../../services/stateTransitions/voice.js';
+import { saveStateDocument } from '../../services/stateTransitions/documents.js';
 import { AlertService, VoiceCallbackService, applyCustomerAddressRevision, assertVoiceTurnActive, captureCallback, guardServiceRequest, handleCompoundCustomerTurn, handleConversationControl, isCallbackRequest, maybeAnswerDialogQuestion, planCustomerTurn, recordPilotMetric, resetFallbackGuard, schedulingQuestionReply, toSpokenReply } from './context.js';
-
 export async function routeConversationControl(context) {
   const { session, text, business, lead, guard, turnId, conversation, recentMessages, understanding, signal } = context;
 if (VoiceCallbackService.isActive(session)) {
@@ -8,7 +9,6 @@ if (VoiceCallbackService.isActive(session)) {
       resetFallbackGuard(guard);
       return { completed: true, value: captureCallback({ session, customerMessage: text }) };
     }
-
     const latestCustomerTurn = [...(session.transcript || [])].reverse().find((entry) => entry.role === "customer");
     const requestTurnId = `voice:${session._id}:${latestCustomerTurn?.at || turnId || session.transcript?.length || 0}`;
     const turnPlan = planCustomerTurn({ business, lead, conversation, customerMessage: text });
@@ -20,10 +20,9 @@ if (VoiceCallbackService.isActive(session)) {
           conversationId: conversation._id, customerPhone: lead?.phone || conversation.customerPhone,
           customerMessage: text, lead, result: compound, providerMessageId: `voice-compound:${session._id}:${turnId || session.transcript?.length || 0}` });
         assertVoiceTurnActive();
-        conversation.orchestration = { ...(conversation.orchestration?.toObject?.() || conversation.orchestration || {}),
-          handoffReason: 'scheduling_review', phase: 'handoff_pending', handoffStatus: 'pending_ack' };
+        stageVoiceControlHandoff({ conversation });
         conversation.markModified?.('orchestration');
-        await conversation.save();
+        await saveStateDocument(conversation);
       }
       resetFallbackGuard(guard);
       return { completed: true, value: { reply: toSpokenReply(compound.reply) } };

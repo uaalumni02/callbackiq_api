@@ -1,3 +1,4 @@
+import { saveStateDocument } from '../../../services/stateTransitions/documents.js';
 import { safeConsole } from "../../logging/safeLogger.js";
 import Appointment from "../../../models/appointment.js";
 import Message from "../../../models/message.js";
@@ -5,7 +6,6 @@ import VoiceSession from "../../../models/voiceSession.js";
 import { sendSms } from "../../../services/twilioSmsService.js";
 import { isSmsSuppressed } from "../../../services/messaging/contactPreference.service.js";
 import SocketService from "../../../services/socket.service.js";
-
 import { assertVoiceTurnActive } from "../../../services/voiceTurnContext.service.js";
 const formatAppointment = (appointment) =>
   new Intl.DateTimeFormat("en-US", {
@@ -178,7 +178,7 @@ const sendConfirmationSmsTool = async ({
   if (conversation) {
     conversation.lastMessage = body;
     conversation.lastMessageAt = new Date();
-    await conversation.save();
+    await saveStateDocument(conversation);
     if (typeof SocketService.emitConversationUpdated === "function") {
       SocketService.emitConversationUpdated(business._id, conversation);
     }

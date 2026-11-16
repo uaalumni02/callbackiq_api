@@ -1,6 +1,6 @@
+import { saveStateDocument } from '../../services/stateTransitions/documents.js';
 import { safeConsole } from '../../helpers/logging/safeLogger.js';
 // Exact identity operations extracted from Db; errors and Mongoose operations unchanged.
-
 export async function findUserByEmailOrUserName(model, userName, email) {
     try {
       return await model.findOne({
@@ -14,7 +14,7 @@ export async function findUserByEmailOrUserName(model, userName, email) {
 export async function saveUser(model, userData, { session = null } = {}) {
     try {
       const user = new model(userData);
-      return await user.save(session ? { session } : undefined);
+      return await saveStateDocument(user, session ? { session } : undefined);
     } catch (error) {
       safeConsole.error("Actual Mongoose Save Error:", error);
       throw error;

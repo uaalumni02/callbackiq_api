@@ -1,9 +1,9 @@
+import { stageVoiceSchedulingReview } from '../stateTransitions/requestIntake.js';
 import { createRequestBookingGuard, saveRequestBookingDocument } from './requestBookingPersistence.service.js';
 import { applyBookingStateTransition } from './requestBookingState.js';
 import { dialogMode } from '../conversationPolicy/dialogPolicy.js';
 import { captureTurnFacts } from './turnFactCapture.service.js';
 import AlertService from '../alert.service.js';
-
 export async function requestStaffSchedulingReview({ business, lead, conversation, customerMessage, channel = 'sms', now = new Date() }) {
   const check = createRequestBookingGuard(channel);
   check();
@@ -35,9 +35,7 @@ export async function requestStaffSchedulingReview({ business, lead, conversatio
   if (conversation && typeof conversation.save === 'function') {
     applyBookingStateTransition(conversation, 'staff_review_requested');
     if (channel === 'voice') {
-      conversation.orchestration = { ...(conversation.orchestration?.toObject?.() || conversation.orchestration || {}),
-        phase: 'handoff_pending', handoffStatus: 'pending_ack', handoffReason: 'scheduling_review',
-        handoffRequestedAt: now, handoffAcknowledgedAt: null };
+      stageVoiceSchedulingReview({ conversation, now });
       conversation.markModified?.('orchestration');
     }
     await saveRequestBookingDocument({ document: conversation, guard: check });

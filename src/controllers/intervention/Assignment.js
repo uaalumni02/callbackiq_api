@@ -1,5 +1,5 @@
+import { assignOpenReview } from '../../services/stateTransitions/reviews.js';
 import { Alert, SocketService, getOwnedBusiness, getScopedIntervention, populate, resolveAssignableUserId, sendNotFound, sendStateConflict } from './context.js';
-
 export default class InterventionAssignmentController {
 static async assign(req, res, next) {
     try {
@@ -47,15 +47,7 @@ static async assign(req, res, next) {
           };
 
       const alert = await populate(
-        Alert.findOneAndUpdate(
-          {
-            _id: req.params.id,
-            business: business._id,
-            resolvedAt: null,
-          },
-          { $set: assignmentUpdate },
-          { returnDocument: "after", runValidators: true },
-        ),
+        assignOpenReview({ Alert, assignmentUpdate, business, req }),
       );
 
       if (!alert) return sendStateConflict(res);

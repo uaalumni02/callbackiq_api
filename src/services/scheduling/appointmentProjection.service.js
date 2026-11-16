@@ -1,3 +1,4 @@
+import { appointmentProjectionRepairOneLeadUpdateOne, appointmentProjectionRepairOneLeadUpdateOne2, appointmentProjectionRepairOneAlertUpdateMany, appointmentProjectionRepairOneAppointmentUpdateOne, appointmentProjectionTransitionAppointmentUpdateOne } from '../stateTransitions/appointmentLifecycle.js';
 import crypto from 'node:crypto';
 import Appointment from '../../models/appointment.js';
 import Lead from '../../models/lead.js';
@@ -9,7 +10,6 @@ import InterventionService from '../intervention.service.js';
 import { withDistributedLease, assertDistributedLeaseActive } from '../distributedLease.service.js';
 import { schedulePostAppointmentFollowUp } from './appointmentNotification.service.js';
 import { safeConsole } from '../../helpers/logging/safeLogger.js';
-
 export const projectionMarker = () => ({ token: crypto.randomUUID(), pending: true,
   at: new Date(), retryAt: new Date(), lastError: '' });
 const fields = ['bookingProjection', 'completionProjection'];
@@ -21,7 +21,7 @@ async function repairOne(appointment, field) {
   if (!marker?.pending) return;
   if (field === 'bookingProjection' && !['confirmed', 'completed'].includes(appointment.status)) {
     // A cancelled/replaced visit must not be restored to the lead on retry.
-    if (appointment.lead) await Lead.updateOne({ _id: appointment.lead, business: appointment.business, appointment: appointment._id }, { $set: { appointment: null } });
+    if (appointment.lead) await appointmentProjectionRepairOneLeadUpdateOne({ Lead, appointment });
   } else if (field === 'bookingProjection') {
     const [lead, service] = await Promise.all([
       appointment.lead ? Lead.findOne({ _id: appointment.lead, business: appointment.business }) : null,
@@ -45,20 +45,14 @@ async function repairOne(appointment, field) {
       attribution: appointment.attribution || {}, occurredAt: appointment.completedAt,
       idempotencyKey: `job_completed:${appointment._id}` });
     assertDistributedLeaseActive();
-    if (appointment.lead) await Lead.updateOne({ _id: appointment.lead, business: appointment.business,
-      $or: [{ completionProjectionAt: null }, { completionProjectionAt: { $lte: marker.at } }],
-    }, { $set: { completedAt: appointment.completedAt, actualRevenue: appointment.actualRevenue,
-      completionProjectionAt: marker.at } });
+    if (appointment.lead) await appointmentProjectionRepairOneLeadUpdateOne2({ Lead, appointment, marker });
     assertDistributedLeaseActive();
     await schedulePostAppointmentFollowUp({ appointment });
   }
   assertDistributedLeaseActive();
   // A correction saved during repair has a new token. Never erase its obligation.
-  await Alert.updateMany({ business: appointment.business, dedupeKey: `appointment_projection:${appointment._id}:${field}:${marker.token}`, resolvedAt: null },
-    { $set: { resolvedAt: new Date(), actionRequired: false } });
-  const result = await Appointment.updateOne(scoped(appointment, field), {
-    $set: { [`${field}.pending`]: false, [`${field}.lastError`]: '' },
-  });
+  await appointmentProjectionRepairOneAlertUpdateMany({ Alert, appointment, field, marker });
+  const result = await appointmentProjectionRepairOneAppointmentUpdateOne({ Appointment, appointment, field, scoped });
   if (result.matchedCount === 1) { marker.pending = false; marker.lastError = ''; }
 
 }
@@ -79,9 +73,7 @@ export async function tryRepairAppointmentProjections(appointment) {
         catch (error) {
           const lastError = String(error.message || 'Projection repair failed').slice(0, 300);
           appointment[field].lastError = lastError;
-          await Appointment.updateOne(scoped(appointment, field), { $set: {
-            [`${field}.lastError`]: lastError, [`${field}.retryAt`]: new Date(Date.now() + 60000),
-          } }).catch(() => {});
+          await appointmentProjectionTransitionAppointmentUpdateOne({ Appointment, appointment, field, lastError, scoped }).catch(() => {});
           await InterventionService.create({ businessId: appointment.business, appointmentId: appointment._id,
             leadId: appointment.lead, conversationId: appointment.conversation, type: 'integration_failure',
             title: 'Saved appointment records are still updating',

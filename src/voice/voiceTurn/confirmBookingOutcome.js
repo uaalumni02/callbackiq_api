@@ -1,5 +1,5 @@
+import { saveStateDocument } from '../../services/stateTransitions/documents.js';
 import { Appointment, assertVoiceTurnActive, recordConfirmedAppointment } from './context.js';
-
 export async function confirmBookingOutcome(context) {
   const { conversation, session, spokenBookingReply, previousAppointmentId, business, lead } = context;
 assertVoiceTurnActive();
@@ -13,7 +13,7 @@ assertVoiceTurnActive();
       };
       session.markModified?.('metadata');
       assertVoiceTurnActive();
-      await session.save();
+      await saveStateDocument(session);
       assertVoiceTurnActive();
       return { completed: true, value: { reply: spokenBookingReply, outcome: 'appointment_requested' } };
     }

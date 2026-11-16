@@ -1,3 +1,4 @@
+import { approvalLifecycleEnsureApprovalReviewAlertAtomicUpdate, approvalLifecycleEnsureApprovalReviewAlertUpdateOne, approvalLifecycleEnsureApprovalReviewAlertUpdateOne2, approvalLifecycleEnsureApprovalReviewAlertUpdateOne3, approvalLifecycleReconcileApprovalRequestsAppointmentUpdateOne, approvalLifecycleReconcileApprovalRequestsAppointmentUpdateOne2, approvalLifecycleReconcileApprovalRequestsAppointmentUpdateOne3, approvalLifecycleResolveApprovalReviewAlertUpdateMany } from '../stateTransitions/appointmentLifecycle.js';
 import { applyAppointmentBookingTransition } from '../booking/appointmentBookingTransition.repository.js';
 import { repairConfirmedApproval } from './appointmentConfirmation.service.js';
 import Appointment from '../../models/appointment.js';
@@ -6,7 +7,6 @@ import Business from '../../models/business.js';
 import Conversation from '../../models/conversation.js';
 import SocketService from '../socket.service.js';
 import { scheduleAppointmentChangeNotice } from './appointmentNotification.service.js';
-
 // The appointment is a capacity reservation; this review survives its expiry.
 // All writes have stable identities so maintenance can repair interrupted work.
 export async function ensureApprovalReview(appointment, { expired = false } = {}) {
@@ -14,26 +14,11 @@ export async function ensureApprovalReview(appointment, { expired = false } = {}
   if (!business) throw new Error('Approval business no longer exists.');
   const dueAt = expired ? new Date() : new Date(Math.min(
     new Date(appointment.heldExpiresAt).getTime(), Date.now() + 15 * 60_000));
-  const alert = await Alert.findOneAndUpdate({ business: appointment.business,
-    dedupeKey: `appointment_approval_required:${appointment._id}` }, {
-    $setOnInsert: { type: 'system', channel: 'in_app', status: 'sent', sentAt: new Date(),
-      priority: 'medium', assignedTo: business.owner, assignedAt: new Date(),
-      'metadata.approvalRequest': true },
-    $set: { actionRequired: true, appointment: appointment._id,
-      lead: appointment.lead || null, conversation: appointment.conversation || null,
-      title: expired ? 'Appointment request needs an availability recheck' : 'Appointment approval required',
-      message: expired ? 'The temporary reservation expired. The customer request remains open; check availability before approving.'
-        : 'The customer selected a time. Approve or decline this request before its temporary reservation expires.',
-      recommendedAction: expired ? 'Recheck the requested time or contact the customer to agree another time.' : 'Review and approve the customer’s selected time.',
-      'metadata.appointmentId': String(appointment._id),
-      'metadata.approvalState': expired ? 'needs_recheck' : 'pending',
-      ...(expired ? { dueAt, resolvedAt: null, acknowledgedAt: null } : {}),
-    },
-  }, { upsert: true, returnDocument: "after" });
+  const alert = await approvalLifecycleEnsureApprovalReviewAlertAtomicUpdate({ Alert, appointment, business, dueAt, expired });
   // Preserve an existing deadline and assignment while repairing legacy reviews.
-  await Alert.updateOne({ _id: alert._id, dueAt: null }, { $set: { dueAt } });
-  await Alert.updateOne({ _id: alert._id, assignedTo: null }, { $set: { assignedTo: business.owner, assignedAt: new Date() } });
-  await Alert.updateOne({ _id: alert._id }, { $set: { 'metadata.approvalRequest': true } });
+  await approvalLifecycleEnsureApprovalReviewAlertUpdateOne({ Alert, alert, dueAt });
+  await approvalLifecycleEnsureApprovalReviewAlertUpdateOne2({ Alert, alert, business });
+  await approvalLifecycleEnsureApprovalReviewAlertUpdateOne3({ Alert, alert });
   SocketService.emitAlertUpdated(appointment.business, alert);
   return alert;
 }
@@ -53,7 +38,7 @@ export async function reconcileApprovalRequests({ businessId = null, limit = 100
       if (appointment.status !== 'held' && !(appointment.status === 'failed' && !appointment.approvalDecisionAt && /hold expired/i.test(appointment.failureReason || ''))) {
         if (appointment.status === 'confirmed') await repairConfirmedApproval({ appointment });
         await resolveApprovalReview(appointment);
-        await Appointment.updateOne({ _id: appointment._id, status: appointment.status }, { $set: { 'approvalRecovery.reconciled': true, 'approvalRecovery.state': 'resolved' } });
+        await approvalLifecycleReconcileApprovalRequestsAppointmentUpdateOne({ Appointment, appointment });
         repaired++; continue;
       }
       await ensureApprovalReview(appointment, { expired });
@@ -62,9 +47,7 @@ export async function reconcileApprovalRequests({ businessId = null, limit = 100
           body: 'Your appointment is still awaiting approval. The requested time is no longer reserved. Your request remains open for the team to review. Reply here if another day would work.' });
         await applyAppointmentBookingTransition(Conversation, 'approval_hold_expired', appointment);
       }
-      await Appointment.updateOne({ _id: appointment._id, status: appointment.status }, { $set: {
-        'approvalRecovery.reconciled': true, 'approvalRecovery.state': expired ? 'needs_recheck' : 'pending',
-      } });
+      await approvalLifecycleReconcileApprovalRequestsAppointmentUpdateOne2({ Appointment, appointment, expired });
       const latest = await Appointment.findById(appointment._id).lean();
       if (latest && latest.status !== appointment.status && latest.status !== 'held') {
         await resolveApprovalReview(latest);
@@ -73,16 +56,12 @@ export async function reconcileApprovalRequests({ businessId = null, limit = 100
       repaired++;
     } catch (error) {
       // Leave the marker unset: the next worker pass repairs the same records.
-      await Appointment.updateOne({ _id: appointment._id }, { $set: { 'approvalRecovery.lastError': String(error.code || error.message).slice(0, 200) } });
+      await approvalLifecycleReconcileApprovalRequestsAppointmentUpdateOne3({ Appointment, appointment, error });
     }
   }
   return { repaired };
 }
 
 export async function resolveApprovalReview(appointment) {
-  await Alert.updateMany({ business: appointment.business, 'metadata.appointmentId': String(appointment._id),
-    'metadata.approvalRequest': true, resolvedAt: null }, { $set: {
-    resolvedAt: new Date(), status: 'resolved', actionRequired: false,
-    resolution: `Appointment ${appointment.status}`, 'metadata.approvalState': appointment.status,
-  } });
+  await approvalLifecycleResolveApprovalReviewAlertUpdateMany({ Alert, appointment });
 }

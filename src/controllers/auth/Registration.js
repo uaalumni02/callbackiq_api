@@ -1,5 +1,5 @@
+import { saveStateDocument } from '../../services/stateTransitions/documents.js';
 import { Business, Db, Response, User, bcrypt, buildAuthToken, captureSignupSecurity, cookieOptions, createInactiveSubscription, crypto, getConsentIp, getTrialEligibility, issueEmailVerification, normalizeBusinessPhone, registerSchema, runRegistrationTransaction, safeConsole, securityGateEnabled, shouldExposeAuthToken, trialEligibilityMessage, validate, verifyTurnstileToken } from './context.js';
-
 export default class AuthRegistrationController {
 static async register(req, res) {
     const {
@@ -169,7 +169,7 @@ static async register(req, res) {
       // subscription entitlement. Subscription middleware owns product access.
       savedBusiness.setupProgress.subscriptionActivated = false;
       savedBusiness.setupProgress.updatedAt = new Date();
-      await savedBusiness.save({ session: registrationSession });
+      await saveStateDocument(savedBusiness, { session: registrationSession });
 
       savedSubscription = await createInactiveSubscription(savedBusiness._id, { session: registrationSession });
       trialEligibility = await getTrialEligibility({

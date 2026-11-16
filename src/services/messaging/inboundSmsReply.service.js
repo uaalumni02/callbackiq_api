@@ -1,3 +1,4 @@
+import { persistReplyLeadFacts, persistReplyConversationState, linkReplyReview, persistFailedHandoffDelivery, finalizeAcknowledgedHandoff } from '../stateTransitions/messaging.js';
 import { buildLeadUpdates } from './inboundLeadProjection.service.js';
 import { beginValuation, finishValuation } from "../valuation/opportunityValuation.service.js";
 import { buildSmsStatePatch } from "./smsConversationState.service.js";
@@ -21,7 +22,6 @@ import {
 import { applySmsProductionInvariants } from "./smsProductionInvariant.service.js";
 import { assertDistributedLeaseActive } from "../distributedLease.service.js";
 import { buildSmsRequestRevisionPatch, reviewSmsAppointmentRevision } from "./smsWorkflowPolicy.service.js";
-
 async function prepareConversationReply({ business, lead, conversation, messages, effectiveInboundMessage, handoffSource, customerTurn }) {
   const valuationTicket = await beginValuation(lead, business._id);
   const retryingCompletedIntake = handoffSource && conversation?.orchestration?.handoffReason === "intake_complete";
@@ -64,10 +64,7 @@ async function persistLeadReplyFacts({ business, lead, messages, customerTurn },
   let updatedLead = lead;
   const leadUpdates = buildLeadUpdates(lead, result);
   if (Object.keys(leadUpdates).length) {
-    updatedLead = await Lead.findByIdAndUpdate(lead._id, leadUpdates, {
-      returnDocument: "after",
-      runValidators: true,
-    });
+    updatedLead = await persistReplyLeadFacts({ Lead, lead, leadUpdates });
   }
   // Shared intake may already have saved the facts. Valuation must still finish.
   updatedLead = await finishValuation(valuationTicket, { businessId: business._id, evidence: [...messages.filter(message => message.direction === "inbound").map(message => message.body), customerTurn.customerMessage].join("\n"), proposedService: result.serviceNeeded || updatedLead.serviceNeeded }) || updatedLead;
@@ -105,18 +102,7 @@ async function persistConversationReplyState(context, reply, updatedLead, revisi
     : {};
 
   assertDistributedLeaseActive();
-  updatedConversation = await Conversation.findByIdAndUpdate(
-    updatedConversation._id,
-    { $set: { ...statePatch, ...revisionPatch, ...pendingHandoffPatch,
-      ...(handoffRequired && !revisionPatch['conversationMemory.recoveryIntake'] ? { 'conversationMemory.recoveryIntake.preparedHandoffResult': {
-        reply: result.reply, intakeCompletionReply: result.reply, intakeReview: result.intakeReview,
-        messageCategory: result.messageCategory, serviceNeeded: result.serviceNeeded, urgency: result.urgency,
-        address: result.address, preferredAppointmentTime: result.preferredAppointmentTime, summary: result.summary,
-        guardrail: result.guardrail,
-      } } : {}),
-    } },
-    { returnDocument: "after", runValidators: true },
-  );
+  updatedConversation = await persistReplyConversationState({ Conversation, handoffRequired, pendingHandoffPatch, result, revisionPatch, statePatch, updatedConversation });
   SocketService.emitConversationUpdated(business._id, updatedConversation);
   return { result, handoffRequired, updatedLead, updatedConversation };
 }
@@ -143,8 +129,7 @@ async function persistConversationReview({ business, inboundMessage, customerTur
       'conversationMemory.recoveryIntake.review': { status: 'queued', alertId: String(savedReview.alert._id),
         queuedAt: new Date(), evidenceKey: updatedConversation.conversationMemory?.recoveryIntake?.readiness?.evidenceKey || '' },
     };
-    updatedConversation = await Conversation.findByIdAndUpdate(updatedConversation._id,
-      { $set: reviewPatch }, { returnDocument: 'after', runValidators: true });
+    updatedConversation = await linkReplyReview({ Conversation, reviewPatch, updatedConversation });
     if (!updatedConversation) throw Object.assign(new Error('Review conversation was not persisted.'), { code: 'STAFF_ACTION_NOT_SAVED' });
     SocketService.emitConversationUpdated(business._id, updatedConversation);
   } else if (result?.shouldAlertOwner === true) {
@@ -196,19 +181,7 @@ async function persistHandoffDeliveryFailure({ business, inboundMessage, updated
   const latestConversation =
     (await Conversation.findById(updatedConversation._id)) ||
     updatedConversation;
-  const failedConversation = await Conversation.findByIdAndUpdate(
-    updatedConversation._id,
-    {
-      $set: buildFailedHumanHandoffUpdate({
-        inboundMessageId: inboundMessage._id,
-        conversation: latestConversation,
-        result,
-        error,
-      }),
-      $inc: { "orchestration.silentFailureCount": 1 },
-    },
-    { returnDocument: "after", runValidators: true },
-  );
+  const failedConversation = await persistFailedHandoffDelivery({ Conversation, buildFailedHumanHandoffUpdate, error, inboundMessage, latestConversation, result, updatedConversation });
   SocketService.emitConversationUpdated(business._id, failedConversation);
   await AlertService.createSystemAlert({
     businessId: business._id,
@@ -234,19 +207,7 @@ async function finalizeConversationHandoff({ business, inboundMessage }, { resul
   const latestConversation =
     (await Conversation.findById(updatedConversation._id)) ||
     updatedConversation;
-  updatedConversation = await Conversation.findByIdAndUpdate(
-    updatedConversation._id,
-    {
-      $set: buildFinalizedHumanHandoffUpdate({
-        inboundMessageId: inboundMessage._id,
-        outboundMessageId: delivery?.message?._id || null,
-        conversation: latestConversation,
-        result,
-        deliveryStatus,
-      }),
-    },
-    { returnDocument: "after", runValidators: true },
-  );
+  updatedConversation = await finalizeAcknowledgedHandoff({ Conversation, buildFinalizedHumanHandoffUpdate, delivery, deliveryStatus, inboundMessage, latestConversation, result, updatedConversation });
   SocketService.emitConversationUpdated(business._id, updatedConversation);
   SocketService.emitDashboardRefresh(business._id, "sms_handoff_pending");
   logOperationalEvent("twilio.sms.handoff_pending", {

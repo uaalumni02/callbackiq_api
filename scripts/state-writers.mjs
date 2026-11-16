@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { verifyStateTransitionMigration } from './verify-state-transition-migration.mjs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
@@ -7,11 +8,11 @@ const require = createRequire(import.meta.url);
 const { parse } = require('@babel/parser');
 const traverse = require('@babel/traverse').default;
 const digest = text => crypto.createHash('sha256').update(text).digest('hex');
-const resources = new Map([['appointment','Appointment'],['conversation','Conversation'],['alert','Alert'],['recoverycase','RecoveryCase'],['lead','Lead']]);
+const resources = new Map([['appointment','Appointment'],['conversation','Conversation'],['alert','Alert'],['recoverycase','RecoveryCase'],['recoveryevent','RecoveryEvent'],['lead','Lead']]);
 const mutations = new Set(['save','create','insertOne','insertMany','updateOne','updateMany','findOneAndUpdate','findByIdAndUpdate','replaceOne','findOneAndReplace','bulkWrite','deleteOne','deleteMany','findOneAndDelete','findByIdAndDelete']);
 const transitionNames = /^(?:applyBookingStateTransition|applyBookingStateFields|saveBookingTransition|applyBookingEvent|applyAppointmentBookingTransition|bookingTransitionFields|bookingStateFields|commitRequestBookingTransition|persistBookingDocument|persistBookingUpdate|saveRequestBookingDocument|requestStateWrite)$/;
 const protectedPath = value => /^(?:bookingState|conversationMemory|orchestration|lifecycle)(?:\.|$)|(?:^|\.)(?:status|reviewStatus|staffReview|resolvedAt|acknowledgedAt|actionRequired)(?:\.|$)/.test(value);
-const central = file => /src\/services\/(?:booking\/(?:requestBookingState|bookingTurnState\.repository|appointmentBookingTransition\.repository|requestBookingPersistence|requestStateTransaction|intakeHoldTransition\.repository)|scheduling\/reschedule\/(?:finalize|recovery))/.test(file);
+const central = file => file.startsWith('src/services/stateTransitions/') || /src\/services\/(?:booking\/(?:requestBookingState|bookingTurnState\.repository|appointmentBookingTransition\.repository|requestBookingPersistence|requestStateTransaction|intakeHoldTransition\.repository)|scheduling\/reschedule\/(?:finalize|recovery))/.test(file);
 const ignored = file => /(?:^|\/)(?:__tests__|__mocks__|fixtures)(?:\/|$)|\.(?:test|spec)\./.test(file);
 function filesAt(folder) {
   return fs.readdirSync(folder,{withFileTypes:true}).flatMap(entry => {
@@ -38,6 +39,7 @@ function authority(node,p,file,seen=new Set()) {
   if(node.type==='MemberExpression') {
     const name=String(literal(node.property)).toLowerCase();
     if(resources.has(name))return resources.get(name);
+    if(name==='model'&&/src\/(?:db\/repositories|services\/stateTransitions)/.test(file))return 'DynamicTenantRecord';
     return authority(node.object,p,file,seen);
   }
   if(node.type!=='Identifier')return null;
@@ -50,11 +52,11 @@ function authority(node,p,file,seen=new Set()) {
   const binding=p.scope.getBinding(name);
   if(binding?.path.isImportDefaultSpecifier()) {
     const source=binding.path.parent.source?.value||'';
-    const model=source.match(/\/models\/(appointment|conversation|alert|recoveryCase)\.js$/)?.[1];
+    const model=source.match(/\/models\/(appointment|conversation|alert|recoveryCase|lead)\.js$/)?.[1];
     if(model)return resources.get(model.toLowerCase());
   }
+  if(name==='model'&&/src\/(?:db\/repositories|services\/stateTransitions)/.test(file))return 'DynamicTenantRecord';
   if(binding?.path.isVariableDeclarator())return authority(binding.path.node.init,binding.path,file,seen);
-  if(name==='model'&&/src\/db\/repositories/.test(file))return 'DynamicTenantRecord';
   if(name==='model'&&file.endsWith('/requestStateTransaction.service.js'))return 'RegisteredStateRecord';
   return null;
 }
@@ -98,13 +100,15 @@ export function scanStateWriters(root) {
         predicateSource: predicateNode?source.slice(predicateNode.start,predicateNode.end):/^(?:update|find|replace|delete)/.test(kind)&&p.node.arguments?.[0]?source.slice(p.node.arguments[0].start,p.node.arguments[0].end):null,
         ...metadata(record,owner,kind,relative,name)});
     };
-    traverse(ast,{
-      CallExpression(p){
+    const importedTransitions = new Set(ast.program.body.filter(node => node.type === 'ImportDeclaration' &&
+      /(?:^|\/)stateTransitions\//.test(node.source.value)).flatMap(node => node.specifiers.map(specifier => specifier.local.name)));
+    const visitCall = p => {
         const node=p.node,name=literal(node.callee.property)||literal(node.callee);
-        if(transitionNames.test(name)) {
+        if(transitionNames.test(name) || importedTransitions.has(node.callee.name) || importedTransitions.has(node.callee.object?.name)) {
           const properties=node.arguments[0]?.type==='ObjectExpression'?node.arguments[0].properties:[];
           const value=key=>properties.find(property=>literal(property.key)===key)?.value;
-          const record=authority(value('model')||value('document'),p,relative)||'Conversation';
+          const record=authority(value('model')||value('document')||node.arguments[0],p,relative)||
+            (importedTransitions.has(node.callee.name) ? 'RegisteredStateRecord' : 'Conversation');
           add(p,record,'transition-command',[name,...keysIn(value('changes'))],value('filter'));return;
         }
         if(!mutations.has(name)&&name!=='set'&&name!=='assign'&&!node.callee.computed)return;
@@ -113,12 +117,15 @@ export function scanStateWriters(root) {
         const fields=keysIn(name==='save'?null:node.arguments[name==='assign'?1:name==='set'?0:1]);
         if(name==='set'&&node.arguments[0]?.type==='StringLiteral'&&protectedPath(node.arguments[0].value))fields.push(node.arguments[0].value);
         if(record&&(mutations.has(name)||name==='set'||fields.length||node.callee.computed))add(p,record,node.callee.computed&&!mutations.has(name)?'dynamic-method':name,[...new Set(fields)].sort());
-      },
+    };
+    traverse(ast,{
+      CallExpression: visitCall,
+      OptionalCallExpression: visitCall,
       MemberExpression(p){
         const name=literal(p.node.property);
-        if(!mutations.has(name)||p.parentPath.isCallExpression()&&p.parentPath.node.callee===p.node)return;
+        if(!mutations.has(name)||(p.parentPath.isCallExpression()||p.parentPath.isOptionalCallExpression())&&p.parentPath.node.callee===p.node)return;
         const record=authority(p.node.object,p,relative);
-        if(record)add(p,record,'write-capability-reference',[name]);
+        if(record)add(p,record,p.parentPath.isUnaryExpression({operator:'typeof'})?'capability-check':'write-capability-reference',[name]);
       },
       AssignmentExpression(p){
         const target=p.node.left;if(target.type!=='MemberExpression')return;
@@ -137,6 +144,8 @@ export function scanStateWriters(root) {
 export function verifyStateWriters(actual,inventory) {
   const expected=new Map(inventory.writers.map(row=>[row.id,row])),failures=[];
   for(const writer of actual) {
+    if (!central(writer.file) && !['transition-command', 'capability-check'].includes(writer.kind))
+      failures.push(`State writer bypasses centralized transitions: ${writer.id}`);
     const known=expected.get(writer.id);
     if(!known){failures.push(`Unregistered state writer (transition bypass): ${writer.id}`);continue;}
     expected.delete(writer.id);
@@ -147,15 +156,13 @@ export function verifyStateWriters(actual,inventory) {
   }
   for(const id of expected.keys())failures.push(`Retired state writer remains in inventory: ${id}`);
   if(failures.length)throw Error(failures.join('\n'));
-  return {writers:actual.length,registeredDomainWriters:actual.filter(x=>x.allowedCommand.mode==='registered-domain-command').length};
+  return {writers:actual.length,rawDomainWriters:actual.filter(x=>!central(x.file)&&!['transition-command','capability-check'].includes(x.kind)).length,transitionCalls:actual.filter(x=>x.kind==='transition-command').length,capabilityChecks:actual.filter(x=>x.kind==='capability-check').length};
 }
 
 /** Existing registrations may migrate; new durable primitives belong in the transition layer. */
-export function reviewStateWriterInventory(writers, previous) {
-  if (!previous) return writers;
-  const known = new Set(previous.writers.map(writer => writer.id));
-  const bypasses = writers.filter(writer => !known.has(writer.id) &&
-    writer.allowedCommand.mode !== 'transition-layer' && writer.kind !== 'transition-command');
+export function reviewStateWriterInventory(writers) {
+  const bypasses = writers.filter(writer =>
+    writer.allowedCommand.mode !== 'transition-layer' && !['transition-command', 'capability-check'].includes(writer.kind));
   if (bypasses.length) throw Error('New writers bypass transition functions; inventory regeneration cannot approve them:\n' +
     bypasses.map(writer => writer.id).join('\n'));
   return writers;
@@ -171,6 +178,9 @@ function main() {
       limitations:['JavaScript dynamic dispatch and caller-bound models require manual review of the recorded owner; the scan is a conservative source inventory, not a whole-program proof.','Empty local repair/claim evidence is an explicit audit gap, not an assurance that recovery or concurrency fencing exists.'],
       writers},null,2)+'\n');
     console.log(`Wrote ${writers.length} state-writer entries.`);
-  } else console.log('PASS state-writer inventory',verifyStateWriters(writers,JSON.parse(fs.readFileSync(target,'utf8'))));
+  } else {
+    console.log('PASS state-writer inventory',verifyStateWriters(writers,JSON.parse(fs.readFileSync(target,'utf8'))));
+    console.log('PASS state-transition migration',verifyStateTransitionMigration(root));
+  }
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url))main();

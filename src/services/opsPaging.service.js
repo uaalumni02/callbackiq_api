@@ -1,3 +1,4 @@
+import { opsPagingPublishAlertAtomicUpdate, opsPagingReconcileOpsAlertsAlertUpdateOne } from './stateTransitions/reviews.js';
 import crypto from 'node:crypto';
 import Incident from '../models/opsIncident.js';
 import Alert from '../models/alert.js';
@@ -8,14 +9,11 @@ const publish = async id => {
   const current = await Incident.findById(id).lean();
   if (!current) return;
   if (current.alert) {
-    const alert = await Alert.findOneAndUpdate({ _id: current.alert, business: current.business,
-      $or: [{ 'metadata.opsNotification.revision': { $exists: false } }, { 'metadata.opsNotification.revision': { $lte: current.revision } }] },
-    { $set: { 'metadata.opsNotification': { status: current.status, action: current.desiredAction, revision: current.revision, updatedAt: current.updatedAt } } }, { returnDocument: 'after' });
+    const alert = await opsPagingPublishAlertAtomicUpdate({ Alert, current });
     if (alert) SocketService.emitAlertUpdated(current.business, alert);
   }
   await Incident.updateOne({ _id: current._id, revision: current.revision, status: current.status }, { $set: { published: true } });
 };
-
 // The fixed endpoint prevents a configured webhook from becoming an SSRF path.
 // PagerDuty dedup_key makes a timeout/retry one incident, not a new page identity.
 export async function sendOpsEvent({ key, action, reason, fetcher = fetch }) {
@@ -59,8 +57,7 @@ export async function reconcileOpsAlerts({ now = new Date(), limit = 100 } = {})
   }).sort({ dueAt: 1, _id: 1 }).limit(limit).select('_id business').lean();
   for (const alert of alerts) {
     await setOpsIncident({ key: `review:${alert._id}`, active: true, reason: 'unacknowledged_customer_review', alert: alert._id, business: alert.business });
-    await Alert.updateOne({ _id: alert._id, ...unresolved,  $or: [{ 'metadata.opsNotification': { $exists: false } }, { 'metadata.opsNotification.action': 'resolve' }] },
-      { $set: { 'metadata.opsNotification': { status: 'pending', action: 'trigger', updatedAt: now } } });
+    await opsPagingReconcileOpsAlertsAlertUpdateOne({ Alert, alert, now, unresolved });
   }
   // Rotate fairly through open incidents, including ones whose page was accepted.
   const incidents = await Incident.find({ desiredAction: 'trigger', alert: { $ne: null } }).sort({ checkedAt: 1, _id: 1 }).limit(limit).lean();

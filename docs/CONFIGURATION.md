@@ -43,7 +43,7 @@ Typed settings in `config/worker-settings.json` and `config/numeric-settings.jso
 | BILLING_INTEGRITY_INTERVAL_MS | `config/worker-settings.json` |
 | CALLBACKIQ_MIGRATION_ASSUME_EXISTING_PHONE_IS_TRACKING | `src/scripts/migrate-tracking-number-separation.mjs:18` |
 | CALLBACKIQ_WORKER_BOOT_TEST | `src/worker.js:187` |
-| CLIENT_URL | `src/config/cors.js:30`, `src/controllers/billing/context.js:65`, `src/helpers/email/mailer.js:4`, `src/services/scheduling/approvalSms.service.js:54`, `src/services/scheduling/approvalSms.service.js:55`, `src/services/staffSms.service.js:50`, `src/services/staffSms.service.js:51`, `src/services/subscriptionActions.service.js:17`, `src/services/trialLifecycle.service.js:480` |
+| CLIENT_URL | `src/config/cors.js:30`, `src/controllers/billing/context.js:65`, `src/helpers/email/mailer.js:4`, `src/services/scheduling/approvalSms.service.js:52`, `src/services/scheduling/approvalSms.service.js:53`, `src/services/staffSms.service.js:48`, `src/services/staffSms.service.js:49`, `src/services/subscriptionActions.service.js:17`, `src/services/trialLifecycle.service.js:480` |
 | COMMUNICATION_RESERVATION_LEASE_MS | `src/services/communicationUsageReservation.service.js:16` |
 | COMMUNICATION_ROUTE_RATE_LIMIT_FAIL_CLOSED | `src/middleware/twilio-webhook-rate-limit.js:68` |
 | COMMUNICATION_USAGE_FAIL_CLOSED | `src/services/communicationUsage.service.js:365`, `src/services/communicationUsage.service.js:366` |
@@ -115,11 +115,11 @@ Typed settings in `config/worker-settings.json` and `config/numeric-settings.jso
 | MANUAL_SMS_MAX_SEGMENTS | `src/services/messaging/smsCompliance.service.js:245` |
 | MANUAL_SMS_REQUESTS_PER_MINUTE | `src/middleware/twilio-webhook-rate-limit.js:220` |
 | MEEKCALL_CONCISE_MISSED_CALL_PROMPT | `src/voice/smsRecoveryVoicePrompt.service.js:31` |
-| MEEKCALL_RECOVERY_BOOKING_RECONCILIATION | `src/services/recoveryCoordinator/reconciliation.service.js:13` |
-| MEEKCALL_RECOVERY_COORDINATOR_ENABLED | `src/services/recoveryCoordinator/reconciliation.service.js:12`, `src/services/recoveryCoordinator/recoveryCoordinator.service.js:20` |
+| MEEKCALL_RECOVERY_BOOKING_RECONCILIATION | `src/services/recoveryCoordinator/reconciliation.service.js:15` |
+| MEEKCALL_RECOVERY_COORDINATOR_ENABLED | `src/services/recoveryCoordinator/reconciliation.service.js:14`, `src/services/recoveryCoordinator/recoveryCoordinator.service.js:21` |
 | MEEKCALL_RECOVERY_PILOT_BUSINESS_IDS | `src/services/recoveryCoordinator/recoveryPilotPolicy.js:7` |
-| MEEKCALL_RECOVERY_REQUIRE_SERVICE_DECISION | `src/services/recoveryCoordinator/acceptanceGate.js:10`, `src/services/recoveryCoordinator/recoveryCoordinator.service.js:51` |
-| MEEKCALL_RECOVERY_WRITE_THROUGH | `src/services/recoveryCoordinator/recoveryCoordinator.service.js:22` |
+| MEEKCALL_RECOVERY_REQUIRE_SERVICE_DECISION | `src/services/recoveryCoordinator/acceptanceGate.js:10`, `src/services/recoveryCoordinator/recoveryCoordinator.service.js:48` |
+| MEEKCALL_RECOVERY_WRITE_THROUGH | `src/services/recoveryCoordinator/recoveryCoordinator.service.js:23` |
 | MEEKCALL_REVENUE_AUTOMATION_SEND_ENABLED | `src/routes/revenueAutomation.routes.js:30`, `src/routes/revenueAutomation.routes.js:108`, `src/routes/revenueAutomation.routes.js:115`, `src/services/revenueAutomationEngine.js:16` |
 | MEEKCALL_REVENUE_AUTOMATION_WORKER_ENABLED | `src/workers/automation.worker.js:140` |
 | MONGO_CONNECT_TIMEOUT_MS | `src/db/connection.js:60` |
@@ -133,7 +133,7 @@ Typed settings in `config/worker-settings.json` and `config/numeric-settings.jso
 | MONGO_URL | `src/scripts/backfill-trial-redemptions.js:11` |
 | MONGO_WAIT_QUEUE_TIMEOUT_MS | `src/db/connection.js:68` |
 | MONGODB_URI | `src/scripts/backfill-customer-lifecycle.mjs:11`, `src/scripts/backfill-trial-redemptions.js:11`, `src/scripts/migrate-tracking-number-separation.mjs:7` |
-| NODE_ENV | `src/config/cors.js:21`, `src/config/logger.js:24`, `src/config/logger.js:36`, `src/config/logger.js:39`, `src/config/logger.js:62`, `src/controllers/auth/context.js:50`, `src/controllers/health.js:26`, `src/controllers/voiceWebhook/context.js:47`, `src/helpers/email/mailer.js:11`, `src/helpers/email/mailer.js:48`, `src/helpers/logging/safeLogger.js:4`, `src/helpers/logging/safeLogger.js:4`, `src/middleware/auth-public-rate-limits.js:10`, `src/middleware/csrf-origin-guard.js:15`, `src/middleware/security-headers.js:1`, `src/middleware/validate-twilio-signature.js:7`, `src/middleware/validate-twilio-signature.js:8`, `src/middleware/validate-twilio-signature.js:42`, `src/services/communicationUsage.service.js:367`, `src/services/communicationUsageReservation.service.js:153`, `src/services/communicationUsageReservation.service.js:439`, `src/services/scaleCache.service.js:23`, `src/services/scheduling/appointmentConfirmationRecovery.service.js:32`, `src/services/securityAlert.service.js:19`, `src/services/securityAlert.service.js:80`, `src/services/smsContactDisclosure.service.js:23`, `src/services/trialIdentityVerification.service.js:26`, `src/services/trialIdentityVerification.service.js:101`, `src/services/twilioSmsService.js:43`, `src/services/twilioSmsService.js:118`, `src/services/twilioSmsService.js:379`, `src/services/twilioSmsWebhook.service.js:73`, `src/services/twilioSmsWebhook.service.js:726`, `src/services/voiceCapacity.service.js:23`, `src/services/voiceSettingsVersion.service.js:175`, `src/services/voiceUsage.service.js:832`, `src/voice/conversationRelaySignature.js:23`, `src/voice/relay/Input.js:127`, `src/voice/relay/Setup.js:153`, `src/voice/voicePreflight.service.js:13`, `src/voice/voiceRouting.service.js:141`, `src/workers/adminReporting.worker.js:85`, `src/workers/smsProcessing.worker.js:45`, `src/workers/trialLifecycle.worker.js:45`, `src/workers/voiceUsageReconciliation.worker.js:49` |
+| NODE_ENV | `src/config/cors.js:21`, `src/config/logger.js:24`, `src/config/logger.js:36`, `src/config/logger.js:39`, `src/config/logger.js:62`, `src/controllers/auth/context.js:50`, `src/controllers/health.js:26`, `src/controllers/voiceWebhook/context.js:47`, `src/helpers/email/mailer.js:11`, `src/helpers/email/mailer.js:48`, `src/helpers/logging/safeLogger.js:4`, `src/helpers/logging/safeLogger.js:4`, `src/middleware/auth-public-rate-limits.js:10`, `src/middleware/csrf-origin-guard.js:15`, `src/middleware/security-headers.js:1`, `src/middleware/validate-twilio-signature.js:7`, `src/middleware/validate-twilio-signature.js:8`, `src/middleware/validate-twilio-signature.js:42`, `src/services/communicationUsage.service.js:367`, `src/services/communicationUsageReservation.service.js:153`, `src/services/communicationUsageReservation.service.js:439`, `src/services/scaleCache.service.js:23`, `src/services/scheduling/appointmentConfirmationRecovery.service.js:32`, `src/services/securityAlert.service.js:19`, `src/services/securityAlert.service.js:80`, `src/services/smsContactDisclosure.service.js:23`, `src/services/trialIdentityVerification.service.js:26`, `src/services/trialIdentityVerification.service.js:101`, `src/services/twilioSmsService.js:43`, `src/services/twilioSmsService.js:118`, `src/services/twilioSmsService.js:379`, `src/services/twilioSmsWebhook.service.js:73`, `src/services/twilioSmsWebhook.service.js:718`, `src/services/voiceCapacity.service.js:23`, `src/services/voiceSettingsVersion.service.js:175`, `src/services/voiceUsage.service.js:832`, `src/voice/conversationRelaySignature.js:23`, `src/voice/relay/Input.js:127`, `src/voice/relay/Setup.js:153`, `src/voice/voicePreflight.service.js:13`, `src/voice/voiceRouting.service.js:141`, `src/workers/adminReporting.worker.js:85`, `src/workers/smsProcessing.worker.js:45`, `src/workers/trialLifecycle.worker.js:45`, `src/workers/voiceUsageReconciliation.worker.js:49` |
 | OAUTH_STATE_SECRET | `src/services/integrations/jobberOAuth.service.js:14` |
 | OPENAI_ADMIN_KEY | `src/services/admin/companyExpenses.service.js:171`, `src/services/admin/companyExpenses.service.js:177`, `src/services/admin/companyExpenses.service.js:178` |
 | OPENAI_API_KEY | `src/helpers/ai/followUpAgent.js:32`, `src/helpers/ai/qualifyLeadWithAI.js:26`, `src/services/conversationIntelligence.service.js:23`, `src/services/conversationIntelligence.service.js:27`, `src/services/conversationIntelligence.service.js:28`, `src/services/conversationIntelligence.service.js:30`, `src/services/conversationIntelligence.service.js:197`, `src/services/safetyAssessmentService.js:92`, `src/voice/voiceUnderstanding.service.js:55`, `src/voice/voiceUnderstanding.service.js:56`, `src/voice/voiceUnderstanding.service.js:57`, `src/voice/voiceUnderstanding.service.js:59` |
@@ -155,10 +155,10 @@ Typed settings in `config/worker-settings.json` and `config/numeric-settings.jso
 | OPENAI_SAFETY_TIMEOUT_MS | `src/services/safetyAssessmentService.js:102` |
 | OPENAI_VOICE_CLASSIFIER_MODEL | `src/voice/voiceUnderstanding.service.js:224` |
 | OPENAI_VOICE_CLASSIFIER_TIMEOUT_MS | `src/voice/voiceUnderstanding.service.js:61` |
-| OPS_PAGING_ENABLED | `src/services/opsPaging.service.js:5` |
+| OPS_PAGING_ENABLED | `src/services/opsPaging.service.js:6` |
 | OWNER_BROWSER_CALL_STATUS_CALLBACK_URL | `src/services/ownerBrowserCall.service.js:73` |
 | OWNER_QUERY_MAX_TIME_MS | `src/services/scale/queryBudget.js:2` |
-| PAGERDUTY_ROUTING_KEY | `src/services/opsPaging.service.js:22`, `src/services/opsPaging.service.js:25` |
+| PAGERDUTY_ROUTING_KEY | `src/services/opsPaging.service.js:20`, `src/services/opsPaging.service.js:23` |
 | PASSWORD_RESET_REQUEST_RATE_LIMIT_MAX | `src/middleware/auth-public-rate-limits.js:59` |
 | PASSWORD_RESET_REQUEST_RATE_LIMIT_WINDOW_MS | `src/middleware/auth-public-rate-limits.js:56` |
 | PASSWORD_RESET_SUBMIT_RATE_LIMIT_MAX | `src/middleware/auth-public-rate-limits.js:68` |
@@ -184,7 +184,7 @@ Typed settings in `config/worker-settings.json` and `config/numeric-settings.jso
 | SCALE_CACHE_ENABLED | `src/services/scaleCache.service.js:23` |
 | SCALE_CACHE_MAX_LOADERS | `src/services/scaleCache.service.js:112` |
 | SCALE_CACHE_MEMORY_MAX_ENTRIES | `src/services/scaleCache.service.js:37` |
-| SCALE_CACHE_NAMESPACE | `src/middleware/twilio-webhook-rate-limit.js:33`, `src/services/opsPaging.service.js:26`, `src/services/scaleCache.service.js:26`, `src/services/voiceAdmission.service.js:18` |
+| SCALE_CACHE_NAMESPACE | `src/middleware/twilio-webhook-rate-limit.js:33`, `src/services/opsPaging.service.js:24`, `src/services/scaleCache.service.js:26`, `src/services/voiceAdmission.service.js:18` |
 | SCALE_CACHE_REDIS_URL | `src/services/scaleCache.service.js:30` |
 | SCALE_CAPACITY_PLAN_SHA256 | `src/services/processHeartbeat.service.js:26` |
 | SCALE_IMAGE_DIGEST | `src/services/processHeartbeat.service.js:26` |
@@ -213,10 +213,10 @@ Typed settings in `config/worker-settings.json` and `config/numeric-settings.jso
 | SMS_HANDOFF_STATUS_REPLY_THROTTLE_MINUTES | `src/services/messaging/smsHandoff.service.js:36` |
 | SMS_INGRESS_RECONCILIATION_ENABLED | `src/workers/smsIngressReconciliation.worker.js:58` |
 | SMS_INGRESS_RECONCILIATION_INTERVAL_MS | `src/workers/smsIngressReconciliation.worker.js:17` |
-| SMS_LIFECYCLE_BATCH_SIZE | `src/workers/conversationLifecycle.worker.js:209` |
-| SMS_LIFECYCLE_CONCURRENCY | `src/workers/conversationLifecycle.worker.js:236` |
+| SMS_LIFECYCLE_BATCH_SIZE | `src/workers/conversationLifecycle.worker.js:164` |
+| SMS_LIFECYCLE_CONCURRENCY | `src/workers/conversationLifecycle.worker.js:191` |
 | SMS_LIFECYCLE_INTERVAL_MS | `src/workers/conversationLifecycle.worker.js:25` |
-| SMS_LIFECYCLE_WORKER_ENABLED | `src/workers/conversationLifecycle.worker.js:258` |
+| SMS_LIFECYCLE_WORKER_ENABLED | `src/workers/conversationLifecycle.worker.js:213` |
 | SMS_MAX_SEGMENTS_PER_MESSAGE | `src/services/twilioSmsService.js:269` |
 | SMS_PROCESSING_BATCH_SIZE | `src/workers/smsProcessing.worker.js:38` |
 | SMS_PROCESSING_BUSY_DELAY_MS | `src/workers/smsProcessing.worker.js:33` |
@@ -239,7 +239,7 @@ Typed settings in `config/worker-settings.json` and `config/numeric-settings.jso
 | SOCKET_REVALIDATE_MS | `src/services/socketSession.service.js:31` |
 | SOURCE_VERSION | `src/controllers/health.js:15` |
 | STAFF_APPROVAL_SMS_ENABLED | `src/services/ownerSettings.service.js:92`, `src/services/scheduling/approvalSms.service.js:14` |
-| STAFF_NOTIFICATION_CRITICAL_OVERNIGHT_ENABLED | `src/services/staffSms.service.js:68` |
+| STAFF_NOTIFICATION_CRITICAL_OVERNIGHT_ENABLED | `src/services/staffSms.service.js:66` |
 | STAFF_NOTIFICATION_EMAIL_ENABLED | `src/services/ownerSettings.service.js:92`, `src/services/ownerSettings.service.js:92`, `src/services/staffNotification.service.js:11`, `src/workers/staffNotification.worker.js:7` |
 | STAFF_NOTIFICATION_SMS_ENABLED | `src/services/ownerSettings.service.js:92`, `src/services/staffSms.service.js:14`, `src/workers/staffNotification.worker.js:7` |
 | STAFF_REVIEW_RECONCILIATION_ENABLED | `src/services/staffReviewReconciliation.service.js:104` |
@@ -342,5 +342,5 @@ Typed settings in `config/worker-settings.json` and `config/numeric-settings.jso
 | VOICE_WS_PENDING_LEASE_MS | `src/services/voiceConnectionLease.service.js:14` |
 | WEBHOOK_WORK_CONCURRENCY | `config/worker-settings.json` |
 | WORKER_DRAIN_GRACE_MS | `src/worker.js:136` |
-| WORKER_DRAIN_TIMEOUT_MS | `src/workers/conversationLifecycle.worker.js:278`, `src/workers/smsProcessing.worker.js:268` |
+| WORKER_DRAIN_TIMEOUT_MS | `src/workers/conversationLifecycle.worker.js:233`, `src/workers/smsProcessing.worker.js:268` |
 | WORKER_HEALTH_FILE | `src/services/processHeartbeat.service.js:21` |

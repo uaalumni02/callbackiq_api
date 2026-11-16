@@ -1,9 +1,9 @@
+import { saveRequestReviewAlertUpdateOne, saveRequestReviewAlertUpdateOne2, saveRequestReviewAlertUpdateOne3 } from './stateTransitions/reviews.js';
 import crypto from 'node:crypto';
 import Alert from '../models/alert.js';
 import Conversation from '../models/conversation.js';
 import Message from '../models/message.js';
 import SocketService from './socket.service.js';
-
 export const requestReviewKey = (conversationId, journey = '') =>
   `request_review:${conversationId}:${crypto.createHash('sha256').update(String(journey)).digest('hex').slice(0, 24)}`;
 
@@ -33,7 +33,7 @@ export async function saveRequestReview(payload, create) {
     messageId: payload.metadata?.messageId || null, providerMessageId: payload.metadata?.providerMessageId || null,
     handoffReason: payload.metadata?.handoffReason || '', priority: payload.priority };
   // One atomic append per source event, including retries after a process crash.
-  await Alert.updateOne({ ...scope, 'reviewEvents.key': { $ne: eventKey } }, { $push: { reviewEvents: event } });
+  await saveRequestReviewAlertUpdateOne({ Alert, event, eventKey, scope });
   const set = { title: payload.title, message: payload.message, reason: payload.reason,
     recommendedAction: payload.recommendedAction, lastCustomerMessage: payload.lastCustomerMessage,
     reviewLatestAt: occurredAt, reviewPhase: phase };
@@ -44,13 +44,9 @@ export async function saveRequestReview(payload, create) {
   // An older retry cannot erase newer facts or turn a ready intake back into
   // an initial urgency alert. Ownership, acknowledgement, resolution and SLA
   // are intentionally absent from this update.
-  await Alert.updateOne({ ...scope, resolvedAt: null, $and: [
-    { $or: [{ reviewLatestAt: null }, { reviewLatestAt: { $lte: occurredAt } }] },
-    { $or: [{ reviewPhase: null }, { reviewPhase: { $lte: phase } }] },
-  ] }, { $set: set });
+  await saveRequestReviewAlertUpdateOne2({ Alert, occurredAt, phase, scope, set });
   const ranks = ['low', 'medium', 'high', 'critical'];
-  await Alert.updateOne({ ...scope, resolvedAt: null, priority: { $in: ranks.slice(0, ranks.indexOf(payload.priority)) } },
-    { $set: { priority: payload.priority } });
+  await saveRequestReviewAlertUpdateOne3({ Alert, payload, ranks, scope });
   const alert = await Alert.findOne(scope).populate('business', 'businessName businessType phone')
     .populate('lead', 'customerName phone serviceNeeded urgency status').lean();
   SocketService.emitAlertUpdated(payload.businessId, alert);

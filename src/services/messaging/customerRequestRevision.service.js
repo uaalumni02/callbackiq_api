@@ -1,9 +1,9 @@
+import { setRevisedRequestMemory, replaceRevisedRequestMemory } from '../stateTransitions/messaging.js';
 import { createRequestBookingGuard, saveRequestBookingDocument } from '../booking/requestBookingPersistence.service.js';
 import { applyBookingStateTransition } from '../booking/requestBookingState.js';
 import crypto from 'node:crypto';
 import { addressFromTurn } from '../booking/customerAddress.service.js';
 import AlertService from '../alert.service.js';
-
 // Called only after consent/safety/withdrawal precedence. A question or callback
 // must not discard a supplied address. Journal before projecting facts so a retry
 // repairs a failed lead/alert write without resurrecting a stale offer.
@@ -23,8 +23,8 @@ export async function applyCustomerAddressRevision({ business, lead, conversatio
     if (!conversation.bookingState?.appointment && (knownLocation || ['offering_slots', 'awaiting_confirmation', 'booking'].includes(conversation.bookingState?.status))) {
       applyBookingStateTransition(conversation, 'request_address_revised');
     }
-    if (conversation.set) conversation.set('conversationMemory.recoveryIntake', intake);
-    else conversation.conversationMemory = { ...(conversation.conversationMemory || {}), recoveryIntake: intake };
+    if (conversation.set) setRevisedRequestMemory({ conversation, intake });
+    else replaceRevisedRequestMemory({ conversation, intake });
     conversation.markModified?.('conversationMemory.recoveryIntake');
     await saveRequestBookingDocument({ document: conversation, guard: check });
   }

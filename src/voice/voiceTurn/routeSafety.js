@@ -1,5 +1,5 @@
+import { saveStateDocument } from '../../services/stateTransitions/documents.js';
 import { AlertService, assertVoiceTurnActive, captureCallback, captureTurnFacts, classifySmsIntent, observeCustomerConstraint, respectCustomerConstraints } from './context.js';
-
 export async function routeSafety(context) {
   const { conversation, lead, text, safety, business, session, turnId } = context;
 const constraintResult = await observeCustomerConstraint({ conversation, lead, customerMessage: text, channel: 'voice' });
@@ -18,7 +18,7 @@ const constraintResult = await observeCustomerConstraint({ conversation, lead, c
       if (lead && Object.keys(facts).length) {
         assertVoiceTurnActive();
         Object.assign(lead, facts);
-        await lead.save();
+        await saveStateDocument(lead);
         assertVoiceTurnActive();
       }
     }
@@ -40,7 +40,7 @@ const constraintResult = await observeCustomerConstraint({ conversation, lead, c
           .trim()
           .slice(0, 2000);
         assertVoiceTurnActive();
-        await lead.save();
+        await saveStateDocument(lead);
       }
       return { completed: true, value: captureCallback({
         session,

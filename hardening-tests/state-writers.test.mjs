@@ -8,8 +8,9 @@ function fixture(t, source) {
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'state-writer-inventory-'));
   t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
   const write=(file,code)=>{fs.mkdirSync(path.dirname(path.join(root,file)),{recursive:true});fs.writeFileSync(path.join(root,file),code);};
-  write('src/owner.js',source);
-  return {root,write};
+  const owner='src/services/booking/requestBookingPersistence.service.js';
+  write(owner,source);
+  return {root,write,owner};
 }
 const source="export function owned(Conversation,id) { return Conversation.updateOne({_id:id,business:'tenant'},{$set:{'bookingState.status':'booked'}}); }";
 const inventory=root=>JSON.parse(JSON.stringify({writers:scanStateWriters(root)}));
@@ -27,12 +28,12 @@ test('a planted unregistered writer fails the actual inventory checker',t=>{
 });
 test('a bypass inserted into a registered owner cannot hide behind its existing registration',t=>{
  const f=fixture(t,source),manifest=inventory(f.root);
- f.write('src/owner.js',source.replace('return Conversation.updateOne',"const conversation={}; conversation.bookingState={status:'booked'}; return Conversation.updateOne"));
+ f.write(f.owner,source.replace('return Conversation.updateOne',"const conversation={}; conversation.bookingState={status:'booked'}; return Conversation.updateOne"));
  assert.throws(()=>verifyStateWriters(scanStateWriters(f.root),manifest),/Unregistered state writer|owning guard changed/);
 });
 test('changing the owning guard or filter requires an explicit inventory review',t=>{
  const f=fixture(t,source),manifest=inventory(f.root);
- f.write('src/owner.js',source.replace("business:'tenant'",'business:id'));
+ f.write(f.owner,source.replace("business:'tenant'",'business:id'));
  assert.throws(()=>verifyStateWriters(scanStateWriters(f.root),manifest),/owning guard changed/);
 });
 test('aliases, chained queries, full saves and computed mutation dispatch are inventoried',t=>{
@@ -48,7 +49,7 @@ test('an extracted save capability and document assignments cannot escape the in
 });
 test('a changed imported authority is rejected even when the writer body stays identical',t=>{
  const f=fixture(t,"import Owned from './models/conversation.js'; export function owned(id){return Owned.updateOne({_id:id},{$set:{status:'open'}});}"),manifest=inventory(f.root);
- f.write('src/owner.js',fs.readFileSync(path.join(f.root,'src/owner.js'),'utf8').replace('/conversation.js','/appointment.js'));
+ f.write(f.owner,fs.readFileSync(path.join(f.root,f.owner),'utf8').replace('/conversation.js','/appointment.js'));
  assert.throws(()=>verifyStateWriters(scanStateWriters(f.root),manifest),/owning guard changed/);
 });
 test('pure reads and HTTP status payloads are not persistence writers',t=>{
@@ -59,7 +60,7 @@ test('deleted writers and missing required audit metadata fail closed',t=>{
  const f=fixture(t,source),manifest=inventory(f.root);
  delete manifest.writers[0].versionOrClaim;
  assert.throws(()=>verifyStateWriters(scanStateWriters(f.root),manifest),/Missing versionOrClaim/);
- f.write('src/owner.js','export const empty=true;');
+ f.write(f.owner,'export const empty=true;');
  assert.throws(()=>verifyStateWriters(scanStateWriters(f.root),manifest),/Retired state writer/);
 });
 test('generic tenant mutations and destructive state removal are conservatively registered',t=>{
@@ -69,4 +70,28 @@ test('generic tenant mutations and destructive state removal are conservatively 
  const rows=scanStateWriters(f.root);
  assert.equal(rows.find(x=>x.kind==='findOneAndUpdate').authoritativeRecord,'DynamicTenantRecord');
  assert.ok(rows.some(x=>x.kind==='deleteMany'));
+});
+
+test('a legacy raw writer remains a bypass even when its entire current body is registered',t=>{
+ const f=fixture(t,'export const empty=true;');
+ f.write('src/legacy.js',source);
+ const manifest=inventory(f.root);
+ assert.throws(()=>verifyStateWriters(scanStateWriters(f.root),manifest),/bypasses centralized transitions/);
+ assert.throws(()=>reviewStateWriterInventory(scanStateWriters(f.root),manifest),/inventory regeneration cannot approve/);
+});
+test('optional document saves and imported transition aliases are tracked',t=>{
+ const f=fixture(t,"export const empty=true;");
+ f.write('src/caller.js',"import { saveStateDocument as persist } from './services/stateTransitions/documents.js'; export function run(row, conversation){ persist(row); conversation.save?.(); }");
+ const rows=scanStateWriters(f.root).filter(row=>row.file==='src/caller.js');
+ assert.deepEqual(rows.map(row=>row.kind),['transition-command','save']);
+ assert.throws(()=>reviewStateWriterInventory(scanStateWriters(f.root),inventory(f.root)),/bypass transition functions/);
+});
+
+test('destructured and member-held repository model capabilities cannot hide writes',t=>{
+ const f=fixture(t,'export const empty=true;');
+ f.write('src/db/repositories/tenantRepository.js',"export function write(scope){ const {model,business}=scope; model.create({business}); return scope.model.updateMany({business},{$set:{status:'closed'}}); }");
+ const rows=scanStateWriters(f.root).filter(row=>row.file.includes('tenantRepository'));
+ assert.deepEqual(rows.map(row=>row.kind),['create','updateMany']);
+ assert.ok(rows.every(row=>row.authoritativeRecord==='DynamicTenantRecord'));
+ assert.throws(()=>reviewStateWriterInventory(rows,{writers:rows}),/bypass transition functions/);
 });

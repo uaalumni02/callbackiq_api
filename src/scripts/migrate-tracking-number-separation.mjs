@@ -1,6 +1,6 @@
+import { saveStateDocument } from '../services/stateTransitions/documents.js';
 import "dotenv/config";
 import mongoose from "mongoose";
-
 import Business from "../models/business.js";
 
 const uri =
@@ -66,7 +66,7 @@ for (const business of businesses) {
     business.setupProgress.trackingNumberVerified = true;
     business.setupProgress.trackingNumberActive = true;
     business.setupProgress.updatedAt = now;
-    await business.save();
+    await saveStateDocument(business);
     markedTrackingActive += 1;
     continue;
   }
@@ -93,7 +93,7 @@ for (const business of businesses) {
   business.setupProgress.trackingNumberVerified = false;
   business.setupProgress.trackingNumberActive = false;
   business.setupProgress.updatedAt = now;
-  await business.save();
+  await saveStateDocument(business);
   movedToForwarding += 1;
 }
 

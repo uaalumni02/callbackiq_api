@@ -1,3 +1,4 @@
+import { saveStateDocument } from './stateTransitions/documents.js';
 import { safeConsole } from "../helpers/logging/safeLogger.js";
 // CALLBACKIQ_MARKETING_ATTRIBUTION_V1
 import Business from "../models/business.js";
@@ -16,7 +17,6 @@ import {
 } from "./trialTelecomGuard.service.js";
 import { getTwilioClient } from "./twilioSmsService.js";
 import { normalizePhoneToE164 } from "../voice/voicePhone.service.js";
-
 const DEFAULT_INCLUDED_SOURCE_NUMBERS = 3;
 
 const sourceError = (code, message, statusCode = 409) => {
@@ -361,7 +361,7 @@ export const provisionMarketingTrackingNumber = async ({
     }).select("+phoneLookup");
     if (releasedCollision) {
       releasedCollision.releasedAt = releasedCollision.releasedAt || new Date();
-      await releasedCollision.save();
+      await saveStateDocument(releasedCollision);
     }
 
     const liveCollision = await TrackingNumber.exists({
@@ -465,7 +465,7 @@ export const releaseMarketingTrackingNumber = async ({ businessId, sourceId }) =
     number.smsEnabled = false;
     number.smsReady = false;
     number.senderAttached = false;
-    await number.save();
+    await saveStateDocument(number);
 
     return {
       released: true,

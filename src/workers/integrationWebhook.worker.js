@@ -1,9 +1,9 @@
+import { saveStateDocument } from '../services/stateTransitions/documents.js';
 import ExternalRecordMapping from "../models/externalRecordMapping.js";
 import IntegrationConnection from "../models/integrationConnection.js";
 import IntegrationWebhookEvent from "../models/integrationWebhookEvent.js";
 import { syncGoogleCalendar } from "../services/integrations/googleCalendarSync.service.js";
 import { getGoogleSettings } from "../services/integrations/integrationSettings.service.js";
-
 const processGoogle = async (event) => {
   if (!event.business) return;
   const connection = await IntegrationConnection.findOne({
@@ -53,7 +53,7 @@ const processJobber = async (event) => {
       );
     }
   }
-  await connection.save();
+  await saveStateDocument(connection);
 };
 
 export const processIntegrationWebhookEvent = async (eventId) => {
@@ -73,7 +73,7 @@ export const processIntegrationWebhookEvent = async (eventId) => {
     event.status = "failed";
     event.errorMessage = String(error.message || error).slice(0, 2000);
   }
-  await event.save();
+  await saveStateDocument(event);
   return event;
 };
 

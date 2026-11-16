@@ -1,10 +1,10 @@
+import { rescheduleRequestEnsureRescheduleReviewAppointmentUpdateOne, rescheduleRequestResolveRescheduleReviewsAlertUpdateMany, submitRescheduleRequestAppointmentAtomicUpdate, rescheduleRequestRepairRescheduleReviewsAppointmentUpdateOne, rescheduleRequestRepairRescheduleReviewsAppointmentUpdateOne2 } from '../stateTransitions/appointmentLifecycle.js';
 import crypto from 'node:crypto';
 import Appointment from '../../models/appointment.js';
 import Alert from '../../models/alert.js';
 import AlertService from '../alert.service.js';
 import SocketService from '../socket.service.js';
 import { customerAppointmentLabel } from './customerAppointmentPresentation.service.js';
-
 const conflict = message => Object.assign(new Error(message), { statusCode: 409 });
 
 export async function ensureRescheduleReview(appointment) {
@@ -25,14 +25,11 @@ export async function ensureRescheduleReview(appointment) {
   if (latest?.status !== 'confirmed' || latest.rescheduleRequest?.id !== request.id || latest.rescheduleRequest?.status !== 'pending') {
     await resolveRescheduleReviews(appointment, request.id);
   }
-  await Appointment.updateOne({ _id: appointment._id, 'rescheduleRequest.id': request.id },
-    { $set: { 'rescheduleRequest.alertPending': false } });
+  await rescheduleRequestEnsureRescheduleReviewAppointmentUpdateOne({ Appointment, appointment, request });
 }
 
 export async function resolveRescheduleReviews(appointment, requestId = null) {
-  await Alert.updateMany({ business: appointment.business, appointment: appointment._id,
-    'metadata.rescheduleRequest': true, ...(requestId ? { 'metadata.requestId': requestId } : {}), resolvedAt: null },
-  { $set: { resolvedAt: new Date(), status: 'resolved', actionRequired: false, resolution: 'Appointment change reviewed' } });
+  await rescheduleRequestResolveRescheduleReviewsAlertUpdateMany({ Alert, appointment, requestId });
 }
 
 export async function submitRescheduleRequest({ business, appointmentId, conversationId, startAt, endAt, channel }) {
@@ -46,11 +43,7 @@ export async function submitRescheduleRequest({ business, appointmentId, convers
     throw conflict('A different change request is already awaiting review. Contact the team to update it.');
   }
   if (prior?.status !== 'pending') {
-    appointment = await Appointment.findOneAndUpdate({ _id: appointmentId, business: business._id,
-      status: 'confirmed', 'rescheduleRequest.status': { $ne: 'pending' } }, { $set: {
-      customerRescheduleRequestedAt: new Date(), rescheduleRequest: { id: crypto.randomUUID(), status: 'pending',
-        startAt, endAt, channel, requestedAt: new Date(), alertPending: true },
-    } }, { returnDocument: "after", runValidators: true }).lean();
+    appointment = await submitRescheduleRequestAppointmentAtomicUpdate({ Appointment, appointmentId, business, channel, crypto, endAt, startAt }).lean();
     if (!appointment) throw conflict('The request changed. Please try again.');
   }
   // The request itself is durable and visible in Appointments even if alerting
@@ -67,10 +60,10 @@ export async function repairRescheduleReviews({ businessId = null, limit = 100 }
       if (row.status === 'confirmed' && row.rescheduleRequest?.status === 'pending') await ensureRescheduleReview(row);
       else {
         await resolveRescheduleReviews(row);
-        await Appointment.updateOne({ _id: row._id, 'rescheduleRequest.id': row.rescheduleRequest.id }, { $set: { 'rescheduleRequest.alertPending': false } });
+        await rescheduleRequestRepairRescheduleReviewsAppointmentUpdateOne({ Appointment, row });
       }
     } catch (error) {
-      await Appointment.updateOne({ _id: row._id, 'rescheduleRequest.id': row.rescheduleRequest.id }, { $set: { 'rescheduleRequest.lastError': String(error.message).slice(0, 300) } });
+      await rescheduleRequestRepairRescheduleReviewsAppointmentUpdateOne2({ Appointment, error, row });
     }
   }
 }

@@ -1,3 +1,4 @@
+import { recordCustomerAppointmentAcknowledgement, recordCustomerRescheduleRequest } from "../../src/services/stateTransitions/requestIntake.js";
 import fs from "fs";
 import path from "path";
 
@@ -59,8 +60,23 @@ describe("Google Calendar customer experience completion contract", () => {
     expect(worker).toContain("processDueAppointmentNotifications");
     const existingBookingTurn = read("src/services/booking/existingBookingTurn.service.js");
     expect(stateMachine).toContain('["booked", handleExistingBookingTurn]');
-    expect(existingBookingTurn).toContain("customerConfirmedAt");
-    expect(existingBookingTurn).toContain("customerRescheduleRequestedAt");
+    expect(existingBookingTurn).toContain("recordCustomerAppointmentAcknowledgement");
+    expect(existingBookingTurn).toContain("recordCustomerRescheduleRequest");
+  });
+
+  test("customer acknowledgements and reschedule requests retain tenant-scoped durable writes", () => {
+    const Appointment = { updateOne: jest.fn(), findOneAndUpdate: jest.fn() };
+    const context = { Appointment, business: { _id: "tenant-a" }, appointmentId: "appointment-a" };
+    recordCustomerRescheduleRequest(context);
+    recordCustomerAppointmentAcknowledgement(context);
+    expect(Appointment.updateOne).toHaveBeenCalledWith(
+      { _id: "appointment-a", business: "tenant-a" },
+      { $set: { customerRescheduleRequestedAt: expect.any(Date) } },
+    );
+    expect(Appointment.findOneAndUpdate).toHaveBeenCalledWith(
+      { _id: "appointment-a", business: "tenant-a", status: "confirmed" },
+      { $set: { customerConfirmedAt: expect.any(Date) } }, { returnDocument: "after" },
+    );
   });
 
   test("requires review before Google moves or cancellations affect customers", () => {

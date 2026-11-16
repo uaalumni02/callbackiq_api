@@ -1,8 +1,8 @@
+import { appointmentNoticeFailureResolveNoticeFailureAlertUpdateMany } from '../stateTransitions/appointmentLifecycle.js';
 import Message from '../../models/message.js';
 import AppointmentNotice from '../../models/appointmentNotificationJob.js';
 import Alert from '../../models/alert.js';
 import InterventionService from '../intervention.service.js';
-
 // Provider acceptance is not delivery. A staff resolution records contact only;
 // it never invents a delivered receipt and never initiates another SMS.
 export const unresolvedNoticeFailureFilter = (now = new Date()) => ({
@@ -48,8 +48,7 @@ export async function reconcileAppointmentNoticeFailures({ now = new Date(), lim
 }
 async function resolveNoticeFailure({ businessId, job, now, reason, userId = null }) {
   // Close the alert before committing the marker so a crash retries resolution.
-  await Alert.updateMany({ business: businessId, dedupeKey: `appointment_notice_failure:${job._id}`, resolvedAt: null },
-    { $set: { resolvedAt: now, actionRequired: false } });
+  await appointmentNoticeFailureResolveNoticeFailureAlertUpdateMany({ Alert, businessId, job, now });
   await AppointmentNotice.updateOne({ _id: job._id, business: businessId, resolutionAt: null }, { $set: {
     resolutionAt: now, resolutionReason: reason, resolvedBy: userId,
   } });

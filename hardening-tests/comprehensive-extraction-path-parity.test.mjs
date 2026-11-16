@@ -47,6 +47,7 @@ function verify(contents) {
     fs.writeFileSync(configPath, JSON.stringify({
       version: 1,
       records,
+      reviewedModuleImports: { [modulePath]: config.reviewedModuleImports[modulePath] },
     }));
 
     // The guard resolves root from __dirname, not cwd.
@@ -86,7 +87,7 @@ function verify(contents) {
   }
 }
 
-test('accepts reviewed relocation with original hashes', () => {
+test('accepts the transition relocation while retaining the original deletion hashes', () => {
   const result = verify(source);
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /PASS:/);

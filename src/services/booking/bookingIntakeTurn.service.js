@@ -1,3 +1,4 @@
+import { saveStateDocument } from '../stateTransitions/documents.js';
 import { fixedResult } from './bookingFixedResult.policy.js';
 import { hasBookingAvailabilityHint } from './bookingMessagePolicy.service.js';
 import { resolveRequestAddress, normalizeSpokenAddress, extractCustomerPostalCode } from './customerAddress.service.js';
@@ -7,7 +8,6 @@ import validateServiceAreaTool from "../../helpers/ai/tools/validateServiceArea.
 import { saveBookingTransition } from "./bookingTurnState.repository.js";
 import { bookingInquiryOperations } from "./bookingInquiryRuntime.js";
 const { cleanStreetAddress, parseStreetAddress, buildAvailabilityPricingNote } = bookingInquiryOperations;
-
 export async function collectBookingService({ business, lead, activeConversation, text, smsIntent }) {
   const serviceQuery =
     (smsIntent.intents.availabilityInquiry ||
@@ -58,7 +58,7 @@ export async function collectBookingService({ business, lead, activeConversation
 
   if (lead && (!lead.serviceNeeded || lead.serviceNeeded === "Unknown")) {
     lead.serviceNeeded = smsIntent.entities.serviceNeeded || selectedService.name;
-    await lead.save();
+    await saveStateDocument(lead);
   }
 
   if (!activeConversation.bookingState?.streetAddress) return {
@@ -91,7 +91,7 @@ export async function collectBookingStreetAddress(context) {
 
   if (lead) {
     lead.address = address;
-    await lead.save();
+    await saveStateDocument(lead);
   }
 
   if (!suppliedZip) {
@@ -135,7 +135,7 @@ export async function collectBookingPostalCode(context) {
 
   if (lead && address) {
     lead.address = extractCustomerPostalCode(address) ? address : `${address}, ${zip}`;
-    await lead.save();
+    await saveStateDocument(lead);
   }
   await saveBookingTransition(activeConversation, "location_verified", {
     ...(address ? { streetAddress: cleanStreetAddress(address) } : {}),

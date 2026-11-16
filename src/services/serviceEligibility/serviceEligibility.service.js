@@ -1,3 +1,5 @@
+import { serviceEligibilityGuardServiceRequestConversationFields, serviceEligibilityGuardServiceRequestConversationFields2, serviceEligibilityGuardServiceRequestConversationFields3, serviceEligibilityGuardServiceRequestConversationFields4, serviceEligibilityGuardServiceRequestConversationFields5 } from '../stateTransitions/customerRequest.js';
+import { saveOptionalStateDocument } from '../stateTransitions/documents.js';
 import { createRequestBookingGuard, saveRequestBookingDocument } from '../booking/requestBookingPersistence.service.js';
 import { applyBookingStateTransition } from '../booking/requestBookingState.js';
 import { isContextualSymptomAnswer } from '../booking/contextualServiceAnswer.service.js';
@@ -22,12 +24,10 @@ import { evaluateServicePolicy, eligibilityReply, serviceDomains, blocksServiceA
 import { additionalServiceText } from '../messaging/customerTurnPlan.service.js';
 import { preserveAdditionalServiceRequest } from './additionalServiceRequest.service.js';
 import { assertRecoveryCaseAcceptance } from '../recoveryCoordinator/acceptanceGate.js';
-
 const clean = value => String(value || '').trim();
 const known = value => clean(value) && !/^(unknown|not provided|n\/a)$/i.test(clean(value));
 const checkActive = createRequestBookingGuard('voice', { voiceFirst: true });
 export { blocksServiceAutomation } from './policy.js';
-
 export async function evaluateServiceEligibility({ businessId, request, semanticService = '', confidence = 0 }) {
   const [services, settings] = await Promise.all([
     ServiceOffering.find({ business: businessId, active: true }).lean(),
@@ -140,13 +140,13 @@ export async function guardServiceRequest({ business, lead, conversation, custom
     // Invalidate stale proposals, never cancel an existing customer appointment.
     if (!conversation.bookingState?.appointment) applyBookingStateTransition(conversation, 'service_eligibility_changed');
     const memory = conversation.conversationMemory?.toObject?.() || conversation.conversationMemory || {};
-    conversation.conversationMemory = { ...memory, recoveryIntake: current && prior?.request !== request ? {} : (memory.recoveryIntake || {}) };
+    serviceEligibilityGuardServiceRequestConversationFields({ conversation, current, memory, prior, request });
     if (current && prior?.request !== request) {
-      conversation.conversationMemory.serviceNeeded = lead?.serviceNeeded || current;
-      conversation.conversationMemory.summary = lead?.serviceNeeded || current;
+      serviceEligibilityGuardServiceRequestConversationFields2({ conversation, current, lead });
+      serviceEligibilityGuardServiceRequestConversationFields3({ conversation, current, lead });
     }
     conversation.markModified?.('conversationMemory');
-    if (conversation.lifecycle) conversation.lifecycle.nextRecoveryNudgeAt = null;
+    if (conversation.lifecycle) serviceEligibilityGuardServiceRequestConversationFields4({ conversation });
     if (lead && !lead.bookedAt && !lead.appointment) {
       lead.qualifiedAt = null;
       lead.leadQualityScore = 0;
@@ -183,7 +183,7 @@ export async function guardServiceRequest({ business, lead, conversation, custom
     if (known(lead.preferredAppointmentTime) && lead.preferredAppointmentTime !== memory.preferredAppointmentTime)
       nextMemory.preferredAppointmentTime = lead.preferredAppointmentTime;
     if (nextMemory.address !== memory.address || nextMemory.preferredAppointmentTime !== memory.preferredAppointmentTime) {
-      conversation.conversationMemory = nextMemory;
+      serviceEligibilityGuardServiceRequestConversationFields5({ conversation, nextMemory });
       conversation.markModified?.('conversationMemory');
     }
   }
@@ -208,8 +208,8 @@ export async function guardServiceRequest({ business, lead, conversation, custom
     state.reviewSubmitted = true;
     state.reviewPromptCount = Math.min(2, (!changed ? Number(prior?.reviewPromptCount || 0) : 0) + 1);
     checkActive();
-    if (lead) { lead.serviceEligibility = state; lead.markModified?.('serviceEligibility'); await lead.save?.(); }
-    conversation.serviceEligibility = state; conversation.markModified?.('serviceEligibility'); await conversation.save?.();
+    if (lead) { lead.serviceEligibility = state; lead.markModified?.('serviceEligibility'); await saveOptionalStateDocument(lead); }
+    conversation.serviceEligibility = state; conversation.markModified?.('serviceEligibility'); await saveOptionalStateDocument(conversation);
     const next = reviewSubmitted && prior?.reviewPromptCount >= 2 ? '' : !known(lead?.address) ? ' What is the service address?' :
       !/\b\d{5}(?:-\d{4})?\b/.test(lead.address) ? ' What is the ZIP code for that address?' : '';
     reply = `${intent.intents?.pricing ? "I don't have an approved estimate for this request yet. " : ''}Your request is saved for staff to review whether they can accept the work. Pricing and scheduling stay paused until staff confirms the service is accepted. No appointment is confirmed.${next}`;

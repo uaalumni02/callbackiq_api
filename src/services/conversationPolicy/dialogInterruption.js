@@ -1,3 +1,4 @@
+import { dialogInterruptionMaybeAnswerDialogQuestionConversationUpdateOne, dialogInterruptionMaybeAnswerDialogQuestionConversationFields, dialogInterruptionMaybeAnswerDialogQuestionConversationFields2 } from '../stateTransitions/customerRequest.js';
 /**
  * Shared orchestration adapter; enters AFTER safety, STOP, human, and service
  * eligibility guards but BEFORE long scheduling/valuation paths.
@@ -10,7 +11,6 @@ import { emitDialogMetric } from './dialogMetrics.js';
 import { reserveAiUsage } from '../communicationUsage.service.js';
 import { assertDistributedLeaseActive } from '../distributedLease.service.js';
 import { assertVoiceTurnActive } from '../voiceTurnContext.service.js';
-
 export async function maybeAnswerDialogQuestion({ business, lead, conversation, customerMessage,
   channel = 'sms', recentMessages = [], signal = null, env = process.env } = {}) {
   const mode = dialogMode(env);
@@ -43,14 +43,12 @@ export async function maybeAnswerDialogQuestion({ business, lead, conversation, 
   assertDistributedLeaseActive();
   // Persist across SMS and voice, scoped to the current business and only while
   // automation owns the conversation. No raw user message or PII stored here.
-  const updated = await Conversation.updateOne({ _id: conversation._id, business: business._id,
-    humanTakeover: { $ne: true }, aiEnabled: { $ne: false }, status: { $nin: ['closed','archived'] } },
-    { $set: { 'conversationMemory.dialogPolicy': state } });
+  const updated = await dialogInterruptionMaybeAnswerDialogQuestionConversationUpdateOne({ Conversation, business, conversation, state });
   if (channel === 'voice') assertVoiceTurnActive();
   assertDistributedLeaseActive();
   if (updated.matchedCount !== 1) return null;
-  conversation.conversationMemory = conversation.conversationMemory || {};
-  conversation.conversationMemory.dialogPolicy = state;
+  dialogInterruptionMaybeAnswerDialogQuestionConversationFields({ conversation });
+  dialogInterruptionMaybeAnswerDialogQuestionConversationFields2({ conversation, state });
   if (channel === 'voice') return { reply: plan.reply, outcome: 'direct_answer_resolved', dialogPolicy: { intent: plan.intent, phase: state.phase } };
   return asSmsDialogResult(plan, lead);
 }

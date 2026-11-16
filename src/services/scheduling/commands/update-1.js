@@ -1,3 +1,5 @@
+import { stageStaffAppointmentOutcome } from '../../stateTransitions/appointmentCommands.js';
+import { saveStateDocument } from '../../stateTransitions/documents.js';
 /* Source-exact AppointmentService extraction. Preserve order and outcome contracts. */
 export function createAppointmentupdate1Methods(deps) {
   const { assertConfirmationNotPending, ServiceOffering, SocketService, assertTransition, getAppointmentForBusiness, moneyAmount, normalizeAddress, ownerEstimate, projectionMarker, resolveOpportunityValue, tryRepairAppointmentProjections } = deps;
@@ -31,7 +33,6 @@ async update({ businessId, appointmentId, changes }) {
       "notes",
       "actualRevenue",
     ];
-
     for (const field of allowed) {
       if (Object.prototype.hasOwnProperty.call(changes, field)) {
         appointment[field] =
@@ -40,7 +41,6 @@ async update({ businessId, appointmentId, changes }) {
             : changes[field];
       }
     }
-
     if (changes.status && changes.status !== appointment.status) {
       assertTransition(appointment.status, changes.status);
       if (!["completed", "no_show"].includes(changes.status)) {
@@ -50,7 +50,7 @@ async update({ businessId, appointmentId, changes }) {
         error.statusCode = 400;
         throw error;
       }
-      appointment.status = changes.status;
+      stageStaffAppointmentOutcome({ appointment, changes });
       appointment.activeSlotKey = null;
       appointment.slotClaimKeys = [];
       appointment.capacityLane = null;
@@ -59,7 +59,7 @@ async update({ businessId, appointmentId, changes }) {
     }
 
     if (appointment.status === "completed") appointment.completionProjection = projectionMarker();
-    await appointment.save();
+    await saveStateDocument(appointment);
     // Saved completion is success even when secondary work needs a retry.
     await tryRepairAppointmentProjections(appointment);
 

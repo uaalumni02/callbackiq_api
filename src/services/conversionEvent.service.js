@@ -1,10 +1,10 @@
+import { conversionEventMarkAppointmentBookedLeadUpdateOne } from './stateTransitions/customerProjections.js';
 import { createAwaitedInsertBatch } from './database/awaitedInsertBatch.js';
 import { moneyAmount } from "./valuation/opportunityValue.js";
 import CallLog from "../models/callLog.js";
 import ConversionEvent from "../models/conversionEvent.js";
 import Lead from "../models/lead.js";
 import SocketService from "./socket.service.js";
-
 const insertConversionEvent = createAwaitedInsertBatch(ConversionEvent);
 
 class ConversionEventService {
@@ -72,21 +72,7 @@ class ConversionEventService {
       : null;
 
     if (lead) {
-      await Lead.updateOne(
-        { _id: lead._id, business: appointment.business, $or: [{ bookedAt: null }, { bookedAt: { $lte: appointment.confirmedAt || new Date() } }] },
-        {
-          $set: {
-            status: "booked",
-            appointment: appointment._id,
-            bookedAt: appointment.confirmedAt || new Date(),
-            recovered,
-            recoveredBy,
-            // CALLBACKIQ_ATTRIBUTION_10OF10_FULL_V2:
-            // the booked service/appointment is the authoritative open value.
-
-          },
-        },
-      );
+      await conversionEventMarkAppointmentBookedLeadUpdateOne({ Lead, appointment, lead, recovered, recoveredBy });
 
       if (recovered) {
         await CallLog.updateMany(

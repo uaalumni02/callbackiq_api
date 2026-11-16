@@ -1,10 +1,11 @@
+import { saveStateDocument } from '../stateTransitions/documents.js';
+import { automationExecuteAlertCreate } from '../stateTransitions/customerRequest.js';
 import { awaitedUpdateManyBatch } from "../database/awaitedUpdateManyBatch.js";
 import { blocksServiceAutomation } from '../serviceEligibility/policy.js';
 import {
   resetTwilioClient as resetCentralTwilioClient,
   sendSms,
 } from "../twilioSmsService.js";
-
 import Alert from "../../models/alert.js";
 import Appointment from "../../models/appointment.js";
 import AutomationJob from "../../models/automationJob.js";
@@ -14,7 +15,6 @@ import Conversation from "../../models/conversation.js";
 import Lead from "../../models/lead.js";
 import Message from "../../models/message.js";
 import SocketService from "../socket.service.js";
-
 // Twilio client creation and outbound policy enforcement are centralized.
 
 const interpolate = (template, values) =>
@@ -141,7 +141,7 @@ class AutomationService {
       populated.failureReason = reason;
       populated.lockedAt = null;
       populated.lockedBy = null;
-      await populated.save();
+      await saveStateDocument(populated);
       return populated;
     }
 
@@ -163,7 +163,7 @@ class AutomationService {
       populated.executeAt = new Date(now.getTime() + 60 * 60_000);
       populated.lockedAt = null;
       populated.lockedBy = null;
-      await populated.save();
+      await saveStateDocument(populated);
       return populated;
     }
 
@@ -210,7 +210,7 @@ class AutomationService {
               : "customer_opted_out");
           populated.lockedAt = null;
           populated.lockedBy = null;
-          await populated.save();
+          await saveStateDocument(populated);
           return populated;
         }
 
@@ -240,20 +240,7 @@ class AutomationService {
         } }, { upsert: true, returnDocument: "after" });
         SocketService.emitMessageCreated(populated.business._id, message);
       } else if (populated.action === "create_alert" || populated.action === "mark_for_review") {
-        const alert = await Alert.create({
-          business: populated.business._id,
-          lead: populated.lead?._id || null,
-          conversation: populated.conversation._id,
-          appointment: populated.appointment?._id || null,
-          type: "unanswered_hot_lead",
-          channel: "in_app",
-          title: "Automated follow-up needs review",
-          message: body || "This follow-up requires staff review.",
-          status: "sent",
-          priority: "medium",
-          actionRequired: true,
-          sentAt: new Date(),
-        });
+        const alert = await automationExecuteAlertCreate({ Alert, body, populated });
         SocketService.emitAlertCreated(populated.business._id, alert);
       }
 
@@ -262,7 +249,7 @@ class AutomationService {
       populated.failureReason = "";
       populated.lockedAt = null;
       populated.lockedBy = null;
-      await populated.save();
+      await saveStateDocument(populated);
       return populated;
     } catch (error) {
       const maximumAttempts = Number(populated.workflow.maximumAttempts || 3);
@@ -278,7 +265,7 @@ class AutomationService {
       populated.failureReason = error.message;
       populated.lockedAt = null;
       populated.lockedBy = null;
-      await populated.save();
+      await saveStateDocument(populated);
       throw error;
     }
   }

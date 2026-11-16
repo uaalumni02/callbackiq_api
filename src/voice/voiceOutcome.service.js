@@ -1,3 +1,4 @@
+import { persistVoiceOutcome } from '../services/stateTransitions/voice.js';
 import { bookingTransitionFields } from '../services/booking/requestBookingState.js';
 import { recordCallAnswer } from "../services/callAnswerEvidence.service.js";
 import AlertService from "../services/alert.service.js";
@@ -6,7 +7,6 @@ import Conversation from "../models/conversation.js";
 import VoiceSessionService from "./voiceSession.service.js";
 import SocketService from "../services/socket.service.js";
 import { logOperationalError } from "../helpers/logging/safeLogger.js";
-
 export const VOICE_OUTCOMES = Object.freeze([
   "booked",
   "appointment_requested",
@@ -99,22 +99,7 @@ export const commitVoiceOutcome = async ({
 
   if (session && outcome === "transfer_accepted" && session.conversation) {
     const conversationId = normalizeId(session.conversation);
-    const claimedConversation = await Conversation.findByIdAndUpdate(
-      conversationId,
-      {
-        $set: {
-          aiEnabled: false,
-          humanTakeover: true,
-          humanTakeoverAt: now,
-          humanTakeoverBy: null,
-          ...bookingTransitionFields('voice_transfer_accepted'),
-          "orchestration.phase": "human_takeover",
-          "orchestration.handoffStatus": "acknowledged",
-          "orchestration.handoffAcknowledgedAt": now,
-        },
-      },
-      { returnDocument: "after" },
-    );
+    const claimedConversation = await persistVoiceOutcome({ Conversation, bookingTransitionFields, conversationId, now });
     if (
       claimedConversation &&
       typeof SocketService.emitConversationUpdated === "function"

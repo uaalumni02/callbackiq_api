@@ -1,5 +1,5 @@
+import { saveStateDocument } from './stateTransitions/documents.js';
 import mongoose from "mongoose";
-
 import VoiceSettingsVersion from "../models/voiceSettingsVersion.js";
 import { logOperationalError } from "../helpers/logging/safeLogger.js";
 
@@ -119,7 +119,7 @@ const publishWithoutTransaction = async ({
   source,
   rolledBackFromVersion,
 }) => {
-  await business.save();
+  await saveStateDocument(business);
   try {
     return await recordVoiceSettingsVersion({
       business,
@@ -130,7 +130,7 @@ const publishWithoutTransaction = async ({
     });
   } catch (versionError) {
     applySnapshot(business, before);
-    await business.save().catch((restoreError) => {
+    await saveStateDocument(business).catch((restoreError) => {
       logOperationalError(
         "voice_settings.compensating_restore_failed",
         restoreError,
@@ -155,7 +155,7 @@ export const publishVoiceSettingsVersion = async ({
     try {
       let published = null;
       await mongoSession.withTransaction(async () => {
-        await business.save({ session: mongoSession });
+        await saveStateDocument(business, { session: mongoSession });
         published = await recordVoiceSettingsVersion({
           business,
           publishedBy,

@@ -1,5 +1,5 @@
+import { saveStateDocument } from '../stateTransitions/documents.js';
 import crypto from "crypto";
-
 import Business from "../../models/business.js";
 import IntegrationConnection from "../../models/integrationConnection.js";
 import { decryptSecret, encryptSecret } from "./tokenEncryption.service.js";
@@ -213,7 +213,7 @@ const markReconnectRequired = async (connection, error) => {
     error?.code || error?.providerPayload?.error || "GOOGLE_AUTH_REVOKED";
   connection.lastErrorMessage =
     error?.message || "Google Calendar authorization must be renewed.";
-  await connection.save();
+  await saveStateDocument(connection);
 };
 
 export const buildGoogleAuthorizationUrl = async (businessId, ownerId = "") => {
@@ -395,7 +395,7 @@ export const exchangeGoogleAuthorizationCode = async ({ code, state }) => {
   connection.connectedAt = new Date();
   connection.disconnectedAt = null;
   setConnectionHealthy(connection);
-  await connection.save();
+  await saveStateDocument(connection);
 
   return { businessId: payload.businessId, connection };
 };
@@ -467,7 +467,7 @@ export const getGoogleAccessToken = async (businessId, { signal } = {}) => {
     connection.lastErrorAt = new Date();
     connection.lastErrorCode = error.code;
     connection.lastErrorMessage = error.message;
-    await connection.save();
+    await saveStateDocument(connection);
     throw error;
   }
 
@@ -500,7 +500,7 @@ export const getGoogleAccessToken = async (businessId, { signal } = {}) => {
       ? new Date(Date.now() + Number(tokens.expires_in) * 1000)
       : null;
     setConnectionHealthy(connection);
-    await connection.save();
+    await saveStateDocument(connection);
     return { token: tokens.access_token, connection };
   } catch (error) {
     const revoked =
@@ -519,7 +519,7 @@ export const getGoogleAccessToken = async (businessId, { signal } = {}) => {
       connection.lastErrorAt = new Date();
       connection.lastErrorCode = error.code || "GOOGLE_TOKEN_REFRESH_FAILED";
       connection.lastErrorMessage = error.message;
-      await connection.save();
+      await saveStateDocument(connection);
     }
     throw error;
   }
@@ -802,7 +802,7 @@ export const selectGoogleCalendar = async ({
   connection.lastVerifiedAt = new Date();
   setConnectionHealthy(connection);
   if (typeof connection.save === "function") {
-    await connection.save();
+    await saveStateDocument(connection);
     return connection;
   }
 

@@ -1,12 +1,12 @@
+import { saveStateDocument } from '../../services/stateTransitions/documents.js';
 import { assertVoiceTurnActive, captureCallback, clean, toSpokenReply } from './context.js';
-
 export async function projectBookingOutcome(context) {
   const { booking, lead, conversation, session, text } = context;
 const capturedService = booking.result?.serviceNeeded;
     if (capturedService && capturedService !== "Unknown" && capturedService !== lead?.serviceNeeded && lead?.save) {
       assertVoiceTurnActive();
       lead.serviceNeeded = capturedService;
-      await lead.save();
+      await saveStateDocument(lead);
       assertVoiceTurnActive();
     }
     const bookingReply = clean(booking.result?.reply, 4000);

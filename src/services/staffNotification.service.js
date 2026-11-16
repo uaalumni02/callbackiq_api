@@ -1,3 +1,4 @@
+import { staffNotificationPublishAlertAtomicUpdate } from './stateTransitions/reviews.js';
 import crypto from "node:crypto";
 import Alert from "../models/alert.js";
 import Business from "../models/business.js";
@@ -6,7 +7,6 @@ import Job from "../models/staffNotificationJob.js";
 import { sendStaffReviewEmail } from "../helpers/email/mailer.js";
 import SocketService from "./socket.service.js";
 import { logOperationalError } from "../helpers/logging/safeLogger.js";
-
 const unresolved = { actionRequired: true, resolvedAt: null, acknowledgedAt: null };
 const enabled = () => process.env.STAFF_NOTIFICATION_EMAIL_ENABLED === "true";
 const publish = async (job) => {
@@ -15,9 +15,7 @@ const publish = async (job) => {
   const current = await Job.findById(job._id).lean();
   if (!current) return;
   const field = `metadata.staffNotification.${current.stage}`;
-  const alert = await Alert.findOneAndUpdate({ _id: current.alert, business: current.business,
-    $or: [{ [`${field}.revision`]: { $exists: false } }, { [`${field}.revision`]: { $lte: current.revision } }],
-  }, { $set: { [field]: { status: current.status, updatedAt: current.updatedAt, revision: current.revision } } }, { returnDocument: "after" });
+  const alert = await staffNotificationPublishAlertAtomicUpdate({ Alert, current, field });
   if (alert) SocketService.emitAlertUpdated(current.business, alert);
   await Job.updateOne({ _id: current._id, revision: current.revision }, { $set: { published: true } });
 };

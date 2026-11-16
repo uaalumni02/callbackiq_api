@@ -1,10 +1,10 @@
+import { syncCustomerLifecycleLeadUpdateOne, syncCustomerLifecycleConversationUpdateMany, syncCustomerLifecycleAppointmentUpdateMany, syncCustomerLifecycleAlertUpdateMany } from './stateTransitions/customerProjections.js';
 import Alert from "../models/alert.js";
 import Appointment from "../models/appointment.js";
 import Conversation from "../models/conversation.js";
 import Lead from "../models/lead.js";
 import VoiceSession from "../models/voiceSession.js";
 import { deriveCanonicalLifecycle } from "../helpers/customerLifecycle.js";
-
 export const syncCustomerLifecycle = async ({
   businessId,
   lead,
@@ -26,21 +26,12 @@ export const syncCustomerLifecycle = async ({
   const voiceSessionIds = voiceSessions.map((item) => item?._id).filter(Boolean);
 
   await Promise.all([
-    Lead.updateOne(
-      { _id: leadId, business: businessId },
-      { $set: { customerLifecycleStatus } },
-    ),
+    syncCustomerLifecycleLeadUpdateOne({ Lead, businessId, customerLifecycleStatus, leadId }),
     conversationIds.length
-      ? Conversation.updateMany(
-          { _id: { $in: conversationIds }, business: businessId },
-          { $set: { customerLifecycleStatus } },
-        )
+      ? syncCustomerLifecycleConversationUpdateMany({ Conversation, businessId, conversationIds, customerLifecycleStatus })
       : null,
     appointmentIds.length
-      ? Appointment.updateMany(
-          { _id: { $in: appointmentIds }, business: businessId },
-          { $set: { customerLifecycleStatus } },
-        )
+      ? syncCustomerLifecycleAppointmentUpdateMany({ Appointment, appointmentIds, businessId, customerLifecycleStatus })
       : null,
     voiceSessionIds.length
       ? VoiceSession.updateMany(
@@ -48,17 +39,7 @@ export const syncCustomerLifecycle = async ({
           { $set: { customerLifecycleStatus } },
         )
       : null,
-    Alert.updateMany(
-      {
-        business: businessId,
-        $or: [
-          { lead: leadId },
-          ...(conversationIds.length ? [{ conversation: { $in: conversationIds } }] : []),
-          ...(appointmentIds.length ? [{ appointment: { $in: appointmentIds } }] : []),
-        ],
-      },
-      { $set: { customerLifecycleStatus } },
-    ),
+    syncCustomerLifecycleAlertUpdateMany({ Alert, appointmentIds, businessId, conversationIds, customerLifecycleStatus, leadId }),
   ].filter(Boolean));
 
   return customerLifecycleStatus;

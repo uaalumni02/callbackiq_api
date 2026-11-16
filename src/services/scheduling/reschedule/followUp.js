@@ -1,3 +1,4 @@
+import { followUpTaskLeadUpdateOne } from '../../stateTransitions/appointmentLifecycle.js';
 /** @typedef {import('./types.js').AppointmentRecord} AppointmentRecord */
 /** @typedef {import('./types.js').BusinessScope} BusinessScope */
 /** Idempotent persisted effects; provider sends remain owned by notification jobs.
@@ -15,8 +16,7 @@ export async function followUp({ business, original, replacement }, {
     label: 'rescheduled appointment reminder scheduling',
     task: () => scheduleAppointmentReminders({ appointment: replacement, repairMissingOnly: true }) });
   if (replacement.lead) await runNonBlockingAppointmentSideEffect({ appointment: replacement, businessId: business._id,
-    label: 'rescheduled lead linkage', task: () => Lead.updateOne({ _id: replacement.lead, business: business._id },
-      { $set: { appointment: replacement._id, bookedAt: replacement.confirmedAt } }) });
+    label: 'rescheduled lead linkage', task: () => followUpTaskLeadUpdateOne({ Lead, business, replacement }) });
   SocketService.emitToBusiness(business._id, 'appointment:rescheduled', { original, replacement });
   SocketService.emitDashboardRefresh(business._id, 'appointment_rescheduled');
   return { appointment: replacement };

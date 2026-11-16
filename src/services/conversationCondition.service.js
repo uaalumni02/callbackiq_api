@@ -1,13 +1,13 @@
+import { conversationConditionObserveCustomerConstraintConversationMemory, conversationConditionObserveCustomerConstraintConversationFields } from './stateTransitions/customerRequest.js';
+import { saveStateDocument } from './stateTransitions/documents.js';
 import { detectSafetyHazardType, getEmergencyReply } from '../helpers/ai/aiGuardrails.js';
 import { assertDistributedLeaseActive } from './distributedLease.service.js';
 import { assertVoiceTurnActive } from './voiceTurnContext.service.js';
-
 const clean = value => String(value || '').replace(/\s+/g, ' ').trim();
 const inability = /\b(?:can['’]?t|cannot|unable to|couldn['’]?t|can not)\b/i;
 const water = /\bwater\b/i;
 const power = /\b(?:power|electricity|breaker|panel)\b/i;
 const control = /\b(?:turn|shut|switch|reach|find|locate|access|stop)\b/i;
-
 export function customerConstraint(text) {
   const value = clean(text);
   if (/\b(?:what if|suppose|hypothetically)\b/i.test(value)) return '';
@@ -82,10 +82,10 @@ export async function observeCustomerConstraint({ conversation, lead, customerMe
   if (constraint === 'power_control_unavailable') state.field = 'constraint_condition';
   if (contextualHazard) { state.triagePending = false; state.triageResolved = true; state.leakPattern = constraint === 'water_control_unavailable' ? 'active' : state.leakPattern; }
   check();
-  if (conversation.set) conversation.set('conversationMemory.recoveryIntake', state);
-  else conversation.conversationMemory = { ...(conversation.conversationMemory || {}), recoveryIntake: state };
+  if (conversation.set) conversationConditionObserveCustomerConstraintConversationMemory({ conversation, state });
+  else conversationConditionObserveCustomerConstraintConversationFields({ conversation, state });
   conversation.markModified?.('conversationMemory.recoveryIntake');
-  await conversation.save(); check();
+  await saveStateDocument(conversation); check();
   if (negative) return null;
   if (contextualHazard) {
     return {

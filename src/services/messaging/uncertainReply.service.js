@@ -1,9 +1,10 @@
+import { setUncertainReplyMemory, replaceUncertainReplyMemory } from '../stateTransitions/messaging.js';
+import { saveStateDocument } from '../stateTransitions/documents.js';
 import { currentCoverage } from '../booking/coverageConversation.service.js';
 import { extractCustomerPostalCode } from '../booking/customerAddress.service.js';
 const clean = value => typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
 const known = value => clean(value) && !/^(unknown|not provided|n\/a)$/i.test(clean(value));
 const FACT_CATEGORIES = new Set(['new_service_request', 'service_request', 'service_details', 'appointment_preference', 'pricing_request']);
-
 // Qualification confidence concerns the customer's facts. Reply confidence concerns
 // the proposed wording/action: a weak reply must not erase independently extracted facts.
 export const qualifiedIntakeFacts = assessment => {
@@ -18,17 +19,16 @@ export const qualifiedIntakeFacts = assessment => {
   }
   return facts;
 };
-
 const setMemory = (conversation, field, value) => {
-  if (conversation.set) conversation.set(`conversationMemory.${field}`, value);
-  else conversation.conversationMemory = { ...(conversation.conversationMemory || {}), [field]: value };
+  if (conversation.set) setUncertainReplyMemory({ conversation, field, value });
+  else replaceUncertainReplyMemory({ conversation, field, value });
 };
 
 export const resetUncertainTurns = async conversation => {
   if (!conversation?.conversationMemory?.uncertainTurns || typeof conversation.save !== 'function') return;
   setMemory(conversation, 'uncertainTurns', 0);
   setMemory(conversation, 'uncertainTurnId', '');
-  await conversation.save();
+  await saveStateDocument(conversation);
 };
 
 export const constrainUncertainReply = async ({ result, lead, conversation, turnId = '', inboundAssessment = null }) => {
@@ -41,7 +41,7 @@ export const constrainUncertainReply = async ({ result, lead, conversation, turn
     if (conversation?.conversationMemory?.uncertainTurns && typeof conversation.save === 'function') {
       setMemory(conversation, 'uncertainTurns', 0);
       setMemory(conversation, 'uncertainTurnId', '');
-      await conversation.save();
+      await saveStateDocument(conversation);
     }
     if (replyCertain) {
       const preserved = { ...result };
@@ -61,7 +61,7 @@ export const constrainUncertainReply = async ({ result, lead, conversation, turn
   if (typeof conversation?.save === 'function') {
     setMemory(conversation, 'uncertainTurns', count);
     setMemory(conversation, 'uncertainTurnId', String(turnId));
-    await conversation.save();
+    await saveStateDocument(conversation);
   }
   const coveragePending = currentCoverage(conversation, facts)?.supported === null;
   const needsReview = count >= 2 || coveragePending;

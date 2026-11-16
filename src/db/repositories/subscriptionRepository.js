@@ -1,6 +1,6 @@
+import { upsertBusinessSubscription, updateStripeSubscription } from '../../services/stateTransitions/accountRecords.js';
 import {tenantRepository,tenantContext} from './tenantRepository.js';
 import { safeConsole } from "../../helpers/logging/safeLogger.js";
-
   // ----- Subscription / Billing methods -----
 
 export async function getSubscriptionByBusiness(model, businessId, { populateBusiness = true } = {}) {
@@ -37,20 +37,7 @@ export async function getSubscriptionByStripeSubscription(
 
 export async function upsertSubscriptionByBusiness(model, businessId, data) {
     try {
-      return await model
-        .findOneAndUpdate(
-          { business: businessId },
-          {
-            ...data,
-            business: businessId,
-          },
-          {
-            returnDocument: "after",
-            upsert: true,
-            runValidators: true,
-            setDefaultsOnInsert: true,
-          },
-        )
+      return await upsertBusinessSubscription({ businessId, data, model })
         .populate("business", "businessName businessType phone email");
     } catch (error) {
       safeConsole.error("Error upserting subscription:", error);
@@ -64,11 +51,7 @@ export async function updateSubscriptionByStripeSubscription(
     data,
   ) {
     try {
-      return await model
-        .findOneAndUpdate({ stripeSubscriptionId }, data, {
-          returnDocument: "after",
-          runValidators: true,
-        })
+      return await updateStripeSubscription({ data, model, stripeSubscriptionId })
         .populate("business", "businessName businessType phone email");
     } catch (error) {
       safeConsole.error(

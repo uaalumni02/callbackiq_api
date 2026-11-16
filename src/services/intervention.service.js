@@ -1,7 +1,7 @@
+import { interventionCreateAlertCreate } from './stateTransitions/reviews.js';
 import { staffReviewDueAt } from "./staffReviewPolicy.service.js";
 import Alert from "../models/alert.js";
 import SocketService from "./socket.service.js";
-
 const EXTERNAL_NOTIFICATION_TYPES = new Set([
   "safety_emergency",
   "human_requested",
@@ -100,7 +100,7 @@ class InterventionService {
     };
 
     try {
-      const alert = await Alert.create(payload);
+      const alert = await interventionCreateAlertCreate({ Alert, payload });
       const populated = await Alert.findById(alert._id)
         .populate(
           "lead",

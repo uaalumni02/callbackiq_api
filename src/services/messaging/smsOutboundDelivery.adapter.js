@@ -1,3 +1,4 @@
+import { persistOutboundConversationMessage } from '../stateTransitions/messaging.js';
 // Verbatim durable outbound processing moved behind dependency injection. Do not reorder provider calls.
 export const createSmsOutboundDelivery = ({ Message, Conversation, AlertService, SocketService, sendSms, logOperationalEvent, applySmsProductionInvariants, describeSmsWorkflowDecision, assertDistributedLeaseActive, respectCustomerConstraints, getSmsAutomationSuppressionReason }) => async ({
   business,
@@ -19,7 +20,6 @@ export const createSmsOutboundDelivery = ({ Message, Conversation, AlertService,
   });
   if (!reply || result?.decision === "no_reply") return { sent: false, reason: "no_reply" };
   assertDistributedLeaseActive();
-
   const isAiGenerated = result?.guardrail?.skipAI !== true;
   const fixedEmergencyReply = !isAiGenerated && result?.messageCategory === "emergency" &&
     result?.decision === "send_fixed_response";
@@ -224,11 +224,7 @@ export const createSmsOutboundDelivery = ({ Message, Conversation, AlertService,
       return { sent: false, suppressed: true, message: outbound };
     }
 
-    const updatedConversation = await Conversation.findByIdAndUpdate(
-      conversation._id,
-      { lastMessage: sent?.body || reply, lastMessageAt: new Date() },
-      { returnDocument: "after" },
-    );
+    const updatedConversation = await persistOutboundConversationMessage({ Conversation, conversation, reply, sent });
     SocketService.emitConversationUpdated(business._id, updatedConversation);
     SocketService.emitDashboardRefresh(business._id, "inbound_sms_reply_sent");
     logOperationalEvent("twilio.sms.reply_sent", {

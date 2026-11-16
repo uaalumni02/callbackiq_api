@@ -1,3 +1,5 @@
+import { createVoiceLead, createVoiceConversation, upsertVoiceFallbackReview } from '../services/stateTransitions/voice.js';
+import { saveStateDocument } from '../services/stateTransitions/documents.js';
 import { ownerTextSuppressionReason } from "../services/messaging/ownerTextPolicy.service.js";
 import { evaluateDeterministicInboundGuardrails } from '../helpers/ai/aiGuardrails.js';
 import { voiceRecoveryMessage, COMPLETED_REQUEST_OUTCOMES } from './voiceRecoveryMessage.service.js';
@@ -24,7 +26,6 @@ import {
 } from "./voicePhone.service.js";
 import VoiceTranscriptService from "./voiceTranscript.service.js";
 import { resolveTrackingNumberContext, syncLatestAttribution } from "../services/marketingAttribution.service.js"; // CALLBACKIQ_ATTRIBUTION_PRODUCTION_HARDENING
-
 const TERMINAL_STATUSES = new Set(["completed", "failed", "canceled"]);
 const TRANSITIONS = Object.freeze({
   routing: new Set(["connecting", "active", "fallback_sms", "failed", "canceled"]),
@@ -54,7 +55,6 @@ const TRANSITIONS = Object.freeze({
   failed: new Set(),
   canceled: new Set(),
 });
-
 const emit = (method, ...args) => {
   try {
     if (typeof SocketService?.[method] === "function") {
@@ -182,21 +182,7 @@ class VoiceSessionService {
     ]);
     if (!lead) {
       try {
-        lead = await Lead.create({
-          business: business._id,
-          customerName: usableCaller ? "Voice Caller" : "Anonymous Voice Caller",
-          phone: storedCaller,
-          serviceNeeded: "Unknown",
-          urgency: "medium",
-          source: "voice",
-          status: "new",
-          estimatedValue: null,
-          valuation: { source: "unknown", basis: "Not estimated" },
-          valuationVersion: 0,
-          notes: usableCaller
-            ? "Lead created automatically from a CallBackIQ voice session."
-            : "Lead created from a blocked or unavailable caller ID. Obtain and confirm a callback number before promising follow-up.",
-        });
+        lead = await createVoiceLead({ Lead, business, storedCaller, usableCaller });
         emit("emitLeadCreated", business._id, lead);
       } catch (error) {
         // Two first-time calls from the same caller can both observe no Lead.
@@ -213,18 +199,7 @@ class VoiceSessionService {
 
     if (!conversation) {
       try {
-        conversation = await Conversation.create({
-          business: business._id,
-          lead: lead._id,
-          customerPhone: storedCaller,
-          customerName: lead.customerName || "Voice Caller",
-          status: "open",
-          aiEnabled: true,
-          humanTakeover: false,
-          lastMessage: "Voice session started.",
-          lastMessageAt: new Date(),
-          replyFromPhone: normalizedTo || business.phone,
-        });
+        conversation = await createVoiceConversation({ Conversation, business, lead, normalizedTo, storedCaller });
         emit("emitConversationCreated", business._id, conversation);
       } catch (error) {
         // Same-caller concurrent calls can also race on the unique active
@@ -592,7 +567,7 @@ class VoiceSessionService {
               emit("emitMessageCreated", business._id, message);
               conversation.lastMessage = body;
               conversation.lastMessageAt = new Date();
-              await conversation.save();
+              await saveStateDocument(conversation);
               emit("emitConversationUpdated", business._id, conversation);
             } catch (error) {
               logOperationalError(
@@ -625,48 +600,12 @@ class VoiceSessionService {
     if (callLog) {
       callLog.status = "failed";
       callLog.missedCallTextSent = Boolean(providerMessageId);
-      await callLog.save();
+      await saveStateDocument(callLog);
       emit("emitCallUpdated", business._id, callLog);
     }
 
     if (alert) {
-      const failureAlert = await Alert.findOneAndUpdate(
-        { business: business._id, dedupeKey: `voice_failure:${session._id}` },
-        {
-          $setOnInsert: {
-            business: business._id,
-            lead: lead?._id || null,
-            conversation: conversation?._id || null,
-            type: "integration_failure",
-            channel: "in_app",
-            title: "Voice AI session failed",
-            message: suppressionReason
-              ? `The voice session failed. The transcript was preserved, but SMS fallback was suppressed: ${suppressionReason}`
-              : "The voice session failed. The transcript was preserved and the missed-call SMS fallback was attempted.",
-            status: "pending",
-            priority: "high",
-            actionRequired: true,
-            reason: String(failureReason || "Voice AI unavailable").slice(0, 1000),
-            recommendedAction:
-              "Review the partial transcript and contact the caller directly. For anonymous callers, review the call path because no callback number may be available.",
-            lastCustomerMessage:
-              session.transcript
-                ?.filter((entry) => entry.role === "customer")
-                .at(-1)?.text || "",
-            dedupeKey: `voice_failure:${session._id}`,
-            metadata: {
-              voiceSessionId: session._id,
-              providerCallSid: session.providerCallSid,
-              fallbackSmsStatus: providerMessageId
-                ? "sent"
-                : suppressionReason
-                  ? "suppressed"
-                  : "failed",
-            },
-          },
-        },
-        { upsert: true, returnDocument: "after" },
-      );
+      const failureAlert = await upsertVoiceFallbackReview({ Alert, business, conversation, failureReason, lead, providerMessageId, session, suppressionReason });
       if (failureAlert) emit("emitAlertCreated", business._id, failureAlert);
     }
 

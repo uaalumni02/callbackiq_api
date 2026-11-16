@@ -1,3 +1,4 @@
+import { reholdAppointmentForConfirmation } from '../../stateTransitions/appointmentCommands.js';
 /* Source-exact AppointmentService extraction. Preserve order and outcome contracts. */
 export function createAppointmentrecheckAndConfirm1Methods(deps) {
   const { assertConfirmationNotPending, assertIntakeHoldCurrent, Appointment, addMinutes, assertDistributedLeaseActive, exactSlotAvailable, getAppointmentForBusiness, getSlotCapacity, getSlotClaimKeys, getSlotKey, repairConfirmedApproval, tryRepairAppointmentProjections, withDistributedLease } = deps;
@@ -25,12 +26,7 @@ async recheckAndConfirm({ business, appointmentId, approvedBy }) {
       for (let lane = 1; lane <= capacity; lane++) {
         try {
           assertDistributedLeaseActive();
-          appointment = await Appointment.findOneAndUpdate({ _id: appointment._id, business: business._id,
-            status: appointment.status, 'confirmationIntent.status': { $ne: 'pending_provider' } }, { $set: { status: 'held', heldExpiresAt: addMinutes(new Date(), 5),
-            failureReason: '', capacityLane: lane, activeSlotKey: `${getSlotKey(appointment.startAt, appointment.endAt)}|lane:${lane}`,
-            slotClaimKeys: getSlotClaimKeys({ ...appointment.toObject(), capacityLane: lane }),
-            'approvalRecovery.reconciled': false, 'approvalRecovery.state': 'pending',
-          } }, { returnDocument: "after", runValidators: true });
+          appointment = await reholdAppointmentForConfirmation({ Appointment, addMinutes, appointment, business, getSlotClaimKeys, getSlotKey, lane });
           if (!appointment) throw Object.assign(new Error('The request changed. Reload it before approving.'), { statusCode: 409 });
           claimed = true; break;
         } catch (error) { if (error.code !== 11000) throw error; }

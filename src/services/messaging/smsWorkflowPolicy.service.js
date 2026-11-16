@@ -1,9 +1,9 @@
+import { stageRevisedRequestPatch } from '../stateTransitions/messaging.js';
 import { bookingTransitionFields } from '../booking/requestBookingState.js';
 import { REPLY_ACTION_TYPES } from '../../helpers/ai/aiGuardrails.js';
 import { captureTurnFacts } from '../booking/turnFactCapture.service.js';
 import { classifySmsIntent } from './smsIntentClassifier.service.js';
 import { requestWasWithdrawn } from '../conversationControlPolicy.js';
-
 // Application decisions, independent of the model's proposed action vocabulary.
 // None of these values authorizes an appointment or a provider side effect.
 export const SMS_WORKFLOW_ACTIONS = Object.freeze([
@@ -44,7 +44,7 @@ export function buildSmsRequestRevisionPatch({ result = {}, lead = {}, conversat
       Object.assign(patch, bookingTransitionFields('request_revision_invalidated_offer'));
     }
     const intake = conversation.conversationMemory?.recoveryIntake;
-    if (intake) patch['conversationMemory.recoveryIntake'] = { ...intake, submitted: false, reviewReady: false, availability: { status: 'not_checked', reason: 'request_changed' }, review: { status: 'update_required' }, activePreference: { label: result.preferredAppointmentTime || lead.preferredAppointmentTime || '' }, ...(changed.includes('preferredAppointmentTime') ? { date: '', time: '' } : {}) };
+    if (intake) stageRevisedRequestPatch({ changed, intake, lead, patch, result });
   }
   return patch;
 }

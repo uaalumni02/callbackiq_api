@@ -1,3 +1,4 @@
+import { appointmentNotificationStoreOutboundMessageConversationUpdateOne } from '../stateTransitions/appointmentLifecycle.js';
 import SchedulingPolicy from '../../models/schedulingPolicy.js';
 import { customerAppointmentLabel } from './customerAppointmentPresentation.service.js';
 import crypto from 'crypto';
@@ -9,7 +10,6 @@ import IntegrationConnection from "../../models/integrationConnection.js";
 import Message from "../../models/message.js";
 import { sendSms } from "../twilioSmsService.js";
 import { getGoogleSettings } from "../integrations/integrationSettings.service.js";
-
 const instanceId =
   process.env.INSTANCE_ID ||
   `${process.pid}:appointment-notifications:${Math.random()
@@ -303,10 +303,7 @@ const storeOutboundMessage = async ({
       appointmentNotificationKey: job.key,
     },
   } }, { upsert: true, returnDocument: "after" });
-  await Conversation.updateOne(
-    { _id: appointment.conversation, business: business._id },
-    { $set: { lastMessage: body, lastMessageAt: new Date() } },
-  );
+  await appointmentNotificationStoreOutboundMessageConversationUpdateOne({ Conversation, appointment, body, business });
 };
 
 export const recoverStaleAppointmentNotificationLocks = async () => {

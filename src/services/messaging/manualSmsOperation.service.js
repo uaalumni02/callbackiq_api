@@ -1,5 +1,6 @@
+import { saveStateDocument } from '../stateTransitions/documents.js';
+import { persistAcceptedManualSms } from '../stateTransitions/messaging.js';
 import crypto from "crypto";
-
 import Conversation from "../../models/conversation.js";
 import ManualSmsOperation from "../../models/manualSmsOperation.js";
 import Message from "../../models/message.js";
@@ -12,7 +13,6 @@ import {
 import SocketService from "../socket.service.js";
 import { evaluateManualSmsPolicy } from "./manualSmsPolicy.service.js";
 import { logOperationalError } from "../../helpers/logging/safeLogger.js";
-
 const RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 const normalizeOperationId = (value) =>
   String(value || crypto.randomUUID())
@@ -35,7 +35,7 @@ const reconcileDispatchingOperation = async ({ operation, business }) => {
     operation.failureCode = "dispatch_record_missing";
     operation.failureMessage =
       "The prior dispatch did not reach the provider reservation stage and can be retried safely.";
-    await operation.save();
+    await saveStateDocument(operation);
     return { retryable: true };
   }
   if (lifecycle.state === "committed") {
@@ -43,7 +43,7 @@ const reconcileDispatchingOperation = async ({ operation, business }) => {
     operation.providerMessageId = lifecycle.providerOperationId || operation.providerMessageId;
     operation.providerStatus = lifecycle.providerStatus || operation.providerStatus || "sent";
     operation.metadata = { ...operation.metadata, providerBody: lifecycle.metadata?.providerRequest?.body || operation.body };
-    await operation.save();
+    await saveStateDocument(operation);
     return { accepted: true };
   }
   if (lifecycle.state === "uncertain" && lifecycle.providerOperationId) {
@@ -51,7 +51,7 @@ const reconcileDispatchingOperation = async ({ operation, business }) => {
     operation.providerMessageId = lifecycle.providerOperationId;
     operation.providerStatus = lifecycle.providerStatus || "queued";
     operation.metadata = { ...operation.metadata, providerBody: lifecycle.metadata?.providerRequest?.body || operation.body };
-    await operation.save();
+    await saveStateDocument(operation);
     return { accepted: true };
   }
   if (lifecycle.state === "uncertain") {
@@ -59,7 +59,7 @@ const reconcileDispatchingOperation = async ({ operation, business }) => {
     operation.failureCode = "provider_outcome_uncertain";
     operation.failureMessage =
       "Twilio may have accepted this message. Reconcile the provider operation before retrying.";
-    await operation.save();
+    await saveStateDocument(operation);
     return { pending: true };
   }
   if (lifecycle.state === "released") {
@@ -67,7 +67,7 @@ const reconcileDispatchingOperation = async ({ operation, business }) => {
     operation.failureCode = lifecycle.releaseReason || "provider_rejected";
     operation.failureMessage =
       "The prior provider attempt was conclusively rejected and can be retried with the same operation ID.";
-    await operation.save();
+    await saveStateDocument(operation);
     return { retryable: true };
   }
   if (lifecycle.state === "pending" && new Date(lifecycle.leaseExpiresAt) <= new Date()) {
@@ -76,7 +76,7 @@ const reconcileDispatchingOperation = async ({ operation, business }) => {
       operation.state = "reconciliation_required";
       operation.failureCode = "provider_outcome_uncertain";
       operation.failureMessage = "The previous text may have reached the customer. Check delivery before sending again.";
-      await operation.save();
+      await saveStateDocument(operation);
       return { pending: true };
     }
     await releaseCommunicationUsageReservation({
@@ -87,7 +87,7 @@ const reconcileDispatchingOperation = async ({ operation, business }) => {
     operation.failureCode = "dispatch_lease_expired";
     operation.failureMessage =
       "The prior dispatch worker stopped before provider acceptance. The operation can be retried safely.";
-    await operation.save();
+    await saveStateDocument(operation);
     return { retryable: true };
   }
   return { pending: true };
@@ -199,28 +199,14 @@ const persistAcceptedOperation = async ({ operation, business, conversation, lea
     { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
   );
 
-  const mutedConversation = await Conversation.findOneAndUpdate(
-    { _id: conversation._id, business: business._id },
-    {
-      $set: {
-        aiEnabled: false,
-        humanTakeover: true,
-        humanTakeoverAt: new Date(),
-        humanTakeoverBy: actorId,
-        "orchestration.phase": "human_takeover",
-        lastMessage: operation.metadata?.providerBody || operation.body,
-        lastMessageAt: new Date(),
-      },
-    },
-    { returnDocument: "after" },
-  );
+  const mutedConversation = await persistAcceptedManualSms({ Conversation, actorId, business, conversation, operation });
 
   operation.state = "completed";
   operation.message = message._id;
   operation.completedAt = new Date();
   operation.failureCode = "";
   operation.failureMessage = "";
-  await operation.save();
+  await saveStateDocument(operation);
 
   SocketService.emitMessageCreated(business._id, message);
   SocketService.emitConversationUpdated(business._id, mutedConversation);
@@ -285,7 +271,7 @@ export const executeManualSmsOperation = async ({
       operation.state = "created";
       operation.failureCode = "";
       operation.failureMessage = "";
-      await operation.save();
+      await saveStateDocument(operation);
     } else {
       return responseFromOperation(operation);
     }
@@ -309,7 +295,7 @@ export const executeManualSmsOperation = async ({
       operation.state = "reconciliation_required";
       operation.failureCode = String(error?.code || error?.name || "persistence_error");
       operation.failureMessage = String(error?.message || error).slice(0, 1000);
-      await operation.save().catch(() => {});
+      await saveStateDocument(operation).catch(() => {});
       throw error;
     }
   }
@@ -344,7 +330,7 @@ export const executeManualSmsOperation = async ({
 
   operation.state = "dispatching";
   operation.lastAttemptAt = new Date();
-  await operation.save();
+  await saveStateDocument(operation);
   try {
     const sent = await sendSms({
       business,
@@ -371,7 +357,7 @@ export const executeManualSmsOperation = async ({
       operation.failureMessage = sent.policyBlocked
         ? "Manual SMS was blocked by policy."
         : "Manual SMS was suppressed because the customer opted out.";
-      await operation.save();
+      await saveStateDocument(operation);
       return {
         operation,
         accepted: false,
@@ -387,7 +373,7 @@ export const executeManualSmsOperation = async ({
     operation.providerMessageId = sent?.sid || "";
     operation.providerStatus = sent?.status || "sent";
     operation.metadata = { ...operation.metadata, providerBody: sent?.body || operation.body };
-    await operation.save();
+    await saveStateDocument(operation);
     return await persistAcceptedOperation({
       operation,
       business,
@@ -406,7 +392,7 @@ export const executeManualSmsOperation = async ({
       providerAccepted || providerUncertain ? "reconciliation_required" : "failed";
     operation.failureCode = String(error?.code || error?.name || "manual_sms_failed").slice(0, 160);
     operation.failureMessage = String(error?.message || error).slice(0, 1000);
-    await operation.save().catch((persistError) =>
+    await saveStateDocument(operation).catch((persistError) =>
       logOperationalError("manual_sms.operation_failure_persist_failed", persistError, {
         operationId: operation._id,
       }),

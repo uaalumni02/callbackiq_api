@@ -1,9 +1,10 @@
+import { stageProviderConfirmedAppointment, stageProviderFailure } from '../../stateTransitions/appointmentCommands.js';
+import { saveStateDocument } from '../../stateTransitions/documents.js';
 export async function confirmWithoutRecovery(
   { appointment, business, approvedBy, provider, service },
   { assertDistributedLeaseActive, InterventionService, lifecycleMarker, projectionMarker },
 ) {
   let providerResult = null;
-
   try {
     assertDistributedLeaseActive();
     providerResult = await provider.createAppointment({
@@ -15,7 +16,7 @@ export async function confirmWithoutRecovery(
       providerResult.externalAppointmentId || null;
     appointment.externalCalendarId =
       providerResult.externalCalendarId || null;
-    appointment.status = "confirmed";
+    stageProviderConfirmedAppointment({ appointment });
     appointment.bookingProjection = projectionMarker();
     if (!appointment.requiresBusinessApproval && !appointment.automaticConfirmationAuthorized && appointment.bookedBy !== "ai") appointment.lifecycleNotice = lifecycleMarker("confirmed");
     appointment.approvalRecovery = { state: "resolved", reconciled: false };
@@ -27,7 +28,7 @@ export async function confirmWithoutRecovery(
       appointment.approvalDecisionBy = approvedBy || null;
       appointment.approvalDeclineReason = "";
     }
-    await appointment.save();
+    await saveStateDocument(appointment);
   } catch (error) {
     // If Google accepted the insert but MongoDB did not persist confirmation,
     // remove the event immediately so the business does not inherit an orphan.
@@ -64,15 +65,14 @@ export async function confirmWithoutRecovery(
         });
       }
     }
-
-    appointment.status = "failed";
+    stageProviderFailure({ appointment });
     appointment.activeSlotKey = null;
     appointment.slotClaimKeys = [];
     appointment.capacityLane = null;
     appointment.heldExpiresAt = null;
     appointment.failureReason = error.message;
     try {
-      await appointment.save();
+      await saveStateDocument(appointment);
     } catch {
       // Preserve the original provider/persistence error for the caller.
     }

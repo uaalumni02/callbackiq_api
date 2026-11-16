@@ -1,3 +1,5 @@
+import { recordRecoveryOperationEvent } from '../stateTransitions/recoveryCoordinator.js';
+import { initializeRecoverySnapshot, writeRecoveryLeadFacts, writeRecoveryConversationFacts, advanceRecoveryDecision } from '../stateTransitions/recoveryCoordinator.js';
 import crypto from 'node:crypto';
 import { linked, caseFor, requireOwnedReview } from './recoveryScope.repository.js';
 import { isPilotBusiness } from './recoveryPilotPolicy.js';
@@ -12,7 +14,6 @@ import ServiceOffering from '../../models/serviceOffering.js';
 import { evaluateServiceEligibility } from '../serviceEligibility/serviceEligibility.service.js';
 import { fingerprintRequest } from './acceptanceGate.js';
 import { contractError, validateFacts, validateDecision, requiredVersion, operationKey, normalizeFacts, nextReviewState } from './contract.js';
-
 const sha = value => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const str = value => String(value?._id || value || '');
 const isId = value => mongoose.isObjectIdOrHexString(str(value));
@@ -30,11 +31,7 @@ export async function initializeRecoveryCase({businessId,conversationId}) {
   const facts = normalizeFacts({customerName: /^(missed call lead|new sms lead|unknown|customer)$/i.test(lead.customerName||'') ? '' : lead.customerName || conversation.customerName,
     serviceNeeded: lead.serviceNeeded, address: lead.address, preferredAppointmentTime: lead.preferredAppointmentTime });
   try {
-    return await RecoveryCase.findOneAndUpdate({business:businessId,conversation:conversation._id,generation:1},
-      {$setOnInsert:{business:businessId,conversation:conversation._id,lead:lead._id,generation:1,version:0,
-        status:conversation.serviceEligibility?.decision==='needs_staff_review' ? 'needs_review' : 'qualifying',facts,
-        serviceDecision:{decision:'pending'},source:{leadUpdatedAt:lead.updatedAt,conversationUpdatedAt:conversation.updatedAt}}},
-      {upsert:true,new:true,runValidators:true}).lean();
+    return await initializeRecoverySnapshot({ RecoveryCase, businessId, conversation, facts, lead }).lean();
   } catch(error) {
     if(error.code===11000) return RecoveryCase.findOne({business:businessId,conversation:conversation._id,generation:1}).lean();
     throw error;
@@ -83,12 +80,12 @@ export async function applyRecoveryOperation({businessId,conversationId,userId,v
       next.serviceDecision = {decision:'pending'}; // facts change invalidates previous approval
       evidence = {changedKeys:Object.keys(input)}; // do not replicate PII in audit log
       if (writeThroughEnabled()) {
-        const updateLead = await Lead.updateOne({_id:record.lead,business:businessId},{$set:input},{session,runValidators:true});
+        const updateLead = await writeRecoveryLeadFacts({ Lead, businessId, input, record, session });
         if (updateLead.matchedCount!==1) throw conflict('Linked lead was not found.');
         const memory = Object.fromEntries(Object.entries(input).filter(([key])=>key!=='customerName').map(([key,value])=>[`conversationMemory.${key}`,value]));
         const update = {...memory,...(input.customerName?{customerName:input.customerName}:{}),
           ...(input.serviceNeeded?{serviceEligibility:{decision:'needs_staff_review',reason:'staff_corrected_request',request:input.serviceNeeded}}:{})};
-        await Conversation.updateOne({_id:conversationId,business:businessId},{$set:update},{session,runValidators:true});
+        await writeRecoveryConversationFacts({ Conversation, businessId, conversationId, session, update });
       }
     } else {
       const old = record.facts?.serviceNeeded;
@@ -109,12 +106,9 @@ export async function applyRecoveryOperation({businessId,conversationId,userId,v
         requestFingerprint:fingerprintRequest(old),reason:input.reason,actor:userId,decidedAt:new Date()};
       evidence = {decision:input.decision,offeringId:input.serviceOfferingId||null};
     }
-    const updated = await RecoveryCase.findOneAndUpdate({_id:record._id,business:businessId,version},
-      {$set:next,$inc:{version:1}},{new:true,runValidators:true,session}).lean();
+    const updated = await advanceRecoveryDecision({ RecoveryCase, businessId, next, record, session, version }).lean();
     if (!updated) throw conflict('Concurrent recovery update. Reload and try again.');
-    await RecoveryEvent.create([{business:businessId,recoveryCase:record._id,conversation:record.conversation,
-      operationId,operationHash,kind:action==='facts'?'facts_corrected':input.decision==='accepted'?'service_accepted':'service_declined',
-      versionBefore:version,versionAfter:version+1,actor:userId,evidence}],{session});
+    await recordRecoveryOperationEvent({ RecoveryEvent, action, businessId, evidence, input, operationHash, operationId, record, session, userId, version });
     outcome = updated;
   });
   return outcome;

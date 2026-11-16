@@ -1,5 +1,5 @@
+import { patchOwnedConfirmationIntent, beginConfirmationIntent, claimDueConfirmationIntent, finishConfirmationEffects } from '../stateTransitions/appointmentLifecycle.js';
 import { randomUUID } from 'node:crypto';
-
 export const confirmationPending = () => Object.assign(
   new Error('Appointment confirmation is already being processed. Refresh the appointment before taking another action.'),
   { statusCode: 409, code: 'APPOINTMENT_CONFIRMATION_PENDING' },
@@ -36,27 +36,12 @@ export function createConfirmationIntentRepository({ Appointment, leaseMs = 120_
     'confirmationIntent.leaseUntil': { $gt: clock() },
   });
   const patch = (appointment, fields) =>
-    Appointment.findOneAndUpdate(owned(appointment), { $set: fields }, options).select("+confirmationIntent");
+    patchOwnedConfirmationIntent({ Appointment, appointment, fields, options, owned }).select("+confirmationIntent");
 
   return {
     async begin(appointment, approvedBy, provider) {
       const now = clock();
-      return Appointment.findOneAndUpdate({
-        ...slotIdentity(appointment),
-        status: 'held',
-        $or: [{ heldExpiresAt: null }, { heldExpiresAt: { $gt: now } }],
-        'confirmationIntent.status': { $ne: 'pending_provider' },
-        ...(appointment.updatedAt ? { updatedAt: appointment.updatedAt } : {}),
-      }, { $set: { confirmationIntent: {
-        key: `${appointment.business}:${appointment._id}`,
-        status: 'pending_provider',
-        requestedAt: now,
-        nextAttemptAt: now,
-        approvedBy,
-        provider,
-        attempts: 0,
-        ...lease(now),
-      } } }, options).select("+confirmationIntent");
+      return beginConfirmationIntent({ Appointment, appointment, approvedBy, lease, now, options, provider, slotIdentity }).select("+confirmationIntent");
     },
 
     listDue(limit) {
@@ -70,12 +55,7 @@ export function createConfirmationIntentRepository({ Appointment, leaseMs = 120_
     claim(appointment) {
       const now = clock();
       const { token, leaseUntil } = lease(now);
-      return Appointment.findOneAndUpdate({
-        ...slotIdentity(appointment),
-        status: appointment.status,
-        'confirmationIntent.status': appointment.confirmationIntent.status,
-        ...due(now),
-      }, { $set: { 'confirmationIntent.token': token, 'confirmationIntent.leaseUntil': leaseUntil } }, options).select("+confirmationIntent");
+      return claimDueConfirmationIntent({ Appointment, appointment, due, leaseUntil, now, options, slotIdentity, token }).select("+confirmationIntent");
     },
 
     patch,
@@ -84,10 +64,7 @@ export function createConfirmationIntentRepository({ Appointment, leaseMs = 120_
         'confirmationIntent.key': appointment.confirmationIntent.key }).select("+confirmationIntent").read('primary').readConcern('majority');
     },
     finishEffects(appointment) {
-      return Appointment.findOneAndUpdate(owned(appointment), {
-        $set: { 'confirmationIntent.effectsPending': false },
-        $unset: { 'confirmationIntent.nextAttemptAt': '', 'confirmationIntent.token': '', 'confirmationIntent.leaseUntil': '' },
-      }, options).select("+confirmationIntent");
+      return finishConfirmationEffects({ Appointment, appointment, options, owned }).select("+confirmationIntent");
     },
     defer(appointment, delayMs) {
       const now = clock();

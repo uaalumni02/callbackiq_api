@@ -1,3 +1,5 @@
+import { recordRecoveryBookingEvent } from '../stateTransitions/recoveryCoordinator.js';
+import { persistRecoveryBookingEvidence } from '../stateTransitions/recoveryCoordinator.js';
 import crypto from 'node:crypto';
 import mongoose from 'mongoose';
 import RecoveryCase from '../../models/recoveryCase.js';
@@ -27,14 +29,9 @@ export async function reconcileRecoveryBookingEvidence({now=new Date()}={}) {
         const hash=crypto.createHash('sha256').update(key).digest('hex');
         await mongoose.connection.transaction(async session => {
           if (await RecoveryEvent.exists({business:record.business,operationId:key}).session(session)) return;
-          const changed=await RecoveryCase.findOneAndUpdate({_id:record._id,business:record.business,
-            version:record.version,status:{$in:['accepted','scheduling']}},{$set:{status:'booked',
-              'booking.appointment':appointment._id,'booking.status':'confirmed','booking.lastVerifiedAt':now},
-              $inc:{version:1}},{new:true,session});
+          const changed=await persistRecoveryBookingEvidence({ RecoveryCase, appointment, now, record, session });
           if (!changed) return;
-          await RecoveryEvent.create([{business:record.business,recoveryCase:record._id,conversation:record.conversation,
-            operationId:key,operationHash:hash,kind:'booking_observed',versionBefore:record.version,
-            versionAfter:record.version+1,evidence:{appointmentId:String(appointment._id)}}],{session});
+          await recordRecoveryBookingEvent({ RecoveryEvent, appointment, hash, key, record, session });
           updated++;
         });
       } catch(error) { failed++;safeConsole.error('recovery_coordinator.reconciliation_failed',{caseId:String(record._id),error:error.message}); }

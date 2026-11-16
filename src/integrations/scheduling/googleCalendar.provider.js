@@ -1,5 +1,5 @@
+import { saveStateDocument } from '../../services/stateTransitions/documents.js';
 import crypto from "crypto";
-
 import SchedulingProvider from "./schedulingProvider.js";
 import Appointment from "../../models/appointment.js";
 import { generateInternalSlots } from "../../services/scheduling/slotGenerator.service.js";
@@ -698,7 +698,7 @@ class GoogleCalendarProvider extends SchedulingProvider {
       connection.lastErrorAt = null;
       connection.lastErrorCode = "";
       connection.lastErrorMessage = "";
-      await connection.save();
+      await saveStateDocument(connection);
     }
 
     return {

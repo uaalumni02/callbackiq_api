@@ -1,3 +1,4 @@
+import { claimConversationRecoveryIntroduction } from '../stateTransitions/messaging.js';
 import Conversation from '../../models/conversation.js';
 export const RECOVERY_INTRO_COOLDOWN_MS = 15 * 60_000;
 export const hasRecentRecoveryIntroduction = (conversation, now = new Date()) => {
@@ -8,13 +9,5 @@ export const hasRecentRecoveryIntroduction = (conversation, now = new Date()) =>
 // opening. Keep the claim on ambiguous provider failures; never blindly resend.
 export const claimRecoveryIntroduction = async ({ businessId, conversationId, operationKey = "", now = new Date() }) => {
   const cutoff = new Date(now.getTime() - RECOVERY_INTRO_COOLDOWN_MS);
-  return Boolean(await Conversation.findOneAndUpdate({
-    _id: conversationId, business: businessId,
-    status: 'open', humanTakeover: { $ne: true }, aiEnabled: { $ne: false },
-    $or: [
-      ...(operationKey ? [{ "orchestration.recoveryIntroOperationKey": operationKey }] : []),
-      { 'orchestration.recoveryIntroClaimedAt': null },
-      { 'orchestration.recoveryIntroClaimedAt': { $lte: cutoff } },
-    ],
-  }, { $set: { 'orchestration.recoveryIntroClaimedAt': now, ...(operationKey ? { 'orchestration.recoveryIntroOperationKey': operationKey } : {}) } }, { returnDocument: 'after' }));
+  return Boolean(await claimConversationRecoveryIntroduction({ Conversation, businessId, conversationId, cutoff, now, operationKey }));
 };

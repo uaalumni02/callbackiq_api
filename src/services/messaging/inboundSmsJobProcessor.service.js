@@ -1,3 +1,4 @@
+import { persistStaffFollowUpLead, persistStaffFollowUpConversation } from '../stateTransitions/messaging.js';
 import { handleSmsContactControl, handleSmsRequestInterrupt } from "./inboundSmsDeterministicActions.service.js";
 import { createSmsOutboundDelivery } from './smsOutboundDelivery.adapter.js';
 import { preserveHigherUrgency } from "./urgencyPolicy.service.js";
@@ -29,7 +30,6 @@ import { assertDistributedLeaseActive } from "../distributedLease.service.js";
 import { describeSmsWorkflowDecision } from './smsWorkflowPolicy.service.js';
 import { planCustomerTurn } from './customerTurnPlan.service.js';
 import { routeConversationReply } from './inboundSmsReply.service.js';
-
 const persistOutboundReply = createSmsOutboundDelivery({ Message, Conversation, AlertService, SocketService, sendSms, logOperationalEvent, applySmsProductionInvariants, describeSmsWorkflowDecision, assertDistributedLeaseActive, respectCustomerConstraints, getSmsAutomationSuppressionReason });
 
 async function resolveSmsRecords(job) {
@@ -204,21 +204,10 @@ async function persistStaffFollowUp(context) {
     safety ? (deterministicAssessment.category === "emergency" ? "emergency" : "high") : classification.entities?.urgency);
   assertDistributedLeaseActive();
   const facts = safety ? captureTurnFacts({ customerMessage: customerTurn.customerMessage, classification, business, lead }) : {};
-  const followUpLead = await Lead.findByIdAndUpdate(lead._id,
-    { $set: { ...facts, urgency } }, { returnDocument: "after", runValidators: true });
+  const followUpLead = await persistStaffFollowUpLead({ Lead, facts, lead, urgency });
   Object.assign(lead, facts, { urgency });
   const intent = safety ? deterministicAssessment.category : "intake_follow_up";
-  const followUpConversation = await Conversation.findByIdAndUpdate(conversation._id, {
-    $set: {
-      "conversationMemory.urgency": urgency,
-      "conversationMemory.lastIntent": intent,
-      "conversationMemory.lastUpdatedAt": new Date(),
-      "orchestration.lastIntent": intent,
-      "orchestration.lastOutcome": "queued_for_team",
-      "orchestration.lastInboundMessage": inboundMessage._id,
-      "orchestration.lastCustomerTurnAt": new Date(),
-    },
-  }, { returnDocument: "after", runValidators: true });
+  const followUpConversation = await persistStaffFollowUpConversation({ Conversation, conversation, inboundMessage, intent, urgency });
   await Message.findByIdAndUpdate(inboundMessage._id, { $set: {
     aiOutcome: { intent, urgency, serviceNeeded: lead.serviceNeeded || "",
       address: lead.address || "", preferredAppointmentTime: lead.preferredAppointmentTime || "",

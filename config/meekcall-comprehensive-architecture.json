@@ -7,7 +7,8 @@
       "name": "savePasswordResetToken",
       "module": "src/db/repositories/extracted/identity-1.js",
       "kind": "method",
-      "sha": "ac780b01638c11bf19d94ee302c237c10353ef02bc8cfbf2d6080ed6eb7a5ac9"
+      "sha": "46ed995a3b51874c3907f9829930bcf45c8e4ff4db5027a45866d01b87474991",
+      "preTransitionMigrationSha": "ac780b01638c11bf19d94ee302c237c10353ef02bc8cfbf2d6080ed6eb7a5ac9"
     },
     {
       "name": "findUserByPasswordResetToken",
@@ -19,7 +20,8 @@
       "name": "saveResetPassword",
       "module": "src/db/repositories/extracted/identity-1.js",
       "kind": "method",
-      "sha": "4c77f3080b530ead758582cda7fbc9141e697f123709c85ab79ba8640152128b"
+      "sha": "70b10664c57cec9dce83b4888174007da28c26f8db0d9bc1337f66ad27c11ee4",
+      "preTransitionMigrationSha": "4c77f3080b530ead758582cda7fbc9141e697f123709c85ab79ba8640152128b"
     },
     {
       "name": "findUserByLogin",
@@ -31,19 +33,22 @@
       "name": "recordFailedLogin",
       "module": "src/db/repositories/extracted/operations-1.js",
       "kind": "method",
-      "sha": "e5cd2e4088213dba6bbe7b17c369407caa146a4b7486ac924f7f01a8bac80e66"
+      "sha": "072715c8454d008fab7e6594475fe0867ce22b4b2f35b9e17a9424a73dbeface",
+      "preTransitionMigrationSha": "e5cd2e4088213dba6bbe7b17c369407caa146a4b7486ac924f7f01a8bac80e66"
     },
     {
       "name": "clearLoginSecurityState",
       "module": "src/db/repositories/extracted/operations-1.js",
       "kind": "method",
-      "sha": "a88af8007f112e90cb71be809a87147172e3918deb1cde87f0ce161ba8cd5205"
+      "sha": "b4112eacb2231dd7c7633914e16dfd2c7bd852fedb1dd6b102c6f3d20fe3bd6c",
+      "preTransitionMigrationSha": "a88af8007f112e90cb71be809a87147172e3918deb1cde87f0ce161ba8cd5205"
     },
     {
       "name": "decayLoginSecurityState",
       "module": "src/db/repositories/extracted/operations-1.js",
       "kind": "method",
-      "sha": "12e97702826906d08fa6758954732e386ce0cea3ded40b632e3aa701a4fbd400"
+      "sha": "7e7e85845ab13027d3528e96478c5c331ab50ca585f1b0aa20150c1ef89d68f0",
+      "preTransitionMigrationSha": "12e97702826906d08fa6758954732e386ce0cea3ded40b632e3aa701a4fbd400"
     },
     {
       "name": "getBusinessScopeByOwner",
@@ -55,7 +60,8 @@
       "name": "updateBusinessByOwner",
       "module": "src/db/repositories/extracted/business-1.js",
       "kind": "method",
-      "sha": "3983e5a8c3461f54d4591251794cad20e1b229ae78df5535c214296e84b42138"
+      "sha": "4836512f83e9d9c940c59e428587b033d5c87edeabad41130a8ab6b27f3a1bf6",
+      "preTransitionMigrationSha": "3983e5a8c3461f54d4591251794cad20e1b229ae78df5535c214296e84b42138"
     },
     {
       "name": "deleteBusinessByOwner",
@@ -91,25 +97,29 @@
       "name": "findTrialRedemption",
       "module": "src/db/repositories/extracted/trial-1.js",
       "kind": "method",
-      "sha": "a6b0a0d8cfaa580313af429b619ccba1137f0ae36eb1f8e1b575e5b4fb932794"
+      "sha": "5f721b9f0f2333bc6e69e71e140318a779f302b187b16073914311d5000fb9d2",
+      "preTransitionMigrationSha": "a6b0a0d8cfaa580313af429b619ccba1137f0ae36eb1f8e1b575e5b4fb932794"
     },
     {
       "name": "createTrialRedemption",
       "module": "src/db/repositories/extracted/trial-1.js",
       "kind": "method",
-      "sha": "339f1e2f5e7512de2aec39df7689f63c545ae9dcf3d2d0fcb81f6069305f7c82"
+      "sha": "bc7d2af84b3db42d2123c059686b307666fa27ac4605e64b9f11f5e51fdb441f",
+      "preTransitionMigrationSha": "339f1e2f5e7512de2aec39df7689f63c545ae9dcf3d2d0fcb81f6069305f7c82"
     },
     {
       "name": "updateDemoRequest",
       "module": "src/db/repositories/extracted/demo-1.js",
       "kind": "method",
-      "sha": "a111f28e99afc19aefe6cd72c23923ba0a865f5270af292c3ebde6673245d8f1"
+      "sha": "5a9c8e44a39b25486044cd77274ef5ba76ab3a31795fe75ee665b937639e8f07",
+      "preTransitionMigrationSha": "a111f28e99afc19aefe6cd72c23923ba0a865f5270af292c3ebde6673245d8f1"
     },
     {
       "name": "recheckAndConfirm",
       "module": "src/services/scheduling/commands/recheckAndConfirm-1.js",
       "kind": "method",
-      "sha": "c39e77fa00b9bce29be118fddf2a8487feee723f725812fd6b57b38573b62c53"
+      "sha": "46d0b253e4089314945861951cf9e8e191874e7914fff230f23c647314bb6f24",
+      "preTransitionMigrationSha": "c39e77fa00b9bce29be118fddf2a8487feee723f725812fd6b57b38573b62c53"
     },
     {
       "name": "create",
@@ -121,14 +131,16 @@
       "name": "confirm",
       "module": "src/services/scheduling/commands/confirm-1.js",
       "kind": "method",
-      "sha": "f12a5b20671b98f8c53ec19c554c1fbcd53822663350607ba1ec171a60f2ffe0",
-      "review": "All providers now use durable confirmation intent; characterization tests cover compensation and post-commit behavior."
+      "sha": "565a3b27ebca7be2c96e389a4b3e78f11a169e4eec3c0f67e37e0eb6935f862e",
+      "review": "All providers now use durable confirmation intent; characterization tests cover compensation and post-commit behavior.",
+      "preTransitionMigrationSha": "f12a5b20671b98f8c53ec19c554c1fbcd53822663350607ba1ec171a60f2ffe0"
     },
     {
       "name": "cancel",
       "module": "src/services/scheduling/commands/cancel-1.js",
       "kind": "method",
-      "sha": "005526f013d26e7917de93945a541eb0bc456e11d8994101132c8f490dd82abb"
+      "sha": "ff880cdc15e519bb8130f629196615fd0184e09bda76da96a577f75b1cd9c86a",
+      "preTransitionMigrationSha": "005526f013d26e7917de93945a541eb0bc456e11d8994101132c8f490dd82abb"
     },
     {
       "name": "reschedule",
@@ -141,7 +153,8 @@
       "name": "update",
       "module": "src/services/scheduling/commands/update-1.js",
       "kind": "method",
-      "sha": "992e70eb9134387e28c5947b0264f4575079634428db8ddf01d26c2db97c32fe"
+      "sha": "683b652e27fed801f366573669f7313e7cbdee2285442607d39866b4db54afbe",
+      "preTransitionMigrationSha": "992e70eb9134387e28c5947b0264f4575079634428db8ddf01d26c2db97c32fe"
     },
     {
       "name": "cleanStreetAddress",
@@ -473,7 +486,8 @@
       "mongoose",
       "../tenantRepository.js",
       "../dbProjectionFields.js",
-      "../../../config/numericSettings.js"
+      "../../../config/numericSettings.js",
+      "../../../services/stateTransitions/accountRecords.js"
     ],
     "tests": [
       "tests/integration/tenantRepository.rootCause.test.js",
@@ -501,6 +515,37 @@
       "./finalize.js",
       "./recovery.js",
       "./followUp.js"
+    ],
+    "src/db/repositories/extracted/identity-1.js": [
+      "../../../services/stateTransitions/accountRecords.js"
+    ],
+    "src/db/repositories/extracted/operations-1.js": [
+      "../../../services/stateTransitions/accountRecords.js"
+    ],
+    "src/db/repositories/extracted/business-1.js": [
+      "../../../services/stateTransitions/accountRecords.js"
+    ],
+    "src/db/repositories/extracted/trial-1.js": [
+      "../../../services/stateTransitions/documents.js"
+    ],
+    "src/db/repositories/extracted/demo-1.js": [
+      "../../../services/stateTransitions/accountRecords.js"
+    ],
+    "src/services/scheduling/commands/recheckAndConfirm-1.js": [
+      "../../stateTransitions/appointmentCommands.js"
+    ],
+    "src/services/scheduling/commands/confirm-1.js": [
+      "../../stateTransitions/appointmentCommands.js",
+      "../../stateTransitions/documents.js"
+    ],
+    "src/services/scheduling/commands/cancel-1.js": [
+      "../../stateTransitions/appointmentCommands.js",
+      "../../stateTransitions/documents.js"
+    ],
+    "src/services/scheduling/commands/update-1.js": [
+      "../../stateTransitions/appointmentCommands.js",
+      "../../stateTransitions/documents.js"
     ]
-  }
+  },
+  "stateTransitionMigrationContract": "contracts/state-transition-migration.json"
 }

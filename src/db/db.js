@@ -1,3 +1,4 @@
+import { saveStateDocument } from '../services/stateTransitions/documents.js';
 import {tenantRepository,tenantContext} from './repositories/tenantRepository.js';
 import { createDbidentity1Methods } from './repositories/extracted/identity-1.js';
 import { createDboperations1Methods } from './repositories/extracted/operations-1.js';
@@ -17,7 +18,6 @@ import { safeConsole } from "../helpers/logging/safeLogger.js";
 import * as subscriptionRepository from "./repositories/subscriptionRepository.js";
 import * as supportTicketRepository from "./repositories/supportTicketRepository.js";
 import { verifiedAmountExpression } from "../services/valuation/opportunityValue.js";
-
 
 let __meekcallDbidentity1Cache;
 function __meekcallGetDbidentity1Methods() {
@@ -144,7 +144,7 @@ class Db {
   static async saveBusiness(model, data, { session = null } = {}) {
     try {
       const business = new model(data);
-      return await business.save(session ? { session } : undefined);
+      return await saveStateDocument(business, session ? { session } : undefined);
     } catch (error) {
       safeConsole.error("Error saving business:", error);
       throw error;
@@ -385,7 +385,7 @@ class Db {
   static async createAdminActionLog(AdminActionLog, payload) {
     try {
       const log = new AdminActionLog(payload);
-      return await log.save();
+      return await saveStateDocument(log);
     } catch (error) {
       safeConsole.error("Error creating admin action log:", error);
       throw error;
@@ -412,7 +412,7 @@ class Db {
   static async saveDemoRequest(model, data) {
     try {
       const demoRequest = new model(data);
-      return await demoRequest.save();
+      return await saveStateDocument(demoRequest);
     } catch (error) {
       safeConsole.error("Error saving demo request:", error);
       throw error;

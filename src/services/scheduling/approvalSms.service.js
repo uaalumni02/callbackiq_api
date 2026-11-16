@@ -1,9 +1,9 @@
+import { runApprovalSmsAlertUpdateOne, runApprovalSmsAlertAtomicUpdate, runApprovalSmsAlertUpdateOne2, runApprovalSmsAlertUpdateOne3 } from '../stateTransitions/appointmentLifecycle.js';
 import crypto from 'node:crypto';
 import Alert from '../../models/alert.js';
 import Business from '../../models/business.js';
 import Policy from '../../models/schedulingPolicy.js';
 import { sendSms } from '../twilioSmsService.js';
-
 const eligibleAttempt = (path, now) => ({ $or: [
   { [path]: { $exists: false } },
   { [`${path}.state`]: 'blocked', [`${path}.retryAt`]: { $lte: now } },
@@ -40,15 +40,13 @@ export async function runApprovalSms({ limit = 100, now = new Date(), send = sen
     const previous = alert.metadata?.approvalSms?.[stage];
     if (previous?.state === 'sending') {
       if (new Date(previous.at) < new Date(now.getTime() - 120000)) {
-        await Alert.updateOne({ _id: alert._id, [`${path}.state`]: 'sending' }, { $set: { [`${path}.state`]: 'uncertain' } });
+        await runApprovalSmsAlertUpdateOne({ Alert, alert, path });
       }
       continue;
     }
     if (previous && !(previous.state === 'blocked' && previous.retryAt && new Date(previous.retryAt) <= now)) continue;
     const token = crypto.randomUUID();
-    const claimed = await Alert.findOneAndUpdate({ _id: alert._id, actionRequired: true, resolvedAt: null,
-      acknowledgedAt: null, ...eligibleAttempt(path, now) },
-      { $set: { [path]: { state: 'sending', at: now, token } } }, { returnDocument: "after" });
+    const claimed = await runApprovalSmsAlertAtomicUpdate({ Alert, alert, eligibleAttempt, now, path, token });
     if (!claimed) continue;
     try {
       if (!process.env.CLIENT_URL) throw new Error('CLIENT_URL is required for approval links');
@@ -62,15 +60,11 @@ export async function runApprovalSms({ limit = 100, now = new Date(), send = sen
       const state = result?.sid ? 'sent' : result?.suppressed || result?.policyBlocked ? 'blocked' : 'uncertain';
       const retryAt = state === 'blocked' && ['outside_send_window', 'quiet_hours'].includes(result?.reason)
         ? new Date(now.getTime() + 15 * 60000) : null;
-      await Alert.updateOne({ _id: alert._id, [`${path}.token`]: token }, { $set: { [path]: {
-        state, at: now, retryAt, reason: result?.reason || '', providerMessageId: result?.sid || '',
-      } } });
+      await runApprovalSmsAlertUpdateOne2({ Alert, alert, now, path, result, retryAt, state, token });
       if (state === 'sent') sent++;
     } catch (error) {
       // An unknown provider outcome must not trigger a duplicate text on retry.
-      await Alert.updateOne({ _id: alert._id, [`${path}.token`]: token }, { $set: { [path]: {
-        state: error.deliveryUncertain ? 'uncertain' : 'failed', at: now, reason: String(error.code || error.message).slice(0, 200),
-      } } });
+      await runApprovalSmsAlertUpdateOne3({ Alert, alert, error, now, path, token });
     }
   }
   return { sent };

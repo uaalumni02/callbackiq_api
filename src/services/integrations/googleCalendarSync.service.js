@@ -1,5 +1,5 @@
+import { saveStateDocument } from '../stateTransitions/documents.js';
 import crypto from "crypto";
-
 import Appointment from "../../models/appointment.js";
 import Business from "../../models/business.js";
 import IntegrationConnection from "../../models/integrationConnection.js";
@@ -36,7 +36,7 @@ const saveGoogleMetadata = async (connection, googleCalendar) => {
     : null;
   connection.syncToken = sync.nextSyncToken || "";
   connection.markModified("metadata");
-  await connection.save();
+  await saveStateDocument(connection);
   return connection;
 };
 
@@ -232,7 +232,7 @@ const reconcileEvent = async ({
   appointment.externalAppointmentId = event.id;
   appointment.externalCalendarId = calendarId;
   appointment.provider = "google_calendar";
-  await appointment.save();
+  await saveStateDocument(appointment);
   return true;
 };
 

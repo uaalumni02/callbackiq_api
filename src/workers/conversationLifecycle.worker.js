@@ -1,3 +1,4 @@
+import { conversationLifecycleWorkerExpireBookingOfferConversationAtomicUpdate, conversationLifecycleWorkerNudgeAbandonedRecoveryConversationAtomicUpdate, conversationLifecycleWorkerNudgeAbandonedRecoveryConversationUpdateOne, conversationLifecycleWorkerTransitionConversationAtomicUpdate } from '../services/stateTransitions/customerRequest.js';
 import { bookingTransitionFields } from '../services/booking/requestBookingState.js';
 import { maintainStaffReviewRecords } from '../services/staffReviewReconciliation.service.js';
 import { reconcileRecoveryBookingEvidence } from '../services/recoveryCoordinator/reconciliation.service.js';
@@ -12,7 +13,6 @@ import Message from "../models/message.js";
 import { sendSms } from "../services/twilioSmsService.js";
 import { withDistributedLease } from "../services/distributedLease.service.js";
 import { safeConsole, logOperationalError, logOperationalEvent } from "../helpers/logging/safeLogger.js";
-
 let timer = null;
 let running = false;
 
@@ -85,24 +85,7 @@ export const expireBookingOffer = async (conversation, now) => {
   const expiresAt = conversation.bookingState?.expiresAt && new Date(conversation.bookingState.expiresAt);
   if (!expiresAt || expiresAt > now) return false;
 
-  const claimed = await Conversation.findOneAndUpdate(
-    {
-      _id: conversation._id,
-      "bookingState.status": status,
-      "bookingState.expiresAt": expiresAt,
-      status: "open",
-      humanTakeover: { $ne: true },
-      aiEnabled: { $ne: false },
-    },
-    {
-      $set: {
-        ...bookingTransitionFields('offer_expired'),
-        "orchestration.phase": "scheduling",
-        "orchestration.lastStateTransitionAt": now,
-      },
-    },
-    { returnDocument: "after" },
-  );
+  const claimed = await conversationLifecycleWorkerExpireBookingOfferConversationAtomicUpdate({ Conversation, bookingTransitionFields, conversation, expiresAt, now, status });
   if (!claimed) return false;
 
   // No slot was held. Refresh availability on the next customer scheduling turn.
@@ -137,23 +120,7 @@ const nudgeAbandonedRecovery = async (conversation, now) => {
   if (dueAt > now) return false;
 
   const nextCount = nudgeCount + 1;
-  const claimed = await Conversation.findOneAndUpdate(
-    {
-      _id: conversation._id,
-      $or: [
-        { "lifecycle.recoveryNudgeCount": nudgeCount },
-        ...(nudgeCount === 0 ? [{ "lifecycle.recoveryNudgeCount": { $exists: false } }] : []),
-      ],
-    },
-    {
-      $set: {
-        "lifecycle.recoveryNudgeCount": nextCount,
-        "lifecycle.lastLifecycleActionAt": now,
-        "lifecycle.nextRecoveryNudgeAt": nextCount >= 2 ? null : new Date(now.getTime() + 18 * 60 * 60000),
-      },
-    },
-    { returnDocument: "after" },
-  );
+  const claimed = await conversationLifecycleWorkerNudgeAbandonedRecoveryConversationAtomicUpdate({ Conversation, conversation, nextCount, now, nudgeCount });
   if (!claimed) return false;
 
   const body = nextCount === 1
@@ -168,15 +135,7 @@ const nudgeAbandonedRecovery = async (conversation, now) => {
   });
 
   if (sent?.policyBlocked) {
-    await Conversation.updateOne(
-      { _id: conversation._id, "lifecycle.recoveryNudgeCount": nextCount },
-      {
-        $set: {
-          "lifecycle.recoveryNudgeCount": nudgeCount,
-          "lifecycle.nextRecoveryNudgeAt": new Date(now.getTime() + 60 * 60000),
-        },
-      },
-    );
+    await conversationLifecycleWorkerNudgeAbandonedRecoveryConversationUpdateOne({ Conversation, conversation, nextCount, now, nudgeCount });
     return false;
   }
   return true;
@@ -188,11 +147,7 @@ const processConversation = async (conversation, now) => {
     async () => {
       // Advance the scan position even for no-ops and errors. Reload under the
       // conversation lease so a stale candidate cannot undo staff activity.
-      const fresh = await Conversation.findOneAndUpdate(
-        { _id: conversation._id, status: "open" },
-        { $set: { "lifecycle.lastScannedAt": now } },
-        { returnDocument: "after" },
-      );
+      const fresh = await conversationLifecycleWorkerTransitionConversationAtomicUpdate({ Conversation, conversation, now });
       if (!fresh) return "noop";
       conversation = fresh;
       // Staff ownership has no timer. Only an explicit owner action may resume AI.

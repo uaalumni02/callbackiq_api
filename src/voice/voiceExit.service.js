@@ -1,6 +1,6 @@
+import { saveStateDocument } from '../services/stateTransitions/documents.js';
 import { optOutSms } from '../services/messaging/contactPreference.service.js';
 import { assertVoiceTurnActive } from '../services/voiceTurnContext.service.js';
-
 export const handleVoiceExit = async ({ session, customerMessage }) => {
   const text = String(customerMessage || '').replace(/[’‘]/g, "'").trim();
   const optOut = /\b(?:do not|don't|stop) (?:call(?:ing)?|text(?:ing)?|contact(?:ing)?)(?: me| us)?\b|\bremove my number\b/i.test(text);
@@ -15,17 +15,17 @@ export const handleVoiceExit = async ({ session, customerMessage }) => {
   }
   if (optOut || wrong) {
     session.conversation.aiEnabled = false;
-    await session.conversation.save();
+    await saveStateDocument(session.conversation);
     assertVoiceTurnActive();
     if (session.lead?.save) {
       session.lead.notes = `${session.lead.notes || ''}\nVoice caller requested no further contact: ${text}`.slice(-2000);
-      await session.lead.save(); assertVoiceTurnActive();
+      await saveStateDocument(session.lead); assertVoiceTurnActive();
     }
   }
   const outcome = optOut ? 'opted_out' : wrong ? 'wrong_number' : 'caller_declined';
   session.outcome = outcome;
   session.outcomeCommittedAt = new Date();
   session.status = 'completing';
-  await session.save(); assertVoiceTurnActive();
+  await saveStateDocument(session); assertVoiceTurnActive();
   return { reply: "Understood. I'll end this call now.", outcome, handoff: { type: 'end', handoffData: JSON.stringify({ reasonCode: outcome }) } };
 };

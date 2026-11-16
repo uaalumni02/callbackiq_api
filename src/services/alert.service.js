@@ -1,3 +1,4 @@
+import { alertCreateAlertAtomicUpdate } from './stateTransitions/reviews.js';
 import { createAwaitedInsertBatch } from './database/awaitedInsertBatch.js';
 import { sameTurnBatch } from "./database/sameTurnBatch.js";
 // Register every model populated here, including in standalone worker processes.
@@ -10,7 +11,6 @@ import { moneyAmount } from "./valuation/opportunityValue.js";
 // CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1: alerts
 import Alert from "../models/alert.js";
 import SocketService from "./socket.service.js";
-
 const insertAlert = createAwaitedInsertBatch(Alert);
 
 const ALERT_PRIORITIES = new Set(["low", "medium", "high", "critical"]);
@@ -164,26 +164,7 @@ class AlertService {
         // concurrent reopens to one; keep all earlier review history intact.
         if (existing && /^service-eligibility:/.test(dedupeKey) && metadata?.serviceEligibilityReason) {
           const reopenedAt = new Date();
-          const reopened = await Alert.findOneAndUpdate({
-            _id: existing._id, business: businessId, resolvedAt: { $ne: null },
-            'metadata.serviceEligibilityReason': { $exists: true },
-          }, {
-            $set: {
-              actionRequired: true, resolvedAt: null, resolvedBy: null,
-              resolution: '', status: 'sent', assignedTo: null,
-              acknowledgedAt: null, acknowledgedBy: null,
-              dueAt: dueAt || staffReviewDueAt(normalizePriority(priority), reopenedAt),
-              title, message, reason: truncate(reason, 1000),
-              recommendedAction: truncate(recommendedAction, 1000),
-              'metadata.serviceEligibilityReason': metadata.serviceEligibilityReason,
-            },
-            $unset: { 'metadata.workflow': 1 },
-            $push: { reviewEvents: {
-              key: `service-review-reopened:${reopenedAt.getTime()}`,
-              occurredAt: reopenedAt, title: 'Customer renewed the service review request',
-              message: 'The previous review remains in history; staff must make a new decision.',
-            } },
-          }, { returnDocument: 'after', runValidators: true });
+          const reopened = await alertCreateAlertAtomicUpdate({ Alert, businessId, dueAt, existing, message, metadata, normalizePriority, priority, reason, recommendedAction, reopenedAt, staffReviewDueAt, title, truncate });
           if (reopened) {
             const visible = await populateAlert(reopened._id);
             SocketService.emitAlertCreated(businessId, visible);

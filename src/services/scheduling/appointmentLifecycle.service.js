@@ -1,3 +1,4 @@
+import { repairAppointmentLifecycleAppointmentUpdateOne, repairAppointmentLifecycleAppointmentUpdateOne2, repairAppointmentLifecycleLeadUpdateOne, repairAppointmentLifecycleLeadUpdateOne2, repairAppointmentLifecycleAppointmentUpdateOne3, tryRepairAppointmentLifecycleAppointmentUpdateOne, appointmentLifecycleDeclineRescheduleRequestAppointmentAtomicUpdate } from '../stateTransitions/appointmentLifecycle.js';
 import { applyAppointmentBookingTransition } from '../booking/appointmentBookingTransition.repository.js';
 import Appointment from '../../models/appointment.js';
 import Business from '../../models/business.js';
@@ -6,7 +7,6 @@ import Lead from '../../models/lead.js';
 import { customerAppointmentLabel } from './customerAppointmentPresentation.service.js';
 import { scheduleAppointmentChangeNotice, cancelAppointmentNotifications, scheduleAppointmentReminders } from './appointmentNotification.service.js';
 import { resolveRescheduleReviews } from './rescheduleRequest.service.js';
-
 export const lifecycleMarker = key => ({ key: `lifecycle_${key}`, pending: true, lastError: '' });
 
 export function lifecycleMessage(appointment, business) {
@@ -31,7 +31,7 @@ export async function repairAppointmentLifecycle(appointment, business = null, {
   const filter = { _id: appointment._id, business: appointment.business, status: appointment.status, 'lifecycleNotice.key': key };
   const expectedStatus = key === 'lifecycle_canceled' ? 'canceled' : key === 'lifecycle_declined' ? 'failed' : 'confirmed';
   if (appointment.status !== expectedStatus) {
-    await Appointment.updateOne(filter, { $set: { 'lifecycleNotice.pending': false, 'lifecycleNotice.lastError': 'Superseded by appointment state.' } });
+    await repairAppointmentLifecycleAppointmentUpdateOne({ Appointment, filter });
     return;
   }
   if (key === 'lifecycle_confirmed') {
@@ -41,36 +41,30 @@ export async function repairAppointmentLifecycle(appointment, business = null, {
     const original = await Appointment.findOne({ _id: appointment.rescheduledFrom, business: appointment.business }).lean();
     if (!original || (original.status !== 'rescheduled' && original.status !== 'confirmed')) throw new Error('Original appointment requires reconciliation.');
     if (original.status === 'rescheduled' && String(original.rescheduledTo) !== String(appointment._id)) throw new Error('Conflicting replacement appointment.');
-    await Appointment.updateOne({ _id: original._id, business: appointment.business, status: 'confirmed' }, { $set: {
-      status: 'rescheduled', rescheduledTo: appointment._id, activeSlotKey: null, slotClaimKeys: [], capacityLane: null,
-      externalAppointmentId: null, externalCalendarId: null,
-      ...(original.rescheduleRequest?.status === 'pending' ? { 'rescheduleRequest.status': 'approved', 'rescheduleRequest.decidedAt': new Date(), 'rescheduleRequest.alertPending': true } : {}),
-    } });
+    await repairAppointmentLifecycleAppointmentUpdateOne2({ Appointment, appointment, original });
     await cancelAppointmentNotifications({ businessId: appointment.business, appointmentId: original._id });
     await resolveRescheduleReviews(original);
     await applyAppointmentBookingTransition(Conversation, 'appointment_rescheduled', appointment);
-    if (appointment.lead) await Lead.updateOne({ _id: appointment.lead, business: appointment.business, appointment: original._id },
-      { $set: { appointment: appointment._id, bookedAt: appointment.confirmedAt } });
+    if (appointment.lead) await repairAppointmentLifecycleLeadUpdateOne({ Lead, appointment, original });
     await scheduleAppointmentReminders({ appointment, ...(repairMissingOnly ? { repairMissingOnly: true } : {}) });
   }
   if (['lifecycle_canceled', 'lifecycle_declined'].includes(key)) {
     await cancelAppointmentNotifications({ businessId: appointment.business, appointmentId: appointment._id, types: ['reminder', 'follow_up'] });
     await resolveRescheduleReviews(appointment);
-    if (appointment.lead) await Lead.updateOne({ _id: appointment.lead, business: appointment.business, appointment: appointment._id }, { $set: { appointment: null } });
+    if (appointment.lead) await repairAppointmentLifecycleLeadUpdateOne2({ Lead, appointment });
     const event = key === 'lifecycle_declined' ? 'appointment_declined' : 'appointment_canceled';
     await applyAppointmentBookingTransition(Conversation, event, appointment);
   }
   if (key.startsWith('lifecycle_change_declined_')) await resolveRescheduleReviews(appointment, key.slice('lifecycle_change_declined_'.length));
   await scheduleAppointmentChangeNotice({ appointment, key, body: lifecycleMessage(appointment, ownerBusiness) });
-  await Appointment.updateOne(filter, { $set: { 'lifecycleNotice.pending': false, 'lifecycleNotice.lastError': '' } });
+  await repairAppointmentLifecycleAppointmentUpdateOne3({ Appointment, filter });
 }
 
 export async function tryRepairAppointmentLifecycle(appointment, business, options) {
   try { await repairAppointmentLifecycle(appointment, business, options); }
   catch (error) {
     // Report pending evidence in the API; maintenance retries the saved marker.
-    try { await Appointment.updateOne({ _id: appointment._id, 'lifecycleNotice.key': appointment.lifecycleNotice?.key },
-      { $set: { 'lifecycleNotice.lastError': String(error.message).slice(0, 300) } }); } catch { /* Keep the original marker. */ }
+    try { await tryRepairAppointmentLifecycleAppointmentUpdateOne({ Appointment, appointment, error }); } catch { /* Keep the original marker. */ }
   }
 }
 
@@ -81,11 +75,7 @@ export async function repairPendingAppointmentLifecycles({ businessId = null, li
 
 export async function declineRescheduleRequest({ business, appointmentId, requestId, reason = '' }) {
   if (typeof requestId !== 'string' || !/^[a-zA-Z0-9_-]{1,64}$/.test(requestId)) throw Object.assign(new Error('Reload the request before declining.'), { statusCode: 409 });
-  let appointment = await Appointment.findOneAndUpdate({ _id: appointmentId, business: business._id, status: 'confirmed',
-    'rescheduleRequest.id': requestId, 'rescheduleRequest.status': 'pending' }, { $set: {
-    'rescheduleRequest.status': 'declined', 'rescheduleRequest.decidedAt': new Date(), 'rescheduleRequest.reason': String(reason).slice(0, 500),
-    'rescheduleRequest.alertPending': true, lifecycleNotice: lifecycleMarker(`change_declined_${requestId}`),
-  } }, { returnDocument: "after" });
+  let appointment = await appointmentLifecycleDeclineRescheduleRequestAppointmentAtomicUpdate({ Appointment, appointmentId, business, lifecycleMarker, reason, requestId });
   if (!appointment) appointment = await Appointment.findOne({ _id: appointmentId, business: business._id, status: 'confirmed',
     'rescheduleRequest.id': requestId, 'rescheduleRequest.status': 'declined' });
   if (!appointment) throw Object.assign(new Error('The request changed. Reload it before deciding.'), { statusCode: 409 });

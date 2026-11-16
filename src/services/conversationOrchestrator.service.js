@@ -1,3 +1,4 @@
+import { conversationOrchestratorProcessConversationUpdateById, conversationOrchestratorProcessConversationUpdateById2 } from './stateTransitions/customerRequest.js';
 import { preventNonProgressReply } from './conversationPolicy/repetitionGuard.js';
 import { dialogMode } from './conversationPolicy/dialogPolicy.js';
 import { emitDialogMetric } from './conversationPolicy/dialogMetrics.js';
@@ -7,7 +8,6 @@ import AlertService from "./alert.service.js";
 import { generateAIReplyResult } from "./aiReplyService.js";
 import { logOperationalError, logOperationalEvent } from "../helpers/logging/safeLogger.js";
 import { enforceSmsWorkflowResult } from './messaging/smsWorkflowPolicy.service.js';
-
 const FALLBACK_REPLY = "Thanks — I have your message. I’m alerting the team so your request doesn’t get missed.";
 
 const bookingReady = (conversation) => ["offering_slots", "awaiting_confirmation", "booking", "booked"].includes(
@@ -79,10 +79,7 @@ class ConversationOrchestratorService {
         guardrail: { skipAI: true, reason: "silent_failure_guard", usedFallback: true, violations: [] },
       };
       escalated = true;
-      await Conversation.findByIdAndUpdate(conversation._id, {
-        $inc: { "orchestration.silentFailureCount": 1 },
-        $set: { "orchestration.lastEscalatedAt": new Date() },
-      });
+      await conversationOrchestratorProcessConversationUpdateById({ Conversation, conversation });
       logOperationalEvent("conversation_orchestrator.silent_failure_prevented", {
         businessId: business._id, conversationId: conversation._id,
       });
@@ -94,20 +91,7 @@ class ConversationOrchestratorService {
       Message.findByIdAndUpdate(inboundMessage._id, {
         $set: { aiOutcome: outcome, actorType: "customer", generatedBy: "customer" },
       }),
-      Conversation.findByIdAndUpdate(conversation._id, {
-        $set: {
-          ...(result?.summary ? { "conversationMemory.summary": String(result.summary).slice(0, 2000) } : {}),
-          ...(outcome.serviceNeeded ? { "conversationMemory.serviceNeeded": outcome.serviceNeeded } : {}),
-          ...(outcome.urgency ? { "conversationMemory.urgency": outcome.urgency } : {}),
-          ...(outcome.address ? { "conversationMemory.address": outcome.address } : {}),
-          ...(outcome.preferredAppointmentTime ? { "conversationMemory.preferredAppointmentTime": outcome.preferredAppointmentTime } : {}),
-          "conversationMemory.lastIntent": outcome.intent,
-          "conversationMemory.confidence": outcome.confidence,
-          "conversationMemory.lastUpdatedAt": new Date(),
-          "orchestration.lastOutcome": outcome.outcome,
-          "orchestration.lastInboundMessage": inboundMessage._id,
-        },
-      }),
+      conversationOrchestratorProcessConversationUpdateById2({ Conversation, conversation, inboundMessage, outcome, result }),
     ]);
     return { result, outcome, escalated };
   }

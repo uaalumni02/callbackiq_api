@@ -1,7 +1,7 @@
+import { saveStateDocument } from '../services/stateTransitions/documents.js';
 import {appendVoiceTranscriptUpdate} from './voiceTranscriptBatch.service.js';
 import VoiceSession from "../models/voiceSession.js";
 import * as Guardrails from "../helpers/ai/aiGuardrails.js";
-
 const ALLOWED_ROLES = new Set(["customer", "assistant", "system"]);
 const clean = (value, maximum = 4000) =>
   String(value || "")
@@ -101,7 +101,7 @@ class VoiceTranscriptService {
     if (!session) return null;
     session.summary = this.buildSummary(session.transcript || []);
     session.lastActivityAt = new Date();
-    await session.save();
+    await saveStateDocument(session);
     return session;
   }
 }

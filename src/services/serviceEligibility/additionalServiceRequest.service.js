@@ -1,9 +1,10 @@
+import { preserveAdditionalServiceRequestConversationMemory, preserveAdditionalServiceRequestConversationFields } from '../stateTransitions/customerRequest.js';
+import { saveStateDocument } from '../stateTransitions/documents.js';
 import crypto from 'node:crypto';
 import AlertService from '../alert.service.js';
 import { staffReviewDueAt } from '../staffReviewPolicy.service.js';
 import { assertDistributedLeaseActive } from '../distributedLease.service.js';
 import { assertVoiceTurnActive } from '../voiceTurnContext.service.js';
-
 export async function preserveAdditionalServiceRequest({ request, business, lead, conversation, customerMessage, evaluate }) {
   if (typeof conversation.save !== 'function') return null;
   const check = () => { assertDistributedLeaseActive(); assertVoiceTurnActive(); };
@@ -28,10 +29,10 @@ export async function preserveAdditionalServiceRequest({ request, business, lead
   const intake = conversation.conversationMemory?.recoveryIntake || {};
   const entries = Array.isArray(intake.additionalRequests) ? intake.additionalRequests : [];
   const next = { ...intake, additionalRequests: [...entries.filter(item => item.key !== key), entry].slice(-10) };
-  if (conversation.set) conversation.set('conversationMemory.recoveryIntake', next);
-  else conversation.conversationMemory = { ...(conversation.conversationMemory || {}), recoveryIntake: next };
+  if (conversation.set) preserveAdditionalServiceRequestConversationMemory({ conversation, next });
+  else preserveAdditionalServiceRequestConversationFields({ conversation, next });
   conversation.markModified?.('conversationMemory.recoveryIntake');
-  await conversation.save(); check();
+  await saveStateDocument(conversation); check();
   const answer = eligibility.decision === 'unsupported'
     ? 'The business does not offer that additional work.'
     : eligibility.decision === 'supported'

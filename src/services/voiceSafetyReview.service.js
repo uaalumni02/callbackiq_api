@@ -1,3 +1,4 @@
+import { voiceSafetyReviewTransitionLeadUpdateOne, voiceSafetyReviewTransitionConversationUpdateOne } from './stateTransitions/customerRequest.js';
 import { withDistributedLease } from './distributedLease.service.js';
 import crypto from 'node:crypto';
 import Conversation from '../models/conversation.js';
@@ -8,7 +9,6 @@ import { enqueueWebhookWork } from './webhooks/webhookWork.service.js';
 import { evaluateDeterministicInboundGuardrails, getEmergencyReply, redactSensitiveData } from '../helpers/ai/aiGuardrails.js';
 import { staffReviewDueAt } from './staffReviewPolicy.service.js';
 import { logOperationalError } from '../helpers/logging/safeLogger.js';
-
 export function voiceSafetyAssessment(customerMessage) {
   const assessment = evaluateDeterministicInboundGuardrails({ customerMessage });
   return assessment.handled && (['emergency', 'hazardous_diy_request'].includes(assessment.category) ||
@@ -44,9 +44,8 @@ export async function processVoiceSafetyReview(payload) {
   // Alert creation does not wait for intake ownership. Project urgency under
   // the shared lease so an in-flight intake save cannot overwrite it afterward.
   const lease = await withDistributedLease(`sms-conversation:${conversationId}`, async () => {
-    await Lead.updateOne({ _id: leadId, business: businessId, urgency: { $ne: 'emergency' } }, { $set: { urgency } });
-    await Conversation.updateOne({ _id: conversationId, business: businessId, 'conversationMemory.urgency': { $ne: 'emergency' } },
-      { $set: { 'conversationMemory.urgency': urgency } });
+    await voiceSafetyReviewTransitionLeadUpdateOne({ Lead, businessId, leadId, urgency });
+    await voiceSafetyReviewTransitionConversationUpdateOne({ Conversation, businessId, conversationId, urgency });
   });
   if (!lease.acquired) throw Object.assign(new Error('Safety urgency projection is waiting for intake'), { code: 'SAFETY_REVIEW_BUSY' });
 }

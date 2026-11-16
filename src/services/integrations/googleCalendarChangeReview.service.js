@@ -1,3 +1,5 @@
+import { googleCalendarChangeReviewResolveReviewAlertsAlertUpdateMany, googleCalendarChangeReviewApproveMoveAppointmentAtomicUpdate, googleCalendarChangeReviewApproveCancelAppointmentFields, googleCalendarChangeReviewApproveCancelAppointmentFields2, googleCalendarChangeReviewRejectGoogleProviderChangeAppointmentFields } from '../stateTransitions/integrations.js';
+import { saveStateDocument } from '../stateTransitions/documents.js';
 import Alert from "../../models/alert.js";
 import Appointment from "../../models/appointment.js";
 import AvailabilityService from "../scheduling/availability.service.js";
@@ -11,9 +13,7 @@ import SchedulingProviderFactory from "../scheduling/schedulingProviderFactory.j
 import InterventionService from "../intervention.service.js";
 import SocketService from "../socket.service.js";
 import { formatDateKey } from "../scheduling/timezone.service.js";
-
 const minuteMs = 60_000;
-
 const providerChangeKey = (change = {}) =>
   String(
     change.eventSequence ||
@@ -57,21 +57,7 @@ const displayTime = (date, timeZone = "America/New_York") =>
   }).format(new Date(date));
 
 const resolveReviewAlerts = async ({ businessId, appointmentId, resolution }) =>
-  Alert.updateMany(
-    {
-      business: businessId,
-      appointment: appointmentId,
-      type: "appointment_change_review",
-      resolvedAt: null,
-    },
-    {
-      $set: {
-        status: "resolved",
-        resolvedAt: new Date(),
-        resolution,
-      },
-    },
-  );
+  googleCalendarChangeReviewResolveReviewAlertsAlertUpdateMany({ Alert, appointmentId, businessId, resolution });
 
 export const queueGoogleProviderChange = async ({
   appointment,
@@ -114,7 +100,7 @@ export const queueGoogleProviderChange = async ({
     reviewedAt: null,
     reviewedBy: null,
   };
-  await appointment.save();
+  await saveStateDocument(appointment);
 
   const moveMessage =
     type === "move"
@@ -223,35 +209,7 @@ const approveMove = async ({ business, appointment, reviewedBy }) => {
   let updated = null;
   for (let capacityLane = 1; capacityLane <= capacity; capacityLane += 1) {
     try {
-      updated = await Appointment.findOneAndUpdate(
-        {
-          _id: appointment._id,
-          business: business._id,
-          "pendingProviderChange.status": "pending_review",
-        },
-        {
-          $set: {
-            startAt,
-            endAt,
-            capacityLane,
-            activeSlotKey: `${startAt.toISOString()}|${endAt.toISOString()}|lane:${capacityLane}`,
-            slotClaimKeys: getSlotClaimKeys({
-              startAt,
-              endAt,
-              bufferBeforeMinutes: appointment.bufferBeforeMinutes,
-              bufferAfterMinutes: appointment.bufferAfterMinutes,
-              capacityLane,
-            }),
-            externalAppointmentId: change.eventId,
-            externalCalendarId: change.calendarId,
-            provider: "google_calendar",
-            "pendingProviderChange.status": "approved",
-            "pendingProviderChange.reviewedAt": new Date(),
-            "pendingProviderChange.reviewedBy": reviewedBy || null,
-          },
-        },
-        { returnDocument: "after", runValidators: true },
-      ).populate("serviceOffering");
+      updated = await googleCalendarChangeReviewApproveMoveAppointmentAtomicUpdate({ Appointment, appointment, business, capacityLane, change, endAt, getSlotClaimKeys, reviewedBy, startAt }).populate("serviceOffering");
       if (updated) break;
     } catch (error) {
       if (error?.code !== 11000) throw error;
@@ -283,15 +241,15 @@ const approveMove = async ({ business, appointment, reviewedBy }) => {
 
 const approveCancel = async ({ business, appointment, reviewedBy }) => {
   const change = appointment.pendingProviderChange;
-  appointment.status = "canceled";
+  googleCalendarChangeReviewApproveCancelAppointmentFields({ appointment });
   appointment.canceledAt = new Date();
   appointment.activeSlotKey = null;
   appointment.slotClaimKeys = [];
   appointment.capacityLane = null;
-  appointment.pendingProviderChange.status = "approved";
+  googleCalendarChangeReviewApproveCancelAppointmentFields2({ appointment });
   appointment.pendingProviderChange.reviewedAt = new Date();
   appointment.pendingProviderChange.reviewedBy = reviewedBy || null;
-  await appointment.save();
+  await saveStateDocument(appointment);
   await cancelAppointmentNotifications({
     businessId: business._id,
     appointmentId: appointment._id,
@@ -373,10 +331,10 @@ export const rejectGoogleProviderChange = async ({
     providerResult?.externalAppointmentId || appointment.externalAppointmentId;
   appointment.externalCalendarId =
     providerResult?.externalCalendarId || appointment.externalCalendarId;
-  appointment.pendingProviderChange.status = "rejected";
+  googleCalendarChangeReviewRejectGoogleProviderChangeAppointmentFields({ appointment });
   appointment.pendingProviderChange.reviewedAt = new Date();
   appointment.pendingProviderChange.reviewedBy = reviewedBy || null;
-  await appointment.save();
+  await saveStateDocument(appointment);
   await resolveReviewAlerts({
     businessId: business._id,
     appointmentId,

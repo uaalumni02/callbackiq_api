@@ -1,9 +1,9 @@
+import { recordCustomerRescheduleRequest, recordCustomerAppointmentAcknowledgement } from '../stateTransitions/requestIntake.js';
 import Appointment from "../../models/appointment.js";
 import cancelAppointmentTool from "../../helpers/ai/tools/cancelAppointment.tool.js";
 import { isRequestWithdrawal } from "../conversationControlPolicy.js";
 import { renderAppointmentResponse } from "../scheduling/customerAppointmentPresentation.service.js";
 import { fixedResult } from "./bookingFixedResult.policy.js";
-
 export async function handleExistingBookingTurn({
   status,
   activeConversation,
@@ -97,10 +97,7 @@ export async function handleExistingBookingTurn({
       /^\s*r\s*$/i.test(text) ||
       /\breschedule|change (?:the )?(?:time|day|appointment)\b/i.test(text)
     ) {
-      await Appointment.updateOne(
-        { _id: appointmentId, business: business._id },
-        { $set: { customerRescheduleRequestedAt: new Date() } },
-      );
+      await recordCustomerRescheduleRequest({ Appointment, appointmentId, business });
       await saveBookingTransition(activeConversation, "reschedule_requested");
 
       return {
@@ -115,17 +112,7 @@ export async function handleExistingBookingTurn({
     // Reminder messages explicitly ask for C or R. Do not treat a repeated
     // conversational YES after booking as a second confirmation action.
     if (/^\s*c\s*$/i.test(text)) {
-      const confirmed = await Appointment.findOneAndUpdate(
-        {
-          _id: appointmentId,
-          business: business._id,
-          status: "confirmed",
-        },
-        {
-          $set: { customerConfirmedAt: new Date() },
-        },
-        { returnDocument: "after" },
-      );
+      const confirmed = await recordCustomerAppointmentAcknowledgement({ Appointment, appointmentId, business });
       if (confirmed) {
         return {
           handled: true,

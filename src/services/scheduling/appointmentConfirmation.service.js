@@ -1,3 +1,4 @@
+import { queueMissingConfirmationReview } from '../stateTransitions/appointmentLifecycle.js';
 import { applyAppointmentBookingTransition } from '../booking/appointmentBookingTransition.repository.js';
 import Alert from '../../models/alert.js';
 import AppointmentNotificationJob from '../../models/appointmentNotificationJob.js';
@@ -6,7 +7,6 @@ import ServiceOffering from '../../models/serviceOffering.js';
 import Conversation from '../../models/conversation.js';
 import { scheduleAppointmentChangeNotice } from './appointmentNotification.service.js';
 import { customerAppointmentLabel } from './customerAppointmentPresentation.service.js';
-
 import { needsSeparateConfirmation } from './appointmentConfirmationState.js';
 export { needsSeparateConfirmation } from './appointmentConfirmationState.js';
 
@@ -32,16 +32,7 @@ export async function repairConfirmedApproval({ appointment, business }) {
   } else if (needsSeparateConfirmation(appointment)) {
     const existing = await AppointmentNotificationJob.exists({ business: appointment.business,
       appointment: appointment._id, key: 'change_notice:business_approval_confirmed' });
-    if (!existing) await Alert.updateOne({ business: appointment.business,
-      dedupeKey: `appointment_confirmation_missing:${appointment._id}` }, { $setOnInsert: {
-      business: appointment.business, appointment: appointment._id, conversation: appointment.conversation || null,
-      lead: appointment.lead || null, type: 'integration_failure', channel: 'in_app', priority: 'high',
-      status: 'sent', actionRequired: true, sentAt: new Date(),
-      title: 'Appointment confirmation needs verification',
-      message: 'The visit start time has passed and its confirmation was not queued. Verify the customer outcome; no stale confirmation was sent.',
-      recommendedAction: 'Contact the customer and record the outcome.',
-      metadata: { appointmentId: String(appointment._id), confirmationRecovery: true },
-    } }, { upsert: true });
+    if (!existing) await queueMissingConfirmationReview({ Alert, appointment });
   }
   await applyAppointmentBookingTransition(Conversation, 'approval_repaired', appointment);
 }

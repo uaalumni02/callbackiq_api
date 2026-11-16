@@ -1,6 +1,6 @@
+import { saveStateDocument } from '../stateTransitions/documents.js';
 import IntegrationConnection from "../../models/integrationConnection.js";
 import { listGoogleCalendarDirectory } from "./googleCalendarDirectory.service.js";
-
 
 const boundedNumber = (value, fallback, minimum, maximum) => {
   const parsed = Number(value);
@@ -159,7 +159,7 @@ export const saveGoogleSettings = async ({ businessId, settings }) => {
     },
   };
   connection.markModified("metadata");
-  await connection.save();
+  await saveStateDocument(connection);
   return connection;
 };
 
@@ -224,6 +224,6 @@ export const saveJobberSettings = async ({ businessId, settings }) => {
     },
   };
   connection.markModified("metadata");
-  await connection.save();
+  await saveStateDocument(connection);
   return connection;
 };

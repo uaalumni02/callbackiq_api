@@ -1,7 +1,7 @@
+import { invalidateIntakeAvailability, reopenIntakeSubmission } from '../../stateTransitions/requestIntake.js';
 import { createRequestBookingGuard, saveRequestBookingDocument } from '../requestBookingPersistence.service.js';
 import { addressFromTurn, applyBookingStateTransition, clean, confirmationTimingReply, fixed, guardServiceRequest, isConfirmationQuestion, isSoftOptOutPhrase, known, resolveRequestAddress } from './context.js';
 const checkRequestBookingWrite = createRequestBookingGuard('voice');
-
 
 export async function captureRequestFacts(context) {
   const { customerMessage, lead, conversation, recentMessages, business, channel, turnId, semanticAssessment } = context;
@@ -19,8 +19,8 @@ const text = clean(customerMessage);
     if (known(lead.address) && capturedAddress !== lead.address && !conversation.bookingState?.appointment) {
       applyBookingStateTransition(conversation, 'intake_address_changed');
       if (conversation.conversationMemory?.recoveryIntake) {
-        conversation.conversationMemory.recoveryIntake.availability = { status: 'unknown' };
-        conversation.conversationMemory.recoveryIntake.submitted = false;
+        invalidateIntakeAvailability({ conversation });
+        reopenIntakeSubmission({ conversation });
         conversation.markModified?.('conversationMemory.recoveryIntake');
       }
       await saveRequestBookingDocument({ document: conversation, guard: checkRequestBookingWrite, before: false, optional: true });

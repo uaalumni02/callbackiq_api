@@ -86,6 +86,14 @@ replacement phases. Complexity exceptions for the retired 427-line method and
 
 ## State-writer registration and request persistence
 
+The existing-writer migration is completed in
+[Part 2 transition ownership](STATE_TRANSITIONS_PART2.md). All detected raw
+mutations now live in approved transition owners; ordinary domain code calls
+named commands. The checker rejects a raw domain primitive even if a previous
+inventory registered it. `contracts/state-transition-migration.json` additionally
+pins the complete baseline caller AST after restoring the relocated expressions.
+
+
 `contracts/state-writers.json` is the generated, reviewed inventory of durable
 record mutations and conservative writer candidates. `scripts/state-writers.mjs`
 uses the AST, resolves model/document aliases, and records each owner, authority,
@@ -101,9 +109,8 @@ fails the check. `npm run contracts:state-writers:generate` refreshes reviewed
 changes, but cannot register a newly introduced raw writer outside the transition
 layer. New domain code must call an approved transition command. The negative
 tests plant real source changes and assert that both the checker and regeneration
-reject an unregistered/bypassing writer. Existing registered domain commands keep
-their documented boundaries; this is a source enforcement path, not a runtime
-permission system for MongoDB.
+reject an unregistered/bypassing writer. Existing query/session/save behavior stays at its documented boundary; this is
+a source enforcement path, not a runtime permission system for MongoDB.
 
 `requestBookingPersistence.service.js` owns booking decision filters, document
 saves and lease/turn fencing. `bookingTurnState.repository.js` is a compatibility

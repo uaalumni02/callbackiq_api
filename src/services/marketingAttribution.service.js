@@ -1,3 +1,4 @@
+import { marketingAttributionTransitionLeadUpdateOne, marketingAttributionTransitionLeadUpdateOne2, marketingAttributionSyncLatestAttributionConversationUpdateOne } from './stateTransitions/customerProjections.js';
 import { createHash } from "node:crypto";
 import mongoose from "mongoose";
 // CALLBACKIQ_MARKETING_ATTRIBUTION_V1
@@ -9,7 +10,6 @@ import MarketingSource from "../models/marketingSource.js";
 import TrackingNumber from "../models/trackingNumber.js";
 import AttributionTouch from "../models/attributionTouch.js";
 import { normalizePhoneToE164 } from "../voice/voicePhone.service.js";
-
 export const buildAttributionSnapshot = ({
   marketingSource = null,
   trackingNumber = null,
@@ -124,56 +124,18 @@ export const syncLatestAttribution = async ({
               .select("marketingSource trackingNumber attribution")
               .lean();
 
-            await Lead.updateOne(
-              {
-                _id: leadId,
-                business: businessId,
-                $or: [
-                  { firstTrackingNumber: null },
-                  { firstTrackingNumber: { $exists: false } },
-                ],
-              },
-              {
-                $set: {
-                  firstMarketingSource:
-                    earliestCall?.marketingSource || marketingSource?._id || null,
-                  firstTrackingNumber:
-                    earliestCall?.trackingNumber || trackingNumber._id,
-                  firstAttribution:
-                    earliestCall?.attribution || attribution,
-                },
-              },
-            );
+            await marketingAttributionTransitionLeadUpdateOne({ Lead, attribution, businessId, earliestCall, leadId, marketingSource, trackingNumber });
           }
         }
 
-        return Lead.updateOne(
-          { _id: leadId, business: businessId },
-          {
-            $set: {
-              latestMarketingSource: marketingSource?._id || null,
-              latestTrackingNumber: trackingNumber?._id || null,
-              latestAttribution: attribution,
-            },
-          },
-        );
+        return marketingAttributionTransitionLeadUpdateOne2({ Lead, attribution, businessId, leadId, marketingSource, trackingNumber });
       })(),
     );
   }
 
   if (conversationId) {
     tasks.push(
-      Conversation.updateOne(
-        { _id: conversationId, business: businessId },
-        {
-          $set: {
-            latestMarketingSource: marketingSource?._id || null,
-            latestTrackingNumber: trackingNumber?._id || null,
-            latestAttribution: attribution,
-            ...(replyFromPhone ? { replyFromPhone } : {}),
-          },
-        },
-      ),
+      marketingAttributionSyncLatestAttributionConversationUpdateOne({ Conversation, attribution, businessId, conversationId, marketingSource, replyFromPhone, trackingNumber }),
     );
   }
 

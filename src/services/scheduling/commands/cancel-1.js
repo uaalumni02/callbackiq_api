@@ -1,3 +1,5 @@
+import { stageCanceledRescheduleRequest, stageCanceledAppointment } from '../../stateTransitions/appointmentCommands.js';
+import { saveStateDocument } from '../../stateTransitions/documents.js';
 /* Source-exact AppointmentService extraction. Preserve order and outcome contracts. */
 export function createAppointmentcancel1Methods(deps) {
   const { assertConfirmationNotPending, InterventionService, SchedulingProviderFactory, SocketService, assertTransition, cancelAppointmentNotifications, ensureCancellationSideEffects, getAppointmentForBusiness, lifecycleMarker, resolveApprovalReview, runNonBlockingAppointmentSideEffect, tryRepairAppointmentLifecycle } = deps;
@@ -8,7 +10,6 @@ async cancel({ business, appointmentId, reason = "", notifyCustomer = true }) {
       appointmentId,
     );
     assertConfirmationNotPending(appointment);
-
     // A retry after the durable local transition replays idempotent side
     // effects instead of silently skipping anything that previously failed.
     if (appointment.status === "canceled") {
@@ -33,7 +34,6 @@ async cancel({ business, appointmentId, reason = "", notifyCustomer = true }) {
       });
       return appointment;
     }
-
     assertTransition(appointment.status, "canceled");
     const provider = SchedulingProviderFactory.getProvider(
       business,
@@ -58,10 +58,10 @@ async cancel({ business, appointmentId, reason = "", notifyCustomer = true }) {
 
     if (notifyCustomer) appointment.lifecycleNotice = lifecycleMarker("canceled");
     if (appointment.rescheduleRequest?.status === 'pending') {
-      appointment.rescheduleRequest.status = 'canceled';
+      stageCanceledRescheduleRequest({ appointment });
       appointment.rescheduleRequest.alertPending = true;
     }
-    appointment.status = "canceled";
+    stageCanceledAppointment({ appointment });
     appointment.approvalRecovery = { state: "resolved", reconciled: false };
     appointment.canceledAt = appointment.canceledAt || new Date();
     appointment.activeSlotKey = null;
@@ -77,7 +77,7 @@ async cancel({ business, appointmentId, reason = "", notifyCustomer = true }) {
     // If this save fails after the provider delete, the appointment remains
     // locally confirmed. Retrying the endpoint is safe because provider
     // cancellation is idempotent and will reach this save again.
-    await appointment.save();
+    await saveStateDocument(appointment);
     await tryRepairAppointmentLifecycle(appointment, business);
     await resolveApprovalReview(appointment).catch(() => {});
 

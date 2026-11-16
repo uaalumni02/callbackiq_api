@@ -1,3 +1,4 @@
+import { persistSmsContactControl, persistSmsTakeoverControl, persistInterruptedLeadRequest, persistInterruptedConversationRequest } from '../stateTransitions/messaging.js';
 import Conversation from "../../models/conversation.js";
 import Lead from "../../models/lead.js";
 import Message from "../../models/message.js";
@@ -12,7 +13,6 @@ import { shouldSendHumanHandoffStatusAcknowledgement } from "./smsHandoff.servic
 import { buildSmsStatePatch } from "./smsConversationState.service.js";
 import { buildSmsRequestRevisionPatch, preserveSmsInterruptFacts, reviewSmsAppointmentRevision } from "./smsWorkflowPolicy.service.js";
 import { completeCoalescedJobs } from "./smsTurnAggregation.service.js";
-
 export async function handleSmsContactControl({
   business, lead, conversation, inboundMessage, customerTurn, contactKind, job, persistOutboundReply,
 }) {
@@ -40,12 +40,7 @@ export async function handleSmsContactControl({
     });
     if (!saved?.alert?._id) throw Object.assign(new Error('Staff contact request was not saved.'), { code: 'STAFF_ACTION_NOT_SAVED' });
     assertDistributedLeaseActive();
-    const updated = await Conversation.findByIdAndUpdate(conversation._id, { $set: {
-      'conversationMemory.recoveryIntake.contactControl.request': {
-        kind: contactKind, alertId: String(saved.alert._id), inboundMessageId: String(inboundMessage._id),
-        requestedAt: new Date(), callbackPhone: conversation.customerPhone,
-      },
-    } }, { returnDocument: 'after', runValidators: true });
+    const updated = await persistSmsContactControl({ Conversation, contactKind, conversation, inboundMessage, saved });
     if (!updated) throw Object.assign(new Error('Staff contact request projection was not saved.'), { code: 'STAFF_ACTION_NOT_SAVED' });
     SocketService.emitConversationUpdated(business._id, updated);
   }
@@ -60,11 +55,7 @@ export async function handleSmsContactControl({
   // outbound idempotency, including retries after provider acceptance.
   if (contactKind === 'receipt' && delivery.sent === true) {
     assertDistributedLeaseActive();
-    await Conversation.findByIdAndUpdate(conversation._id, { $set: {
-      'conversationMemory.recoveryIntake.contactControl.receiptReply': {
-        at: new Date(), inboundMessageId: String(inboundMessage._id),
-      },
-    } }, { runValidators: true });
+    await persistSmsTakeoverControl({ Conversation, conversation, inboundMessage });
   }
   if (!delivery.sent && !delivery.suppressed && delivery.reason !== 'delivery_uncertain') {
     throw Object.assign(new Error('Contact acknowledgement has no durable delivery outcome.'), { code: 'SMS_HANDOFF_ACK_REQUIRED' });
@@ -93,10 +84,9 @@ export async function handleSmsRequestInterrupt({
   if (directResult) {
     const revisionPatch = buildSmsRequestRevisionPatch({ result: directResult, lead, conversation });
     const interruptUpdates = buildLeadUpdates(lead, directResult);
-    const refreshedLead = await Lead.findByIdAndUpdate(lead._id, interruptUpdates, { returnDocument: "after", runValidators: true });
+    const refreshedLead = await persistInterruptedLeadRequest({ Lead, interruptUpdates, lead });
     if (refreshedLead) Object.assign(lead, typeof refreshedLead.toObject === 'function' ? refreshedLead.toObject() : refreshedLead);
-    await Conversation.findByIdAndUpdate(conversation._id, { $set: { ...buildSmsStatePatch({ conversation, classification,
-      outcome: { intent: directResult.messageCategory }, hasCustomerReply: true }), ...revisionPatch } }, { runValidators: true });
+    await persistInterruptedConversationRequest({ Conversation, buildSmsStatePatch, classification, conversation, directResult, revisionPatch });
     if (directResult.handoff?.required === true || (Object.keys(revisionPatch).length && conversation.bookingState?.appointment)) {
       await AlertService.createHumanHandoffAlert({ businessId: business._id, leadId: lead._id, conversationId: conversation._id,
         messageId: inboundMessage._id, providerMessageId: inboundMessage.providerMessageId,

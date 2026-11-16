@@ -1,3 +1,4 @@
+import { businessRequestWorkflowTransitionConversationFields, businessRequestWorkflowTransitionConversationFields2, businessRequestWorkflowTransitionConversationFields3 } from './stateTransitions/customerRequest.js';
 import { withRequestStateTransaction, requestStateRead, requestStateWrite } from './booking/requestStateTransaction.service.js';
 import { bookingTransitionFields } from './booking/requestBookingState.js';
 import { confirmationNoticeState } from './scheduling/appointmentConfirmationState.js';
@@ -16,7 +17,6 @@ import { queryBudgetMs } from './scale/queryBudget.js';
 import { unknownEstimate } from './valuation/opportunityValue.js';
 import { extractCustomerPostalCode } from './booking/customerAddress.service.js';
 import SocketService from './socket.service.js';
-
 const outcomeLabels={booked:'Booked',customer_declined:'Customer declined',unable_to_service:'Unable to service',follow_up:'Follow-up needed',issue_resolved:'Issue addressed'};
 const factLabels={customerName:'Customer name',serviceNeeded:'Service',address:'Address',preferredAppointmentTime:'Requested time'};
 const id = value => String(value?._id || value || '');
@@ -236,7 +236,7 @@ export async function updateRequestWorkflow({business,userId,alertId,input}) {
           else {
             Object.assign(alertSet,{actionRequired:false,status:'resolved',resolvedAt:now,resolvedBy:userId,resolution:`${outcomeLabels[input.outcome]}: ${input.reason.trim()}`});
             if(ordinary&&snapshot.conversation) {
-              conversationSet['conversationMemory.recoveryIntake.review.status']='resolved';
+              businessRequestWorkflowTransitionConversationFields({ conversationSet });
               if(input.outcome!=='booked') Object.assign(conversationSet,{'conversationMemory.recoveryIntake.withdrawnAt':now,...bookingTransitionFields('staff_request_resolved')});
               if(snapshot.lead) await requestStateWrite({ model: Lead, method: 'updateOne', filter: {_id:snapshot.lead._id,business:business._id}, changes: {$set:{status:input.outcome==='booked'?'booked':'lost'}} });
             }
@@ -248,10 +248,10 @@ export async function updateRequestWorkflow({business,userId,alertId,input}) {
           changes:changes?Object.fromEntries(Object.entries(changes).map(([key,value])=>[key,{before:snapshot.lead[key]||'',after:value}])):undefined};
         await requestStateWrite({ model: Alert, method: 'updateOne', filter: {_id:resultId,business:business._id}, changes: {$set:alertSet,$push:{reviewEvents:event}}, options: {runValidators:true} });
         if(snapshot.conversation) {
-          if(ordinary) conversationSet['conversationMemory.recoveryIntake.review.alertId']=id(resultId);
+          if(ordinary) businessRequestWorkflowTransitionConversationFields2({ conversationSet, id, resultId });
           // Touch the shared conversation in the transaction to detect a racing
           // inbound turn or booking operation, even for an outcome-only change.
-          conversationSet['conversationMemory.lastUpdatedAt']=now;
+          businessRequestWorkflowTransitionConversationFields3({ conversationSet, now });
           await requestStateWrite({ model: Conversation, method: 'updateOne', filter: {_id:snapshot.conversation._id,business:business._id}, changes: {$set:conversationSet}, options: {runValidators:true} });
         }
       }, { guardAtCommit: true });

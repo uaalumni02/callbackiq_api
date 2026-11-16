@@ -1,7 +1,7 @@
+import { conversationIntelligencePersistenceUpdateAnalyzedLeadLeadAtomicUpdate } from './stateTransitions/customerRequest.js';
 import { randomUUID } from 'node:crypto';
 import ConversationIntelligence from '../models/conversationIntelligence.js';
 import Lead from '../models/lead.js';
-
 // Longer than the bounded provider timeout + retry. A crashed request is reclaimable.
 export const ANALYSIS_LEASE_MS = 5 * 60 * 1000;
 export async function claimAnalysis({ businessId, conversationId, leadId, now = new Date() }) {
@@ -53,6 +53,5 @@ export async function updateAnalyzedLead({ lead, businessId, analysis }) {
   const changes = { summary: analysis.summary, leadQualityScore: analysis.buyingLikelihood.score };
   // Analysis may raise urgency, but only staff/intake resolution may lower it.
   if (rank[proposed] !== undefined && rank[proposed] > (rank[lead.urgency] ?? -1)) changes.urgency = proposed;
-  return Lead.findOneAndUpdate({ _id: lead._id, business: businessId, updatedAt: lead.updatedAt },
-    { $set: changes }, { returnDocument: 'after', runValidators: true });
+  return conversationIntelligencePersistenceUpdateAnalyzedLeadLeadAtomicUpdate({ Lead, businessId, changes, lead });
 }

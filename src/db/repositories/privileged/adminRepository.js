@@ -1,3 +1,4 @@
+import { updatePrivilegedRecord, deletePrivilegedRecord } from '../../../services/stateTransitions/tenantRecords.js';
 import mongoose from 'mongoose';
 import User from '../../../models/user.js';
 import logger from '../../../config/logger.js';
@@ -34,14 +35,11 @@ export async function adminReadById(input) {
 }
 export async function adminUpdateById(input) {
   await authorized(input);
-  const query = input.model.findByIdAndUpdate(input.id, input.update, {
-    returnDocument: 'after',
-    runValidators: true
-  });
+  const query = updatePrivilegedRecord({ input });
   for (const spec of input.populate || []) query.populate(spec);
   return query.lean();
 }
 export async function adminDeleteById(input) {
   await authorized(input);
-  return input.model.findByIdAndDelete(input.id);
+  return deletePrivilegedRecord({ input });
 }

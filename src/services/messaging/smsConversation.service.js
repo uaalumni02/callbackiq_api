@@ -1,3 +1,4 @@
+import { upsertSmsLead, updateSmsLead, reopenSmsConversation, updateSmsConversation, upsertSmsConversation } from '../stateTransitions/messaging.js';
 import { readOnlySnapshot } from "../database/readOnlySnapshot.js";
 import { linkRecentTrackedCalls } from "./trackedCallLink.service.js";
 import { reconcileConversationLead } from "./conversationLeadIdentity.service.js";
@@ -9,7 +10,6 @@ import Conversation from "../../models/conversation.js";
 import SocketService from "../socket.service.js";
 import { phoneLookupVariants } from "../../voice/voicePhone.service.js";
 import { normalizeSmsPhone } from "./smsCompliance.service.js";
-
 const freshLead = createFreshFindOneBatch(Lead, { sort: { updatedAt: -1 }, defaults: true });
 const freshConversation = createFreshFindOneBatch(Conversation, { sort: { lastMessageAt: -1 }, defaults: true });
 
@@ -37,31 +37,7 @@ const upsertLead = async ({ business, customerPhone, body, source, readOnly }) =
 
   if (!existing) {
     try {
-      existing = await readOnlySnapshot(Lead, Lead.findOneAndUpdate(
-        { business: businessId, phoneLookup: customerPhone },
-        {
-          $setOnInsert: {
-            business: businessId,
-            customerName: source === "missed_call" ? "Missed Call Lead" : "New SMS Lead",
-            phone: customerPhone,
-            phoneLookup: customerPhone,
-            serviceNeeded: "Unknown",
-            urgency: "medium",
-            source,
-            status: source === "sms" ? "contacted" : "new",
-            estimatedValue: null,
-            valuation: { source: "unknown", basis: "Not estimated" },
-            valuationVersion: 0,
-            notes: body || (source === "sms" ? "MMS attachment received." : ""),
-          },
-        },
-        {
-          upsert: true,
-          returnDocument: "after",
-          setDefaultsOnInsert: true,
-          runValidators: true,
-        },
-      ), readOnly);
+      existing = await readOnlySnapshot(Lead, upsertSmsLead({ Lead, body, businessId, customerPhone, source }), readOnly);
       created = true;
     } catch (error) {
       if (!isDuplicateKey(error)) throw error;
@@ -78,10 +54,7 @@ const upsertLead = async ({ business, customerPhone, body, source, readOnly }) =
   if (body && (!existing.notes || existing.notes === "Unknown")) updates.notes = body;
 
   if (Object.keys(updates).length) {
-    existing = await readOnlySnapshot(Lead, Lead.findByIdAndUpdate(existing._id, updates, {
-      returnDocument: "after",
-      runValidators: true,
-    }), readOnly);
+    existing = await readOnlySnapshot(Lead, updateSmsLead({ Lead, existing, updates }), readOnly);
   }
 
   if (created) SocketService.emitLeadCreated(businessId, existing);
@@ -120,36 +93,7 @@ const upsertConversation = async ({
 
   if (!conversation) {
     try {
-      conversation = await readOnlySnapshot(Conversation, Conversation.findOneAndUpdate(
-        {
-          business: businessId,
-          customerPhoneLookup: customerPhone,
-          activeRecord: true,
-        },
-        {
-          $setOnInsert: {
-            business: businessId,
-            lead: lead._id,
-            customerPhone,
-            customerPhoneLookup: customerPhone,
-            customerName: lead.customerName,
-            status: "open",
-            activeRecord: true,
-            aiEnabled: true,
-            humanTakeover: false,
-            "orchestration.recoveryJourneyKey": String(recoveryJourneyKey || "").trim(),
-            "orchestration.recoveryJourneyStartedAt": new Date(),
-            lastMessage: body || "Attachment received",
-            lastMessageAt: new Date(),
-          },
-        },
-        {
-          upsert: true,
-          returnDocument: "after",
-          setDefaultsOnInsert: true,
-          runValidators: true,
-        },
-      ), readOnly);
+      conversation = await readOnlySnapshot(Conversation, reopenSmsConversation({ Conversation, body, businessId, customerPhone, lead, recoveryJourneyKey }), readOnly);
       created = true;
     } catch (error) {
       if (!isDuplicateKey(error)) throw error;
@@ -170,18 +114,11 @@ const upsertConversation = async ({
     updates.lastMessageAt = new Date();
   }
 
-  conversation = readOnly ? await updateSmsConversationSnapshot({ businessId, conversationId: conversation._id, update: updates }) : await readOnlySnapshot(Conversation, Conversation.findByIdAndUpdate(conversation._id, updates, {
-    returnDocument: "after",
-    runValidators: true,
-  }), readOnly);
+  conversation = readOnly ? await updateSmsConversationSnapshot({ businessId, conversationId: conversation._id, update: updates }) : await readOnlySnapshot(Conversation, updateSmsConversation({ Conversation, conversation, updates }), readOnly);
 
   if (reopenEligible && conversation.status === "closed" &&
       conversation.humanTakeover !== true && conversation.aiEnabled !== false) {
-    conversation = await readOnlySnapshot(Conversation, Conversation.findOneAndUpdate({
-      _id: conversation._id, business: businessId, status: "closed",
-      humanTakeover: { $ne: true }, aiEnabled: { $ne: false },
-    }, { $set: { status: "open", reopenedAt: new Date(), reopenReason: "returning_customer_contact" } },
-    { returnDocument: "after", runValidators: true }), readOnly) || conversation;
+    conversation = await readOnlySnapshot(Conversation, upsertSmsConversation({ Conversation, businessId, conversation }), readOnly) || conversation;
   }
 
   if (created) SocketService.emitConversationCreated(businessId, conversation);

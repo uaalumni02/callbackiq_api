@@ -1,3 +1,4 @@
+import { saveStateDocument } from './stateTransitions/documents.js';
 import { refreshUpcomingAppointmentNotifications } from './scheduling/appointmentNotification.service.js';
 import { getTradeSetup } from './trades/tradeSetup.service.js';
 import { validateWindows } from './scheduling/availabilityWindows.service.js';
@@ -15,7 +16,6 @@ import { validateUpdate, assertNoDialLoops } from "../controllers/voiceSettings.
 import { normalizeVoiceSettings, getPresetRoutingPolicy, inferAnswerMode } from "../voice/voiceRouting.service.js";
 import { validateVoiceSettingsDraft } from "./voiceSettingsContract.service.js";
 import { recordVoiceSettingsVersion } from "./voiceSettingsVersion.service.js";
-
 const plain = value => value?.toObject?.() || value;
 const pick = (object, keys) => Object.fromEntries(keys.filter(key => object?.[key] !== undefined).map(key => [key, object[key]]));
 const profileKeys = ["businessName", "businessType", "forwardingPhone", "email", "website", "address", "city", "state", "zipCode", "timezone"];
@@ -98,7 +98,7 @@ export async function readOwnerSettings(business, session = null) {
 async function saveDocument(Model, businessId, values, session) {
   const document = await Model.findOne({ business: businessId }).session(session) || new Model({ business: businessId });
   for (const [key, value] of Object.entries(values)) document.set(key, value);
-  await document.save({ session });
+  await saveStateDocument(document, { session });
   return document;
 }
 
@@ -114,7 +114,7 @@ async function saveRows(Model, businessId, rows, removed, session) {
     const document = _id ? await Model.findOne({ business: businessId, _id }).session(session) : new Model({ business: businessId });
     if (!document) throw error("This item does not belong to your business or was removed.", 409);
     document.set(values);
-    await document.save({ session });
+    await saveStateDocument(document, { session });
   }
 }
 
@@ -145,7 +145,7 @@ export async function saveOwnerSettings({ ownerId, section, payload, revision })
         await saveDocument(ServiceArea, id, area, session);
         const ops = await saveDocument(BusinessOperationsSettings, id, { serviceEligibilityPolicy: values.serviceEligibilityPolicy }, session);
         const newlyDisclosedFee = values.services.some(service => service.discloseDiagnosticFee && !before.sections.services.services.find(old => String(old._id) === String(service._id))?.discloseDiagnosticFee);
-        if (newlyDisclosedFee) { ops.set("aiPermissions.canDiscussDiagnosticFees", true); await ops.save({ session }); }
+        if (newlyDisclosedFee) { ops.set("aiPermissions.canDiscussDiagnosticFees", true); await saveStateDocument(ops, { session }); }
       }
       if (section === "hours") {
         if (values.rules.length !== 7 || new Set(values.rules.map(r => r.dayOfWeek)).size !== 7) throw error("Provide each day of the week once.");
@@ -178,7 +178,7 @@ export async function saveOwnerSettings({ ownerId, section, payload, revision })
           ops.set("aiPermissions.canCollectAppointmentPreference", true);
           ops.set("aiPermissions.canDiscussServices", true);
         }
-        await ops.save({ session });
+        await saveStateDocument(ops, { session });
         business.set("features.aiBookingEnabled", booking);
       }
       if (section === "team") {
@@ -204,7 +204,7 @@ export async function saveOwnerSettings({ ownerId, section, payload, revision })
         business.set("smsTemplate", values.smsTemplate);
       }
       business.ownerSettingsRevision = (business.ownerSettingsRevision || 0) + 1;
-      await business.save({ session });
+      await saveStateDocument(business, { session });
       if (section === "calls" || section === "hours" && before.sections.hours.bookingMode !== values.bookingMode) {
         await recordVoiceSettingsVersion({ business, publishedBy: ownerId, reason: `Owner saved ${section} settings`, source: "owner_settings", mongoSession: session });
       }

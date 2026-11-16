@@ -1,3 +1,4 @@
+import { twilioSmsWebhookUpdateConversationLastMessageConversationUpdateById, twilioSmsWebhookHandleInboundSmsWebhookConversationUpdateById } from './stateTransitions/customerRequest.js';
 // CALLBACKIQ_SMS_PERSISTENCE_V2
 import { persistInboundSmsMessage } from "./messaging/smsIngressPersistence.service.js";
 import { readOnlySnapshot } from "./database/readOnlySnapshot.js";
@@ -43,7 +44,6 @@ import { syncLatestAttribution } from "./marketingAttribution.service.js"; // CA
 import { executeManualSmsOperation } from "./messaging/manualSmsOperation.service.js";
 import { resolveBusinessForTwilioStatus } from "./twilioStatusBusinessResolver.service.js";
 import { processTwilioCallStatus } from "./twilioCallStatus.service.js";
-
 import { evaluateDeterministicInboundGuardrails } from "../helpers/ai/aiGuardrails.js";
 import { isHumanHandoffStatusQuestion } from "./messaging/smsHandoff.service.js";
 const xml = (body) => `<?xml version="1.0" encoding="UTF-8"?>${body}`;
@@ -115,11 +115,7 @@ const saveOutbound = async ({ business, conversation, lead, from = "", to, body,
 };
 
 const updateConversationLastMessage = async ({ businessId, conversation, body }) => {
-  const updated = await Conversation.findByIdAndUpdate(
-    conversation._id,
-    { lastMessage: body, lastMessageAt: new Date() },
-    { returnDocument: "after" },
-  );
+  const updated = await twilioSmsWebhookUpdateConversationLastMessageConversationUpdateById({ Conversation, body, conversation });
   SocketService.emitConversationUpdated(businessId, updated);
   return updated;
 };
@@ -666,11 +662,7 @@ export const handleInboundSmsWebhook = async (req, res) => {
           ? { aiEnabled: true, status: "open" }
           : {}),
       };
-      const updatedConversation = await readOnlySnapshot(Conversation, Conversation.findByIdAndUpdate(
-        conversation._id,
-        updates,
-        { returnDocument: "after" },
-      ));
+      const updatedConversation = await readOnlySnapshot(Conversation, twilioSmsWebhookHandleInboundSmsWebhookConversationUpdateById({ Conversation, conversation, updates }));
       SocketService.emitConversationUpdated(
         business._id,
         updatedConversation,

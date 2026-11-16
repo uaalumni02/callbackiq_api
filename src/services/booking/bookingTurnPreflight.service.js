@@ -1,3 +1,4 @@
+import { saveStateDocument } from '../stateTransitions/documents.js';
 import { fixedResult } from './bookingFixedResult.policy.js';
 import { planRejectedBookingPreference } from './bookingTurnDecision.policy.js';
 import { hasBookingAvailabilityHint, EXACT_PRICE } from './bookingMessagePolicy.service.js';
@@ -15,7 +16,6 @@ import { findDateRange, parseTimePreference } from "./appointmentPreferenceParse
 import { saveBookingTransition } from "./bookingTurnState.repository.js";
 import { bookingInquiryOperations } from "./bookingInquiryRuntime.js";
 const { handleBookingReadinessFailure } = bookingInquiryOperations;
-
 async function routeBookingControl({ business, lead, conversation, customerMessage, channel, text }) {
   const control = await handleConversationControl({ business, lead, conversation, customerMessage, channel });
   if (control) return { handled: true, result: control };
@@ -46,7 +46,7 @@ async function routeRejectedPreference({ business, lead, conversation, text, ena
         : time.targetMinutes !== null || time.timeOfDay ? time.raw : '';
       assertVoiceTurnActive(); assertDistributedLeaseActive();
       lead.preferredAppointmentTime = [day, clock].filter(Boolean).join(' at ');
-      await lead.save();
+      await saveStateDocument(lead);
     }
     if (conversation?.set && preferenceRejection.updateRequestedPreference) {
       await saveBookingTransition(conversation, preferenceRejection.event, preferenceRejection.details);

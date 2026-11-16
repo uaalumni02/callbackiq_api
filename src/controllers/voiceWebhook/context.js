@@ -1,5 +1,5 @@
+import { saveStateDocument } from '../../services/stateTransitions/documents.js';
 import "../../models/business.js";
-
 import { resolveTwilioNumberContext } from "../../services/twilioBusinessResolver.service.js";
 
 import VoiceSession from "../../models/voiceSession.js";
@@ -178,7 +178,7 @@ const saveLegacySessionState = async (session, metadata = {}) => {
     ...(session.metadata || {}),
     ...metadata,
   };
-  if (typeof session.save === "function") await session.save();
+  if (typeof session.save === "function") await saveStateDocument(session);
   return session;
 };
 

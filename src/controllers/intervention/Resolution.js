@@ -1,5 +1,5 @@
+import { acknowledgeOpenReview, resolveOpenReview } from '../../services/stateTransitions/reviews.js';
 import { Alert, SocketService, getDefaultAssignee, getOwnedBusiness, getScopedIntervention, pauseOwnedReview, populate, resolveAssignableUserId, sendNotFound, sendStateConflict } from './context.js';
-
 export default class InterventionResolutionController {
 static async acknowledge(req, res, next) {
     try {
@@ -52,16 +52,7 @@ static async acknowledge(req, res, next) {
       }
 
       const alert = await populate(
-        Alert.findOneAndUpdate(
-          {
-            _id: req.params.id,
-            business: business._id,
-            resolvedAt: null,
-            acknowledgedAt: null,
-          },
-          { $set: set },
-          { returnDocument: "after", runValidators: true },
-        ),
+        acknowledgeOpenReview({ Alert, business, req, set }),
       );
 
       if (!alert) return sendStateConflict(res);
@@ -134,15 +125,7 @@ static async resolve(req, res, next) {
       }
 
       const alert = await populate(
-        Alert.findOneAndUpdate(
-          {
-            _id: req.params.id,
-            business: business._id,
-            resolvedAt: null,
-          },
-          { $set: set },
-          { returnDocument: "after", runValidators: true },
-        ),
+        resolveOpenReview({ Alert, business, req, set }),
       );
 
       if (!alert) return sendStateConflict(res);

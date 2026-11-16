@@ -1,9 +1,9 @@
+import { persistIdempotentReplySummary } from '../stateTransitions/messaging.js';
 import Message from "../../models/message.js";
 import Conversation from "../../models/conversation.js";
 import { sendSms } from "../twilioSmsService.js";
 import AlertService from "../alert.service.js";
 import SocketService from "../socket.service.js";
-
 const uncertainCodes = new Set([
   "SMS_PROVIDER_OUTCOME_UNCERTAIN",
   "SMS_DELIVERY_RECONCILIATION_REQUIRED",
@@ -219,14 +219,7 @@ export const sendIdempotentInboundSmsReply = async ({
     SocketService.emitMessageCreated(businessId, saved);
 
     if (sent?.suppressed !== true) {
-      const updatedConversation = await Conversation.findByIdAndUpdate(
-        conversation._id,
-        {
-          lastMessage: sent?.body || reply,
-          lastMessageAt: new Date(),
-        },
-        { returnDocument: "after" },
-      );
+      const updatedConversation = await persistIdempotentReplySummary({ Conversation, conversation, reply, sent });
       SocketService.emitConversationUpdated(businessId, updatedConversation);
       SocketService.emitDashboardRefresh(
         businessId,

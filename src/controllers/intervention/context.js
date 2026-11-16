@@ -1,5 +1,5 @@
+import { pauseOwnedReviewConversation } from '../../services/stateTransitions/reviews.js';
 import { listBusinessRequests, readRequestWorkflow, updateRequestWorkflow } from '../../services/businessRequestWorkflow.service.js';
-
 import Conversation from '../../models/conversation.js';
 
 import mongoose from "mongoose";
@@ -90,9 +90,7 @@ const pauseOwnedReview = async (req, business, alert) => {
   if (req.body.pauseAutomation !== true || !alert.conversation) return;
   let conversation;
   try {
-    conversation = await Conversation.findOneAndUpdate({
-      _id: normalizeId(alert.conversation), business: business._id,
-    }, { $set: { humanTakeover: true, aiEnabled: false } }, { returnDocument: 'after' });
+    conversation = await pauseOwnedReviewConversation({ Conversation, alert, business, normalizeId });
   } catch (cause) {
     throw Object.assign(new Error('Review accepted, but AI pause could not be verified. Refresh and retry takeover.'), { statusCode: 503, cause });
   }

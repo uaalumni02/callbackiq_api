@@ -1,3 +1,4 @@
+import { saveStateDocument } from './stateTransitions/documents.js';
 import {
   parseEventDate,
   resolveNumberLifecycleStatus,
@@ -10,7 +11,6 @@ export {
   shouldIgnoreNumberLifecycleEvent,
 };
 import { createTwilioClient } from '../integrations/providerClients.js';
-
 
 import A2pCustomerRegistration from "../models/a2pCustomerRegistration.js";
 import Business from "../models/business.js";
@@ -210,7 +210,7 @@ const ensureMessagingService = async ({ client, registration, businessName }) =>
     ...(webhookBase ? { inboundRequestUrl: `${webhookBase}/api/twilio/sms` } : {}),
   });
   registration.messagingServiceSid = service.sid;
-  await registration.save();
+  await saveStateDocument(registration);
   await Business.updateOne(
     { _id: registration.business },
     {
@@ -239,7 +239,7 @@ const ensureAddressResources = async ({ client, registration, legalBusinessName,
       isoCountry: address.isoCountry,
     });
     registration.addressSid = twilioAddress.sid;
-    await registration.save();
+    await saveStateDocument(registration);
   }
   if (!registration.addressDocumentSid) {
     const document = await client.trusthub.v1.supportingDocuments.create({
@@ -248,7 +248,7 @@ const ensureAddressResources = async ({ client, registration, legalBusinessName,
       type: "customer_profile_address",
     });
     registration.addressDocumentSid = document.sid;
-    await registration.save();
+    await saveStateDocument(registration);
   }
 };
 
@@ -326,7 +326,7 @@ const createStandardRegistration = async ({ client, registration, input, common 
     privacyPolicyUrl: common.campaign.privacyPolicyUrl,
     termsAndConditionsUrl: common.campaign.termsAndConditionsUrl,
   };
-  await registration.save();
+  await saveStateDocument(registration);
 
   if (!registration.customerProfileSid) {
     const profile = await client.trusthub.v1.customerProfiles.create({
@@ -336,7 +336,7 @@ const createStandardRegistration = async ({ client, registration, input, common 
     });
     registration.customerProfileSid = profile.sid;
     registration.customerProfileStatus = profile.status || "draft";
-    await registration.save();
+    await saveStateDocument(registration);
   }
 
   if (!registration.businessEndUserSid) {
@@ -355,7 +355,7 @@ const createStandardRegistration = async ({ client, registration, input, common 
       type: "customer_profile_business_information",
     });
     registration.businessEndUserSid = endUser.sid;
-    await registration.save();
+    await saveStateDocument(registration);
     await assignCustomerProfileObject(client, registration.customerProfileSid, endUser.sid);
   }
 
@@ -373,7 +373,7 @@ const createStandardRegistration = async ({ client, registration, input, common 
       type: "authorized_representative_1",
     });
     registration.authorizedRepresentativeSid = representative.sid;
-    await registration.save();
+    await saveStateDocument(registration);
     await assignCustomerProfileObject(client, registration.customerProfileSid, representative.sid);
   }
 
@@ -396,7 +396,7 @@ const createStandardRegistration = async ({ client, registration, input, common 
       .customerProfiles(registration.customerProfileSid)
       .update({ status: "pending-review" });
     registration.customerProfileStatus = submitted.status || "pending-review";
-    await registration.save();
+    await saveStateDocument(registration);
   }
 
   if (!registration.trustProductSid) {
@@ -407,7 +407,7 @@ const createStandardRegistration = async ({ client, registration, input, common 
     });
     registration.trustProductSid = trustProduct.sid;
     registration.trustProductStatus = trustProduct.status || "draft";
-    await registration.save();
+    await saveStateDocument(registration);
   }
 
   if (!registration.messagingProfileEndUserSid) {
@@ -417,7 +417,7 @@ const createStandardRegistration = async ({ client, registration, input, common 
       type: "us_a2p_messaging_profile_information",
     });
     registration.messagingProfileEndUserSid = messagingEndUser.sid;
-    await registration.save();
+    await saveStateDocument(registration);
     await assignTrustProductObject(client, registration.trustProductSid, messagingEndUser.sid);
     await assignTrustProductObject(client, registration.trustProductSid, registration.customerProfileSid);
   }
@@ -428,7 +428,7 @@ const createStandardRegistration = async ({ client, registration, input, common 
       .trustProducts(registration.trustProductSid)
       .update({ status: "pending-review" });
     registration.trustProductStatus = submittedTrust.status || "pending-review";
-    await registration.save();
+    await saveStateDocument(registration);
   }
 
   if (!registration.brandSid) {
@@ -442,7 +442,7 @@ const createStandardRegistration = async ({ client, registration, input, common 
     registration.brandSid = brand.sid;
     registration.brandStatus = brand.status || "PENDING";
     registration.brandIdentityStatus = brand.identityStatus || "";
-    await registration.save();
+    await saveStateDocument(registration);
   }
 
   await ensureMessagingService({ client, registration, businessName: common.legalBusinessName });
@@ -480,7 +480,7 @@ const createSoleProprietorRegistration = async ({ client, registration, input, c
     privacyPolicyUrl: common.campaign.privacyPolicyUrl,
     termsAndConditionsUrl: common.campaign.termsAndConditionsUrl,
   };
-  await registration.save();
+  await saveStateDocument(registration);
 
   if (!registration.customerProfileSid) {
     const profile = await client.trusthub.v1.customerProfiles.create({
@@ -490,7 +490,7 @@ const createSoleProprietorRegistration = async ({ client, registration, input, c
     });
     registration.customerProfileSid = profile.sid;
     registration.customerProfileStatus = profile.status || "draft";
-    await registration.save();
+    await saveStateDocument(registration);
   }
 
   if (!registration.businessEndUserSid) {
@@ -505,7 +505,7 @@ const createSoleProprietorRegistration = async ({ client, registration, input, c
       type: "starter_customer_profile_information",
     });
     registration.businessEndUserSid = starterEndUser.sid;
-    await registration.save();
+    await saveStateDocument(registration);
     await assignCustomerProfileObject(client, registration.customerProfileSid, starterEndUser.sid);
   }
 
@@ -526,7 +526,7 @@ const createSoleProprietorRegistration = async ({ client, registration, input, c
       .customerProfiles(registration.customerProfileSid)
       .update({ status: "pending-review" });
     registration.customerProfileStatus = submitted.status || "pending-review";
-    await registration.save();
+    await saveStateDocument(registration);
   }
 
   if (!registration.trustProductSid) {
@@ -537,7 +537,7 @@ const createSoleProprietorRegistration = async ({ client, registration, input, c
     });
     registration.trustProductSid = trustProduct.sid;
     registration.trustProductStatus = trustProduct.status || "draft";
-    await registration.save();
+    await saveStateDocument(registration);
   }
 
   if (!registration.messagingProfileEndUserSid) {
@@ -551,7 +551,7 @@ const createSoleProprietorRegistration = async ({ client, registration, input, c
       type: "sole_proprietor_information",
     });
     registration.messagingProfileEndUserSid = soleEndUser.sid;
-    await registration.save();
+    await saveStateDocument(registration);
     await assignTrustProductObject(client, registration.trustProductSid, soleEndUser.sid);
     await assignTrustProductObject(client, registration.trustProductSid, registration.customerProfileSid);
   }
@@ -562,7 +562,7 @@ const createSoleProprietorRegistration = async ({ client, registration, input, c
       .trustProducts(registration.trustProductSid)
       .update({ status: "pending-review" });
     registration.trustProductStatus = submittedTrust.status || "pending-review";
-    await registration.save();
+    await saveStateDocument(registration);
   }
 
   if (!registration.brandSid) {
@@ -574,7 +574,7 @@ const createSoleProprietorRegistration = async ({ client, registration, input, c
     registration.brandSid = brand.sid;
     registration.brandStatus = brand.status || "PENDING";
     registration.brandIdentityStatus = brand.identityStatus || "UNVERIFIED";
-    await registration.save();
+    await saveStateDocument(registration);
   }
 
   await ensureMessagingService({ client, registration, businessName: common.legalBusinessName });
@@ -599,13 +599,13 @@ export const startA2pCustomerRegistration = async ({ businessId, input, client =
     registration.submittedAt ||= new Date();
     registration.lastSyncedAt = new Date();
     registration.lastError = "";
-    await registration.save();
+    await saveStateDocument(registration);
     return toPublicA2pRegistration(registration);
   } catch (error) {
     registration.status = "action_required";
     registration.lastError = `${error?.code ? `${error.code}: ` : ""}${error?.message || error}`.slice(0, 2000);
     registration.lastSyncedAt = new Date();
-    await registration.save().catch(() => {});
+    await saveStateDocument(registration).catch(() => {});
     throw error;
   }
 };
@@ -640,7 +640,7 @@ const createCampaign = async ({ client, registration }) => {
   registration.campaignStatus = campaign.campaignStatus || campaign.status || "PENDING";
   registration.campaignCreatedAt = new Date();
   registration.status = "campaign_pending";
-  await registration.save();
+  await saveStateDocument(registration);
 };
 
 export const syncA2pCustomerRegistration = async ({ businessId, client = null }) => {
@@ -719,13 +719,13 @@ export const syncA2pCustomerRegistration = async ({ businessId, client = null })
 
     registration.lastSyncedAt = new Date();
     if (registration.status !== "action_required") registration.lastError = "";
-    await registration.save();
+    await saveStateDocument(registration);
     return toPublicA2pRegistration(registration);
   } catch (error) {
     registration.lastSyncedAt = new Date();
     registration.lastError = `${error?.code ? `${error.code}: ` : ""}${error?.message || error}`.slice(0, 2000);
     if (!registration.brandSid) registration.status = "action_required";
-    await registration.save().catch(() => {});
+    await saveStateDocument(registration).catch(() => {});
     throw error;
   }
 };
@@ -881,11 +881,11 @@ export const retrySoleProprietorOtp = async ({ businessId, client = null }) => {
     reserved.otpStatus = "awaiting_yes_reply";
     reserved.status = "otp_required";
     reserved.lastError = "";
-    await reserved.save();
+    await saveStateDocument(reserved);
     return toPublicA2pRegistration(reserved);
   } catch (error) {
     reserved.lastError = "Unable to request another verification code.";
-    await reserved.save().catch(() => {});
+    await saveStateDocument(reserved).catch(() => {});
     throw error;
   }
 };
@@ -1062,7 +1062,7 @@ export const markNumberRegistrationEvent = async ({
       { _id: registration.business },
       { $set: businessSet },
     );
-    await registration.save();
+    await saveStateDocument(registration);
 
     return { registration, phoneNumberSid, ignored: false };
   } finally {
@@ -1143,7 +1143,7 @@ export const markComplianceEvent = async ({
     registration.status = "action_required";
     registration.lastError =
       failureReason || "Twilio reported an A2P Brand verification problem.";
-    await registration.save();
+    await saveStateDocument(registration);
     return registration;
   }
 
@@ -1151,7 +1151,7 @@ export const markComplianceEvent = async ({
     registration.status = "action_required";
     registration.lastError =
       failureReason || "Twilio reported an A2P Campaign verification problem.";
-    await registration.save();
+    await saveStateDocument(registration);
     return registration;
   }
 

@@ -1,3 +1,5 @@
+import { saveStateDocument } from '../../services/stateTransitions/documents.js';
+import { stageCallbackLeadStatus } from '../../services/stateTransitions/voice.js';
 import "../../services/booking/customerAddress.service.js";
 import "../../services/messaging/ownerTextPolicy.service.js";
 import "../../services/staffReviewPolicy.service.js";
@@ -18,7 +20,6 @@ import { isUsableCallerId } from "../voicePhone.service.js";
 import { assertVoiceTurnActive } from "../../services/voiceTurnContext.service.js";
 import { clean, ACTIVE_STATUSES, skippedValue, appendText, normalizeId } from './policy.js';
 import { validFieldValue } from './state.js';
-
 const emit = (method, ...args) => {
   try {
     if (typeof SocketService?.[method] === "function") {
@@ -31,7 +32,6 @@ const emit = (method, ...args) => {
     });
   }
 };
-
 const setLocalPath = (target, path, value) => {
   const parts = String(path || "").split(".").filter(Boolean);
   if (!target || parts.length === 0) return;
@@ -67,7 +67,7 @@ const persistSessionSet = async (session, set = {}) => {
   }
 
   if (typeof session.save === "function") {
-    await session.save();
+    await saveStateDocument(session);
   }
   return session;
 };
@@ -108,7 +108,7 @@ const saveState = async (session, state, status = "capturing_callback") => {
         session.lead[field] = state[key]; changed = true;
       }
     }
-    if (changed) { assertVoiceTurnActive(); await session.lead.save(); assertVoiceTurnActive(); }
+    if (changed) { assertVoiceTurnActive(); await saveStateDocument(session.lead); assertVoiceTurnActive(); }
   }
   state.leadSnapshot = leadSnapshot(session);
   session.metadata = { ...(session.metadata || {}), callbackCapture: state };
@@ -139,7 +139,7 @@ const updateLead = async ({ session, state, canceled = false }) => {
   }
   if (state.phone && isUsableCallerId(state.phone)) lead.phone = state.phone;
   if (state.urgency) lead.urgency = state.urgency;
-  lead.status = lead.status || "new";
+  stageCallbackLeadStatus({ lead });
   lead.firstRespondedAt = lead.firstRespondedAt || new Date();
   if (!canceled) {
     lead.summary = clean(
@@ -154,7 +154,7 @@ const updateLead = async ({ session, state, canceled = false }) => {
       : `CallBackIQ voice callback capture (${state.reason}) was confirmed at ${new Date().toISOString()}.`,
     2000,
   );
-  await lead.save();
+  await saveStateDocument(lead);
   emit("emitLeadUpdated", normalizeId(session.business), lead);
 };
 
@@ -193,7 +193,7 @@ const updateConversation = async ({ session, state, canceled = false }) => {
     ? "Caller canceled voice callback capture. Partial details were preserved."
     : "CallBackIQ captured and flagged a voice callback request for team review.";
   conversation.lastMessageAt = new Date();
-  await conversation.save();
+  await saveStateDocument(conversation);
   emit("emitConversationUpdated", normalizeId(session.business), conversation);
 };
 

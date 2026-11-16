@@ -1,3 +1,4 @@
+import { saveStateDocument } from '../stateTransitions/documents.js';
 import { fixedResult } from './bookingFixedResult.policy.js';
 import { selectOfferedSlot } from "./offeredSlotSelection.service.js";
 import { classifySmsIntent } from "../messaging/smsIntentClassifier.service.js";
@@ -8,7 +9,6 @@ import { filterAutomatedSlots } from '../scheduling/automatedSchedulingPolicy.se
 import { saveBookingTransition } from "./bookingTurnState.repository.js";
 import { bookingInquiryOperations } from "./bookingInquiryRuntime.js";
 const { formatSlot, handleReadOnlyAvailabilityInquiry } = bookingInquiryOperations;
-
 export async function handleReadOnlyBookingTurn({ business, lead, conversation, text, bookingChannel }) {
   const smsIntent = classifySmsIntent({
     customerMessage: text,
@@ -79,7 +79,7 @@ async function recordReadOnlySelection({ business, lead, conversation, bookingCh
   if (lead) {
     assertVoiceTurnActive(); assertDistributedLeaseActive();
     lead.preferredAppointmentTime = selectedLabel;
-    await lead.save();
+    await saveStateDocument(lead);
   }
 
   assertVoiceTurnActive(); assertDistributedLeaseActive();

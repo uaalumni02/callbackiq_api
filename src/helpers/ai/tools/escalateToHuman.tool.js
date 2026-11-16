@@ -1,8 +1,8 @@
+import { escalateToHumanToolConversationUpdateOne } from '../../../services/stateTransitions/customerRequest.js';
 import { bookingTransitionFields } from '../../../services/booking/requestBookingState.js';
 import Conversation from "../../../models/conversation.js";
 import ConversionEventService from "../../../services/conversionEvent.service.js";
 import InterventionService from "../../../services/intervention.service.js";
-
 export const escalateToHumanTool = async ({
   businessId,
   leadId,
@@ -10,16 +10,7 @@ export const escalateToHumanTool = async ({
   reason,
   customerMessage = "",
 }) => {
-  await Conversation.updateOne(
-    { _id: conversationId, business: businessId },
-    {
-      $set: {
-        humanTakeover: true,
-        aiEnabled: false,
-        ...bookingTransitionFields('human_escalation_requested', { lastError: reason }),
-      },
-    },
-  );
+  await escalateToHumanToolConversationUpdateOne({ Conversation, bookingTransitionFields, businessId, conversationId, reason });
   await ConversionEventService.record({
     businessId,
     leadId,

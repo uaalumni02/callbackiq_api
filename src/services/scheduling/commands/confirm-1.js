@@ -1,3 +1,5 @@
+import { stageUnavailableApproval, stageFailedConfirmation } from '../../stateTransitions/appointmentCommands.js';
+import { saveStateDocument } from '../../stateTransitions/documents.js';
 /* Appointment command dependencies are wired in AppointmentService. */
 export function createAppointmentconfirm1Methods(deps) {
   const { assertConfirmationNotPending, assertIntakeHoldCurrent, confirmationPending, Conversation, InterventionService, SchedulingProviderFactory, ServiceOffering, SocketService, assertDistributedLeaseActive, assertServiceRequestEligible, assertTransition, applyAppointmentBookingTransition, ensureBusinessApprovalNotice, exactSlotAvailable, getAppointmentForBusiness, preservePendingApprovalOnAvailabilityConflict, resolveApprovalReview, runNonBlockingAppointmentSideEffect, scheduleAppointmentReminders, tryRepairAppointmentLifecycle, tryRepairAppointmentProjections, safeConsole, businessCalendarProviderName, intent, recovery } = deps;
@@ -34,7 +36,6 @@ export function createAppointmentconfirm1Methods(deps) {
         },
       }), appointment, business);
     }
-
     const hasIntent = appointment.confirmationIntent?.status === "confirmed";
     let remindersScheduled = false;
     try {
@@ -59,7 +60,6 @@ export function createAppointmentconfirm1Methods(deps) {
         dedupeKey: `appointment_reminder_schedule:${appointment._id}`,
       }), appointment, business);
     }
-
     await safelyAfterCommit("projection_repair", () => tryRepairAppointmentProjections(appointment), appointment, business);
 
     await safelyAfterCommit("business_socket_event", () => SocketService.emitToBusiness(
@@ -93,13 +93,13 @@ export function createAppointmentconfirm1Methods(deps) {
     await assertIntakeHoldCurrent(appointment);
 
     if (appointment.heldExpiresAt && appointment.heldExpiresAt <= new Date()) {
-      appointment.status = "failed";
+      stageUnavailableApproval({ appointment });
       appointment.activeSlotKey = null;
       appointment.slotClaimKeys = [];
       appointment.capacityLane = null;
       appointment.failureReason = "The appointment hold expired before confirmation.";
       appointment.approvalRecovery = { ...(appointment.approvalRecovery?.toObject?.() || appointment.approvalRecovery || {}), reconciled: false, expiredAt: new Date() };
-      await appointment.save();
+      await saveStateDocument(appointment);
       const error = new Error("The appointment hold expired.");
       error.statusCode = 409;
       error.code = "HOLD_EXPIRED";
@@ -129,13 +129,13 @@ export function createAppointmentconfirm1Methods(deps) {
         error.code = "SLOT_UNAVAILABLE";
         throw error;
       }
-      appointment.status = "failed";
+      stageFailedConfirmation({ appointment });
       appointment.activeSlotKey = null;
       appointment.slotClaimKeys = [];
       appointment.capacityLane = null;
       appointment.failureReason =
         "The slot was unavailable during the final availability check.";
-      await appointment.save();
+      await saveStateDocument(appointment);
       const error = new Error("The selected appointment time is no longer available.");
       error.statusCode = 409;
       error.code = "SLOT_UNAVAILABLE";

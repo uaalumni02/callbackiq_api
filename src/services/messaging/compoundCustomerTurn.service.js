@@ -1,3 +1,5 @@
+import { saveStateDocument } from '../stateTransitions/documents.js';
+import { setCompoundTurnMemory, replaceCompoundTurnMemory } from '../stateTransitions/messaging.js';
 import { completionClarification, updateRequestQuestions } from '../booking/requestQuestionPolicy.service.js';
 import { currentCoverage } from '../booking/coverageConversation.service.js';
 import { applyCustomerAddressRevision } from './customerRequestRevision.service.js';
@@ -12,7 +14,6 @@ import { classifySmsIntent } from './smsIntentClassifier.service.js';
 import { evaluateDeterministicInboundGuardrails } from '../../helpers/ai/aiGuardrails.js';
 import { isSoftOptOutPhrase } from './smsCompliance.service.js';
 import { captureTurnFacts } from '../booking/turnFactCapture.service.js';
-
 export async function handleCompoundCustomerTurn({ business, lead, conversation, customerMessage, turnId = '', channel = 'sms', now = new Date() }) {
   if (!conversation || !lead || conversation.humanTakeover || conversation.aiEnabled === false ||
       ['closed', 'archived'].includes(conversation.status) || requestWasWithdrawn(conversation) ||
@@ -24,7 +25,7 @@ export async function handleCompoundCustomerTurn({ business, lead, conversation,
   const prior = conversation.conversationMemory?.recoveryIntake?.compoundTurn;
   if (turnId && prior?.turnId === String(turnId) && prior.text === plan.text) {
     // Repair an interrupted lead write before allowing handoff acknowledgment.
-    if (prior.result?.preferredAppointmentTime) { lead.preferredAppointmentTime = prior.result.preferredAppointmentTime; check(); await lead.save(); }
+    if (prior.result?.preferredAppointmentTime) { lead.preferredAppointmentTime = prior.result.preferredAppointmentTime; check(); await saveStateDocument(lead); }
     return prior.result;
   }
   const { addressChanged } = await applyCustomerAddressRevision({ business, lead, conversation, customerMessage, turnId });
@@ -98,12 +99,12 @@ export async function handleCompoundCustomerTurn({ business, lead, conversation,
       submitted: false, reviewReady: false, review: { status: 'pending_persistence' } } : {}), compoundTurn: { turnId: String(turnId), text: plan.text, result,
     selectedSlot: selection ? { startAt: selection.startAt, endAt: selection.endAt } : null, recordedAt: now } };
   check();
-  if (conversation.set) conversation.set('conversationMemory.recoveryIntake', next);
-  else conversation.conversationMemory = { ...(conversation.conversationMemory || {}), recoveryIntake: next };
+  if (conversation.set) setCompoundTurnMemory({ conversation, next });
+  else replaceCompoundTurnMemory({ conversation, next });
   conversation.markModified?.('conversationMemory.recoveryIntake');
   // Save the replayable decision before projecting the selected preference.
   // Booking/Appointment state is intentionally owned by the established engine.
-  await conversation.save(); check();
-  if (preference && preference !== lead.preferredAppointmentTime) { lead.preferredAppointmentTime = preference; await lead.save(); check(); }
+  await saveStateDocument(conversation); check();
+  if (preference && preference !== lead.preferredAppointmentTime) { lead.preferredAppointmentTime = preference; await saveStateDocument(lead); check(); }
   return result;
 }

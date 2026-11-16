@@ -1,3 +1,5 @@
+import { reserveAppointmentSlot, stageDeclinedAppointment } from '../stateTransitions/appointmentLifecycle.js';
+import { saveStateDocument } from '../stateTransitions/documents.js';
 import { applyAppointmentBookingTransition } from "../booking/appointmentBookingTransition.repository.js";
 import { assertIntakeHoldCurrent } from "../booking/intakeHoldReview.service.js";
 import { createAppointmentrecheckAndConfirm1Methods } from './commands/recheckAndConfirm-1.js';
@@ -30,7 +32,6 @@ import { assertServiceRequestEligible } from '../serviceEligibility/serviceEligi
 import { safeConsole } from "../../helpers/logging/safeLogger.js";
 import { resolveOpportunityValue, ownerEstimate, moneyAmount } from "../valuation/opportunityValue.js";
 import crypto from "crypto";
-
 import "mongoose";
 import Appointment from "../../models/appointment.js";
 import "../../voice/voicePhone.service.js";
@@ -56,7 +57,6 @@ import {
   scheduleAppointmentReminders,
 } from "./appointmentNotification.service.js";
 import { addMinutes, formatDateKey } from "./timezone.service.js";
-
 export { ensureBusinessApprovalNotice } from './appointmentConfirmation.service.js';
 
 const getAppointmentForBusiness = createAppointmentLookup({ Appointment });
@@ -171,18 +171,7 @@ const createHold = async ({
 
   for (let capacityLane = 1; capacityLane <= capacity; capacityLane += 1) {
     try {
-      return await Appointment.create({
-        ...baseDocument,
-        capacityLane,
-        activeSlotKey: `${getSlotKey(startAt, endAt)}|lane:${capacityLane}`,
-        slotClaimKeys: getSlotClaimKeys({
-          startAt,
-          endAt,
-          bufferBeforeMinutes: baseDocument.bufferBeforeMinutes,
-          bufferAfterMinutes: baseDocument.bufferAfterMinutes,
-          capacityLane,
-        }),
-      });
+      return await reserveAppointmentSlot({ Appointment, baseDocument, capacityLane, endAt, getSlotClaimKeys, getSlotKey, startAt });
     } catch (error) {
       if (error?.code !== 11000) {
         throw error;
@@ -360,7 +349,7 @@ class AppointmentService {
     }
 
     appointment.lifecycleNotice = lifecycleMarker("declined");
-    appointment.status = "failed";
+    stageDeclinedAppointment({ appointment });
     appointment.activeSlotKey = null;
     appointment.slotClaimKeys = [];
     appointment.capacityLane = null;
@@ -371,7 +360,7 @@ class AppointmentService {
     appointment.approvalDeclineReason = String(reason || "").trim();
     appointment.failureReason =
       appointment.approvalDeclineReason || "Appointment request declined.";
-    await appointment.save();
+    await saveStateDocument(appointment);
     await resolveApprovalReview(appointment).catch(() => {});
 
     await tryRepairAppointmentLifecycle(appointment, business);

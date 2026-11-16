@@ -1,3 +1,4 @@
+import { voiceConversationTurnOwnsVoiceIntakeConversationAtomicUpdate, voiceConversationTurnOwnsVoiceIntakeConversationFields, voiceConversationTurnOwnsVoiceIntakeConversationFields2 } from './stateTransitions/customerRequest.js';
 import Conversation from '../models/conversation.js';
 import Lead from '../models/lead.js';
 import VoiceSession from '../models/voiceSession.js';
@@ -5,7 +6,6 @@ import { handleVoiceExit } from '../voice/voiceExit.service.js';
 import { withDistributedLease, registerDistributedLeaseGuard, assertDistributedLeaseActive } from './distributedLease.service.js';
 import { assertVoiceTurnActive } from './voiceTurnContext.service.js';
 import { voiceSafetyAssessment, voiceSafetyReviewReply } from './voiceSafetyReview.service.js';
-
 // Keep one intake writer for the lifetime of a voice call, not merely one turn.
 // A contending call remains read-only even if the original call later ends.
 // All ownership reads and writes happen under the shared SMS/voice lease.
@@ -26,14 +26,11 @@ const ownsVoiceIntake = async (session, conversation, businessId) => {
     }
   }
   if (String(owner || '') !== String(session._id)) {
-    const updated = await Conversation.findOneAndUpdate({
-      _id: conversation._id, business: businessId,
-      'orchestration.activeVoiceIntakeSession': owner || null,
-    }, { $set: { 'orchestration.activeVoiceIntakeSession': session._id } }, { returnDocument: 'after' });
+    const updated = await voiceConversationTurnOwnsVoiceIntakeConversationAtomicUpdate({ Conversation, businessId, conversation, owner, session });
     assertDistributedLeaseActive();
     if (!updated) return false;
-    conversation.orchestration = conversation.orchestration || {};
-    conversation.orchestration.activeVoiceIntakeSession = session._id;
+    voiceConversationTurnOwnsVoiceIntakeConversationFields({ conversation });
+    voiceConversationTurnOwnsVoiceIntakeConversationFields2({ conversation, session });
   }
   return true;
 };

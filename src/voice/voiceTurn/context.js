@@ -1,7 +1,7 @@
+import { saveStateDocument } from '../../services/stateTransitions/documents.js';
+import { stageVoiceLeadBooked } from '../../services/stateTransitions/voice.js';
 import { maybeAnswerDialogQuestion } from '../../services/conversationPolicy/dialogInterruption.js';
-
 import { preventNonProgressReply } from '../../services/conversationPolicy/repetitionGuard.js';
-
 import { dialogMode } from '../../services/conversationPolicy/dialogPolicy.js';
 
 import { handleCompoundCustomerTurn } from '../../services/messaging/compoundCustomerTurn.service.js';
@@ -153,7 +153,7 @@ const preserveVoiceUrgency = async (lead, candidate) => {
   if (VOICE_URGENCY_RANK[candidate] <= VOICE_URGENCY_RANK[current]) return;
   lead.urgency = candidate;
   assertVoiceTurnActive();
-  await lead.save();
+  await saveStateDocument(lead);
 };
 
 const recordPilotMetric = (
@@ -309,16 +309,16 @@ const recordConfirmedAppointment = async ({
   session.estimatedValue = appointment.estimatedValue ?? null;
   session.valuation = appointment.valuation;
   assertVoiceTurnActive();
-  await session.save();
+  await saveStateDocument(session);
 
   if (lead) {
-    lead.status = "booked";
+    stageVoiceLeadBooked({ lead });
     lead.bookedAt = lead.bookedAt || new Date();
     lead.appointment = appointment._id;
     lead.recovered = true;
     lead.recoveredBy = "voice_ai";
     assertVoiceTurnActive();
-    await lead.save();
+    await saveStateDocument(lead);
   }
 
   const callLog =
@@ -330,7 +330,7 @@ const recordConfirmedAppointment = async ({
   if (callLog) {
     callLog.recovered = true;
     assertVoiceTurnActive();
-    await callLog.save();
+    await saveStateDocument(callLog);
   }
 
   try {

@@ -1,3 +1,4 @@
+import { persistReviewedLeadName, persistReviewedConversationName } from '../stateTransitions/requestIntake.js';
 import { applyAppointmentBookingTransition } from './appointmentBookingTransition.repository.js';
 import { withStaffSchedulingException } from '../scheduling/staffSchedulingException.service.js';
 import { extractCustomerPostalCode } from './customerAddress.service.js';
@@ -10,7 +11,6 @@ import { normalizePhoneToE164 } from '../../voice/voicePhone.service.js';
 import AppointmentNotificationJob from '../../models/appointmentNotificationJob.js';
 import AppointmentService, { ensureBusinessApprovalNotice } from '../scheduling/appointment.service.js';
 import { withDistributedLease, assertDistributedLeaseActive } from '../distributedLease.service.js';
-
 const fail = (message, code, statusCode = 409) => Object.assign(new Error(message), { code, statusCode });
 export { intakeReviewVersion, manualIntakeSubmitted } from './intakeReviewContext.service.js';
 import { intakeApprovalKey, intakeReviewVersion, manualIntakeSubmitted } from './intakeReviewContext.service.js';
@@ -116,10 +116,8 @@ export const approveIntake = async ({ business, conversationId, input, approvedB
     } catch { /* The appointment is confirmed; report missing notice honestly. */ }
     await applyAppointmentBookingTransition(Conversation, 'intake_confirmed', confirmed, { approvedBy, qualificationReview });
     // Update only the name staff actually reviewed; do not overwrite a concurrent correction.
-    await Lead.updateOne({ _id: lead._id, business: business._id, customerName: lead.customerName ?? null },
-      { $set: { customerName } });
-    await Conversation.updateOne({ _id: conversation._id, business: business._id, customerName: conversation.customerName ?? null },
-      { $set: { customerName } });
+    await persistReviewedLeadName({ Lead, business, customerName, lead });
+    await persistReviewedConversationName({ Conversation, business, conversation, customerName });
     return { appointment: confirmed, confirmationNoticeStatus };
   });
   if (!lease.acquired) throw fail('This conversation is being updated. Try again shortly.', 'INTAKE_BUSY');

@@ -1,3 +1,4 @@
+import { handleAppointmentReplyAppointmentUpdateOne } from '../stateTransitions/appointmentLifecycle.js';
 import Appointment from '../../models/appointment.js';
 import Notice from '../../models/appointmentNotificationJob.js';
 import AlertService from '../alert.service.js';
@@ -5,7 +6,6 @@ import { scheduleAppointmentChangeNotice } from './appointmentNotification.servi
 import { customerAppointmentLabel } from './customerAppointmentPresentation.service.js';
 import { normalizePhoneToE164 } from '../../voice/voicePhone.service.js';
 export const isAppointmentReply = text => /^\s*[cr]\s*$/i.test(String(text || ''));
-
 // Reminder controls do not restart AI, change human ownership, or cancel a job.
 export async function handleAppointmentReply({ business, conversation, inboundMessage, text }) {
   if (!isAppointmentReply(text) || business.isActive === false) return null;
@@ -26,9 +26,7 @@ export async function handleAppointmentReply({ business, conversation, inboundMe
     sentAt: { $ne: null }, $or: [{ type: 'reminder' }, { body: /Reply C to confirm/i }] });
   if (!priorNotice) return null;
   const confirm = text.trim().toLowerCase() === 'c';
-  const updated = await Appointment.updateOne({ _id: appointment._id, business: business._id, status: 'confirmed' }, {
-    $set: confirm ? { customerConfirmedAt: new Date() } : { customerRescheduleRequestedAt: new Date() },
-  });
+  const updated = await handleAppointmentReplyAppointmentUpdateOne({ Appointment, appointment, business, confirm });
   if (!updated.matchedCount) return { handled: true, changed: true };
   if (!confirm) await AlertService.create({ businessId: business._id, conversationId: conversation._id,
     leadId: appointment.lead, type: 'system', actionRequired: true, priority: 'high',

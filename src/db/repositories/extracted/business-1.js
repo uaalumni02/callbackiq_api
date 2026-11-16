@@ -1,3 +1,4 @@
+import { updateOwnedBusiness } from '../../../services/stateTransitions/accountRecords.js';
 /* Source-exact Db extraction. Preserve order and outcome contracts. */
 export function createDbbusiness1Methods(deps) {
   const { BUSINESS_SCOPE_FIELDS, safeConsole } = deps;
@@ -15,20 +16,9 @@ async getBusinessScopeByOwner(model, ownerId) {
   },
 
 
-
 async updateBusinessByOwner(model, ownerId, data) {
     try {
-      return await model
-        .findOneAndUpdate(
-          {
-            owner: ownerId,
-          },
-          data,
-          {
-            returnDocument: "after",
-            runValidators: true,
-          },
-        )
+      return await updateOwnedBusiness({ data, model, ownerId })
         .populate("owner", "userName email role");
     } catch (error) {
       safeConsole.error("Error updating business by owner:", error);

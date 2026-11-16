@@ -1,3 +1,4 @@
+import { linkTrackedLeadCalls } from '../stateTransitions/messaging.js';
 import { awaitedUpdateManyBatch } from "../database/awaitedUpdateManyBatch.js";
 import mongoose from 'mongoose';
 import CallLog from '../../models/callLog.js';
@@ -7,7 +8,6 @@ const freshEarliestCall = createFreshFindOneBatch(CallLog, {
   sort: { createdAt: 1, _id: 1 }, select: 'marketingSource trackingNumber attribution',
 });
 import { normalizePhoneToE164 } from '../../voice/voicePhone.service.js';
-
 const linkIngressCalls = awaitedUpdateManyBatch(CallLog, "smsTrackedCallLink");
 
 // Link only recent, unassigned tracking calls within the same business and phone identity.
@@ -26,8 +26,5 @@ export async function linkRecentTrackedCalls({ businessId, leadId, conversationI
     trackingNumber: { $ne: null }, deletedAt: null }).sort({ createdAt: 1, _id: 1 })
     .select('marketingSource trackingNumber attribution').lean();
   if (!earliest) return;
-  await Lead.updateOne({ _id: leadId, business: businessId, firstTrackingNumber: null, firstMarketingSource: null }, {
-    $set: { firstMarketingSource: earliest.marketingSource || null,
-      firstTrackingNumber: earliest.trackingNumber, firstAttribution: earliest.attribution || {} },
-  });
+  await linkTrackedLeadCalls({ Lead, businessId, earliest, leadId });
 }

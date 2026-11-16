@@ -1,5 +1,5 @@
+import { saveStateDocument } from '../stateTransitions/documents.js';
 import crypto from "crypto";
-
 import IntegrationConnection from "../../models/integrationConnection.js";
 import { decryptSecret, encryptSecret } from "./tokenEncryption.service.js";
 
@@ -219,7 +219,7 @@ export const exchangeJobberAuthorizationCode = async ({ code, state }) => {
   connection.lastSuccessfulSyncAt = new Date();
   connection.lastErrorAt = null;
   connection.lastErrorMessage = "";
-  await connection.save();
+  await saveStateDocument(connection);
 
   return { businessId: payload.businessId, connection, account };
 };
@@ -254,13 +254,13 @@ export const refreshJobberAccessToken = async (connection) => {
     selectedConnection.status = "connected";
     selectedConnection.lastErrorAt = null;
     selectedConnection.lastErrorMessage = "";
-    await selectedConnection.save();
+    await saveStateDocument(selectedConnection);
     return selectedConnection;
   } catch (error) {
     selectedConnection.status = "expired";
     selectedConnection.lastErrorAt = new Date();
     selectedConnection.lastErrorMessage = error.message;
-    await selectedConnection.save();
+    await saveStateDocument(selectedConnection);
     throw error;
   }
 };
@@ -303,6 +303,6 @@ export const disconnectJobber = async (businessId) => {
   connection.oauthStateHash = "";
   connection.oauthStateExpiresAt = null;
   connection.oauthCodeVerifierEncrypted = "";
-  await connection.save();
+  await saveStateDocument(connection);
   return connection;
 };

@@ -1,12 +1,12 @@
+import { saveStateDocument } from '../services/stateTransitions/documents.js';
+import { upsertVoiceFailureReview } from '../services/stateTransitions/voice.js';
 import { safeConsole } from "../helpers/logging/safeLogger.js";
 import Alert from "../models/alert.js";
 import VoiceSession from "../models/voiceSession.js";
 import SocketService from "../services/socket.service.js";
 import VoiceTranscriptService from "./voiceTranscript.service.js";
-
 const populateSession = (query) =>
   query.populate(["business", "lead", "conversation", "callLog", "appointment"]);
-
 const emit = (method, ...args) => {
   try {
     if (typeof SocketService?.[method] === "function") {
@@ -42,41 +42,10 @@ class VoiceFailureService {
       voiceFailureRecordedAt: new Date(),
       voiceFailureRecoveryPending: true,
     };
-    await session.save();
+    await saveStateDocument(session);
 
     const businessId = session.business._id || session.business;
-    const alert = await Alert.findOneAndUpdate(
-      {
-        business: businessId,
-        dedupeKey: `voice_failure:${session._id}`,
-      },
-      {
-        $setOnInsert: {
-          business: businessId,
-          lead: session.lead?._id || session.lead || null,
-          conversation:
-            session.conversation?._id || session.conversation || null,
-          type: "integration_failure",
-          channel: "in_app",
-          title: "Voice AI session failed",
-          message:
-            "The voice session failed. MeekCall preserved the partial transcript and started the configured staff-first recovery path.",
-          status: "pending",
-          priority: "high",
-          actionRequired: true,
-          reason: reason.slice(0, 1000),
-          recommendedAction:
-            "Answer the transfer or contact the caller immediately.",
-          lastCustomerMessage:
-            session.transcript
-              ?.filter((entry) => entry.role === "customer")
-              .at(-1)?.text || "",
-          dedupeKey: `voice_failure:${session._id}`,
-          metadata: { voiceSessionId: session._id },
-        },
-      },
-      { upsert: true, returnDocument: "after" },
-    );
+    const alert = await upsertVoiceFailureReview({ Alert, businessId, reason, session });
 
     if (alert) emit("emitAlertCreated", businessId, alert);
     emit("emitDashboardRefresh", businessId, "voice_session_failed");
