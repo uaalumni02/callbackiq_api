@@ -101,3 +101,13 @@ test('recovery rotation HTTP endpoint binds the account to the verified session'
  expect((await User.findById(u._id).select('+sessionVersion')).sessionVersion).toBe(2);
  expect((await request(app).post('/api/auth/mfa/verify').send({challengeToken:'malformed',code:'123456'})).status).toBe(401);
 });
+
+test('recovery sign-in returns only a verified session and malformed MFA bodies fail closed',async()=>{
+ const u=await account('admin'),first=await issueAdminChallenge(u),enrolled=await completeAdminChallenge({challengeToken:first.challengeToken,code:otp(first.secret)});
+ const current=await User.findById(u._id).select('+sessionVersion'),challenge=await issueAdminChallenge(current);
+ const verified=await request(app).post('/api/auth/mfa/verify').send({challengeToken:challenge.challengeToken,code:enrolled.recoveryCodes[0]});
+ expect(verified.status).toBe(200);expect(verified.body.data).toEqual({verified:true});expect(verified.headers['set-cookie'].join(';')).toContain('HttpOnly');
+ expect((await request(app).post('/api/auth/mfa/verify')).status).toBe(401);
+ const token=Token.sign({userId:u._id,role:'admin',sessionVersion:1,mfaVerified:true,authTime:Math.floor(Date.now()/1000)});
+ expect((await request(app).post('/api/auth/mfa/recovery-codes').set('Authorization',`Bearer ${token}`)).status).toBe(401);
+});
