@@ -110,4 +110,5 @@ test('recovery sign-in returns only a verified session and malformed MFA bodies 
  expect((await request(app).post('/api/auth/mfa/verify')).status).toBe(401);
  const token=Token.sign({userId:u._id,role:'admin',sessionVersion:1,mfaVerified:true,authTime:Math.floor(Date.now()/1000)});
  expect((await request(app).post('/api/auth/mfa/recovery-codes').set('Authorization',`Bearer ${token}`)).status).toBe(401);
+ for(const code of [{invalid:true},'x'.repeat(101)])expect((await request(app).post('/api/auth/mfa/recovery-codes').set('Authorization',`Bearer ${token}`).send({password,code})).status).toBe(401);
 });

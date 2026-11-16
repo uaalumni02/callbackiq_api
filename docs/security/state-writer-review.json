@@ -5870,7 +5870,7 @@
         "function": "regenerateAdminRecovery",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "6da7931ca62f693669f0b1127f19b12f8c02160e36e84b6aed2c4d7328e35c12",
+      "sourceFingerprint": "53aa2e9072ea5f855d1d6ead02b9f2d203a2add890ef69e38cd45be66cb93bea",
       "authority": "RegisteredStateRecord",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
@@ -5884,7 +5884,7 @@
         "function": "regenerateAdminRecovery",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "6da7931ca62f693669f0b1127f19b12f8c02160e36e84b6aed2c4d7328e35c12",
+      "sourceFingerprint": "53aa2e9072ea5f855d1d6ead02b9f2d203a2add890ef69e38cd45be66cb93bea",
       "authority": "RegisteredStateRecord",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,

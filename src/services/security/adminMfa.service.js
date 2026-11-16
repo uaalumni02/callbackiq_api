@@ -62,6 +62,7 @@ export async function completeAdminChallenge({ challengeToken, code }) {
 }
 export async function regenerateAdminRecovery({ userId, password, code }) {
   await chargeAdminMfaAttempt(userId);
+  if (typeof password !== 'string' || typeof code !== 'string' || code.length > 100) throw mfaFailure();
   const user = await User.findById(userId).select(privateFields);
   if (!user || !user.mfaEnabled || !await bcrypt.comparePassword(password, user.password)) throw mfaFailure();
   const step = totpStep(decryptSecret(user.mfaSecretEncrypted), user.email, code);
