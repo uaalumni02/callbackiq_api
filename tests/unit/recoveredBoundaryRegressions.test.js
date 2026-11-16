@@ -33,7 +33,7 @@ test('inline processing shares the worker conversation lease and preserves a bus
   })).resolves.toBe('complete');
   expect(process).toHaveBeenCalledWith(job);
 });
-test('missing original reschedule details cannot create a hold or a synthetic replay fingerprint', async () => {
+test.each([undefined, null, [], 'invalid', 42])('invalid original reschedule details cannot create a hold or a synthetic replay fingerprint (%#)', async input => {
   const createHold = jest.fn();
   await expect(reserveReplacement({
     business: {
@@ -41,7 +41,8 @@ test('missing original reschedule details cannot create a hold or a synthetic re
     },
     original: {
       _id: 'a'
-    }
+    },
+    input
   }, {
     createHold
   })).rejects.toMatchObject({
