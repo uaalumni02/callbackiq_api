@@ -1,9 +1,9 @@
 {
   "baseline": "55362b127cc4a72453ca96e995fe54bea95c1333",
-  "total": 673,
+  "total": 676,
   "counts": {
-    "delegated-command-with-recorded-owner": 432,
-    "atomic-query-with-recorded-filter": 142,
+    "delegated-command-with-recorded-owner": 434,
+    "atomic-query-with-recorded-filter": 143,
     "capability-inspection": 18,
     "model-persistence-and-unique-index-contract": 19,
     "staged-fields-with-persistence-owner": 55,
@@ -5518,7 +5518,7 @@
         "function": "reserveReplacement",
         "mode": "transition-layer"
       },
-      "sourceFingerprint": "6400fa9d3c2d095fea84217b5fec26cc5e0389d167c650094da6d0eca50db1e7",
+      "sourceFingerprint": "2729192f581cf63461d9e64af3459c5468fe89c19aafe2e69fa37dfc87b273f7",
       "authority": "RegisteredStateRecord",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
@@ -5534,7 +5534,7 @@
         "function": "reserveReplacement",
         "mode": "transition-layer"
       },
-      "sourceFingerprint": "6400fa9d3c2d095fea84217b5fec26cc5e0389d167c650094da6d0eca50db1e7",
+      "sourceFingerprint": "2729192f581cf63461d9e64af3459c5468fe89c19aafe2e69fa37dfc87b273f7",
       "authority": "Appointment",
       "disposition": "model-persistence-and-unique-index-contract",
       "recordedPredicate": null,
@@ -7224,10 +7224,10 @@
         "function": "opportunityValuationReserveValuationLeadAtomicUpdate",
         "mode": "transition-layer"
       },
-      "sourceFingerprint": "0812b9cfb0e8d164bd67ec3f42e10255afc9c36110f90aa10f7097be6042ae32",
+      "sourceFingerprint": "7f45b021813ebe204c017babf2b811198151630a50017ec005b01fd90892e89f",
       "authority": "Lead",
       "disposition": "atomic-query-with-recorded-filter",
-      "recordedPredicate": "{ _id: lead._id, business: businessId,\n      \"valuation.source\": { $exists: false }, estimatedValue: null,\n    }",
+      "recordedPredicate": "{ _id: lead._id, business: businessId, ...versionClaim,\n      \"valuation.source\": { $exists: false }, estimatedValue: null,\n    }",
       "localClaimEvidence": [
         "valuationVersion"
       ],
@@ -7240,10 +7240,10 @@
         "function": "opportunityValuationReserveValuationLeadAtomicUpdate2",
         "mode": "transition-layer"
       },
-      "sourceFingerprint": "1fd629be3e4c82371971c1c20ebda8b0912b102dbbf4e9253f29d221b3f9fed5",
+      "sourceFingerprint": "f08828f6dd6839dfd1307c587fd0f7ba17c0d3f17f51012efa0106dd76e67db2",
       "authority": "Lead",
       "disposition": "atomic-query-with-recorded-filter",
-      "recordedPredicate": "{ _id: lead._id, business: businessId,\n    \"valuation.source\": { $in: [\"unknown\", \"service_catalog\", \"historical\"] },\n  }",
+      "recordedPredicate": "{ _id: lead._id, business: businessId, ...versionClaim,\n    \"valuation.source\": { $in: [\"unknown\", \"service_catalog\", \"historical\"] },\n  }",
       "localClaimEvidence": [
         "valuationVersion"
       ],
@@ -8355,6 +8355,20 @@
       "enforcement": "documentFence saves/query versions; requestBookingPersistence decision predicates; appointment-link projection ownership"
     },
     {
+      "id": "src/services/stateTransitions/messaging.js#persistVoiceFallbackPreview#findOneAndUpdate#1",
+      "owner": {
+        "module": "src/services/stateTransitions/messaging.js",
+        "function": "persistVoiceFallbackPreview",
+        "mode": "transition-layer"
+      },
+      "sourceFingerprint": "8871ba7b00f42447707dc33ae1035c72fdc5ce39c00ce499b2168f503c12deff",
+      "authority": "Conversation",
+      "disposition": "atomic-query-with-recorded-filter",
+      "recordedPredicate": "{ _id: conversation._id, business: business._id,\n    $or: [{ lastMessageAt: null }, { lastMessageAt: { $lte: at } }],\n  }",
+      "localClaimEvidence": [],
+      "enforcement": "documentFence saves/query versions; requestBookingPersistence decision predicates; appointment-link projection ownership"
+    },
+    {
       "id": "src/services/stateTransitions/recoveryCoordinator.js#persistRecoveryBookingEvidence#findOneAndUpdate#1",
       "owner": {
         "module": "src/services/stateTransitions/recoveryCoordinator.js",
@@ -9263,12 +9277,26 @@
         "function": "handleInboundSmsWebhook",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "213c6375a533cfc022b328306721e4b3696357073f8cf1e23fd9df25f9689726",
+      "sourceFingerprint": "97cb168006280df4d7a8cd373a0f0be860e2c331ea2b1c11cbd628217cc80ca0",
       "authority": "RegisteredStateRecord",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
       "localClaimEvidence": [],
       "enforcement": "Dispatch/capability remains bound by the recorded owner; inspect its model and caller. Registration is not proof of safety."
+    },
+    {
+      "id": "src/services/valuation/opportunityValuation.service.js#ownedValuationSnapshot#transition-command#1",
+      "owner": {
+        "module": "src/services/valuation/opportunityValuation.service.js",
+        "function": "ownedValuationSnapshot",
+        "mode": "registered-domain-command"
+      },
+      "sourceFingerprint": "6508c060de8b6f566bb3980ffa678c67ad50c7c5243d53fcdaa2a3f641e231be",
+      "authority": "Lead",
+      "disposition": "delegated-command-with-recorded-owner",
+      "recordedPredicate": null,
+      "localClaimEvidence": [],
+      "enforcement": "documentFence saves/query versions; tenantRepository scope; valuationVersion and booking projection predicates"
     },
     {
       "id": "src/services/valuation/opportunityValuation.service.js#reserveValuation#transition-command#1",
@@ -9277,12 +9305,12 @@
         "function": "reserveValuation",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "2495057d36e21b26248677de8c89fd2a49bb6779190360238b490f453b2bb8ef",
-      "authority": "RegisteredStateRecord",
+      "sourceFingerprint": "53f4442bbc1e2ea1e381d218b77cf84ee155c6e26d3d0b52d58a624a53ce82f0",
+      "authority": "Lead",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
       "localClaimEvidence": [],
-      "enforcement": "Dispatch/capability remains bound by the recorded owner; inspect its model and caller. Registration is not proof of safety."
+      "enforcement": "documentFence saves/query versions; tenantRepository scope; valuationVersion and booking projection predicates"
     },
     {
       "id": "src/services/valuation/opportunityValuation.service.js#reserveValuation#transition-command#2",
@@ -9291,7 +9319,21 @@
         "function": "reserveValuation",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "2495057d36e21b26248677de8c89fd2a49bb6779190360238b490f453b2bb8ef",
+      "sourceFingerprint": "53f4442bbc1e2ea1e381d218b77cf84ee155c6e26d3d0b52d58a624a53ce82f0",
+      "authority": "RegisteredStateRecord",
+      "disposition": "delegated-command-with-recorded-owner",
+      "recordedPredicate": null,
+      "localClaimEvidence": [],
+      "enforcement": "Dispatch/capability remains bound by the recorded owner; inspect its model and caller. Registration is not proof of safety."
+    },
+    {
+      "id": "src/services/valuation/opportunityValuation.service.js#reserveValuation#transition-command#3",
+      "owner": {
+        "module": "src/services/valuation/opportunityValuation.service.js",
+        "function": "reserveValuation",
+        "mode": "registered-domain-command"
+      },
+      "sourceFingerprint": "53f4442bbc1e2ea1e381d218b77cf84ee155c6e26d3d0b52d58a624a53ce82f0",
       "authority": "RegisteredStateRecord",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
@@ -9338,7 +9380,7 @@
         "function": "ownsVoiceIntake",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "b314ac51005a6633d5ca74e95353e89034c1b5d2f682f962d537c73eed723439",
+      "sourceFingerprint": "1698ec26b0515901809f07eb195ff370161550e60b5415153247f4efc36fe2fd",
       "authority": "RegisteredStateRecord",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
@@ -9355,7 +9397,7 @@
         "function": "ownsVoiceIntake",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "b314ac51005a6633d5ca74e95353e89034c1b5d2f682f962d537c73eed723439",
+      "sourceFingerprint": "1698ec26b0515901809f07eb195ff370161550e60b5415153247f4efc36fe2fd",
       "authority": "RegisteredStateRecord",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
@@ -9372,7 +9414,7 @@
         "function": "ownsVoiceIntake",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "b314ac51005a6633d5ca74e95353e89034c1b5d2f682f962d537c73eed723439",
+      "sourceFingerprint": "1698ec26b0515901809f07eb195ff370161550e60b5415153247f4efc36fe2fd",
       "authority": "RegisteredStateRecord",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
@@ -9863,15 +9905,15 @@
         "function": "sendFallbackSms",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "44c9b72bc9281dc1e52e22f3dc761bf20425faecc19ca1ec38f1d86293d9b896",
-      "authority": "Conversation",
+      "sourceFingerprint": "c43114379cea3a95f0592d9d45d5e47829e007e72c1ecde44778fa614d5e8916",
+      "authority": "RegisteredStateRecord",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
       "localClaimEvidence": [
         "idempotencyKey",
         "session"
       ],
-      "enforcement": "documentFence saves/query versions; requestBookingPersistence decision predicates; appointment-link projection ownership"
+      "enforcement": "Dispatch/capability remains bound by the recorded owner; inspect its model and caller. Registration is not proof of safety."
     },
     {
       "id": "src/voice/voiceSession.service.js#sendFallbackSms#transition-command#2",
@@ -9880,7 +9922,7 @@
         "function": "sendFallbackSms",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "44c9b72bc9281dc1e52e22f3dc761bf20425faecc19ca1ec38f1d86293d9b896",
+      "sourceFingerprint": "c43114379cea3a95f0592d9d45d5e47829e007e72c1ecde44778fa614d5e8916",
       "authority": "RegisteredStateRecord",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
@@ -9897,7 +9939,7 @@
         "function": "sendFallbackSms",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "44c9b72bc9281dc1e52e22f3dc761bf20425faecc19ca1ec38f1d86293d9b896",
+      "sourceFingerprint": "c43114379cea3a95f0592d9d45d5e47829e007e72c1ecde44778fa614d5e8916",
       "authority": "RegisteredStateRecord",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,

@@ -706,6 +706,7 @@
     "src/services/messaging/smsProcessingQueue.service.js:92"
   ],
   "SMS_CONVERSATION_LEASE_MS": [
+    "src/services/messaging/inlineSmsProcessing.service.js:10",
     "src/workers/smsProcessing.worker.js:112"
   ],
   "SMS_DELIVERY_RECONCILIATION_BATCH_SIZE": [
@@ -772,6 +773,7 @@
     "src/workers/smsProcessing.worker.js:28"
   ],
   "SMS_PROCESSING_LEASE_MS": [
+    "src/services/messaging/inlineSmsProcessing.service.js:10",
     "src/services/messaging/smsProcessingQueue.service.js:19",
     "src/services/scale/smsTenantFairness.service.js:10",
     "src/workers/smsProcessing.worker.js:55",

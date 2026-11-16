@@ -200,7 +200,7 @@ Typed settings in `config/worker-settings.json` and `config/numeric-settings.jso
 | SHUTDOWN_TIMEOUT_MS | `src/server.js:68`, `src/server.js:69` |
 | SMS_AI_HISTORY_MESSAGES | `src/services/messaging/smsTurnAggregation.service.js:9` |
 | SMS_CLAIM_MAX_TIME_MS | `src/services/messaging/smsProcessingQueue.service.js:92` |
-| SMS_CONVERSATION_LEASE_MS | `src/workers/smsProcessing.worker.js:112` |
+| SMS_CONVERSATION_LEASE_MS | `src/services/messaging/inlineSmsProcessing.service.js:10`, `src/workers/smsProcessing.worker.js:112` |
 | SMS_DELIVERY_RECONCILIATION_BATCH_SIZE | `src/workers/smsDeliveryReconciliation.worker.js:34` |
 | SMS_DELIVERY_RECONCILIATION_ENABLED | `src/workers/smsDeliveryReconciliation.worker.js:133` |
 | SMS_DELIVERY_RECONCILIATION_INTERVAL_MS | `src/workers/smsDeliveryReconciliation.worker.js:26` |
@@ -222,7 +222,7 @@ Typed settings in `config/worker-settings.json` and `config/numeric-settings.jso
 | SMS_PROCESSING_BUSY_DELAY_MS | `src/workers/smsProcessing.worker.js:33` |
 | SMS_PROCESSING_CONCURRENCY | `src/workers/smsProcessing.worker.js:46` |
 | SMS_PROCESSING_INTERVAL_MS | `src/workers/smsProcessing.worker.js:28` |
-| SMS_PROCESSING_LEASE_MS | `src/services/messaging/smsProcessingQueue.service.js:19`, `src/services/scale/smsTenantFairness.service.js:10`, `src/workers/smsProcessing.worker.js:55`, `src/workers/smsProcessing.worker.js:57`, `src/workers/smsProcessing.worker.js:112` |
+| SMS_PROCESSING_LEASE_MS | `src/services/messaging/inlineSmsProcessing.service.js:10`, `src/services/messaging/smsProcessingQueue.service.js:19`, `src/services/scale/smsTenantFairness.service.js:10`, `src/workers/smsProcessing.worker.js:55`, `src/workers/smsProcessing.worker.js:57`, `src/workers/smsProcessing.worker.js:112` |
 | SMS_PROCESSING_MAX_ATTEMPTS | `src/services/messaging/smsProcessingQueue.service.js:26` |
 | SMS_PROCESSING_WORKER_ENABLED | `src/workers/smsProcessing.worker.js:241` |
 | SMS_RECOVERY_NUDGE_DELAY_MS | `src/workers/conversationLifecycle.worker.js:27` |
