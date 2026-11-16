@@ -1,21 +1,15 @@
-import { persistStaffFollowUpLead, persistStaffFollowUpConversation } from '../stateTransitions/messaging.js';
+import { resolveSmsRecords } from './inboundSmsRecords.service.js';
+import { persistStaffFollowUp as persistStaffFollowUpTurn } from './staffFollowUp.service.js';
 import { handleSmsContactControl, handleSmsRequestInterrupt } from "./inboundSmsDeterministicActions.service.js";
 import { createSmsOutboundDelivery } from './smsOutboundDelivery.adapter.js';
-import { preserveHigherUrgency } from "./urgencyPolicy.service.js";
 import { smsContactControlKind, canAcknowledgeSmsContactControl } from './smsContactControl.service.js';
 import { handleAppointmentReply } from '../scheduling/appointmentReply.service.js';
-import { captureTurnFacts } from '../booking/turnFactCapture.service.js';
 import { guardServiceRequest } from '../serviceEligibility/serviceEligibility.service.js';
 import { respectCustomerConstraints } from '../conversationCondition.service.js';
-import { getApprovedServiceEstimate } from "../booking/approvedServiceEstimate.service.js";
-import { confirmationTimingReply } from "../booking/recoveryIntake.service.js";
-import { isConfirmationQuestion } from "../booking/conversationQuestions.service.js";
 // CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1: processor
 import { classifySmsIntent } from "./smsIntentClassifier.service.js";
 import { loadCustomerTurn, completeCoalescedJobs } from "./smsTurnAggregation.service.js";
-import Business from "../../models/business.js";
 import Conversation from "../../models/conversation.js";
-import Lead from "../../models/lead.js";
 import Message from "../../models/message.js";
 import { sendSms } from "../twilioSmsService.js";
 import AlertService from "../alert.service.js";
@@ -30,26 +24,10 @@ import { assertDistributedLeaseActive } from "../distributedLease.service.js";
 import { describeSmsWorkflowDecision } from './smsWorkflowPolicy.service.js';
 import { planCustomerTurn } from './customerTurnPlan.service.js';
 import { routeConversationReply } from './inboundSmsReply.service.js';
+const persistStaffFollowUp = context => persistStaffFollowUpTurn(context, { persistOutboundReply, completeTurn });
 const persistOutboundReply = createSmsOutboundDelivery({ Message, Conversation, AlertService, SocketService, sendSms, logOperationalEvent, applySmsProductionInvariants, describeSmsWorkflowDecision, assertDistributedLeaseActive, respectCustomerConstraints, getSmsAutomationSuppressionReason });
 
-async function resolveSmsRecords(job) {
-  const [business, inboundMessage, conversation, lead] = await Promise.all([
-    Business.findById(job.business),
-    Message.findOne({ _id: job.inboundMessage, business: job.business, conversation: job.conversation }),
-    Conversation.findOne({ _id: job.conversation, business: job.business }),
-    Lead.findOne({ _id: job.lead, business: job.business }),
-  ]);
 
-  if (!business || !inboundMessage || !conversation || !lead) {
-    const error = new Error("SMS processing job references missing records");
-    error.code = "SMS_JOB_RECORD_MISSING";
-    throw error;
-  }
-  if (conversation.lead && String(conversation.lead) !== String(lead._id)) {
-    throw Object.assign(new Error('SMS job references a different request'), { code: 'SMS_JOB_RECORD_MISMATCH' });
-  }
-  return { job, business, inboundMessage, conversation, lead };
-}
 
 // STOP, HELP and opt-in are consumed by the webhook before an automation job
 // is queued. This stage only normalizes the durable, coalesced customer turn.
@@ -195,77 +173,9 @@ function shouldKeepStaffOwnership({ conversation, classification, handoffSource,
     (automationPaused && safetyReviewRequired);
 }
 
-async function persistStaffFollowUp(context) {
-  const { business, lead, conversation, inboundMessage, customerTurn,
-    classification, deterministicAssessment, automationPaused, safetyReviewRequired: safety } = context;
-  // This branch bypasses the ordinary AI result persistence. Preserve facts
-  // and raise urgency before creating the durable staff task or replying.
-  const urgency = preserveHigherUrgency(lead.urgency,
-    safety ? (deterministicAssessment.category === "emergency" ? "emergency" : "high") : classification.entities?.urgency);
-  assertDistributedLeaseActive();
-  const facts = safety ? captureTurnFacts({ customerMessage: customerTurn.customerMessage, classification, business, lead }) : {};
-  const followUpLead = await persistStaffFollowUpLead({ Lead, facts, lead, urgency });
-  Object.assign(lead, facts, { urgency });
-  const intent = safety ? deterministicAssessment.category : "intake_follow_up";
-  const followUpConversation = await persistStaffFollowUpConversation({ Conversation, conversation, inboundMessage, intent, urgency });
-  await Message.findByIdAndUpdate(inboundMessage._id, { $set: {
-    aiOutcome: { intent, urgency, serviceNeeded: lead.serviceNeeded || "",
-      address: lead.address || "", preferredAppointmentTime: lead.preferredAppointmentTime || "",
-      bookingState: conversation.bookingState?.status || "not_started",
-      outcome: "queued_for_team", confidence: safety ? 100 : 0 },
-  } });
-  SocketService.emitLeadUpdated(business._id, followUpLead);
-  SocketService.emitConversationUpdated(business._id, followUpConversation);
-  await AlertService.createHumanHandoffAlert({
-    businessId: business._id, leadId: lead._id, conversationId: conversation._id,
-    messageId: inboundMessage._id, providerMessageId: inboundMessage.providerMessageId,
-    customerName: lead.customerName, customerPhone: conversation.customerPhone,
-    customerMessage: customerTurn.customerMessage, lead,
-    result: {
-      messageCategory: safety ? deterministicAssessment.category : "service_request",
-      urgency,
-      summary: safety ? "New customer safety concern; review the full conversation." : "Additional customer message after completed intake; review the full conversation.",
-      handoff: { reason: automationPaused ? "staff_safety_review" : "intake_follow_up", callbackRequested: false },
-      riskFlags: safety ? (deterministicAssessment.riskFlags || ["safety_hazard"]) : [],
-    },
-  });
-  const delivery = await deliverStaffFollowUp({ ...context, safety });
-  await completeTurn(context);
-  return { decision: "queued_for_team", reason: automationPaused ? "staff_safety_review" : "intake_complete",
-    sent: delivery.sent === true, outboundMessageId: delivery.message?._id || null };
-}
 
-async function deliverStaffFollowUp({ business, lead, conversation, inboundMessage, customerTurn,
-  classification, deterministicAssessment, automationPaused, safety }) {
-  let delivery = { sent: false };
-  // A fixed emergency response does not resume AI or relinquish staff ownership.
-  // Existing inbound-reply idempotency and SMS consent/budgets still apply.
-  if (safety && (!automationPaused || deterministicAssessment.category === "emergency")) {
-    delivery = await persistOutboundReply({ business, lead, conversation, inboundMessage,
-      result: { decision: "send_fixed_response", actionType: "send_fixed_response", messageCategory: deterministicAssessment.category, reply: deterministicAssessment.reply, guardrail: { skipAI: true } },
-    });
-  }
-  if (!safety && classification.intents?.pricing && !automationPaused) {
-    let estimate = "";
-    const changedRequest = classification.intents?.correction || classification.intents?.newService ||
-      (classification.entities?.serviceNeeded && classification.entities.serviceNeeded !== lead.serviceNeeded);
-    try {
-      if (!changedRequest) estimate = await getApprovedServiceEstimate({ businessId: business._id,
-        serviceNeeded: lead.serviceNeeded, customerMessage: customerTurn.customerMessage });
-    } catch (error) { logOperationalError("sms.approved_price_lookup_failed", error, { businessId: business._id }); }
-    delivery = await persistOutboundReply({ business, lead, conversation, inboundMessage,
-      result: { decision: "send_fixed_response", actionType: "send_fixed_response", messageCategory: "pricing_request",
-        reply: estimate || "I don't have an approved estimate for that request. Your pricing question is saved for business review; the requested appointment remains unconfirmed.",
-        guardrail: { skipAI: true } },
-    });
-  }
-  if (!safety && !classification.intents?.pricing && isConfirmationQuestion(customerTurn.customerMessage) && !automationPaused) {
-    delivery = await persistOutboundReply({ business, lead, conversation, inboundMessage,
-      result: { decision: "send_fixed_response", actionType: "send_fixed_response", messageCategory: "appointment_status", reply: confirmationTimingReply({ lead }), guardrail: { skipAI: true } },
-    });
-  }
-  return delivery;
-}
+
+
 
 async function skipIneligibleAutomation(context) {
   const { business, conversation, deterministicAssessment } = context;

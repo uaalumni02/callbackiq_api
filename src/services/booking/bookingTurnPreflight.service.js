@@ -1,4 +1,3 @@
-import { saveStateDocument } from '../stateTransitions/documents.js';
 import { fixedResult } from './bookingFixedResult.policy.js';
 import { planRejectedBookingPreference } from './bookingTurnDecision.policy.js';
 import { hasBookingAvailabilityHint, EXACT_PRICE } from './bookingMessagePolicy.service.js';
@@ -13,7 +12,7 @@ import { assertVoiceTurnActive } from "../voiceTurnContext.service.js";
 import { assertDistributedLeaseActive } from "../distributedLease.service.js";
 import escalateToHumanTool from "../../helpers/ai/tools/escalateToHuman.tool.js";
 import { findDateRange, parseTimePreference } from "./appointmentPreferenceParser.service.js";
-import { saveBookingTransition } from "./bookingTurnState.repository.js";
+import { saveBookingDocument, saveBookingTransition } from "./bookingTurnState.repository.js";
 import { bookingInquiryOperations } from "./bookingInquiryRuntime.js";
 const { handleBookingReadinessFailure } = bookingInquiryOperations;
 async function routeBookingControl({ business, lead, conversation, customerMessage, channel, text }) {
@@ -46,7 +45,7 @@ async function routeRejectedPreference({ business, lead, conversation, text, ena
         : time.targetMinutes !== null || time.timeOfDay ? time.raw : '';
       assertVoiceTurnActive(); assertDistributedLeaseActive();
       lead.preferredAppointmentTime = [day, clock].filter(Boolean).join(' at ');
-      await saveStateDocument(lead);
+      await saveBookingDocument(lead);
     }
     if (conversation?.set && preferenceRejection.updateRequestedPreference) {
       await saveBookingTransition(conversation, preferenceRejection.event, preferenceRejection.details);

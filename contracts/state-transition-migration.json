@@ -321,59 +321,6 @@
       ]
     },
     {
-      "file": "src/services/booking/bookingIntakeTurn.service.js",
-      "baselineAstSha256": "0dc962ffcb7b417170d7c9aa562a2136b33802cd093e41d4ff18ae2fc2eb0db4",
-      "commands": [
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(lead)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "lead.save()",
-          "legacyId": "src/services/booking/bookingIntakeTurn.service.js#collectBookingService#save#1"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(lead)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "lead.save()",
-          "legacyId": "src/services/booking/bookingIntakeTurn.service.js#collectBookingStreetAddress#save#1"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(lead)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "lead.save()",
-          "legacyId": "src/services/booking/bookingIntakeTurn.service.js#collectBookingPostalCode#save#1"
-        }
-      ]
-    },
-    {
-      "file": "src/services/booking/bookingReadOnlyTurn.service.js",
-      "baselineAstSha256": "a2d525498e2c8cc3c8c856f9d6b5f2bf21b7e6bb9cea8a5eb86efb506b07b823",
-      "commands": [
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(lead)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "lead.save()",
-          "legacyId": "src/services/booking/bookingReadOnlyTurn.service.js#recordReadOnlySelection#save#1"
-        }
-      ]
-    },
-    {
-      "file": "src/services/booking/bookingTurnPreflight.service.js",
-      "baselineAstSha256": "9f0c48982927f3d79476407ce11fc111d46f12f2713455f8a4916eee1f5592b9",
-      "commands": [
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(lead)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "lead.save()",
-          "legacyId": "src/services/booking/bookingTurnPreflight.service.js#routeRejectedPreference#save#1"
-        }
-      ]
-    },
-    {
       "file": "src/services/booking/existingBookingTurn.service.js",
       "baselineAstSha256": "3902d5b05bd4c7cc35049b4870bcaec5940998f0f63ed3450c9df456dbd6c1ca",
       "commands": [
@@ -1016,67 +963,6 @@
           "target": "src/services/stateTransitions/messaging.js",
           "expression": "Conversation.findByIdAndUpdate(conversation._id, { $set: { ...buildSmsStatePatch({ conversation, classification,\n      outcome: { intent: directResult.messageCategory }, hasCustomerReply: true }), ...revisionPatch } }, { runValidators: true })",
           "legacyId": "src/services/messaging/inboundSmsDeterministicActions.service.js#handleSmsRequestInterrupt#findByIdAndUpdate#2"
-        }
-      ]
-    },
-    {
-      "file": "src/services/messaging/inboundSmsJobProcessor.service.js",
-      "baselineAstSha256": "2ebef3a82e2e3706d57b827c8d0997f35501f9f501b432a14f35d43164194c4a",
-      "commands": [
-        {
-          "name": "persistStaffFollowUpLead",
-          "call": "persistStaffFollowUpLead({ Lead, facts, lead, urgency })",
-          "target": "src/services/stateTransitions/messaging.js",
-          "expression": "Lead.findByIdAndUpdate(lead._id,\n    { $set: { ...facts, urgency } }, { returnDocument: \"after\", runValidators: true })",
-          "legacyId": "src/services/messaging/inboundSmsJobProcessor.service.js#persistStaffFollowUp#findByIdAndUpdate#1"
-        },
-        {
-          "name": "persistStaffFollowUpConversation",
-          "call": "persistStaffFollowUpConversation({ Conversation, conversation, inboundMessage, intent, urgency })",
-          "target": "src/services/stateTransitions/messaging.js",
-          "expression": "Conversation.findByIdAndUpdate(conversation._id, {\n    $set: {\n      \"conversationMemory.urgency\": urgency,\n      \"conversationMemory.lastIntent\": intent,\n      \"conversationMemory.lastUpdatedAt\": new Date(),\n      \"orchestration.lastIntent\": intent,\n      \"orchestration.lastOutcome\": \"queued_for_team\",\n      \"orchestration.lastInboundMessage\": inboundMessage._id,\n      \"orchestration.lastCustomerTurnAt\": new Date(),\n    },\n  }, { returnDocument: \"after\", runValidators: true })",
-          "legacyId": "src/services/messaging/inboundSmsJobProcessor.service.js#persistStaffFollowUp#findByIdAndUpdate#2"
-        }
-      ]
-    },
-    {
-      "file": "src/services/messaging/inboundSmsReply.service.js",
-      "baselineAstSha256": "e6fed642fcdc1360fdd103bad35ecd48159f036e2843fdb5e44d674b0d12623f",
-      "commands": [
-        {
-          "name": "persistReplyLeadFacts",
-          "call": "persistReplyLeadFacts({ Lead, lead, leadUpdates })",
-          "target": "src/services/stateTransitions/messaging.js",
-          "expression": "Lead.findByIdAndUpdate(lead._id, leadUpdates, {\n      returnDocument: \"after\",\n      runValidators: true,\n    })",
-          "legacyId": "src/services/messaging/inboundSmsReply.service.js#persistLeadReplyFacts#findByIdAndUpdate#1"
-        },
-        {
-          "name": "persistReplyConversationState",
-          "call": "persistReplyConversationState({ Conversation, handoffRequired, pendingHandoffPatch, result, revisionPatch, statePatch, updatedConversation })",
-          "target": "src/services/stateTransitions/messaging.js",
-          "expression": "Conversation.findByIdAndUpdate(\n    updatedConversation._id,\n    { $set: { ...statePatch, ...revisionPatch, ...pendingHandoffPatch,\n      ...(handoffRequired && !revisionPatch['conversationMemory.recoveryIntake'] ? { 'conversationMemory.recoveryIntake.preparedHandoffResult': {\n        reply: result.reply, intakeCompletionReply: result.reply, intakeReview: result.intakeReview,\n        messageCategory: result.messageCategory, serviceNeeded: result.serviceNeeded, urgency: result.urgency,\n        address: result.address, preferredAppointmentTime: result.preferredAppointmentTime, summary: result.summary,\n        guardrail: result.guardrail,\n      } } : {}),\n    } },\n    { returnDocument: \"after\", runValidators: true },\n  )",
-          "legacyId": "src/services/messaging/inboundSmsReply.service.js#persistConversationReplyState#findByIdAndUpdate#1"
-        },
-        {
-          "name": "linkReplyReview",
-          "call": "linkReplyReview({ Conversation, reviewPatch, updatedConversation })",
-          "target": "src/services/stateTransitions/messaging.js",
-          "expression": "Conversation.findByIdAndUpdate(updatedConversation._id,\n      { $set: reviewPatch }, { returnDocument: 'after', runValidators: true })",
-          "legacyId": "src/services/messaging/inboundSmsReply.service.js#persistConversationReview#findByIdAndUpdate#1"
-        },
-        {
-          "name": "persistFailedHandoffDelivery",
-          "call": "persistFailedHandoffDelivery({ Conversation, buildFailedHumanHandoffUpdate, error, inboundMessage, latestConversation, result, updatedConversation })",
-          "target": "src/services/stateTransitions/messaging.js",
-          "expression": "Conversation.findByIdAndUpdate(\n    updatedConversation._id,\n    {\n      $set: buildFailedHumanHandoffUpdate({\n        inboundMessageId: inboundMessage._id,\n        conversation: latestConversation,\n        result,\n        error,\n      }),\n      $inc: { \"orchestration.silentFailureCount\": 1 },\n    },\n    { returnDocument: \"after\", runValidators: true },\n  )",
-          "legacyId": "src/services/messaging/inboundSmsReply.service.js#persistHandoffDeliveryFailure#findByIdAndUpdate#1"
-        },
-        {
-          "name": "finalizeAcknowledgedHandoff",
-          "call": "finalizeAcknowledgedHandoff({ Conversation, buildFinalizedHumanHandoffUpdate, delivery, deliveryStatus, inboundMessage, latestConversation, result, updatedConversation })",
-          "target": "src/services/stateTransitions/messaging.js",
-          "expression": "Conversation.findByIdAndUpdate(\n    updatedConversation._id,\n    {\n      $set: buildFinalizedHumanHandoffUpdate({\n        inboundMessageId: inboundMessage._id,\n        outboundMessageId: delivery?.message?._id || null,\n        conversation: latestConversation,\n        result,\n        deliveryStatus,\n      }),\n    },\n    { returnDocument: \"after\", runValidators: true },\n  )",
-          "legacyId": "src/services/messaging/inboundSmsReply.service.js#finalizeConversationHandoff#findByIdAndUpdate#1"
         }
       ]
     },
@@ -2649,6 +2535,47 @@
       "reason": "Native bulk snapshot writes must advance the same private version as query middleware.",
       "tests": [
         "tests/integration/smsCapacityBatches.persistence.test.js",
+        "tests/integration/documentFence.security.test.js",
+        "tests/integration/sms10of10.adversarial.mongo.test.js"
+      ]
+    },
+    {
+      "file": "src/services/booking/bookingIntakeTurn.service.js",
+      "reason": "Cohesive lookup, staff follow-up, and lead reply persistence extraction; booking saves use the existing booking persistence entry.",
+      "tests": [
+        "tests/integration/sms10of10.adversarial.mongo.test.js",
+        "tests/integration/documentFence.security.test.js"
+      ]
+    },
+    {
+      "file": "src/services/booking/bookingReadOnlyTurn.service.js",
+      "reason": "Cohesive lookup, staff follow-up, and lead reply persistence extraction; booking saves use the existing booking persistence entry.",
+      "tests": [
+        "tests/integration/sms10of10.adversarial.mongo.test.js",
+        "tests/integration/documentFence.security.test.js"
+      ]
+    },
+    {
+      "file": "src/services/booking/bookingTurnPreflight.service.js",
+      "reason": "Cohesive lookup, staff follow-up, and lead reply persistence extraction; booking saves use the existing booking persistence entry.",
+      "tests": [
+        "tests/integration/sms10of10.adversarial.mongo.test.js",
+        "tests/integration/documentFence.security.test.js"
+      ]
+    },
+    {
+      "file": "src/services/messaging/inboundSmsJobProcessor.service.js",
+      "reason": "Cohesive lookup, staff follow-up, and lead reply persistence extraction; booking saves use the existing booking persistence entry.",
+      "tests": [
+        "tests/integration/sms10of10.adversarial.mongo.test.js",
+        "tests/integration/documentFence.security.test.js"
+      ]
+    },
+    {
+      "file": "src/services/messaging/inboundSmsReply.service.js",
+      "reason": "Cohesive lookup, staff follow-up, and lead reply persistence extraction; booking saves use the existing booking persistence entry.",
+      "tests": [
+        "tests/integration/sms10of10.adversarial.mongo.test.js",
         "tests/integration/documentFence.security.test.js"
       ]
     }

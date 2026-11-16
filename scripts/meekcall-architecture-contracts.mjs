@@ -77,7 +77,7 @@ try {
     if(!plan.profiles['check:release'].includes(required))failures.push(`Release profile omits ${required}`);
 } catch(error){failures.push(`Invalid release wiring: ${error.message}`);}
 requireTokens('.github/workflows/browser-workflows.yml', [
-  "vars.CALLBACKIQ_FRONTEND_REF || 'main'",
+  "inputs.partner_ref || vars.CALLBACKIQ_FRONTEND_REF",
   'CALLBACKIQ_CROSS_REPO_READ_TOKEN',
   'Checkout partner repository', 'github.token',
 ]);

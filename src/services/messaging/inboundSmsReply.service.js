@@ -1,10 +1,9 @@
-import { persistReplyLeadFacts, persistReplyConversationState, linkReplyReview, persistFailedHandoffDelivery, finalizeAcknowledgedHandoff } from '../stateTransitions/messaging.js';
-import { buildLeadUpdates } from './inboundLeadProjection.service.js';
-import { beginValuation, finishValuation } from "../valuation/opportunityValuation.service.js";
+import { persistLeadReplyFacts } from './inboundReplyLeadFacts.service.js';
+import { persistReplyConversationState, linkReplyReview, persistFailedHandoffDelivery, finalizeAcknowledgedHandoff } from '../stateTransitions/messaging.js';
+import { beginValuation } from "../valuation/opportunityValuation.service.js";
 import { buildSmsStatePatch } from "./smsConversationState.service.js";
 import ConversationOrchestratorService from "../conversationOrchestrator.service.js";
 import Conversation from "../../models/conversation.js";
-import Lead from "../../models/lead.js";
 import AlertService from "../alert.service.js";
 import SocketService from "../socket.service.js";
 import { logOperationalEvent } from "../../helpers/logging/safeLogger.js";
@@ -60,17 +59,7 @@ async function prepareConversationReply({ business, lead, conversation, messages
   return { orchestration, valuationTicket, result, handoffRequired };
 }
 
-async function persistLeadReplyFacts({ business, lead, messages, customerTurn }, result, valuationTicket) {
-  let updatedLead = lead;
-  const leadUpdates = buildLeadUpdates(lead, result);
-  if (Object.keys(leadUpdates).length) {
-    updatedLead = await persistReplyLeadFacts({ Lead, lead, leadUpdates });
-  }
-  // Shared intake may already have saved the facts. Valuation must still finish.
-  updatedLead = await finishValuation(valuationTicket, { businessId: business._id, evidence: [...messages.filter(message => message.direction === "inbound").map(message => message.body), customerTurn.customerMessage].join("\n"), proposedService: result.serviceNeeded || updatedLead.serviceNeeded }) || updatedLead;
-  SocketService.emitLeadUpdated(business._id, updatedLead);
-  return updatedLead;
-}
+
 
 async function persistConversationReplyState(context, reply, updatedLead, revisionPatch) {
   const { business, conversation, classification, inboundMessage, customerTurn } = context;

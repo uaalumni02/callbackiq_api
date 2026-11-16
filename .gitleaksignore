@@ -13,3 +13,5 @@ d4cd4aa4e49bfcc18f57f476e02e82f3a9969a25:tests/unit/smsProviderReceipt.release.t
 d6345e1f5b6acdfde1d702f8406b7330c9ec96b9:docs/SCALE_QUERY_UPDATE_2026_09_15.md:generic-api-key:3
 # Synthetic test fixture or detection-regex example
 ffcd67974b7589c3c7f462db25ecc8d154bc2436:scripts/audit-repository-hygiene.mjs:stripe-access-token:99
+# Synthetic test-only encryption key assigned by Jest setup.
+1b766b212b3afeebff262f351c2dac3f5363113e:jest.setup.js:generic-api-key:6

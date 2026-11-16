@@ -34,9 +34,9 @@ Admin logout now uses the shared verified logout operation. A failed logout keep
 
 ## Maintainability
 
-A2P input/validation policy is separated from provider orchestration. Invoice allocation policy is separated from reporting I/O. Login display/error policy, marketing presentation, admin queue commands and signup orchestration have cohesive modules. No complexity limit was increased; existing exception budgets are tightened after reductions. Remaining large functions are debt, not a claim of completed application-wide decomposition.
+A2P input/validation policy is separated from provider orchestration. Invoice allocation policy is separated from reporting I/O. Appointment listing, inbound SMS record lookup, staff follow-up delivery and lead-reply persistence have cohesive boundaries. Login display/error policy, marketing presentation, admin queue commands and signup orchestration have cohesive modules. No complexity limit was increased; existing exception budgets are tightened after reductions. Remaining large functions are debt, not a claim of completed application-wide decomposition.
 
-Eight relocation-only source pins were retired explicitly where semantic fixes or policy extraction changed their owners; untouched migration owners remain source-pinned. The changed paths have behavioral tests. Neither coverage thresholds nor safety assertions are reduced to accept the corrections. Test fixture passwords and existing admin clients are updated to the intended security contract.
+Thirteen relocation-only source pins were retired explicitly where semantic fixes or policy extraction changed their owners; untouched migration owners remain source-pinned. The changed paths have behavioral tests. Neither coverage thresholds nor safety assertions are reduced to accept the corrections. Test fixture passwords and existing admin clients are updated to the intended security contract.
 
 ## CI and account settings
 

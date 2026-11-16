@@ -1308,7 +1308,7 @@
         "function": "collectBookingService",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "cb98580af60f5b110ce2eabb36cba99f777deab837eff47146ae8ea84630b452",
+      "sourceFingerprint": "5b73edcbe0db5e4e749a6daf711f1b030fee96ea9f8de268debbc3edba3a0617",
       "authority": "Conversation",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
@@ -1322,7 +1322,7 @@
         "function": "collectBookingService",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "cb98580af60f5b110ce2eabb36cba99f777deab837eff47146ae8ea84630b452",
+      "sourceFingerprint": "5b73edcbe0db5e4e749a6daf711f1b030fee96ea9f8de268debbc3edba3a0617",
       "authority": "Conversation",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
@@ -1336,7 +1336,7 @@
         "function": "collectBookingService",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "cb98580af60f5b110ce2eabb36cba99f777deab837eff47146ae8ea84630b452",
+      "sourceFingerprint": "5b73edcbe0db5e4e749a6daf711f1b030fee96ea9f8de268debbc3edba3a0617",
       "authority": "Lead",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
@@ -1350,7 +1350,7 @@
         "function": "collectBookingStreetAddress",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "2fcd3f4b936507b3244789d8b25d9682d2dd0f6832833010319d4ffc0ff9bde1",
+      "sourceFingerprint": "b4e3eb2aa99afc3ee2bea70daf53f9498b9ce91099b6e480811ebf95c78785bf",
       "authority": "Conversation",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
@@ -1364,7 +1364,7 @@
         "function": "collectBookingStreetAddress",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "2fcd3f4b936507b3244789d8b25d9682d2dd0f6832833010319d4ffc0ff9bde1",
+      "sourceFingerprint": "b4e3eb2aa99afc3ee2bea70daf53f9498b9ce91099b6e480811ebf95c78785bf",
       "authority": "Lead",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
@@ -1378,7 +1378,7 @@
         "function": "collectBookingStreetAddress",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "2fcd3f4b936507b3244789d8b25d9682d2dd0f6832833010319d4ffc0ff9bde1",
+      "sourceFingerprint": "b4e3eb2aa99afc3ee2bea70daf53f9498b9ce91099b6e480811ebf95c78785bf",
       "authority": "Conversation",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
@@ -1392,7 +1392,7 @@
         "function": "collectBookingStreetAddress",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "2fcd3f4b936507b3244789d8b25d9682d2dd0f6832833010319d4ffc0ff9bde1",
+      "sourceFingerprint": "b4e3eb2aa99afc3ee2bea70daf53f9498b9ce91099b6e480811ebf95c78785bf",
       "authority": "Conversation",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
@@ -1406,7 +1406,7 @@
         "function": "collectBookingPostalCode",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "ff491b201bcd1fdd4ccb86c109052122bba9d191437b62d778e337e0385c0594",
+      "sourceFingerprint": "39dae8b9af1903efc405e9c2f1f0b99726d41c3d0a800389044fa5cdcedbbf9d",
       "authority": "Lead",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
@@ -1420,7 +1420,7 @@
         "function": "collectBookingPostalCode",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "ff491b201bcd1fdd4ccb86c109052122bba9d191437b62d778e337e0385c0594",
+      "sourceFingerprint": "39dae8b9af1903efc405e9c2f1f0b99726d41c3d0a800389044fa5cdcedbbf9d",
       "authority": "Conversation",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
@@ -1448,7 +1448,7 @@
         "function": "recordReadOnlySelection",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "b9d17c1188b845a855e9cd34dd87fc547d22bf389dc6adb10236b48945f0a9e6",
+      "sourceFingerprint": "fb9c7f4bea92898efb915e9cef72138c9a114ab397c9a45ac44a2c0b54b072b9",
       "authority": "Lead",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
@@ -1465,7 +1465,7 @@
         "function": "recordReadOnlySelection",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "b9d17c1188b845a855e9cd34dd87fc547d22bf389dc6adb10236b48945f0a9e6",
+      "sourceFingerprint": "fb9c7f4bea92898efb915e9cef72138c9a114ab397c9a45ac44a2c0b54b072b9",
       "authority": "Conversation",
       "disposition": "capability-inspection",
       "recordedPredicate": null,
@@ -1482,7 +1482,7 @@
         "function": "recordReadOnlySelection",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "b9d17c1188b845a855e9cd34dd87fc547d22bf389dc6adb10236b48945f0a9e6",
+      "sourceFingerprint": "fb9c7f4bea92898efb915e9cef72138c9a114ab397c9a45ac44a2c0b54b072b9",
       "authority": "Conversation",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
@@ -1499,7 +1499,7 @@
         "function": "routeRejectedPreference",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "7effc8691c7307ad7089f063172bdb395b0662522a55fb4b8f58c2e9374df16f",
+      "sourceFingerprint": "59f593407950c6eeedf3b75e775dc94edfe7674ebe806da8a374400400c33ab4",
       "authority": "Lead",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
@@ -1516,7 +1516,7 @@
         "function": "routeRejectedPreference",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "7effc8691c7307ad7089f063172bdb395b0662522a55fb4b8f58c2e9374df16f",
+      "sourceFingerprint": "59f593407950c6eeedf3b75e775dc94edfe7674ebe806da8a374400400c33ab4",
       "authority": "Conversation",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
@@ -3542,6 +3542,20 @@
       "enforcement": "Dispatch/capability remains bound by the recorded owner; inspect its model and caller. Registration is not proof of safety."
     },
     {
+      "id": "src/services/messaging/inboundReplyLeadFacts.service.js#persistLeadReplyFacts#transition-command#1",
+      "owner": {
+        "module": "src/services/messaging/inboundReplyLeadFacts.service.js",
+        "function": "persistLeadReplyFacts",
+        "mode": "registered-domain-command"
+      },
+      "sourceFingerprint": "c12321f802ee6602924b493adcda9b59f18ae6129092f6fc2f3b2556012136a0",
+      "authority": "RegisteredStateRecord",
+      "disposition": "delegated-command-with-recorded-owner",
+      "recordedPredicate": null,
+      "localClaimEvidence": [],
+      "enforcement": "Dispatch/capability remains bound by the recorded owner; inspect its model and caller. Registration is not proof of safety."
+    },
+    {
       "id": "src/services/messaging/inboundSmsDeterministicActions.service.js#handleSmsContactControl#transition-command#1",
       "owner": {
         "module": "src/services/messaging/inboundSmsDeterministicActions.service.js",
@@ -3595,52 +3609,6 @@
         "mode": "registered-domain-command"
       },
       "sourceFingerprint": "50f188fdbb2ae0313c43b3bb60a05d6d3ef91b228c2c9d0068c13060c4939f17",
-      "authority": "RegisteredStateRecord",
-      "disposition": "delegated-command-with-recorded-owner",
-      "recordedPredicate": null,
-      "localClaimEvidence": [],
-      "enforcement": "Dispatch/capability remains bound by the recorded owner; inspect its model and caller. Registration is not proof of safety."
-    },
-    {
-      "id": "src/services/messaging/inboundSmsJobProcessor.service.js#persistStaffFollowUp#transition-command#1",
-      "owner": {
-        "module": "src/services/messaging/inboundSmsJobProcessor.service.js",
-        "function": "persistStaffFollowUp",
-        "mode": "registered-domain-command"
-      },
-      "sourceFingerprint": "fab4df1c8fba8584ff6c2de3fdef4c5fe599b9d1f65b22711a6f1b0c8fb281e1",
-      "authority": "RegisteredStateRecord",
-      "disposition": "delegated-command-with-recorded-owner",
-      "recordedPredicate": null,
-      "localClaimEvidence": [
-        "assertDistributedLeaseActive"
-      ],
-      "enforcement": "Dispatch/capability remains bound by the recorded owner; inspect its model and caller. Registration is not proof of safety."
-    },
-    {
-      "id": "src/services/messaging/inboundSmsJobProcessor.service.js#persistStaffFollowUp#transition-command#2",
-      "owner": {
-        "module": "src/services/messaging/inboundSmsJobProcessor.service.js",
-        "function": "persistStaffFollowUp",
-        "mode": "registered-domain-command"
-      },
-      "sourceFingerprint": "fab4df1c8fba8584ff6c2de3fdef4c5fe599b9d1f65b22711a6f1b0c8fb281e1",
-      "authority": "RegisteredStateRecord",
-      "disposition": "delegated-command-with-recorded-owner",
-      "recordedPredicate": null,
-      "localClaimEvidence": [
-        "assertDistributedLeaseActive"
-      ],
-      "enforcement": "Dispatch/capability remains bound by the recorded owner; inspect its model and caller. Registration is not proof of safety."
-    },
-    {
-      "id": "src/services/messaging/inboundSmsReply.service.js#persistLeadReplyFacts#transition-command#1",
-      "owner": {
-        "module": "src/services/messaging/inboundSmsReply.service.js",
-        "function": "persistLeadReplyFacts",
-        "mode": "registered-domain-command"
-      },
-      "sourceFingerprint": "c12321f802ee6602924b493adcda9b59f18ae6129092f6fc2f3b2556012136a0",
       "authority": "RegisteredStateRecord",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
@@ -4150,6 +4118,38 @@
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
       "localClaimEvidence": [],
+      "enforcement": "Dispatch/capability remains bound by the recorded owner; inspect its model and caller. Registration is not proof of safety."
+    },
+    {
+      "id": "src/services/messaging/staffFollowUp.service.js#persistStaffFollowUp#transition-command#1",
+      "owner": {
+        "module": "src/services/messaging/staffFollowUp.service.js",
+        "function": "persistStaffFollowUp",
+        "mode": "registered-domain-command"
+      },
+      "sourceFingerprint": "82c1b1f50e4c30c0ebdeb74dc1dc59483b5120a6e3802f3ef1f05868c017d7fc",
+      "authority": "RegisteredStateRecord",
+      "disposition": "delegated-command-with-recorded-owner",
+      "recordedPredicate": null,
+      "localClaimEvidence": [
+        "assertDistributedLeaseActive"
+      ],
+      "enforcement": "Dispatch/capability remains bound by the recorded owner; inspect its model and caller. Registration is not proof of safety."
+    },
+    {
+      "id": "src/services/messaging/staffFollowUp.service.js#persistStaffFollowUp#transition-command#2",
+      "owner": {
+        "module": "src/services/messaging/staffFollowUp.service.js",
+        "function": "persistStaffFollowUp",
+        "mode": "registered-domain-command"
+      },
+      "sourceFingerprint": "82c1b1f50e4c30c0ebdeb74dc1dc59483b5120a6e3802f3ef1f05868c017d7fc",
+      "authority": "RegisteredStateRecord",
+      "disposition": "delegated-command-with-recorded-owner",
+      "recordedPredicate": null,
+      "localClaimEvidence": [
+        "assertDistributedLeaseActive"
+      ],
       "enforcement": "Dispatch/capability remains bound by the recorded owner; inspect its model and caller. Registration is not proof of safety."
     },
     {

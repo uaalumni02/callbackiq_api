@@ -2596,14 +2596,14 @@
     {
       "id": "src/services/booking/bookingIntakeTurn.service.js#collectBookingService#transition-command#1",
       "file": "src/services/booking/bookingIntakeTurn.service.js",
-      "line": 28,
+      "line": 27,
       "kind": "transition-command",
       "fields": [
         "saveBookingTransition"
       ],
       "writerSha256": "600c015f0883f5f1121f0f2d5a0c5cd0fd73ab175a26eb4bc41a6294fd23a146",
-      "ownerSha256": "cb98580af60f5b110ce2eabb36cba99f777deab837eff47146ae8ea84630b452",
-      "importSha256": "d1366bb1e391c7be26a86e7229075bb8b4c5bb0d4b45b2b807348e109de12cad",
+      "ownerSha256": "5b73edcbe0db5e4e749a6daf711f1b030fee96ea9f8de268debbc3edba3a0617",
+      "importSha256": "fa2cd1b9d338a4c517a6144744dfea86230a8952bba13cfde39ff4e2590d4ef9",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -2625,14 +2625,14 @@
     {
       "id": "src/services/booking/bookingIntakeTurn.service.js#collectBookingService#transition-command#2",
       "file": "src/services/booking/bookingIntakeTurn.service.js",
-      "line": 45,
+      "line": 44,
       "kind": "transition-command",
       "fields": [
         "saveBookingTransition"
       ],
       "writerSha256": "4bc586b80cf3751cbbb745931c96bab38df1648da7a83e7bc04019056c157b45",
-      "ownerSha256": "cb98580af60f5b110ce2eabb36cba99f777deab837eff47146ae8ea84630b452",
-      "importSha256": "d1366bb1e391c7be26a86e7229075bb8b4c5bb0d4b45b2b807348e109de12cad",
+      "ownerSha256": "5b73edcbe0db5e4e749a6daf711f1b030fee96ea9f8de268debbc3edba3a0617",
+      "importSha256": "fa2cd1b9d338a4c517a6144744dfea86230a8952bba13cfde39ff4e2590d4ef9",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -2654,14 +2654,14 @@
     {
       "id": "src/services/booking/bookingIntakeTurn.service.js#collectBookingService#transition-command#3",
       "file": "src/services/booking/bookingIntakeTurn.service.js",
-      "line": 61,
+      "line": 60,
       "kind": "transition-command",
       "fields": [
-        "saveStateDocument"
+        "saveBookingDocument"
       ],
-      "writerSha256": "baef046377f846988263add22b712f706abe7c6f88bf287cc0a6b88192b13c21",
-      "ownerSha256": "cb98580af60f5b110ce2eabb36cba99f777deab837eff47146ae8ea84630b452",
-      "importSha256": "d1366bb1e391c7be26a86e7229075bb8b4c5bb0d4b45b2b807348e109de12cad",
+      "writerSha256": "2ab4cbfa3c967e863430b414a264efd84a8bc4ea8a6e5df62faf40d78b1bdf3c",
+      "ownerSha256": "5b73edcbe0db5e4e749a6daf711f1b030fee96ea9f8de268debbc3edba3a0617",
+      "importSha256": "fa2cd1b9d338a4c517a6144744dfea86230a8952bba13cfde39ff4e2590d4ef9",
       "predicateSource": null,
       "authoritativeRecord": "Lead",
       "allowedCommand": {
@@ -2683,14 +2683,14 @@
     {
       "id": "src/services/booking/bookingIntakeTurn.service.js#collectBookingStreetAddress#transition-command#1",
       "file": "src/services/booking/bookingIntakeTurn.service.js",
-      "line": 80,
+      "line": 79,
       "kind": "transition-command",
       "fields": [
         "saveBookingTransition"
       ],
       "writerSha256": "97015b47d92cb1e3347d8a3bb2be59c223a9bdc91cb18002a40594227969d69a",
-      "ownerSha256": "2fcd3f4b936507b3244789d8b25d9682d2dd0f6832833010319d4ffc0ff9bde1",
-      "importSha256": "d1366bb1e391c7be26a86e7229075bb8b4c5bb0d4b45b2b807348e109de12cad",
+      "ownerSha256": "b4e3eb2aa99afc3ee2bea70daf53f9498b9ce91099b6e480811ebf95c78785bf",
+      "importSha256": "fa2cd1b9d338a4c517a6144744dfea86230a8952bba13cfde39ff4e2590d4ef9",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -2712,14 +2712,14 @@
     {
       "id": "src/services/booking/bookingIntakeTurn.service.js#collectBookingStreetAddress#transition-command#2",
       "file": "src/services/booking/bookingIntakeTurn.service.js",
-      "line": 94,
+      "line": 93,
       "kind": "transition-command",
       "fields": [
-        "saveStateDocument"
+        "saveBookingDocument"
       ],
-      "writerSha256": "baef046377f846988263add22b712f706abe7c6f88bf287cc0a6b88192b13c21",
-      "ownerSha256": "2fcd3f4b936507b3244789d8b25d9682d2dd0f6832833010319d4ffc0ff9bde1",
-      "importSha256": "d1366bb1e391c7be26a86e7229075bb8b4c5bb0d4b45b2b807348e109de12cad",
+      "writerSha256": "2ab4cbfa3c967e863430b414a264efd84a8bc4ea8a6e5df62faf40d78b1bdf3c",
+      "ownerSha256": "b4e3eb2aa99afc3ee2bea70daf53f9498b9ce91099b6e480811ebf95c78785bf",
+      "importSha256": "fa2cd1b9d338a4c517a6144744dfea86230a8952bba13cfde39ff4e2590d4ef9",
       "predicateSource": null,
       "authoritativeRecord": "Lead",
       "allowedCommand": {
@@ -2741,14 +2741,14 @@
     {
       "id": "src/services/booking/bookingIntakeTurn.service.js#collectBookingStreetAddress#transition-command#3",
       "file": "src/services/booking/bookingIntakeTurn.service.js",
-      "line": 98,
+      "line": 97,
       "kind": "transition-command",
       "fields": [
         "saveBookingTransition"
       ],
       "writerSha256": "c3bab937db26800efbc4f9b378642de25c8f7d21d26caf4a5904466ee7b977b7",
-      "ownerSha256": "2fcd3f4b936507b3244789d8b25d9682d2dd0f6832833010319d4ffc0ff9bde1",
-      "importSha256": "d1366bb1e391c7be26a86e7229075bb8b4c5bb0d4b45b2b807348e109de12cad",
+      "ownerSha256": "b4e3eb2aa99afc3ee2bea70daf53f9498b9ce91099b6e480811ebf95c78785bf",
+      "importSha256": "fa2cd1b9d338a4c517a6144744dfea86230a8952bba13cfde39ff4e2590d4ef9",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -2770,14 +2770,14 @@
     {
       "id": "src/services/booking/bookingIntakeTurn.service.js#collectBookingStreetAddress#transition-command#4",
       "file": "src/services/booking/bookingIntakeTurn.service.js",
-      "line": 112,
+      "line": 111,
       "kind": "transition-command",
       "fields": [
         "saveBookingTransition"
       ],
       "writerSha256": "d5fbb6ca25dea9cea5c1818db84949275ff9e53b7ffe7c6b7a8bdf64bcf36fbc",
-      "ownerSha256": "2fcd3f4b936507b3244789d8b25d9682d2dd0f6832833010319d4ffc0ff9bde1",
-      "importSha256": "d1366bb1e391c7be26a86e7229075bb8b4c5bb0d4b45b2b807348e109de12cad",
+      "ownerSha256": "b4e3eb2aa99afc3ee2bea70daf53f9498b9ce91099b6e480811ebf95c78785bf",
+      "importSha256": "fa2cd1b9d338a4c517a6144744dfea86230a8952bba13cfde39ff4e2590d4ef9",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -2799,14 +2799,14 @@
     {
       "id": "src/services/booking/bookingIntakeTurn.service.js#collectBookingPostalCode#transition-command#1",
       "file": "src/services/booking/bookingIntakeTurn.service.js",
-      "line": 138,
+      "line": 137,
       "kind": "transition-command",
       "fields": [
-        "saveStateDocument"
+        "saveBookingDocument"
       ],
-      "writerSha256": "baef046377f846988263add22b712f706abe7c6f88bf287cc0a6b88192b13c21",
-      "ownerSha256": "ff491b201bcd1fdd4ccb86c109052122bba9d191437b62d778e337e0385c0594",
-      "importSha256": "d1366bb1e391c7be26a86e7229075bb8b4c5bb0d4b45b2b807348e109de12cad",
+      "writerSha256": "2ab4cbfa3c967e863430b414a264efd84a8bc4ea8a6e5df62faf40d78b1bdf3c",
+      "ownerSha256": "39dae8b9af1903efc405e9c2f1f0b99726d41c3d0a800389044fa5cdcedbbf9d",
+      "importSha256": "fa2cd1b9d338a4c517a6144744dfea86230a8952bba13cfde39ff4e2590d4ef9",
       "predicateSource": null,
       "authoritativeRecord": "Lead",
       "allowedCommand": {
@@ -2828,14 +2828,14 @@
     {
       "id": "src/services/booking/bookingIntakeTurn.service.js#collectBookingPostalCode#transition-command#2",
       "file": "src/services/booking/bookingIntakeTurn.service.js",
-      "line": 140,
+      "line": 139,
       "kind": "transition-command",
       "fields": [
         "saveBookingTransition"
       ],
       "writerSha256": "9e862096d8165d32005d508fb991c37da8b3d49bb3e55ecdbe6b4bb5c5d1a3a7",
-      "ownerSha256": "ff491b201bcd1fdd4ccb86c109052122bba9d191437b62d778e337e0385c0594",
-      "importSha256": "d1366bb1e391c7be26a86e7229075bb8b4c5bb0d4b45b2b807348e109de12cad",
+      "ownerSha256": "39dae8b9af1903efc405e9c2f1f0b99726d41c3d0a800389044fa5cdcedbbf9d",
+      "importSha256": "fa2cd1b9d338a4c517a6144744dfea86230a8952bba13cfde39ff4e2590d4ef9",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -2857,14 +2857,14 @@
     {
       "id": "src/services/booking/bookingReadOnlyTurn.service.js#handleReadOnlyBookingTurn#transition-command#1",
       "file": "src/services/booking/bookingReadOnlyTurn.service.js",
-      "line": 26,
+      "line": 25,
       "kind": "transition-command",
       "fields": [
         "saveBookingTransition"
       ],
       "writerSha256": "9eae3c0df3d15146ec728851002bca959fe7c23fd4826cc5dabfe7dee9252fd5",
       "ownerSha256": "de20b398841c5456763686f8e6ea081febb85af860a1d331502471bb5c5af35e",
-      "importSha256": "a0da14affdf127e09c9f6d2ad755bd5e84e8ab81a06aaf3c565b713f1386dae5",
+      "importSha256": "4aa4269b07f045761c247f1523f837e792412e78c086c78de0e4a347342c1afe",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -2886,14 +2886,14 @@
     {
       "id": "src/services/booking/bookingReadOnlyTurn.service.js#recordReadOnlySelection#transition-command#1",
       "file": "src/services/booking/bookingReadOnlyTurn.service.js",
-      "line": 82,
+      "line": 81,
       "kind": "transition-command",
       "fields": [
-        "saveStateDocument"
+        "saveBookingDocument"
       ],
-      "writerSha256": "baef046377f846988263add22b712f706abe7c6f88bf287cc0a6b88192b13c21",
-      "ownerSha256": "b9d17c1188b845a855e9cd34dd87fc547d22bf389dc6adb10236b48945f0a9e6",
-      "importSha256": "a0da14affdf127e09c9f6d2ad755bd5e84e8ab81a06aaf3c565b713f1386dae5",
+      "writerSha256": "2ab4cbfa3c967e863430b414a264efd84a8bc4ea8a6e5df62faf40d78b1bdf3c",
+      "ownerSha256": "fb9c7f4bea92898efb915e9cef72138c9a114ab397c9a45ac44a2c0b54b072b9",
+      "importSha256": "4aa4269b07f045761c247f1523f837e792412e78c086c78de0e4a347342c1afe",
       "predicateSource": null,
       "authoritativeRecord": "Lead",
       "allowedCommand": {
@@ -2920,14 +2920,14 @@
     {
       "id": "src/services/booking/bookingReadOnlyTurn.service.js#recordReadOnlySelection#capability-check#1",
       "file": "src/services/booking/bookingReadOnlyTurn.service.js",
-      "line": 107,
+      "line": 106,
       "kind": "capability-check",
       "fields": [
         "save"
       ],
       "writerSha256": "5bb6b3f4eac04609eebd5f47d6923f43abf44399f9c75e0b2af2d68f6061cbdd",
-      "ownerSha256": "b9d17c1188b845a855e9cd34dd87fc547d22bf389dc6adb10236b48945f0a9e6",
-      "importSha256": "a0da14affdf127e09c9f6d2ad755bd5e84e8ab81a06aaf3c565b713f1386dae5",
+      "ownerSha256": "fb9c7f4bea92898efb915e9cef72138c9a114ab397c9a45ac44a2c0b54b072b9",
+      "importSha256": "4aa4269b07f045761c247f1523f837e792412e78c086c78de0e4a347342c1afe",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -2952,14 +2952,14 @@
     {
       "id": "src/services/booking/bookingReadOnlyTurn.service.js#recordReadOnlySelection#transition-command#2",
       "file": "src/services/booking/bookingReadOnlyTurn.service.js",
-      "line": 108,
+      "line": 107,
       "kind": "transition-command",
       "fields": [
         "saveBookingTransition"
       ],
       "writerSha256": "b7e5e38afc9974e1b59344f39fafe763d45aeccbf225270d72cdbd6ca66f47ed",
-      "ownerSha256": "b9d17c1188b845a855e9cd34dd87fc547d22bf389dc6adb10236b48945f0a9e6",
-      "importSha256": "a0da14affdf127e09c9f6d2ad755bd5e84e8ab81a06aaf3c565b713f1386dae5",
+      "ownerSha256": "fb9c7f4bea92898efb915e9cef72138c9a114ab397c9a45ac44a2c0b54b072b9",
+      "importSha256": "4aa4269b07f045761c247f1523f837e792412e78c086c78de0e4a347342c1afe",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -2984,14 +2984,14 @@
     {
       "id": "src/services/booking/bookingTurnPreflight.service.js#routeRejectedPreference#transition-command#1",
       "file": "src/services/booking/bookingTurnPreflight.service.js",
-      "line": 49,
+      "line": 48,
       "kind": "transition-command",
       "fields": [
-        "saveStateDocument"
+        "saveBookingDocument"
       ],
-      "writerSha256": "baef046377f846988263add22b712f706abe7c6f88bf287cc0a6b88192b13c21",
-      "ownerSha256": "7effc8691c7307ad7089f063172bdb395b0662522a55fb4b8f58c2e9374df16f",
-      "importSha256": "a131295326bc68d3e08a291a6f670c92fcdfd8c7c948b8a948bcf7aaf4f82b74",
+      "writerSha256": "2ab4cbfa3c967e863430b414a264efd84a8bc4ea8a6e5df62faf40d78b1bdf3c",
+      "ownerSha256": "59f593407950c6eeedf3b75e775dc94edfe7674ebe806da8a374400400c33ab4",
+      "importSha256": "770eaec2eebc38e8fd62baa5c0f6d38777a1b040de48de46f264e22f0735bd08",
       "predicateSource": null,
       "authoritativeRecord": "Lead",
       "allowedCommand": {
@@ -3016,14 +3016,14 @@
     {
       "id": "src/services/booking/bookingTurnPreflight.service.js#routeRejectedPreference#transition-command#2",
       "file": "src/services/booking/bookingTurnPreflight.service.js",
-      "line": 52,
+      "line": 51,
       "kind": "transition-command",
       "fields": [
         "saveBookingTransition"
       ],
       "writerSha256": "4901b85f9a6832d5e1e902e3fe14769cc0feceacc695ec681ff016e18b3ef755",
-      "ownerSha256": "7effc8691c7307ad7089f063172bdb395b0662522a55fb4b8f58c2e9374df16f",
-      "importSha256": "a131295326bc68d3e08a291a6f670c92fcdfd8c7c948b8a948bcf7aaf4f82b74",
+      "ownerSha256": "59f593407950c6eeedf3b75e775dc94edfe7674ebe806da8a374400400c33ab4",
+      "importSha256": "770eaec2eebc38e8fd62baa5c0f6d38777a1b040de48de46f264e22f0735bd08",
       "predicateSource": null,
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -7118,6 +7118,35 @@
       }
     },
     {
+      "id": "src/services/messaging/inboundReplyLeadFacts.service.js#persistLeadReplyFacts#transition-command#1",
+      "file": "src/services/messaging/inboundReplyLeadFacts.service.js",
+      "line": 10,
+      "kind": "transition-command",
+      "fields": [
+        "persistReplyLeadFacts"
+      ],
+      "writerSha256": "6b65f0ade321bc636541c1bcfa2e3aabbb6853df0a37cd2686f2c8a93741b20a",
+      "ownerSha256": "c12321f802ee6602924b493adcda9b59f18ae6129092f6fc2f3b2556012136a0",
+      "importSha256": "82a602bd072e42ef78581d4d506a5d0be8d33e418e37950b8621446ab2b32757",
+      "predicateSource": null,
+      "authoritativeRecord": "RegisteredStateRecord",
+      "allowedCommand": {
+        "module": "src/services/messaging/inboundReplyLeadFacts.service.js",
+        "function": "persistLeadReplyFacts",
+        "mode": "registered-domain-command"
+      },
+      "versionOrClaim": {
+        "kind": "source-filter-or-command",
+        "evidence": [],
+        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [],
+        "localRepairCommands": [],
+        "review": "No local repair path established by this scan; review this owner before changing its effects."
+      }
+    },
+    {
       "id": "src/services/messaging/inboundSmsDeterministicActions.service.js#handleSmsContactControl#transition-command#1",
       "file": "src/services/messaging/inboundSmsDeterministicActions.service.js",
       "line": 43,
@@ -7238,107 +7267,16 @@
       }
     },
     {
-      "id": "src/services/messaging/inboundSmsJobProcessor.service.js#persistStaffFollowUp#transition-command#1",
-      "file": "src/services/messaging/inboundSmsJobProcessor.service.js",
-      "line": 207,
-      "kind": "transition-command",
-      "fields": [
-        "persistStaffFollowUpLead"
-      ],
-      "writerSha256": "7350c62adc3825bf40b078647a2ec728ae6bf10eb70db6548d8a881dc229a4aa",
-      "ownerSha256": "fab4df1c8fba8584ff6c2de3fdef4c5fe599b9d1f65b22711a6f1b0c8fb281e1",
-      "importSha256": "ff97058c8d972407038b45e1f154d8eec4cb284af6f2b69a20f9fd3000650bdf",
-      "predicateSource": null,
-      "authoritativeRecord": "RegisteredStateRecord",
-      "allowedCommand": {
-        "module": "src/services/messaging/inboundSmsJobProcessor.service.js",
-        "function": "persistStaffFollowUp",
-        "mode": "registered-domain-command"
-      },
-      "versionOrClaim": {
-        "kind": "source-filter-or-command",
-        "evidence": [
-          "assertDistributedLeaseActive"
-        ],
-        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
-      },
-      "projectionsAndRepair": {
-        "updatedRecords": [],
-        "localRepairCommands": [],
-        "review": "No local repair path established by this scan; review this owner before changing its effects."
-      }
-    },
-    {
-      "id": "src/services/messaging/inboundSmsJobProcessor.service.js#persistStaffFollowUp#transition-command#2",
-      "file": "src/services/messaging/inboundSmsJobProcessor.service.js",
-      "line": 210,
-      "kind": "transition-command",
-      "fields": [
-        "persistStaffFollowUpConversation"
-      ],
-      "writerSha256": "5a8370fae41d94aaf608b369967caca03a5156821cb8ef1c24b84aa4f7ec0832",
-      "ownerSha256": "fab4df1c8fba8584ff6c2de3fdef4c5fe599b9d1f65b22711a6f1b0c8fb281e1",
-      "importSha256": "ff97058c8d972407038b45e1f154d8eec4cb284af6f2b69a20f9fd3000650bdf",
-      "predicateSource": null,
-      "authoritativeRecord": "RegisteredStateRecord",
-      "allowedCommand": {
-        "module": "src/services/messaging/inboundSmsJobProcessor.service.js",
-        "function": "persistStaffFollowUp",
-        "mode": "registered-domain-command"
-      },
-      "versionOrClaim": {
-        "kind": "source-filter-or-command",
-        "evidence": [
-          "assertDistributedLeaseActive"
-        ],
-        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
-      },
-      "projectionsAndRepair": {
-        "updatedRecords": [],
-        "localRepairCommands": [],
-        "review": "No local repair path established by this scan; review this owner before changing its effects."
-      }
-    },
-    {
-      "id": "src/services/messaging/inboundSmsReply.service.js#persistLeadReplyFacts#transition-command#1",
-      "file": "src/services/messaging/inboundSmsReply.service.js",
-      "line": 67,
-      "kind": "transition-command",
-      "fields": [
-        "persistReplyLeadFacts"
-      ],
-      "writerSha256": "6b65f0ade321bc636541c1bcfa2e3aabbb6853df0a37cd2686f2c8a93741b20a",
-      "ownerSha256": "c12321f802ee6602924b493adcda9b59f18ae6129092f6fc2f3b2556012136a0",
-      "importSha256": "4db193272a0e0bec3dc834e66bf477fa3619af31c570d0c01e2a6712a65ef3c5",
-      "predicateSource": null,
-      "authoritativeRecord": "RegisteredStateRecord",
-      "allowedCommand": {
-        "module": "src/services/messaging/inboundSmsReply.service.js",
-        "function": "persistLeadReplyFacts",
-        "mode": "registered-domain-command"
-      },
-      "versionOrClaim": {
-        "kind": "source-filter-or-command",
-        "evidence": [],
-        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
-      },
-      "projectionsAndRepair": {
-        "updatedRecords": [],
-        "localRepairCommands": [],
-        "review": "No local repair path established by this scan; review this owner before changing its effects."
-      }
-    },
-    {
       "id": "src/services/messaging/inboundSmsReply.service.js#persistConversationReplyState#transition-command#1",
       "file": "src/services/messaging/inboundSmsReply.service.js",
-      "line": 105,
+      "line": 94,
       "kind": "transition-command",
       "fields": [
         "persistReplyConversationState"
       ],
       "writerSha256": "c723c9da79053c8ea3341c9fe86d7c1384037191503502e0433edd9849f1f5e2",
       "ownerSha256": "1c58ce598a9c854773a3d53acf85892999dac45795d6d341d543789970f63fee",
-      "importSha256": "4db193272a0e0bec3dc834e66bf477fa3619af31c570d0c01e2a6712a65ef3c5",
+      "importSha256": "dde67cebedd5cf807ee41d4b027dacf6416628d8531961bcd422791866919b26",
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
       "allowedCommand": {
@@ -7362,14 +7300,14 @@
     {
       "id": "src/services/messaging/inboundSmsReply.service.js#persistConversationReview#transition-command#1",
       "file": "src/services/messaging/inboundSmsReply.service.js",
-      "line": 132,
+      "line": 121,
       "kind": "transition-command",
       "fields": [
         "linkReplyReview"
       ],
       "writerSha256": "a3724b0ee3026a184c114dca458772e96a2dd38069f9c5d3d443d27c00bb7216",
       "ownerSha256": "64ec41c68169b1a2dfd90197af6d0389f46cb8ab581c833a2128d01b98e1eeee",
-      "importSha256": "4db193272a0e0bec3dc834e66bf477fa3619af31c570d0c01e2a6712a65ef3c5",
+      "importSha256": "dde67cebedd5cf807ee41d4b027dacf6416628d8531961bcd422791866919b26",
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
       "allowedCommand": {
@@ -7393,14 +7331,14 @@
     {
       "id": "src/services/messaging/inboundSmsReply.service.js#persistHandoffDeliveryFailure#transition-command#1",
       "file": "src/services/messaging/inboundSmsReply.service.js",
-      "line": 184,
+      "line": 173,
       "kind": "transition-command",
       "fields": [
         "persistFailedHandoffDelivery"
       ],
       "writerSha256": "ec8d13fc5ba1f3f7297982b661249e49ac0a88c09c1cfd75c2769181198c6a39",
       "ownerSha256": "37eacf4173398a7939ed07024aaf95a7c6e1e38e87a704a33b498fa3ebf65e7a",
-      "importSha256": "4db193272a0e0bec3dc834e66bf477fa3619af31c570d0c01e2a6712a65ef3c5",
+      "importSha256": "dde67cebedd5cf807ee41d4b027dacf6416628d8531961bcd422791866919b26",
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
       "allowedCommand": {
@@ -7422,14 +7360,14 @@
     {
       "id": "src/services/messaging/inboundSmsReply.service.js#finalizeConversationHandoff#transition-command#1",
       "file": "src/services/messaging/inboundSmsReply.service.js",
-      "line": 210,
+      "line": 199,
       "kind": "transition-command",
       "fields": [
         "finalizeAcknowledgedHandoff"
       ],
       "writerSha256": "df3689b265e3cffa709517e22c6120655a47e56b7438cd4ee95948d6e9b370b4",
       "ownerSha256": "e0ef317b9ace824c8e1faf3353781cbd48b60d929db89efca91422f797a36dfc",
-      "importSha256": "4db193272a0e0bec3dc834e66bf477fa3619af31c570d0c01e2a6712a65ef3c5",
+      "importSha256": "dde67cebedd5cf807ee41d4b027dacf6416628d8531961bcd422791866919b26",
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
       "allowedCommand": {
@@ -8339,6 +8277,68 @@
         "kind": "source-filter-or-command",
         "evidence": [],
         "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [],
+        "localRepairCommands": [],
+        "review": "No local repair path established by this scan; review this owner before changing its effects."
+      }
+    },
+    {
+      "id": "src/services/messaging/staffFollowUp.service.js#persistStaffFollowUp#transition-command#1",
+      "file": "src/services/messaging/staffFollowUp.service.js",
+      "line": 23,
+      "kind": "transition-command",
+      "fields": [
+        "persistStaffFollowUpLead"
+      ],
+      "writerSha256": "7350c62adc3825bf40b078647a2ec728ae6bf10eb70db6548d8a881dc229a4aa",
+      "ownerSha256": "82c1b1f50e4c30c0ebdeb74dc1dc59483b5120a6e3802f3ef1f05868c017d7fc",
+      "importSha256": "bd099a946c3549220e5683a869084620c07d3013997ff6ecc1aadc013f610d58",
+      "predicateSource": null,
+      "authoritativeRecord": "RegisteredStateRecord",
+      "allowedCommand": {
+        "module": "src/services/messaging/staffFollowUp.service.js",
+        "function": "persistStaffFollowUp",
+        "mode": "registered-domain-command"
+      },
+      "versionOrClaim": {
+        "kind": "source-filter-or-command",
+        "evidence": [
+          "assertDistributedLeaseActive"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [],
+        "localRepairCommands": [],
+        "review": "No local repair path established by this scan; review this owner before changing its effects."
+      }
+    },
+    {
+      "id": "src/services/messaging/staffFollowUp.service.js#persistStaffFollowUp#transition-command#2",
+      "file": "src/services/messaging/staffFollowUp.service.js",
+      "line": 26,
+      "kind": "transition-command",
+      "fields": [
+        "persistStaffFollowUpConversation"
+      ],
+      "writerSha256": "5a8370fae41d94aaf608b369967caca03a5156821cb8ef1c24b84aa4f7ec0832",
+      "ownerSha256": "82c1b1f50e4c30c0ebdeb74dc1dc59483b5120a6e3802f3ef1f05868c017d7fc",
+      "importSha256": "bd099a946c3549220e5683a869084620c07d3013997ff6ecc1aadc013f610d58",
+      "predicateSource": null,
+      "authoritativeRecord": "RegisteredStateRecord",
+      "allowedCommand": {
+        "module": "src/services/messaging/staffFollowUp.service.js",
+        "function": "persistStaffFollowUp",
+        "mode": "registered-domain-command"
+      },
+      "versionOrClaim": {
+        "kind": "source-filter-or-command",
+        "evidence": [
+          "assertDistributedLeaseActive"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
         "updatedRecords": [],

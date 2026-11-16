@@ -1,11 +1,10 @@
-import { saveStateDocument } from '../stateTransitions/documents.js';
 import { fixedResult } from './bookingFixedResult.policy.js';
 import { hasBookingAvailabilityHint } from './bookingMessagePolicy.service.js';
 import { resolveRequestAddress, normalizeSpokenAddress, extractCustomerPostalCode } from './customerAddress.service.js';
 import escalateToHumanTool from "../../helpers/ai/tools/escalateToHuman.tool.js";
 import searchServicesTool from "../../helpers/ai/tools/searchServices.tool.js";
 import validateServiceAreaTool from "../../helpers/ai/tools/validateServiceArea.tool.js";
-import { saveBookingTransition } from "./bookingTurnState.repository.js";
+import { saveBookingDocument, saveBookingTransition } from "./bookingTurnState.repository.js";
 import { bookingInquiryOperations } from "./bookingInquiryRuntime.js";
 const { cleanStreetAddress, parseStreetAddress, buildAvailabilityPricingNote } = bookingInquiryOperations;
 export async function collectBookingService({ business, lead, activeConversation, text, smsIntent }) {
@@ -58,7 +57,7 @@ export async function collectBookingService({ business, lead, activeConversation
 
   if (lead && (!lead.serviceNeeded || lead.serviceNeeded === "Unknown")) {
     lead.serviceNeeded = smsIntent.entities.serviceNeeded || selectedService.name;
-    await saveStateDocument(lead);
+    await saveBookingDocument(lead);
   }
 
   if (!activeConversation.bookingState?.streetAddress) return {
@@ -91,7 +90,7 @@ export async function collectBookingStreetAddress(context) {
 
   if (lead) {
     lead.address = address;
-    await saveStateDocument(lead);
+    await saveBookingDocument(lead);
   }
 
   if (!suppliedZip) {
@@ -135,7 +134,7 @@ export async function collectBookingPostalCode(context) {
 
   if (lead && address) {
     lead.address = extractCustomerPostalCode(address) ? address : `${address}, ${zip}`;
-    await saveStateDocument(lead);
+    await saveBookingDocument(lead);
   }
   await saveBookingTransition(activeConversation, "location_verified", {
     ...(address ? { streetAddress: cleanStreetAddress(address) } : {}),

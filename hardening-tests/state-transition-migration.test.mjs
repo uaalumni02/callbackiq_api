@@ -20,7 +20,7 @@ function fixture(t, caller = 'src/services/booking/intakeReview.service.js') {
   return { root, file: contract.files[0].file, target: contract.files[0].commands[0].target };
 }
 test('all migrated callers reconstruct the complete baseline AST, including decision guards and ordering', () => {
-  assert.deepEqual(verifyStateTransitionMigration(repository), { files: 109, commandCalls: 330 });
+  assert.deepEqual(verifyStateTransitionMigration(repository), { files: 96, commandCalls: 270 });
 });
 test('changing a centralized tenant predicate fails the preservation contract', t => {
   const f = fixture(t), target = path.join(f.root, f.target);
@@ -42,4 +42,15 @@ test('wrapping a native document-save promise fails the preservation contract', 
   const f = fixture(t, 'src/controllers/auth/Registration.js'), target = path.join(f.root, f.target);
   fs.writeFileSync(target, fs.readFileSync(target, 'utf8').replace('export function saveStateDocument', 'export async function saveStateDocument'));
   assert.throws(() => verifyStateTransitionMigration(f.root), /must preserve synchronous query construction/);
+});
+
+test('the 13 explicitly revised callers have checked-in behavioral evidence', () => {
+  const contract = JSON.parse(fs.readFileSync(path.join(repository, 'contracts/state-transition-migration.json'), 'utf8'));
+  assert.equal(contract.behaviorCorrections.length, 13);
+  assert.equal(new Set(contract.behaviorCorrections.map(entry => entry.file)).size, 13);
+  for (const entry of contract.behaviorCorrections) {
+    assert.ok(entry.reason && entry.tests.length);
+    assert.ok(fs.existsSync(path.join(repository, entry.file)), entry.file);
+    for (const evidence of entry.tests) assert.ok(fs.existsSync(path.join(repository, evidence)), evidence);
+  }
 });
