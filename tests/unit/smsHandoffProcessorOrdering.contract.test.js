@@ -1,3 +1,5 @@
+import { persistFailedHandoffDelivery } from "../../src/services/stateTransitions/messaging.js";
+import { buildFailedHumanHandoffUpdate } from "../../src/services/messaging/smsHandoff.service.js";
 // SMS_STAGE3_DELIVERY_SOURCE_CONTRACT_V1: implementation moved, behavior contract retained.
 import { readFileSync as readSmsStage3File } from "node:fs";
 import { join as joinSmsStage3Path } from "node:path";
@@ -62,7 +64,20 @@ describe("SMS handoff processor ordering contract", () => {
 
   it("records a retryable failure instead of permanently muting AI", () => {
     expect(reply).toContain("buildFailedHumanHandoffUpdate");
-    expect(reply).toContain('"orchestration.silentFailureCount"');
+    expect(reply).toContain("persistFailedHandoffDelivery");
+    const Conversation = { findByIdAndUpdate: jest.fn() };
+    persistFailedHandoffDelivery({ Conversation, buildFailedHumanHandoffUpdate,
+      error: new Error("delivery unavailable"), inboundMessage: { _id: "message-a" },
+      latestConversation: {}, result: { handoff: { reason: "scheduling_review" } },
+      updatedConversation: { _id: "conversation-a" },
+    });
+    const [id, update, options] = Conversation.findByIdAndUpdate.mock.calls[0];
+    expect(id).toBe("conversation-a");
+    expect(update.$inc).toEqual({ "orchestration.silentFailureCount": 1 });
+    expect(update.$set["orchestration.handoffStatus"]).toBe("pending_ack");
+    expect(update.$set).not.toHaveProperty("humanTakeover");
+    expect(update.$set).not.toHaveProperty("aiEnabled");
+    expect(options).toEqual({ returnDocument: "after", runValidators: true });
     expect(reply).toContain("SMS_HANDOFF_ACK_REQUIRED");
   });
 

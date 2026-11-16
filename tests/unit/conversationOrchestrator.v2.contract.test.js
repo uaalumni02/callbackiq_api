@@ -1,3 +1,7 @@
+import {
+  conversationOrchestratorProcessConversationUpdateById as persistSilentFailure,
+  conversationOrchestratorProcessConversationUpdateById2 as persistOrchestratorOutcome,
+} from "../../src/services/stateTransitions/customerRequest.js";
 import { AVAILABILITY_HINT, hasBookingAvailabilityHint } from "../../src/services/booking/bookingMessagePolicy.service.js";
 import { renderAppointmentResponse } from '../../src/services/scheduling/customerAppointmentPresentation.service.js';
 import fs from "fs";
@@ -12,7 +16,19 @@ describe("Conversation Orchestration v2 contract", () => {
     const conversation = read("src/models/conversation.js");
     const message = read("src/models/message.js");
     expect(orchestrator).toMatch(/silent_failure_guard/);
-    expect(orchestrator).toMatch(/conversationMemory/);
+    expect(orchestrator).toContain("conversationOrchestratorProcessConversationUpdateById2");
+    const Conversation = { findByIdAndUpdate: jest.fn() };
+    const context = { Conversation, conversation: { _id: "conversation-a" }, inboundMessage: { _id: "inbound-a" },
+      result: { summary: "Customer requested a drain repair" }, outcome: { intent: "service_request", confidence: 0.9, outcome: "intake" } };
+    persistSilentFailure(context);
+    persistOrchestratorOutcome(context);
+    expect(Conversation.findByIdAndUpdate.mock.calls[0][1].$inc).toEqual({ "orchestration.silentFailureCount": 1 });
+    expect(Conversation.findByIdAndUpdate.mock.calls[1][0]).toBe("conversation-a");
+    expect(Conversation.findByIdAndUpdate.mock.calls[1][1].$set).toMatchObject({
+      "conversationMemory.summary": "Customer requested a drain repair",
+      "conversationMemory.lastIntent": "service_request", "conversationMemory.confidence": 0.9,
+      "orchestration.lastInboundMessage": "inbound-a", "orchestration.lastOutcome": "intake",
+    });
     expect(conversation).toMatch(/silentFailureCount/);
     expect(message).toMatch(/aiOutcome/);
   });

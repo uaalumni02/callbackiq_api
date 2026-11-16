@@ -1,3 +1,8 @@
+import {
+  marketingAttributionTransitionLeadUpdateOne as persistFirstTouch,
+  marketingAttributionTransitionLeadUpdateOne2 as persistLatestTouch,
+  conversionEventMarkAppointmentBookedLeadUpdateOne as persistBookedLead,
+} from "../../src/services/stateTransitions/customerProjections.js";
 import fs from "fs";
 import path from "path";
 
@@ -13,13 +18,32 @@ describe("marketing attribution 10/10 hardening contract", () => {
     expect(model).toContain("firstAttribution");
     expect(model).toContain("latestMarketingSource");
     expect(service).toContain("first touch is write-once");
-    expect(service).toContain("latestMarketingSource");
+    expect(service).toContain("marketingAttributionTransitionLeadUpdateOne2");
+    const Lead = { updateOne: jest.fn() };
+    const context = { Lead, businessId: "tenant-a", leadId: "lead-a", attribution: { source: "latest" },
+      earliestCall: { marketingSource: "first-source", trackingNumber: "first-number", attribution: { source: "first" } },
+      marketingSource: { _id: "latest-source" }, trackingNumber: { _id: "latest-number" } };
+    persistFirstTouch(context);
+    persistLatestTouch(context);
+    expect(Lead.updateOne.mock.calls[0]).toEqual([
+      { _id: "lead-a", business: "tenant-a", $or: [{ firstTrackingNumber: null }, { firstTrackingNumber: { $exists: false } }] },
+      { $set: { firstMarketingSource: "first-source", firstTrackingNumber: "first-number", firstAttribution: { source: "first" } } },
+    ]);
+    expect(Lead.updateOne.mock.calls[1]).toEqual([
+      { _id: "lead-a", business: "tenant-a" },
+      { $set: { latestMarketingSource: "latest-source", latestTrackingNumber: "latest-number", latestAttribution: { source: "latest" } } },
+    ]);
   });
 
   test("booking retains source-tagged event snapshots without copying dollars over owner edits", () => {
     const source = read("src/services/conversionEvent.service.js");
-    const update = source.slice(source.indexOf("await Lead.updateOne("), source.indexOf("if (recovered)"));
-    expect(update).not.toContain("estimatedValue:");
+    const Lead = { updateOne: jest.fn() };
+    persistBookedLead({ Lead, appointment: { _id: "appointment-a", business: "tenant-a", confirmedAt: new Date() },
+      lead: { _id: "lead-a", estimatedValue: 900 }, recovered: true, recoveredBy: "sms" });
+    const [filter, update] = Lead.updateOne.mock.calls[0];
+    expect(filter).toMatchObject({ _id: "lead-a", business: "tenant-a" });
+    expect(update.$set).toMatchObject({ status: "booked", appointment: "appointment-a" });
+    expect(update.$set).not.toHaveProperty("estimatedValue");
     expect(source).toContain("valuation: appointment.valuation");
   });
 
