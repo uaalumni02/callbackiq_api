@@ -5,7 +5,7 @@ import User from '../../src/models/user.js';
 import { readScaleHealth } from '../../src/services/scaleHealth.service.js';
 jest.mock('../../src/services/scaleHealth.service.js',()=>({readScaleHealth:jest.fn()}));
 // Authentication boundary is doubled; the real admin middleware rechecks the database role.
-jest.mock('../../src/middleware/check-auth.js',()=>({__esModule:true,default:(req,res,next)=>{if(!req.headers.authorization)return res.sendStatus(401);req.user={userId:'owner'};next();}}));
+jest.mock('../../src/middleware/check-auth.js',()=>({__esModule:true,default:(req,res,next)=>{if(!req.headers.authorization)return res.sendStatus(401);req.user={userId:'owner',mfaVerified:true,authTime:Math.floor(Date.now()/1000)};next();}}));
 const app=express();app.use('/admin',router);app.use((error,req,res,next)=>res.status(503).json({message:'Health unavailable'}));
 beforeEach(()=>{jest.spyOn(User,'findById').mockReturnValue({select:()=>({lean:async()=>({role:'admin'})})});readScaleHealth.mockReset();});
 afterEach(()=>jest.restoreAllMocks());

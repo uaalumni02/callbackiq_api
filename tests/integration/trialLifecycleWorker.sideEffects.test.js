@@ -86,7 +86,7 @@ describe("trialLifecycle.worker real lifecycle side effects", () => {
       .send({
         userName: "trialsideeffects",
         email: "trial.side.effects@example.com",
-        password: "Password123",
+        password: "LongFixturePassword123",
         businessName: "Lifecycle Plumbing",
         businessPhone: "4045558181",
         businessType: "plumbing",

@@ -26,7 +26,7 @@ const registerCustomer = async () => {
   const response = await request(app).post("/api/auth/register").send({
     userName: "reconcileowner",
     email: "reconcile@callbackiq.com",
-    password: "Password123",
+    password: "LongFixturePassword123",
     businessName: "Reconcile Plumbing",
     businessPhone: "4045550199",
     businessType: "plumbing",

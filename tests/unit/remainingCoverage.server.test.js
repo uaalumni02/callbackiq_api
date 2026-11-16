@@ -1,3 +1,4 @@
+jest.mock('../../src/services/scheduling/rescheduleCompensationRepair.service.js', () => ({ repairRescheduleCompensations: jest.fn().mockResolvedValue(undefined) }));
 // Server orchestration runs with socket, provider and worker boundaries mocked.
 jest.mock('../../src/services/processHeartbeat.service.js', () => ({ startProcessHeartbeat: jest.fn(), stopProcessHeartbeat: jest.fn() }));
 jest.mock("../../src/workers/adminReporting.worker.js",()=>({__esModule:true,startAdminReportingWorker: jest.fn(),stopAdminReportingWorker: jest.fn()}));

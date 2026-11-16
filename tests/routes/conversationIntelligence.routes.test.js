@@ -102,7 +102,7 @@ const registerAndCreateBusiness = async ({
   const registerRes = await request(app).post("/api/auth/register").send({
     userName: uniqueUserName,
     email: uniqueEmail,
-    password: "Password123",
+    password: "LongFixturePassword123",
     role,
     businessName,
     businessPhone: resolvedBusinessPhone,

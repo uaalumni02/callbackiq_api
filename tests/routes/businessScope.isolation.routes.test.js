@@ -1,10 +1,11 @@
+import { loginWithMfa } from '../setup/authenticate.js';
 import request from "supertest";
 import mongoose from "mongoose";
 import app from "../../src/app.js";
 import MarketingSource from "../../src/models/marketingSource.js";
 import Subscription from "../../src/models/subscription.js";
 import User from "../../src/models/user.js";
-import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testDb.js";
+import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testReplicaDb.js";
 
 let ownerA;
 let ownerB;
@@ -14,7 +15,7 @@ let sourceB;
 const register = async (suffix, phone) => {
   const response = await request(app).post("/api/auth/register").send({
     userName: `scopeowner${suffix}`, email: `scope-${suffix}@example.com`,
-    password: "Password123", role: "owner", businessName: `Scope Plumbing ${suffix}`,
+    password: "LongFixturePassword123", role: "owner", businessName: `Scope Plumbing ${suffix}`,
     businessPhone: phone, businessType: "plumbing", smsConsent: true,
     termsAccepted: true, privacyAccepted: true,
   });
@@ -102,6 +103,8 @@ test("missing authentication is rejected", async () => {
 
 test("administrator selection retains access and refreshed database role is enforced", async () => {
   await User.updateOne({ _id: ownerB.business.owner }, { $set: { role: "admin" } });
+  const admin = await loginWithMfa(app, { login: 'scope-b@example.com', password: 'LongFixturePassword123' });
+  ownerB.token = admin.body.data.token;
   try {
     const response = await get(ownerB, `/api/marketing-sources/report?businessId=${ownerA.business._id}`);
     expect(response.status).toBe(200);

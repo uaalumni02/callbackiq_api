@@ -24,7 +24,7 @@ const child = (code, env) => new Promise((resolve, reject) => {
 });
 async function owner() {
   const response = await request(app).post('/api/auth/register').send({
-    userName: 'securityowner', email: 'security@example.com', password: 'Synthetic123!',
+    userName: 'securityowner', email: 'security@example.com', password: 'Synthetic123!Passphrase',
     businessName: 'Synthetic Plumbing', businessPhone: '4045550121', businessType: 'plumbing',
     smsConsent: true, termsAccepted: true, privacyAccepted: true,
   });
@@ -37,7 +37,7 @@ test('production login sets a secure cookie and never returns a bearer token eve
     import app from './src/app.js';
     await mongoose.connect(process.env.MONGODB_URI);
     try {
-      const response = await request(app).post('/api/auth/login').send({login:'security@example.com',password:'Synthetic123!'});
+      const response = await request(app).post('/api/auth/login').send({login:'security@example.com',password:'Synthetic123!Passphrase'});
       assert.equal(response.status,200,JSON.stringify(response.body)); assert.equal(response.body.data.token,undefined);
       assert.match(response.headers['set-cookie'].join(';'),/HttpOnly/); assert.match(response.headers['set-cookie'].join(';'),/Secure/);
       console.log('PRODUCTION_AUTH_CONTRACT_PASS');

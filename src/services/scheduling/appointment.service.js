@@ -12,7 +12,7 @@ import { createRescheduleCommand } from './reschedule/command.js';
 import { createAppointmentupdate1Methods } from './commands/update-1.js';
 import { createExpiredHoldReconciler } from './appointmentHoldExpiry.service.js';
 import { resolveAppointmentAttribution } from './appointmentAttribution.repository.js';
-import { createAppointmentLookup } from './appointmentLookup.adapter.js';
+import { createAppointmentLookup, listAppointments } from './appointmentLookup.adapter.js';
 import { createExactSlotAvailability } from './appointmentAvailability.adapter.js';
 import {ACTIVE_STATUSES,VALID_TRANSITIONS,getSlotKey,getSlotClaimKeys,assertTransition} from './appointmentStatePolicy.service.js';
 import {createNonBlockingAppointmentSideEffect} from './appointmentEffectAdapter.service.js';
@@ -267,7 +267,6 @@ const ensureCancellationSideEffects = async ({
   }
 };
 
-
 let __meekcallAppointmentrecheckAndConfirm1Cache;
 function __meekcallGetAppointmentrecheckAndConfirm1Methods() {
   if (!__meekcallAppointmentrecheckAndConfirm1Cache) __meekcallAppointmentrecheckAndConfirm1Cache = createAppointmentrecheckAndConfirm1Methods({ assertConfirmationNotPending, assertIntakeHoldCurrent, Appointment, addMinutes, assertDistributedLeaseActive, exactSlotAvailable, getAppointmentForBusiness, getSlotCapacity, getSlotClaimKeys, getSlotKey, repairConfirmedApproval, tryRepairAppointmentProjections, withDistributedLease });
@@ -384,21 +383,7 @@ class AppointmentService {
   static async update(...args) { return __meekcallGetAppointmentupdate1Methods().update.apply(this, args); }
 
   static list({ businessId, query = {} }) {
-    const filter = { business: businessId };
-    if (query.status) filter.status = query.status;
-    if (query.leadId) filter.lead = query.leadId;
-    if (query.conversationId) filter.conversation = query.conversationId;
-    if (query.startDate || query.endDate) {
-      filter.startAt = {};
-      if (query.startDate) filter.startAt.$gte = new Date(query.startDate);
-      if (query.endDate) filter.startAt.$lte = new Date(query.endDate);
-    }
-    const limit = Math.min(Math.max(Number(query.limit) || 50, 1), 200);
-    const skip = Math.max(Number(query.skip) || 0, 0);
-
-    return populateAppointment(
-      Appointment.find(filter).sort({ startAt: 1 }).skip(skip).limit(limit),
-    );
+    return listAppointments({ Appointment, populateAppointment, businessId, query });
   }
 
   static get({ businessId, appointmentId }) {

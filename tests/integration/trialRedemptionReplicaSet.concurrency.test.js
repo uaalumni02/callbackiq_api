@@ -61,7 +61,7 @@ describe("replica-set trial redemption concurrency", () => {
       .send({
         userName: "repltrial",
         email: "repl.trial@example.com",
-        password: "Password123",
+        password: "LongFixturePassword123",
         businessName: "Replica Plumbing",
         businessPhone: "4045551212",
         businessType: "plumbing",

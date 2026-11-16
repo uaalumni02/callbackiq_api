@@ -43,7 +43,7 @@ const register = (suffix) =>
     .send({
       userName: `stripe${suffix}`,
       email: `stripe.${suffix}@example.com`,
-      password: "Password123",
+      password: "LongFixturePassword123",
       businessName: `Stripe Matrix ${suffix}`,
       businessPhone: `404555${String(suffix).padStart(4, "0").slice(-4)}`,
       businessType: "plumbing",

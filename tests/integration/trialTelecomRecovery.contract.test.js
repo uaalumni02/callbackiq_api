@@ -169,7 +169,7 @@ describe("trial -> Stripe -> tracking number -> A2P -> missed-call SMS contract"
       .send({
         userName: "telecomcontract",
         email: "telecom.contract@example.com",
-        password: "Password123",
+        password: "LongFixturePassword123",
         businessName: "Contract Plumbing",
         businessPhone: "4045551212",
         businessType: "plumbing",

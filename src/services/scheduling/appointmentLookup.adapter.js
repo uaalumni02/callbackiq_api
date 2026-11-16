@@ -13,3 +13,21 @@ export const createAppointmentLookup = ({ Appointment }) => async (businessId, a
 
   return appointment;
 };
+
+export function listAppointments({ Appointment, populateAppointment, businessId, query = {} }) {
+    const filter = { business: businessId };
+    if (query.status) filter.status = query.status;
+    if (query.leadId) filter.lead = query.leadId;
+    if (query.conversationId) filter.conversation = query.conversationId;
+    if (query.startDate || query.endDate) {
+      filter.startAt = {};
+      if (query.startDate) filter.startAt.$gte = new Date(query.startDate);
+      if (query.endDate) filter.startAt.$lte = new Date(query.endDate);
+    }
+    const limit = Math.min(Math.max(Number(query.limit) || 50, 1), 200);
+    const skip = Math.max(Number(query.skip) || 0, 0);
+
+    return populateAppointment(
+      Appointment.find(filter).sort({ startAt: 1 }).skip(skip).limit(limit),
+    );
+}

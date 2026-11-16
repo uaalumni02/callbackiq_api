@@ -81,7 +81,8 @@ static async resetPassword(req, res) {
 
       const hashedPassword = await bcrypt.hashPassword(password, 10);
 
-      await Db.saveResetPassword(User, user._id, hashedPassword);
+      const changed = await Db.saveResetPassword(User, user._id, hashedPassword, resetTokenHash);
+      if (!changed) return Response.responseInvalidInput(res, 'Invalid or expired reset token');
 
       return Response.responseOk(res, null, "Password reset successfully");
     } catch (error) {

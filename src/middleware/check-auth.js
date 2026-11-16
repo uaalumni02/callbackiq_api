@@ -1,3 +1,4 @@
+import { validAdminSession } from '../services/security/adminSessionPolicy.js';
 import Token from "../helpers/jwt/token.js";
 import User from "../models/user.js";
 import { databaseUnavailable, queryFailure } from "../services/scale/queryBudget.js";
@@ -42,6 +43,7 @@ const checkAuth = async (req, res, next) => {
       .lean();
 
     if (!user) return rejectAuthentication(res);
+    if (user.role === 'admin' && !validAdminSession(decoded)) return rejectAuthentication(res);
 
     const tokenSessionVersion = Number(decoded?.sessionVersion ?? 0);
     const currentSessionVersion = Number(user.sessionVersion ?? 0);

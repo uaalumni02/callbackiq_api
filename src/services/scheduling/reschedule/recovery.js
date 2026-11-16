@@ -1,3 +1,4 @@
+import { compensateSuperseded } from './compensation.js';
 /** @typedef {import('./types.js').AppointmentRecord} AppointmentRecord */
 /** @typedef {import('./types.js').BusinessScope} BusinessScope */
 import { saveClaimed } from './finalize.js';
@@ -52,8 +53,14 @@ async function recordIntervention({ business, original, replacement, key, handof
 /** Persist recovery evidence and translate the existing error contract.
  * @param {{business:BusinessScope, original:AppointmentRecord, replacement:AppointmentRecord, key:string, snapshot:object, handoff:import('./types.js').HandoffResult|null, error:Error}} input
  * @returns {Promise<void>} */
-export async function recoverReschedule(input, { Appointment, InterventionService }) {
+export async function recoverReschedule(input, { Appointment, InterventionService, provider }) {
   const { business, original, replacement, handoff, error } = input;
+  const superseded = await compensateSuperseded(input, { Appointment, provider });
+  if (superseded) {
+    error.statusCode = 409; error.code = 'RESCHEDULE_SUPERSEDED';
+    error.safeCustomerMessage = 'The original appointment changed. Reload before trying another change.';
+    return;
+  }
   await retainPending(input, { Appointment });
   await recordIntervention(input, { InterventionService });
   error.statusCode = error.statusCode || 503;

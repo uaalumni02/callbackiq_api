@@ -3,7 +3,7 @@ import { registerSchema } from "../../src/validator/auth.js";
 const baseRegistration = {
   userName: "owner1",
   email: "owner@example.com",
-  password: "Password123",
+  password: "LongFixturePassword123",
   businessName: "Atlanta Plumbing",
   businessPhone: "4045551212",
   businessType: "plumbing",

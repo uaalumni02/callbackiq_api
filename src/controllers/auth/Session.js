@@ -1,3 +1,4 @@
+import { issueAdminChallenge } from '../../services/security/adminMfa.service.js';
 import { DUMMY_PASSWORD_HASH, Db, GENERIC_LOGIN_MESSAGE, Response, User, bcrypt, buildAuthToken, clearCookieOptions, cookieOptions, getRetryAfterSeconds, hasSecurityStateExpired, loginSchema, safeConsole, shouldExposeAuthToken, verifyTurnstileToken } from './context.js';
 
 export default class AuthSessionController {
@@ -10,11 +11,6 @@ static async login(req, res) {
       const normalizedLogin = login.trim();
       let user = await Db.findUserByLogin(User, normalizedLogin);
 
-      /*
-       * Always perform a password-hash comparison, even when the account does
-       * not exist. This reduces the obvious timing difference between existing
-       * and nonexistent accounts.
-       */
       const passwordHash = user?.password || DUMMY_PASSWORD_HASH;
       const isMatch = await bcrypt.comparePassword(password, passwordHash);
 
@@ -22,9 +18,6 @@ static async login(req, res) {
         return Response.responseBadAuth(res, GENERIC_LOGIN_MESSAGE);
       }
 
-      /*
-       * Reset old security escalation after 24 hours without another failure.
-       */
       if (hasSecurityStateExpired(user.lastFailedLoginAt)) {
         await Db.decayLoginSecurityState(User, user._id);
 
@@ -39,12 +32,6 @@ static async login(req, res) {
 
       const retryAfterSeconds = getRetryAfterSeconds(user.loginBlockedUntil);
 
-      /*
-       * Do not return an account-specific lock message. A generic 401 prevents
-       * the blocked state from becoming an easy account-enumeration signal.
-       *
-       * IP-level abuse is handled separately by loginRateLimit with HTTP 429.
-       */
       if (retryAfterSeconds > 0) {
         return Response.responseBadAuth(res, GENERIC_LOGIN_MESSAGE);
       }
@@ -55,10 +42,6 @@ static async login(req, res) {
         return Response.responseBadAuth(res, GENERIC_LOGIN_MESSAGE);
       }
 
-      /*
-       * CAPTCHA is checked only after the password is correct. This prevents
-       * the CAPTCHA-required response from revealing that an account exists.
-       */
       if (user.securityChallengeRequired) {
         const challengeResult = await verifyTurnstileToken(
           securityChallengeToken,
@@ -79,13 +62,13 @@ static async login(req, res) {
         }
       }
 
-      /*
-       * Clear failure counts, temporary delays, escalation, and CAPTCHA state
-       * after a successful password and challenge verification.
-       */
       const authenticatedUser =
         (await Db.clearLoginSecurityState(User, user._id)) || user;
 
+      if (authenticatedUser.role === 'admin') {
+        res.set('Cache-Control', 'no-store');
+        return Response.responseOk(res, await issueAdminChallenge({ ...authenticatedUser.toObject(), sessionVersion: user.sessionVersion }), 'Complete administrator verification');
+      }
       const token = buildAuthToken(authenticatedUser, user.sessionVersion);
 
       res.cookie("token", token, cookieOptions);

@@ -83,13 +83,14 @@ describe("release invariant: password reset revokes old JWTs", () => {
 
   test("Db.saveResetPassword atomically increments sessionVersion", async () => {
     const fakeModel = {
-      findByIdAndUpdate: jest.fn().mockResolvedValue({ _id: "u1" }),
+      findOneAndUpdate: jest.fn().mockResolvedValue({ _id: "u1" }),
     };
 
-    await Db.saveResetPassword(fakeModel, "u1", "new-hash");
+    await Db.saveResetPassword(fakeModel, "u1", "new-hash", "reset-hash");
 
-    const update = fakeModel.findByIdAndUpdate.mock.calls[0][1];
-    expect(update.$set.password).toBe("new-hash");
+    const update = fakeModel.findOneAndUpdate.mock.calls[0][1];
+    expect(update.$set.password).toBe("new-hash", "reset-hash");
+    expect(fakeModel.findOneAndUpdate.mock.calls[0][0]).toMatchObject({ _id: 'u1', resetToken: 'reset-hash', resetTokenExpiresAt: { $gt: expect.any(Date) } });
     expect(update.$inc).toEqual({ sessionVersion: 1 });
   });
 });

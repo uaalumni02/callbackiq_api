@@ -1,3 +1,4 @@
+import { allowedMediaUrl, loadProviderMedia } from '../services/security/providerMedia.js';
 import mongoose from "mongoose";
 import Db from "../db/db.js";
 import Business from "../models/business.js";
@@ -8,20 +9,6 @@ const getBusinessForOwner = async (ownerId) =>
   typeof Db.getBusinessScopeByOwner === "function"
     ? Db.getBusinessScopeByOwner(Business, ownerId)
     : Db.getBusinessByOwner(Business, ownerId);
-
-const isAllowedProviderUrl = (value) => {
-  try {
-    const url = new URL(String(value || ""));
-    return (
-      url.protocol === "https:" &&
-      (url.hostname === "api.twilio.com" ||
-        url.hostname.endsWith(".twilio.com") ||
-        url.hostname.endsWith(".twiliocdn.com"))
-    );
-  } catch {
-    return false;
-  }
-};
 
 class MessageMediaController {
   static async getMedia(req, res) {
@@ -41,7 +28,7 @@ class MessageMediaController {
       if (!business) return res.status(404).json({ success: false, message: "Business not found" });
       const message = await Message.findOne({ _id: messageId, business: business._id });
       const media = message?.media?.[index];
-      if (!media || !isAllowedProviderUrl(media.providerUrl)) {
+      if (!media || !allowedMediaUrl(media.providerUrl)) {
         return res.status(404).json({ success: false, message: "Media not found" });
       }
 
@@ -50,22 +37,10 @@ class MessageMediaController {
       if (!accountSid || !authToken) {
         return res.status(503).json({ success: false, message: "Twilio media access is not configured." });
       }
-      const upstream = await fetch(media.providerUrl, {
-        headers: {
-          Authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString("base64")}`,
-        },
-      });
-      if (!upstream.ok) {
-        return res.status(upstream.status === 404 ? 404 : 502).json({
-          success: false,
-          message: upstream.status === 404 ? "Media is no longer available." : "Unable to load message media.",
-        });
-      }
-      const buffer = Buffer.from(await upstream.arrayBuffer());
-      res.setHeader(
-        "Content-Type",
-        upstream.headers.get("content-type") || media.contentType || "application/octet-stream",
-      );
+      const { buffer, contentType } = await loadProviderMedia({ url: media.providerUrl,
+        authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`,
+        businessId: business._id, req, res });
+      res.setHeader('Content-Type', contentType);
       res.setHeader("Content-Length", String(buffer.length));
       res.setHeader("Cache-Control", "private, max-age=300");
       res.setHeader("Content-Disposition", `inline; filename="callbackiq-media-${index}"`);
@@ -76,7 +51,9 @@ class MessageMediaController {
         mediaIndex: req.params?.mediaIndex,
         ownerId: req.user?.userId,
       });
-      return res.status(502).json({ success: false, message: "Unable to load message media." });
+      if (res.destroyed) return undefined;
+      if (error.statusCode === 429) res.setHeader('Retry-After', '2');
+      return res.status(error.statusCode || 502).json({ success: false, message: "Unable to load message media." });
     }
   }
 }

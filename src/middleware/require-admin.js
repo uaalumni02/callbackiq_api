@@ -21,6 +21,9 @@ const requireAdmin = async (req, res, next) => {
       });
     }
 
+    if (req.user.mfaVerified !== true) return res.status(401).json({ success: false, code: 'ADMIN_MFA_REQUIRED', message: 'Sign in with administrator verification.' });
+    const age = Math.floor(Date.now() / 1000) - Number(req.user.authTime || 0);
+    if (!Number.isFinite(age) || age < 0 || age > (['GET', 'HEAD', 'OPTIONS'].includes(req.method) ? 28800 : 900)) return res.status(401).json({ success: false, code: 'ADMIN_REAUTH_REQUIRED', message: 'Sign in again before continuing this administrator action.' });
     req.user.role = "admin";
     return next();
   } catch (error) {

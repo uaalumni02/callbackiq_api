@@ -25,6 +25,7 @@ const createTokenForUser = (user) =>
       id: user._id,
       email: user.email,
       role: user.role,
+      mfaVerified: true, authTime: Math.floor(Date.now() / 1000),
     },
     process.env.JWT_SECRET,
     { expiresIn: "1h" },
@@ -37,7 +38,7 @@ const createUser = async (role) => {
       role === "admin"
         ? "contact-admin@callbackiq.com"
         : "contact-owner@callbackiq.com",
-    password: "Password123",
+    password: "LongFixturePassword123",
     role,
     businessName: role === "admin" ? "CallBackIQ Admin" : "ABC Plumbing",
     businessPhone: "4045551212",

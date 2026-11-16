@@ -67,6 +67,15 @@
     "options": {}
   },
   {
+    "collection": "adminauthchallenges",
+    "key": {
+      "expiresAt": 1
+    },
+    "options": {
+      "expireAfterSeconds": 0
+    }
+  },
+  {
     "collection": "adminbillingfacts",
     "key": {
       "invoiceId": 1
@@ -348,6 +357,14 @@
         }
       }
     }
+  },
+  {
+    "collection": "appointments",
+    "key": {
+      "providerCompensation.pending": 1,
+      "providerCompensation.nextAttemptAt": 1
+    },
+    "options": {}
   },
   {
     "collection": "appointments",

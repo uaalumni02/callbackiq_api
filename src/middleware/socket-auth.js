@@ -1,3 +1,4 @@
+import { validAdminSession } from '../services/security/adminSessionPolicy.js';
 import { safeConsole } from "../helpers/logging/safeLogger.js";
 import Token from "../helpers/jwt/token.js";
 import User from "../models/user.js";
@@ -122,10 +123,6 @@ const socketAuth = async (socket, next) => {
       );
     }
 
-    /*
-     * This is a read-only authentication query, so lean() avoids creating a
-     * full Mongoose document for every new Socket.IO connection.
-     */
     const user = await User.findById(userId)
       .select("_id userName email role businessName +sessionVersion")
       .lean();
@@ -155,13 +152,14 @@ const socketAuth = async (socket, next) => {
       );
     }
 
+    if (user.role === 'admin' && !validAdminSession(decoded)) return next(createSocketError('Administrator verification required.', 'SOCKET_MFA_REQUIRED'));
     const normalizedRole = String(user.role || "")
       .trim()
       .toLowerCase();
     const normalizedUserId = String(user._id);
 
     socket.data.sessionVersion = currentSessionVersion;
-    socket.data.tokenExpiresAt = Number(decoded.exp) * 1000;
+    socket.data.tokenExpiresAt = Math.min(Number(decoded.exp) * 1000, user.role === 'admin' ? (decoded.authTime + 28800) * 1000 : Infinity);
 
     socket.data.user = {
       userId: normalizedUserId,

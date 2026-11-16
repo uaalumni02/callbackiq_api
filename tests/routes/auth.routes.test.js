@@ -35,7 +35,7 @@ afterAll(async () => {
 const validRegisterPayload = {
   userName: "demoowner",
   email: "owner@callbackiq.com",
-  password: "Password123",
+  password: "LongFixturePassword123",
   businessName: "Atlanta Pro Plumbing",
   businessPhone: "4045551234",
   businessType: "plumbing",
@@ -83,7 +83,7 @@ describe("Auth Routes", () => {
 
     expect(savedUser).toBeTruthy();
     expect(savedUser.password).toBeTruthy();
-    expect(savedUser.password).not.toBe("Password123");
+    expect(savedUser.password).not.toBe("LongFixturePassword123");
 
     const savedBusiness = await Business.findOne({
       owner: savedUser._id,
@@ -141,7 +141,7 @@ describe("Auth Routes", () => {
 
     const res = await request(app).post("/api/auth/login").send({
       login: "demoowner",
-      password: "Password123",
+      password: "LongFixturePassword123",
     });
 
     expect(res.status).toBe(200);
@@ -155,7 +155,7 @@ describe("Auth Routes", () => {
 
     const res = await request(app).post("/api/auth/login").send({
       login: "owner@callbackiq.com",
-      password: "Password123",
+      password: "LongFixturePassword123",
     });
 
     expect(res.status).toBe(200);
@@ -478,7 +478,7 @@ describe("Auth Routes", () => {
     const resetRes = await request(app)
       .post(`/api/password-reset/${plaintextResetToken}`)
       .send({
-        password: "NewPassword123",
+        password: "NewLongFixturePassword123",
       });
 
     expect(resetRes.status).toBe(200);
@@ -498,7 +498,7 @@ describe("Auth Routes", () => {
     expect(updatedUser.resetToken).toBeNull();
     expect(updatedUser.resetTokenExpiresAt).toBeNull();
     expect(updatedUser.password).toBeTruthy();
-    expect(updatedUser.password).not.toBe("NewPassword123");
+    expect(updatedUser.password).not.toBe("NewLongFixturePassword123");
 
     expect(updatedUser.failedLoginAttempts).toBe(0);
     expect(updatedUser.lastFailedLoginAt).toBeNull();
@@ -510,7 +510,7 @@ describe("Auth Routes", () => {
 
     const oldLoginRes = await request(app).post("/api/auth/login").send({
       login: "owner@callbackiq.com",
-      password: "Password123",
+      password: "LongFixturePassword123",
     });
 
     expect(oldLoginRes.status).toBe(401);
@@ -519,7 +519,7 @@ describe("Auth Routes", () => {
 
     const newLoginRes = await request(app).post("/api/auth/login").send({
       login: "owner@callbackiq.com",
-      password: "NewPassword123",
+      password: "NewLongFixturePassword123",
     });
 
     expect(newLoginRes.status).toBe(200);
@@ -529,7 +529,7 @@ describe("Auth Routes", () => {
 
   test("POST /api/password-reset/:resetToken rejects invalid token", async () => {
     const res = await request(app).post("/api/password-reset/bad-token").send({
-      password: "NewPassword123",
+      password: "NewLongFixturePassword123",
     });
 
     expect(res.status).toBe(400);
@@ -555,7 +555,7 @@ describe("Auth Routes", () => {
     const res = await request(app)
       .post(`/api/password-reset/${expiredToken}`)
       .send({
-        password: "NewPassword123",
+        password: "NewLongFixturePassword123",
       });
 
     expect(res.status).toBe(400);

@@ -25,9 +25,9 @@ async findUserByPasswordResetToken(model, resetToken) {
     }
   },
 
-async saveResetPassword(model, userId, password) {
+async saveResetPassword(model, userId, password, resetToken) {
     try {
-      return await persistResetPassword({ model, password, userId });
+      return await persistResetPassword({ model, password, userId, resetToken });
     } catch (error) {
       safeConsole.error("Error saving reset password:", error);
       throw error;

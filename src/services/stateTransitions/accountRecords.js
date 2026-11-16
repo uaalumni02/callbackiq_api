@@ -40,9 +40,10 @@ export function persistPasswordResetToken({ expiresAt, model, resetToken, userId
 }
 
 // src/db/repositories/extracted/identity-1.js:40 — findByIdAndUpdate; predicate and write options are owned here.
-export function persistResetPassword({ model, password, userId }) {
-  return (model.findByIdAndUpdate(
-        userId,
+export function persistResetPassword({ model, password, userId, resetToken }) {
+  if (typeof resetToken !== 'string' || !resetToken) throw new TypeError('A reset-token claim is required');
+  return (model.findOneAndUpdate(
+        { _id: userId, resetToken, resetTokenExpiresAt: { $gt: new Date() } },
         {
           $set: {
             password,

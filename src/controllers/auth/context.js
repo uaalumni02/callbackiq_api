@@ -113,8 +113,9 @@ const trialEligibilityMessage = (eligibility) => {
 
 const getConsentIp = (req) => getTrustedRequestIp(req);
 
-const buildAuthToken = (user, fallbackSessionVersion = 0) =>
+const buildAuthToken = (user, fallbackSessionVersion = 0, authentication = {}) =>
   Token.sign({
+    ...authentication,
     userId: user._id,
     userName: user.userName,
     email: user.email,

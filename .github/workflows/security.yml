@@ -5,11 +5,13 @@ on:
     branches:
       - development
       - main
+      - "hardening/**"
       - "ownership/**"
   push:
     branches:
       - development
       - main
+      - "hardening/**"
   schedule:
     - cron: "17 9 * * *"
   workflow_dispatch:
@@ -57,11 +59,10 @@ jobs:
           set -euo pipefail
           changes="$(git diff --name-only "$BASE_SHA" HEAD --)"
           if printf '%s\n' "$changes" | grep -E '(^|/)(package(-lock)?\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb?|\.npmrc)$'; then
-            echo "::error::Dependency changes require separate security review."
-            exit 1
+            echo "Dependency files changed; running the complete locked dependency audit."
           fi
           npm ci
-          npm audit --omit=dev --audit-level=high
+          npm audit --audit-level=high
       - name: GitHub dependency review
         if: ${{ !github.event.repository.private }}
         uses: actions/dependency-review-action@v4

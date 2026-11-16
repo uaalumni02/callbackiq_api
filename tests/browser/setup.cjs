@@ -5,3 +5,5 @@ process.env.CLIENT_URL = 'http://127.0.0.1:43771';
 process.env.PUBLIC_API_URL = 'http://127.0.0.1:43771';
 process.env.RECOVERY_SMS_ASYNC_ENABLED = 'false';
 process.env.SMS_TURN_AGGREGATION_WINDOW_MS = '0';
+
+process.env.INTEGRATION_ENCRYPTION_KEY = 'synthetic-browser-encryption-key-1234567890';

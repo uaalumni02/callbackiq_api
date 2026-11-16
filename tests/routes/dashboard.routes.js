@@ -37,7 +37,7 @@ const registerAndCreateBusiness = async () => {
   const registerRes = await request(app).post("/api/auth/register").send({
     userName,
     email,
-    password: "Password123",
+    password: "LongFixturePassword123",
     role,
     businessName,
     businessPhone: "4045551234",
@@ -238,7 +238,7 @@ describe("Dashboard Routes", () => {
     const registerRes = await request(app).post("/api/auth/register").send({
       userName: "nobusiness",
       email: "nobusiness@callbackiq.com",
-      password: "Password123",
+      password: "LongFixturePassword123",
       businessName: "No Business Yet",
     });
 

@@ -1,0 +1,63 @@
+import crypto from 'node:crypto';
+export const appointmentConflict = () => Object.assign(new Error('The appointment changed or another operation owns it. Reload before trying again.'), {
+  statusCode: 409, code: 'APPOINTMENT_STATE_CONFLICT',
+});
+/** Durable original-appointment ownership survives a worker crash. Only same-key replay may resume. */
+export async function claimRescheduleOriginal({ Appointment, original, business, key, input }) {
+  if (original.status === 'rescheduled') return original;
+  const fingerprint = rescheduleReceiptIdentity(input);
+  if (original.rescheduleIntent?.fingerprint && original.rescheduleIntent.fingerprint !== fingerprint) throw appointmentConflict();
+  const claimed = await Appointment.findOneAndUpdate({
+    _id: original._id, business: business._id, status: 'confirmed',
+    ...(original.updatedAt ? { updatedAt: original.updatedAt } : {}),
+    $or: [{ 'rescheduleIntent.key': key }, { 'rescheduleIntent.key': { $exists: false } }, { rescheduleIntent: null }],
+    'confirmationIntent.status': { $ne: 'pending_provider' },
+  }, { $set: { rescheduleIntent: { key, fingerprint, startedAt: new Date() } } },
+  { returnDocument: 'after', runValidators: true }).select('+confirmationIntent');
+  if (!claimed) throw appointmentConflict();
+  claimed.$locals.rescheduleOperationKey = key;
+  return claimed;
+}
+/** Every loaded appointment save is fenced against a newer status or timestamp. */
+export function installAppointmentOwnership(schema) {
+  const remember = doc => {
+    doc.$locals.observedStatus = doc.status;
+    doc.$locals.observedBusiness = doc.business?._id || doc.business;
+    doc.$locals.observedUpdatedAt = doc.updatedAt;
+    doc.$locals.observedStateVersion = doc.stateVersion || 0;
+    doc.$where = doc.$locals.ownershipPreviousWhere;
+    delete doc.$locals.ownershipPreviousWhere;
+  };
+  schema.post('init', remember);
+  schema.post('save', remember);
+  schema.post('save', function (error, doc, next) {
+    doc.$where = doc.$locals.ownershipPreviousWhere; delete doc.$locals.ownershipPreviousWhere; next(error);
+  });
+  for (const method of ['updateOne', 'updateMany', 'findOneAndUpdate']) schema.pre(method, function () {
+    const update = this.getUpdate();
+    if (Array.isArray(update)) update.push({ $set: { stateVersion: { $add: [{ $ifNull: ['$stateVersion', 0] }, 1] } } });
+    else {
+      if (update.$set && Object.hasOwn(update.$set, 'stateVersion')) throw appointmentConflict();
+      update.$inc = { ...update.$inc, stateVersion: 1 };
+    }
+  });
+  schema.pre('save', function () {
+    if (this.isNew) return;
+    if (String(this.$locals.observedBusiness) !== String(this.business?._id || this.business)) throw appointmentConflict();
+    const claim = { business: this.$locals.observedBusiness, status: this.$locals.observedStatus,
+      $or: [{ stateVersion: this.$locals.observedStateVersion || 0 }, { stateVersion: { $exists: false } }] };
+    this.stateVersion = (this.$locals.observedStateVersion || 0) + 1;
+    if (this.$locals.observedUpdatedAt) claim.updatedAt = this.$locals.observedUpdatedAt;
+    if (this.rescheduleIntent?.key) {
+      if (this.$locals.rescheduleOperationKey !== this.rescheduleIntent.key) throw appointmentConflict();
+      claim['rescheduleIntent.key'] = this.rescheduleIntent.key;
+    }
+    this.$locals.ownershipPreviousWhere = this.$where;
+    this.$where = { $and: [this.$where || {}, claim] };
+  });
+}
+export function rescheduleReceiptIdentity(input) {
+  const canonical = value => value instanceof Date ? value.toISOString() : Array.isArray(value) ? value.map(canonical)
+    : value && typeof value === 'object' ? Object.fromEntries(Object.keys(value).filter(k => k !== 'idempotencyKey').sort().map(k => [k, canonical(value[k])])) : value;
+  return crypto.createHash('sha256').update(JSON.stringify(canonical(input))).digest('hex');
+}

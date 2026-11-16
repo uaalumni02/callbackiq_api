@@ -1,9 +1,10 @@
+import { loginWithMfa } from '../setup/authenticate.js';
 import request from "supertest";
 
 import app from "../../src/app.js";
 import SupportTicket from "../../src/models/supportTicket.js";
 import User from "../../src/models/user.js";
-import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testDb.js";
+import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testReplicaDb.js";
 
 beforeAll(async () => {
   await connectTestDB();
@@ -28,7 +29,7 @@ const registerAndCreateBusiness = async ({
   const registerRes = await request(app).post("/api/auth/register").send({
     userName,
     email,
-    password: "Password123",
+    password: "LongFixturePassword123",
     role,
     businessName,
     businessPhone,
@@ -53,7 +54,7 @@ const registerAdmin = async ({
   const registerRes = await request(app).post("/api/auth/register").send({
     userName,
     email,
-    password: "Password123",
+    password: "LongFixturePassword123",
     businessName: "CallBackIQ Admin",
     businessPhone: "4045550000",
     businessType: "plumbing",
@@ -71,9 +72,9 @@ const registerAdmin = async ({
     role: "admin",
   });
 
-  const loginRes = await request(app).post("/api/auth/login").send({
+  const loginRes = await loginWithMfa(app, {
     login: email,
-    password: "Password123",
+    password: "LongFixturePassword123",
   });
 
   expect(loginRes.status).toBe(200);

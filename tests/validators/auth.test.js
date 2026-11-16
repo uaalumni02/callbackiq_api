@@ -3,7 +3,7 @@ import { registerSchema, loginSchema } from "../../src/validator/auth.js";
 const validRegisterData = {
   userName: "demoowner",
   email: "owner@callbackiq.com",
-  password: "Password123",
+  password: "LongFixturePassword123",
   businessName: "Atlanta Pro Plumbing",
   businessPhone: "4045551234",
   businessType: "plumbing",
@@ -19,7 +19,7 @@ describe("Auth Validator", () => {
 
       expect(result.userName).toBe("demoowner");
       expect(result.email).toBe("owner@callbackiq.com");
-      expect(result.password).toBe("Password123");
+      expect(result.password).toBe("LongFixturePassword123");
       expect(result.businessName).toBe("Atlanta Pro Plumbing");
       expect(result.businessPhone).toBe("4045551234");
       expect(result.businessType).toBe("plumbing");
@@ -29,7 +29,7 @@ describe("Auth Validator", () => {
       const data = {
         userName: "demoowner",
         email: "owner@callbackiq.com",
-        password: "Password123",
+        password: "LongFixturePassword123",
         businessName: "Atlanta Pro Plumbing",
         businessPhone: "4045551234",
         smsConsent: true,
@@ -46,7 +46,7 @@ describe("Auth Validator", () => {
       const data = {
         userName: "demoowner",
         email: "owner@callbackiq.com",
-        password: "Password123",
+        password: "LongFixturePassword123",
         businessName: "Atlanta Pro Plumbing",
         businessPhone: "4045551234",
         smsConsent: true,
@@ -62,7 +62,7 @@ describe("Auth Validator", () => {
     test("register allows userName to be omitted for trial signup", async () => {
       const data = {
         email: "owner@callbackiq.com",
-        password: "Password123",
+        password: "LongFixturePassword123",
         businessName: "Atlanta Pro Plumbing",
         termsAccepted: true,
         privacyAccepted: true,
@@ -80,7 +80,7 @@ describe("Auth Validator", () => {
       const data = {
         userName: "",
         email: "owner@callbackiq.com",
-        password: "Password123",
+        password: "LongFixturePassword123",
         businessName: "Atlanta Pro Plumbing",
         businessPhone: "4045551234",
       };
@@ -92,7 +92,7 @@ describe("Auth Validator", () => {
       const data = {
         userName: "ab",
         email: "owner@callbackiq.com",
-        password: "Password123",
+        password: "LongFixturePassword123",
         businessName: "Atlanta Pro Plumbing",
         businessPhone: "4045551234",
       };
@@ -104,7 +104,7 @@ describe("Auth Validator", () => {
       const data = {
         userName: "a".repeat(31),
         email: "owner@callbackiq.com",
-        password: "Password123",
+        password: "LongFixturePassword123",
         businessName: "Atlanta Pro Plumbing",
         businessPhone: "4045551234",
       };
@@ -116,7 +116,7 @@ describe("Auth Validator", () => {
       const data = {
         userName: "demoowner",
         email: "bad-email",
-        password: "Password123",
+        password: "LongFixturePassword123",
         businessName: "Atlanta Pro Plumbing",
         businessPhone: "4045551234",
       };
@@ -163,7 +163,7 @@ describe("Auth Validator", () => {
       const data = {
         userName: "demoowner",
         email: "owner@callbackiq.com",
-        password: "Password123",
+        password: "LongFixturePassword123",
         role: "supervisor",
         businessName: "Atlanta Pro Plumbing",
         businessPhone: "4045551234",
@@ -179,7 +179,7 @@ describe("Auth Validator", () => {
       const data = {
         userName: "demoowner",
         email: "owner@callbackiq.com",
-        password: "Password123",
+        password: "LongFixturePassword123",
         businessPhone: "4045551234",
       };
 
@@ -190,7 +190,7 @@ describe("Auth Validator", () => {
       const data = {
         userName: "",
         email: "owner@callbackiq.com",
-        password: "Password123",
+        password: "LongFixturePassword123",
         businessName: "",
         businessPhone: "4045551234",
       };
@@ -202,7 +202,7 @@ describe("Auth Validator", () => {
       const data = {
         userName: "demoowner",
         email: "owner@callbackiq.com",
-        password: "Password123",
+        password: "LongFixturePassword123",
         businessName: "Atlanta Pro Plumbing",
         termsAccepted: true,
         privacyAccepted: true,
@@ -218,7 +218,7 @@ describe("Auth Validator", () => {
       const data = {
         userName: "demoowner",
         email: "owner@callbackiq.com",
-        password: "Password123",
+        password: "LongFixturePassword123",
         businessName: "Atlanta Pro Plumbing",
         businessPhone: "",
       };
@@ -238,7 +238,7 @@ describe("Auth Validator", () => {
       const data = {
         userName: "demoowner",
         email: "owner@callbackiq.com",
-        password: "Password123",
+        password: "LongFixturePassword123",
         businessName: "Atlanta Pro Plumbing",
         businessPhone: "4045551234",
         businessType: "unsupported_industry",
@@ -266,19 +266,19 @@ describe("Auth Validator", () => {
     test("valid login with username passes", async () => {
       const data = {
         login: "demoowner",
-        password: "Password123",
+        password: "LongFixturePassword123",
       };
 
       const result = await loginSchema.validateAsync(data);
 
       expect(result.login).toBe("demoowner");
-      expect(result.password).toBe("Password123");
+      expect(result.password).toBe("LongFixturePassword123");
     });
 
     test("valid login with email passes", async () => {
       const data = {
         login: "owner@callbackiq.com",
-        password: "Password123",
+        password: "LongFixturePassword123",
       };
 
       const result = await loginSchema.validateAsync(data);
@@ -289,7 +289,7 @@ describe("Auth Validator", () => {
     test("login fails without login", async () => {
       await expect(
         loginSchema.validateAsync({
-          password: "Password123",
+          password: "LongFixturePassword123",
         }),
       ).rejects.toThrow();
     });
@@ -306,7 +306,7 @@ describe("Auth Validator", () => {
       await expect(
         loginSchema.validateAsync({
           login: "",
-          password: "Password123",
+          password: "LongFixturePassword123",
         }),
       ).rejects.toThrow();
     });
@@ -325,7 +325,7 @@ describe("Auth Validator", () => {
         loginSchema.validateAsync(
           {
             login: "demoowner",
-            password: "Password123",
+            password: "LongFixturePassword123",
             randomField: "bad",
           },
           { allowUnknown: false },

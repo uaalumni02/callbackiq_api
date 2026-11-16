@@ -1,10 +1,15 @@
 name: Customer and staff browser workflows
 on:
   workflow_dispatch:
+    inputs:
+      partner_ref:
+        description: "Exact partner commit or paired branch to verify"
+        required: false
+        type: string
   pull_request:
-    branches: [main, development]
+    branches: [main, development, "hardening/**"]
   push:
-    branches: [main, development]
+    branches: [main, development, "hardening/**"]
 permissions:
   contents: read
 jobs:
@@ -14,6 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          token: ${{ secrets.CALLBACKIQ_CROSS_REPO_READ_TOKEN || github.token }}
           path: api
           persist-credentials: false
       # Public sibling repository: use the built-in read-only token by default.
@@ -24,7 +30,7 @@ jobs:
           repository: uaalumni02/callbackiq_frontend
           token: ${{ secrets.CALLBACKIQ_CROSS_REPO_READ_TOKEN || github.token }}
           persist-credentials: false
-          ref: ${{ startsWith(github.head_ref, 'maintenance/paired-') && github.head_ref || vars.CALLBACKIQ_FRONTEND_REF || 'main' }}
+          ref: ${{ inputs.partner_ref || vars.CALLBACKIQ_FRONTEND_REF || (startsWith(github.head_ref || github.ref_name, 'hardening/') && (github.head_ref || github.ref_name)) || 'main' }}
           path: frontend
       - name: Record exact API and frontend revisions
         run: |
@@ -42,8 +48,8 @@ jobs:
         working-directory: frontend
         env:
           CI: true
-          REACT_APP_API_BASE_URL: /api
-          REACT_APP_SOCKET_URL: ""
+          VITE_API_BASE_URL: /api
+          VITE_SOCKET_URL: ""
       - run: npx playwright install --with-deps chromium
         working-directory: api
       - run: npm run test:browser
@@ -55,4 +61,4 @@ jobs:
         with:
           name: browser-results
           path: api/browser-results
-          if-no-files-found: ignore
+          if-no-files-found: error

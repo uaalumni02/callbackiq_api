@@ -1,3 +1,4 @@
+jest.mock('../../src/services/scheduling/rescheduleCompensationRepair.service.js', () => ({ repairRescheduleCompensations: jest.fn().mockResolvedValue(undefined) }));
 jest.mock("../../src/services/scheduling/appointment.service.js", () => ({
   __esModule: true,
   default: {

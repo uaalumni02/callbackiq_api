@@ -31,6 +31,10 @@ const UserSchema = new Schema(
       select: false,
     },
 
+    mfaEnabled: { type: Boolean, default: false },
+    mfaSecretEncrypted: { type: String, select: false },
+    mfaRecoveryHashes: { type: [String], select: false },
+    mfaLastStep: { type: Number, select: false },
     sessionVersion: {
       type: Number,
       default: 0,
@@ -228,6 +232,7 @@ UserSchema.index(
 UserSchema.methods.toJSON = function () {
   const obj = this.toObject();
 
+  for (const field of ['mfaSecretEncrypted', 'mfaRecoveryHashes', 'mfaLastStep']) delete obj[field];
   delete obj.password;
   delete obj.resetToken;
   delete obj.resetTokenExpiresAt;

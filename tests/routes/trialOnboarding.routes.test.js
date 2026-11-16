@@ -20,7 +20,7 @@ afterAll(async () => {
 
 const minimalSignup = {
   email: "trial-owner@callbackiq.com",
-  password: "Password123",
+  password: "LongFixturePassword123",
   businessName: "Atlanta Trial Plumbing",
   termsAccepted: true,
   privacyAccepted: true,

@@ -285,7 +285,7 @@ export function updateSingleSmsSnapshot({ Conversation, row }) {
 
 // src/services/messaging/smsConversationUpdateBatch.service.js:15 — bulkWrite; predicate and write options are owned here.
 export function updateSmsSnapshotBatch({ Conversation, rows, updates }) {
-  return (Conversation.bulkWrite(rows.map((row,i) => ({ updateOne: { filter: row.filter, update: { $set: updates[i] } } })), { ordered: false }));
+  return (Conversation.bulkWrite(rows.map((row,i) => ({ updateOne: { filter: row.filter, update: { $set: updates[i], $inc: { stateVersion: 1 } } } })), { ordered: false }));
 }
 
 // src/services/messaging/smsConversationUpdateBatch.service.js:27 — findByIdAndUpdate; predicate and write options are owned here.

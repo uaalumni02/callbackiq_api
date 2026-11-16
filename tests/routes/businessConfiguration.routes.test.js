@@ -19,7 +19,7 @@ const register = async (suffix = "1") => {
   const response = await request(app).post("/api/auth/register").send({
     userName: `configowner${suffix}`,
     email: `config-owner-${suffix}@callbackiq.com`,
-    password: "Password123",
+    password: "LongFixturePassword123",
     role: "owner",
     businessName: `Configuration Test ${suffix}`,
     businessPhone: `404555${String(suffix).padStart(4, "0")}`,

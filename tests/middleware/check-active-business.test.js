@@ -30,7 +30,7 @@ const registerAndCreateBusiness = async ({
   const registerRes = await request(app).post("/api/auth/register").send({
     userName,
     email,
-    password: "Password123",
+    password: "LongFixturePassword123",
     role,
     businessName,
     businessPhone: "4045551234",
@@ -54,7 +54,7 @@ const registerAndCreateBusiness = async ({
 };
 
 const createBareUserToken = async () => {
-  const hashedPassword = await bcrypt.hashPassword("Password123", 10);
+  const hashedPassword = await bcrypt.hashPassword("LongFixturePassword123", 10);
 
   const user = await User.create({
     userName: "nobusiness",
@@ -75,7 +75,7 @@ const createBareUserToken = async () => {
 };
 
 const createAdminToken = async () => {
-  const hashedPassword = await bcrypt.hashPassword("Password123", 10);
+  const hashedPassword = await bcrypt.hashPassword("LongFixturePassword123", 10);
 
   const user = await User.create({
     userName: "adminuser",

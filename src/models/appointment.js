@@ -1,3 +1,4 @@
+import { installAppointmentOwnership } from '../services/stateTransitions/appointmentOwnership.js';
 import mongoose from "mongoose";
 import { customerLifecycleField } from "../helpers/customerLifecycle.js";
 
@@ -205,6 +206,10 @@ const AppointmentSchema = new Schema(
     completedAt: { type: Date, default: null },
     noShowAt: { type: Date, default: null },
 
+    providerCompensation: { pending: Boolean, eventId: String, calendarId: String, provider: String, nextAttemptAt: Date, lastError: String, token: String, leaseUntil: Date },
+    stateVersion: { type: Number, default: 0 },
+    rescheduleIntent: { key: String, fingerprint: String, startedAt: Date },
+    rescheduleInputFingerprint: String,
     rescheduledFrom: {
       type: Schema.Types.ObjectId,
       ref: "Appointment",
@@ -243,6 +248,7 @@ AppointmentSchema.pre("save", function protectPendingConfirmation() {
 
 AppointmentSchema.index({ "confirmationIntent.nextAttemptAt": 1, "confirmationIntent.leaseUntil": 1, _id: 1 },
   { partialFilterExpression: { "confirmationIntent.nextAttemptAt": { $exists: true } } });
+AppointmentSchema.index({ "providerCompensation.pending": 1, "providerCompensation.nextAttemptAt": 1 });
 AppointmentSchema.index({ "lifecycleNotice.pending": 1, updatedAt: 1 });
 AppointmentSchema.index({ "bookingProjection.pending": 1, "bookingProjection.retryAt": 1, updatedAt: 1 });
 AppointmentSchema.index({ "completionProjection.pending": 1, "completionProjection.retryAt": 1, updatedAt: 1 });
@@ -312,6 +318,8 @@ AppointmentSchema.index({ business: 1, completedAt: -1 });
 AppointmentSchema.index({ business: 1, startAt: 1, _id: 1 });
 AppointmentSchema.index({ business: 1, requiresBusinessApproval: 1, approvalDecisionAt: 1, status: 1, startAt: 1, _id: 1 });
 AppointmentSchema.index({ automaticConfirmationAuthorized: 1, "approvalRecovery.reconciled": 1, status: 1, updatedAt: 1 });
+
+installAppointmentOwnership(AppointmentSchema);
 
 const Appointment =
   mongoose.models.Appointment || mongoose.model("Appointment", AppointmentSchema);

@@ -1,3 +1,5 @@
+import { verifyAdminMfa, regenerateRecoveryCodes } from '../controllers/auth/AdminMfa.js';
+import requireAdmin from '../middleware/require-admin.js';
 import express from "express";
 
 import AuthController from "../controllers/auth.js";
@@ -23,6 +25,9 @@ import {
 const router = express.Router();
 
 router.post("/register", distributedRegisterRateLimit, registerRateLimit, AuthController.register);
+
+router.post('/mfa/verify', distributedLoginRateLimit, loginRateLimit, verifyAdminMfa);
+router.post('/mfa/recovery-codes', distributedLoginRateLimit, loginRateLimit, checkAuth, requireAdmin, regenerateRecoveryCodes);
 
 router.post("/login", distributedLoginRateLimit, loginRateLimit, AuthController.login);
 

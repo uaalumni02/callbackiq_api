@@ -80,7 +80,7 @@ const families = [
   ['identity', createDbidentity1Methods, {
     savePasswordResetToken: [sampleId, 'reset-1', now],
     findUserByPasswordResetToken: ['reset-1'],
-    saveResetPassword: [sampleId, 'hashed-password'],
+    saveResetPassword: [sampleId, 'hashed-password', 'reset-hash'],
     findUserByLogin: ['  Person@EXAMPLE.com  '],
   }],
   ['leads', createDbleads1Methods, {

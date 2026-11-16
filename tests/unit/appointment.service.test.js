@@ -108,6 +108,7 @@ const matchingSlots = [
 ];
 
 const appointmentDoc = (overrides = {}) => ({
+  $locals: {},
   _id: "a1",
   business: "b1",
   lead: "l1",
@@ -166,7 +167,10 @@ describe("AppointmentService", () => {
     };
     Appointment.findOneAndUpdate.mockImplementation((filter, { $set }) => ({
       select: async () => {
-        const row = await Appointment.findOne({ _id: filter._id, business: filter.business });
+        const prior = Appointment.findOne.mock.calls.findLastIndex(([query]) => query._id === filter._id);
+        const row = $set.rescheduleIntent && prior >= 0
+          ? await Appointment.findOne.mock.results[prior].value
+          : await Appointment.findOne({ _id: filter._id, business: filter.business });
         if ($set.confirmationIntent) row.confirmationIntent = $set.confirmationIntent;
         for (const [key, value] of Object.entries($set)) {
           if (key.startsWith("confirmationIntent.")) row.confirmationIntent[key.split(".")[1]] = value;

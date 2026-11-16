@@ -42,7 +42,7 @@ describe("requireAdmin", () => {
       }),
     });
 
-    const req = { user: { userId: "u1", role: "owner" } };
+    const req = { method: "GET", user: { userId: "u1", role: "owner", mfaVerified: true, authTime: Math.floor(Date.now() / 1000) } };
     const res = response();
     const next = jest.fn();
 

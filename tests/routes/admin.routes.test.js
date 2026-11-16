@@ -89,6 +89,7 @@ beforeEach(async () => {
     lastPaymentStatus: "paid",
   });
   token = Token.sign({
+    mfaVerified: true, authTime: Math.floor(Date.now() / 1000),
     userId: String(user),
     role: "admin",
     sessionVersion: 0,

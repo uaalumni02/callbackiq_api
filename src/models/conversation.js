@@ -1,3 +1,4 @@
+import { installDocumentFence } from '../services/stateTransitions/documentFence.js';
 import { guardTenantReferences } from '../helpers/model/tenantReferences.js';
 // CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1: conversation-model
 import { normalizePhoneToE164 } from "../voice/voicePhone.service.js";
@@ -305,6 +306,8 @@ conversationSchema.index(
   },
 );
 conversationSchema.index({ status: 1, "lifecycle.lastScannedAt": 1, _id: 1 });
+
+installDocumentFence(conversationSchema);
 
 guardTenantReferences(conversationSchema, ['lead']);
 

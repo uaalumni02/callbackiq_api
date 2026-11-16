@@ -92,7 +92,7 @@ describe("socket authentication middleware", () => {
   });
 
   test("rejects a decoded token without a user ID", async () => {
-    Token.verify.mockReturnValue({});
+    Token.verify.mockReturnValue({ mfaVerified: true, authTime: Math.floor(Date.now() / 1000),});
     const next = jest.fn();
     await socketAuth(
       makeSocket({ handshake: { auth: { token: "token" }, headers: {} } }),
@@ -120,7 +120,7 @@ describe("socket authentication middleware", () => {
   );
 
   test("rejects a token for a deleted user", async () => {
-    Token.verify.mockReturnValue({ userId: "u1" });
+    Token.verify.mockReturnValue({ mfaVerified: true, authTime: Math.floor(Date.now() / 1000), userId: "u1" });
     User.findById.mockReturnValue(queryResult(null));
     const next = jest.fn();
     await socketAuth(
@@ -131,7 +131,7 @@ describe("socket authentication middleware", () => {
   });
 
   test("authenticates an administrator and joins only user and role rooms", async () => {
-    Token.verify.mockReturnValue({ userId: "u1" });
+    Token.verify.mockReturnValue({ mfaVerified: true, authTime: Math.floor(Date.now() / 1000), userId: "u1" });
     User.findById.mockReturnValue(
       queryResult({ _id: "u1", userName: "Admin", email: "a@example.com", role: " ADMIN " }),
     );
@@ -156,7 +156,7 @@ describe("socket authentication middleware", () => {
   });
 
   test("rejects members until explicit membership support exists", async () => {
-    Token.verify.mockReturnValue({ userId: "u1" });
+    Token.verify.mockReturnValue({ mfaVerified: true, authTime: Math.floor(Date.now() / 1000), userId: "u1" });
     User.findById.mockReturnValue(
       queryResult({ _id: "u1", role: "member", userName: "Member", email: "m@example.com" }),
     );
@@ -169,7 +169,7 @@ describe("socket authentication middleware", () => {
   });
 
   test("rejects an owner without a business", async () => {
-    Token.verify.mockReturnValue({ userId: "u1" });
+    Token.verify.mockReturnValue({ mfaVerified: true, authTime: Math.floor(Date.now() / 1000), userId: "u1" });
     User.findById.mockReturnValue(
       queryResult({ _id: "u1", role: "owner", userName: "Owner", email: "o@example.com" }),
     );
@@ -183,7 +183,7 @@ describe("socket authentication middleware", () => {
   });
 
   test("rejects an inactive owner business", async () => {
-    Token.verify.mockReturnValue({ userId: "u1" });
+    Token.verify.mockReturnValue({ mfaVerified: true, authTime: Math.floor(Date.now() / 1000), userId: "u1" });
     User.findById.mockReturnValue(
       queryResult({ _id: "u1", role: "owner", userName: "Owner", email: "o@example.com" }),
     );
@@ -199,7 +199,7 @@ describe("socket authentication middleware", () => {
   });
 
   test("accepts an authenticated owner and attaches business context", async () => {
-    Token.verify.mockReturnValue({ userId: "u1" });
+    Token.verify.mockReturnValue({ mfaVerified: true, authTime: Math.floor(Date.now() / 1000), userId: "u1" });
     User.findById.mockReturnValue(
       queryResult({ _id: "u1", role: "owner", userName: "Owner", email: "o@example.com" }),
     );
@@ -230,7 +230,7 @@ describe("socket authentication middleware", () => {
   });
 
   test("maps unexpected join failures to SOCKET_AUTH_FAILED", async () => {
-    Token.verify.mockReturnValue({ userId: "u1" });
+    Token.verify.mockReturnValue({ mfaVerified: true, authTime: Math.floor(Date.now() / 1000), userId: "u1" });
     User.findById.mockReturnValue(
       queryResult({ _id: "u1", role: "admin", userName: "Admin", email: "a@example.com" }),
     );

@@ -1,3 +1,4 @@
+import { rescheduleReceiptIdentity } from '../../stateTransitions/appointmentOwnership.js';
 /** @typedef {import('./types.js').AppointmentRecord} AppointmentRecord */
 /** @typedef {import('./types.js').BusinessScope} BusinessScope */
 /** @typedef {import('./types.js').RescheduleRequest} RescheduleRequest */
@@ -21,6 +22,7 @@ export async function readReschedule(request, { Appointment, getAppointmentForBu
   assertCurrentRequest(original, input);
   const key = String(idempotencyKey || input.idempotencyKey || `reschedule:${original._id}:${crypto.randomUUID()}`).trim();
   const replacement = await Appointment.findOne({ business: business._id, idempotencyKey: key });
+  if (replacement?.rescheduleInputFingerprint && replacement.rescheduleInputFingerprint !== rescheduleReceiptIdentity(input)) throw conflict('The idempotency key belongs to different reschedule details.', 'RESCHEDULE_IDEMPOTENCY_CONFLICT');
   if (replacement?.rescheduledFrom && String(replacement.rescheduledFrom) !== String(original._id)) {
     throw conflict('The idempotency key belongs to a different reschedule operation.', 'RESCHEDULE_IDEMPOTENCY_CONFLICT');
   }

@@ -36,7 +36,7 @@ test('appointment approval requires authentication, entitlement and ownership at
  await Appointment.collection.insertOne({_id:appointmentId,business:foreignBusiness,status:'held'});
  const endpoint=`/api/appointments/${appointmentId}/confirm`;
  expect((await request(app).post(endpoint).send({})).status).toBe(401);
- await User.create({_id:business.owner,userName:'contractowner',email:'contractowner@example.test',password:'SyntheticPassword123',role:'owner',businessName:'Synthetic contract plumbing'});
+ await User.create({_id:business.owner,userName:'contractowner',email:'contractowner@example.test',password:'SyntheticLongFixturePassword123',role:'owner',businessName:'Synthetic contract plumbing'});
  const token=Token.sign({userId:String(business.owner),role:'owner'});
  const denied=await request(app).post(endpoint).set('Authorization',`Bearer ${token}`).send({});
  expect(denied.status).toBe(403);

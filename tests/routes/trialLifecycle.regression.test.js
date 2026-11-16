@@ -1,3 +1,4 @@
+import { loginWithMfa } from '../setup/authenticate.js';
 import mongoose from "mongoose";
 import request from "supertest";
 
@@ -54,7 +55,7 @@ const register = (overrides = {}) =>
     .send({
       userName: "trialowner",
       email: "trial.owner@gmail.com",
-      password: "Password123",
+      password: "LongFixturePassword123",
       businessName: "Trial Plumbing",
       businessPhone: "4045551212",
       businessType: "plumbing",
@@ -449,10 +450,11 @@ describe("Stripe-native trial lifecycle regression", () => {
       });
 
     await User.findByIdAndUpdate(user._id, { $set: { role: "admin" } });
+    const adminSession = await loginWithMfa(app, { login: user.email, password: 'LongFixturePassword123' });
 
     const res = await request(app)
       .post(`/api/billing/customers/${business._id}/trial-override`)
-      .set("Authorization", `Bearer ${token}`)
+      .set("Authorization", `Bearer ${adminSession.body.data.token}`)
       .send({ days: 7, reason: "Support-approved pilot extension" });
 
     expect(res.status).toBe(200);

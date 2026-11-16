@@ -13,7 +13,7 @@ afterAll(closeTestDB);
 
 async function owner(number) {
   const response = await request(app).post('/api/auth/register').send({
-    userName: `tenantowner${number}`, email: `tenantowner${number}@example.com`, password: 'Synthetic123!',
+    userName: `tenantowner${number}`, email: `tenantowner${number}@example.com`, password: 'Synthetic123!Passphrase',
     businessName: `Synthetic Plumbing ${number}`, businessPhone: `404555012${number}`, businessType: 'plumbing',
     smsConsent: true, termsAccepted: true, privacyAccepted: true,
   });

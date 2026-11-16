@@ -1,3 +1,4 @@
+import { installDocumentFence } from '../services/stateTransitions/documentFence.js';
 import { normalizePhoneToE164 } from "../voice/voicePhone.service.js";
 import mongoose from "mongoose";
 import { customerLifecycleField } from "../helpers/customerLifecycle.js";
@@ -184,5 +185,7 @@ LeadSchema.index(
   { business: 1, phoneLookup: 1 },
   { unique: true, partialFilterExpression: { phoneLookup: { $gt: "" } } },
 );
+installDocumentFence(LeadSchema);
+
 const Lead = mongoose.models.Lead || mongoose.model("Lead", LeadSchema);
 export default Lead;

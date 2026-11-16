@@ -1,3 +1,4 @@
+import { claimRescheduleOriginal } from '../../stateTransitions/appointmentOwnership.js';
 import { readReschedule, findCompletedReschedule, prepareReschedule } from './prepare.js';
 import { providerHandoff } from './providerHandoff.js';
 import { reserveReplacement, stageHandoff, confirmReplacement, reconcileOriginal } from './finalize.js';
@@ -6,10 +7,10 @@ import { followUp } from './followUp.js';
 
 async function executeReschedule(request, dependencies) {
   const { business, input } = request;
-  const { original, key, replacement: found } = await readReschedule(request, dependencies.read);
+  let { original, key, replacement: found } = await readReschedule(request, dependencies.read);
   let replacement = found;
   if (replacement && !replacement.rescheduledFrom && replacement.status === 'held') {
-    ({ replacement } = await reserveReplacement({ business, original, replacement }, {}));
+    ({ replacement } = await reserveReplacement({ business, original, replacement, input }, {}));
   }
   const completed = await findCompletedReschedule({ business, original, replacement }, dependencies.read);
   if (completed.appointment) {
@@ -18,7 +19,8 @@ async function executeReschedule(request, dependencies) {
     return completed.appointment;
   }
   const { service, nextInput } = await prepareReschedule({ business, original, replacement, input }, dependencies.decide);
-  ({ replacement } = await reserveReplacement({ business, original, replacement, key, service, nextInput }, dependencies.reserve));
+  original = await claimRescheduleOriginal({ Appointment: dependencies.read.Appointment, original, business, key, input });
+  ({ replacement } = await reserveReplacement({ business, original, replacement, key, service, nextInput, input }, dependencies.reserve));
   const provider = dependencies.provider.getProvider(business, original.provider || 'internal');
   const snapshot = replacementSnapshot(replacement);
   let handoff = replacement.status === 'held' && !original.externalAppointmentId && replacement.pendingRescheduleExternalAppointmentId
@@ -30,7 +32,7 @@ async function executeReschedule(request, dependencies) {
     await confirmReplacement({ replacement, receipt: handoff.receipt }, dependencies.confirm);
     await reconcileOriginal({ original, replacement }, dependencies.decide);
   } catch (error) {
-    await recoverReschedule({ business, original, replacement, key, snapshot, handoff, error }, dependencies.recovery);
+    await recoverReschedule({ business, original, replacement, key, snapshot, handoff, error }, { ...dependencies.recovery, provider });
     throw error;
   }
   return (await followUp({ business, original, replacement }, dependencies.effects)).appointment;

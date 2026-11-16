@@ -128,26 +128,6 @@
       ]
     },
     {
-      "file": "src/db/repositories/extracted/identity-1.js",
-      "baselineAstSha256": "b0cf13b717e33846ca44df371b7143b412f26f1ecebdf4e7b90daef47984a3fb",
-      "commands": [
-        {
-          "name": "persistPasswordResetToken",
-          "call": "persistPasswordResetToken({ expiresAt, model, resetToken, userId })",
-          "target": "src/services/stateTransitions/accountRecords.js",
-          "expression": "model.findByIdAndUpdate(\n        userId,\n        {\n          resetToken,\n          resetTokenExpiresAt: expiresAt,\n        },\n        {\n          returnDocument: \"after\",\n          runValidators: true,\n        },\n      )",
-          "legacyId": "src/db/repositories/extracted/identity-1.js#savePasswordResetToken#findByIdAndUpdate#1"
-        },
-        {
-          "name": "persistResetPassword",
-          "call": "persistResetPassword({ model, password, userId })",
-          "target": "src/services/stateTransitions/accountRecords.js",
-          "expression": "model.findByIdAndUpdate(\n        userId,\n        {\n          $set: {\n            password,\n            resetToken: null,\n            resetTokenExpiresAt: null,\n            failedLoginAttempts: 0,\n            lastFailedLoginAt: null,\n            loginBlockedUntil: null,\n            loginLockoutLevel: 0,\n            lastLoginLockoutAt: null,\n            securityChallengeRequired: false,\n            securityChallengeRequiredAt: null,\n          },\n          $inc: {\n            sessionVersion: 1,\n          },\n        },\n        {\n          returnDocument: \"after\",\n          runValidators: true,\n        },\n      )",
-          "legacyId": "src/db/repositories/extracted/identity-1.js#saveResetPassword#findByIdAndUpdate#1"
-        }
-      ]
-    },
-    {
       "file": "src/db/repositories/extracted/operations-1.js",
       "baselineAstSha256": "d9a516b21b35b94a360bb83b479fa2c10425fe1a40431c611ce6aa08734e7aea",
       "commands": [
@@ -276,222 +256,6 @@
           "target": "src/services/stateTransitions/documents.js",
           "expression": "business.save()",
           "legacyId": "src/scripts/migrate-tracking-number-separation.mjs#<module>#save#2"
-        }
-      ]
-    },
-    {
-      "file": "src/services/a2pCustomerOnboarding.service.js",
-      "baselineAstSha256": "413a0976bc79088d178c2d4c22e0511f2e0f6b23f1f5484084ebaaf2465c3ce5",
-      "commands": [
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(registration)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "registration.save()",
-          "legacyId": "src/services/a2pCustomerOnboarding.service.js#ensureMessagingService#save#1"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(registration)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "registration.save()",
-          "legacyId": "src/services/a2pCustomerOnboarding.service.js#ensureAddressResources#save#1"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(registration)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "registration.save()",
-          "legacyId": "src/services/a2pCustomerOnboarding.service.js#ensureAddressResources#save#2"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(registration)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "registration.save()",
-          "legacyId": "src/services/a2pCustomerOnboarding.service.js#createStandardRegistration#save#1"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(registration)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "registration.save()",
-          "legacyId": "src/services/a2pCustomerOnboarding.service.js#createStandardRegistration#save#2"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(registration)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "registration.save()",
-          "legacyId": "src/services/a2pCustomerOnboarding.service.js#createStandardRegistration#save#3"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(registration)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "registration.save()",
-          "legacyId": "src/services/a2pCustomerOnboarding.service.js#createStandardRegistration#save#4"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(registration)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "registration.save()",
-          "legacyId": "src/services/a2pCustomerOnboarding.service.js#createStandardRegistration#save#5"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(registration)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "registration.save()",
-          "legacyId": "src/services/a2pCustomerOnboarding.service.js#createStandardRegistration#save#6"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(registration)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "registration.save()",
-          "legacyId": "src/services/a2pCustomerOnboarding.service.js#createStandardRegistration#save#7"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(registration)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "registration.save()",
-          "legacyId": "src/services/a2pCustomerOnboarding.service.js#createStandardRegistration#save#8"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(registration)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "registration.save()",
-          "legacyId": "src/services/a2pCustomerOnboarding.service.js#createStandardRegistration#save#9"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(registration)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "registration.save()",
-          "legacyId": "src/services/a2pCustomerOnboarding.service.js#createSoleProprietorRegistration#save#1"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(registration)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "registration.save()",
-          "legacyId": "src/services/a2pCustomerOnboarding.service.js#createSoleProprietorRegistration#save#2"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(registration)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "registration.save()",
-          "legacyId": "src/services/a2pCustomerOnboarding.service.js#createSoleProprietorRegistration#save#3"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(registration)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "registration.save()",
-          "legacyId": "src/services/a2pCustomerOnboarding.service.js#createSoleProprietorRegistration#save#4"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(registration)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "registration.save()",
-          "legacyId": "src/services/a2pCustomerOnboarding.service.js#createSoleProprietorRegistration#save#5"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(registration)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "registration.save()",
-          "legacyId": "src/services/a2pCustomerOnboarding.service.js#createSoleProprietorRegistration#save#6"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(registration)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "registration.save()",
-          "legacyId": "src/services/a2pCustomerOnboarding.service.js#createSoleProprietorRegistration#save#7"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(registration)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "registration.save()",
-          "legacyId": "src/services/a2pCustomerOnboarding.service.js#createSoleProprietorRegistration#save#8"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(registration)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "registration.save()",
-          "legacyId": "src/services/a2pCustomerOnboarding.service.js#startA2pCustomerRegistration#save#1"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(registration)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "registration.save()",
-          "legacyId": "src/services/a2pCustomerOnboarding.service.js#startA2pCustomerRegistration#save#2"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(registration)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "registration.save()",
-          "legacyId": "src/services/a2pCustomerOnboarding.service.js#createCampaign#save#1"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(registration)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "registration.save()",
-          "legacyId": "src/services/a2pCustomerOnboarding.service.js#syncA2pCustomerRegistration#save#1"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(registration)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "registration.save()",
-          "legacyId": "src/services/a2pCustomerOnboarding.service.js#syncA2pCustomerRegistration#save#2"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(reserved)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "reserved.save()",
-          "legacyId": "src/services/a2pCustomerOnboarding.service.js#retrySoleProprietorOtp#save#1"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(reserved)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "reserved.save()",
-          "legacyId": "src/services/a2pCustomerOnboarding.service.js#retrySoleProprietorOtp#save#2"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(registration)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "registration.save()",
-          "legacyId": "src/services/a2pCustomerOnboarding.service.js#markNumberRegistrationEvent#save#1"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(registration)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "registration.save()",
-          "legacyId": "src/services/a2pCustomerOnboarding.service.js#markComplianceEvent#save#1"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(registration)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "registration.save()",
-          "legacyId": "src/services/a2pCustomerOnboarding.service.js#markComplianceEvent#save#2"
         }
       ]
     },
@@ -1482,33 +1246,6 @@
       ]
     },
     {
-      "file": "src/services/messaging/smsConversationUpdateBatch.service.js",
-      "baselineAstSha256": "739f53d70bf03ece5c75ebd7b22524a7e5a98bf465d86ff020e7d4235af875e2",
-      "commands": [
-        {
-          "name": "updateSingleSmsSnapshot",
-          "call": "updateSingleSmsSnapshot({ Conversation, row })",
-          "target": "src/services/stateTransitions/messaging.js",
-          "expression": "Conversation.findOneAndUpdate(row.filter, row.update, { returnDocument: 'after', runValidators: true })",
-          "legacyId": "src/services/messaging/smsConversationUpdateBatch.service.js#execute#findOneAndUpdate#1"
-        },
-        {
-          "name": "updateSmsSnapshotBatch",
-          "call": "updateSmsSnapshotBatch({ Conversation, rows, updates })",
-          "target": "src/services/stateTransitions/messaging.js",
-          "expression": "Conversation.bulkWrite(rows.map((row,i) => ({ updateOne: { filter: row.filter, update: { $set: updates[i] } } })), { ordered: false })",
-          "legacyId": "src/services/messaging/smsConversationUpdateBatch.service.js#execute#bulkWrite#1"
-        },
-        {
-          "name": "updateLegacySmsSnapshot",
-          "call": "updateLegacySmsSnapshot({ Conversation, conversationId, update })",
-          "target": "src/services/stateTransitions/messaging.js",
-          "expression": "Conversation.findByIdAndUpdate(conversationId, update, { returnDocument: 'after', runValidators: true })",
-          "legacyId": "src/services/messaging/smsConversationUpdateBatch.service.js#updateSmsConversationSnapshot#findByIdAndUpdate#1"
-        }
-      ]
-    },
-    {
       "file": "src/services/messaging/smsOutboundDelivery.adapter.js",
       "baselineAstSha256": "3fa2e486604bb507b3eaece6fb486ddbc7677a8f215ef3f7d793f460e098a4ef",
       "commands": [
@@ -1751,33 +1488,6 @@
       ]
     },
     {
-      "file": "src/services/scheduling/appointment.service.js",
-      "baselineAstSha256": "3dd67988384154144a17d2db38cb476fd77f629016643d0aff7e8ab193800e50",
-      "commands": [
-        {
-          "name": "reserveAppointmentSlot",
-          "call": "reserveAppointmentSlot({ Appointment, baseDocument, capacityLane, endAt, getSlotClaimKeys, getSlotKey, startAt })",
-          "target": "src/services/stateTransitions/appointmentLifecycle.js",
-          "expression": "Appointment.create({\n        ...baseDocument,\n        capacityLane,\n        activeSlotKey: `${getSlotKey(startAt, endAt)}|lane:${capacityLane}`,\n        slotClaimKeys: getSlotClaimKeys({\n          startAt,\n          endAt,\n          bufferBeforeMinutes: baseDocument.bufferBeforeMinutes,\n          bufferAfterMinutes: baseDocument.bufferAfterMinutes,\n          capacityLane,\n        }),\n      })",
-          "legacyId": "src/services/scheduling/appointment.service.js#createHold#create#1"
-        },
-        {
-          "name": "stageDeclinedAppointment",
-          "call": "stageDeclinedAppointment({ appointment })",
-          "target": "src/services/stateTransitions/appointmentLifecycle.js",
-          "expression": "appointment.status = \"failed\"",
-          "legacyId": "src/services/scheduling/appointment.service.js#decline#assignment#1"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(appointment)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "appointment.save()",
-          "legacyId": "src/services/scheduling/appointment.service.js#decline#save#1"
-        }
-      ]
-    },
-    {
       "file": "src/services/scheduling/appointmentConfirmation.service.js",
       "baselineAstSha256": "82392e75514d977a412af292ccb551b3664672b96856303863a7e2d072a3bc21",
       "commands": [
@@ -1787,40 +1497,6 @@
           "target": "src/services/stateTransitions/appointmentLifecycle.js",
           "expression": "Alert.updateOne({ business: appointment.business,\n      dedupeKey: `appointment_confirmation_missing:${appointment._id}` }, { $setOnInsert: {\n      business: appointment.business, appointment: appointment._id, conversation: appointment.conversation || null,\n      lead: appointment.lead || null, type: 'integration_failure', channel: 'in_app', priority: 'high',\n      status: 'sent', actionRequired: true, sentAt: new Date(),\n      title: 'Appointment confirmation needs verification',\n      message: 'The visit start time has passed and its confirmation was not queued. Verify the customer outcome; no stale confirmation was sent.',\n      recommendedAction: 'Contact the customer and record the outcome.',\n      metadata: { appointmentId: String(appointment._id), confirmationRecovery: true },\n    } }, { upsert: true })",
           "legacyId": "src/services/scheduling/appointmentConfirmation.service.js#repairConfirmedApproval#updateOne#1"
-        }
-      ]
-    },
-    {
-      "file": "src/services/scheduling/appointmentConfirmationIntent.repository.js",
-      "baselineAstSha256": "5a1b0d0535389928848ac5c263d4b008f01918de06411cb761d6daa48bd30fc4",
-      "commands": [
-        {
-          "name": "patchOwnedConfirmationIntent",
-          "call": "patchOwnedConfirmationIntent({ Appointment, appointment, fields, options, owned })",
-          "target": "src/services/stateTransitions/appointmentLifecycle.js",
-          "expression": "Appointment.findOneAndUpdate(owned(appointment), { $set: fields }, options)",
-          "legacyId": "src/services/scheduling/appointmentConfirmationIntent.repository.js#patch#findOneAndUpdate#1"
-        },
-        {
-          "name": "beginConfirmationIntent",
-          "call": "beginConfirmationIntent({ Appointment, appointment, approvedBy, lease, now, options, provider, slotIdentity })",
-          "target": "src/services/stateTransitions/appointmentLifecycle.js",
-          "expression": "Appointment.findOneAndUpdate({\n        ...slotIdentity(appointment),\n        status: 'held',\n        $or: [{ heldExpiresAt: null }, { heldExpiresAt: { $gt: now } }],\n        'confirmationIntent.status': { $ne: 'pending_provider' },\n        ...(appointment.updatedAt ? { updatedAt: appointment.updatedAt } : {}),\n      }, { $set: { confirmationIntent: {\n        key: `${appointment.business}:${appointment._id}`,\n        status: 'pending_provider',\n        requestedAt: now,\n        nextAttemptAt: now,\n        approvedBy,\n        provider,\n        attempts: 0,\n        ...lease(now),\n      } } }, options)",
-          "legacyId": "src/services/scheduling/appointmentConfirmationIntent.repository.js#begin#findOneAndUpdate#1"
-        },
-        {
-          "name": "claimDueConfirmationIntent",
-          "call": "claimDueConfirmationIntent({ Appointment, appointment, due, leaseUntil, now, options, slotIdentity, token })",
-          "target": "src/services/stateTransitions/appointmentLifecycle.js",
-          "expression": "Appointment.findOneAndUpdate({\n        ...slotIdentity(appointment),\n        status: appointment.status,\n        'confirmationIntent.status': appointment.confirmationIntent.status,\n        ...due(now),\n      }, { $set: { 'confirmationIntent.token': token, 'confirmationIntent.leaseUntil': leaseUntil } }, options)",
-          "legacyId": "src/services/scheduling/appointmentConfirmationIntent.repository.js#claim#findOneAndUpdate#1"
-        },
-        {
-          "name": "finishConfirmationEffects",
-          "call": "finishConfirmationEffects({ Appointment, appointment, options, owned })",
-          "target": "src/services/stateTransitions/appointmentLifecycle.js",
-          "expression": "Appointment.findOneAndUpdate(owned(appointment), {\n        $set: { 'confirmationIntent.effectsPending': false },\n        $unset: { 'confirmationIntent.nextAttemptAt': '', 'confirmationIntent.token': '', 'confirmationIntent.leaseUntil': '' },\n      }, options)",
-          "legacyId": "src/services/scheduling/appointmentConfirmationIntent.repository.js#finishEffects#findOneAndUpdate#1"
         }
       ]
     },
@@ -1980,7 +1656,7 @@
           "name": "approvalLifecycleEnsureApprovalReviewAlertAtomicUpdate",
           "call": "approvalLifecycleEnsureApprovalReviewAlertAtomicUpdate({ Alert, appointment, business, dueAt, expired })",
           "target": "src/services/stateTransitions/appointmentLifecycle.js",
-          "expression": "Alert.findOneAndUpdate({ business: appointment.business,\n    dedupeKey: `appointment_approval_required:${appointment._id}` }, {\n    $setOnInsert: { type: 'system', channel: 'in_app', status: 'sent', sentAt: new Date(),\n      priority: 'medium', assignedTo: business.owner, assignedAt: new Date(),\n      'metadata.approvalRequest': true },\n    $set: { actionRequired: true, appointment: appointment._id,\n      lead: appointment.lead || null, conversation: appointment.conversation || null,\n      title: expired ? 'Appointment request needs an availability recheck' : 'Appointment approval required',\n      message: expired ? 'The temporary reservation expired. The customer request remains open; check availability before approving.'\n        : 'The customer selected a time. Approve or decline this request before its temporary reservation expires.',\n      recommendedAction: expired ? 'Recheck the requested time or contact the customer to agree another time.' : 'Review and approve the customer’s selected time.',\n      'metadata.appointmentId': String(appointment._id),\n      'metadata.approvalState': expired ? 'needs_recheck' : 'pending',\n      ...(expired ? { dueAt, resolvedAt: null, acknowledgedAt: null } : {}),\n    },\n  }, { upsert: true, returnDocument: \"after\" })",
+          "expression": "Alert.findOneAndUpdate({ business: appointment.business,\n    dedupeKey: `appointment_approval_required:${appointment._id}` }, {\n    $setOnInsert: { type: 'system', channel: 'in_app', status: 'sent', sentAt: new Date(),\n      priority: 'medium', assignedTo: business.owner, assignedAt: new Date(),\n      'metadata.approvalRequest': true },\n    $set: { actionRequired: true, appointment: appointment._id,\n      lead: appointment.lead || null, conversation: appointment.conversation || null,\n      title: expired ? 'Appointment request needs an availability recheck' : 'Appointment approval required',\n      message: expired ? 'The temporary reservation expired. The customer request remains open; check availability before approving.'\n        : 'The customer selected a time. Approve or decline this request before its temporary reservation expires.',\n      recommendedAction: expired ? 'Recheck the requested time or contact the customer to agree another time.' : 'Review and approve the customer\u2019s selected time.',\n      'metadata.appointmentId': String(appointment._id),\n      'metadata.approvalState': expired ? 'needs_recheck' : 'pending',\n      ...(expired ? { dueAt, resolvedAt: null, acknowledgedAt: null } : {}),\n    },\n  }, { upsert: true, returnDocument: \"after\" })",
           "legacyId": "src/services/scheduling/approvalLifecycle.service.js#ensureApprovalReview#findOneAndUpdate#1"
         },
         {
@@ -2069,33 +1745,6 @@
       ]
     },
     {
-      "file": "src/services/scheduling/commands/cancel-1.js",
-      "baselineAstSha256": "e852d8e489027f62acb0ec9e0aac3497c19b963c98513a61d1244e8bf95952ef",
-      "commands": [
-        {
-          "name": "stageCanceledRescheduleRequest",
-          "call": "stageCanceledRescheduleRequest({ appointment })",
-          "target": "src/services/stateTransitions/appointmentCommands.js",
-          "expression": "appointment.rescheduleRequest.status = 'canceled'",
-          "legacyId": "src/services/scheduling/commands/cancel-1.js#cancel#assignment#1"
-        },
-        {
-          "name": "stageCanceledAppointment",
-          "call": "stageCanceledAppointment({ appointment })",
-          "target": "src/services/stateTransitions/appointmentCommands.js",
-          "expression": "appointment.status = \"canceled\"",
-          "legacyId": "src/services/scheduling/commands/cancel-1.js#cancel#assignment#2"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(appointment)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "appointment.save()",
-          "legacyId": "src/services/scheduling/commands/cancel-1.js#cancel#save#1"
-        }
-      ]
-    },
-    {
       "file": "src/services/scheduling/commands/confirm-1.js",
       "baselineAstSha256": "6d3add01e6659656af1a101b777c02e7f8fa5462cd428336ce806ae8e1425f0f",
       "commands": [
@@ -2160,39 +1809,6 @@
           "target": "src/services/stateTransitions/documents.js",
           "expression": "appointment.save()",
           "legacyId": "src/services/scheduling/commands/confirmWithoutRecovery.js#confirmWithoutRecovery#save#2"
-        }
-      ]
-    },
-    {
-      "file": "src/services/scheduling/commands/recheckAndConfirm-1.js",
-      "baselineAstSha256": "5eb5bf0a16b54f05427b60e92579307b8d0f9299c67769d6e2cc8b701a4aa4c7",
-      "commands": [
-        {
-          "name": "reholdAppointmentForConfirmation",
-          "call": "reholdAppointmentForConfirmation({ Appointment, addMinutes, appointment, business, getSlotClaimKeys, getSlotKey, lane })",
-          "target": "src/services/stateTransitions/appointmentCommands.js",
-          "expression": "Appointment.findOneAndUpdate({ _id: appointment._id, business: business._id,\n            status: appointment.status, 'confirmationIntent.status': { $ne: 'pending_provider' } }, { $set: { status: 'held', heldExpiresAt: addMinutes(new Date(), 5),\n            failureReason: '', capacityLane: lane, activeSlotKey: `${getSlotKey(appointment.startAt, appointment.endAt)}|lane:${lane}`,\n            slotClaimKeys: getSlotClaimKeys({ ...appointment.toObject(), capacityLane: lane }),\n            'approvalRecovery.reconciled': false, 'approvalRecovery.state': 'pending',\n          } }, { returnDocument: \"after\", runValidators: true })",
-          "legacyId": "src/services/scheduling/commands/recheckAndConfirm-1.js#<callback>#findOneAndUpdate#1"
-        }
-      ]
-    },
-    {
-      "file": "src/services/scheduling/commands/update-1.js",
-      "baselineAstSha256": "3f880c87eca1fe54c3315ff69c462493bd09d1c52fdf9941822d26febd48c957",
-      "commands": [
-        {
-          "name": "stageStaffAppointmentOutcome",
-          "call": "stageStaffAppointmentOutcome({ appointment, changes })",
-          "target": "src/services/stateTransitions/appointmentCommands.js",
-          "expression": "appointment.status = changes.status",
-          "legacyId": "src/services/scheduling/commands/update-1.js#update#assignment#1"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(appointment)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "appointment.save()",
-          "legacyId": "src/services/scheduling/commands/update-1.js#update#save#1"
         }
       ]
     },
@@ -2964,6 +2580,76 @@
           "expression": "model.deleteMany({\n        business,\n        [field]: id\n      })",
           "legacyId": "src/db/repositories/tenantRepository.js#removeManyByReference#deleteMany#1"
         }
+      ]
+    }
+  ],
+  "behaviorCorrections": [
+    {
+      "file": "src/db/repositories/extracted/identity-1.js",
+      "reason": "Authorized security-maintenance correction replaces source relocation equivalence with behavior tests; original baseline remains in git history.",
+      "tests": [
+        "tests/integration/securityMaintenance.test.js",
+        "tests/integration/rescheduleBoundaries.characterization.test.js",
+        "tests/services/a2pIsvOnboarding.regression.test.js"
+      ]
+    },
+    {
+      "file": "src/services/a2pCustomerOnboarding.service.js",
+      "reason": "Authorized security-maintenance correction replaces source relocation equivalence with behavior tests; original baseline remains in git history.",
+      "tests": [
+        "tests/integration/securityMaintenance.test.js",
+        "tests/integration/rescheduleBoundaries.characterization.test.js",
+        "tests/services/a2pIsvOnboarding.regression.test.js"
+      ]
+    },
+    {
+      "file": "src/services/scheduling/appointment.service.js",
+      "reason": "Authorized security-maintenance correction replaces source relocation equivalence with behavior tests; original baseline remains in git history.",
+      "tests": [
+        "tests/integration/securityMaintenance.test.js",
+        "tests/integration/rescheduleBoundaries.characterization.test.js",
+        "tests/services/a2pIsvOnboarding.regression.test.js"
+      ]
+    },
+    {
+      "file": "src/services/scheduling/appointmentConfirmationIntent.repository.js",
+      "reason": "Authorized security-maintenance correction replaces source relocation equivalence with behavior tests; original baseline remains in git history.",
+      "tests": [
+        "tests/integration/securityMaintenance.test.js",
+        "tests/integration/rescheduleBoundaries.characterization.test.js",
+        "tests/services/a2pIsvOnboarding.regression.test.js"
+      ]
+    },
+    {
+      "file": "src/services/scheduling/commands/cancel-1.js",
+      "reason": "Central command now rejects illegal or competing appointment decisions.",
+      "tests": [
+        "tests/integration/rescheduleBoundaries.characterization.test.js",
+        "tests/unit/appointment.service.test.js"
+      ]
+    },
+    {
+      "file": "src/services/scheduling/commands/recheckAndConfirm-1.js",
+      "reason": "Central command now rejects illegal or competing appointment decisions.",
+      "tests": [
+        "tests/integration/rescheduleBoundaries.characterization.test.js",
+        "tests/unit/appointment.service.test.js"
+      ]
+    },
+    {
+      "file": "src/services/scheduling/commands/update-1.js",
+      "reason": "Central command now rejects illegal or competing appointment decisions.",
+      "tests": [
+        "tests/integration/rescheduleBoundaries.characterization.test.js",
+        "tests/unit/appointment.service.test.js"
+      ]
+    },
+    {
+      "file": "src/services/messaging/smsConversationUpdateBatch.service.js",
+      "reason": "Native bulk snapshot writes must advance the same private version as query middleware.",
+      "tests": [
+        "tests/integration/smsCapacityBatches.persistence.test.js",
+        "tests/integration/documentFence.security.test.js"
       ]
     }
   ]

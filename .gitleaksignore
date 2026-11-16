@@ -1,0 +1,15 @@
+# Reviewed historical false positives only. New commits are never covered by these fingerprints.
+# Commit identifier or environment-variable documentation
+5c79541017cddbc523812404bf13be82fe3de98c:BASELINE.md:generic-api-key:7
+# Synthetic test fixture or detection-regex example
+8de359efaa1d301a2cacf857025919105b51b14b:tests/integration/trialExpiryWorker.rootCause.test.js:stripe-access-token:16
+# Synthetic test fixture or detection-regex example
+f06952ca708c9d879e218d63ba166a349a4d839f:tests/integration/billingConcurrency.remediation.test.js:stripe-access-token:21
+# Synthetic test fixture or detection-regex example
+d4cd4aa4e49bfcc18f57f476e02e82f3a9969a25:tests/unit/smsProviderReceipt.release.test.js:generic-api-key:6
+# Commit identifier or environment-variable documentation
+1634663552eb4ee7b603db7200e48470eabcca7b:docs/SCALE_CAPACITY_RELEASE_2026_09_16.md:generic-api-key:35
+# Commit identifier or environment-variable documentation
+d6345e1f5b6acdfde1d702f8406b7330c9ec96b9:docs/SCALE_QUERY_UPDATE_2026_09_15.md:generic-api-key:3
+# Synthetic test fixture or detection-regex example
+ffcd67974b7589c3c7f462db25ecc8d154bc2436:scripts/audit-repository-hygiene.mjs:stripe-access-token:99

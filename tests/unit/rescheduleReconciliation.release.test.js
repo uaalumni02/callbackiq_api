@@ -12,6 +12,7 @@ jest.mock("../../src/models/appointment.js", () => ({
   __esModule: true,
   default: {
     findOne: jest.fn(),
+    findOneAndUpdate: jest.fn(),
     create: jest.fn(),
   },
 }));
@@ -76,6 +77,7 @@ const startAt = new Date("2026-09-10T14:00:00.000Z");
 const endAt = new Date("2026-09-10T15:30:00.000Z");
 
 const originalAppointment = () => ({
+  $locals: {},
   _id: "original-1",
   business: "b1",
   status: "confirmed",
@@ -100,6 +102,11 @@ const originalAppointment = () => ({
 describe("release invariant: reschedule retries converge without duplicate provider state", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    Appointment.findOneAndUpdate.mockImplementation((filter, { $set }) => ({ select: async () => {
+      const prior = Appointment.findOne.mock.calls.findLastIndex(([query]) => query._id === filter._id);
+      const row = await Appointment.findOne.mock.results[prior].value;
+      Object.assign(row, $set); return row;
+    } }));
     getBookableService.mockResolvedValue({
       _id: "service-1",
       durationMinutes: 90,

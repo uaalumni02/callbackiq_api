@@ -2,7 +2,7 @@ name: API CI
 
 on:
   push:
-    branches: [main, development, "ownership/import-proof/**"]
+    branches: [main, development, "ownership/import-proof/**", "hardening/**"]
   pull_request:
     branches: [main, development, "ownership/**"]
 

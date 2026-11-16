@@ -1,3 +1,4 @@
+import { rescheduleReceiptIdentity } from '../../stateTransitions/appointmentOwnership.js';
 /** @typedef {import('./types.js').AppointmentRecord} AppointmentRecord */
 /** @typedef {import('./types.js').BusinessScope} BusinessScope */
 /** Preserve the document's existing session/hooks while adding an observed-state claim. */
@@ -9,12 +10,13 @@ export async function saveClaimed(document, claim) {
 
 /** @param {{business:BusinessScope, original:AppointmentRecord, replacement:AppointmentRecord|null, key?:string, service?:import('./types.js').Service, nextInput?:object}} input
  * @returns {Promise<{replacement:AppointmentRecord}>} */
-export async function reserveReplacement({ business, original, replacement, key, service, nextInput }, { createHold }) {
+export async function reserveReplacement({ business, original, replacement, key, service, nextInput, input }, { createHold }) {
   if (!replacement) replacement = await createHold({ business, service, input: nextInput,
     preservedValuation: { estimatedValue: original.estimatedValue, valuation: original.valuation || { source: 'legacy_unverified' } },
     idempotencyKey: key, excludeAppointmentId: original._id });
   if (!replacement.rescheduledFrom && replacement.status === 'held') {
     replacement.rescheduledFrom = original._id;
+    replacement.rescheduleInputFingerprint = rescheduleReceiptIdentity(input || {});
     await replacement.save();
   }
   return { replacement };
@@ -69,12 +71,13 @@ export async function reconcileOriginal({ original, replacement }, { assertTrans
     original.rescheduleRequest.alertPending = true;
   }
   original.status = 'rescheduled';
+  original.rescheduleIntent = undefined;
   original.rescheduledTo = replacement._id;
   original.activeSlotKey = null;
   original.slotClaimKeys = [];
   original.capacityLane = null;
   original.externalAppointmentId = null;
   original.externalCalendarId = null;
-  await original.save();
+  await saveClaimed(original, { status: 'confirmed', business: original.business });
   return { reconciled: true };
 }

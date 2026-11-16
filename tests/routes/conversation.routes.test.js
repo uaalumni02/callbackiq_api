@@ -1,3 +1,4 @@
+import { loginWithMfa } from '../setup/authenticate.js';
 import { assertOwnerReadContract } from "../contracts/ownerReadContract.js";
 import request from "supertest";
 
@@ -7,7 +8,7 @@ import Conversation from "../../src/models/conversation.js";
 import Message from "../../src/models/message.js";
 import Subscription from "../../src/models/subscription.js";
 import User from "../../src/models/user.js";
-import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testDb.js";
+import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testReplicaDb.js";
 
 /* CALLBACKIQ_CONVERSATION_ROUTE_SMS_MOCK: conversation lifecycle route tests must not depend on
  * recipient-local quiet hours, Twilio credentials, or carrier availability. */
@@ -91,7 +92,7 @@ const registerAndCreateBusiness = async ({
   const registerRes = await request(app).post("/api/auth/register").send({
     userName,
     email,
-    password: "Password123",
+    password: "LongFixturePassword123",
 businessName,
     businessPhone,
     businessType,
@@ -127,9 +128,9 @@ businessName,
     expect(updatedUser).toBeTruthy();
     expect(updatedUser.role).toBe(role);
 
-    const loginRes = await request(app).post("/api/auth/login").send({
+    const loginRes = await loginWithMfa(app, {
       login: email,
-      password: "Password123",
+      password: "LongFixturePassword123",
     });
 
     expect(loginRes.status).toBe(200);

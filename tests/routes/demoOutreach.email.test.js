@@ -24,7 +24,7 @@ const createAdmin = async () => {
   const user = await User.create({
     userName: "demoemailadmin",
     email: "demo-email-admin@callbackiq.com",
-    password: "Password123",
+    password: "LongFixturePassword123",
     role: "admin",
     businessName: "CallBackIQ Admin",
     businessPhone: "4045551212",
@@ -40,6 +40,7 @@ const createAdmin = async () => {
       id: user._id,
       email: user.email,
       role: user.role,
+      mfaVerified: true, authTime: Math.floor(Date.now() / 1000),
     },
     process.env.JWT_SECRET,
     { expiresIn: "1h" },

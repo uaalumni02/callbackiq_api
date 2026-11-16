@@ -6,6 +6,7 @@ export const confirmationPending = () => Object.assign(
 );
 
 export function assertConfirmationNotPending(appointment) {
+  if (appointment.rescheduleIntent?.key) throw Object.assign(new Error('A reschedule is pending. Retry that operation before changing the appointment.'), { statusCode: 409, code: 'APPOINTMENT_RESCHEDULE_PENDING' });
   if (appointment.confirmationIntent?.status === 'pending_provider') throw confirmationPending();
 }
 

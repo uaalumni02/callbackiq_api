@@ -31,7 +31,7 @@ async function fixture() {
   await Lead.updateOne({ _id: lead._id }, { $set: { appointment: original._id } });
   await SchedulingPolicy.create({ business: business._id, customerRemindersEnabled: true, reminderHours: [2] });
   const providerEvents = new Map([['event-1', { startAt, endAt }]]);
-  const provider = { updateAppointment: jest.fn(async ({ changes }) => {
+  const provider = { cancelAppointment: jest.fn(async () => providerEvents.delete('event-1')), updateAppointment: jest.fn(async ({ changes }) => {
     providerEvents.set('event-1', changes);
     return { provider: 'google_calendar', externalAppointmentId: 'event-1', externalCalendarId: 'calendar-1' };
   }) };
@@ -108,16 +108,19 @@ test.each(['hold-created', 'provider-applied', 'handoff-staged', 'finalized'])('
   await expectConverged(f);
 });
 
-test('baseline characterization: finalization overwrites a newer cancellation of the original', async () => {
+test('a newer cancellation survives reschedule finalization and the provider move is compensated', async () => {
   const f = await fixture();
   const update = f.provider.updateAppointment.getMockImplementation();
   f.provider.updateAppointment.mockImplementationOnce(async args => {
     await Appointment.updateOne({ _id: f.original._id }, { $set: { status: 'canceled' } });
     return update(args);
   });
-  await f.run();
-  // A version/claim predicate would reject this completion, changing baseline behavior.
-  expect((await Appointment.findById(f.original._id)).status).toBe('rescheduled');
+  await expect(f.run()).rejects.toMatchObject({ code: 'RESCHEDULE_SUPERSEDED' });
+  expect((await Appointment.findById(f.original._id)).status).toBe('canceled');
+  const replacement = await Appointment.findOne({ rescheduledFrom: f.original._id });
+  expect(replacement.status).toBe('canceled');
+  expect(replacement.providerCompensation.pending).toBe(false);
+  expect(f.providerEvents.size).toBe(0);
 });
 
 test('baseline characterization: reminder scheduling resets an existing delivery receipt', async () => {
@@ -129,4 +132,41 @@ test('baseline characterization: reminder scheduling resets an existing delivery
   expect(await AppointmentNotificationJob.findOne({ appointment: replacement._id, type: 'reminder' })).toMatchObject({
     status: 'scheduled', providerMessageId: '', sentAt: null,
   });
+});
+
+test('a pending reschedule blocks cancellation and a second operation before provider mutation', async () => {
+  const { createAppointmentcancel1Methods } = await import('../../src/services/scheduling/commands/cancel-1.js');
+  const { assertConfirmationNotPending } = await import('../../src/services/scheduling/appointmentConfirmationIntent.repository.js');
+  const f = await fixture();let release, started;const gate=new Promise(r=>{release=r});const ready=new Promise(r=>{started=r});
+  const update=f.provider.updateAppointment.getMockImplementation();
+  f.provider.updateAppointment.mockImplementationOnce(async args=>{started();await gate;return update(args)});
+  const pending=f.run();await ready;
+  try {
+    const cancel=createAppointmentcancel1Methods({...f.deps,assertConfirmationNotPending});
+    await expect(cancel.cancel({business:f.business,appointmentId:f.original._id})).rejects.toMatchObject({code:'APPOINTMENT_RESCHEDULE_PENDING'});
+    await expect(createAppointmentreschedule1Methods(f.deps).reschedule({business:f.business,appointmentId:f.original._id,input:f.input,idempotencyKey:'competing-key'})).rejects.toMatchObject({code:'APPOINTMENT_STATE_CONFLICT'});
+    expect(f.provider.cancelAppointment).not.toHaveBeenCalled();
+  } finally {release();await pending;}
+});
+test('same-key replay rejects changed details after durable confirmation',async()=>{
+ const f=await fixture();await f.run();
+ await expect(createAppointmentreschedule1Methods(f.deps).reschedule({business:f.business,appointmentId:f.original._id,input:{...f.input,notes:'different details'},idempotencyKey:'same-reschedule'})).rejects.toMatchObject({code:'RESCHEDULE_IDEMPOTENCY_CONFLICT'});
+ expect(f.provider.updateAppointment).toHaveBeenCalledTimes(1);
+});
+test('failed provider compensation remains durable and retry releases the protected slot',async()=>{
+ const { repairCompensation }=await import('../../src/services/scheduling/reschedule/compensation.js');
+ const f=await fixture(),update=f.provider.updateAppointment.getMockImplementation();
+ f.provider.updateAppointment.mockImplementationOnce(async args=>{await Appointment.updateOne({_id:f.original._id},{$set:{status:'canceled'}});return update(args)});
+ f.provider.cancelAppointment.mockRejectedValueOnce(new Error('synthetic provider unavailable'));
+ await expect(f.run()).rejects.toMatchObject({code:'RESCHEDULE_SUPERSEDED'});
+ let replacement=await Appointment.findOne({rescheduledFrom:f.original._id});
+ expect(replacement.providerCompensation.pending).toBe(true);expect(replacement.slotClaimKeys.length).toBeGreaterThan(0);
+ await Appointment.updateOne({_id:replacement._id},{$set:{'providerCompensation.nextAttemptAt':new Date(0)}});
+ await repairCompensation({Appointment,appointmentId:replacement._id,provider:f.provider});
+ replacement=await Appointment.findById(replacement._id);expect(replacement.providerCompensation.pending).toBe(false);expect(replacement.slotClaimKeys).toHaveLength(0);
+});
+test('same-status stale document saves cannot overwrite a newer edit',async()=>{
+ const f=await fixture();const first=await Appointment.findById(f.original._id),second=await Appointment.findById(f.original._id);
+ first.notes='first update';await first.save();second.notes='stale update';await expect(second.save()).rejects.toMatchObject({name:'DocumentNotFoundError'});
+ expect((await Appointment.findById(first._id)).notes).toBe('first update');
 });

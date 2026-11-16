@@ -1,3 +1,4 @@
+import { TOTP, Secret } from 'otpauth';
 // Cookie-authenticated SPA and durable recovery queue. Local HTTP cookie flags
 // differ from deployed HTTPS flags; production Secure/SameSite remains staging.
 import fs from 'node:fs';
@@ -5,7 +6,7 @@ import path from 'node:path';
 import express from 'express';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
-import { MongoMemoryServer } from 'mongodb-memory-server';
+import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { chromium } from 'playwright';
 import app from '../../src/app.js';
 import User from '../../src/models/user.js';
@@ -25,7 +26,7 @@ beforeAll(async () => {
  process.env.RECOVERY_SMS_ASYNC_ENABLED = 'true';
  const uiDir = path.resolve(process.env.CALLBACKIQ_FRONTEND_DIR || '../callbackiq_frontend');
  if (!fs.existsSync(path.join(uiDir, 'build/index.html'))) throw new Error('Build the frontend first.');
- mongo = await MongoMemoryServer.create(); await mongoose.connect(mongo.getUri());
+ mongo = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: 'wiredTiger' } }); await mongoose.connect(mongo.getUri());
  await Promise.all([Work.init(), CallLog.init(), Lead.init()]);
  owner = await User.create({ userName: 'CookieOwner', email: 'cookie-owner@example.test', password: await bcrypt.hash(password, 10),
    businessName: 'Cookie Test Shop', role: 'owner', emailVerified: true, termsAccepted: true, privacyAccepted: true });
@@ -39,7 +40,7 @@ beforeAll(async () => {
  shell.use(express.static(path.join(uiDir, 'build')));
  shell.get('/{*path}', (req, res) => res.sendFile(path.join(uiDir, 'build/index.html')));
  server = await new Promise((resolve, reject) => { const s = shell.listen(43771, '127.0.0.1', () => resolve(s)); s.on('error', reject); });
- browser = await chromium.launch({ headless: true });
+ browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}) });
 }, 120000);
 beforeEach(async () => {
  context = await browser.newContext(); page = await context.newPage();
@@ -105,3 +106,19 @@ test('async recovery survives an abandoned worker lease, sends once, and appears
  await page.goto(`${base}/call-logs`);
  await page.getByText(lead.phone, { exact: true }).first().waitFor({ state: 'visible' });
 });
+
+test('administrator enrolls through the SPA, saves recovery codes, and failed logout stays visible',async()=>{
+ const adminPassword='A synthetic administrator passphrase';
+ const admin=await User.create({userName:'MfaBrowserAdmin',email:'mfa-browser@example.test',password:await bcrypt.hash(adminPassword,10),businessName:'Synthetic administration',role:'admin',termsAccepted:true,privacyAccepted:true});
+ await page.goto(`${base}/login`);await page.getByLabel('Username or Business Email').fill(admin.email);await page.getByLabel('Password',{exact:true}).fill(adminPassword);
+ const loginResponse=page.waitForResponse(r=>r.url().endsWith('/api/auth/login'));await page.getByRole('button',{name:/sign in/i}).click();
+ const challenge=(await (await loginResponse).json()).data;expect(challenge.setupRequired).toBe(true);expect((await context.cookies()).some(c=>c.name==='token')).toBe(false);
+ await page.getByRole('heading',{name:'Set up your authenticator'}).waitFor();
+ const code=new TOTP({secret:Secret.fromBase32(challenge.secret)}).generate();await page.getByLabel('Authenticator code',{exact:true}).fill(code);await page.getByRole('button',{name:'Verify',exact:true}).click();
+ await page.getByRole('heading',{name:'Save your recovery codes'}).waitFor();expect(await page.getByRole('button',{name:'Continue',exact:true}).isEnabled()).toBe(false);
+ await page.getByRole('checkbox').check();await page.getByRole('button',{name:'Continue',exact:true}).click();await page.waitForURL('**/admin-dashboard');
+ await page.route('**/api/auth/logout',route=>route.abort());await page.getByRole('button',{name:'Logout',exact:true}).click();
+ await page.getByText('Sign out could not be verified. Reconnect and try again.').waitFor();expect(new URL(page.url()).pathname).toBe('/admin-dashboard');expect((await context.cookies()).some(c=>c.name==='token')).toBe(true);
+ await page.unroute('**/api/auth/logout');await page.getByRole('button',{name:'Logout',exact:true}).click();await page.waitForURL(base+'/');
+ expect((await context.request.get(`${base}/api/auth/me`)).status()).toBe(401);
+},60000);

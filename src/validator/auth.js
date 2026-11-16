@@ -1,5 +1,11 @@
+import { passwordPolicyError } from '../services/security/passwordPolicy.js';
 import { BUSINESS_TYPES } from "../helpers/businessTypes.js";
 import Joi from "joi";
+
+const newPassword = Joi.string().max(512).custom((value, helpers) => {
+  const message = passwordPolicyError(value);
+  return message ? helpers.message({ custom: message }) : value;
+}).required();
 
 const registerSchema = Joi.object({
   // userName is retained for compatibility with older clients. New trial
@@ -12,11 +18,7 @@ const registerSchema = Joi.object({
 
   email: Joi.string().email().min(3).max(100).required(),
 
-  password: Joi.string()
-    .min(6)
-    .max(50)
-    .pattern(/^[\w@!$%*?&-]*$/)
-    .required(),
+  password: newPassword,
 
   role: Joi.string().valid("owner").default("owner"),
   businessName: Joi.string().min(2).max(100).required(),
@@ -56,11 +58,7 @@ const requestPasswordResetSchema = Joi.object({
 });
 
 const resetPasswordSchema = Joi.object({
-  password: Joi.string()
-    .min(6)
-    .max(50)
-    .pattern(/^[\w@!$%*?&-]*$/)
-    .required(),
+  password: newPassword,
 });
 
 export {

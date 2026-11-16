@@ -38,7 +38,7 @@ const registerUserWithAutoBusiness = async () => {
   const response = await request(app).post("/api/auth/register").send({
     userName: "demoowner",
     email: "owner@callbackiq.com",
-    password: "Password123",
+    password: "LongFixturePassword123",
     businessName: "Atlanta Pro Plumbing",
     businessPhone: "4045551234",
     businessType: "plumbing",
@@ -54,7 +54,7 @@ const registerUserWithAutoBusiness = async () => {
 };
 
 const createBareUserToken = async () => {
-  const hashedPassword = await bcrypt.hashPassword("Password123", 10);
+  const hashedPassword = await bcrypt.hashPassword("LongFixturePassword123", 10);
 
   const user = await User.create({
     userName: "bareowner",

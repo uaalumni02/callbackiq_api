@@ -1,3 +1,4 @@
+import { loginWithMfa } from '../setup/authenticate.js';
 import { assertOwnerReadContract } from "../contracts/ownerReadContract.js";
 import request from "supertest";
 
@@ -200,7 +201,7 @@ const registerAndCreateBusiness = async ({
   const registerRes = await request(app).post("/api/auth/register").send({
     userName,
     email,
-    password: "Password123",
+    password: "LongFixturePassword123",
     businessName,
     businessPhone,
     businessType,
@@ -231,9 +232,9 @@ const registerAndCreateBusiness = async ({
      * test-only fixture, log in again so authorization is exercised with a
      * freshly signed token containing the stored admin role.
      */
-    const loginRes = await request(app).post("/api/auth/login").send({
+    const loginRes = await loginWithMfa(app, {
       login: email,
-      password: "Password123",
+      password: "LongFixturePassword123",
     });
 
     expect(loginRes.status).toBe(200);
@@ -731,7 +732,7 @@ describe("Billing Routes", () => {
       .send({
         userName: "secondowner",
         email: "second@callbackiq.com",
-        password: "Password123",
+        password: "LongFixturePassword123",
         role: "owner",
         businessName: "Atlanta Pro Plumbing Two",
         businessPhone: "4045551234",

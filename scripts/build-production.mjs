@@ -14,10 +14,10 @@ const copy = async (directory) => {
     await fs.mkdir(path.dirname(output), { recursive: true });
     if (entry.name.endsWith('.js')) {
       const result = await transformFileAsync(input, { babelrc: false, configFile: false,
-        presets: [['@babel/preset-env', { targets: { node: '20' }, modules: false }]], sourceMaps: false });
+        presets: [['@babel/preset-env', { targets: { node: '24' }, modules: false }]], sourceMaps: false });
       await fs.writeFile(output, result.code + '\n'); count++;
     } else await fs.copyFile(input, output);
   }
 };
 await copy(source);
-console.log(`Built ${count} ES modules for Node 20+.`);
+console.log(`Built ${count} ES modules for Node 24 LTS.`);
