@@ -27,3 +27,15 @@ test('upstream errors and redirect loops do not hold download permits',async()=>
  await expect(loadProviderMedia({...options(),fetcher:async()=>new Response('',{status:404})})).rejects.toMatchObject({statusCode:404});
  await expect(loadProviderMedia({...options(),fetcher:async()=>new Response(null,{status:302,headers:{location:'/loop'}})})).rejects.toThrow('Too many');
 });
+
+
+describe('downloaded content cannot become an active application-origin document', () => {
+  test.each(['text/html', 'image/svg+xml', 'application/pdf', '', undefined])('active/unknown type %s is an inert attachment', async value => {
+    const { mediaResponsePolicy } = await import('../../src/services/security/providerMedia.js');
+    expect(mediaResponsePolicy(value)).toEqual({ contentType: 'application/octet-stream', disposition: 'attachment' });
+  });
+  test('recognized passive media retains inline preview', async () => {
+    const { mediaResponsePolicy } = await import('../../src/services/security/providerMedia.js');
+    expect(mediaResponsePolicy('IMAGE/PNG; charset=binary')).toEqual({ contentType: 'image/png', disposition: 'inline' });
+  });
+});

@@ -28,7 +28,7 @@ Central cancellation and staff-outcome commands now reject illegal state transit
 
 ## Media and logout
 
-Media downloads have a ten-second deadline, five-MiB byte limit checked during reading, explicit provider redirect validation, no credential forwarding to the CDN, and bounded per-tenant/process concurrency. Client disconnection aborts work. These per-process limits complement infrastructure limits; they are not a global fleet capacity guarantee.
+Media downloads have a ten-second deadline, five-MiB byte limit checked during reading, explicit provider redirect validation, no credential forwarding to the CDN, and bounded per-tenant/process concurrency. Client disconnection aborts work. Only recognized passive image/audio/video formats retain inline previews; active or unknown document types are downloaded as inert attachments with restrictive CSP and nosniff headers. These per-process limits complement infrastructure limits; they are not a global fleet capacity guarantee.
 
 Admin logout now uses the shared verified logout operation. A failed logout keeps the current screen and an actionable error rather than claiming that the HttpOnly session was cleared.
 

@@ -62,3 +62,10 @@ export async function loadProviderMedia({ url, authorization, businessId, req, r
     totalActive--;
   }
 }
+
+// Active documents must never execute with the application's origin.
+export function mediaResponsePolicy(contentType) {
+  const type = String(contentType || '').split(';', 1)[0].trim().toLowerCase();
+  const inline = /^(image\/(jpeg|png|gif|webp|avif)|audio\/(mpeg|mp4|ogg|wav|webm)|video\/(mp4|webm))$/.test(type);
+  return { contentType: inline ? type : 'application/octet-stream', disposition: inline ? 'inline' : 'attachment' };
+}

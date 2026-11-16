@@ -1,4 +1,4 @@
-import { allowedMediaUrl, loadProviderMedia } from '../services/security/providerMedia.js';
+import { allowedMediaUrl, loadProviderMedia, mediaResponsePolicy } from '../services/security/providerMedia.js';
 import mongoose from "mongoose";
 import Db from "../db/db.js";
 import Business from "../models/business.js";
@@ -40,10 +40,13 @@ class MessageMediaController {
       const { buffer, contentType } = await loadProviderMedia({ url: media.providerUrl,
         authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`,
         businessId: business._id, req, res });
-      res.setHeader('Content-Type', contentType);
+      const responsePolicy = mediaResponsePolicy(contentType);
+      res.setHeader('Content-Type', responsePolicy.contentType);
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
       res.setHeader("Content-Length", String(buffer.length));
       res.setHeader("Cache-Control", "private, max-age=300");
-      res.setHeader("Content-Disposition", `inline; filename="callbackiq-media-${index}"`);
+      res.setHeader("Content-Disposition", `${responsePolicy.disposition}; filename="callbackiq-media-${index}"`);
       return res.status(200).send(buffer);
     } catch (error) {
       logOperationalError("message.media_proxy.failed", error, {
