@@ -625,7 +625,8 @@ describe("AppointmentService", () => {
       heldExpiresAt: null,
     });
     expect(Lead.updateOne).toHaveBeenCalledWith(
-      { _id: "l1", business: "b1" },
+      { _id: "l1", business: "b1", appointment: { $in: ["a2", "a1", null] },
+        $or: [{ bookedAt: null }, { bookedAt: { $lte: replacement.confirmedAt } }] },
       { $set: { appointment: "a2", bookedAt: replacement.confirmedAt } },
     );
     expect(SocketService.emitToBusiness).toHaveBeenCalledWith("b1", "appointment:rescheduled", { original, replacement });

@@ -27,3 +27,11 @@ test('batched SMS snapshots fence older documents as well as ordinary updates',a
  await Promise.all([a,b].map(doc=>updateSmsConversationSnapshot({businessId:business,conversationId:doc._id,update:{lastMessage:'fresh snapshot'}})));
  stale.lastMessage='stale snapshot';await expect(stale.save()).rejects.toMatchObject({name:'DocumentNotFoundError'});
 });
+
+test('pipeline updates participate in stale-write fencing and cannot reset the private version',async()=>{
+ const doc=await Conversation.create({business:scope(),customerPhone:'+14045550105'}),stale=await Conversation.findById(doc._id);
+ await Conversation.updateOne({_id:doc._id},[{$set:{lastMessage:'pipeline update'}}],{updatePipeline:true});
+ stale.lastMessage='lost update';await expect(stale.save()).rejects.toMatchObject({name:'DocumentNotFoundError'});
+ await expect(Conversation.updateOne({_id:doc._id},{$set:{stateVersion:0}})).rejects.toMatchObject({code:'STATE_VERSION_CONFLICT'});
+ expect((await Conversation.findById(doc._id)).lastMessage).toBe('pipeline update');
+});

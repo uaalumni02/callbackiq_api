@@ -90,3 +90,14 @@ test('legacy administrators without a persisted session counter can enroll secur
  const result=await completeAdminChallenge({challengeToken:challenge.challengeToken,code});
  expect(result.user.mfaEnabled).toBe(true);expect(result.user.sessionVersion).toBe(1);expect(result.recoveryCodes).toHaveLength(10);
 });
+
+test('recovery rotation HTTP endpoint binds the account to the verified session',async()=>{
+ const u=await account('admin'),challenge=await issueAdminChallenge(u);await completeAdminChallenge({challengeToken:challenge.challengeToken,code:otp(challenge.secret)});
+ const token=Token.sign({userId:u._id,role:'admin',sessionVersion:1,mfaVerified:true,authTime:Math.floor(Date.now()/1000)});
+ const denied=await request(app).post('/api/auth/mfa/recovery-codes').set('Authorization',`Bearer ${token}`).send({password,code:'invalid'});expect(denied.status).toBe(401);
+ const code=new TOTP({secret:Secret.fromBase32(challenge.secret)}).generate({timestamp:Date.now()+30000});
+ const rotated=await request(app).post('/api/auth/mfa/recovery-codes').set('Authorization',`Bearer ${token}`).send({userId:'123456789012345678901234',password,code});
+ expect(rotated.status).toBe(200);expect(rotated.body.data.recoveryCodes).toHaveLength(10);expect(rotated.headers['set-cookie'].join(';')).toContain('HttpOnly');expect(rotated.headers['cache-control']).toBe('no-store');
+ expect((await User.findById(u._id).select('+sessionVersion')).sessionVersion).toBe(2);
+ expect((await request(app).post('/api/auth/mfa/verify').send({challengeToken:'malformed',code:'123456'})).status).toBe(401);
+});

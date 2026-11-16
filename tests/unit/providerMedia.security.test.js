@@ -39,3 +39,10 @@ describe('downloaded content cannot become an active application-origin document
     expect(mediaResponsePolicy('IMAGE/PNG; charset=binary')).toEqual({ contentType: 'image/png', disposition: 'inline' });
   });
 });
+
+test('malformed, empty, or upstream-failed responses are rejected and their budgets released',async()=>{
+ expect(allowedMediaUrl('not a url')).toBe(false);expect(allowedMediaUrl('http://api.twilio.com/media')).toBe(false);
+ await expect(loadProviderMedia({...options(),fetcher:async()=>new Response(null,{status:302})})).rejects.toThrow('missing its destination');
+ await expect(loadProviderMedia({...options(),fetcher:async()=>new Response('unavailable',{status:500})})).rejects.toMatchObject({statusCode:502});
+ await expect(loadProviderMedia({...options(),fetcher:async()=>new Response(null,{status:200})})).rejects.toThrow('no body');
+});

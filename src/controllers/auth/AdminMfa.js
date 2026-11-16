@@ -9,5 +9,5 @@ export async function verifyAdminMfa(req, res, next) {
   try { return finish(res, await completeAdminChallenge(req.body || {})); } catch (error) { return next(error); }
 }
 export async function regenerateRecoveryCodes(req, res, next) {
-  try { return finish(res, await regenerateAdminRecovery({ userId: req.user.userId, ...req.body })); } catch (error) { return next(error); }
+  try { return finish(res, await regenerateAdminRecovery({ userId: req.user.userId, password: req.body?.password, code: req.body?.code })); } catch (error) { return next(error); }
 }

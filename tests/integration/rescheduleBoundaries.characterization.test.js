@@ -209,3 +209,33 @@ test('stale Google provider-change approval cannot move a canceled appointment',
  const changed=await approve({Appointment,appointment:observed,business:f.business,capacityLane:1,change:{eventId:'event-1',calendarId:'calendar-1'},startAt:f.input.startAt,endAt:f.input.endAt,getSlotClaimKeys:()=>['new-slot']});
  expect(changed).toBeNull();expect((await Appointment.findById(f.original._id)).startAt).toEqual(f.original.startAt);
 });
+
+test('appointment pipeline writes fence stale saves and explicit version resets',async()=>{
+ const f=await fixture(),stale=await Appointment.findById(f.original._id);
+ await Appointment.updateOne({_id:f.original._id},[{$set:{notes:'new pipeline decision'}}],{updatePipeline:true});
+ stale.notes='older decision';await expect(stale.save()).rejects.toMatchObject({name:'DocumentNotFoundError'});
+ await expect(Appointment.updateOne({_id:f.original._id},{$set:{stateVersion:0}})).rejects.toMatchObject({code:'APPOINTMENT_STATE_CONFLICT'});
+ const current=await Appointment.findById(f.original._id);current.business=objectId();await expect(current.save()).rejects.toMatchObject({code:'APPOINTMENT_STATE_CONFLICT'});
+});
+test('scheduled compensation repair retains orphan work and retries a recoverable provider failure',async()=>{
+ const {repairRescheduleCompensations}=await import('../../src/services/scheduling/rescheduleCompensationRepair.service.js');
+ const {default:Business}=await import('../../src/models/business.js'),{default:Factory}=await import('../../src/services/scheduling/schedulingProviderFactory.js');
+ const f=await fixture(),update=f.provider.updateAppointment.getMockImplementation();f.provider.updateAppointment.mockImplementationOnce(async args=>{await Appointment.updateOne({_id:f.original._id},{$set:{status:'canceled'}});return update(args)});f.provider.cancelAppointment.mockRejectedValueOnce(new Error('temporary outage'));
+ await expect(f.run()).rejects.toMatchObject({code:'RESCHEDULE_SUPERSEDED'});
+ const replacement=await Appointment.findOne({rescheduledFrom:f.original._id});await Appointment.updateOne({_id:replacement._id},{$set:{'providerCompensation.nextAttemptAt':new Date(0)},$unset:{'providerCompensation.provider':''}});
+ const lookup=jest.spyOn(Business,'findById').mockResolvedValueOnce(null).mockResolvedValue(f.business);jest.spyOn(Factory,'getProvider').mockReturnValue(f.provider);
+ await repairRescheduleCompensations();expect((await Appointment.findById(replacement._id)).providerCompensation.pending).toBe(true);
+ await repairRescheduleCompensations(1);expect((await Appointment.findById(replacement._id)).providerCompensation.pending).toBe(false);expect(lookup).toHaveBeenCalledTimes(2);
+});
+test('compensation with no external event releases an internal slot without calling a provider',async()=>{
+ const {queueRescheduleCompensation}=await import('../../src/services/stateTransitions/rescheduleCompensation.js');const {repairCompensation}=await import('../../src/services/scheduling/reschedule/compensation.js');const f=await fixture();
+ const replacement=await f.deps.createHold({input:{...f.input,serviceOfferingId:f.original.serviceOffering,customerPhone:f.original.customerPhone},idempotencyKey:'internal-compensation'});replacement.rescheduledFrom=f.original._id;await replacement.save();
+ await queueRescheduleCompensation({Appointment,replacement,receipt:{provider:'internal'}});
+ await repairCompensation({Appointment,appointmentId:replacement._id,provider:f.provider});
+ const row=await Appointment.findById(replacement._id);expect(row.providerCompensation.pending).toBe(false);expect(row.slotClaimKeys).toHaveLength(0);expect(f.provider.cancelAppointment).not.toHaveBeenCalled();
+});
+test('reschedule identity is stable across object key order and includes nested request details',async()=>{
+ const {rescheduleReceiptIdentity}=await import('../../src/services/stateTransitions/appointmentOwnership.js');const date=new Date('2030-01-01');
+ expect(rescheduleReceiptIdentity({when:date,details:[{b:2,a:1}],idempotencyKey:'a'})).toBe(rescheduleReceiptIdentity({details:[{a:1,b:2}],when:date,idempotencyKey:'b'}));
+ expect(rescheduleReceiptIdentity({details:[1]})).not.toBe(rescheduleReceiptIdentity({details:[2]}));
+});
