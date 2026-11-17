@@ -15,9 +15,8 @@ import OwnerExperienceService, { ownerInterventionFilter } from '../../src/servi
 const oid = () => new mongoose.Types.ObjectId();
 beforeAll(async () => {
   await connectTestDB();
-  // Raw collection fixtures must satisfy the real unique index regardless of
-  // whether background model initialization wins the first insert race.
-  await Appointment.init();
+  // Wait for fixture uniqueness checks and the indexes used by workflow views.
+  await Promise.all([Appointment.init(), Lead.init()]);
 }, 120000);
 afterEach(async () => { delete process.env.SMS_TENANT_MAX_CONCURRENCY; if (mongoose.connection.readyState === 1) await clearTestDB(); });
 afterAll(async () => { if (mongoose.connection.readyState === 1) await closeTestDB(); });

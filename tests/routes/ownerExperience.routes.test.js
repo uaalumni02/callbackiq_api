@@ -14,6 +14,7 @@ import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testDb.js";
 
 beforeAll(async () => {
   await connectTestDB();
+  await Lead.init();
 }, 60_000);
 
 afterEach(async () => {
