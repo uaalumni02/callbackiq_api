@@ -154,6 +154,12 @@ test('no-response escalation is visible and owner acknowledgment persists withou
 });
 
 test('same-day voice scheduling review appears without creating or confirming an appointment', async () => {
+  // Earlier SMS/voice/UI steps have advanced the shared fixture's stateVersion.
+  // A new service invocation must read current documents, like the real request path.
+  lead = await Lead.findOne({ _id: lead._id, business: business._id });
+  conversation = await Conversation.findOne({ _id: conversation._id, business: business._id });
+  expect(lead).not.toBeNull();
+  expect(conversation).not.toBeNull();
   const result=await requestStaffSchedulingReview({business,lead,conversation,customerMessage:'I need someone today',channel:'voice'});
   expect(result.reply).toMatch(/not a confirmed appointment/);
   await visit('/intervention-center'); await visible(page.getByText('I need someone today',{exact:false}));
