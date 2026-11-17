@@ -1,8 +1,9 @@
 // Exact previous transition and slot claim rules. No I/O.
-export const ACTIVE_STATUSES = new Set(["held", "confirmed"]);
+export const ACTIVE_STATUSES = new Set(["held", "confirmed", "cancel_pending"]);
 export const VALID_TRANSITIONS = {
-  held: new Set(["confirmed", "failed", "canceled"]),
-  confirmed: new Set(["canceled", "completed", "no_show", "rescheduled"]),
+  held: new Set(["confirmed", "failed", "canceled", "cancel_pending"]),
+  confirmed: new Set(["canceled", "completed", "no_show", "rescheduled", "cancel_pending"]),
+  cancel_pending: new Set(['canceled']),
   canceled: new Set(),
   completed: new Set(),
   no_show: new Set(),
@@ -51,3 +52,15 @@ export const assertTransition = (from, to) => {
     throw error;
   }
 };
+
+// Pending provider mutations retain capacity even after an ordinary hold expires.
+export const activeAppointmentFilter = (now = new Date()) => ({
+  status: { $in: [...ACTIVE_STATUSES] },
+  $or: [
+    { status: { $in: ['confirmed', 'cancel_pending'] } },
+    { status: 'held', heldExpiresAt: { $gt: now } },
+    { status: 'held', 'confirmationIntent.status': 'pending_provider' },
+    { status: 'held', pendingRescheduleExternalAppointmentId: { $nin: [null, ''] } },
+    { status: 'held', 'providerOperation.state': { $in: ['pending', 'applied'] } },
+  ],
+});

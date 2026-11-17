@@ -1,4 +1,5 @@
 import { repairRescheduleCompensations } from '../services/scheduling/rescheduleCompensationRepair.service.js';
+import { reconcileAppointmentCancellations } from '../services/scheduling/appointmentCancellationRecovery.service.js';
 import { safeConsole } from "../helpers/logging/safeLogger.js";
 import AppointmentService from "../services/scheduling/appointment.service.js";
 
@@ -18,6 +19,7 @@ export const runAppointmentMaintenanceOnce = async () => {
     const result = await AppointmentService.releaseExpiredHolds();
     await repairRescheduleCompensations();
     await AppointmentService.reconcileConfirmations();
+    await reconcileAppointmentCancellations(input => AppointmentService.cancel(input));
     return {
       skipped: false,
       matched: Number(result?.matchedCount || 0),

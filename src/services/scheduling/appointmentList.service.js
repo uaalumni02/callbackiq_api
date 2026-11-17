@@ -10,7 +10,7 @@ export const pendingApprovalFilter = () => ({ $or: [
   { status: 'confirmed', 'rescheduleRequest.status': 'pending' },
 ] });
 const bad = message => Object.assign(new Error(message), { statusCode: 400 });
-const statuses = new Set(['held', 'confirmed', 'canceled', 'completed', 'no_show', 'rescheduled', 'failed']);
+const statuses = new Set(['held', 'confirmed', 'cancel_pending', 'canceled', 'completed', 'no_show', 'rescheduled', 'failed']);
 export function appointmentPageQuery({ businessId, query = {}, now = new Date() }) {
   const view = query.view || 'upcoming';
   if (!['upcoming', 'approvals', 'all'].includes(view)) throw bad('Invalid appointment view.');
@@ -25,7 +25,7 @@ export function appointmentPageQuery({ businessId, query = {}, now = new Date() 
   }
   if (view === 'approvals') filter.$and = [pendingApprovalFilter()];
   if (view === 'upcoming') filter.$and = [{ $or: [pendingApprovalFilter(),
-    { status: { $in: ['held','confirmed'] }, endAt: { $gte: now } }],
+    { status: { $in: ['held','confirmed','cancel_pending'] }, endAt: { $gte: now } }],
   }];
   const direction = view === 'all' ? -1 : 1;
   const scope = crypto.createHash('sha256').update(JSON.stringify([String(businessId),view,query.status || '',query.leadId || '',query.conversationId || ''])).digest('hex');

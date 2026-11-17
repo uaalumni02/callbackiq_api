@@ -2,6 +2,35 @@ import crypto from 'node:crypto';
 export const appointmentConflict = () => Object.assign(new Error('The appointment changed or another operation owns it. Reload before trying again.'), {
   statusCode: 409, code: 'APPOINTMENT_STATE_CONFLICT',
 });
+// Claim before any external DELETE. A pending intent survives errors and worker crashes.
+export async function claimAppointmentCancellation({ Appointment, appointment, reason, notifyCustomer }) {
+  const now = new Date(), token = crypto.randomUUID();
+  const pending = appointment.status === 'cancel_pending';
+  if (!pending && !['held', 'confirmed'].includes(appointment.status)) throw appointmentConflict();
+  const claimed = await Appointment.findOneAndUpdate({
+    _id: appointment._id, business: appointment.business, status: appointment.status,
+    stateVersion: appointment.stateVersion || { $in: [0, null] },
+    ...(appointment.updatedAt ? { updatedAt: appointment.updatedAt } : {}),
+    'rescheduleIntent.key': { $exists: false },
+    'confirmationIntent.status': { $ne: 'pending_provider' },
+    ...(pending ? { 'cancellationIntent.leaseUntil': { $lte: now } } : {}),
+  }, { $set: { status: 'cancel_pending', cancellationIntent: {
+    key: `cancel:${appointment._id}`, token, leaseUntil: new Date(+now + 120000), nextAttemptAt: now,
+    attempts: (appointment.cancellationIntent?.attempts || 0) + 1,
+    reason: pending ? appointment.cancellationIntent.reason : String(reason).slice(0, 1000),
+    notifyCustomer: pending ? appointment.cancellationIntent.notifyCustomer : notifyCustomer,
+  } } }, { returnDocument: 'after', runValidators: true }).select('+confirmationIntent');
+  if (!claimed) throw appointmentConflict();
+  return claimed;
+}
+
+export function deferAppointmentCancellation({ Appointment, appointment, error }) {
+  return Appointment.updateOne({ _id: appointment._id, business: appointment.business,
+    status: 'cancel_pending', 'cancellationIntent.token': appointment.cancellationIntent.token,
+  }, { $set: { 'cancellationIntent.leaseUntil': new Date(),
+    'cancellationIntent.nextAttemptAt': new Date(Date.now() + 60000),
+    'cancellationIntent.lastError': String(error.code || error.name || 'PROVIDER_OUTCOME_UNCERTAIN').slice(0, 160) } });
+}
 /** Durable original-appointment ownership survives a worker crash. Only same-key replay may resume. */
 export async function claimRescheduleOriginal({ Appointment, original, business, key, input }) {
   if (original.status === 'rescheduled') return original;
@@ -10,6 +39,7 @@ export async function claimRescheduleOriginal({ Appointment, original, business,
   if (original.rescheduleIntent?.fingerprint && original.rescheduleIntent.fingerprint !== fingerprint) throw appointmentConflict();
   const claimed = await Appointment.findOneAndUpdate({
     _id: original._id, business: business._id, status: 'confirmed',
+    stateVersion: original.stateVersion || { $in: [0, null] },
     ...(original.updatedAt ? { updatedAt: original.updatedAt } : {}),
     $and: [
       { $or: [{ 'rescheduleIntent.key': key }, { 'rescheduleIntent.key': { $exists: false } }, { rescheduleIntent: null }] },

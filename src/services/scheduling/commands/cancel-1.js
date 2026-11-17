@@ -1,11 +1,13 @@
 import { stageCanceledRescheduleRequest, stageCanceledAppointment } from '../../stateTransitions/appointmentCommands.js';
 import { saveStateDocument } from '../../stateTransitions/documents.js';
+import AppointmentModel from '../../../models/appointment.js';
+import { claimAppointmentCancellation, deferAppointmentCancellation } from '../../stateTransitions/appointmentOwnership.js';
 /* Source-exact AppointmentService extraction. Preserve order and outcome contracts. */
 export function createAppointmentcancel1Methods(deps) {
-  const { assertConfirmationNotPending, InterventionService, SchedulingProviderFactory, SocketService, assertTransition, cancelAppointmentNotifications, ensureCancellationSideEffects, getAppointmentForBusiness, lifecycleMarker, resolveApprovalReview, runNonBlockingAppointmentSideEffect, tryRepairAppointmentLifecycle } = deps;
+  const { Appointment = AppointmentModel, assertConfirmationNotPending, InterventionService, SchedulingProviderFactory, SocketService, assertTransition, cancelAppointmentNotifications, ensureCancellationSideEffects, getAppointmentForBusiness, lifecycleMarker, resolveApprovalReview, runNonBlockingAppointmentSideEffect, tryRepairAppointmentLifecycle } = deps;
   return {
 async cancel({ business, appointmentId, reason = "", notifyCustomer = true }) {
-    const appointment = await getAppointmentForBusiness(
+    let appointment = await getAppointmentForBusiness(
       business._id,
       appointmentId,
     );
@@ -35,6 +37,9 @@ async cancel({ business, appointmentId, reason = "", notifyCustomer = true }) {
       return appointment;
     }
     assertTransition(appointment.status, "canceled");
+    appointment = await claimAppointmentCancellation({ Appointment, appointment, reason, notifyCustomer });
+    reason = appointment.cancellationIntent.reason;
+    notifyCustomer = appointment.cancellationIntent.notifyCustomer;
     const provider = SchedulingProviderFactory.getProvider(
       business,
       appointment.provider || "internal",
@@ -45,6 +50,7 @@ async cancel({ business, appointmentId, reason = "", notifyCustomer = true }) {
       // already treats a missing (404) event as canceled.
       await provider.cancelAppointment({ appointment, reason });
     } catch (error) {
+      await deferAppointmentCancellation({ Appointment, appointment, error });
       await InterventionService.integrationFailure({
         businessId: business._id,
         leadId: appointment.lead,
@@ -74,9 +80,8 @@ async cancel({ business, appointmentId, reason = "", notifyCustomer = true }) {
       .filter(Boolean)
       .join("\n");
 
-    // If this save fails after the provider delete, the appointment remains
-    // locally confirmed. Retrying the endpoint is safe because provider
-    // cancellation is idempotent and will reach this save again.
+    // Keep the claimed version and lease token through the provider result.
+    appointment.$where = { 'cancellationIntent.token': appointment.cancellationIntent.token };
     await saveStateDocument(appointment);
     await tryRepairAppointmentLifecycle(appointment, business);
     await resolveApprovalReview(appointment).catch(() => {});

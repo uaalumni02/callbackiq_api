@@ -33,6 +33,7 @@ export async function stageHandoff({ original, replacement, handoff }) {
   replacement.pendingRescheduleExternalAppointmentId = receipt.externalAppointmentId;
   replacement.pendingRescheduleExternalCalendarId = receipt.externalCalendarId;
   replacement.failureReason = '';
+  replacement.providerOperation = { ...replacement.providerOperation?.toObject?.(), kind: 'reschedule', state: 'applied' };
   await replacement.save();
   original.externalAppointmentId = null;
   original.externalCalendarId = null;
@@ -48,6 +49,7 @@ export async function confirmReplacement({ replacement, receipt }, { lifecycleMa
     pendingRescheduleExternalAppointmentId: replacement.pendingRescheduleExternalAppointmentId ?? null };
   replacement.lifecycleNotice = lifecycleMarker('rescheduled');
   replacement.status = 'confirmed';
+  replacement.providerOperation = { ...replacement.providerOperation?.toObject?.(), kind: 'reschedule', state: 'resolved' };
   replacement.confirmedAt = replacement.confirmedAt || new Date();
   replacement.heldExpiresAt = null;
   replacement.provider = receipt.provider;

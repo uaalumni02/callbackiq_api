@@ -1,3 +1,4 @@
+import { activeAppointmentFilter } from './appointmentStatePolicy.service.js';
 import { dateWindows, shiftDate } from './availabilityWindows.service.js';
 import { effectiveSchedulingPolicy } from "./effectiveSchedulingPolicy.service.js";
 import Appointment from "../../models/appointment.js";
@@ -66,14 +67,9 @@ export const generateInternalSlots = async ({
 
   const appointmentQuery = {
     business: businessId,
-    status: { $in: ["held", "confirmed"] },
+    ...activeAppointmentFilter(now),
     startAt: { $lt: addMinutes(queryEnd, 1440) },
     endAt: { $gt: addMinutes(queryStart, -1440) },
-    $or: [
-      { status: "confirmed" },
-      { status: "held", heldExpiresAt: { $gt: now } },
-      { status: "held", "confirmationIntent.status": "pending_provider" },
-    ],
   };
 
   if (excludeAppointmentId) {

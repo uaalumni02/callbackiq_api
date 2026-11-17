@@ -1,3 +1,4 @@
+import { ACTIVE_STATUSES } from '../../services/scheduling/appointmentStatePolicy.service.js';
 import { saveStateDocument } from '../../services/stateTransitions/documents.js';
 import crypto from "crypto";
 import SchedulingProvider from "./schedulingProvider.js";
@@ -291,7 +292,7 @@ const fetchAvailabilitySnapshot = async ({
           await Appointment.find({
             _id: { $in: queryableAppointmentIds },
             business: businessId,
-            status: { $in: ["held", "confirmed"] },
+            status: { $in: [...ACTIVE_STATUSES] },
           })
             .select("_id")
             .lean()

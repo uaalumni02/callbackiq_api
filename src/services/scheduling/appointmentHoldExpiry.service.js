@@ -5,6 +5,9 @@ export const createExpiredHoldReconciler = ({ Appointment, reconcileApprovalRequ
     const query = {
       status: "held",
       "confirmationIntent.status": { $ne: "pending_provider" },
+      pendingRescheduleExternalAppointmentId: { $in: [null, ''] },
+      'providerOperation.state': { $nin: ['pending', 'applied'] },
+      'rescheduleIntent.key': { $exists: false },
       heldExpiresAt: { $lte: new Date() },
       ...(businessId ? { business: businessId } : {}),
     };

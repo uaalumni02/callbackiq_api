@@ -93,6 +93,7 @@ const AppointmentSchema = new Schema(
       enum: [
         "held",
         "confirmed",
+        "cancel_pending",
         "canceled",
         "completed",
         "no_show",
@@ -208,6 +209,8 @@ const AppointmentSchema = new Schema(
     noShowAt: { type: Date, default: null },
 
     providerCompensation: { pending: Boolean, eventId: String, calendarId: String, provider: String, nextAttemptAt: Date, lastError: String, token: String, leaseUntil: Date },
+    cancellationIntent: { key: String, reason: String, notifyCustomer: Boolean, token: String, leaseUntil: Date, nextAttemptAt: Date, attempts: Number, lastError: String },
+    providerOperation: { kind: String, state: String, startedAt: Date },
     stateVersion: { type: Number, default: 0 },
     rescheduleIntent: { key: String, fingerprint: String, startedAt: Date, leaseToken: String, leaseUntil: Date },
     rescheduleInputFingerprint: String,

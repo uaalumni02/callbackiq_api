@@ -4,6 +4,7 @@ import { providerHandoff } from './providerHandoff.js';
 import { reserveReplacement, stageHandoff, confirmReplacement, reconcileOriginal } from './finalize.js';
 import { replacementSnapshot, recoverReschedule } from './recovery.js';
 import { followUp } from './followUp.js';
+import { saveStateDocument } from '../../stateTransitions/documents.js';
 
 async function executeReschedule(request, dependencies) {
   const { business, input } = request;
@@ -26,6 +27,8 @@ async function executeReschedule(request, dependencies) {
       ? { applied: true, receipt: { externalAppointmentId: replacement.pendingRescheduleExternalAppointmentId,
         externalCalendarId: replacement.pendingRescheduleExternalCalendarId } } : null;
     try {
+      replacement.providerOperation = { kind: 'reschedule', state: 'pending', startedAt: new Date() };
+      await saveStateDocument(replacement);
       providerStarted = true;
       handoff = await providerHandoff({ original, replacement, service }, { provider });
       await stageHandoff({ original, replacement, handoff });
