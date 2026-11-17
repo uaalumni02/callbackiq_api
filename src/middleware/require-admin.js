@@ -1,5 +1,6 @@
 import { safeConsole } from "../helpers/logging/safeLogger.js";
 import User from "../models/user.js";
+import { assertAdminSession } from '../services/security/adminSessionPolicy.js';
 
 const requireAdmin = async (req, res, next) => {
   try {
@@ -21,12 +22,11 @@ const requireAdmin = async (req, res, next) => {
       });
     }
 
-    if (req.user.mfaVerified !== true) return res.status(401).json({ success: false, code: 'ADMIN_MFA_REQUIRED', message: 'Sign in with administrator verification.' });
-    const age = Math.floor(Date.now() / 1000) - Number(req.user.authTime || 0);
-    if (!Number.isFinite(age) || age < 0 || age > (['GET', 'HEAD', 'OPTIONS'].includes(req.method) ? 28800 : 900)) return res.status(401).json({ success: false, code: 'ADMIN_REAUTH_REQUIRED', message: 'Sign in again before continuing this administrator action.' });
+    assertAdminSession(req.user, req.method);
     req.user.role = "admin";
     return next();
   } catch (error) {
+    if (error.statusCode === 401) return res.status(401).json({ success: false, code: error.code, message: error.message });
     safeConsole.error("Admin authorization check failed:", error);
     return res.status(500).json({
       success: false,

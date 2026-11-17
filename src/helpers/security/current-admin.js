@@ -1,12 +1,6 @@
 // CALLBACKIQ_PRODUCTION_HARDENING_V1
 import User from "../../models/user.js";
-
-const ADMIN_ROLES = new Set([
-  "admin",
-  "administrator",
-  "superadmin",
-  "super_admin",
-]);
+import { assertAdminSession } from '../../services/security/adminSessionPolicy.js';
 
 const normalizeRole = (role) => String(role || "").trim().toLowerCase();
 
@@ -19,7 +13,9 @@ export const getCurrentAuthorizationUser = async (req) => {
 
 export const isCurrentAdminRequest = async (req) => {
   const user = await getCurrentAuthorizationUser(req);
-  return Boolean(user && ADMIN_ROLES.has(normalizeRole(user.role)));
+  if (!user || normalizeRole(user.role) !== 'admin') return false;
+  assertAdminSession(req.user, req.method);
+  return true;
 };
 
 export default isCurrentAdminRequest;
