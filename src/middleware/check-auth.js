@@ -1,4 +1,5 @@
 import { validAdminSession } from '../services/security/adminSessionPolicy.js';
+import customerAccess from './customer-access.js';
 import Token from "../helpers/jwt/token.js";
 import User from "../models/user.js";
 import { databaseUnavailable, queryFailure } from "../services/scale/queryBudget.js";
@@ -64,7 +65,7 @@ const checkAuth = async (req, res, next) => {
       sessionVersion: currentSessionVersion,
     };
 
-    return next();
+    return customerAccess(req, res, next);
   } catch (error) {
     // An outage must not invalidate a valid browser session or masquerade as
     // an expired password-reset token. The API error handler returns 503.
