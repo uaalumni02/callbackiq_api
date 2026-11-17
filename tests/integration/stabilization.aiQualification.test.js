@@ -1,0 +1,30 @@
+import request from 'supertest';
+import app from '../../src/app.js';
+import Business from '../../src/models/business.js';
+import Lead from '../../src/models/lead.js';
+import Reservation from '../../src/models/communicationUsageReservation.js';
+import { qualifyLeadWithAI } from '../../src/helpers/ai/openaiClient.js';
+import { stabilizationFixture, deferred } from '../setup/stabilizationFixture.js';
+import { connectTestDB, clearTestDB, closeTestDB } from '../setup/testReplicaDb.js';
+jest.mock('../../src/helpers/ai/openaiClient.js', () => ({ qualifyLeadWithAI: jest.fn() }));
+beforeAll(connectTestDB); afterEach(async () => { jest.clearAllMocks(); await clearTestDB(); }); afterAll(closeTestDB);
+test('qualification journals and charges model work, rejects exhausted usage, and cannot overwrite a competing staff edit', async () => {
+  const f = await stabilizationFixture();
+  await Business.updateOne({ _id: f.business._id }, { $set: { communicationLimits: { aiBusinessHourly: 1, aiBusinessDaily: 1, aiCustomerHourly: 1, aiCustomerDaily: 1 } } });
+  const entered = deferred(), release = deferred();
+  qualifyLeadWithAI.mockImplementation(async () => {
+    const record = await Reservation.findOne({ business: f.business._id, metric: 'ai_operation' });
+    expect(record.state).toBe('pending'); expect(record.providerDispatchStartedAt).toBeTruthy();
+    entered.resolve(); await release.promise;
+    return { serviceNeeded: 'Sink repair', address: 'Stale model address', urgency: 'medium', leadQualityScore: 50, summary: 'Old analysis' };
+  });
+  const pending = request(app).post('/api/ai/qualify-lead').set('Authorization', `Bearer ${f.token}`).send({ leadId: String(f.lead._id), messageBody: 'The sink is leaking' }).then(value => value);
+  await entered.promise;
+  await Lead.updateOne({ _id: f.lead._id, business: f.business._id }, { $set: { status: 'booked', address: 'New staff address' } });
+  release.resolve(); const result = await pending;
+  expect(result.status).toBe(200); expect(result.body.data.staleResult).toBe(true);
+  expect(await Lead.findById(f.lead._id)).toMatchObject({ status: 'booked', address: 'New staff address' });
+  expect((await Reservation.findOne({ business: f.business._id })).state).toBe('committed');
+  const denied = await request(app).post('/api/ai/qualify-lead').set('Authorization', `Bearer ${f.token}`).send({ leadId: String(f.lead._id), messageBody: 'Please qualify again' });
+  expect(denied.status).toBe(429); expect(qualifyLeadWithAI).toHaveBeenCalledTimes(1);
+});

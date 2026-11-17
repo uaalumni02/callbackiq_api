@@ -1,4 +1,5 @@
 import { safeConsole } from "../helpers/logging/safeLogger.js";
+import { runAiUsageOperation } from '../services/aiUsageOperation.service.js';
 import { beginValuation, finishValuation } from "../services/valuation/opportunityValuation.service.js";
 import mongoose from "mongoose";
 
@@ -65,11 +66,12 @@ class AiController {
       const wasHotLead = isHotLead(lead);
 
       const valuationTicket = await beginValuation(lead, business._id);
-      const aiResult = await qualifyLeadWithAI({
+      const observedLead = valuationTicket || lead;
+      const aiResult = await runAiUsageOperation({ business, customerPhone: lead.phone, source: 'owner_qualification' }, () => qualifyLeadWithAI({
         messageBody,
         businessType: business.businessType,
         business,
-      });
+      }));
 
       if (["prompt_injection", "off_topic", "possible_spam"].includes(aiResult.messageCategory)) {
         return Response.responseOk(res, { lead, aiResult: { messageCategory: aiResult.messageCategory } }, "Message was not eligible for lead qualification");
@@ -89,7 +91,10 @@ class AiController {
         status: lead.status === "booked" ? "booked" : "contacted",
       };
 
-      let qualifiedLead = await Db.qualifyLeadForBusiness(Lead,leadId,business._id,updateData);
+      let qualifiedLead = await Db.qualifyLeadForBusiness(Lead,leadId,business._id,updateData,observedLead);
+      if (!qualifiedLead) return Response.responseOk(res, {
+        lead: await Db.getLeadForBusiness(Lead,leadId,business._id), staleResult: true,
+      }, 'A newer staff decision was preserved');
       qualifiedLead = await finishValuation(valuationTicket, { businessId: business._id, evidence: messageBody, proposedService: aiResult.serviceNeeded }) || qualifiedLead;
 
       SocketService.emitLeadUpdated(business._id, qualifiedLead);
@@ -117,6 +122,7 @@ class AiController {
         "Lead qualified successfully",
       );
     } catch (error) {
+      if ([429, 503].includes(error.statusCode)) return res.status(error.statusCode).json({ success: false, code: error.code, message: error.message });
       if (error.isJoi) {
         return Response.responseInvalidInput(res, error.message);
       }

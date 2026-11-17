@@ -13,7 +13,7 @@ import { runFollowUpAgent } from "../helpers/ai/followUpAgent.js";
 import { isBusinessFeatureEnabled } from "../helpers/businessFeatures.js";
 import * as Response from "../helpers/response/response.js";
 import { sendSms } from "../services/twilioSmsService.js";
-import { reserveAiUsage } from "../services/communicationUsage.service.js";
+import { runAiUsageOperation } from '../services/aiUsageOperation.service.js';
 import { logOperationalError } from "../helpers/logging/safeLogger.js";
 
 const sanitizeUrgency = (urgency) => {
@@ -86,24 +86,12 @@ class AgentController {
         Message,
         conversationId,
         business._id);
-      const aiUsage = await reserveAiUsage({
-        business,
-        customerPhone: conversation.customerPhone,
-      });
-      if (!aiUsage.allowed) {
-        return res.status(429).json({
-          success: false,
-          message:
-            "The AI reply allowance has been reached. The conversation was not changed.",
-          data: {
-            reason: aiUsage.reason,
-            scope: aiUsage.scope || null,
-            window: aiUsage.window || null,
-          },
-        });
-      }
+      let inboundMessage;
 
-      const inboundMessage = await Db.saveMessage(Message, {
+      const valuationTicket = await beginValuation(lead, business._id);
+      const observedLead = valuationTicket || lead;
+      const agentResult = await runAiUsageOperation({ business, customerPhone: conversation.customerPhone, source: 'owner_agent_reply', prepare: async () => {
+      inboundMessage = await Db.saveMessage(Message, {
         business: business._id,
         conversation: conversation._id,
         lead: lead?._id || null,
@@ -118,16 +106,14 @@ class AgentController {
         usageCategory: "agent_reply_input",
         metadata: { source: "agent_reply_endpoint" },
       }, business._id);
-
-      const valuationTicket = await beginValuation(lead, business._id);
-      const agentResult = await runFollowUpAgent({
+      } }, () => runFollowUpAgent({
         business,
         businessName: business.businessName,
         businessType: business.businessType,
         customerMessage,
         lead: lead || {},
         recentMessages,
-      });
+      }));
 
       const aiReply =
         agentResult.reply ||
@@ -150,7 +136,10 @@ class AgentController {
             summary: agentResult.summary || lead.summary || "",
           status: lead.status === "booked" ? "booked" : "contacted",
         };
-        updatedLead = await Db.qualifyLeadForBusiness(Lead,lead._id,business._id,updateData);
+        updatedLead = await Db.qualifyLeadForBusiness(Lead,lead._id,business._id,updateData,observedLead);
+        if (!updatedLead) return Response.responseOk(res, {
+          lead: await Db.getLeadForBusiness(Lead,lead._id,business._id), staleResult: true,
+        }, 'A newer staff decision was preserved; no reply was sent');
         updatedLead = await finishValuation(valuationTicket, { businessId: business._id, evidence: [...recentMessages.filter(message => message.direction === "inbound").map(message => message.body), customerMessage].join("\n"), proposedService: agentResult.serviceNeeded }) || updatedLead;
       }
 
@@ -257,6 +246,7 @@ class AgentController {
         "Agent reply processed successfully",
       );
     } catch (error) {
+      if ([429, 503].includes(error.statusCode)) return res.status(error.statusCode).json({ success: false, code: error.code, message: error.message });
       if (error.isJoi) {
         return Response.responseInvalidInput(res, error.message);
       }

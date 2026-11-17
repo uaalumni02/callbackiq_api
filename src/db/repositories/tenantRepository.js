@@ -122,6 +122,16 @@ function writes(scope) {
       await checkedReferences(model, business, changes.$set);
       return queryOptions(updateTenantRecord({ changes, filter, model }), scope, options);
     },
+    async updateObserved(id, update, observed, options) {
+      if (!observed?.updatedAt || !Number.isFinite(+new Date(observed.updatedAt)) || typeof observed.status !== 'string') {
+        throw failure('INVALID_TENANT_UPDATE', 'An observed version and status are required.');
+      }
+      const filter = { ...scope.identity(id), updatedAt: observed.updatedAt, status: observed.status,
+        ...(Number.isInteger(observed.stateVersion) ? { stateVersion: observed.stateVersion } : {}) };
+      const changes = checkedUpdate(update);
+      await checkedReferences(model, business, changes.$set);
+      return queryOptions(updateTenantRecord({ changes, filter, model }), scope, options);
+    },
     async updateMany(criteria, update) {
       const changes = checkedUpdate(update);
       await checkedReferences(model, business, changes.$set);

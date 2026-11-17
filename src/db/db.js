@@ -233,8 +233,10 @@ class Db {
   static async deleteConversationForBusiness(model,id,businessId) {
     return tenantRepository(model,tenantContext(businessId)).remove(id);
   }
-  static async qualifyLeadForBusiness(model,id,businessId,data) {
-    return tenantRepository(model,tenantContext(businessId)).update(id,data,{populate:[
+  static async qualifyLeadForBusiness(model,id,businessId,data,observed) {
+    const changes = { ...data };
+    if (['booked', 'lost', 'spam'].includes(observed?.status)) changes.status = observed.status;
+    return tenantRepository(model,tenantContext(businessId)).updateObserved(id,changes,observed,{populate:[
       {path:'business',select:'businessName businessType phone estimatedJobValue'},
     ]});
   }
