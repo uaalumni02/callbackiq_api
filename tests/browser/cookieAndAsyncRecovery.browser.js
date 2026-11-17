@@ -120,6 +120,9 @@ test('administrator enrolls through the SPA, saves recovery codes, and failed lo
  await page.route('**/api/auth/logout',route=>route.abort());await page.getByRole('button',{name:'Logout',exact:true}).click();
  await page.getByText('Sign out could not be verified. Reconnect and try again.').waitFor();expect(new URL(page.url()).pathname).toBe('/admin-dashboard');expect((await context.cookies()).some(c=>c.name==='token')).toBe(true);
  expect(await page.getByRole('button',{name:'Logout',exact:true}).count()).toBe(0);
- await page.unroute('**/api/auth/logout');await page.getByRole('button',{name:'Retry sign out',exact:true}).click();await page.waitForURL(base+'/');
+ // Recovery invokes logout from ProtectedRoute, which redirects a signed-out
+ // visitor to login while preserving the protected destination.
+ await page.unroute('**/api/auth/logout');await page.getByRole('button',{name:'Retry sign out',exact:true}).click();await page.waitForURL(base+'/login?returnTo=%2Fadmin-dashboard');
+ expect((await context.cookies()).some(c=>c.name==='token')).toBe(false);
  expect((await context.request.get(`${base}/api/auth/me`)).status()).toBe(401);
 },60000);
