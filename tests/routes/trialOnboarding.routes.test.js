@@ -108,4 +108,28 @@ describe("Trial onboarding registration", () => {
     expect(duplicateUpdate.body.success).toBe(false);
   });
 
+  test("allows pre-trial messaging setup while blocking product changes, missing subscriptions and suspension", async () => {
+    const signup = await request(app).post("/api/auth/register").send(minimalSignup);
+    expect(signup.status).toBe(201);
+    const { token, business } = signup.body.data;
+    const headers = { Authorization: `Bearer ${token}` };
+    const path = "/api/businesses/mine/a2p-registration";
+    const registration = await request(app).get(path).set(headers);
+    expect(registration.status).toBe(200);
+    expect(registration.body.data.canActivateTrial).toBe(false);
+    // The empty submission exercises the actual route and fails validation before provider I/O.
+    expect((await request(app).post(path).set(headers).send({})).status).toBe(400);
+    expect((await request(app).get("/api/leads").set(headers)).status).toBe(403);
+    const patch = (data) => request(app).patch("/api/businesses/mine").set(headers).send(data);
+    expect((await patch({ businessType: "plumbing", features: { aiQualificationEnabled: false } })).status).toBe(403);
+    await Subscription.updateOne({ business: business._id }, { $set: { trialUsedAt: new Date(), trialCount: 1 } });
+    expect((await patch({ businessType: "plumbing" })).status).toBe(403);
+    await Subscription.updateOne({ business: business._id }, { $set: { trialUsedAt: null, trialCount: 0 } });
+    await Business.updateOne({ _id: business._id }, { $set: { isActive: false } });
+    expect((await patch({ businessType: "plumbing" })).status).toBe(403);
+    expect((await request(app).get(path).set(headers)).status).toBe(403);
+    await Business.updateOne({ _id: business._id }, { $set: { isActive: true } });
+    await Subscription.deleteOne({ business: business._id });
+    expect((await patch({ businessType: "plumbing" })).status).toBe(403);
+  });
 });

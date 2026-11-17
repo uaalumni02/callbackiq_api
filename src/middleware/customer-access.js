@@ -14,12 +14,30 @@ export const CUSTOMER_ACCESS_EXEMPTIONS = Object.freeze([
   { path: /^\/api\/businesses\/mine\/readiness\/?$/, methods: ['GET'], activeBusiness: true },
   { path: /^\/api\/businesses\/mine\/setup-progress\/?$/, methods: ['PATCH'], activeBusiness: true },
 ]);
-const subscriptionAccess = requireSubscriptionAccess();
+const setupFields = new Set(['businessName', 'businessType', 'forwardingPhone', 'timezone', 'smsTemplate']);
+function isTrialSetupRequest(req, path) {
+  if (req.method === 'PATCH' && /^\/api\/businesses\/mine\/?$/.test(path)) {
+    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) return false;
+    const fields = Object.keys(req.body);
+    return fields.length > 0 && fields.every(field => setupFields.has(field));
+  }
+  if (req.method === 'GET') return /^\/api\/businesses\/mine\/a2p-registration\/?$/.test(path);
+  return req.method === 'POST' && /^\/api\/businesses\/mine\/a2p-registration(?:\/(?:sync|retry-otp))?\/?$/.test(path);
+}
+
+const subscriptionAccess = requireSubscriptionAccess(undefined, {
+  // A seeded subscription identifies onboarding. Missing records and used trials stay blocked.
+  allowSetup: (req, subscription) => subscription?.status === 'none' &&
+    subscription.lastPaymentStatus === 'trial_not_activated' && !subscription.trialUsedAt &&
+    subscription.trialCount === 0 && !subscription.stripeSubscriptionId &&
+    isTrialSetupRequest(req, requestPath(req)),
+});
 const checked = Symbol('customerAccessChecked');
+const requestPath = req => String(req.originalUrl || req.path || '').split('?')[0];
 
 export default async function customerAccess(req, res, next) {
   if (req[checked] || req.user?.role === 'admin') return next();
-  const path = String(req.originalUrl || req.path || '').split('?')[0];
+  const path = requestPath(req);
   const exemption = CUSTOMER_ACCESS_EXEMPTIONS.find(entry => entry.path.test(path) &&
     (!entry.methods || entry.methods.includes(req.method)));
   if (exemption) return exemption.activeBusiness ? checkActiveBusiness(req, res, next) : next();

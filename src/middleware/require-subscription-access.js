@@ -45,7 +45,7 @@ const getDeniedMessage = ({ minimumLevel, subscription }) => {
 };
 
 const requireSubscriptionAccess =
-  (minimumLevel = ACCESS_LEVELS.FULL) =>
+  (minimumLevel = ACCESS_LEVELS.FULL, { allowSetup } = {}) =>
   async (req, res, next) => {
     try {
       const business = await getBusiness(req);
@@ -74,7 +74,7 @@ const requireSubscriptionAccess =
             ? access.level !== ACCESS_LEVELS.BLOCKED
             : access.level === ACCESS_LEVELS.FULL;
 
-      if (!allowed) {
+      if (!allowed && allowSetup?.(req, subscription) !== true) {
         return res.status(403).json({
           success: false,
           message: getDeniedMessage({
