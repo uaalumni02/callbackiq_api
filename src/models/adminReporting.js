@@ -1,3 +1,4 @@
+import '../helpers/model/tenantContext.js';
 import mongoose from "mongoose";
 const { Schema } = mongoose;
 const model = (name, definition, indexes = []) => {

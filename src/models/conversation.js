@@ -1,3 +1,4 @@
+import '../helpers/model/tenantContext.js';
 import { installDocumentFence } from '../services/stateTransitions/documentFence.js';
 import { guardTenantReferences } from '../helpers/model/tenantReferences.js';
 // CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1: conversation-model

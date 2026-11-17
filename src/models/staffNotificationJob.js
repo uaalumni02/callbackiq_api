@@ -1,3 +1,4 @@
+import '../helpers/model/tenantContext.js';
 import mongoose from "mongoose";
 const schema = new mongoose.Schema({
   business: { type: mongoose.Schema.Types.ObjectId, ref: "Business", required: true },

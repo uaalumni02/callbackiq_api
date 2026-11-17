@@ -2,8 +2,12 @@ import VoiceUsageService from "../services/voiceUsage.service.js";
 import TwilioSignatureRotationService from "../services/twilioSignatureRotation.service.js";
 import VoiceMetricsService from "../voice/voiceMetrics.service.js";
 
-const businessIdFrom = (req) =>
-  req.business?._id || req.user?.business || req.user?.businessId;
+const businessIdFrom = (req) => {
+  if (!req.business?._id) throw Object.assign(new Error('Business context is required.'), {
+    code: 'TENANT_CONTEXT_REQUIRED', statusCode: 403,
+  });
+  return req.business._id;
+};
 
 export const getUsage = async (req, res, next) => {
   try {

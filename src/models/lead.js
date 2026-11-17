@@ -1,3 +1,4 @@
+import '../helpers/model/tenantContext.js';
 import { installDocumentFence } from '../services/stateTransitions/documentFence.js';
 import { normalizePhoneToE164 } from "../voice/voicePhone.service.js";
 import mongoose from "mongoose";

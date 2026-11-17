@@ -1,3 +1,4 @@
+import '../helpers/model/tenantContext.js';
 import { guardTenantReferences } from '../helpers/model/tenantReferences.js';
 import mongoose from "mongoose";
 const { Schema } = mongoose;

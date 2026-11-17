@@ -1,3 +1,4 @@
+import '../helpers/model/tenantContext.js';
 import mongoose from 'mongoose';
 import { OPPORTUNITY_TYPES, STATUSES } from '../services/revenueRescuePolicy.js';
 const { Schema } = mongoose;

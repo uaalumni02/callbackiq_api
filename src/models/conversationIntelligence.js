@@ -1,3 +1,4 @@
+import '../helpers/model/tenantContext.js';
 import { VALID_INTENT_CATEGORIES, VALID_SENTIMENT_LABELS, VALID_URGENCY_LEVELS, STORED_ACTION_TYPES, VALID_ACTION_PRIORITIES, VALID_OBJECTION_CATEGORIES, VALID_RISK_TYPES, VALID_RISK_SEVERITIES, ANALYSIS_TEXT_LIMITS } from "../services/conversationIntelligence.contract.js";
 import mongoose from "mongoose";
 

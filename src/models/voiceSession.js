@@ -1,3 +1,4 @@
+import '../helpers/model/tenantContext.js';
 import mongoose from "mongoose";
 import { customerLifecycleField } from "../helpers/customerLifecycle.js";
 
