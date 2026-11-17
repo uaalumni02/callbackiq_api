@@ -1,3 +1,4 @@
+import { customerAccessForUser } from '../setup/stabilizationFixture.js';
 import jwt from "jsonwebtoken";
 import request from "supertest";
 import nodemailer from "nodemailer";
@@ -91,6 +92,8 @@ const registerOwner = async () => {
     termsAccepted: true,
     privacyAccepted: true,
   });
+
+  await customerAccessForUser(user);
 
   return {
     token: createTokenForUser(user),

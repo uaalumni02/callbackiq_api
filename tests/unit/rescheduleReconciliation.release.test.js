@@ -223,7 +223,7 @@ describe("release invariant: reschedule retries converge without duplicate provi
     expect(original.slotClaimKeys).toEqual([]);
     expect(original.externalAppointmentId).toBeNull();
 
-    expect(replacement.save).toHaveBeenCalledTimes(1);
+    expect(replacement.save).toHaveBeenCalledTimes(2);
     expect(original.save).toHaveBeenCalledTimes(1);
     expect(InterventionService.create).not.toHaveBeenCalled();
   });

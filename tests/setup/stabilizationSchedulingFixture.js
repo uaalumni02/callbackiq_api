@@ -22,7 +22,7 @@ export async function stabilizationSchedulingFixture() {
     getAppointmentForBusiness: (businessId, id) => Appointment.findOne({ _id: id, business: businessId }),
     getBookableService: async () => service, exactSlotAvailable: async () => true,
     createHold: ({ input, idempotencyKey }) => Appointment.create({ ...input, business: business._id, serviceOffering: service._id,
-      status: 'held', idempotencyKey, heldExpiresAt: new Date(Date.now() + 300000), activeSlotKey: 'replacement', slotClaimKeys: ['replacement'], capacityLane: 1 }),
+      status: 'held', idempotencyKey, heldExpiresAt: input.heldExpiresAt || new Date(Date.now() + 300000), activeSlotKey: 'replacement', slotClaimKeys: ['replacement'], capacityLane: 1 }),
     SchedulingProviderFactory: { getProvider: () => provider }, InterventionService: { create: jest.fn(), integrationFailure: jest.fn() },
     SocketService: { emitToBusiness: jest.fn(), emitDashboardRefresh: jest.fn() },
     runNonBlockingAppointmentSideEffect: ({ task }) => task(), tryRepairAppointmentLifecycle: noop, ensureCancellationSideEffects: noop, resolveApprovalReview: noop };

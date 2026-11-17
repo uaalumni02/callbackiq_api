@@ -34,6 +34,21 @@ const isHotLead = (lead) => {
   );
 };
 
+const qualificationProposal = (aiResult, lead) => ({
+        aiExtraction: { source: "owner_qualification", observedAt: new Date(), verified: false },
+        serviceNeeded:
+          aiResult.serviceNeeded || lead.serviceNeeded || "Unknown service",
+        urgency: sanitizeUrgency(aiResult.urgency),
+        address: aiResult.address || lead.address || "",
+        preferredAppointmentTime:
+          aiResult.preferredAppointmentTime ||
+          lead.preferredAppointmentTime ||
+          "",
+        leadQualityScore: sanitizeScore(aiResult.leadQualityScore),
+        summary: aiResult.summary || lead.summary || "",
+        status: lead.status === "booked" ? "booked" : "contacted",
+});
+
 class AiController {
   static async qualifyLead(req, res) {
     try {
@@ -76,20 +91,7 @@ class AiController {
       if (["prompt_injection", "off_topic", "possible_spam"].includes(aiResult.messageCategory)) {
         return Response.responseOk(res, { lead, aiResult: { messageCategory: aiResult.messageCategory } }, "Message was not eligible for lead qualification");
       }
-      const updateData = {
-        aiExtraction: { source: "owner_qualification", observedAt: new Date(), verified: false },
-        serviceNeeded:
-          aiResult.serviceNeeded || lead.serviceNeeded || "Unknown service",
-        urgency: sanitizeUrgency(aiResult.urgency),
-        address: aiResult.address || lead.address || "",
-        preferredAppointmentTime:
-          aiResult.preferredAppointmentTime ||
-          lead.preferredAppointmentTime ||
-          "",
-        leadQualityScore: sanitizeScore(aiResult.leadQualityScore),
-        summary: aiResult.summary || lead.summary || "",
-        status: lead.status === "booked" ? "booked" : "contacted",
-      };
+      const updateData = qualificationProposal(aiResult, lead);
 
       let qualifiedLead = await Db.qualifyLeadForBusiness(Lead,leadId,business._id,updateData,observedLead);
       if (!qualifiedLead) return Response.responseOk(res, {

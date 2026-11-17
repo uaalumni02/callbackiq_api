@@ -1,3 +1,4 @@
+import { activateCustomerAccess } from '../setup/stabilizationFixture.js';
 import request from "supertest";
 
 import app from "../../src/app.js";
@@ -32,6 +33,7 @@ const registerOwner = async () => {
     privacyAccepted: true,
   });
 
+  await activateCustomerAccess(response.body.data.business._id);
   return response.body.data.token;
 };
 

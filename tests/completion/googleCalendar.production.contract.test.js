@@ -54,9 +54,9 @@ describe("Google Calendar production contract", () => {
     const appointmentService = read(
       "src/services/scheduling/appointment.service.js",
     );
-    expect(appointmentService).toContain("__meekcallGetAppointmentconfirm1Methods().confirm.apply(this, args)");
-    expect(appointmentService).toContain("__meekcallGetAppointmentcancel1Methods().cancel.apply(this, args)");
-    expect(appointmentService).toContain("getRescheduleCommand().reschedule.apply(this, args)");
+    expect(appointmentService).toContain("commands.confirmation.confirm.apply(this, args)");
+    expect(appointmentService).toContain("commands.cancellation.cancel.apply(this, args)");
+    expect(appointmentService).toContain("commands.reschedule.reschedule.apply(this, args)");
     expect(require("node:fs").readFileSync(require("node:path").resolve(process.cwd(), "src/services/scheduling/commands/confirm-1.js"), "utf8")).toContain("SchedulingProviderFactory.getProvider(business)");
     expect(require("node:fs").readFileSync(require("node:path").resolve(process.cwd(), "src/services/scheduling/commands/cancel-1.js"), "utf8")).toContain("InterventionService.integrationFailure");
     expect(require("node:fs").readFileSync(require("node:path").resolve(process.cwd(), "src/services/scheduling/reschedule/recovery.js"), "utf8")).toContain("InterventionService.integrationFailure");

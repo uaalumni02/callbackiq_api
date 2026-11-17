@@ -79,13 +79,15 @@ describe("generateInternalSlots", () => {
     expect(getSchedulingPolicy).toHaveBeenCalledWith("b1");
     expect(Appointment.find).toHaveBeenCalledWith({
       business: "b1",
-      status: { $in: ["held", "confirmed"] },
+      status: { $in: ["held", "confirmed", "cancel_pending"] },
       startAt: { $lt: new Date("2026-07-29T00:00:00.000Z") },
       endAt: { $gt: new Date("2026-07-26T00:00:00.000Z") },
       $or: [
-        { status: "confirmed" },
+        { status: { $in: ['confirmed', 'cancel_pending'] } },
         { status: "held", heldExpiresAt: { $gt: now } },
         { status: "held", "confirmationIntent.status": "pending_provider" },
+        { status: 'held', pendingRescheduleExternalAppointmentId: { $exists: true, $nin: [null, ''] } },
+        { status: 'held', 'providerOperation.state': { $in: ['pending', 'applied'] } },
       ],
       _id: { $ne: "a-old" },
     });

@@ -60,7 +60,7 @@ export const activeAppointmentFilter = (now = new Date()) => ({
     { status: { $in: ['confirmed', 'cancel_pending'] } },
     { status: 'held', heldExpiresAt: { $gt: now } },
     { status: 'held', 'confirmationIntent.status': 'pending_provider' },
-    { status: 'held', pendingRescheduleExternalAppointmentId: { $nin: [null, ''] } },
+    { status: 'held', pendingRescheduleExternalAppointmentId: { $exists: true, $nin: [null, ''] } },
     { status: 'held', 'providerOperation.state': { $in: ['pending', 'applied'] } },
   ],
 });

@@ -1,3 +1,4 @@
+import { activateCustomerAccess } from '../setup/stabilizationFixture.js';
 import request from "supertest";
 import ScaleCache from "../../src/services/scaleCache.service.js";
 
@@ -45,6 +46,8 @@ const registerAndCreateBusiness = async ({
     termsAccepted: true,
     privacyAccepted: true,
   });
+
+  await activateCustomerAccess(registerRes.body.data.business._id);
 
   return {
     token: registerRes.body.data.token,

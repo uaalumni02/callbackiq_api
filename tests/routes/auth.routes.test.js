@@ -168,7 +168,7 @@ describe("Auth Routes", () => {
 
     const res = await request(app).post("/api/auth/login").send({
       login: "demoowner",
-      password: "WrongPassword",
+      password: "WrongFixturePassword",
     });
 
     expect(res.status).toBe(401);
@@ -186,7 +186,7 @@ describe("Auth Routes", () => {
   test("POST /api/auth/login returns the same generic response for an unknown account", async () => {
     const res = await request(app).post("/api/auth/login").send({
       login: "missing-user@callbackiq.com",
-      password: "WrongPassword",
+      password: "WrongFixturePassword",
     });
 
     expect(res.status).toBe(401);
@@ -208,7 +208,7 @@ describe("Auth Routes", () => {
         .post("/api/auth/login")
         .send({
           login: validRegisterPayload.email,
-          password: `WrongPassword${attempt}`,
+          password: `WrongFixturePassword${attempt}`,
         });
 
       expect(res.status).toBe(401);
@@ -236,7 +236,7 @@ describe("Auth Routes", () => {
         .post("/api/auth/login")
         .send({
           login: validRegisterPayload.email,
-          password: `WrongPassword${attempt}`,
+          password: `WrongFixturePassword${attempt}`,
         });
 
       expect(res.status).toBe(401);
@@ -308,7 +308,7 @@ describe("Auth Routes", () => {
         .post("/api/auth/login")
         .send({
           login: validRegisterPayload.email,
-          password: `WrongPassword${attempt}`,
+          password: `WrongFixturePassword${attempt}`,
         });
 
       expect(failedRes.status).toBe(401);
@@ -634,7 +634,7 @@ describe("Auth Routes", () => {
         .post("/api/auth/login")
         .send({
           login: "rate-limit-test@callbackiq.com",
-          password: `WrongPassword${attempt}`,
+          password: `WrongFixturePassword${attempt}`,
         });
 
       if (res.status === 429) {

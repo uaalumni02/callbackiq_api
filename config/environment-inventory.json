@@ -75,7 +75,7 @@
     "src/voice/voiceRouting.service.js:141"
   ],
   "APPOINTMENT_MAINTENANCE_INTERVAL_MS": [
-    "src/workers/appointmentMaintenance.worker.js:11"
+    "src/workers/appointmentMaintenance.worker.js:12"
   ],
   "APPOINTMENT_NOTIFICATION_BATCH_SIZE": [
     "src/workers/automation.worker.js:137"
@@ -439,9 +439,7 @@
     "src/middleware/auth-public-rate-limits.js:10",
     "src/middleware/csrf-origin-guard.js:15",
     "src/middleware/security-headers.js:1",
-    "src/middleware/validate-twilio-signature.js:7",
-    "src/middleware/validate-twilio-signature.js:8",
-    "src/middleware/validate-twilio-signature.js:42",
+    "src/middleware/validate-twilio-signature.js:4",
     "src/services/communicationUsage.service.js:367",
     "src/services/communicationUsageReservation.service.js:153",
     "src/services/communicationUsageReservation.service.js:439",
@@ -1007,7 +1005,7 @@
   "TWILIO_AUTH_TOKEN": [
     "src/controllers/messageMedia.js:36",
     "src/controllers/voiceSettings/Readiness.js:31",
-    "src/middleware/validate-twilio-signature.js:36",
+    "src/middleware/validate-twilio-signature.js:26",
     "src/services/admin/companyExpenses.service.js:142",
     "src/services/admin/providerBalances.service.js:85",
     "src/services/trackingNumberProvisioning.service.js:41",
@@ -1020,12 +1018,12 @@
     "src/voice/voiceRouting.service.js:127"
   ],
   "TWILIO_AUTH_TOKEN_NEXT": [
-    "src/middleware/validate-twilio-signature.js:37",
+    "src/middleware/validate-twilio-signature.js:27",
     "src/services/twilioSignatureRotation.service.js:6",
     "src/services/twilioSignatureRotation.service.js:26"
   ],
   "TWILIO_AUTH_TOKEN_PREVIOUS": [
-    "src/middleware/validate-twilio-signature.js:38",
+    "src/middleware/validate-twilio-signature.js:28",
     "src/services/twilioSignatureRotation.service.js:7",
     "src/services/twilioSignatureRotation.service.js:27"
   ],
@@ -1073,9 +1071,6 @@
     "src/services/demoBrowserCall.service.js:73",
     "src/services/ownerBrowserCall.service.js:53"
   ],
-  "TWILIO_VALIDATE_WEBHOOKS": [
-    "src/middleware/validate-twilio-signature.js:10"
-  ],
   "TWILIO_VERIFY_SERVICE_SID": [
     "src/services/trialIdentityVerification.service.js:35"
   ],
@@ -1086,7 +1081,7 @@
     "src/middleware/twilio-webhook-rate-limit.js:184"
   ],
   "TWILIO_WEBHOOK_BASE_URL": [
-    "src/middleware/validate-twilio-signature.js:20",
+    "src/middleware/validate-twilio-signature.js:10",
     "src/services/a2pCustomerOnboarding.service.js:51",
     "src/services/demoBrowserCall.service.js:89",
     "src/services/marketingSource.service.js:40",

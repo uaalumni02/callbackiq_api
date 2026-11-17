@@ -75,33 +75,6 @@
       ]
     },
     {
-      "file": "src/db/db.js",
-      "baselineAstSha256": "1c081e8a5404aae8439a81e9c24bfacd6daf15ba9d928ccb44997e822163b580",
-      "commands": [
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(business, session ? { session } : undefined)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "business.save(session ? { session } : undefined)",
-          "legacyId": "src/db/db.js#saveBusiness#save#1"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(log)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "log.save()",
-          "legacyId": "src/db/db.js#createAdminActionLog#save#1"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(demoRequest)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "demoRequest.save()",
-          "legacyId": "src/db/db.js#saveDemoRequest#save#1"
-        }
-      ]
-    },
-    {
       "file": "src/db/repositories/extracted/business-1.js",
       "baselineAstSha256": "8e65650ac1089b4e68b27ad9cd59afd0cd0b07b48e8d1e940f3d62acca7c6891",
       "commands": [
@@ -223,19 +196,6 @@
           "target": "src/services/stateTransitions/documents.js",
           "expression": "conversation.save()",
           "legacyId": "src/helpers/ai/tools/sendConfirmationSms.tool.js#sendConfirmationSmsTool#save#1"
-        }
-      ]
-    },
-    {
-      "file": "src/integrations/scheduling/googleCalendar.provider.js",
-      "baselineAstSha256": "1c72be6eb63e3f0bb309dd47442d62245d0d3e58cc4d227374c97f37d87ce1fa",
-      "commands": [
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(connection)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "connection.save()",
-          "legacyId": "src/integrations/scheduling/googleCalendar.provider.js#testConnection#save#1"
         }
       ]
     },
@@ -1325,19 +1285,6 @@
       ]
     },
     {
-      "file": "src/services/scheduling/appointmentHoldExpiry.service.js",
-      "baselineAstSha256": "6872b3273e65ed9f1d3ed50aa519929be7b0148d72df7117b7f38ba4873efcf3",
-      "commands": [
-        {
-          "name": "expireUnclaimedHolds",
-          "call": "expireUnclaimedHolds({ Appointment, query })",
-          "target": "src/services/stateTransitions/appointmentLifecycle.js",
-          "expression": "Appointment.updateMany(query, {\n      $set: {\n        status: \"failed\",\n        activeSlotKey: null,\n        slotClaimKeys: [],\n        capacityLane: null,\n        failureReason: \"Appointment hold expired before confirmation.\",\n        \"approvalRecovery.reconciled\": false,\n        \"approvalRecovery.expiredAt\": new Date(),\n      },\n    })",
-          "legacyId": "src/services/scheduling/appointmentHoldExpiry.service.js#<callback>#updateMany#1"
-        }
-      ]
-    },
-    {
       "file": "src/services/scheduling/appointmentLifecycle.service.js",
       "baselineAstSha256": "910479824d61aa8b433fec1c7fb95c0e093117bc90b2a77b89cb971f491e49ef",
       "commands": [
@@ -1565,74 +1512,6 @@
           "target": "src/services/stateTransitions/appointmentLifecycle.js",
           "expression": "Alert.updateOne({ _id: alert._id, [`${path}.token`]: token }, { $set: { [path]: {\n        state: error.deliveryUncertain ? 'uncertain' : 'failed', at: now, reason: String(error.code || error.message).slice(0, 200),\n      } } })",
           "legacyId": "src/services/scheduling/approvalSms.service.js#runApprovalSms#updateOne#3"
-        }
-      ]
-    },
-    {
-      "file": "src/services/scheduling/commands/confirm-1.js",
-      "baselineAstSha256": "6d3add01e6659656af1a101b777c02e7f8fa5462cd428336ce806ae8e1425f0f",
-      "commands": [
-        {
-          "name": "stageUnavailableApproval",
-          "call": "stageUnavailableApproval({ appointment })",
-          "target": "src/services/stateTransitions/appointmentCommands.js",
-          "expression": "appointment.status = \"failed\"",
-          "legacyId": "src/services/scheduling/commands/confirm-1.js#confirm#assignment#1"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(appointment)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "appointment.save()",
-          "legacyId": "src/services/scheduling/commands/confirm-1.js#confirm#save#1"
-        },
-        {
-          "name": "stageFailedConfirmation",
-          "call": "stageFailedConfirmation({ appointment })",
-          "target": "src/services/stateTransitions/appointmentCommands.js",
-          "expression": "appointment.status = \"failed\"",
-          "legacyId": "src/services/scheduling/commands/confirm-1.js#confirm#assignment#2"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(appointment)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "appointment.save()",
-          "legacyId": "src/services/scheduling/commands/confirm-1.js#confirm#save#2"
-        }
-      ]
-    },
-    {
-      "file": "src/services/scheduling/commands/confirmWithoutRecovery.js",
-      "baselineAstSha256": "e58b66102b4abb359e7838bec9e2d25784492b18a8fbefdb96e51a6c8dd68747",
-      "commands": [
-        {
-          "name": "stageProviderConfirmedAppointment",
-          "call": "stageProviderConfirmedAppointment({ appointment })",
-          "target": "src/services/stateTransitions/appointmentCommands.js",
-          "expression": "appointment.status = \"confirmed\"",
-          "legacyId": "src/services/scheduling/commands/confirmWithoutRecovery.js#confirmWithoutRecovery#assignment#1"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(appointment)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "appointment.save()",
-          "legacyId": "src/services/scheduling/commands/confirmWithoutRecovery.js#confirmWithoutRecovery#save#1"
-        },
-        {
-          "name": "stageProviderFailure",
-          "call": "stageProviderFailure({ appointment })",
-          "target": "src/services/stateTransitions/appointmentCommands.js",
-          "expression": "appointment.status = \"failed\"",
-          "legacyId": "src/services/scheduling/commands/confirmWithoutRecovery.js#confirmWithoutRecovery#assignment#2"
-        },
-        {
-          "name": "saveStateDocument",
-          "call": "saveStateDocument(appointment)",
-          "target": "src/services/stateTransitions/documents.js",
-          "expression": "appointment.save()",
-          "legacyId": "src/services/scheduling/commands/confirmWithoutRecovery.js#confirmWithoutRecovery#save#2"
         }
       ]
     },
@@ -2209,67 +2088,6 @@
           "legacyId": "src/workers/integrationWebhook.worker.js#processIntegrationWebhookEvent#save#1"
         }
       ]
-    },
-    {
-      "file": "src/db/repositories/privileged/adminRepository.js",
-      "baselineAstSha256": "7833ea9dd9dbd819f376b521478407b7b9835c8c8653c5305ae975a19a356771",
-      "commands": [
-        {
-          "name": "updatePrivilegedRecord",
-          "call": "updatePrivilegedRecord({ input })",
-          "target": "src/services/stateTransitions/tenantRecords.js",
-          "expression": "input.model.findByIdAndUpdate(input.id, input.update, {\n    returnDocument: 'after',\n    runValidators: true\n  })",
-          "legacyId": "src/db/repositories/privileged/adminRepository.js#adminUpdateById#findByIdAndUpdate#1"
-        },
-        {
-          "name": "deletePrivilegedRecord",
-          "call": "deletePrivilegedRecord({ input })",
-          "target": "src/services/stateTransitions/tenantRecords.js",
-          "expression": "input.model.findByIdAndDelete(input.id)",
-          "legacyId": "src/db/repositories/privileged/adminRepository.js#adminDeleteById#findByIdAndDelete#1"
-        }
-      ]
-    },
-    {
-      "file": "src/db/repositories/tenantRepository.js",
-      "baselineAstSha256": "6862216c95e88ff89b5eca12a3cd370c8ca8a44bbf92c67101f68837b40014f5",
-      "commands": [
-        {
-          "name": "createTenantRecord",
-          "call": "createTenantRecord({ business, data, model })",
-          "target": "src/services/stateTransitions/tenantRecords.js",
-          "expression": "model.create({\n        ...data,\n        business\n      })",
-          "legacyId": "src/db/repositories/tenantRepository.js#create#create#1"
-        },
-        {
-          "name": "updateTenantRecord",
-          "call": "updateTenantRecord({ changes, filter, model })",
-          "target": "src/services/stateTransitions/tenantRecords.js",
-          "expression": "model.findOneAndUpdate(filter, changes, {\n        returnDocument: 'after',\n        runValidators: true\n      })",
-          "legacyId": "src/db/repositories/tenantRepository.js#update#findOneAndUpdate#1"
-        },
-        {
-          "name": "updateTenantRecords",
-          "call": "updateTenantRecords({ changes, criteria, model, scope })",
-          "target": "src/services/stateTransitions/tenantRecords.js",
-          "expression": "model.updateMany(scope.conditions(criteria), changes, {\n        runValidators: true\n      })",
-          "legacyId": "src/db/repositories/tenantRepository.js#updateMany#updateMany#1"
-        },
-        {
-          "name": "deleteTenantRecord",
-          "call": "deleteTenantRecord({ id, model, scope })",
-          "target": "src/services/stateTransitions/tenantRecords.js",
-          "expression": "model.findOneAndDelete(scope.identity(id))",
-          "legacyId": "src/db/repositories/tenantRepository.js#remove#findOneAndDelete#1"
-        },
-        {
-          "name": "deleteTenantConversationRecords",
-          "call": "deleteTenantConversationRecords({ business, field, id, model })",
-          "target": "src/services/stateTransitions/tenantRecords.js",
-          "expression": "model.deleteMany({\n        business,\n        [field]: id\n      })",
-          "legacyId": "src/db/repositories/tenantRepository.js#removeManyByReference#deleteMany#1"
-        }
-      ]
     }
   ],
   "behaviorCorrections": [
@@ -2426,6 +2244,69 @@
       "tests": [
         "tests/integration/documentFence.security.test.js",
         "tests/unit/recoveredBoundaryRegressions.test.js"
+      ]
+    },
+    {
+      "file": "src/db/db.js",
+      "reason": "Stabilization replaces relocation-only parity with shared domain policy, durable operation ownership and behavioral regression evidence. Unchanged relocation pins remain enforced.",
+      "tests": [
+        "tests/integration/stabilization.aiQualification.test.js",
+        "tests/integration/tenantRepository.rootCause.test.js"
+      ]
+    },
+    {
+      "file": "src/integrations/scheduling/googleCalendar.provider.js",
+      "reason": "Stabilization replaces relocation-only parity with shared domain policy, durable operation ownership and behavioral regression evidence. Unchanged relocation pins remain enforced.",
+      "tests": [
+        "tests/integration/stabilization.scheduling.test.js",
+        "tests/integration/stabilization.aiQualification.test.js",
+        "tests/integration/stabilization.suspension.test.js",
+        "tests/unit/stabilization.domainPolicies.test.js"
+      ]
+    },
+    {
+      "file": "src/services/scheduling/appointmentHoldExpiry.service.js",
+      "reason": "Stabilization replaces relocation-only parity with shared domain policy, durable operation ownership and behavioral regression evidence. Unchanged relocation pins remain enforced.",
+      "tests": [
+        "tests/integration/stabilization.scheduling.test.js",
+        "tests/integration/stabilization.aiQualification.test.js",
+        "tests/integration/stabilization.suspension.test.js",
+        "tests/unit/stabilization.domainPolicies.test.js"
+      ]
+    },
+    {
+      "file": "src/services/scheduling/commands/confirm-1.js",
+      "reason": "Stabilization replaces relocation-only parity with shared domain policy, durable operation ownership and behavioral regression evidence. Unchanged relocation pins remain enforced.",
+      "tests": [
+        "tests/integration/stabilization.scheduling.test.js",
+        "tests/integration/stabilization.aiQualification.test.js",
+        "tests/integration/stabilization.suspension.test.js",
+        "tests/unit/stabilization.domainPolicies.test.js"
+      ]
+    },
+    {
+      "file": "src/services/scheduling/commands/confirmWithoutRecovery.js",
+      "reason": "Stabilization replaces relocation-only parity with shared domain policy, durable operation ownership and behavioral regression evidence. Unchanged relocation pins remain enforced.",
+      "tests": [
+        "tests/integration/stabilization.scheduling.test.js",
+        "tests/integration/stabilization.aiQualification.test.js",
+        "tests/integration/stabilization.suspension.test.js",
+        "tests/unit/stabilization.domainPolicies.test.js"
+      ]
+    },
+    {
+      "file": "src/db/repositories/privileged/adminRepository.js",
+      "reason": "Stabilization replaces relocation-only parity with shared domain policy, durable operation ownership and behavioral regression evidence. Unchanged relocation pins remain enforced.",
+      "tests": [
+        "tests/integration/stabilization.adminReauthentication.test.js"
+      ]
+    },
+    {
+      "file": "src/db/repositories/tenantRepository.js",
+      "reason": "Stabilization replaces relocation-only parity with shared domain policy, durable operation ownership and behavioral regression evidence. Unchanged relocation pins remain enforced.",
+      "tests": [
+        "tests/integration/stabilization.aiQualification.test.js",
+        "tests/integration/tenantRepository.rootCause.test.js"
       ]
     }
   ]

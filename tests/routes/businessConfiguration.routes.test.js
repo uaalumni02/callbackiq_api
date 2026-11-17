@@ -1,3 +1,4 @@
+import { activateCustomerAccess } from '../setup/stabilizationFixture.js';
 import request from "supertest";
 
 import app from "../../src/app.js";
@@ -30,6 +31,7 @@ const register = async (suffix = "1") => {
   });
 
   expect(response.status).toBe(201);
+  await activateCustomerAccess(response.body.data.business._id);
   return response.body.data;
 };
 

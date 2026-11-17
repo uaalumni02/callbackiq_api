@@ -1,17 +1,15 @@
 import {tenantRepository,tenantContext} from '../../db/repositories/tenantRepository.js';
+import { runAiUsageOperation } from '../../services/aiUsageOperation.service.js';
 import {readTenantResource} from '../shared/tenantResource.js';
 import { Business, Conversation, ConversationIntelligence, ConversationIntelligenceService, Db, Lead, Response, SocketService, analysisIdentity, analysisUpdate, analyzeConversationSchema, beginValuation, claimAnalysis, finishValuation, getMessagesForAnalysis, mongoose, safeConsole, updateAnalyzedLead } from './context.js';
-
 export default class ConversationIntelligenceAnalysisController {
 static async analyzeConversation(req, res) {
     try {
       const ownerId = req.user?.userId;
       const { conversationId } = req.params;
-
       if (!ownerId) {
         return Response.responseBadAuth(res, "Not authenticated");
       }
-
       if (!mongoose.isValidObjectId(conversationId)) {
         return Response.responseInvalidInput(res, "Invalid conversation ID");
       }
@@ -51,12 +49,12 @@ static async analyzeConversation(req, res) {
         const valuationTicket = await beginValuation(lead, business._id);
         // Reservation itself changes updatedAt. Read a fresh snapshot for guarded lead writes.
         const analysisLead = lead ? await tenantRepository(Lead,tenantContext(business._id)).read(lead._id) : null;
-        const analysis = await ConversationIntelligenceService.analyze({
+        const analysis = await runAiUsageOperation({ business, customerPhone: conversation.customerPhone, source: 'owner_conversation_analysis' }, () => ConversationIntelligenceService.analyze({
           business,
           conversation,
           lead: analysisLead,
           messages,
-        });
+        }));
 
         const intelligence = await ConversationIntelligence.findOneAndUpdate(
           analysisIdentity(claim),
@@ -115,6 +113,7 @@ static async analyzeConversation(req, res) {
         throw analysisError;
       }
     } catch (error) {
+      if ([429, 503].includes(error.statusCode)) return res.status(error.statusCode).json({ success: false, code: error.code, message: error.message });
       safeConsole.error("Error in analyzeConversation:", error);
 
       if (error.isJoi) {

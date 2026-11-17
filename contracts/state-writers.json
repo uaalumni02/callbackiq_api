@@ -188,14 +188,14 @@
     {
       "id": "src/db/db.js#saveBusiness#transition-command#1",
       "file": "src/db/db.js",
-      "line": 147,
+      "line": 148,
       "kind": "transition-command",
       "fields": [
         "saveStateDocument"
       ],
       "writerSha256": "b92df3b4015a08c27332ac5871321e4894f6d0cff5e84a8ba8d1581071669de8",
       "ownerSha256": "e60ebc182c4dc014f82e7d2dd744d0ecbd6bac07f191669437052dc776e56681",
-      "importSha256": "8e1d9bb5039c71c1e9b9a0dbe4368dbf1a99c19d9e8ad37db436c816d0932af1",
+      "importSha256": "2ecea1019f2c00a84e16f81b0627c5578669dda85a251480f9ccafe834af24af",
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
       "allowedCommand": {
@@ -219,14 +219,14 @@
     {
       "id": "src/db/db.js#createAdminActionLog#transition-command#1",
       "file": "src/db/db.js",
-      "line": 388,
+      "line": 367,
       "kind": "transition-command",
       "fields": [
         "saveStateDocument"
       ],
       "writerSha256": "02c3d5bd73fc44a38cad5da7a3872abce097b5586a5dd9d642efdf38e81bd362",
       "ownerSha256": "c4209523ef7053d782cf11baba8aa3ccb0902017606a3a5c89dc3d25b29881fe",
-      "importSha256": "8e1d9bb5039c71c1e9b9a0dbe4368dbf1a99c19d9e8ad37db436c816d0932af1",
+      "importSha256": "2ecea1019f2c00a84e16f81b0627c5578669dda85a251480f9ccafe834af24af",
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
       "allowedCommand": {
@@ -248,14 +248,14 @@
     {
       "id": "src/db/db.js#saveDemoRequest#transition-command#1",
       "file": "src/db/db.js",
-      "line": 415,
+      "line": 394,
       "kind": "transition-command",
       "fields": [
         "saveStateDocument"
       ],
       "writerSha256": "8a369d0522ae82053688eb8323e1285470788a0f87f9bbda5022464a2284d793",
       "ownerSha256": "aba1f62b2200791bcc24067d95d8f7c70a1ae064615815a31920ff1abf4c8dce",
-      "importSha256": "8e1d9bb5039c71c1e9b9a0dbe4368dbf1a99c19d9e8ad37db436c816d0932af1",
+      "importSha256": "2ecea1019f2c00a84e16f81b0627c5578669dda85a251480f9ccafe834af24af",
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
       "allowedCommand": {
@@ -515,7 +515,7 @@
         "updatePrivilegedRecord"
       ],
       "writerSha256": "18c6224445e1fc8776fd30e91e154c056c83e9d906082e517929e213be9b42f3",
-      "ownerSha256": "f832605ebb2630da60c4c72aa9a3d3827f4da98bcc0f96140390a2a3beeac271",
+      "ownerSha256": "c30bea2bbae97badd099ffc017df52911066d0f2f8362b6ff09a147053280e38",
       "importSha256": "797bb0b4eaf550d78f7ecaa236e70300a93cfbb2cdb60e64369540d559931f6d",
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
@@ -544,7 +544,7 @@
         "deletePrivilegedRecord"
       ],
       "writerSha256": "4bd1b8165aa0736d3a0ccf61bd6e94fb2f5398e62658dd5b1b3120714b72fa5b",
-      "ownerSha256": "7a57afd1a1607e7ecb00aa8e192f1dbe908e07f6757cd6f29fd694ec1486a5f2",
+      "ownerSha256": "a8443467982b29adf5f735f0f3dd7546ffab743f067b8c4e47d3864322a57e2a",
       "importSha256": "797bb0b4eaf550d78f7ecaa236e70300a93cfbb2cdb60e64369540d559931f6d",
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
@@ -681,9 +681,41 @@
       }
     },
     {
+      "id": "src/db/repositories/tenantRepository.js#updateObserved#transition-command#1",
+      "file": "src/db/repositories/tenantRepository.js",
+      "line": 133,
+      "kind": "transition-command",
+      "fields": [
+        "updateTenantRecord"
+      ],
+      "writerSha256": "69028bbdf11a8e513302ae667119fcf0076bb1477016f74fd26002e642b5d758",
+      "ownerSha256": "ae60994c7927f4118b7c247382dea7308baf053f7bd6a14b209aa25915e6bfc1",
+      "importSha256": "7bdff816a3c0594ee72aa9a6119993500b9974cfb6079177479612cdb60066cb",
+      "predicateSource": "filter",
+      "authoritativeRecord": "DynamicTenantRecord",
+      "allowedCommand": {
+        "module": "src/db/repositories/tenantRepository.js",
+        "function": "updateObserved",
+        "mode": "registered-domain-command"
+      },
+      "versionOrClaim": {
+        "kind": "source-filter-or-command",
+        "evidence": [
+          "updatedAt",
+          "version"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [],
+        "localRepairCommands": [],
+        "review": "No local repair path established by this scan; review this owner before changing its effects."
+      }
+    },
+    {
       "id": "src/db/repositories/tenantRepository.js#updateMany#transition-command#1",
       "file": "src/db/repositories/tenantRepository.js",
-      "line": 128,
+      "line": 138,
       "kind": "transition-command",
       "fields": [
         "updateTenantRecords"
@@ -712,7 +744,7 @@
     {
       "id": "src/db/repositories/tenantRepository.js#remove#transition-command#1",
       "file": "src/db/repositories/tenantRepository.js",
-      "line": 131,
+      "line": 141,
       "kind": "transition-command",
       "fields": [
         "deleteTenantRecord"
@@ -741,7 +773,7 @@
     {
       "id": "src/db/repositories/tenantRepository.js#removeManyByReference#transition-command#1",
       "file": "src/db/repositories/tenantRepository.js",
-      "line": 135,
+      "line": 145,
       "kind": "transition-command",
       "fields": [
         "deleteTenantConversationRecords"
@@ -871,7 +903,7 @@
       ],
       "writerSha256": "7904537aaf6930ae7315d5e35b7f1f8ae89d2b807f1f08f998f2564b3bc200e0",
       "ownerSha256": "bb1106f318cd4be15dc96c0781c1311d8b5e951c85f4649d5459fbd6b7141906",
-      "importSha256": "d2a2d525c2c9b5d798c8dbc2ca5a54afd75db37163c63d4c8bb5d3b7329e9303",
+      "importSha256": "d4aa2fc4680d2809ca33a859db890fa125fe17654b6a9e3bd15b8cce3034861e",
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
       "allowedCommand": {
@@ -893,14 +925,14 @@
     {
       "id": "src/models/appointment.js#<module>#transition-command#1",
       "file": "src/models/appointment.js",
-      "line": 322,
+      "line": 328,
       "kind": "transition-command",
       "fields": [
         "installAppointmentOwnership"
       ],
       "writerSha256": "5278b925a754635b6ec57606a5c97ecd6d398040132ae886baf3a6565a982096",
-      "ownerSha256": "4f43c97ef3bd374669c26d604a045f9c8b6bf0960d019ab6b73760533c1ae78c",
-      "importSha256": "cba959222c75e64e2b3beda7e0bf63fb2581bd169754f66f95607ae9daae27d7",
+      "ownerSha256": "5dfd40e92c1825b04c293ffe0a05b951defe8314a9ebfb4a5ee7ed7f3634fec6",
+      "importSha256": "e371af5e66cca81174bfc645faab7995640eb15d2005d9941cfbcbfc19674721",
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
       "allowedCommand": {
@@ -930,14 +962,14 @@
     {
       "id": "src/models/conversation.js#<module>#transition-command#1",
       "file": "src/models/conversation.js",
-      "line": 310,
+      "line": 311,
       "kind": "transition-command",
       "fields": [
         "installDocumentFence"
       ],
       "writerSha256": "66c679a0f1122d5e127fddb2fc8063f7d7753163cec5288a39348596b65136b2",
-      "ownerSha256": "8742d8b41b2a2f9b1578dfd4678cf8f65f15a05e886715cd5a2b37f6792a7814",
-      "importSha256": "1bfd825e105242515cc0f3f890d83acf2d3ce61d36f25ef64af822ef09a3f100",
+      "ownerSha256": "4607a047a480e9acececf2c63af2df8b6007a4fb6c2260361a0586d268cde128",
+      "importSha256": "d7ecbe9ee05850258bc9a99df93e7db2a343ecf108108ef5b0851287b5fdffcb",
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
       "allowedCommand": {
@@ -961,14 +993,14 @@
     {
       "id": "src/models/lead.js#<module>#transition-command#1",
       "file": "src/models/lead.js",
-      "line": 188,
+      "line": 189,
       "kind": "transition-command",
       "fields": [
         "installDocumentFence"
       ],
       "writerSha256": "eab3a9828026de51cbe39049f03cf4a490b6602e304ddf647172785d99e4e113",
-      "ownerSha256": "f5ebbf9bf482a7edbb1a589bd71a1ca2de9467293caada36137418033932906d",
-      "importSha256": "86619ae002da6ed4824db652d0d0d94b58cd848d31670212a40b26280d7bddbb",
+      "ownerSha256": "16f37b05fb5c6b3d6339fc51a47c3cdb7608787efaaf0db1162eb8d26e9e8678",
+      "importSha256": "c6796c6f8688cfe898967e9f9d97bcbd26d1a8f804efc746262960419191b599",
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
       "allowedCommand": {
@@ -9173,7 +9205,7 @@
     {
       "id": "src/services/scheduling/appointment.service.js#decline#transition-command#1",
       "file": "src/services/scheduling/appointment.service.js",
-      "line": 351,
+      "line": 324,
       "kind": "transition-command",
       "fields": [
         "stageDeclinedAppointment"
@@ -9205,7 +9237,7 @@
     {
       "id": "src/services/scheduling/appointment.service.js#decline#transition-command#2",
       "file": "src/services/scheduling/appointment.service.js",
-      "line": 362,
+      "line": 335,
       "kind": "transition-command",
       "fields": [
         "saveStateDocument"
@@ -9425,13 +9457,13 @@
     {
       "id": "src/services/scheduling/appointmentHoldExpiry.service.js#<callback>#transition-command#1",
       "file": "src/services/scheduling/appointmentHoldExpiry.service.js",
-      "line": 11,
+      "line": 14,
       "kind": "transition-command",
       "fields": [
         "expireUnclaimedHolds"
       ],
       "writerSha256": "874d4994e44565f7f88df1c45a9d33f1fd7939ca50d3fa1d469cf92394ee8949",
-      "ownerSha256": "e7c2f46642b749c11a31a543aaed7a21df36e69ffd3e7ca013b22c62abdd9525",
+      "ownerSha256": "67eef5ce87778fab2e28483344039a6f221be715e077ee6923bf7983072c4f36",
       "importSha256": "f72b9f9c6fe5f41390ed263a6480857b813235c3d14048a3eaee0d1eac278db2",
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
@@ -10569,14 +10601,14 @@
     {
       "id": "src/services/scheduling/commands/cancel-1.js#cancel#transition-command#1",
       "file": "src/services/scheduling/commands/cancel-1.js",
-      "line": 61,
+      "line": 36,
       "kind": "transition-command",
       "fields": [
-        "stageCanceledRescheduleRequest"
+        "claimAppointmentCancellation"
       ],
-      "writerSha256": "6a97c2682c9c765082072b16b1e5192c189cd3da606f23fa9fa0eec8723b06bd",
-      "ownerSha256": "f851974471b0ab7249ccfcf917b3d0c66c32b5c3d1058775b9e68cfdd64a607c",
-      "importSha256": "a9f6e65196561082ac77faa35abe05db26cdd62e6728631622d46c0d0c838012",
+      "writerSha256": "1bb3003ed0775d75dc0d6dba35ecc2ce8b5e7a71ce07ec9451ffcae7dcc7c5ac",
+      "ownerSha256": "25eaf1a23a979d33a809979569ff371f9fd016511f9c57210569ca13ac3300e0",
+      "importSha256": "857c3c312d3f96529dd37f52a55c61ff2cb2b78c1a3d914e79ea4f62983495cc",
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
       "allowedCommand": {
@@ -10586,8 +10618,10 @@
       },
       "versionOrClaim": {
         "kind": "source-filter-or-command",
-        "evidence": [],
-        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
+        "evidence": [
+          "version"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
         "updatedRecords": [],
@@ -10601,14 +10635,14 @@
     {
       "id": "src/services/scheduling/commands/cancel-1.js#cancel#transition-command#2",
       "file": "src/services/scheduling/commands/cancel-1.js",
-      "line": 64,
+      "line": 47,
       "kind": "transition-command",
       "fields": [
-        "stageCanceledAppointment"
+        "deferAppointmentCancellation"
       ],
-      "writerSha256": "ef1b9115946d5cdce84762a7f7182042a512d770ceeb45188305582dcac743e2",
-      "ownerSha256": "f851974471b0ab7249ccfcf917b3d0c66c32b5c3d1058775b9e68cfdd64a607c",
-      "importSha256": "a9f6e65196561082ac77faa35abe05db26cdd62e6728631622d46c0d0c838012",
+      "writerSha256": "612cfbe0e5e781fc8896b50c86f4e4c77f585a7cf7926e062b50f8c78ab4a05d",
+      "ownerSha256": "25eaf1a23a979d33a809979569ff371f9fd016511f9c57210569ca13ac3300e0",
+      "importSha256": "857c3c312d3f96529dd37f52a55c61ff2cb2b78c1a3d914e79ea4f62983495cc",
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
       "allowedCommand": {
@@ -10618,8 +10652,10 @@
       },
       "versionOrClaim": {
         "kind": "source-filter-or-command",
-        "evidence": [],
-        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
+        "evidence": [
+          "version"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
         "updatedRecords": [],
@@ -10633,14 +10669,82 @@
     {
       "id": "src/services/scheduling/commands/cancel-1.js#cancel#transition-command#3",
       "file": "src/services/scheduling/commands/cancel-1.js",
-      "line": 80,
+      "line": 60,
+      "kind": "transition-command",
+      "fields": [
+        "stageCanceledRescheduleRequest"
+      ],
+      "writerSha256": "6a97c2682c9c765082072b16b1e5192c189cd3da606f23fa9fa0eec8723b06bd",
+      "ownerSha256": "25eaf1a23a979d33a809979569ff371f9fd016511f9c57210569ca13ac3300e0",
+      "importSha256": "857c3c312d3f96529dd37f52a55c61ff2cb2b78c1a3d914e79ea4f62983495cc",
+      "predicateSource": null,
+      "authoritativeRecord": "RegisteredStateRecord",
+      "allowedCommand": {
+        "module": "src/services/scheduling/commands/cancel-1.js",
+        "function": "cancel",
+        "mode": "registered-domain-command"
+      },
+      "versionOrClaim": {
+        "kind": "source-filter-or-command",
+        "evidence": [
+          "version"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [],
+        "localRepairCommands": [
+          "reconciled",
+          "tryRepairAppointmentLifecycle"
+        ],
+        "review": "Repair commands referenced by the fingerprinted owner; downstream behavior remains covered by domain tests."
+      }
+    },
+    {
+      "id": "src/services/scheduling/commands/cancel-1.js#cancel#transition-command#4",
+      "file": "src/services/scheduling/commands/cancel-1.js",
+      "line": 63,
+      "kind": "transition-command",
+      "fields": [
+        "stageCanceledAppointment"
+      ],
+      "writerSha256": "ef1b9115946d5cdce84762a7f7182042a512d770ceeb45188305582dcac743e2",
+      "ownerSha256": "25eaf1a23a979d33a809979569ff371f9fd016511f9c57210569ca13ac3300e0",
+      "importSha256": "857c3c312d3f96529dd37f52a55c61ff2cb2b78c1a3d914e79ea4f62983495cc",
+      "predicateSource": null,
+      "authoritativeRecord": "RegisteredStateRecord",
+      "allowedCommand": {
+        "module": "src/services/scheduling/commands/cancel-1.js",
+        "function": "cancel",
+        "mode": "registered-domain-command"
+      },
+      "versionOrClaim": {
+        "kind": "source-filter-or-command",
+        "evidence": [
+          "version"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [],
+        "localRepairCommands": [
+          "reconciled",
+          "tryRepairAppointmentLifecycle"
+        ],
+        "review": "Repair commands referenced by the fingerprinted owner; downstream behavior remains covered by domain tests."
+      }
+    },
+    {
+      "id": "src/services/scheduling/commands/cancel-1.js#cancel#transition-command#5",
+      "file": "src/services/scheduling/commands/cancel-1.js",
+      "line": 77,
       "kind": "transition-command",
       "fields": [
         "saveStateDocument"
       ],
       "writerSha256": "4beecd856501fa8b413dbc8b26e77ccc7c82397d3be7cffa3f87bf642b0eb0f2",
-      "ownerSha256": "f851974471b0ab7249ccfcf917b3d0c66c32b5c3d1058775b9e68cfdd64a607c",
-      "importSha256": "a9f6e65196561082ac77faa35abe05db26cdd62e6728631622d46c0d0c838012",
+      "ownerSha256": "25eaf1a23a979d33a809979569ff371f9fd016511f9c57210569ca13ac3300e0",
+      "importSha256": "857c3c312d3f96529dd37f52a55c61ff2cb2b78c1a3d914e79ea4f62983495cc",
       "predicateSource": null,
       "authoritativeRecord": "Appointment",
       "allowedCommand": {
@@ -10650,8 +10754,10 @@
       },
       "versionOrClaim": {
         "kind": "source-filter-or-command",
-        "evidence": [],
-        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
+        "evidence": [
+          "version"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
       },
       "projectionsAndRepair": {
         "updatedRecords": [],
@@ -11066,14 +11172,14 @@
     {
       "id": "src/services/scheduling/reschedule/command.js#executeReschedule#transition-command#1",
       "file": "src/services/scheduling/reschedule/command.js",
-      "line": 19,
+      "line": 20,
       "kind": "transition-command",
       "fields": [
         "claimRescheduleOriginal"
       ],
       "writerSha256": "bc167ae2615fa4673748fc1029f9d10e62c256682e1385c238cc320581943aee",
-      "ownerSha256": "dd3d2c64d652cf048ee900733f5416b8f6c0d98d0c910d49d4c7a7eef81de686",
-      "importSha256": "8a83800db6024c8bd18c9e534f6dd27d4c10425c328b2840412cf123cc406c79",
+      "ownerSha256": "e09f73426173e3b92215ad050264f22c83765090b16bd374777a86553ebdb2d4",
+      "importSha256": "f581fbd646ea63446f9ed73345263b2e824d20913db887c888c7f906df099b9f",
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
       "allowedCommand": {
@@ -11097,14 +11203,45 @@
     {
       "id": "src/services/scheduling/reschedule/command.js#executeReschedule#transition-command#2",
       "file": "src/services/scheduling/reschedule/command.js",
-      "line": 40,
+      "line": 31,
+      "kind": "transition-command",
+      "fields": [
+        "saveStateDocument"
+      ],
+      "writerSha256": "802b08e139203265896fe195175eff1c267d7ec138d9407baa1c386781a7ecba",
+      "ownerSha256": "e09f73426173e3b92215ad050264f22c83765090b16bd374777a86553ebdb2d4",
+      "importSha256": "f581fbd646ea63446f9ed73345263b2e824d20913db887c888c7f906df099b9f",
+      "predicateSource": null,
+      "authoritativeRecord": "Appointment",
+      "allowedCommand": {
+        "module": "src/services/scheduling/reschedule/command.js",
+        "function": "executeReschedule",
+        "mode": "registered-domain-command"
+      },
+      "versionOrClaim": {
+        "kind": "source-filter-or-command",
+        "evidence": [],
+        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [],
+        "localRepairCommands": [
+          "reconcileOriginal"
+        ],
+        "review": "Repair commands referenced by the fingerprinted owner; downstream behavior remains covered by domain tests."
+      }
+    },
+    {
+      "id": "src/services/scheduling/reschedule/command.js#executeReschedule#transition-command#3",
+      "file": "src/services/scheduling/reschedule/command.js",
+      "line": 43,
       "kind": "transition-command",
       "fields": [
         "releaseRescheduleOriginal"
       ],
       "writerSha256": "482c043d47949525b9c742a73eaa5825877847b573d0c0b0786602cc466ccf16",
-      "ownerSha256": "dd3d2c64d652cf048ee900733f5416b8f6c0d98d0c910d49d4c7a7eef81de686",
-      "importSha256": "8a83800db6024c8bd18c9e534f6dd27d4c10425c328b2840412cf123cc406c79",
+      "ownerSha256": "e09f73426173e3b92215ad050264f22c83765090b16bd374777a86553ebdb2d4",
+      "importSha256": "f581fbd646ea63446f9ed73345263b2e824d20913db887c888c7f906df099b9f",
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
       "allowedCommand": {
@@ -11341,11 +11478,11 @@
     {
       "id": "src/services/scheduling/reschedule/finalize.js#stageHandoff#save#1",
       "file": "src/services/scheduling/reschedule/finalize.js",
-      "line": 36,
+      "line": 37,
       "kind": "save",
       "fields": [],
       "writerSha256": "b6e15c0686aa6cfcee8b9f289f7f18670900ef07fd2565fd3586907fc967d6dd",
-      "ownerSha256": "26e685c6fd762f7e8f18b97ea298b5f0ec1510a9d5cc0bc69658798efd26c7a9",
+      "ownerSha256": "984588c5d2ef8b32726c59534e9faf4c58f8ac6dfa1abad58a80ffae0352176a",
       "importSha256": "6ca53d45e048d365994b5d3fd624ae110119ad5af1b48cc665d6607078db3e9e",
       "predicateSource": null,
       "authoritativeRecord": "Appointment",
@@ -11368,11 +11505,11 @@
     {
       "id": "src/services/scheduling/reschedule/finalize.js#stageHandoff#save#2",
       "file": "src/services/scheduling/reschedule/finalize.js",
-      "line": 39,
+      "line": 40,
       "kind": "save",
       "fields": [],
       "writerSha256": "2945f00baa6d9837e047a3445a009ff84b270393ecaaf2a341c8b4d7a66e8f4c",
-      "ownerSha256": "26e685c6fd762f7e8f18b97ea298b5f0ec1510a9d5cc0bc69658798efd26c7a9",
+      "ownerSha256": "984588c5d2ef8b32726c59534e9faf4c58f8ac6dfa1abad58a80ffae0352176a",
       "importSha256": "6ca53d45e048d365994b5d3fd624ae110119ad5af1b48cc665d6607078db3e9e",
       "predicateSource": null,
       "authoritativeRecord": "Appointment",
@@ -11395,13 +11532,13 @@
     {
       "id": "src/services/scheduling/reschedule/finalize.js#confirmReplacement#assignment#1",
       "file": "src/services/scheduling/reschedule/finalize.js",
-      "line": 50,
+      "line": 51,
       "kind": "assignment",
       "fields": [
         "status"
       ],
       "writerSha256": "168496d6094db8a7c92a86d60fb2f37bd6d316454daf61e96c6875119afee435",
-      "ownerSha256": "b8c54ce9fc8c4516c19022af3f85a330467c1c4d7170fca736d1dc107b1fbea0",
+      "ownerSha256": "2c73768d804ebe787daca8cbaaf1631b6a604b31808b892a4be216144921efd5",
       "importSha256": "6ca53d45e048d365994b5d3fd624ae110119ad5af1b48cc665d6607078db3e9e",
       "predicateSource": null,
       "authoritativeRecord": "Appointment",
@@ -11426,7 +11563,7 @@
     {
       "id": "src/services/scheduling/reschedule/finalize.js#reconcileOriginal#assignment#1",
       "file": "src/services/scheduling/reschedule/finalize.js",
-      "line": 70,
+      "line": 72,
       "kind": "assignment",
       "fields": [
         "rescheduleRequest.status"
@@ -11460,7 +11597,7 @@
     {
       "id": "src/services/scheduling/reschedule/finalize.js#reconcileOriginal#assignment#2",
       "file": "src/services/scheduling/reschedule/finalize.js",
-      "line": 74,
+      "line": 76,
       "kind": "assignment",
       "fields": [
         "status"
@@ -13011,154 +13148,9 @@
       }
     },
     {
-      "id": "src/services/stateTransitions/appointmentCommands.js#stageCanceledAppointment#assignment#1",
-      "file": "src/services/stateTransitions/appointmentCommands.js",
-      "line": 13,
-      "kind": "assignment",
-      "fields": [
-        "status"
-      ],
-      "writerSha256": "568b4890838f81c75e849d5417ee8dd6d3d5b349b187166da08a81ca206fcd34",
-      "ownerSha256": "ed43cbb35a3904872fe633ff2d0e113dcb5d8b66e6da8230e0e7482838c1b280",
-      "importSha256": "d6ef7b1ede4db9cfbdebb54f2ca20ca52de8aa249c2d4560091b2a03c68a2a8c",
-      "predicateSource": null,
-      "authoritativeRecord": "Appointment",
-      "allowedCommand": {
-        "module": "src/services/stateTransitions/appointmentCommands.js",
-        "function": "stageCanceledAppointment",
-        "mode": "transition-layer"
-      },
-      "versionOrClaim": {
-        "kind": "source-filter-or-command",
-        "evidence": [],
-        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
-      },
-      "projectionsAndRepair": {
-        "updatedRecords": [],
-        "localRepairCommands": [],
-        "review": "No local repair path established by this scan; review this owner before changing its effects."
-      }
-    },
-    {
-      "id": "src/services/stateTransitions/appointmentCommands.js#stageUnavailableApproval#assignment#1",
-      "file": "src/services/stateTransitions/appointmentCommands.js",
-      "line": 18,
-      "kind": "assignment",
-      "fields": [
-        "status"
-      ],
-      "writerSha256": "67d1e0e5f1dc3e95260464da04d65b1cb67bc5357d487ccd4ead9b81b2d6ca12",
-      "ownerSha256": "c5ee55adf7ea2003c4545292d8687228590e90ce6b1fb68c04c6d1ca9f19b638",
-      "importSha256": "d6ef7b1ede4db9cfbdebb54f2ca20ca52de8aa249c2d4560091b2a03c68a2a8c",
-      "predicateSource": null,
-      "authoritativeRecord": "Appointment",
-      "allowedCommand": {
-        "module": "src/services/stateTransitions/appointmentCommands.js",
-        "function": "stageUnavailableApproval",
-        "mode": "transition-layer"
-      },
-      "versionOrClaim": {
-        "kind": "source-filter-or-command",
-        "evidence": [],
-        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
-      },
-      "projectionsAndRepair": {
-        "updatedRecords": [],
-        "localRepairCommands": [],
-        "review": "No local repair path established by this scan; review this owner before changing its effects."
-      }
-    },
-    {
-      "id": "src/services/stateTransitions/appointmentCommands.js#stageFailedConfirmation#assignment#1",
-      "file": "src/services/stateTransitions/appointmentCommands.js",
-      "line": 23,
-      "kind": "assignment",
-      "fields": [
-        "status"
-      ],
-      "writerSha256": "67d1e0e5f1dc3e95260464da04d65b1cb67bc5357d487ccd4ead9b81b2d6ca12",
-      "ownerSha256": "c82f20f1a87e6491d1adf238e95bdac31a0adb10747c0f74c769ff5d7a98dfa9",
-      "importSha256": "d6ef7b1ede4db9cfbdebb54f2ca20ca52de8aa249c2d4560091b2a03c68a2a8c",
-      "predicateSource": null,
-      "authoritativeRecord": "Appointment",
-      "allowedCommand": {
-        "module": "src/services/stateTransitions/appointmentCommands.js",
-        "function": "stageFailedConfirmation",
-        "mode": "transition-layer"
-      },
-      "versionOrClaim": {
-        "kind": "source-filter-or-command",
-        "evidence": [],
-        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
-      },
-      "projectionsAndRepair": {
-        "updatedRecords": [],
-        "localRepairCommands": [],
-        "review": "No local repair path established by this scan; review this owner before changing its effects."
-      }
-    },
-    {
-      "id": "src/services/stateTransitions/appointmentCommands.js#stageProviderConfirmedAppointment#assignment#1",
-      "file": "src/services/stateTransitions/appointmentCommands.js",
-      "line": 28,
-      "kind": "assignment",
-      "fields": [
-        "status"
-      ],
-      "writerSha256": "12aa5c82f6ed5d6d64ac82e48748f2234fd1a726ce7b8b29b09562e63ef1465c",
-      "ownerSha256": "50088745fd2415b33b8caf547c2a7114d81ce60b64b13d58849a9d9d52c67b8d",
-      "importSha256": "d6ef7b1ede4db9cfbdebb54f2ca20ca52de8aa249c2d4560091b2a03c68a2a8c",
-      "predicateSource": null,
-      "authoritativeRecord": "Appointment",
-      "allowedCommand": {
-        "module": "src/services/stateTransitions/appointmentCommands.js",
-        "function": "stageProviderConfirmedAppointment",
-        "mode": "transition-layer"
-      },
-      "versionOrClaim": {
-        "kind": "source-filter-or-command",
-        "evidence": [],
-        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
-      },
-      "projectionsAndRepair": {
-        "updatedRecords": [],
-        "localRepairCommands": [],
-        "review": "No local repair path established by this scan; review this owner before changing its effects."
-      }
-    },
-    {
-      "id": "src/services/stateTransitions/appointmentCommands.js#stageProviderFailure#assignment#1",
-      "file": "src/services/stateTransitions/appointmentCommands.js",
-      "line": 33,
-      "kind": "assignment",
-      "fields": [
-        "status"
-      ],
-      "writerSha256": "67d1e0e5f1dc3e95260464da04d65b1cb67bc5357d487ccd4ead9b81b2d6ca12",
-      "ownerSha256": "42334ed7ff53f3b8394adb3058c55def0b1881ec60c8397889092ed074e25f4b",
-      "importSha256": "d6ef7b1ede4db9cfbdebb54f2ca20ca52de8aa249c2d4560091b2a03c68a2a8c",
-      "predicateSource": null,
-      "authoritativeRecord": "Appointment",
-      "allowedCommand": {
-        "module": "src/services/stateTransitions/appointmentCommands.js",
-        "function": "stageProviderFailure",
-        "mode": "transition-layer"
-      },
-      "versionOrClaim": {
-        "kind": "source-filter-or-command",
-        "evidence": [],
-        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
-      },
-      "projectionsAndRepair": {
-        "updatedRecords": [],
-        "localRepairCommands": [],
-        "review": "No local repair path established by this scan; review this owner before changing its effects."
-      }
-    },
-    {
       "id": "src/services/stateTransitions/appointmentCommands.js#reholdAppointmentForConfirmation#findOneAndUpdate#1",
       "file": "src/services/stateTransitions/appointmentCommands.js",
-      "line": 38,
+      "line": 37,
       "kind": "findOneAndUpdate",
       "fields": [
         "status"
@@ -13189,21 +13181,21 @@
       }
     },
     {
-      "id": "src/services/stateTransitions/appointmentCommands.js#stageStaffAppointmentOutcome#assignment#1",
+      "id": "src/services/stateTransitions/appointmentCommands.js#stageAppointmentStatus#assignment#1",
       "file": "src/services/stateTransitions/appointmentCommands.js",
-      "line": 50,
+      "line": 53,
       "kind": "assignment",
       "fields": [
         "status"
       ],
-      "writerSha256": "cbc0ccfeea2f8c62c4b27c446d256c21940d48b7c01c5945f73ea403f0907a30",
-      "ownerSha256": "518be253028543cfb3a17b33933d9b38a7750ba9735bf966dcda21d46ece05d6",
+      "writerSha256": "00082347d2a79a6450e76d7d42186d7bb8aa01c207a235288f1ac1f87c44614c",
+      "ownerSha256": "9a4080ca55b85a31da877f088e974e80619507abdf7e2241391f9d9786f14588",
       "importSha256": "d6ef7b1ede4db9cfbdebb54f2ca20ca52de8aa249c2d4560091b2a03c68a2a8c",
       "predicateSource": null,
       "authoritativeRecord": "Appointment",
       "allowedCommand": {
         "module": "src/services/stateTransitions/appointmentCommands.js",
-        "function": "stageStaffAppointmentOutcome",
+        "function": "stageAppointmentStatus",
         "mode": "transition-layer"
       },
       "versionOrClaim": {
@@ -13220,12 +13212,12 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#reserveAppointmentSlot#create#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 6,
+      "line": 7,
       "kind": "create",
       "fields": [],
       "writerSha256": "a288031e935d3a88ae1ee410462c8e6d4af0da76d18fef9bf1c3469e76807643",
       "ownerSha256": "d15fd94658ab2b30efc24a4d1f21ac56755e2b93f3c74e0c2991d927c6b43a8e",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": null,
       "authoritativeRecord": "Appointment",
       "allowedCommand": {
@@ -13245,38 +13237,9 @@
       }
     },
     {
-      "id": "src/services/stateTransitions/appointmentLifecycle.js#stageDeclinedAppointment#assignment#1",
-      "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 22,
-      "kind": "assignment",
-      "fields": [
-        "status"
-      ],
-      "writerSha256": "67d1e0e5f1dc3e95260464da04d65b1cb67bc5357d487ccd4ead9b81b2d6ca12",
-      "ownerSha256": "eba41c5fd70904ad58a71ca8858e62e2c2f3e7b1eb4bedc85e1bc41e55b19277",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "predicateSource": null,
-      "authoritativeRecord": "Appointment",
-      "allowedCommand": {
-        "module": "src/services/stateTransitions/appointmentLifecycle.js",
-        "function": "stageDeclinedAppointment",
-        "mode": "transition-layer"
-      },
-      "versionOrClaim": {
-        "kind": "source-filter-or-command",
-        "evidence": [],
-        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
-      },
-      "projectionsAndRepair": {
-        "updatedRecords": [],
-        "localRepairCommands": [],
-        "review": "No local repair path established by this scan; review this owner before changing its effects."
-      }
-    },
-    {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#queueMissingConfirmationReview#updateOne#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 27,
+      "line": 28,
       "kind": "updateOne",
       "fields": [
         "actionRequired",
@@ -13284,7 +13247,7 @@
       ],
       "writerSha256": "26c5c3421c7820cecc370003bad6fcf45e4f40282cd97c286b0263ffb1f096a5",
       "ownerSha256": "08950f7f1f52e311032f7c7221dfd98e3cb1e5b1c1ce3b550e3c815c57838ac8",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "{ business: appointment.business,\n      dedupeKey: `appointment_confirmation_missing:${appointment._id}` }",
       "authoritativeRecord": "Alert",
       "allowedCommand": {
@@ -13306,12 +13269,12 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#patchOwnedConfirmationIntent#findOneAndUpdate#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 41,
+      "line": 42,
       "kind": "findOneAndUpdate",
       "fields": [],
       "writerSha256": "aee1aef111bafa23f0cac198e7cb40363e3d41b953b2fc4daf8c3161cfcc84f4",
       "ownerSha256": "691d7edda2a1521e0a47ce2e700f9390df95d144179960d1d4c1d922a5bb9a7a",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "owned(appointment)",
       "authoritativeRecord": "Appointment",
       "allowedCommand": {
@@ -13333,14 +13296,14 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#beginConfirmationIntent#findOneAndUpdate#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 46,
+      "line": 47,
       "kind": "findOneAndUpdate",
       "fields": [
         "status"
       ],
       "writerSha256": "41017c15aef4feaaccc4991fb9c69a3cd92fe846fffcb9a60249210f09befa4a",
       "ownerSha256": "dfb650fc0d99e91313d8f43edaa8e8794546dc8d12af2c22b7df605587db9ad1",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "{\n        ...slotIdentity(appointment),\n        status: 'held',\n        $or: [{ heldExpiresAt: null }, { heldExpiresAt: { $gt: now } }],\n        'confirmationIntent.status': { $ne: 'pending_provider' },\n        ...(appointment.updatedAt ? { updatedAt: appointment.updatedAt } : {}),\n      }",
       "authoritativeRecord": "Appointment",
       "allowedCommand": {
@@ -13365,12 +13328,12 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#claimDueConfirmationIntent#findOneAndUpdate#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 66,
+      "line": 67,
       "kind": "findOneAndUpdate",
       "fields": [],
       "writerSha256": "33ca3275c480a9ea1682e702feba413b24d98129d75f53354a2c122eaef61856",
       "ownerSha256": "a7b084dc2ce4e7c12cdd1a0280a08a220eb89a52d91f0feeb2690c15f8a79d11",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "{\n        ...slotIdentity(appointment),\n        status: appointment.status,\n        'confirmationIntent.status': appointment.confirmationIntent.status,\n        ...due(now),\n      }",
       "authoritativeRecord": "Appointment",
       "allowedCommand": {
@@ -13394,12 +13357,12 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#finishConfirmationEffects#findOneAndUpdate#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 76,
+      "line": 77,
       "kind": "findOneAndUpdate",
       "fields": [],
       "writerSha256": "715ecc4f5118165cfe6f3706e86f78ea2f4d8bd0263a6e5eb2bcac05a52f73af",
       "ownerSha256": "50e07111194b0cf399ec94c159a6be3c4c64516233ef17453531470482bcfef3",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "owned(appointment)",
       "authoritativeRecord": "Appointment",
       "allowedCommand": {
@@ -13423,14 +13386,14 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#expireUnclaimedHolds#updateMany#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 84,
+      "line": 85,
       "kind": "updateMany",
       "fields": [
         "status"
       ],
       "writerSha256": "4bb468b35c2b85a3f5032f33ae3d49f53064470419acbfd9dcfc971f980f9af7",
       "ownerSha256": "565bd3f44078787edc309b3d2be1954fc36aed2b434b81802503d5bae1f18f9f",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "query",
       "authoritativeRecord": "Appointment",
       "allowedCommand": {
@@ -13454,12 +13417,12 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#repairAppointmentLifecycleAppointmentUpdateOne#updateOne#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 99,
+      "line": 100,
       "kind": "updateOne",
       "fields": [],
       "writerSha256": "c44f8428efafb39808dc59c04ba10966f5db1ab55893235833f68be792f270c6",
       "ownerSha256": "ab8219979c8ec940f7fb6ca01af72ebf3b21a843d59617603203b152364504a6",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "filter",
       "authoritativeRecord": "Appointment",
       "allowedCommand": {
@@ -13483,7 +13446,7 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#repairAppointmentLifecycleAppointmentUpdateOne2#updateOne#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 104,
+      "line": 105,
       "kind": "updateOne",
       "fields": [
         "rescheduleRequest.status",
@@ -13491,7 +13454,7 @@
       ],
       "writerSha256": "d5cfb7a49ca5ed35edfaa926b106abc52e6f4743a622458029c62f53303e52e4",
       "ownerSha256": "8d8b3b57522b9bbb963a47688203efa6cf968b8200a642aec6e1c66e20fdfab4",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "{ _id: original._id, business: appointment.business, status: 'confirmed' }",
       "authoritativeRecord": "Appointment",
       "allowedCommand": {
@@ -13515,12 +13478,12 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#repairAppointmentLifecycleLeadUpdateOne#updateOne#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 113,
+      "line": 114,
       "kind": "updateOne",
       "fields": [],
       "writerSha256": "fd3f6c163a70afd3fbb5f4c5ea1ea88df9aba36e9041e44f3883d79d25797143",
       "ownerSha256": "e4828d69039512ec6574ddb3bfc1ee4bfdba872b4c1321f053ff17be56b2f216",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "{ _id: appointment.lead, business: appointment.business, appointment: original._id }",
       "authoritativeRecord": "Lead",
       "allowedCommand": {
@@ -13544,12 +13507,12 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#repairAppointmentLifecycleLeadUpdateOne2#updateOne#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 119,
+      "line": 120,
       "kind": "updateOne",
       "fields": [],
       "writerSha256": "65917924ca233f2cc780d164c439014c75048a30c0d9335aaf141f039240a9f1",
       "ownerSha256": "c35a6b2dbe8b61db6df81984213640aac15054c5f28feedf17bb45c8a92728d0",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "{ _id: appointment.lead, business: appointment.business, appointment: appointment._id }",
       "authoritativeRecord": "Lead",
       "allowedCommand": {
@@ -13573,12 +13536,12 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#repairAppointmentLifecycleAppointmentUpdateOne3#updateOne#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 124,
+      "line": 125,
       "kind": "updateOne",
       "fields": [],
       "writerSha256": "ed63a8778d073bd033030b3a6326ac7524f66d21f23dc6e64b982b73693d32f9",
       "ownerSha256": "30dad1599de4d90844386f9cc1880da7aef81d730f2473e5cdd4d427b8df1782",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "filter",
       "authoritativeRecord": "Appointment",
       "allowedCommand": {
@@ -13602,12 +13565,12 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#tryRepairAppointmentLifecycleAppointmentUpdateOne#updateOne#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 129,
+      "line": 130,
       "kind": "updateOne",
       "fields": [],
       "writerSha256": "c2e67ff5749b8e3282c135116abfdeafbd9cff63bf4cd98ae35906f83b0d5893",
       "ownerSha256": "500d05c4996a3a3ab135b1b39bb18e6fc34a8624947ef03e7f4edacd64a67ea0",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "{ _id: appointment._id, 'lifecycleNotice.key': appointment.lifecycleNotice?.key }",
       "authoritativeRecord": "Appointment",
       "allowedCommand": {
@@ -13631,14 +13594,14 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#appointmentLifecycleDeclineRescheduleRequestAppointmentAtomicUpdate#findOneAndUpdate#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 135,
+      "line": 136,
       "kind": "findOneAndUpdate",
       "fields": [
         "rescheduleRequest.status"
       ],
       "writerSha256": "8243a33e199d8b457a25a79c09fce94d11fed8d4577cdf2405c49900eb6cfbad",
       "ownerSha256": "4f3a9f39562f2c082fa00a9fab9c8d13aa1e4ec25d3ad8e5082858f43e13e80f",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "{ _id: appointmentId, business: business._id, status: 'confirmed',\n    'rescheduleRequest.id': requestId, 'rescheduleRequest.status': 'pending' }",
       "authoritativeRecord": "Appointment",
       "allowedCommand": {
@@ -13660,7 +13623,7 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#appointmentNoticeFailureResolveNoticeFailureAlertUpdateMany#updateMany#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 144,
+      "line": 145,
       "kind": "updateMany",
       "fields": [
         "actionRequired",
@@ -13668,7 +13631,7 @@
       ],
       "writerSha256": "e55c2d30a1cd5577e660ac78a9feb891e3b4c7a30958418b600e8370e3219d79",
       "ownerSha256": "390c99cbc4a769e1870c60eb150d6d047ec5faa4084d73425e76db1ee42a4614",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "{ business: businessId, dedupeKey: `appointment_notice_failure:${job._id}`, resolvedAt: null }",
       "authoritativeRecord": "Alert",
       "allowedCommand": {
@@ -13690,12 +13653,12 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#appointmentNotificationStoreOutboundMessageConversationUpdateOne#updateOne#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 150,
+      "line": 151,
       "kind": "updateOne",
       "fields": [],
       "writerSha256": "3f617a749b6912bb63ab279a6f438cbe46cda2fb6dac1d9d45292b19e1c86482",
       "ownerSha256": "0b5f2599c2f50a830451ae0d870a1e032d22d59e9b1474abb2255106aac18aea",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "{ _id: appointment.conversation, business: business._id }",
       "authoritativeRecord": "Conversation",
       "allowedCommand": {
@@ -13717,12 +13680,12 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#appointmentProjectionRepairOneLeadUpdateOne#updateOne#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 158,
+      "line": 159,
       "kind": "updateOne",
       "fields": [],
       "writerSha256": "65917924ca233f2cc780d164c439014c75048a30c0d9335aaf141f039240a9f1",
       "ownerSha256": "7e6e72411a574963790e6ae155f0db5117bb26cbc6fc005325771e44e92a9f99",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "{ _id: appointment.lead, business: appointment.business, appointment: appointment._id }",
       "authoritativeRecord": "Lead",
       "allowedCommand": {
@@ -13744,12 +13707,12 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#appointmentProjectionRepairOneLeadUpdateOne2#updateOne#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 163,
+      "line": 164,
       "kind": "updateOne",
       "fields": [],
       "writerSha256": "640502975e1b273d410712df7c65f0c979e8f87aa2babcae910b26f26e2e91a5",
       "ownerSha256": "ce5e6541b8316c1b84031de083f0fbabe0535b848cebd55d9e159f31f3111abd",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "{ _id: appointment.lead, business: appointment.business,\n      $or: [{ completionProjectionAt: null }, { completionProjectionAt: { $lte: marker.at } }],\n    }",
       "authoritativeRecord": "Lead",
       "allowedCommand": {
@@ -13771,7 +13734,7 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#appointmentProjectionRepairOneAlertUpdateMany#updateMany#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 171,
+      "line": 172,
       "kind": "updateMany",
       "fields": [
         "actionRequired",
@@ -13779,7 +13742,7 @@
       ],
       "writerSha256": "7bb1cd22432f77f12a2c40e3bf502f701c46a533a5b69dea59d77e038b9eefba",
       "ownerSha256": "c40f1e1145b9d033be9a445df525d3dbb102eea22ccc609c3fe6f06da82a67c9",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "{ business: appointment.business, dedupeKey: `appointment_projection:${appointment._id}:${field}:${marker.token}`, resolvedAt: null }",
       "authoritativeRecord": "Alert",
       "allowedCommand": {
@@ -13801,12 +13764,12 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#appointmentProjectionRepairOneAppointmentUpdateOne#updateOne#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 177,
+      "line": 178,
       "kind": "updateOne",
       "fields": [],
       "writerSha256": "2749bf94eeb1f42862e8a1f570088f33a93009b116cd46c5288c2f82e8ed652f",
       "ownerSha256": "915ab18e412019ce86804e37cf36dffd67c346b83eba5f57d421b34365576315",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "scoped(appointment, field)",
       "authoritativeRecord": "Appointment",
       "allowedCommand": {
@@ -13828,12 +13791,12 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#appointmentProjectionTransitionAppointmentUpdateOne#updateOne#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 184,
+      "line": 185,
       "kind": "updateOne",
       "fields": [],
       "writerSha256": "c22abfd681d9a7ceb42f2a6c73e5f394e7186154381b3cfcdf8286b493fba100",
       "ownerSha256": "3373363840b7ea54339146ef79c1413af4f40ab0011ee116f40956e3db400242",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "scoped(appointment, field)",
       "authoritativeRecord": "Appointment",
       "allowedCommand": {
@@ -13855,12 +13818,12 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#handleAppointmentReplyAppointmentUpdateOne#updateOne#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 191,
+      "line": 192,
       "kind": "updateOne",
       "fields": [],
       "writerSha256": "37518be3b86e02513030093f45c0b0e50a904e0c5e8b8f649be54dc2a79035cb",
       "ownerSha256": "9a54d4740f303682e14e5f178f0ab952a464384e3f139dad10352307980d1a4f",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "{ _id: appointment._id, business: business._id, status: 'confirmed' }",
       "authoritativeRecord": "Appointment",
       "allowedCommand": {
@@ -13882,7 +13845,7 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#approvalLifecycleEnsureApprovalReviewAlertAtomicUpdate#findOneAndUpdate#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 198,
+      "line": 199,
       "kind": "findOneAndUpdate",
       "fields": [
         "acknowledgedAt",
@@ -13892,7 +13855,7 @@
       ],
       "writerSha256": "871a21ce443f1140d150e69d42bec27033f0167c75c79088f7ee4bc7b99c57d0",
       "ownerSha256": "182aa6b453f385084c46d5c9d8e5d6edabbf1c36ad436fdb4b86d72b42d4f421",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "{ business: appointment.business,\n    dedupeKey: `appointment_approval_required:${appointment._id}` }",
       "authoritativeRecord": "Alert",
       "allowedCommand": {
@@ -13914,12 +13877,12 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#approvalLifecycleEnsureApprovalReviewAlertUpdateOne#updateOne#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 218,
+      "line": 219,
       "kind": "updateOne",
       "fields": [],
       "writerSha256": "7bfc515fb6ae95b4b9be8f341af30a499677cf625691907998c3301bd1a310b4",
       "ownerSha256": "0932140459bf44ca3b3b54d458302ecc5b2608c59df3602e309e227fe200abe0",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "{ _id: alert._id, dueAt: null }",
       "authoritativeRecord": "Alert",
       "allowedCommand": {
@@ -13941,12 +13904,12 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#approvalLifecycleEnsureApprovalReviewAlertUpdateOne2#updateOne#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 223,
+      "line": 224,
       "kind": "updateOne",
       "fields": [],
       "writerSha256": "960f607df42df36a060950c421cced2338b230a68f580fc47813d11c32b7a9ce",
       "ownerSha256": "a6ccec801a9a5ed07844df8d895107516a75e8c8b4393ed27fbe8850f0572a3a",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "{ _id: alert._id, assignedTo: null }",
       "authoritativeRecord": "Alert",
       "allowedCommand": {
@@ -13968,12 +13931,12 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#approvalLifecycleEnsureApprovalReviewAlertUpdateOne3#updateOne#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 228,
+      "line": 229,
       "kind": "updateOne",
       "fields": [],
       "writerSha256": "91e1402e58ca4d619985da95bb616e84ba590bcec7d1d8aa8377ee92e2d32873",
       "ownerSha256": "41e2c4b218bace7b5478715345f6b2c9fb228e1810fd14af3aa0e22521a99a05",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "{ _id: alert._id }",
       "authoritativeRecord": "Alert",
       "allowedCommand": {
@@ -13995,12 +13958,12 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#approvalLifecycleReconcileApprovalRequestsAppointmentUpdateOne#updateOne#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 233,
+      "line": 234,
       "kind": "updateOne",
       "fields": [],
       "writerSha256": "6e4194bdcf8c1b80621aa4156d477f02c5c2158754186e2b529e80f6a5d5e8f1",
       "ownerSha256": "9b58aed2e9d4fafde62a224e67779b315f3dcee606d204e6f8323f252c61ce8d",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "{ _id: appointment._id, status: appointment.status }",
       "authoritativeRecord": "Appointment",
       "allowedCommand": {
@@ -14024,12 +13987,12 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#approvalLifecycleReconcileApprovalRequestsAppointmentUpdateOne2#updateOne#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 238,
+      "line": 239,
       "kind": "updateOne",
       "fields": [],
       "writerSha256": "faec86e46193402b9d2e3b1ca63bfd968ea3382f84cf0de6852ea4f2ead3e635",
       "ownerSha256": "6acb7c979738b16c9cbf2cdfd561f5e7353e891a6d395bb2b3984409ac26fd0e",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "{ _id: appointment._id, status: appointment.status }",
       "authoritativeRecord": "Appointment",
       "allowedCommand": {
@@ -14053,12 +14016,12 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#approvalLifecycleReconcileApprovalRequestsAppointmentUpdateOne3#updateOne#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 245,
+      "line": 246,
       "kind": "updateOne",
       "fields": [],
       "writerSha256": "87cc47f43e1df6b83daa4cdae7eb46e5c312bc07d989185bbf28c138b450a13f",
       "ownerSha256": "ea6d6f8c83908ca1cd5f251fed3e4a2a5433e175084acd5dff86412a5979060d",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "{ _id: appointment._id }",
       "authoritativeRecord": "Appointment",
       "allowedCommand": {
@@ -14080,7 +14043,7 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#approvalLifecycleResolveApprovalReviewAlertUpdateMany#updateMany#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 250,
+      "line": 251,
       "kind": "updateMany",
       "fields": [
         "actionRequired",
@@ -14089,7 +14052,7 @@
       ],
       "writerSha256": "518837b170aabf940cae8ba41eabe8e8d49322b77cd8926f9a50a7913f49b46b",
       "ownerSha256": "b913dfd4115e32fe229336f485f9898542a9e5ebf34b5b1b79e7686186dc7778",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "{ business: appointment.business, 'metadata.appointmentId': String(appointment._id),\n    'metadata.approvalRequest': true, resolvedAt: null }",
       "authoritativeRecord": "Alert",
       "allowedCommand": {
@@ -14111,12 +14074,12 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#runApprovalSmsAlertUpdateOne#updateOne#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 259,
+      "line": 260,
       "kind": "updateOne",
       "fields": [],
       "writerSha256": "602ed7d67f571188ecba80680f338fa55ce4510de384ce0d01f6b04c12d2f72f",
       "ownerSha256": "12bf21223faa2843d0a11044e83d6e7f2e0e83f2fe1970f55e497d84ae117018",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "{ _id: alert._id, [`${path}.state`]: 'sending' }",
       "authoritativeRecord": "Alert",
       "allowedCommand": {
@@ -14138,12 +14101,12 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#runApprovalSmsAlertAtomicUpdate#findOneAndUpdate#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 264,
+      "line": 265,
       "kind": "findOneAndUpdate",
       "fields": [],
       "writerSha256": "c1c2640b35153f14f6de0d3810475b8b834ae8ed09bb45e3687a4893083db073",
       "ownerSha256": "e340e3e2b6baed7fce1ff316cf954bd306750e0acc0f3b9be7796788e4c6a887",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "{ _id: alert._id, actionRequired: true, resolvedAt: null,\n      acknowledgedAt: null, ...eligibleAttempt(path, now) }",
       "authoritativeRecord": "Alert",
       "allowedCommand": {
@@ -14165,12 +14128,12 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#runApprovalSmsAlertUpdateOne2#updateOne#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 271,
+      "line": 272,
       "kind": "updateOne",
       "fields": [],
       "writerSha256": "eeca5332df699f83ffd4facb263667272054a850daa0f6b12c2adeffdcf2332c",
       "ownerSha256": "0bafc6993bcddced40e528514a5e5cb50e3171626802d04d0995fb8c566ec3db",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "{ _id: alert._id, [`${path}.token`]: token }",
       "authoritativeRecord": "Alert",
       "allowedCommand": {
@@ -14192,12 +14155,12 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#runApprovalSmsAlertUpdateOne3#updateOne#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 278,
+      "line": 279,
       "kind": "updateOne",
       "fields": [],
       "writerSha256": "c1e8f25279e059cae2041d58a6850328e4db5de88c2dcb678a886ca145b8075b",
       "ownerSha256": "1e8b05721478992d4cd3ee6f5c5ec3f76a884369b6ee5a63f553d6bd86701429",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "{ _id: alert._id, [`${path}.token`]: token }",
       "authoritativeRecord": "Alert",
       "allowedCommand": {
@@ -14219,12 +14182,12 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#followUpTaskLeadUpdateOne#updateOne#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 285,
+      "line": 286,
       "kind": "updateOne",
       "fields": [],
       "writerSha256": "c9798d335ae15eb628a02645a1072cfd78b3a16e68b87a78db86b181e8d53cf1",
       "ownerSha256": "3c3467d34802eb6a6eac14af4e2abb723e534ef3069dc733b247ae20b5161975",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "{ _id: replacement.lead, business: business._id,\n        appointment: { $in: [replacement._id, replacement.rescheduledFrom, null].filter(id => id !== undefined) },\n        $or: [{ bookedAt: null }, { bookedAt: { $lte: replacement.confirmedAt } }],\n      }",
       "authoritativeRecord": "Lead",
       "allowedCommand": {
@@ -14246,12 +14209,12 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#rescheduleRequestEnsureRescheduleReviewAppointmentUpdateOne#updateOne#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 294,
+      "line": 295,
       "kind": "updateOne",
       "fields": [],
       "writerSha256": "2fa39f57a0089e17489512053319d06e918024e7e32be9d35250e8dd548c3f58",
       "ownerSha256": "45a2ef0ba03e5ffdb985a76b5b12d4229137ea9890ccbf1a50d2a3f2bf5298b8",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "{ _id: appointment._id, 'rescheduleRequest.id': request.id }",
       "authoritativeRecord": "Appointment",
       "allowedCommand": {
@@ -14273,7 +14236,7 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#rescheduleRequestResolveRescheduleReviewsAlertUpdateMany#updateMany#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 300,
+      "line": 301,
       "kind": "updateMany",
       "fields": [
         "actionRequired",
@@ -14282,7 +14245,7 @@
       ],
       "writerSha256": "9b74f3b0d50d84ef66fc3c82e3d8168cb6933d5e6d9151c1d8c32f6368670f98",
       "ownerSha256": "e25ce0e6c8a025d959c933c17558793b1a4a6c4e8769cb2d8f1f92a0ead18bd5",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "{ business: appointment.business, appointment: appointment._id,\n    'metadata.rescheduleRequest': true, ...(requestId ? { 'metadata.requestId': requestId } : {}), resolvedAt: null }",
       "authoritativeRecord": "Alert",
       "allowedCommand": {
@@ -14304,14 +14267,14 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#submitRescheduleRequestAppointmentAtomicUpdate#findOneAndUpdate#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 307,
+      "line": 308,
       "kind": "findOneAndUpdate",
       "fields": [
         "status"
       ],
       "writerSha256": "b888ba42123a6907a42659a020888fbec853506ca504932d9ec8c450dd3162e3",
       "ownerSha256": "87461b8361c10fef0262e854a46ae041da776745bd81a682a0cee91b4f888c87",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "{ _id: appointmentId, business: business._id,\n      status: 'confirmed', 'rescheduleRequest.status': { $ne: 'pending' } }",
       "authoritativeRecord": "Appointment",
       "allowedCommand": {
@@ -14333,12 +14296,12 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#rescheduleRequestRepairRescheduleReviewsAppointmentUpdateOne#updateOne#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 316,
+      "line": 317,
       "kind": "updateOne",
       "fields": [],
       "writerSha256": "7bb9e70bb253023ff4d5b2948a4bb8b209fa5bf4d9b0c5fc9e33379c170b20eb",
       "ownerSha256": "947ba2dfbddd08f8203446157c10486aee56431dd94f9f2ad735548889198655",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "{ _id: row._id, 'rescheduleRequest.id': row.rescheduleRequest.id }",
       "authoritativeRecord": "Appointment",
       "allowedCommand": {
@@ -14360,12 +14323,12 @@
     {
       "id": "src/services/stateTransitions/appointmentLifecycle.js#rescheduleRequestRepairRescheduleReviewsAppointmentUpdateOne2#updateOne#1",
       "file": "src/services/stateTransitions/appointmentLifecycle.js",
-      "line": 321,
+      "line": 322,
       "kind": "updateOne",
       "fields": [],
       "writerSha256": "043d6fe7564351d060093df8ea4bf013ac8458aaae08c310ce0b11bee1bc9878",
       "ownerSha256": "2cacdd2217e6645e7fe346f9b27016685c1fd2b5b1d6bb63e0a55c46e1d45625",
-      "importSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "importSha256": "6bfa36d7b8f175e3fa74a1405beee8e5bec831baac39cfe5b7e950fdd69934fc",
       "predicateSource": "{ _id: row._id, 'rescheduleRequest.id': row.rescheduleRequest.id }",
       "authoritativeRecord": "Appointment",
       "allowedCommand": {
@@ -14385,15 +14348,74 @@
       }
     },
     {
+      "id": "src/services/stateTransitions/appointmentOwnership.js#claimAppointmentCancellation#findOneAndUpdate#1",
+      "file": "src/services/stateTransitions/appointmentOwnership.js",
+      "line": 10,
+      "kind": "findOneAndUpdate",
+      "fields": [
+        "status"
+      ],
+      "writerSha256": "a2edf5ef2aa9f1fda9b4c0dea98c2fa2799b198850ec5228081da036f26d1168",
+      "ownerSha256": "77fce327d19d95c538c03ab96aba9d662cf7d7b923a11c9471c629c083754ef0",
+      "importSha256": "967573157d8a0118a9b81842abb29015d82a1e83f6d2d055d56e848e4def640e",
+      "predicateSource": "{\n    _id: appointment._id, business: appointment.business, status: appointment.status,\n    stateVersion: appointment.stateVersion || { $in: [0, null] },\n    ...(appointment.updatedAt ? { updatedAt: appointment.updatedAt } : {}),\n    'rescheduleIntent.key': { $exists: false },\n    'confirmationIntent.status': { $ne: 'pending_provider' },\n    ...(pending ? { 'cancellationIntent.leaseUntil': { $lte: now } } : {}),\n  }",
+      "authoritativeRecord": "Appointment",
+      "allowedCommand": {
+        "module": "src/services/stateTransitions/appointmentOwnership.js",
+        "function": "claimAppointmentCancellation",
+        "mode": "transition-layer"
+      },
+      "versionOrClaim": {
+        "kind": "source-filter-or-command",
+        "evidence": [
+          "confirmationIntent",
+          "updatedAt"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [],
+        "localRepairCommands": [],
+        "review": "No local repair path established by this scan; review this owner before changing its effects."
+      }
+    },
+    {
+      "id": "src/services/stateTransitions/appointmentOwnership.js#deferAppointmentCancellation#updateOne#1",
+      "file": "src/services/stateTransitions/appointmentOwnership.js",
+      "line": 28,
+      "kind": "updateOne",
+      "fields": [],
+      "writerSha256": "0a51a0daee038176e106935e0bfdb57107f6d73011c17512eb76a6e4bedfc946",
+      "ownerSha256": "a26b3b7fd44bfe078bce169eee37207264b2d583a3c20b583a3bf61743177550",
+      "importSha256": "967573157d8a0118a9b81842abb29015d82a1e83f6d2d055d56e848e4def640e",
+      "predicateSource": "{ _id: appointment._id, business: appointment.business,\n    status: 'cancel_pending', 'cancellationIntent.token': appointment.cancellationIntent.token,\n  }",
+      "authoritativeRecord": "Appointment",
+      "allowedCommand": {
+        "module": "src/services/stateTransitions/appointmentOwnership.js",
+        "function": "deferAppointmentCancellation",
+        "mode": "transition-layer"
+      },
+      "versionOrClaim": {
+        "kind": "source-filter-or-command",
+        "evidence": [],
+        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [],
+        "localRepairCommands": [],
+        "review": "No local repair path established by this scan; review this owner before changing its effects."
+      }
+    },
+    {
       "id": "src/services/stateTransitions/appointmentOwnership.js#claimRescheduleOriginal#findOneAndUpdate#1",
       "file": "src/services/stateTransitions/appointmentOwnership.js",
-      "line": 11,
+      "line": 40,
       "kind": "findOneAndUpdate",
       "fields": [],
-      "writerSha256": "5b2f3bfd0af464e6decef7145850ab19b9a73012c380ae05905cb4063f1d1b2b",
-      "ownerSha256": "abcc2fa56461f9fddc505865933070e54b5513860bff4b4ca559e5a19dacc445",
+      "writerSha256": "869e0c3ee3bbd6b53a4beda34fd47f245a605180b5dbaad8c7b158ba5ce693e3",
+      "ownerSha256": "502bfd78e8a6ef53971cc83a467ecc5d218d06f78e57fd398f088ebb284ad9da",
       "importSha256": "967573157d8a0118a9b81842abb29015d82a1e83f6d2d055d56e848e4def640e",
-      "predicateSource": "{\n    _id: original._id, business: business._id, status: 'confirmed',\n    ...(original.updatedAt ? { updatedAt: original.updatedAt } : {}),\n    $and: [\n      { $or: [{ 'rescheduleIntent.key': key }, { 'rescheduleIntent.key': { $exists: false } }, { rescheduleIntent: null }] },\n      { $or: [{ 'rescheduleIntent.leaseUntil': { $exists: false } }, { 'rescheduleIntent.leaseUntil': { $lte: now } }] },\n    ],\n    'confirmationIntent.status': { $ne: 'pending_provider' },\n  }",
+      "predicateSource": "{\n    _id: original._id, business: business._id, status: 'confirmed',\n    stateVersion: original.stateVersion || { $in: [0, null] },\n    ...(original.updatedAt ? { updatedAt: original.updatedAt } : {}),\n    $and: [\n      { $or: [{ 'rescheduleIntent.key': key }, { 'rescheduleIntent.key': { $exists: false } }, { rescheduleIntent: null }] },\n      { $or: [{ 'rescheduleIntent.leaseUntil': { $exists: false } }, { 'rescheduleIntent.leaseUntil': { $lte: now } }] },\n    ],\n    'confirmationIntent.status': { $ne: 'pending_provider' },\n  }",
       "authoritativeRecord": "Appointment",
       "allowedCommand": {
         "module": "src/services/stateTransitions/appointmentOwnership.js",
@@ -14417,7 +14439,7 @@
     {
       "id": "src/services/stateTransitions/appointmentOwnership.js#releaseRescheduleOriginal#updateOne#1",
       "file": "src/services/stateTransitions/appointmentOwnership.js",
-      "line": 28,
+      "line": 58,
       "kind": "updateOne",
       "fields": [],
       "writerSha256": "2fa8ebe7a89a51c7cefaa3e4262b6436538c730b0ad88bbfc00bd3f0968df042",

@@ -16,3 +16,14 @@ export async function stabilizationFixture() {
   const token = Token.sign({ userId: String(user._id), role: 'owner', sessionVersion: 0 });
   return { user, business, lead, conversation, token };
 }
+
+export async function activateCustomerAccess(businessId) {
+  return Subscription.findOneAndUpdate({ business: businessId }, { $set: { status: 'active', isActive: true } },
+    { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true });
+}
+export async function customerAccessForUser(user) {
+  const business = await Business.create({ owner: user._id, businessName: user.businessName || 'Synthetic test business',
+    isActive: true, forwardingPhone: '+14045550198' });
+  await activateCustomerAccess(business._id);
+  return business;
+}

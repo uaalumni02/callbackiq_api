@@ -250,6 +250,8 @@ AppointmentSchema.pre("save", function protectPendingConfirmation() {
   }
 });
 
+AppointmentSchema.index({ status: 1, "cancellationIntent.nextAttemptAt": 1, "cancellationIntent.leaseUntil": 1, _id: 1 },
+  { name: 'appointment_cancellation_recovery' });
 AppointmentSchema.index({ "confirmationIntent.nextAttemptAt": 1, "confirmationIntent.leaseUntil": 1, _id: 1 },
   { partialFilterExpression: { "confirmationIntent.nextAttemptAt": { $exists: true } } });
 AppointmentSchema.index({ "providerCompensation.pending": 1, "providerCompensation.nextAttemptAt": 1 });

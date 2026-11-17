@@ -1,3 +1,4 @@
+import { qualificationChanges, assertQualificationSnapshot } from '../services/leadQualification.policy.js';
 import { saveStateDocument } from '../services/stateTransitions/documents.js';
 import {tenantRepository,tenantContext} from './repositories/tenantRepository.js';
 import { createDbidentity1Methods } from './repositories/extracted/identity-1.js';
@@ -188,9 +189,6 @@ class Db {
       throw error;
     }
   }
-
-
-
   static async updateBusinessByOwner(...args) { return __meekcallGetDbbusiness1Methods().updateBusinessByOwner.apply(this, args); }
 
   static async deleteBusinessByOwner(...args) { return __meekcallGetDbbusiness1Methods().deleteBusinessByOwner.apply(this, args); }
@@ -203,13 +201,7 @@ class Db {
   }
 
   static async getLeadsByBusiness(...args) { return __meekcallGetDbleads1Methods().getLeadsByBusiness.apply(this, args); }
-
-
-
   static async updateLeadForBusiness(...args) { return __meekcallGetDbleads1Methods().updateLeadForBusiness.apply(this, args); }
-
-
-
   static async deleteLeadForBusiness(model,id,businessId) {
     return tenantRepository(model,tenantContext(businessId)).remove(id);
   }
@@ -234,15 +226,12 @@ class Db {
     return tenantRepository(model,tenantContext(businessId)).remove(id);
   }
   static async qualifyLeadForBusiness(model,id,businessId,data,observed) {
-    const changes = { ...data };
-    if (['booked', 'lost', 'spam'].includes(observed?.status)) changes.status = observed.status;
+    assertQualificationSnapshot(observed, id, businessId);
+    const changes = qualificationChanges(observed, data);
     return tenantRepository(model,tenantContext(businessId)).updateObserved(id,changes,observed,{populate:[
       {path:'business',select:'businessName businessType phone estimatedJobValue'},
     ]});
   }
-
-
-
 
 
   // ----- Message methods -----
@@ -277,9 +266,6 @@ class Db {
 
 
   static async updateCallLogForBusiness(...args) { return __meekcallGetDbcalls1Methods().updateCallLogForBusiness.apply(this, args); }
-
-
-
   static async deleteCallLogForBusiness(model,id,businessId) {
     return tenantRepository(model,tenantContext(businessId)).remove(id);
   }
@@ -320,15 +306,9 @@ class Db {
 
 
   static async updateAlertForBusiness(...args) { return __meekcallGetDbalerts1Methods().updateAlertForBusiness.apply(this, args); }
-
-
-
   static async markAlertAsReadForBusiness(...args) { return __meekcallGetDbalerts1Methods().markAlertAsReadForBusiness.apply(this, args); }
 
   static async markAllAlertsAsRead(...args) { return __meekcallGetDbalerts1Methods().markAllAlertsAsRead.apply(this, args); }
-
-
-
   static async deleteAlertForBusiness(model,id,businessId) {
     return tenantRepository(model,tenantContext(businessId)).remove(id);
   }
@@ -377,9 +357,6 @@ class Db {
   static async getAllSupportTickets(...args) {
     return supportTicketRepository.getAllSupportTickets(...args);
   }
-
-
-
   // ----- Admin methods -----
 
   static async adminUpdateBusinessStatus(...args) { return __meekcallGetDbbusiness1Methods().adminUpdateBusinessStatus.apply(this, args); }
@@ -457,13 +434,7 @@ class Db {
   static async getConversationIntelligenceByBusiness(...args) { return __meekcallGetDbintelligence1Methods().getConversationIntelligenceByBusiness.apply(this, args); }
   static async getConversationIntelligenceOpportunities(...args) { return __meekcallGetDbintelligence1Methods().getConversationIntelligenceOpportunities.apply(this, args); }
 
-
-
-
   static async updateConversationIntelligenceForBusiness(...args) { return __meekcallGetDbintelligence1Methods().updateConversationIntelligenceForBusiness.apply(this, args); }
-
-
-
   static async deleteConversationIntelligenceForBusiness(model,conversationId,businessId) {
     return tenantRepository(model,tenantContext(businessId),{identityField:'conversation'}).remove(conversationId);
   }

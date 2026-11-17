@@ -2,13 +2,13 @@
   "baseline": "55362b127cc4a72453ca96e995fe54bea95c1333",
   "total": 676,
   "counts": {
-    "delegated-command-with-recorded-owner": 434,
+    "delegated-command-with-recorded-owner": 438,
     "atomic-query-with-recorded-filter": 143,
     "capability-inspection": 18,
     "model-persistence-and-unique-index-contract": 19,
-    "staged-fields-with-persistence-owner": 55,
+    "staged-fields-with-persistence-owner": 49,
     "atomic-reset-token-consumption": 1,
-    "runtime-document-fence": 2,
+    "runtime-document-fence": 4,
     "durable-compensation": 4
   },
   "reviewedRuntimeBypasses": [
@@ -273,7 +273,7 @@
         "function": "adminUpdateById",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "f832605ebb2630da60c4c72aa9a3d3827f4da98bcc0f96140390a2a3beeac271",
+      "sourceFingerprint": "c30bea2bbae97badd099ffc017df52911066d0f2f8362b6ff09a147053280e38",
       "authority": "RegisteredStateRecord",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
@@ -287,7 +287,7 @@
         "function": "adminDeleteById",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "7a57afd1a1607e7ecb00aa8e192f1dbe908e07f6757cd6f29fd694ec1486a5f2",
+      "sourceFingerprint": "a8443467982b29adf5f735f0f3dd7546ffab743f067b8c4e47d3864322a57e2a",
       "authority": "RegisteredStateRecord",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
@@ -348,6 +348,23 @@
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": "filter",
       "localClaimEvidence": [],
+      "enforcement": "Dispatch/capability remains bound by the recorded owner; inspect its model and caller. Registration is not proof of safety."
+    },
+    {
+      "id": "src/db/repositories/tenantRepository.js#updateObserved#transition-command#1",
+      "owner": {
+        "module": "src/db/repositories/tenantRepository.js",
+        "function": "updateObserved",
+        "mode": "registered-domain-command"
+      },
+      "sourceFingerprint": "ae60994c7927f4118b7c247382dea7308baf053f7bd6a14b209aa25915e6bfc1",
+      "authority": "DynamicTenantRecord",
+      "disposition": "delegated-command-with-recorded-owner",
+      "recordedPredicate": "filter",
+      "localClaimEvidence": [
+        "updatedAt",
+        "version"
+      ],
       "enforcement": "Dispatch/capability remains bound by the recorded owner; inspect its model and caller. Registration is not proof of safety."
     },
     {
@@ -462,7 +479,7 @@
         "function": "<module>",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "4f43c97ef3bd374669c26d604a045f9c8b6bf0960d019ab6b73760533c1ae78c",
+      "sourceFingerprint": "5dfd40e92c1825b04c293ffe0a05b951defe8314a9ebfb4a5ee7ed7f3634fec6",
       "authority": "RegisteredStateRecord",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
@@ -482,7 +499,7 @@
         "function": "<module>",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "8742d8b41b2a2f9b1578dfd4678cf8f65f15a05e886715cd5a2b37f6792a7814",
+      "sourceFingerprint": "4607a047a480e9acececf2c63af2df8b6007a4fb6c2260361a0586d268cde128",
       "authority": "RegisteredStateRecord",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
@@ -498,7 +515,7 @@
         "function": "<module>",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "f5ebbf9bf482a7edbb1a589bd71a1ca2de9467293caada36137418033932906d",
+      "sourceFingerprint": "16f37b05fb5c6b3d6339fc51a47c3cdb7608787efaaf0db1162eb8d26e9e8678",
       "authority": "RegisteredStateRecord",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
@@ -4692,7 +4709,7 @@
         "function": "<callback>",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "e7c2f46642b749c11a31a543aaed7a21df36e69ffd3e7ca013b22c62abdd9525",
+      "sourceFingerprint": "67eef5ce87778fab2e28483344039a6f221be715e077ee6923bf7983072c4f36",
       "authority": "RegisteredStateRecord",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
@@ -5186,11 +5203,13 @@
         "function": "cancel",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "f851974471b0ab7249ccfcf917b3d0c66c32b5c3d1058775b9e68cfdd64a607c",
+      "sourceFingerprint": "25eaf1a23a979d33a809979569ff371f9fd016511f9c57210569ca13ac3300e0",
       "authority": "RegisteredStateRecord",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
-      "localClaimEvidence": [],
+      "localClaimEvidence": [
+        "version"
+      ],
       "enforcement": "Dispatch/capability remains bound by the recorded owner; inspect its model and caller. Registration is not proof of safety."
     },
     {
@@ -5200,11 +5219,13 @@
         "function": "cancel",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "f851974471b0ab7249ccfcf917b3d0c66c32b5c3d1058775b9e68cfdd64a607c",
+      "sourceFingerprint": "25eaf1a23a979d33a809979569ff371f9fd016511f9c57210569ca13ac3300e0",
       "authority": "RegisteredStateRecord",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
-      "localClaimEvidence": [],
+      "localClaimEvidence": [
+        "version"
+      ],
       "enforcement": "Dispatch/capability remains bound by the recorded owner; inspect its model and caller. Registration is not proof of safety."
     },
     {
@@ -5214,11 +5235,45 @@
         "function": "cancel",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "f851974471b0ab7249ccfcf917b3d0c66c32b5c3d1058775b9e68cfdd64a607c",
+      "sourceFingerprint": "25eaf1a23a979d33a809979569ff371f9fd016511f9c57210569ca13ac3300e0",
+      "authority": "RegisteredStateRecord",
+      "disposition": "delegated-command-with-recorded-owner",
+      "recordedPredicate": null,
+      "localClaimEvidence": [
+        "version"
+      ],
+      "enforcement": "Dispatch/capability remains bound by the recorded owner; inspect its model and caller. Registration is not proof of safety."
+    },
+    {
+      "id": "src/services/scheduling/commands/cancel-1.js#cancel#transition-command#4",
+      "owner": {
+        "module": "src/services/scheduling/commands/cancel-1.js",
+        "function": "cancel",
+        "mode": "registered-domain-command"
+      },
+      "sourceFingerprint": "25eaf1a23a979d33a809979569ff371f9fd016511f9c57210569ca13ac3300e0",
+      "authority": "RegisteredStateRecord",
+      "disposition": "delegated-command-with-recorded-owner",
+      "recordedPredicate": null,
+      "localClaimEvidence": [
+        "version"
+      ],
+      "enforcement": "Dispatch/capability remains bound by the recorded owner; inspect its model and caller. Registration is not proof of safety."
+    },
+    {
+      "id": "src/services/scheduling/commands/cancel-1.js#cancel#transition-command#5",
+      "owner": {
+        "module": "src/services/scheduling/commands/cancel-1.js",
+        "function": "cancel",
+        "mode": "registered-domain-command"
+      },
+      "sourceFingerprint": "25eaf1a23a979d33a809979569ff371f9fd016511f9c57210569ca13ac3300e0",
       "authority": "Appointment",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
-      "localClaimEvidence": [],
+      "localClaimEvidence": [
+        "version"
+      ],
       "enforcement": "appointmentOwnership schema fences; confirmation intent predicates; reschedule claim/fingerprint; compensation retry"
     },
     {
@@ -5418,7 +5473,7 @@
         "function": "executeReschedule",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "dd3d2c64d652cf048ee900733f5416b8f6c0d98d0c910d49d4c7a7eef81de686",
+      "sourceFingerprint": "e09f73426173e3b92215ad050264f22c83765090b16bd374777a86553ebdb2d4",
       "authority": "RegisteredStateRecord",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
@@ -5432,7 +5487,21 @@
         "function": "executeReschedule",
         "mode": "registered-domain-command"
       },
-      "sourceFingerprint": "dd3d2c64d652cf048ee900733f5416b8f6c0d98d0c910d49d4c7a7eef81de686",
+      "sourceFingerprint": "e09f73426173e3b92215ad050264f22c83765090b16bd374777a86553ebdb2d4",
+      "authority": "Appointment",
+      "disposition": "delegated-command-with-recorded-owner",
+      "recordedPredicate": null,
+      "localClaimEvidence": [],
+      "enforcement": "appointmentOwnership schema fences; confirmation intent predicates; reschedule claim/fingerprint; compensation retry"
+    },
+    {
+      "id": "src/services/scheduling/reschedule/command.js#executeReschedule#transition-command#3",
+      "owner": {
+        "module": "src/services/scheduling/reschedule/command.js",
+        "function": "executeReschedule",
+        "mode": "registered-domain-command"
+      },
+      "sourceFingerprint": "e09f73426173e3b92215ad050264f22c83765090b16bd374777a86553ebdb2d4",
       "authority": "RegisteredStateRecord",
       "disposition": "delegated-command-with-recorded-owner",
       "recordedPredicate": null,
@@ -5550,7 +5619,7 @@
         "function": "stageHandoff",
         "mode": "transition-layer"
       },
-      "sourceFingerprint": "26e685c6fd762f7e8f18b97ea298b5f0ec1510a9d5cc0bc69658798efd26c7a9",
+      "sourceFingerprint": "984588c5d2ef8b32726c59534e9faf4c58f8ac6dfa1abad58a80ffae0352176a",
       "authority": "Appointment",
       "disposition": "model-persistence-and-unique-index-contract",
       "recordedPredicate": null,
@@ -5564,7 +5633,7 @@
         "function": "stageHandoff",
         "mode": "transition-layer"
       },
-      "sourceFingerprint": "26e685c6fd762f7e8f18b97ea298b5f0ec1510a9d5cc0bc69658798efd26c7a9",
+      "sourceFingerprint": "984588c5d2ef8b32726c59534e9faf4c58f8ac6dfa1abad58a80ffae0352176a",
       "authority": "Appointment",
       "disposition": "model-persistence-and-unique-index-contract",
       "recordedPredicate": null,
@@ -5578,7 +5647,7 @@
         "function": "confirmReplacement",
         "mode": "transition-layer"
       },
-      "sourceFingerprint": "b8c54ce9fc8c4516c19022af3f85a330467c1c4d7170fca736d1dc107b1fbea0",
+      "sourceFingerprint": "2c73768d804ebe787daca8cbaaf1631b6a604b31808b892a4be216144921efd5",
       "authority": "Appointment",
       "disposition": "staged-fields-with-persistence-owner",
       "recordedPredicate": null,
@@ -6394,76 +6463,6 @@
       "enforcement": "appointmentOwnership schema fences; confirmation intent predicates; reschedule claim/fingerprint; compensation retry"
     },
     {
-      "id": "src/services/stateTransitions/appointmentCommands.js#stageCanceledAppointment#assignment#1",
-      "owner": {
-        "module": "src/services/stateTransitions/appointmentCommands.js",
-        "function": "stageCanceledAppointment",
-        "mode": "transition-layer"
-      },
-      "sourceFingerprint": "ed43cbb35a3904872fe633ff2d0e113dcb5d8b66e6da8230e0e7482838c1b280",
-      "authority": "Appointment",
-      "disposition": "staged-fields-with-persistence-owner",
-      "recordedPredicate": null,
-      "localClaimEvidence": [],
-      "enforcement": "appointmentOwnership schema fences; confirmation intent predicates; reschedule claim/fingerprint; compensation retry"
-    },
-    {
-      "id": "src/services/stateTransitions/appointmentCommands.js#stageUnavailableApproval#assignment#1",
-      "owner": {
-        "module": "src/services/stateTransitions/appointmentCommands.js",
-        "function": "stageUnavailableApproval",
-        "mode": "transition-layer"
-      },
-      "sourceFingerprint": "c5ee55adf7ea2003c4545292d8687228590e90ce6b1fb68c04c6d1ca9f19b638",
-      "authority": "Appointment",
-      "disposition": "staged-fields-with-persistence-owner",
-      "recordedPredicate": null,
-      "localClaimEvidence": [],
-      "enforcement": "appointmentOwnership schema fences; confirmation intent predicates; reschedule claim/fingerprint; compensation retry"
-    },
-    {
-      "id": "src/services/stateTransitions/appointmentCommands.js#stageFailedConfirmation#assignment#1",
-      "owner": {
-        "module": "src/services/stateTransitions/appointmentCommands.js",
-        "function": "stageFailedConfirmation",
-        "mode": "transition-layer"
-      },
-      "sourceFingerprint": "c82f20f1a87e6491d1adf238e95bdac31a0adb10747c0f74c769ff5d7a98dfa9",
-      "authority": "Appointment",
-      "disposition": "staged-fields-with-persistence-owner",
-      "recordedPredicate": null,
-      "localClaimEvidence": [],
-      "enforcement": "appointmentOwnership schema fences; confirmation intent predicates; reschedule claim/fingerprint; compensation retry"
-    },
-    {
-      "id": "src/services/stateTransitions/appointmentCommands.js#stageProviderConfirmedAppointment#assignment#1",
-      "owner": {
-        "module": "src/services/stateTransitions/appointmentCommands.js",
-        "function": "stageProviderConfirmedAppointment",
-        "mode": "transition-layer"
-      },
-      "sourceFingerprint": "50088745fd2415b33b8caf547c2a7114d81ce60b64b13d58849a9d9d52c67b8d",
-      "authority": "Appointment",
-      "disposition": "staged-fields-with-persistence-owner",
-      "recordedPredicate": null,
-      "localClaimEvidence": [],
-      "enforcement": "appointmentOwnership schema fences; confirmation intent predicates; reschedule claim/fingerprint; compensation retry"
-    },
-    {
-      "id": "src/services/stateTransitions/appointmentCommands.js#stageProviderFailure#assignment#1",
-      "owner": {
-        "module": "src/services/stateTransitions/appointmentCommands.js",
-        "function": "stageProviderFailure",
-        "mode": "transition-layer"
-      },
-      "sourceFingerprint": "42334ed7ff53f3b8394adb3058c55def0b1881ec60c8397889092ed074e25f4b",
-      "authority": "Appointment",
-      "disposition": "staged-fields-with-persistence-owner",
-      "recordedPredicate": null,
-      "localClaimEvidence": [],
-      "enforcement": "appointmentOwnership schema fences; confirmation intent predicates; reschedule claim/fingerprint; compensation retry"
-    },
-    {
       "id": "src/services/stateTransitions/appointmentCommands.js#reholdAppointmentForConfirmation#findOneAndUpdate#1",
       "owner": {
         "module": "src/services/stateTransitions/appointmentCommands.js",
@@ -6480,13 +6479,13 @@
       "enforcement": "appointmentOwnership schema fences; confirmation intent predicates; reschedule claim/fingerprint; compensation retry"
     },
     {
-      "id": "src/services/stateTransitions/appointmentCommands.js#stageStaffAppointmentOutcome#assignment#1",
+      "id": "src/services/stateTransitions/appointmentCommands.js#stageAppointmentStatus#assignment#1",
       "owner": {
         "module": "src/services/stateTransitions/appointmentCommands.js",
-        "function": "stageStaffAppointmentOutcome",
+        "function": "stageAppointmentStatus",
         "mode": "transition-layer"
       },
-      "sourceFingerprint": "518be253028543cfb3a17b33933d9b38a7750ba9735bf966dcda21d46ece05d6",
+      "sourceFingerprint": "9a4080ca55b85a31da877f088e974e80619507abdf7e2241391f9d9786f14588",
       "authority": "Appointment",
       "disposition": "staged-fields-with-persistence-owner",
       "recordedPredicate": null,
@@ -6503,20 +6502,6 @@
       "sourceFingerprint": "d15fd94658ab2b30efc24a4d1f21ac56755e2b93f3c74e0c2991d927c6b43a8e",
       "authority": "Appointment",
       "disposition": "model-persistence-and-unique-index-contract",
-      "recordedPredicate": null,
-      "localClaimEvidence": [],
-      "enforcement": "appointmentOwnership schema fences; confirmation intent predicates; reschedule claim/fingerprint; compensation retry"
-    },
-    {
-      "id": "src/services/stateTransitions/appointmentLifecycle.js#stageDeclinedAppointment#assignment#1",
-      "owner": {
-        "module": "src/services/stateTransitions/appointmentLifecycle.js",
-        "function": "stageDeclinedAppointment",
-        "mode": "transition-layer"
-      },
-      "sourceFingerprint": "eba41c5fd70904ad58a71ca8858e62e2c2f3e7b1eb4bedc85e1bc41e55b19277",
-      "authority": "Appointment",
-      "disposition": "staged-fields-with-persistence-owner",
       "recordedPredicate": null,
       "localClaimEvidence": [],
       "enforcement": "appointmentOwnership schema fences; confirmation intent predicates; reschedule claim/fingerprint; compensation retry"
@@ -7075,16 +7060,47 @@
       "enforcement": "appointmentOwnership schema fences; confirmation intent predicates; reschedule claim/fingerprint; compensation retry"
     },
     {
+      "id": "src/services/stateTransitions/appointmentOwnership.js#claimAppointmentCancellation#findOneAndUpdate#1",
+      "owner": {
+        "module": "src/services/stateTransitions/appointmentOwnership.js",
+        "function": "claimAppointmentCancellation",
+        "mode": "transition-layer"
+      },
+      "sourceFingerprint": "77fce327d19d95c538c03ab96aba9d662cf7d7b923a11c9471c629c083754ef0",
+      "authority": "Appointment",
+      "disposition": "runtime-document-fence",
+      "recordedPredicate": "{\n    _id: appointment._id, business: appointment.business, status: appointment.status,\n    stateVersion: appointment.stateVersion || { $in: [0, null] },\n    ...(appointment.updatedAt ? { updatedAt: appointment.updatedAt } : {}),\n    'rescheduleIntent.key': { $exists: false },\n    'confirmationIntent.status': { $ne: 'pending_provider' },\n    ...(pending ? { 'cancellationIntent.leaseUntil': { $lte: now } } : {}),\n  }",
+      "localClaimEvidence": [
+        "confirmationIntent",
+        "updatedAt"
+      ],
+      "enforcement": "appointmentOwnership schema fences; confirmation intent predicates; reschedule claim/fingerprint; compensation retry"
+    },
+    {
+      "id": "src/services/stateTransitions/appointmentOwnership.js#deferAppointmentCancellation#updateOne#1",
+      "owner": {
+        "module": "src/services/stateTransitions/appointmentOwnership.js",
+        "function": "deferAppointmentCancellation",
+        "mode": "transition-layer"
+      },
+      "sourceFingerprint": "a26b3b7fd44bfe078bce169eee37207264b2d583a3c20b583a3bf61743177550",
+      "authority": "Appointment",
+      "disposition": "runtime-document-fence",
+      "recordedPredicate": "{ _id: appointment._id, business: appointment.business,\n    status: 'cancel_pending', 'cancellationIntent.token': appointment.cancellationIntent.token,\n  }",
+      "localClaimEvidence": [],
+      "enforcement": "appointmentOwnership schema fences; confirmation intent predicates; reschedule claim/fingerprint; compensation retry"
+    },
+    {
       "id": "src/services/stateTransitions/appointmentOwnership.js#claimRescheduleOriginal#findOneAndUpdate#1",
       "owner": {
         "module": "src/services/stateTransitions/appointmentOwnership.js",
         "function": "claimRescheduleOriginal",
         "mode": "transition-layer"
       },
-      "sourceFingerprint": "abcc2fa56461f9fddc505865933070e54b5513860bff4b4ca559e5a19dacc445",
+      "sourceFingerprint": "502bfd78e8a6ef53971cc83a467ecc5d218d06f78e57fd398f088ebb284ad9da",
       "authority": "Appointment",
       "disposition": "runtime-document-fence",
-      "recordedPredicate": "{\n    _id: original._id, business: business._id, status: 'confirmed',\n    ...(original.updatedAt ? { updatedAt: original.updatedAt } : {}),\n    $and: [\n      { $or: [{ 'rescheduleIntent.key': key }, { 'rescheduleIntent.key': { $exists: false } }, { rescheduleIntent: null }] },\n      { $or: [{ 'rescheduleIntent.leaseUntil': { $exists: false } }, { 'rescheduleIntent.leaseUntil': { $lte: now } }] },\n    ],\n    'confirmationIntent.status': { $ne: 'pending_provider' },\n  }",
+      "recordedPredicate": "{\n    _id: original._id, business: business._id, status: 'confirmed',\n    stateVersion: original.stateVersion || { $in: [0, null] },\n    ...(original.updatedAt ? { updatedAt: original.updatedAt } : {}),\n    $and: [\n      { $or: [{ 'rescheduleIntent.key': key }, { 'rescheduleIntent.key': { $exists: false } }, { rescheduleIntent: null }] },\n      { $or: [{ 'rescheduleIntent.leaseUntil': { $exists: false } }, { 'rescheduleIntent.leaseUntil': { $lte: now } }] },\n    ],\n    'confirmationIntent.status': { $ne: 'pending_provider' },\n  }",
       "localClaimEvidence": [
         "confirmationIntent",
         "updatedAt"

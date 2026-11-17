@@ -212,7 +212,7 @@ describe("release coverage ratchet top-off", () => {
   });
 
   describe("Twilio signature coverage", () => {
-    test("supports explicitly disabled validation outside production", async () => {
+    test("cannot disable validation outside test", async () => {
       process.env.NODE_ENV = "development";
       process.env.TWILIO_VALIDATE_WEBHOOKS = "false";
 
@@ -231,7 +231,8 @@ describe("release coverage ratchet top-off", () => {
         next,
       );
 
-      expect(next).toHaveBeenCalledTimes(1);
+      expect(next).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(403);
     });
 
     test("uses an empty parameter object when a signed request has no body", async () => {

@@ -1,3 +1,4 @@
+import { activateCustomerAccess } from '../setup/stabilizationFixture.js';
 
 import request from "supertest";
 
@@ -38,6 +39,7 @@ const registerOwner = async () => {
   });
 
   expect(response.status).toBe(201);
+  await activateCustomerAccess(response.body.data.business._id);
 
   return {
     token: response.body.data.token,

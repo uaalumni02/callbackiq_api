@@ -57,12 +57,14 @@ describe("Twilio signature middleware", () => {
     expect(twilio.validateRequest).not.toHaveBeenCalled();
   });
 
-  test("supports TWILIO_VALIDATE_WEBHOOKS=false outside production", () => {
+  test("ignores TWILIO_VALIDATE_WEBHOOKS=false outside test", () => {
     process.env.NODE_ENV = "development";
     process.env.TWILIO_VALIDATE_WEBHOOKS = " FALSE ";
     const next = jest.fn();
-    validateTwilioSignature(makeReq(), makeRes(), next);
-    expect(next).toHaveBeenCalledWith();
+    const res = makeRes();
+    validateTwilioSignature(makeReq(), res, next);
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(403);
     expect(twilio.validateRequest).not.toHaveBeenCalled();
   });
 
@@ -77,16 +79,18 @@ describe("Twilio signature middleware", () => {
     });
   });
 
-  test("warns once and proceeds without an auth token outside production", () => {
+  test("denies every request without an auth token outside test", () => {
     process.env.NODE_ENV = "development";
     delete process.env.TWILIO_AUTH_TOKEN;
     const next1 = jest.fn();
     const next2 = jest.fn();
-    validateTwilioSignature(makeReq(), makeRes(), next1);
-    validateTwilioSignature(makeReq(), makeRes(), next2);
-    expect(next1).toHaveBeenCalledWith();
-    expect(next2).toHaveBeenCalledWith();
-    expect(console.warn).toHaveBeenCalledTimes(1);
+    const res = makeRes();
+    validateTwilioSignature(makeReq(), res, next1);
+    validateTwilioSignature(makeReq(), res, next2);
+    expect(next1).not.toHaveBeenCalled();
+    expect(next2).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledTimes(2);
+    expect(res.status).toHaveBeenLastCalledWith(503);
   });
 
   test("rejects a request with no signature", () => {

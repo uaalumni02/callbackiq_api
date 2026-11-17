@@ -10,7 +10,6 @@ import {
   listGoogleCalendars,
 } from "../../services/integrations/googleCalendarConnection.service.js";
 import { getGoogleSettings } from "../../services/integrations/integrationSettings.service.js";
-
 const encode = encodeURIComponent;
 const confirmationRequest = (request) => googleApiRequest({ ...request, signal: AbortSignal.timeout(15_000) });
 const DEFAULT_CACHE_TTL_MS = 45_000;

@@ -346,6 +346,18 @@
   {
     "collection": "appointments",
     "key": {
+      "status": 1,
+      "cancellationIntent.nextAttemptAt": 1,
+      "cancellationIntent.leaseUntil": 1,
+      "_id": 1
+    },
+    "options": {
+      "name": "appointment_cancellation_recovery"
+    }
+  },
+  {
+    "collection": "appointments",
+    "key": {
       "confirmationIntent.nextAttemptAt": 1,
       "confirmationIntent.leaseUntil": 1,
       "_id": 1

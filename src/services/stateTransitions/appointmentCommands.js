@@ -9,28 +9,27 @@ export function stageCanceledRescheduleRequest({ appointment }) {
 
 // src/services/scheduling/commands/cancel-1.js:64 — assignment; predicate and write options are owned here.
 export function stageCanceledAppointment({ appointment }) {
-  if (appointment.status !== 'canceled') assertTransition(appointment.status, 'canceled');
-  return (appointment.status = "canceled");
+  return stageAppointmentStatus(appointment, 'canceled');
 }
 
 // src/services/scheduling/commands/confirm-1.js:96 — assignment; predicate and write options are owned here.
 export function stageUnavailableApproval({ appointment }) {
-  return (appointment.status = "failed");
+  return stageAppointmentStatus(appointment, 'failed');
 }
 
 // src/services/scheduling/commands/confirm-1.js:132 — assignment; predicate and write options are owned here.
 export function stageFailedConfirmation({ appointment }) {
-  return (appointment.status = "failed");
+  return stageAppointmentStatus(appointment, 'failed');
 }
 
 // src/services/scheduling/commands/confirmWithoutRecovery.js:18 — assignment; predicate and write options are owned here.
 export function stageProviderConfirmedAppointment({ appointment }) {
-  return (appointment.status = "confirmed");
+  return stageAppointmentStatus(appointment, 'confirmed');
 }
 
 // src/services/scheduling/commands/confirmWithoutRecovery.js:68 — assignment; predicate and write options are owned here.
 export function stageProviderFailure({ appointment }) {
-  return (appointment.status = "failed");
+  return stageAppointmentStatus(appointment, 'failed');
 }
 
 // src/services/scheduling/commands/recheckAndConfirm-1.js:28 — findOneAndUpdate; predicate and write options are owned here.
@@ -46,6 +45,11 @@ export function reholdAppointmentForConfirmation({ Appointment, addMinutes, appo
 // src/services/scheduling/commands/update-1.js:53 — assignment; predicate and write options are owned here.
 export function stageStaffAppointmentOutcome({ appointment, changes }) {
   if (!['completed', 'no_show'].includes(changes.status)) throw new TypeError('Staff outcome must be completed or no_show');
-  if (appointment.status !== changes.status) assertTransition(appointment.status, changes.status);
-  return (appointment.status = changes.status);
+  return stageAppointmentStatus(appointment, changes.status);
+}
+
+export function stageAppointmentStatus(appointment, next) {
+  if (appointment.status !== next) assertTransition(appointment.status, next);
+  appointment.status = next;
+  return next;
 }

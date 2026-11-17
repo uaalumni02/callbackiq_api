@@ -48,7 +48,7 @@ describe("Twilio signature release coverage ratchet", () => {
     jest.restoreAllMocks();
   });
 
-  test("uses the empty-string fallback when webhook validation flag is absent", async () => {
+  test("denies missing auth token when the old webhook validation flag is absent", async () => {
     process.env.NODE_ENV = "development";
 
     delete process.env.TWILIO_VALIDATE_WEBHOOKS;
@@ -71,8 +71,8 @@ describe("Twilio signature release coverage ratchet", () => {
       next,
     );
 
-    expect(next).toHaveBeenCalledTimes(1);
-    expect(res.status).not.toHaveBeenCalled();
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(503);
   });
 
   test("falls back to req.protocol and req.get host when forwarded headers are absent", async () => {

@@ -267,41 +267,14 @@ const ensureCancellationSideEffects = async ({
   }
 };
 
-let __meekcallAppointmentrecheckAndConfirm1Cache;
-function __meekcallGetAppointmentrecheckAndConfirm1Methods() {
-  if (!__meekcallAppointmentrecheckAndConfirm1Cache) __meekcallAppointmentrecheckAndConfirm1Cache = createAppointmentrecheckAndConfirm1Methods({ assertConfirmationNotPending, assertIntakeHoldCurrent, Appointment, addMinutes, assertDistributedLeaseActive, exactSlotAvailable, getAppointmentForBusiness, getSlotCapacity, getSlotClaimKeys, getSlotKey, repairConfirmedApproval, tryRepairAppointmentProjections, withDistributedLease });
-  return __meekcallAppointmentrecheckAndConfirm1Cache;
-}
-
-let __meekcallAppointmentcreate1Cache;
-function __meekcallGetAppointmentcreate1Methods() {
-  if (!__meekcallAppointmentcreate1Cache) __meekcallAppointmentcreate1Cache = createAppointmentcreate1Methods({ Appointment, SocketService, assertServiceRequestEligible, businessCalendarProviderName, createHold, crypto, getAiBookableService, getBookableService, moneyAmount, normalizeAddress, tryRepairAppointmentLifecycle, tryRepairAppointmentProjections });
-  return __meekcallAppointmentcreate1Cache;
-}
-
-let __meekcallAppointmentconfirm1Cache;
-function __meekcallGetAppointmentconfirm1Methods() {
-  if (!__meekcallAppointmentconfirm1Cache) __meekcallAppointmentconfirm1Cache = createAppointmentconfirm1Methods({ assertConfirmationNotPending, assertIntakeHoldCurrent, confirmationPending, applyAppointmentBookingTransition, Conversation, InterventionService, SchedulingProviderFactory, ServiceOffering, SocketService, assertDistributedLeaseActive, assertServiceRequestEligible, assertTransition, ensureBusinessApprovalNotice, exactSlotAvailable, getAppointmentForBusiness, lifecycleMarker, preservePendingApprovalOnAvailabilityConflict, projectionMarker, resolveApprovalReview, runNonBlockingAppointmentSideEffect, scheduleAppointmentReminders, tryRepairAppointmentLifecycle, tryRepairAppointmentProjections, safeConsole, businessCalendarProviderName, intent: confirmationIntent, recovery: confirmationRecovery });
-  return __meekcallAppointmentconfirm1Cache;
-}
-
-let __meekcallAppointmentcancel1Cache;
-function __meekcallGetAppointmentcancel1Methods() {
-  if (!__meekcallAppointmentcancel1Cache) __meekcallAppointmentcancel1Cache = createAppointmentcancel1Methods({ assertConfirmationNotPending, InterventionService, SchedulingProviderFactory, SocketService, assertTransition, cancelAppointmentNotifications, ensureCancellationSideEffects, getAppointmentForBusiness, lifecycleMarker, resolveApprovalReview, runNonBlockingAppointmentSideEffect, tryRepairAppointmentLifecycle });
-  return __meekcallAppointmentcancel1Cache;
-}
-
-let rescheduleCommandCache;
-function getRescheduleCommand() {
-  if (!rescheduleCommandCache) rescheduleCommandCache = createRescheduleCommand({ Appointment, InterventionService, Lead, SchedulingProviderFactory, SocketService, addMinutes, assertTransition, cancelAppointmentNotifications, createHold, crypto, exactSlotAvailable, getAppointmentForBusiness, getBookableService, lifecycleMarker, normalizeAddress, runNonBlockingAppointmentSideEffect, scheduleAppointmentReminders, tryRepairAppointmentLifecycle });
-  return rescheduleCommandCache;
-}
-
-let __meekcallAppointmentupdate1Cache;
-function __meekcallGetAppointmentupdate1Methods() {
-  if (!__meekcallAppointmentupdate1Cache) __meekcallAppointmentupdate1Cache = createAppointmentupdate1Methods({ assertConfirmationNotPending, ServiceOffering, SocketService, assertTransition, getAppointmentForBusiness, moneyAmount, normalizeAddress, ownerEstimate, projectionMarker, resolveOpportunityValue, tryRepairAppointmentProjections });
-  return __meekcallAppointmentupdate1Cache;
-}
+const commands = {
+  approval: createAppointmentrecheckAndConfirm1Methods({ assertConfirmationNotPending, assertIntakeHoldCurrent, Appointment, addMinutes, assertDistributedLeaseActive, exactSlotAvailable, getAppointmentForBusiness, getSlotCapacity, getSlotClaimKeys, getSlotKey, repairConfirmedApproval, tryRepairAppointmentProjections, withDistributedLease }),
+  creation: createAppointmentcreate1Methods({ Appointment, SocketService, assertServiceRequestEligible, businessCalendarProviderName, createHold, crypto, getAiBookableService, getBookableService, moneyAmount, normalizeAddress, tryRepairAppointmentLifecycle, tryRepairAppointmentProjections }),
+  confirmation: createAppointmentconfirm1Methods({ assertConfirmationNotPending, assertIntakeHoldCurrent, confirmationPending, applyAppointmentBookingTransition, Conversation, InterventionService, SchedulingProviderFactory, ServiceOffering, SocketService, assertDistributedLeaseActive, assertServiceRequestEligible, assertTransition, ensureBusinessApprovalNotice, exactSlotAvailable, getAppointmentForBusiness, lifecycleMarker, preservePendingApprovalOnAvailabilityConflict, projectionMarker, resolveApprovalReview, runNonBlockingAppointmentSideEffect, scheduleAppointmentReminders, tryRepairAppointmentLifecycle, tryRepairAppointmentProjections, safeConsole, businessCalendarProviderName, intent: confirmationIntent, recovery: confirmationRecovery }),
+  cancellation: createAppointmentcancel1Methods({ Appointment, assertConfirmationNotPending, InterventionService, SchedulingProviderFactory, SocketService, assertTransition, cancelAppointmentNotifications, ensureCancellationSideEffects, getAppointmentForBusiness, lifecycleMarker, resolveApprovalReview, runNonBlockingAppointmentSideEffect, tryRepairAppointmentLifecycle }),
+  reschedule: createRescheduleCommand({ Appointment, InterventionService, Lead, SchedulingProviderFactory, SocketService, addMinutes, assertTransition, cancelAppointmentNotifications, createHold, crypto, exactSlotAvailable, getAppointmentForBusiness, getBookableService, lifecycleMarker, normalizeAddress, runNonBlockingAppointmentSideEffect, scheduleAppointmentReminders, tryRepairAppointmentLifecycle }),
+  update: createAppointmentupdate1Methods({ assertConfirmationNotPending, ServiceOffering, SocketService, assertTransition, getAppointmentForBusiness, moneyAmount, normalizeAddress, ownerEstimate, projectionMarker, resolveOpportunityValue, tryRepairAppointmentProjections }),
+};
 
 class AppointmentService {
   static async releaseExpiredHolds(businessId = null) {
@@ -309,14 +282,14 @@ class AppointmentService {
   }
 
   static async reconcileConfirmations(options) {
-    return __meekcallGetAppointmentconfirm1Methods().reconcileConfirmations(options);
+    return commands.confirmation.reconcileConfirmations(options);
   }
 
-  static async recheckAndConfirm(...args) { return __meekcallGetAppointmentrecheckAndConfirm1Methods().recheckAndConfirm.apply(this, args); }
+  static async recheckAndConfirm(...args) { return commands.approval.recheckAndConfirm.apply(this, args); }
 
-  static async create(...args) { return __meekcallGetAppointmentcreate1Methods().create.apply(this, args); }
+  static async create(...args) { return commands.creation.create.apply(this, args); }
 
-  static async confirm(...args) { return __meekcallGetAppointmentconfirm1Methods().confirm.apply(this, args); }
+  static async confirm(...args) { return commands.confirmation.confirm.apply(this, args); }
 
   static async decline({
     business,
@@ -376,11 +349,11 @@ class AppointmentService {
     return appointment;
   }
 
-  static async cancel(...args) { return __meekcallGetAppointmentcancel1Methods().cancel.apply(this, args); }
+  static async cancel(...args) { return commands.cancellation.cancel.apply(this, args); }
 
-  static async reschedule(...args) { return getRescheduleCommand().reschedule.apply(this, args); }
+  static async reschedule(...args) { return commands.reschedule.reschedule.apply(this, args); }
 
-  static async update(...args) { return __meekcallGetAppointmentupdate1Methods().update.apply(this, args); }
+  static async update(...args) { return commands.update.update.apply(this, args); }
 
   static list({ businessId, query = {} }) {
     return listAppointments({ Appointment, populateAppointment, businessId, query });

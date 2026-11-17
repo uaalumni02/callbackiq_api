@@ -1,10 +1,8 @@
 import { stageCanceledRescheduleRequest, stageCanceledAppointment } from '../../stateTransitions/appointmentCommands.js';
 import { saveStateDocument } from '../../stateTransitions/documents.js';
-import AppointmentModel from '../../../models/appointment.js';
 import { claimAppointmentCancellation, deferAppointmentCancellation } from '../../stateTransitions/appointmentOwnership.js';
-/* Source-exact AppointmentService extraction. Preserve order and outcome contracts. */
 export function createAppointmentcancel1Methods(deps) {
-  const { Appointment = AppointmentModel, assertConfirmationNotPending, InterventionService, SchedulingProviderFactory, SocketService, assertTransition, cancelAppointmentNotifications, ensureCancellationSideEffects, getAppointmentForBusiness, lifecycleMarker, resolveApprovalReview, runNonBlockingAppointmentSideEffect, tryRepairAppointmentLifecycle } = deps;
+  const { Appointment, assertConfirmationNotPending, InterventionService, SchedulingProviderFactory, SocketService, assertTransition, cancelAppointmentNotifications, ensureCancellationSideEffects, getAppointmentForBusiness, lifecycleMarker, resolveApprovalReview, runNonBlockingAppointmentSideEffect, tryRepairAppointmentLifecycle } = deps;
   return {
 async cancel({ business, appointmentId, reason = "", notifyCustomer = true }) {
     let appointment = await getAppointmentForBusiness(
@@ -12,8 +10,6 @@ async cancel({ business, appointmentId, reason = "", notifyCustomer = true }) {
       appointmentId,
     );
     assertConfirmationNotPending(appointment);
-    // A retry after the durable local transition replays idempotent side
-    // effects instead of silently skipping anything that previously failed.
     if (appointment.status === "canceled") {
       await tryRepairAppointmentLifecycle(appointment, business);
       await resolveApprovalReview(appointment).catch(() => {});
@@ -44,10 +40,8 @@ async cancel({ business, appointmentId, reason = "", notifyCustomer = true }) {
       business,
       appointment.provider || "internal",
     );
-
     try {
-      // Provider cancellation is required to be idempotent. Google Calendar
-      // already treats a missing (404) event as canceled.
+      // Provider cancellation must be idempotent; replay follows any uncertain result.
       await provider.cancelAppointment({ appointment, reason });
     } catch (error) {
       await deferAppointmentCancellation({ Appointment, appointment, error });
@@ -61,7 +55,6 @@ async cancel({ business, appointmentId, reason = "", notifyCustomer = true }) {
       });
       throw error;
     }
-
     if (notifyCustomer) appointment.lifecycleNotice = lifecycleMarker("canceled");
     if (appointment.rescheduleRequest?.status === 'pending') {
       stageCanceledRescheduleRequest({ appointment });
@@ -79,13 +72,11 @@ async cancel({ business, appointmentId, reason = "", notifyCustomer = true }) {
     ]
       .filter(Boolean)
       .join("\n");
-
     // Keep the claimed version and lease token through the provider result.
     appointment.$where = { 'cancellationIntent.token': appointment.cancellationIntent.token };
     await saveStateDocument(appointment);
     await tryRepairAppointmentLifecycle(appointment, business);
     await resolveApprovalReview(appointment).catch(() => {});
-
     await runNonBlockingAppointmentSideEffect({
       appointment,
       businessId: business._id,
@@ -98,13 +89,11 @@ async cancel({ business, appointmentId, reason = "", notifyCustomer = true }) {
             types: ["reminder", "follow_up"],
         }),
     });
-
     await ensureCancellationSideEffects({
       business,
       appointment,
       reason,
     });
-
     SocketService.emitToBusiness(
       business._id,
       "appointment:canceled",

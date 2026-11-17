@@ -190,6 +190,7 @@
             "enum": [
               "held",
               "confirmed",
+              "cancel_pending",
               "canceled",
               "completed",
               "no_show",

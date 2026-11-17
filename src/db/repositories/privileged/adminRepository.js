@@ -28,18 +28,18 @@ async function authorized({
  * Owner-facing repositories do not re-export these capabilities. */
 export async function adminReadById(input) {
   await authorized(input);
-  const query = input.model.findById(input.id);
+  const query = input.model.findById(input.id).setOptions({ allowCrossTenant: true });
   for (const spec of input.populate || []) query.populate(spec);
   if (input.select) query.select(input.select);
   return query.lean();
 }
 export async function adminUpdateById(input) {
   await authorized(input);
-  const query = updatePrivilegedRecord({ input });
+  const query = updatePrivilegedRecord({ input }).setOptions({ allowCrossTenant: true });
   for (const spec of input.populate || []) query.populate(spec);
   return query.lean();
 }
 export async function adminDeleteById(input) {
   await authorized(input);
-  return deletePrivilegedRecord({ input });
+  return deletePrivilegedRecord({ input }).setOptions({ allowCrossTenant: true });
 }

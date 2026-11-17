@@ -243,8 +243,8 @@ describe("CallBackIQ Phase 0-2 completion contract", () => {
 
     // State policy moved to a dedicated module in Stage 2A: assert behavior,
     // not the physical location/formatting of its source definition.
-    expect([...VALID_TRANSITIONS.held]).toEqual(["confirmed", "failed", "canceled"]);
-    expect([...VALID_TRANSITIONS.confirmed]).toEqual(["canceled", "completed", "no_show", "rescheduled"]);
+    expect([...VALID_TRANSITIONS.held]).toEqual(["confirmed", "failed", "canceled", "cancel_pending"]);
+    expect([...VALID_TRANSITIONS.confirmed]).toEqual(["canceled", "completed", "no_show", "rescheduled", "cancel_pending"]);
     for (const state of ["canceled", "completed", "no_show", "failed", "rescheduled"]) {
       expect(VALID_TRANSITIONS[state]?.size).toBe(0);
     }

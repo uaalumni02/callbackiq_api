@@ -211,7 +211,7 @@ describe("AppointmentService", () => {
   });
 
   test("exports expected active statuses and transitions", () => {
-    expect([...ACTIVE_STATUSES]).toEqual(["held", "confirmed"]);
+    expect([...ACTIVE_STATUSES]).toEqual(["held", "confirmed", "cancel_pending"]);
     expect(VALID_TRANSITIONS.held.has("confirmed")).toBe(true);
     expect(VALID_TRANSITIONS.confirmed.has("rescheduled")).toBe(true);
     expect(VALID_TRANSITIONS.canceled.size).toBe(0);
@@ -221,7 +221,10 @@ describe("AppointmentService", () => {
     Appointment.updateMany.mockResolvedValue({ modifiedCount: 2 });
     await expect(AppointmentService.releaseExpiredHolds()).resolves.toEqual({ modifiedCount: 2 });
     expect(Appointment.updateMany).toHaveBeenCalledWith(
-      { status: "held", "confirmationIntent.status": { $ne: "pending_provider" }, heldExpiresAt: { $lte: expect.any(Date) } },
+      { status: "held", "confirmationIntent.status": { $ne: "pending_provider" },
+        pendingRescheduleExternalAppointmentId: { $in: [null, ''] },
+        'providerOperation.state': { $nin: ['pending', 'applied'] }, 'rescheduleIntent.key': { $exists: false },
+        heldExpiresAt: { $lte: expect.any(Date) } },
       { $set: expect.objectContaining({ status: "failed", slotClaimKeys: [], capacityLane: null }) },
     );
     await AppointmentService.releaseExpiredHolds("b1");

@@ -33,7 +33,7 @@ describe("fresh admin authorization", () => {
   test("accepts current admin role from MongoDB", async () => {
     setLookupResult({ _id: "u1", role: "admin" });
     await expect(
-      isCurrentAdminRequest({ user: { userId: "u1", role: "owner" } }),
+      isCurrentAdminRequest({ method: "PATCH", user: { userId: "u1", role: "owner", mfaVerified: true, authTime: Math.floor(Date.now() / 1000) } }),
     ).resolves.toBe(true);
   });
 

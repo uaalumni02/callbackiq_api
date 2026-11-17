@@ -16,6 +16,8 @@ test('the authentication boundary denies every suspended customer router while a
   const change = await request(app).patch(`/api/conversations/${f.conversation._id}`).set(headers).send({ customerName: 'Forbidden after suspension' });
   expect(change.status).toBe(403);
   expect((await Conversation.findById(f.conversation._id)).customerName).not.toBe('Forbidden after suspension');
+  expect((await request(app).patch('/api/businesses/mine').set(headers).send({ businessName: 'Blocked' })).status).toBe(403);
+  expect((await request(app).post('/api/businesses/mine/phone-verification/start').set(headers).send({})).status).toBe(403);
   expect((await request(app).get('/api/auth/me').set(headers)).status).toBe(200);
   expect((await request(app).get('/api/billing/access').set(headers)).status).toBe(200);
   expect((await request(app).get('/api/support/tickets').set(headers)).status).toBe(200);

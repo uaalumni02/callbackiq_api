@@ -4,7 +4,7 @@ import { hasBookingAvailabilityHint, isAffirmative, isNegative } from '../../src
 describe('Stage 2B stable behavioral contracts', () => {
   test('every declared appointment transition is accepted; forbidden transitions fail closed', () => {
     const states = Object.keys(VALID_TRANSITIONS);
-    expect(states.sort()).toEqual(['canceled','completed','confirmed','failed','held','no_show','rescheduled']);
+    expect(states.sort()).toEqual(['cancel_pending','canceled','completed','confirmed','failed','held','no_show','rescheduled']);
     for (const from of states) {
       for (const to of states) {
         if (VALID_TRANSITIONS[from].has(to)) {

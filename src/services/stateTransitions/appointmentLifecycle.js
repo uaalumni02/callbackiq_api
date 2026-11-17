@@ -1,3 +1,4 @@
+import { stageAppointmentStatus } from './appointmentCommands.js';
 // Named state transitions. Callers retain decision guards and side-effect order.
 // Explicit capabilities preserve existing model binding, sessions, hooks and query laziness.
 
@@ -19,7 +20,7 @@ export function reserveAppointmentSlot({ Appointment, baseDocument, capacityLane
 
 // src/services/scheduling/appointment.service.js:363 — assignment; predicate and write options are owned here.
 export function stageDeclinedAppointment({ appointment }) {
-  return (appointment.status = "failed");
+  return stageAppointmentStatus(appointment, 'failed');
 }
 
 // src/services/scheduling/appointmentConfirmation.service.js:35 — updateOne; predicate and write options are owned here.

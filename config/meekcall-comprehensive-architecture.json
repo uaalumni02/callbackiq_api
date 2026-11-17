@@ -138,13 +138,6 @@
       "preTransitionMigrationSha": "f12a5b20671b98f8c53ec19c554c1fbcd53822663350607ba1ec171a60f2ffe0"
     },
     {
-      "name": "cancel",
-      "module": "src/services/scheduling/commands/cancel-1.js",
-      "kind": "method",
-      "sha": "ff880cdc15e519bb8130f629196615fd0184e09bda76da96a577f75b1cd9c86a",
-      "preTransitionMigrationSha": "005526f013d26e7917de93945a541eb0bc456e11d8994101132c8f490dd82abb"
-    },
-    {
       "name": "reschedule",
       "module": "src/services/scheduling/reschedule/command.js",
       "kind": "callback",
@@ -519,7 +512,8 @@
       "./finalize.js",
       "./recovery.js",
       "./followUp.js",
-      "../../stateTransitions/appointmentOwnership.js"
+      "../../stateTransitions/appointmentOwnership.js",
+      "../../stateTransitions/documents.js"
     ],
     "src/db/repositories/extracted/identity-1.js": [
       "../../../services/stateTransitions/accountRecords.js"
@@ -545,12 +539,29 @@
     ],
     "src/services/scheduling/commands/cancel-1.js": [
       "../../stateTransitions/appointmentCommands.js",
-      "../../stateTransitions/documents.js"
+      "../../stateTransitions/documents.js",
+      "../../stateTransitions/appointmentOwnership.js"
     ],
     "src/services/scheduling/commands/update-1.js": [
       "../../stateTransitions/appointmentCommands.js",
       "../../stateTransitions/documents.js"
     ]
   },
-  "stateTransitionMigrationContract": "contracts/state-transition-migration.json"
+  "stateTransitionMigrationContract": "contracts/state-transition-migration.json",
+  "stabilizationCorrections": [
+    {
+      "name": "cancel",
+      "module": "src/services/scheduling/commands/cancel-1.js",
+      "kind": "method",
+      "sha": "ff880cdc15e519bb8130f629196615fd0184e09bda76da96a577f75b1cd9c86a",
+      "preTransitionMigrationSha": "005526f013d26e7917de93945a541eb0bc456e11d8994101132c8f490dd82abb",
+      "reason": "Stabilization replaces relocation-only parity with shared domain policy, durable operation ownership and behavioral regression evidence. Unchanged relocation pins remain enforced.",
+      "tests": [
+        "tests/integration/stabilization.scheduling.test.js",
+        "tests/integration/stabilization.aiQualification.test.js",
+        "tests/integration/stabilization.suspension.test.js",
+        "tests/unit/stabilization.domainPolicies.test.js"
+      ]
+    }
+  ]
 }

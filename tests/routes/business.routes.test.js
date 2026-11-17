@@ -1,3 +1,4 @@
+import { activateCustomerAccess } from '../setup/stabilizationFixture.js';
 
 import request from "supertest";
 
@@ -46,6 +47,8 @@ const registerUserWithAutoBusiness = async () => {
     termsAccepted: true,
     privacyAccepted: true,
   });
+
+  await activateCustomerAccess(response.body.data.business._id);
 
   return {
     token: response.body.data.token,

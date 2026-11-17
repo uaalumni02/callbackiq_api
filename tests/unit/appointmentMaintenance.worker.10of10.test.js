@@ -1,3 +1,5 @@
+import { reconcileAppointmentCancellations } from '../../src/services/scheduling/appointmentCancellationRecovery.service.js';
+jest.mock('../../src/services/scheduling/appointmentCancellationRecovery.service.js', () => ({ reconcileAppointmentCancellations: jest.fn().mockResolvedValue(undefined) }));
 jest.mock('../../src/services/scheduling/rescheduleCompensationRepair.service.js', () => ({ repairRescheduleCompensations: jest.fn().mockResolvedValue(undefined) }));
 jest.mock("../../src/services/scheduling/appointment.service.js", () => ({
   __esModule: true,
@@ -31,4 +33,5 @@ test("appointment maintenance moves expired-hold writes out of GET traffic", asy
   });
   expect(AppointmentService.reconcileConfirmations).toHaveBeenCalledWith();
   expect(AppointmentService.releaseExpiredHolds).toHaveBeenCalledWith();
+  expect(reconcileAppointmentCancellations).toHaveBeenCalledWith(expect.any(Function));
 });

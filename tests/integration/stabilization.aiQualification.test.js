@@ -12,17 +12,19 @@ test('qualification journals and charges model work, rejects exhausted usage, an
   const f = await stabilizationFixture();
   await Business.updateOne({ _id: f.business._id }, { $set: { communicationLimits: { aiBusinessHourly: 1, aiBusinessDaily: 1, aiCustomerHourly: 1, aiCustomerDaily: 1 } } });
   const entered = deferred(), release = deferred();
+  let journalAtDispatch;
   qualifyLeadWithAI.mockImplementation(async () => {
-    const record = await Reservation.findOne({ business: f.business._id, metric: 'ai_operation' });
-    expect(record.state).toBe('pending'); expect(record.providerDispatchStartedAt).toBeTruthy();
+    journalAtDispatch = await Reservation.findOne({ business: f.business._id, metric: 'ai_operation' });
     entered.resolve(); await release.promise;
     return { serviceNeeded: 'Sink repair', address: 'Stale model address', urgency: 'medium', leadQualityScore: 50, summary: 'Old analysis' };
   });
   const pending = request(app).post('/api/ai/qualify-lead').set('Authorization', `Bearer ${f.token}`).send({ leadId: String(f.lead._id), messageBody: 'The sink is leaking' }).then(value => value);
-  await entered.promise;
+  await Promise.race([entered.promise, pending.then(result => { throw new Error(`AI did not reach the durable provider boundary: HTTP ${result.status}`); })]);
   await Lead.updateOne({ _id: f.lead._id, business: f.business._id }, { $set: { status: 'booked', address: 'New staff address' } });
   release.resolve(); const result = await pending;
   expect(result.status).toBe(200); expect(result.body.data.staleResult).toBe(true);
+  expect(journalAtDispatch).toBeTruthy();
+  expect(journalAtDispatch.state).toBe('pending'); expect(journalAtDispatch.providerDispatchStartedAt).toBeTruthy();
   expect(await Lead.findById(f.lead._id)).toMatchObject({ status: 'booked', address: 'New staff address' });
   expect((await Reservation.findOne({ business: f.business._id })).state).toBe('committed');
   const denied = await request(app).post('/api/ai/qualify-lead').set('Authorization', `Bearer ${f.token}`).send({ leadId: String(f.lead._id), messageBody: 'Please qualify again' });

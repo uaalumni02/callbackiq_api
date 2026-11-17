@@ -1,3 +1,4 @@
+import { customerAccessForUser } from '../setup/stabilizationFixture.js';
 import jwt from "jsonwebtoken";
 import request from "supertest";
 
@@ -60,6 +61,7 @@ const createUser = async (role) => {
     termsAccepted: true,
     privacyAccepted: true,
   });
+  if (role !== 'admin') await customerAccessForUser(user);
   return { user, token: tokenFor(user) };
 };
 

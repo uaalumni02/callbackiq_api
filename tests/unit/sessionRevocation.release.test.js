@@ -39,7 +39,7 @@ describe("release invariant: password reset revokes old JWTs", () => {
   test("legacy version-0 token remains valid for an untouched version-0 account", async () => {
     Token.verify.mockReturnValue({ userId: "u1", role: "owner" });
     mockUserLookup({ _id: "u1", role: "owner", sessionVersion: 0 });
-    const req = { cookies: { token: "jwt" }, headers: {} };
+    const req = { originalUrl: "/api/auth/me", method: "GET", cookies: { token: "jwt" }, headers: {} };
     const res = response();
     const next = jest.fn();
 
@@ -56,7 +56,7 @@ describe("release invariant: password reset revokes old JWTs", () => {
       sessionVersion: 0,
     });
     mockUserLookup({ _id: "u1", role: "owner", sessionVersion: 1 });
-    const req = { cookies: { token: "stale" }, headers: {} };
+    const req = { originalUrl: "/api/auth/me", method: "GET", cookies: { token: "stale" }, headers: {} };
     const res = response();
 
     await checkAuth(req, res, jest.fn());
@@ -71,7 +71,7 @@ describe("release invariant: password reset revokes old JWTs", () => {
       sessionVersion: 2,
     });
     mockUserLookup({ _id: "u1", role: "owner", sessionVersion: 2 });
-    const req = { cookies: { token: "current" }, headers: {} };
+    const req = { originalUrl: "/api/auth/me", method: "GET", cookies: { token: "current" }, headers: {} };
     const res = response();
     const next = jest.fn();
 
