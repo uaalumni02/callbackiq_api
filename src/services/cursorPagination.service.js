@@ -1,3 +1,4 @@
+import { MAX_PAGE_LIMIT } from "../contracts/pageLimits.js";
 import {tenantRepository,tenantContext} from '../db/repositories/tenantRepository.js';
 import { queryBudgetMs } from "./scale/queryBudget.js";
 import { verifiedAmountExpression, estimateCoverageGroup } from "./valuation/opportunityValue.js";
@@ -7,17 +8,13 @@ import Lead from "../models/lead.js";
 import CallLog from "../models/callLog.js";
 import Conversation from "../models/conversation.js";
 import Message from "../models/message.js";
-
-const DEFAULT_LIMIT = 100;
-const MAX_LIMIT = 200;
-
 export const normalizePageLimit = (
   value,
-  { defaultLimit = DEFAULT_LIMIT, maxLimit = MAX_LIMIT } = {},
+  { defaultLimit = MAX_PAGE_LIMIT } = {},
 ) => {
   const parsed = Number.parseInt(value, 10);
   if (!Number.isInteger(parsed) || parsed <= 0) return defaultLimit;
-  return Math.min(parsed, maxLimit);
+  return Math.min(parsed, MAX_PAGE_LIMIT);
 };
 
 const encodeCursor = (value) =>
@@ -71,8 +68,10 @@ const finishPage = ({ documents, limit, cursorFor }) => {
 
 export const setPaginationHeaders = (res, page) => {
   res.set("X-Page-Limit", String(page.limit));
+  res.set("X-Max-Page-Limit", String(MAX_PAGE_LIMIT));
   res.set("X-Has-More", page.hasMore ? "true" : "false");
   if (page.nextCursor) res.set("X-Next-Cursor", page.nextCursor);
+  return { pagination: paginationMeta(page) };
 };
 
 const escapeRegex = (value) =>
@@ -80,12 +79,13 @@ const escapeRegex = (value) =>
 
 const paginationMeta = (page) => ({
   limit: page.limit,
+  maxLimit: MAX_PAGE_LIMIT,
   hasMore: page.hasMore,
   nextCursor: page.nextCursor,
 });
 
 export const getLeadsPage = async (businessId, query = {}) => {
-  const limit = normalizePageLimit(query.limit, { defaultLimit: 50, maxLimit: 200 });
+  const limit = normalizePageLimit(query.limit, { defaultLimit: 50 });
   const cursor = decodeCursor(query.cursor);
   const filter = { business: businessId };
   const clauses = [];
@@ -181,7 +181,7 @@ export const getLeadsOverview = async (businessId, query = {}) => {
 };
 
 export const getCallLogsPage = async (businessId, query = {}) => {
-  const limit = normalizePageLimit(query.limit, { defaultLimit: 50, maxLimit: 200 });
+  const limit = normalizePageLimit(query.limit, { defaultLimit: 50 });
   const cursor = decodeCursor(query.cursor);
   const filter = { business: businessId, deletedAt: null };
   const clauses = [];

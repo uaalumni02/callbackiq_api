@@ -1,3 +1,4 @@
+import SocketService from "../../src/services/socket.service.js";
 import request from "supertest";
 
 import app from "../../src/app.js";
@@ -290,32 +291,48 @@ describe("Alert Routes", () => {
     expect(res.body.data._id).toBe(alertId);
   });
 
-  test("PATCH /api/alerts/:id updates alert", async () => {
-    const { token } = await registerCreateBusinessAndLead();
+  test("PATCH /api/alerts/:id changes readAt, preserves workflow status and emits a socket update", async () => {
+    const { token, business } = await registerCreateBusinessAndLead({ createLead: false });
+    const alert = await Alert.create({
+      business: business._id, type: "human_requested", title: "Review", message: "Review this request",
+      status: "acknowledged", actionRequired: true,
+    });
+    const emit = jest.spyOn(SocketService, "emitAlertUpdated");
+    try {
+      const patch = status => request(app).patch(`/api/alerts/${alert._id}`)
+        .set("Authorization", `Bearer ${token}`).send({ status });
+      const read = await patch("read");
+      expect(read.status).toBe(200);
+      expect(read.body.data).toMatchObject({ status: "acknowledged", actionRequired: true, readAt: expect.any(String) });
+      expect(emit).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ _id: alert._id, readAt: expect.any(Date) }));
+      const unread = await patch("unread");
+      expect(unread.status).toBe(200);
+      expect(unread.body.data).toMatchObject({ status: "acknowledged", readAt: null });
+      expect((await Alert.findById(alert._id).lean()).readAt).toBeNull();
+    } finally {
+      emit.mockRestore();
+    }
+  });
 
-    const createRes = await request(app)
-      .post("/api/alerts")
-      .set("Authorization", `Bearer ${token}`)
-      .send({
-        type: "system",
-        title: "System alert",
-        message: "Your account is ready.",
-      });
-
-    const alertId = createRes.body.data._id;
-
-    const res = await request(app)
-      .patch(`/api/alerts/${alertId}`)
-      .set("Authorization", `Bearer ${token}`)
-      .send({
-        title: "Updated system alert",
-        priority: "high",
-      });
-
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.data.title).toBe("Updated system alert");
-    expect(res.body.data.priority).toBe("high");
+  test("PATCH /api/alerts/:id rejects workflow edits with instructions and preserves the record", async () => {
+    const { token, business } = await registerCreateBusinessAndLead({ createLead: false });
+    const alert = await Alert.create({
+      business: business._id, type: "human_requested", title: "Review", message: "Review this request",
+      status: "pending", actionRequired: true,
+    });
+    const before = await Alert.findById(alert._id).lean();
+    for (const body of [
+      { status: "resolved" },
+      { status: "read", assignedTo: String(alert._id) },
+      { status: "read", appointment: String(alert._id) },
+      { status: "read", resolvedAt: new Date() },
+    ]) {
+      const res = await request(app).patch(`/api/alerts/${alert._id}`)
+        .set("Authorization", `Bearer ${token}`).send(body);
+      expect(res.status).toBe(400);
+      expect(res.body.message).toContain("/api/interventions/:id/workflow");
+    }
+    expect(await Alert.findById(alert._id).lean()).toEqual(before);
   });
 
   test("PATCH /api/alerts/:id/read marks one alert as read", async () => {

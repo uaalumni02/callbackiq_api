@@ -18,8 +18,8 @@ static async getMyLeads(req, res) {
 
       // CALLBACKIQ_LEAD_CURSOR_PAGINATION_V1
       const page = await getLeadsPage(business._id, req.query);
-      setPaginationHeaders(res, page);
-      return Response.responseOk(res, page.items, "Leads fetched");
+      const pagination = setPaginationHeaders(res, page);
+      return Response.responseOk(res, page.items, "Leads fetched", pagination);
     } catch (error) {
       if (queryFailure(error)) return res.status(503).set("Retry-After", "2").json({ success: false, code: "QUERY_BUDGET_EXCEEDED", message: "This view is busy. Please retry or narrow your search." });
       safeConsole.error("Error in getMyLeads:", error);

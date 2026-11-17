@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { MAX_PAGE_LIMIT } from '../../contracts/pageLimits.js';
 export const queryBudgetMs = () => Math.max(100, Math.min(5000, Number(process.env.OWNER_QUERY_MAX_TIME_MS) || 3000));
 export const invalidPage = message => Object.assign(new Error(message), { code: 'INVALID_CURSOR', statusCode: 400 });
 export const encodePage = value => Buffer.from(JSON.stringify(value)).toString('base64url');
@@ -11,11 +12,11 @@ export function decodePage(value, scope) {
     return { at: new Date(cursor.at), id: new mongoose.Types.ObjectId(cursor.id) };
   } catch { throw invalidPage('Invalid pagination cursor for this request'); }
 }
-export const pageLimit = value => Math.max(1, Math.min(100, Math.floor(Number(value) || 50)));
+export const pageLimit = value => Math.max(1, Math.min(MAX_PAGE_LIMIT, Math.floor(Number(value) || 50)));
 export const beforePage = (cursor, field) => cursor ? { $or: [{ [field]: { $lt: cursor.at } }, { [field]: cursor.at, _id: { $lt: cursor.id } }] } : {};
 export function finishPage(rows, limit, scope, field = 'createdAt') {
   const hasMore = rows.length > limit, items = rows.slice(0, limit), last = items.at(-1);
-  return { items, pagination: { limit, hasMore, nextCursor: hasMore ? encodePage({ scope, at: last[field], id: String(last._id) }) : null } };
+  return { items, pagination: { limit, maxLimit: MAX_PAGE_LIMIT, hasMore, nextCursor: hasMore ? encodePage({ scope, at: last[field], id: String(last._id) }) : null } };
 }
 export const queryFailure = error => error?.code === 50 || error?.codeName === 'MaxTimeMSExpired';
 

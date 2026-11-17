@@ -1,3 +1,4 @@
+import { installLeadWorkflowWriter } from '../services/stateTransitions/leadWorkflow.js';
 import '../helpers/model/tenantContext.js';
 import mongoose from "mongoose";
 const { Schema } = mongoose;
@@ -212,6 +213,8 @@ MessageSchema.index(
 MessageSchema.index({ business: 1, deliveryStatus: 1, createdAt: -1 });
 
 MessageSchema.index({ business: 1, lead: 1, direction: 1, createdAt: -1 });
+
+installLeadWorkflowWriter(MessageSchema, 'Message');
 
 const Message =
   mongoose.models.Message || mongoose.model("Message", MessageSchema);

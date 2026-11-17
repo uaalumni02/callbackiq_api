@@ -1,3 +1,4 @@
+import { installLeadWorkflowWriter } from '../services/stateTransitions/leadWorkflow.js';
 import '../helpers/model/tenantContext.js';
 import { guardTenantReferences } from '../helpers/model/tenantReferences.js';
 import mongoose from "mongoose";
@@ -270,6 +271,8 @@ CallLogSchema.index(
   { partialFilterExpression: { smsProviderMessageId: { $gt: "" } } },
 );
 guardTenantReferences(CallLogSchema, ['lead', 'conversation']);
+
+installLeadWorkflowWriter(CallLogSchema, 'CallLog');
 
 const CallLog =
   mongoose.models.CallLog || mongoose.model("CallLog", CallLogSchema);

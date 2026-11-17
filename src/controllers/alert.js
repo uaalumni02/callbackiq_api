@@ -135,7 +135,7 @@ class AlertController {
     }
   }
 
-  static async updateAlert(req, res) {
+  static async setReadState(req, res) {
     try {
       const ownerId = req.user?.userId;
       const { id } = req.params;
@@ -148,10 +148,13 @@ class AlertController {
         return Response.responseInvalidInput(res, "Invalid alert ID");
       }
 
-      const validatedBody = await updateAlertSchema.validateAsync(req.body, {
-        abortEarly: false,
-        stripUnknown: true,
-      });
+      const { error: validationError, value } = updateAlertSchema.validate(req.body ?? {});
+      if (validationError) {
+        return Response.responseInvalidInput(
+          res,
+          "Only read and unread status are supported here. Use POST /api/interventions/:id/workflow to update a request.",
+        );
+      }
 
       const business = await getBusinessForOwner(ownerId);
 
@@ -159,21 +162,11 @@ class AlertController {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      const updates = {
-        ...validatedBody,
-      };
-
-      if (validatedBody.status === "read") {
-        updates.readAt = new Date();
-      } else if (validatedBody.status) {
-        updates.readAt = null;
-      }
-
       const updatedAlert = await Db.updateAlertForBusiness(
         Alert,
         id,
         business._id,
-        updates,
+        { readAt: value.status === "read" ? new Date() : null },
       );
 
       if (!updatedAlert) {

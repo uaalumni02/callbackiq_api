@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import Lead from '../../src/models/lead.js';
 import ScaleCache from '../../src/services/scaleCache.service.js';
-import { queryOwnerOpportunities, ownerWorkflowPipeline, opportunityFlags } from '../../src/services/scale/ownerOpportunityQuery.service.js';
+import { queryOwnerOpportunities } from '../../src/services/scale/ownerOpportunityQuery.service.js';
 const business = { _id: new mongoose.Types.ObjectId(), features: {} };
 const cache = new Map();
 beforeEach(() => {
@@ -10,7 +10,7 @@ beforeEach(() => {
     return cache.get(key);
   });
   jest.spyOn(Lead, 'aggregate').mockImplementation(pipeline => ({ option: async () => {
-    if (pipeline.at(-1)?.$group?._id === '$status') return [{ _id: 'new', count: 3 }, { _id: 'booked', count: 100000 }, { _id: 'lost', count: 7 }];
+    if (pipeline.at(-1)?.$group?._id === '$status') return [{ _id: 'new', count: 3, unarchived: 3 }, { _id: 'booked', count: 100000 }, { _id: 'lost', count: 7 }];
     if (pipeline.at(-1)?.$group?.needsMe) return [{ readyToSchedule: 1, needsMe: 2, waiting: 0 }];
     if (pipeline.at(-1)?.$count) return [{ value: 1 }];
     return [];
@@ -32,8 +32,4 @@ test('different tenant and booking policy never reuse a summary', async () => {
     await queryOwnerOpportunities({ business: b, interventionFilter: {} });
   }
   expect(Lead.aggregate.mock.calls.filter(([p]) => p.at(-1)?.$group?.needsMe)).toHaveLength(3);
-});
-test('workflow aggregation excludes historical closed leads before lookups', () => {
-  const pipeline = ownerWorkflowPipeline(business._id, opportunityFlags(business._id, {}, false));
-  expect(pipeline[0]).toEqual({ $match: { business: business._id, status: { $in: ['new', 'contacted'] } } });
 });

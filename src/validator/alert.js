@@ -54,24 +54,7 @@ const alertSchema = Joi.object({
 });
 
 const updateAlertSchema = Joi.object({
-  lead: optionalObjectId,
-  type: Joi.string()
-    .valid(...ALERT_TYPES)
-    .optional(),
-  channel: Joi.string()
-    .valid(...ALERT_CHANNELS)
-    .optional(),
-  title: Joi.string().trim().min(2).max(120).optional(),
-  message: Joi.string().trim().min(2).max(1000).optional(),
-  status: Joi.string()
-    .valid(...ALERT_STATUSES)
-    .optional(),
-  priority: Joi.string()
-    .valid(...ALERT_PRIORITIES)
-    .optional(),
-  metadata: Joi.object().unknown(true).optional(),
-  dedupeKey: Joi.string().trim().max(200).allow(null, "").optional(),
-  ...interventionFields,
-}).min(1);
+  status: Joi.valid("read", "unread").required(),
+}).unknown(false);
 
 export { alertSchema, updateAlertSchema };

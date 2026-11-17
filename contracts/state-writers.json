@@ -923,16 +923,45 @@
       }
     },
     {
+      "id": "src/models/alert.js#<module>#transition-command#1",
+      "file": "src/models/alert.js",
+      "line": 133,
+      "kind": "transition-command",
+      "fields": [
+        "installLeadWorkflowWriter"
+      ],
+      "writerSha256": "1493e922b12a969f7cf0a2046dfa7aa19dd8f946477edf1e953e6bc1e643d728",
+      "ownerSha256": "b4da8b2ea5aa30dc38ac1c5c3487bd6e16b758c0389e03fc7040d1378edb158c",
+      "importSha256": "9fde57ba6038cd7113b41795179cbde0d88637ac75fc3791ee30ddf4ad0fd816",
+      "predicateSource": null,
+      "authoritativeRecord": "RegisteredStateRecord",
+      "allowedCommand": {
+        "module": "src/models/alert.js",
+        "function": "<module>",
+        "mode": "registered-domain-command"
+      },
+      "versionOrClaim": {
+        "kind": "source-filter-or-command",
+        "evidence": [],
+        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [],
+        "localRepairCommands": [],
+        "review": "No local repair path established by this scan; review this owner before changing its effects."
+      }
+    },
+    {
       "id": "src/models/appointment.js#<module>#transition-command#1",
       "file": "src/models/appointment.js",
-      "line": 328,
+      "line": 329,
       "kind": "transition-command",
       "fields": [
         "installAppointmentOwnership"
       ],
       "writerSha256": "5278b925a754635b6ec57606a5c97ecd6d398040132ae886baf3a6565a982096",
-      "ownerSha256": "5dfd40e92c1825b04c293ffe0a05b951defe8314a9ebfb4a5ee7ed7f3634fec6",
-      "importSha256": "e371af5e66cca81174bfc645faab7995640eb15d2005d9941cfbcbfc19674721",
+      "ownerSha256": "786c8802a5b6da204e124f34aef5d753bb278410f94d7fee0cce2c7a9ef0d90f",
+      "importSha256": "5f29ee5cf9d7718751459e0e0a676bf5562b61f31430e25729591428a49c1f62",
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
       "allowedCommand": {
@@ -960,16 +989,113 @@
       }
     },
     {
+      "id": "src/models/appointment.js#<module>#transition-command#2",
+      "file": "src/models/appointment.js",
+      "line": 331,
+      "kind": "transition-command",
+      "fields": [
+        "installLeadWorkflowWriter"
+      ],
+      "writerSha256": "2ed09ddcd27f96793ce293f897cc3e2e70f255d2b1e63cd1f7f817925d4eeefc",
+      "ownerSha256": "786c8802a5b6da204e124f34aef5d753bb278410f94d7fee0cce2c7a9ef0d90f",
+      "importSha256": "5f29ee5cf9d7718751459e0e0a676bf5562b61f31430e25729591428a49c1f62",
+      "predicateSource": null,
+      "authoritativeRecord": "RegisteredStateRecord",
+      "allowedCommand": {
+        "module": "src/models/appointment.js",
+        "function": "<module>",
+        "mode": "registered-domain-command"
+      },
+      "versionOrClaim": {
+        "kind": "source-filter-or-command",
+        "evidence": [
+          "confirmationIntent",
+          "idempotencyKey",
+          "intakeReviewVersion",
+          "updatedAt",
+          "valuationVersion"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [],
+        "localRepairCommands": [
+          "reconciled"
+        ],
+        "review": "Repair commands referenced by the fingerprinted owner; downstream behavior remains covered by domain tests."
+      }
+    },
+    {
+      "id": "src/models/callLog.js#<module>#transition-command#1",
+      "file": "src/models/callLog.js",
+      "line": 275,
+      "kind": "transition-command",
+      "fields": [
+        "installLeadWorkflowWriter"
+      ],
+      "writerSha256": "2e4426b88c4bed0c9b429ce8cb35afdb1bb41c4ce119108a48b08af3122f75b3",
+      "ownerSha256": "3a966c2d61f2308b0683639f89f3eee2c5fc83fa6dd095f725818b978c40fcf3",
+      "importSha256": "8f35a16c701a7bda9fba5edfebb29bd5e95d240da00767741c0719254a2cd0e8",
+      "predicateSource": null,
+      "authoritativeRecord": "RegisteredStateRecord",
+      "allowedCommand": {
+        "module": "src/models/callLog.js",
+        "function": "<module>",
+        "mode": "registered-domain-command"
+      },
+      "versionOrClaim": {
+        "kind": "source-filter-or-command",
+        "evidence": [],
+        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [],
+        "localRepairCommands": [],
+        "review": "No local repair path established by this scan; review this owner before changing its effects."
+      }
+    },
+    {
       "id": "src/models/conversation.js#<module>#transition-command#1",
       "file": "src/models/conversation.js",
-      "line": 311,
+      "line": 312,
       "kind": "transition-command",
       "fields": [
         "installDocumentFence"
       ],
       "writerSha256": "66c679a0f1122d5e127fddb2fc8063f7d7753163cec5288a39348596b65136b2",
-      "ownerSha256": "4607a047a480e9acececf2c63af2df8b6007a4fb6c2260361a0586d268cde128",
-      "importSha256": "d7ecbe9ee05850258bc9a99df93e7db2a343ecf108108ef5b0851287b5fdffcb",
+      "ownerSha256": "d4f6ea8f74c0d0e5677108f8aad249b5d306e992b0041a8f7c5975493e96c7c3",
+      "importSha256": "5a3bf1a8138133c33e286ef28dfcf52709a3dda34c7ddec67f48a10763fd0787",
+      "predicateSource": null,
+      "authoritativeRecord": "RegisteredStateRecord",
+      "allowedCommand": {
+        "module": "src/models/conversation.js",
+        "function": "<module>",
+        "mode": "registered-domain-command"
+      },
+      "versionOrClaim": {
+        "kind": "source-filter-or-command",
+        "evidence": [
+          "updatedAt"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [],
+        "localRepairCommands": [],
+        "review": "No local repair path established by this scan; review this owner before changing its effects."
+      }
+    },
+    {
+      "id": "src/models/conversation.js#<module>#transition-command#2",
+      "file": "src/models/conversation.js",
+      "line": 316,
+      "kind": "transition-command",
+      "fields": [
+        "installLeadWorkflowWriter"
+      ],
+      "writerSha256": "d8484c4c44e7dea2e6208f6cdc17f4083f387e5da5ec20f5a901e79cd5639fd2",
+      "ownerSha256": "d4f6ea8f74c0d0e5677108f8aad249b5d306e992b0041a8f7c5975493e96c7c3",
+      "importSha256": "5a3bf1a8138133c33e286ef28dfcf52709a3dda34c7ddec67f48a10763fd0787",
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
       "allowedCommand": {
@@ -993,14 +1119,14 @@
     {
       "id": "src/models/lead.js#<module>#transition-command#1",
       "file": "src/models/lead.js",
-      "line": 189,
+      "line": 210,
       "kind": "transition-command",
       "fields": [
         "installDocumentFence"
       ],
       "writerSha256": "eab3a9828026de51cbe39049f03cf4a490b6602e304ddf647172785d99e4e113",
-      "ownerSha256": "16f37b05fb5c6b3d6339fc51a47c3cdb7608787efaaf0db1162eb8d26e9e8678",
-      "importSha256": "c6796c6f8688cfe898967e9f9d97bcbd26d1a8f804efc746262960419191b599",
+      "ownerSha256": "1f17bc5727ef62c8b30b4d02d11c44c8ea6b7db68290a7c1e248735ecbb643fa",
+      "importSha256": "aae8a5fb525ad03d4c5f3c9cbeb241777916b94b3a3185128cfdd72d91b6f825",
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
       "allowedCommand": {
@@ -1015,6 +1141,67 @@
           "valuationVersion"
         ],
         "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [],
+        "localRepairCommands": [],
+        "review": "No local repair path established by this scan; review this owner before changing its effects."
+      }
+    },
+    {
+      "id": "src/models/lead.js#<module>#transition-command#2",
+      "file": "src/models/lead.js",
+      "line": 212,
+      "kind": "transition-command",
+      "fields": [
+        "installLeadWorkflowWriter"
+      ],
+      "writerSha256": "4f358b90270994bd319279ed5c4a787e968474d3062091f5ae13f3a50910964f",
+      "ownerSha256": "1f17bc5727ef62c8b30b4d02d11c44c8ea6b7db68290a7c1e248735ecbb643fa",
+      "importSha256": "aae8a5fb525ad03d4c5f3c9cbeb241777916b94b3a3185128cfdd72d91b6f825",
+      "predicateSource": null,
+      "authoritativeRecord": "RegisteredStateRecord",
+      "allowedCommand": {
+        "module": "src/models/lead.js",
+        "function": "<module>",
+        "mode": "registered-domain-command"
+      },
+      "versionOrClaim": {
+        "kind": "source-filter-or-command",
+        "evidence": [
+          "updatedAt",
+          "valuationVersion"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [],
+        "localRepairCommands": [],
+        "review": "No local repair path established by this scan; review this owner before changing its effects."
+      }
+    },
+    {
+      "id": "src/models/message.js#<module>#transition-command#1",
+      "file": "src/models/message.js",
+      "line": 217,
+      "kind": "transition-command",
+      "fields": [
+        "installLeadWorkflowWriter"
+      ],
+      "writerSha256": "af248fb7571b8055c8e6bf99d73a395d3443d93481d36803bbef7a699098299d",
+      "ownerSha256": "1eb2e6328c78811517fba97eb4888673afce71bc5834ea28f41b6d1f25ce2dee",
+      "importSha256": "398e185fc28f60b9c79502a887d6b9c693d3270530b263c538a859f986a0979b",
+      "predicateSource": null,
+      "authoritativeRecord": "RegisteredStateRecord",
+      "allowedCommand": {
+        "module": "src/models/message.js",
+        "function": "<module>",
+        "mode": "registered-domain-command"
+      },
+      "versionOrClaim": {
+        "kind": "source-filter-or-command",
+        "evidence": [],
+        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
       },
       "projectionsAndRepair": {
         "updatedRecords": [],
@@ -8213,6 +8400,35 @@
       "allowedCommand": {
         "module": "src/services/messaging/smsHandoff.service.js",
         "function": "buildFinalizedHumanHandoffUpdate",
+        "mode": "registered-domain-command"
+      },
+      "versionOrClaim": {
+        "kind": "source-filter-or-command",
+        "evidence": [],
+        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [],
+        "localRepairCommands": [],
+        "review": "No local repair path established by this scan; review this owner before changing its effects."
+      }
+    },
+    {
+      "id": "src/services/messaging/smsIngressPersistence.service.js#execute#transition-command#1",
+      "file": "src/services/messaging/smsIngressPersistence.service.js",
+      "line": 24,
+      "kind": "transition-command",
+      "fields": [
+        "recordInboundMessageActivities"
+      ],
+      "writerSha256": "4fcd34966e2eabcda1e304e9407bbd527011172e03b46c4284bdbb38e4d5feb7",
+      "ownerSha256": "6d8f62e89676151105e78125afad77d76747c85085e3b862d91d33d653a37548",
+      "importSha256": "a472a72bac3d7b65449f20cbeb6f2cc74763053a84ce21fbaca7069a7f87e2af",
+      "predicateSource": null,
+      "authoritativeRecord": "RegisteredStateRecord",
+      "allowedCommand": {
+        "module": "src/services/messaging/smsIngressPersistence.service.js",
+        "function": "execute",
         "mode": "registered-domain-command"
       },
       "versionOrClaim": {
@@ -16051,6 +16267,179 @@
       }
     },
     {
+      "id": "src/services/stateTransitions/leadWorkflow.js#recomputeLeadWorkflowFlags#updateOne#1",
+      "file": "src/services/stateTransitions/leadWorkflow.js",
+      "line": 33,
+      "kind": "updateOne",
+      "fields": [],
+      "writerSha256": "470a83c94523ed988b0f53f747a644c097e191f177526ba8bd9ab9a62c5f532a",
+      "ownerSha256": "06a6cf0f459683da47de04a35aac175b4f4a8a1f812bf81e4e1c7198dbd45ee7",
+      "importSha256": "df9002d605c7dc78b256fcb378e0117196a0905f93f9cf215657838eb8334968",
+      "predicateSource": "scope",
+      "authoritativeRecord": "Lead",
+      "allowedCommand": {
+        "module": "src/services/stateTransitions/leadWorkflow.js",
+        "function": "recomputeLeadWorkflowFlags",
+        "mode": "transition-layer"
+      },
+      "versionOrClaim": {
+        "kind": "source-filter-or-command",
+        "evidence": [
+          "session"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [],
+        "localRepairCommands": [],
+        "review": "No local repair path established by this scan; review this owner before changing its effects."
+      }
+    },
+    {
+      "id": "src/services/stateTransitions/leadWorkflow.js#recomputeLeadWorkflowFlags#updateOne#2",
+      "file": "src/services/stateTransitions/leadWorkflow.js",
+      "line": 46,
+      "kind": "updateOne",
+      "fields": [],
+      "writerSha256": "21e42a7a29304ab7c86bfcb745e29671d98ed83bb0d0cd8d8c55b7d46f7b612e",
+      "ownerSha256": "06a6cf0f459683da47de04a35aac175b4f4a8a1f812bf81e4e1c7198dbd45ee7",
+      "importSha256": "df9002d605c7dc78b256fcb378e0117196a0905f93f9cf215657838eb8334968",
+      "predicateSource": "{ ...scope, workflowFlagsRevision: revision }",
+      "authoritativeRecord": "Lead",
+      "allowedCommand": {
+        "module": "src/services/stateTransitions/leadWorkflow.js",
+        "function": "recomputeLeadWorkflowFlags",
+        "mode": "transition-layer"
+      },
+      "versionOrClaim": {
+        "kind": "source-filter-or-command",
+        "evidence": [
+          "session"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [],
+        "localRepairCommands": [],
+        "review": "No local repair path established by this scan; review this owner before changing its effects."
+      }
+    },
+    {
+      "id": "src/services/stateTransitions/leadWorkflow.js#recordInboundActivity#updateOne#1",
+      "file": "src/services/stateTransitions/leadWorkflow.js",
+      "line": 85,
+      "kind": "updateOne",
+      "fields": [],
+      "writerSha256": "62131cca94b1d7ab3dec0d7d7e5035e7a6ecdc921096c4f82b8989416235a3a3",
+      "ownerSha256": "4f7570c06620331d052b66753fa85f4168fe6d550e0ce640473fa7fa82ef38c7",
+      "importSha256": "df9002d605c7dc78b256fcb378e0117196a0905f93f9cf215657838eb8334968",
+      "predicateSource": "write.filter",
+      "authoritativeRecord": "Lead",
+      "allowedCommand": {
+        "module": "src/services/stateTransitions/leadWorkflow.js",
+        "function": "recordInboundActivity",
+        "mode": "transition-layer"
+      },
+      "versionOrClaim": {
+        "kind": "source-filter-or-command",
+        "evidence": [
+          "session",
+          "updatedAt"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [],
+        "localRepairCommands": [],
+        "review": "No local repair path established by this scan; review this owner before changing its effects."
+      }
+    },
+    {
+      "id": "src/services/stateTransitions/leadWorkflow.js#native#write-capability-reference#1",
+      "file": "src/services/stateTransitions/leadWorkflow.js",
+      "line": 144,
+      "kind": "write-capability-reference",
+      "fields": [
+        "bulkWrite"
+      ],
+      "writerSha256": "527699140ddbb6820a74bb84b8d2720711b7b972f54a853e223f62b499872964",
+      "ownerSha256": "b9d256ab284f5d2c3f1142d05c71fff673949829feb321440a445da443373ba1",
+      "importSha256": "df9002d605c7dc78b256fcb378e0117196a0905f93f9cf215657838eb8334968",
+      "predicateSource": null,
+      "authoritativeRecord": "DynamicTenantRecord",
+      "allowedCommand": {
+        "module": "src/services/stateTransitions/leadWorkflow.js",
+        "function": "native",
+        "mode": "transition-layer"
+      },
+      "versionOrClaim": {
+        "kind": "source-filter-or-command",
+        "evidence": [],
+        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [],
+        "localRepairCommands": [],
+        "review": "No local repair path established by this scan; review this owner before changing its effects."
+      }
+    },
+    {
+      "id": "src/services/stateTransitions/leadWorkflow.js#recordInboundMessageActivities#bulkWrite#1",
+      "file": "src/services/stateTransitions/leadWorkflow.js",
+      "line": 220,
+      "kind": "bulkWrite",
+      "fields": [],
+      "writerSha256": "2f4f18bf61250240697b5816e17ca5e21399b98cb0b95685616b3db6998b4d3c",
+      "ownerSha256": "c86d2daecb46246136324f06e225026ab40c6b71fca450b6622fd4b4a5c67733",
+      "importSha256": "df9002d605c7dc78b256fcb378e0117196a0905f93f9cf215657838eb8334968",
+      "predicateSource": null,
+      "authoritativeRecord": "Lead",
+      "allowedCommand": {
+        "module": "src/services/stateTransitions/leadWorkflow.js",
+        "function": "recordInboundMessageActivities",
+        "mode": "transition-layer"
+      },
+      "versionOrClaim": {
+        "kind": "source-filter-or-command",
+        "evidence": [],
+        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [],
+        "localRepairCommands": [],
+        "review": "No local repair path established by this scan; review this owner before changing its effects."
+      }
+    },
+    {
+      "id": "src/services/stateTransitions/leadWorkflow.js#archiveInactiveLead#updateOne#1",
+      "file": "src/services/stateTransitions/leadWorkflow.js",
+      "line": 252,
+      "kind": "updateOne",
+      "fields": [],
+      "writerSha256": "f970773296fb71a343918ec34466f52b9742c76e7eaddcb561388a23562d3793",
+      "ownerSha256": "7c82a27bde4e54c716916b34f797a7ee89075534d706b0b47f6c8cb03f4ae2b6",
+      "importSha256": "df9002d605c7dc78b256fcb378e0117196a0905f93f9cf215657838eb8334968",
+      "predicateSource": "{\n    _id: lead._id, business: lead.business, ...inactiveScope(cutoff),\n    workflowFlagsRevision: lead.workflowFlagsRevision ?? null,\n  }",
+      "authoritativeRecord": "Lead",
+      "allowedCommand": {
+        "module": "src/services/stateTransitions/leadWorkflow.js",
+        "function": "archiveInactiveLead",
+        "mode": "transition-layer"
+      },
+      "versionOrClaim": {
+        "kind": "source-filter-or-command",
+        "evidence": [
+          "updatedAt"
+        ],
+        "review": "Guards are recorded from the exact fingerprinted owner; inspect its filter for the full predicate."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [],
+        "localRepairCommands": [],
+        "review": "No local repair path established by this scan; review this owner before changing its effects."
+      }
+    },
+    {
       "id": "src/services/stateTransitions/messaging.js#setCompoundTurnMemory#set#1",
       "file": "src/services/stateTransitions/messaging.js",
       "line": 6,
@@ -20478,6 +20867,39 @@
         "updatedRecords": [],
         "localRepairCommands": [],
         "review": "No local repair path established by this scan; review this owner before changing its effects."
+      }
+    },
+    {
+      "id": "src/workers/appointmentMaintenance.worker.js#runAppointmentMaintenanceOnce#transition-command#1",
+      "file": "src/workers/appointmentMaintenance.worker.js",
+      "line": 26,
+      "kind": "transition-command",
+      "fields": [
+        "sweepLeadWorkflow"
+      ],
+      "writerSha256": "4cf83eda37dcc32f6034e38fe575ade9424e9390a8f77103ba9b9675b2de7ade",
+      "ownerSha256": "8866655842d289ac6938b6fb6258a1652919bde6c8bf5382eb0a3babb87b28aa",
+      "importSha256": "65ca204dfe4c4bc0a92e3a196e698d299a6aca05bbe67e2e366e8fd03f4f3fa9",
+      "predicateSource": null,
+      "authoritativeRecord": "RegisteredStateRecord",
+      "allowedCommand": {
+        "module": "src/workers/appointmentMaintenance.worker.js",
+        "function": "runAppointmentMaintenanceOnce",
+        "mode": "registered-domain-command"
+      },
+      "versionOrClaim": {
+        "kind": "source-filter-or-command",
+        "evidence": [],
+        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [],
+        "localRepairCommands": [
+          "reconcileAppointmentCancellations",
+          "reconcileConfirmations",
+          "repairRescheduleCompensations"
+        ],
+        "review": "Repair commands referenced by the fingerprinted owner; downstream behavior remains covered by domain tests."
       }
     },
     {

@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { assertOwnerReadContract } from "../contracts/ownerReadContract.js";
 import request from "supertest";
 
@@ -60,6 +61,25 @@ const authGet = (path, token) =>
   request(app).get(path).set("Authorization", `Bearer ${token}`);
 
 describe("Owner experience routes", () => {
+  test("owner opportunities and legacy lead list enforce the same 100-row page limit", async () => {
+    const { token, business } = await registerBusiness();
+    const businessId = new mongoose.Types.ObjectId(business._id);
+    await Lead.collection.insertMany(Array.from({ length: 105 }, (_, index) => ({
+      business: businessId, status: "new", serviceNeeded: "Repair", updatedAt: new Date(index),
+      createdAt: new Date(index), customerName: `Page fixture ${index}`,
+    })));
+
+    const owner = await authGet("/api/owner/opportunities?limit=250&includeSummary=false", token);
+    expect(owner.status).toBe(200);
+    expect(owner.body.data.items).toHaveLength(100);
+    expect(owner.body.data.pagination).toMatchObject({ limit: 100, maxLimit: 100, hasMore: true });
+    const legacy = await authGet("/api/leads?limit=250", token);
+    expect(legacy.status).toBe(200);
+    expect(legacy.body.data).toHaveLength(100);
+    expect(legacy.body.pagination).toMatchObject({ limit: 100, maxLimit: 100, hasMore: true });
+    expect(legacy.headers["x-max-page-limit"]).toBe("100");
+  });
+
   test("dashboard Today period excludes older missed calls", async () => {
     const { token, business } = await registerBusiness();
     const now = new Date();

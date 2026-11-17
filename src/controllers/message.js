@@ -70,8 +70,8 @@ class MessageController {
         req.query,
         { conversation,businessId:business._id },
       );
-      setPaginationHeaders(res, page);
-      return Response.responseOk(res, page.items, "Messages fetched");
+      const pagination = setPaginationHeaders(res, page);
+      return Response.responseOk(res, page.items, "Messages fetched", pagination);
     } catch (error) {
       if (queryFailure(error)) return res.status(503).set("Retry-After", "2").json({ success: false, code: "QUERY_BUDGET_EXCEEDED", message: "This view is busy. Please retry or narrow your search." });
       if (typeof next === "function") return next(error);

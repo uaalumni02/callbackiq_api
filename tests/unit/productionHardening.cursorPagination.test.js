@@ -56,7 +56,7 @@ describe("cursor pagination", () => {
     expect(normalizePageLimit(undefined)).toBe(100);
     expect(normalizePageLimit("0")).toBe(100);
     expect(normalizePageLimit("25")).toBe(25);
-    expect(normalizePageLimit("999")).toBe(200);
+    expect(normalizePageLimit("999")).toBe(100);
   });
 
   test("paginates leads with a stable cursor", async () => {
@@ -222,7 +222,7 @@ describe("scale pagination read contracts", () => {
     model.aggregate.mockReturnValue({ option });
     const result = await overview(business);
     expect(result.items).toEqual([]);
-    expect(result.pagination).toEqual({ limit: 50, hasMore: false, nextCursor: null });
+    expect(result.pagination).toEqual({ limit: 50, maxLimit: 100, hasMore: false, nextCursor: null });
     expect(result.stats.total).toBe(8000);
     expect(model.aggregate.mock.calls[0][0][0].$match.business).toBe(business);
     expect(option).toHaveBeenCalledWith({ maxTimeMS: 3000 });
@@ -280,7 +280,7 @@ describe("scale pagination read contracts", () => {
     expect(page).toEqual({ items: [], limit: 100, hasMore: false, nextCursor: null });
     const response = { set: jest.fn() };
     setPaginationHeaders(response, page);
-    expect(response.set.mock.calls).toEqual([["X-Page-Limit", "100"], ["X-Has-More", "false"]]);
+    expect(response.set.mock.calls).toEqual([["X-Page-Limit", "100"], ["X-Max-Page-Limit", "100"], ["X-Has-More", "false"]]);
     Lead.find.mockReturnValue(makeChain([]));
     await getLeadsPage(business);
   });

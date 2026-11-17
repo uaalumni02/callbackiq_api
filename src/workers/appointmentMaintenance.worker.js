@@ -1,3 +1,4 @@
+import { sweepLeadWorkflow } from '../services/stateTransitions/leadWorkflow.js';
 import { repairRescheduleCompensations } from '../services/scheduling/rescheduleCompensationRepair.service.js';
 import { reconcileAppointmentCancellations } from '../services/scheduling/appointmentCancellationRecovery.service.js';
 import { safeConsole } from "../helpers/logging/safeLogger.js";
@@ -5,6 +6,7 @@ import AppointmentService from "../services/scheduling/appointment.service.js";
 
 let timer = null;
 let running = false;
+let leadArchiveCursor;
 
 const intervalMs = () =>
   Math.max(
@@ -20,6 +22,11 @@ export const runAppointmentMaintenanceOnce = async () => {
     await repairRescheduleCompensations();
     await AppointmentService.reconcileConfirmations();
     await reconcileAppointmentCancellations(input => AppointmentService.cancel(input));
+    try {
+      leadArchiveCursor = await sweepLeadWorkflow({ after: leadArchiveCursor });
+    } catch (error) {
+      safeConsole.error("Lead workflow maintenance failed:", error);
+    }
     return {
       skipped: false,
       matched: Number(result?.matchedCount || 0),

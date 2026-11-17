@@ -30,7 +30,7 @@ Typed settings in `config/worker-settings.json` and `config/numeric-settings.jso
 | API_INSTANCE_COUNT | `src/services/scaleHealth.service.js:32` |
 | API_PUBLIC_URL | `src/services/a2pCustomerOnboarding.service.js:53` |
 | APP_ENV | `src/config/logger.js:62`, `src/controllers/health.js:26`, `src/services/securityAlert.service.js:80`, `src/voice/voiceRouting.service.js:141` |
-| APPOINTMENT_MAINTENANCE_INTERVAL_MS | `src/workers/appointmentMaintenance.worker.js:12` |
+| APPOINTMENT_MAINTENANCE_INTERVAL_MS | `src/workers/appointmentMaintenance.worker.js:14` |
 | APPOINTMENT_NOTIFICATION_BATCH_SIZE | `src/workers/automation.worker.js:137` |
 | APPOINTMENT_NOTIFICATION_CONCURRENCY | `src/workers/automation.worker.js:138` |
 | ATTRIBUTION_INCLUDED_SOURCE_NUMBERS | `src/services/marketingSource.service.js:33` |
@@ -108,6 +108,7 @@ Typed settings in `config/worker-settings.json` and `config/numeric-settings.jso
 | JWT_EXPIRES_IN | `src/helpers/jwt/token.js:38` |
 | JWT_ISSUER | `src/helpers/jwt/token.js:18` |
 | JWT_SECRET | `src/helpers/jwt/token.js:4`, `src/services/trialRisk.service.js:19` |
+| LEAD_INACTIVITY_ARCHIVE_DAYS | `src/services/stateTransitions/leadWorkflow.js:224` |
 | LOG_LEVEL | `src/config/logger.js:81` |
 | LOGIN_RATE_LIMIT_MAX | `src/middleware/login-rate-limit.js:17` |
 | LOGIN_RATE_LIMIT_WINDOW_MS | `src/middleware/login-rate-limit.js:12` |
@@ -157,7 +158,7 @@ Typed settings in `config/worker-settings.json` and `config/numeric-settings.jso
 | OPENAI_VOICE_CLASSIFIER_TIMEOUT_MS | `src/voice/voiceUnderstanding.service.js:61` |
 | OPS_PAGING_ENABLED | `src/services/opsPaging.service.js:6` |
 | OWNER_BROWSER_CALL_STATUS_CALLBACK_URL | `src/services/ownerBrowserCall.service.js:73` |
-| OWNER_QUERY_MAX_TIME_MS | `src/services/scale/queryBudget.js:2` |
+| OWNER_QUERY_MAX_TIME_MS | `src/services/scale/queryBudget.js:3` |
 | PAGERDUTY_ROUTING_KEY | `src/services/opsPaging.service.js:20`, `src/services/opsPaging.service.js:23` |
 | PASSWORD_RESET_REQUEST_RATE_LIMIT_MAX | `src/middleware/auth-public-rate-limits.js:59` |
 | PASSWORD_RESET_REQUEST_RATE_LIMIT_WINDOW_MS | `src/middleware/auth-public-rate-limits.js:56` |

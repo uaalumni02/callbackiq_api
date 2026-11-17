@@ -4,87 +4,58 @@ import Lead from '../../models/lead.js';
 import Conversation from '../../models/conversation.js';
 import Appointment from '../../models/appointment.js';
 import Alert from '../../models/alert.js';
-import { STALE_INTAKE_HOLD_REASON } from '../booking/intakeReviewContext.service.js';
+import { ACTIVE_LEAD_STATUSES, LEAD_WORKFLOW_INDEXES, opportunityLookup, ownerAppointmentFilter, ownerAppointmentSort, ownerConversationSort } from './leadWorkflowPolicy.js';
+export { ownerAppointmentFilter, ownerAppointmentSort, ownerConversationSort } from './leadWorkflowPolicy.js';
 import ScaleCache from '../scaleCache.service.js';
 import { queryBudgetMs, pageLimit, decodePage, beforePage, finishPage, invalidPage } from './queryBudget.js';
-const active = { $in: ['$status', ['new', 'contacted']] };
-export const ownerConversationSort = { lastMessageAt: -1, updatedAt: -1, _id: -1 };
-export const ownerAppointmentSort = { createdAt: -1, _id: -1 };
-export const ownerAppointmentFilter = { failureReason: { $ne: STALE_INTAKE_HOLD_REASON } };
-const has = field => ({ $gt: [{ $size: `$${field}` }, 0] });
 const escape = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-export const opportunityLookup = (model, business, as, match, sort, project) => ({ $lookup: {
-  from: model.collection.name, localField: '_id', foreignField: 'lead', as,
-  pipeline: [{ $match: { ...match, business } }, ...(sort ? [{ $sort: sort }] : []), { $limit: 1 }, { $project: project || { _id: 1 } }],
-} });
-const latestConversation = field => ({ $arrayElemAt: [`$_readyConversation.${field}`, 0] });
-const firstNonEmpty = (...fields) => fields.reduceRight(
-  (fallback, field) => ({ $cond: [{ $in: [{ $ifNull: [field, ''] }, ['', false, 0]] }, fallback, field] }),
-  '',
-);
-const trimmed = input => ({
-  $trim: { input: { $convert: { input, to: 'string', onNull: '', onError: '' } } },
-});
-
-export function opportunityFlags(business, interventionFilter, autoBooking) {
-  const eligibility = { $ifNull: [latestConversation('serviceEligibility'), '$serviceEligibility'] };
-  const service = trimmed(firstNonEmpty('$serviceNeeded', latestConversation('conversationMemory.serviceNeeded')));
-  const address = trimmed(firstNonEmpty(
-    latestConversation('bookingState.streetAddress'), latestConversation('conversationMemory.address'), '$address',
-  ));
-  const preference = firstNonEmpty(latestConversation('bookingState.lastCustomerPreference'), '$preferredAppointmentTime');
-  return [
-    opportunityLookup(Conversation, business, '_waiting', { status: 'open', 'bookingState.status': { $in: ['offering_slots', 'awaiting_confirmation'] } }),
-    opportunityLookup(Conversation, business, '_takeover', { status: 'open', $or: [{ humanTakeover: true }, { 'bookingState.status': { $in: ['failed', 'human_takeover'] } }] }),
-    opportunityLookup(Alert, business, '_interventions', interventionFilter),
-    opportunityLookup(Appointment, business, '_appointments', ownerAppointmentFilter),
-    opportunityLookup(Conversation, business, '_readyConversation', {}, ownerConversationSort, {
-      serviceEligibility: 1, humanTakeover: 1, 'bookingState.status': 1, 'bookingState.streetAddress': 1,
-      'bookingState.lastCustomerPreference': 1, 'conversationMemory.serviceNeeded': 1, 'conversationMemory.address': 1,
-    }),
-    { $set: {
-      _active: active,
-      _needsMe: { $and: [active, { $or: [has('_takeover'), has('_interventions')] }] },
-      _isWaiting: { $and: [active, has('_waiting')] },
-      _ready: { $and: [
-        !autoBooking, active, { $not: [has('_interventions')] }, { $not: [has('_appointments')] },
-        { $ne: [latestConversation('humanTakeover'), true] },
-        { $not: [{ $in: [latestConversation('bookingState.status'), ['failed', 'human_takeover']] }] },
-        { $let: { vars: { eligibility }, in: {
-          $not: [{ $in: ['$$eligibility.decision', ['needs_staff_review', 'needs_clarification', 'unsupported']] }],
-        } } },
-        { $not: [{ $in: [service, ['', 'Unknown']] }] },
-        { $ne: [address, ''] }, { $ne: [preference, ''] },
-      ] },
-    } },
-  ];
-}
-const viewFilter = view => ({ active: { status: { $in: ['new', 'contacted'] } }, booked: { status: 'booked' }, not_booked: { status: 'lost' },
-  ready: { _ready: true }, waiting: { _isWaiting: true }, needs_me: { _needsMe: true }, all: {} })[view];
-const needsFlags = view => ['ready', 'waiting', 'needs_me'].includes(view);
-const execute = pipeline => Lead.aggregate(pipeline).option({ maxTimeMS: queryBudgetMs() });
-// All views share this tenant summary; search terms must not multiply the
-// expensive workflow joins. Historical closed leads need no workflow joins.
-export const ownerStatusPipeline = businessId => [{ $match: { business: businessId } },
-  { $group: { _id: '$status', count: { $sum: 1 } } }];
-export const ownerWorkflowPipeline = (businessId, flags) => [
-  { $match: { business: businessId, status: { $in: ['new', 'contacted'] } } }, ...flags,
-  { $group: { _id: null, readyToSchedule: { $sum: { $cond: ['$_ready', 1, 0] } },
-    needsMe: { $sum: { $cond: ['$_needsMe', 1, 0] } }, waiting: { $sum: { $cond: ['$_isWaiting', 1, 0] } } } },
+const activeLead = { status: { $in: ACTIVE_LEAD_STATUSES }, archivedAt: null };
+const viewFilter = (view, autoBooking) => ({
+  active: activeLead,
+  booked: { status: 'booked' },
+  not_booked: { status: 'lost' },
+  ready: { ...activeLead, 'workflowFlags.ready': autoBooking ? { $in: [] } : true },
+  waiting: { ...activeLead, 'workflowFlags.waiting': true },
+  needs_me: { ...activeLead, 'workflowFlags.needsMe': true },
+  all: {},
+})[view];
+const execute = (pipeline, hint) => Lead.aggregate(pipeline)
+  .option({ maxTimeMS: queryBudgetMs(), ...(hint ? { hint } : {}) });
+export const ownerStatusPipeline = businessId => [
+  { $match: { business: businessId } },
+  { $group: { _id: '$status', count: { $sum: 1 }, unarchived: { $sum: { $cond: [{ $eq: [{ $ifNull: ['$archivedAt', null] }, null] }, 1, 0] } } } },
+];
+export const ownerWorkflowPipeline = (businessId, autoBooking) => [
+  { $match: { business: businessId, ...activeLead, $or: [
+    { 'workflowFlags.ready': true }, { 'workflowFlags.needsMe': true }, { 'workflowFlags.waiting': true },
+  ] } },
+  { $group: {
+    _id: null,
+    readyToSchedule: { $sum: { $cond: [{ $and: [!autoBooking, '$workflowFlags.ready'] }, 1, 0] } },
+    needsMe: { $sum: { $cond: ['$workflowFlags.needsMe', 1, 0] } },
+    waiting: { $sum: { $cond: ['$workflowFlags.waiting', 1, 0] } },
+  } },
 ];
 export const ownerSummaryKey = (businessId, autoBooking, interventionFilter) =>
-  `owner-workflow-summary:v3:${crypto.createHash('sha256').update(JSON.stringify([String(businessId), autoBooking, interventionFilter])).digest('hex')}`;
-export async function readOwnerSummary({ businessId, flags, autoBooking, interventionFilter }) {
+  `owner-workflow-summary:v4:${crypto.createHash('sha256').update(JSON.stringify([String(businessId), autoBooking, interventionFilter])).digest('hex')}`;
+export async function readOwnerSummary({ businessId, autoBooking, interventionFilter }) {
   return ScaleCache.getOrLoad({ key: ownerSummaryKey(businessId, autoBooking, interventionFilter), ttlMs: 10000, staleMs: 30000, loader: async () => {
     const statuses = await execute(ownerStatusPipeline(businessId));
     const count = name => statuses.find(row => row._id === name)?.count || 0;
-    const active = count('new') + count('contacted');
-    const [workflow] = active ? await execute(ownerWorkflowPipeline(businessId, flags)) : [];
+    const active = statuses.filter(row => ACTIVE_LEAD_STATUSES.includes(row._id)).reduce((sum, row) => sum + row.unarchived, 0);
+    const [workflow] = active ? await execute(ownerWorkflowPipeline(businessId, autoBooking)) : [];
     return { stats: { active, readyToSchedule: workflow?.readyToSchedule || 0,
       needsMe: workflow?.needsMe || 0, waiting: workflow?.waiting || 0, booked: count('booked') },
       total: statuses.reduce((sum, row) => sum + row.count, 0), lost: count('lost'), observedAt: new Date().toISOString() };
   } });
 }
+const ownerOpportunityPagePipeline = (match, continuation, offset, size) => [
+  { $match: continuation ? { $and: [match, beforePage(continuation, 'updatedAt')] } : match },
+  { $sort: { updatedAt: -1, _id: -1 } },
+  ...(offset ? [{ $skip: offset }] : []),
+  { $limit: size + 1 },
+];
+
 export async function queryOwnerOpportunities({ business, interventionFilter, view = 'active', search = '', limit, skip = 0, cursor, includeSummary = true }) {
   view = ['active', 'booked', 'not_booked', 'ready', 'waiting', 'needs_me', 'all'].includes(view) ? view : 'active';
   const size = pageLimit(limit), offset = Number(skip) || 0;
@@ -94,23 +65,20 @@ export async function queryOwnerOpportunities({ business, interventionFilter, vi
   const scope = `opportunities:${businessId}:${view}:${search}`;
   const continuation = decodePage(cursor, scope);
   const searchMatch = search ? { $or: ['customerName', 'phone', 'serviceNeeded', 'summary'].map(key => ({ [key]: new RegExp(escape(search), 'i') })) } : {};
-  const flags = opportunityFlags(businessId, interventionFilter, Boolean(business.features?.aiBookingEnabled));
-  const base = [{ $match: { business: businessId, ...searchMatch, ...(needsFlags(view) ? { status: { $in: ['new', 'contacted'] } } : {}) } }];
-  // Sort and seek on an indexed lead field before joining any foreign records.
-  const filtered = [...base, { $match: beforePage(continuation, 'updatedAt') }, { $sort: { updatedAt: -1, _id: -1 } },
-    ...(needsFlags(view) ? flags : []), { $match: viewFilter(view) }];
-  const rows = await execute([...filtered, ...(offset ? [{ $skip: offset }] : []), { $limit: size + 1 },
+  const autoBooking = Boolean(business.features?.aiBookingEnabled);
+  const match = { business: businessId, ...searchMatch, ...viewFilter(view, autoBooking) };
+  const base = [{ $match: match }];
+  const rows = await execute([...ownerOpportunityPagePipeline(match, continuation, offset, size),
     opportunityLookup(Conversation, businessId, '_conversation', {}, ownerConversationSort,
       { lead: 1, serviceEligibility: 1, customerName: 1, customerPhone: 1, status: 1, humanTakeover: 1, bookingState: 1, orchestration: 1, conversationMemory: 1, lastMessage: 1, lastMessageAt: 1, createdAt: 1, updatedAt: 1 }),
     opportunityLookup(Appointment, businessId, '_appointment', ownerAppointmentFilter, ownerAppointmentSort,
       { lead: 1, status: 1, startAt: 1, endAt: 1, timezone: 1, source: 1, bookedBy: 1, provider: 1, confirmedAt: 1, customerConfirmedAt: 1, estimatedValue: 1, valuation: 1, actualRevenue: 1, requiresBusinessApproval: 1, failureReason: 1, createdAt: 1 }),
-    ...(!needsFlags(view) ? [opportunityLookup(Alert, businessId, '_interventions', interventionFilter)] : []),
-  ]);
+    opportunityLookup(Alert, businessId, '_interventions', interventionFilter),
+  ], LEAD_WORKFLOW_INDEXES[view]?.name);
   const page = finishPage(rows, size, scope, 'updatedAt');
   const result = { rows: page.items, pagination: { ...page.pagination, skip: offset } };
   if (includeSummary) {
-    const summary = await readOwnerSummary({ businessId, flags,
-      autoBooking: Boolean(business.features?.aiBookingEnabled), interventionFilter });
+    const summary = await readOwnerSummary({ businessId, autoBooking, interventionFilter });
     let total;
     if (!search) {
       total = { active: summary.stats.active, booked: summary.stats.booked, not_booked: summary.lost,
@@ -119,8 +87,8 @@ export async function queryOwnerOpportunities({ business, interventionFilter, vi
       // Only the search-specific count is keyed by search/view. The shared
       // workflow summary above is reused across all tabs and typed searches.
       const key = crypto.createHash('sha256').update(JSON.stringify([scope, Boolean(business.features?.aiBookingEnabled), interventionFilter])).digest('hex');
-      const count = await ScaleCache.getOrLoad({ key: `owner-search-count:v3:${key}`, ttlMs: 10000, staleMs: 30000, loader: async () => {
-        const [row] = await execute([...base, ...(needsFlags(view) ? flags : []), { $match: viewFilter(view) }, { $count: 'value' }]);
+      const count = await ScaleCache.getOrLoad({ key: `owner-search-count:v4:${key}`, ttlMs: 10000, staleMs: 30000, loader: async () => {
+        const [row] = await execute([...base, { $count: 'value' }], LEAD_WORKFLOW_INDEXES[view]?.name);
         return { value: row?.value || 0 };
       } });
       total = count.value;

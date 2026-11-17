@@ -63,12 +63,12 @@ static async getMyConversations(req, res) {
 
       // CALLBACKIQ_CONVERSATION_CURSOR_PAGINATION_V1
       const page = await getConversationsPage(business._id, req.query);
-      setPaginationHeaders(res, page);
+      const pagination = setPaginationHeaders(res, page);
       const payload = page.items.map((conversation) =>
         withConversationPermissions(conversation, true),
       );
 
-      return Response.responseOk(res, payload, "Conversations fetched");
+      return Response.responseOk(res, payload, "Conversations fetched", pagination);
     } catch (error) {
       if (queryFailure(error)) return res.status(503).set("Retry-After", "2").json({ success: false, code: "QUERY_BUDGET_EXCEEDED", message: "This view is busy. Please retry or narrow your search." });
       safeConsole.error("Error in getMyConversations:", error);

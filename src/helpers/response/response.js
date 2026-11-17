@@ -20,11 +20,12 @@ const responseOkCreated = (res, data) => {
   });
 };
 
-const responseOk = (res, data = null, message = "Request successful") => {
+const responseOk = (res, data = null, message = "Request successful", metadata = {}) => {
   return res.status(200).json({
     success: true,
     message,
     data,
+    ...metadata,
   });
 };
 

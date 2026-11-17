@@ -1,3 +1,4 @@
+import { recordInboundMessageActivities } from '../stateTransitions/leadWorkflow.js';
 import Message from '../../models/message.js';
 import { createAwaitedKeyBatch } from '../database/awaitedKeyBatch.js';
 import { withMessageInsertDefaults } from '../database/messageInsertDefaults.js';
@@ -15,11 +16,13 @@ const execute = async rows => {
   } })), { ordered: false });
   const persisted = await Message.find({ $or: rows.map(row => row.filter) }).lean();
   const byIdentity = new Map(persisted.map(row => [identity({ business: row.business, providerMessageId: row.providerMessageId }), row]));
-  return rows.map(row => {
+  const results = rows.map(row => {
     const result = byIdentity.get(identity(row.filter));
     if (!result) throw new Error('Incomplete inbound SMS persistence readback');
     return result;
   });
+  await recordInboundMessageActivities(results);
+  return results;
 };
 const batch = createAwaitedKeyBatch({ execute });
 

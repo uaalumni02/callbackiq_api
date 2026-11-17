@@ -1,6 +1,10 @@
+import request from 'supertest';
+import app from '../../src/app.js';
+import Business from '../../src/models/business.js';
+import Subscription from '../../src/models/subscription.js';
+import Token from '../../src/helpers/jwt/token.js';
 import mongoose from 'mongoose';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
-import '../../src/models/business.js';
 import User from '../../src/models/user.js';
 import Alert from '../../src/models/alert.js';
 import Conversation from '../../src/models/conversation.js';
@@ -58,6 +62,11 @@ test('cannot invent a booked outcome, and closing a declined request leaves an a
  await act('accept');await expect(act('outcome',{outcome:'booked',reason:'Requested Friday noon'})).rejects.toThrow('confirm');
  const result=await act('outcome',{outcome:'customer_declined',reason:'Customer chose another provider'});
  expect(result.review.resolvedAt).not.toBeNull();expect(result.lead.status).toBe('lost');expect(result.conversation.conversationMemory.recoveryIntake.review.status).toBe('resolved');
+ expect(String(result.review.resolvedBy)).toBe(String(business.owner));
+ expect(result.review.reviewEvents).toEqual(expect.arrayContaining([
+  expect.objectContaining({ actorId: String(business.owner), outcome: 'customer_declined' }),
+ ]));
+ expect((await listBusinessRequests({ businessId: business._id, query: {} })).total).toBe(0);
  expect(await Message.countDocuments()).toBe(0);
 });
 test('verified booking and message failure remain independent evidence',async()=>{
@@ -119,4 +128,32 @@ test('staff can close a genuinely booked request without withdrawing it', async 
   expect(result.lead.status).toBe('booked');
   expect(result.conversation.bookingState.status).toBe('booked');
   expect(result.conversation.conversationMemory.recoveryIntake.withdrawnAt).toBeFalsy();
+});
+
+test('the authenticated workflow endpoint resolves a request with an actor and an audit event', async () => {
+ const ownerId = String(business.owner);
+ await User.collection.updateOne({ _id: business.owner }, { $set: { role: 'owner', sessionVersion: 0 } });
+ await Business.collection.insertOne({ ...business, isActive: true, businessName: 'Workflow Fixture', businessType: 'plumbing' });
+ await Subscription.create({ business: business._id, status: 'active', isActive: true,
+  stripeCustomerId: 'cus_workflow_fixture', stripeSubscriptionId: 'sub_workflow_fixture' });
+ const token = Token.sign({ userId: ownerId, role: 'owner', sessionVersion: 0 });
+ const http = (method, path) => request(app)[method](path).set('Authorization', `Bearer ${token}`);
+ const path = `/api/interventions/${alerts[0]._id}/workflow`;
+
+ const snapshot = await http('get', path);
+ expect(snapshot.status).toBe(200);
+ const accepted = await http('post', path).send({ action: 'accept', version: snapshot.body.data.version, operationId: 'route-accept' });
+ expect(accepted.status).toBe(200);
+ const resolved = await http('post', path).send({ action: 'outcome', outcome: 'customer_declined',
+  reason: 'Customer chose another provider', version: accepted.body.data.version, operationId: 'route-resolve' });
+ expect(resolved.status).toBe(200);
+ expect(resolved.body.data.review).toMatchObject({
+  resolvedBy: ownerId,
+  reviewEvents: expect.arrayContaining([expect.objectContaining({
+   key: 'staff:route-resolve', actorId: ownerId, outcome: 'customer_declined',
+  })]),
+ });
+ const queue = await http('get', '/api/interventions?view=requests');
+ expect(queue.status).toBe(200);
+ expect(queue.body.data).toEqual([]);
 });

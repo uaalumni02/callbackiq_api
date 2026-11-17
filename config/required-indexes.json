@@ -1744,6 +1744,76 @@
     "collection": "leads",
     "key": {
       "business": 1,
+      "status": 1,
+      "workflowFlags.ready": 1,
+      "updatedAt": -1,
+      "_id": -1
+    },
+    "options": {
+      "name": "lead_workflow_ready",
+      "partialFilterExpression": {
+        "archivedAt": null
+      }
+    }
+  },
+  {
+    "collection": "leads",
+    "key": {
+      "business": 1,
+      "status": 1,
+      "workflowFlags.waiting": 1,
+      "updatedAt": -1,
+      "_id": -1
+    },
+    "options": {
+      "name": "lead_workflow_waiting",
+      "partialFilterExpression": {
+        "archivedAt": null
+      }
+    }
+  },
+  {
+    "collection": "leads",
+    "key": {
+      "business": 1,
+      "status": 1,
+      "workflowFlags.needsMe": 1,
+      "updatedAt": -1,
+      "_id": -1
+    },
+    "options": {
+      "name": "lead_workflow_needs_me",
+      "partialFilterExpression": {
+        "archivedAt": null
+      }
+    }
+  },
+  {
+    "collection": "leads",
+    "key": {
+      "workflowFlagsPending": 1,
+      "_id": 1
+    },
+    "options": {
+      "partialFilterExpression": {
+        "workflowFlagsPending": true
+      }
+    }
+  },
+  {
+    "collection": "leads",
+    "key": {
+      "archivedAt": 1,
+      "status": 1,
+      "_id": 1,
+      "updatedAt": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "leads",
+    "key": {
+      "business": 1,
       "updatedAt": -1,
       "_id": -1
     },

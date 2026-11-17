@@ -1,3 +1,4 @@
+import { installLeadWorkflowWriter } from '../services/stateTransitions/leadWorkflow.js';
 import '../helpers/model/tenantContext.js';
 import mongoose from "mongoose";
 import { customerLifecycleField } from "../helpers/customerLifecycle.js";
@@ -128,6 +129,8 @@ AlertSchema.index(
     partialFilterExpression: { dedupeKey: { $type: "string" } },
   },
 );
+
+installLeadWorkflowWriter(AlertSchema, 'Alert');
 
 const Alert = mongoose.models.Alert || mongoose.model("Alert", AlertSchema);
 

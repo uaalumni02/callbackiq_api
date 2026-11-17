@@ -1,3 +1,5 @@
+import { LEAD_WORKFLOW_INDEXES } from '../services/scale/leadWorkflowPolicy.js';
+import { installLeadWorkflowWriter } from '../services/stateTransitions/leadWorkflow.js';
 import '../helpers/model/tenantContext.js';
 import { installDocumentFence } from '../services/stateTransitions/documentFence.js';
 import { normalizePhoneToE164 } from "../voice/voicePhone.service.js";
@@ -10,6 +12,17 @@ import * as validate from "../helpers/model/lead.js";
 
 const LeadSchema = new Schema(
   {
+    archivedAt: { type: Date, default: null },
+    archiveReason: { type: String, enum: ['inactive'] },
+    lastInboundActivityAt: Date,
+    workflowFlags: {
+      ready: Boolean,
+      needsMe: Boolean,
+      waiting: Boolean,
+      computedAt: Date,
+    },
+    workflowFlagsRevision: String,
+    workflowFlagsPending: Boolean,
     serviceEligibility: { type: Schema.Types.Mixed, default: undefined },
     aiExtraction: { source: String, observedAt: Date, verified: { type: Boolean, default: false } },
     business: {
@@ -167,6 +180,14 @@ for (const operation of ["find", "findOne", "countDocuments", "findOneAndDelete"
 }
 
 // Bounded owner read and related-record lookup indexes. Additive migration only.
+for (const { field, name } of Object.values(LEAD_WORKFLOW_INDEXES)) {
+  LeadSchema.index(
+    { business: 1, status: 1, [`workflowFlags.${field}`]: 1, updatedAt: -1, _id: -1 },
+    { name, partialFilterExpression: { archivedAt: null } },
+  );
+}
+LeadSchema.index({ workflowFlagsPending: 1, _id: 1 }, { partialFilterExpression: { workflowFlagsPending: true } });
+LeadSchema.index({ archivedAt: 1, status: 1, _id: 1, updatedAt: 1 });
 LeadSchema.index({ business: 1, updatedAt: -1, _id: -1 });
 LeadSchema.index({ business: 1, status: 1, updatedAt: -1, _id: -1 });
 LeadSchema.index({ business: 1, createdAt: -1 });
@@ -187,6 +208,8 @@ LeadSchema.index(
   { unique: true, partialFilterExpression: { phoneLookup: { $gt: "" } } },
 );
 installDocumentFence(LeadSchema);
+
+installLeadWorkflowWriter(LeadSchema, 'Lead');
 
 const Lead = mongoose.models.Lead || mongoose.model("Lead", LeadSchema);
 export default Lead;

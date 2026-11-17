@@ -1,3 +1,4 @@
+import { OWNER_INTERVENTION_TYPES, ownerInterventionFilter } from "./scale/leadWorkflowPolicy.js";
 import { queryBudgetMs } from "./scale/queryBudget.js";
 import { queryOwnerOpportunities, ownerAppointmentFilter, ownerAppointmentSort, ownerConversationSort } from "./scale/ownerOpportunityQuery.service.js";
 import { intakeReviewVersion, manualIntakeSubmitted } from "./booking/intakeReviewContext.service.js";
@@ -8,19 +9,6 @@ import Conversation from "../models/conversation.js";
 import Lead from "../models/lead.js";
 import RevenueRecoveryService from "./analytics/revenueRecovery.service.js";
 import { resolveOwnerPeriod } from "./ownerExperiencePeriod.service.js";
-
-const OWNER_INTERVENTION_TYPES = [
-  "safety_emergency",
-  "human_requested",
-  "angry_customer",
-  "low_ai_confidence",
-  "booking_conflict",
-  "integration_failure",
-  "message_delivery_failure",
-  "unanswered_hot_lead",
-  "appointment_canceled",
-  "appointment_change_review",
-];
 
 const BOOKING_STAGE = {
   not_started: {
@@ -83,30 +71,6 @@ const URGENCY_RANK = {
   medium: 2,
   low: 1,
 };
-
-const ownerInterventionFilter = (businessId) => ({
-  business: businessId,
-  resolvedAt: null,
-  $or: [
-    { 'metadata.approvalRequest': true, actionRequired: true },
-    { type: 'system', actionRequired: true, 'metadata.serviceEligibilityReason': { $exists: true } },
-    { type: 'system', actionRequired: true, 'metadata.additionalRequest': { $exists: true } },
-    { type: { $in: OWNER_INTERVENTION_TYPES } },
-    {
-      type: "system",
-      priority: "critical",
-      $or: [
-        { "metadata.messageCategory": "emergency" },
-        {
-          "metadata.riskFlags": {
-            $in: ["safety_hazard", "hazardous_diy_request"],
-          },
-        },
-      ],
-    },
-    { type: "hot_lead", priority: "critical" },
-  ],
-});
 
 const serializeSlot = (slot) => {
   if (!slot?.startAt) return null;
@@ -553,7 +517,6 @@ class OwnerExperienceService {
     const timeZone = business.timezone || "America/New_York";
     const range = resolveOwnerPeriod({ period, timeZone, now });
     const endInclusive = range.end;
-
     const [
       revenue,
       openCustomerCount,
@@ -568,6 +531,7 @@ class OwnerExperienceService {
       Lead.countDocuments({
         business: business._id,
         status: { $in: ["new", "contacted"] },
+        archivedAt: null,
       }),
       Conversation.aggregate([
         {

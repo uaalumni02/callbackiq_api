@@ -28,7 +28,7 @@ router.patch(
 router
   .route("/:id")
   .get(checkAuth, checkSubscription, AlertController.getAlertById)
-  .patch(checkAuth, checkSubscription, AlertController.updateAlert)
+  .patch(checkAuth, checkSubscription, AlertController.setReadState)
   .delete(checkAuth, checkSubscription, AlertController.deleteAlert);
 
 export default router;

@@ -1,3 +1,4 @@
+import { installLeadWorkflowWriter } from '../services/stateTransitions/leadWorkflow.js';
 import '../helpers/model/tenantContext.js';
 import { installAppointmentOwnership } from '../services/stateTransitions/appointmentOwnership.js';
 import mongoose from "mongoose";
@@ -326,6 +327,8 @@ AppointmentSchema.index({ business: 1, requiresBusinessApproval: 1, approvalDeci
 AppointmentSchema.index({ automaticConfirmationAuthorized: 1, "approvalRecovery.reconciled": 1, status: 1, updatedAt: 1 });
 
 installAppointmentOwnership(AppointmentSchema);
+
+installLeadWorkflowWriter(AppointmentSchema, 'Appointment');
 
 const Appointment =
   mongoose.models.Appointment || mongoose.model("Appointment", AppointmentSchema);

@@ -1,3 +1,4 @@
+import { installLeadWorkflowWriter } from '../services/stateTransitions/leadWorkflow.js';
 import '../helpers/model/tenantContext.js';
 import { installDocumentFence } from '../services/stateTransitions/documentFence.js';
 import { guardTenantReferences } from '../helpers/model/tenantReferences.js';
@@ -311,6 +312,8 @@ conversationSchema.index({ status: 1, "lifecycle.lastScannedAt": 1, _id: 1 });
 installDocumentFence(conversationSchema);
 
 guardTenantReferences(conversationSchema, ['lead']);
+
+installLeadWorkflowWriter(conversationSchema, 'Conversation');
 
 const Conversation =
   mongoose.models.Conversation ||
