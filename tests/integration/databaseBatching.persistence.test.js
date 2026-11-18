@@ -4,6 +4,7 @@ import Lead from '../../src/models/lead.js';
 import Alert from '../../src/models/alert.js';
 import WebhookEvent from '../../src/models/webhookEvent.js';
 import AlertService from '../../src/services/alert.service.js';
+import SocketService from '../../src/services/socket.service.js';
 import {readFreshFollowUpSettings} from '../../src/services/database/followUpSettingsRead.js';
 import {heartbeatTwilioWebhookEvent} from '../../src/services/webhooks/twilioWebhookEvent.service.js';
 import {connectTestDB,clearTestDB,closeTestDB} from '../setup/testDb.js';
@@ -45,14 +46,34 @@ test('simultaneous alert creation preserves reference identity and durable dedup
  await Business.collection.insertMany(tenants.map((t,i)=>({_id:t.business,businessName:`Business ${i}`})));
  await Lead.collection.insertMany(tenants.map((t,i)=>({_id:t.lead,business:t.business,customerName:`Customer ${i}`})));
  const inputs=tenants.map(t=>({businessId:t.business,leadId:t.lead,type:'customer_reply',title:'Reply',message:'Received',dedupeKey:'same-provider-key'}));
- const results=await Promise.all(inputs.map(input=>AlertService.create(input)));
+ const emit=jest.spyOn(SocketService,'emitAlertCreated').mockImplementation(()=>{});
+ const settled=await Promise.allSettled(inputs.map(input=>AlertService.create(input)));
+ expect(await Alert.countDocuments({})).toBe(2);
+ expect(settled.map(result=>result.status)).toEqual(['fulfilled','fulfilled']);
+ const results=settled.map(result=>result.value);
  results.forEach((result,i)=>{
   expect(String(result.alert.business._id)).toBe(String(tenants[i].business));
   expect(String(result.alert.lead._id)).toBe(String(tenants[i].lead));
   expect(result.alert.lead.customerName).toBe(`Customer ${i}`);
  });
+ expect(emit).toHaveBeenCalledTimes(2);
+ results.forEach((result,i)=>expect(emit).toHaveBeenCalledWith(tenants[i].business,result.alert));
  expect(await Alert.countDocuments({})).toBe(2);
  const replay=await AlertService.create(inputs[0]);expect(replay.created).toBe(false);
  expect(String(replay.alert._id)).toBe(String(results[0].alert._id));
  expect(await Alert.countDocuments({})).toBe(2);
+});
+
+test('alert hydration and realtime faults cannot turn a committed insert into an error',async()=>{
+ const business=id();
+ const emit=jest.spyOn(SocketService,'emitAlertCreated').mockImplementationOnce(()=>{throw new Error('synthetic socket failure');});
+ const populate=jest.spyOn(Alert,'populate').mockRejectedValueOnce(new Error('synthetic hydration failure'));
+ const log=jest.spyOn(console,'error').mockImplementation(()=>{});
+ try {
+  const result=await AlertService.create({businessId:business,type:'customer_reply',title:'Reply',message:'Received'});
+  expect(result.created).toBe(true);
+  expect(await Alert.exists({_id:result.alert._id,business})).not.toBeNull();
+  expect(emit).toHaveBeenCalledWith(business,result.alert);
+  expect(log.mock.calls.filter(([event])=>event.startsWith('[alert.'))).toHaveLength(2);
+ } finally { emit.mockRestore();populate.mockRestore();log.mockRestore(); }
 });

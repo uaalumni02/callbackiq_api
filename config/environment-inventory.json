@@ -340,7 +340,7 @@
     "src/services/trialRisk.service.js:19"
   ],
   "LEAD_INACTIVITY_ARCHIVE_DAYS": [
-    "src/services/stateTransitions/leadWorkflow.js:224"
+    "src/services/stateTransitions/leadWorkflow.js:251"
   ],
   "LOG_LEVEL": [
     "src/config/logger.js:81"

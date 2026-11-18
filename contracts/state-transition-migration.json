@@ -221,7 +221,7 @@
     },
     {
       "file": "src/services/alert.service.js",
-      "baselineAstSha256": "dccc2293a37443b9028fb2955b85b2ec2e26c3b2c43e090828de8949d00a13f8",
+      "baselineAstSha256": "8925662f0ca18dcd41239cf32e289bfeab5091d60b30bfc79fb678176f9a225f",
       "commands": [
         {
           "name": "alertCreateAlertAtomicUpdate",
@@ -230,7 +230,9 @@
           "expression": "Alert.findOneAndUpdate({\n            _id: existing._id, business: businessId, resolvedAt: { $ne: null },\n            'metadata.serviceEligibilityReason': { $exists: true },\n          }, {\n            $set: {\n              actionRequired: true, resolvedAt: null, resolvedBy: null,\n              resolution: '', status: 'sent', assignedTo: null,\n              acknowledgedAt: null, acknowledgedBy: null,\n              dueAt: dueAt || staffReviewDueAt(normalizePriority(priority), reopenedAt),\n              title, message, reason: truncate(reason, 1000),\n              recommendedAction: truncate(recommendedAction, 1000),\n              'metadata.serviceEligibilityReason': metadata.serviceEligibilityReason,\n            },\n            $unset: { 'metadata.workflow': 1 },\n            $push: { reviewEvents: {\n              key: `service-review-reopened:${reopenedAt.getTime()}`,\n              occurredAt: reopenedAt, title: 'Customer renewed the service review request',\n              message: 'The previous review remains in history; staff must make a new decision.',\n            } },\n          }, { returnDocument: 'after', runValidators: true })",
           "legacyId": "src/services/alert.service.js#create#findOneAndUpdate#1"
         }
-      ]
+      ],
+      "priorReviewedAstSha256": "dccc2293a37443b9028fb2955b85b2ec2e26c3b2c43e090828de8949d00a13f8",
+      "review": "Keep committed alert creation successful when hydration or realtime delivery fails; preserve mutation and deduplication guards."
     },
     {
       "file": "src/services/automation/automation.service.js",
@@ -1427,7 +1429,7 @@
           "name": "approvalLifecycleEnsureApprovalReviewAlertAtomicUpdate",
           "call": "approvalLifecycleEnsureApprovalReviewAlertAtomicUpdate({ Alert, appointment, business, dueAt, expired })",
           "target": "src/services/stateTransitions/appointmentLifecycle.js",
-          "expression": "Alert.findOneAndUpdate({ business: appointment.business,\n    dedupeKey: `appointment_approval_required:${appointment._id}` }, {\n    $setOnInsert: { type: 'system', channel: 'in_app', status: 'sent', sentAt: new Date(),\n      priority: 'medium', assignedTo: business.owner, assignedAt: new Date(),\n      'metadata.approvalRequest': true },\n    $set: { actionRequired: true, appointment: appointment._id,\n      lead: appointment.lead || null, conversation: appointment.conversation || null,\n      title: expired ? 'Appointment request needs an availability recheck' : 'Appointment approval required',\n      message: expired ? 'The temporary reservation expired. The customer request remains open; check availability before approving.'\n        : 'The customer selected a time. Approve or decline this request before its temporary reservation expires.',\n      recommendedAction: expired ? 'Recheck the requested time or contact the customer to agree another time.' : 'Review and approve the customer\u2019s selected time.',\n      'metadata.appointmentId': String(appointment._id),\n      'metadata.approvalState': expired ? 'needs_recheck' : 'pending',\n      ...(expired ? { dueAt, resolvedAt: null, acknowledgedAt: null } : {}),\n    },\n  }, { upsert: true, returnDocument: \"after\" })",
+          "expression": "Alert.findOneAndUpdate({ business: appointment.business,\n    dedupeKey: `appointment_approval_required:${appointment._id}` }, {\n    $setOnInsert: { type: 'system', channel: 'in_app', status: 'sent', sentAt: new Date(),\n      priority: 'medium', assignedTo: business.owner, assignedAt: new Date(),\n      'metadata.approvalRequest': true },\n    $set: { actionRequired: true, appointment: appointment._id,\n      lead: appointment.lead || null, conversation: appointment.conversation || null,\n      title: expired ? 'Appointment request needs an availability recheck' : 'Appointment approval required',\n      message: expired ? 'The temporary reservation expired. The customer request remains open; check availability before approving.'\n        : 'The customer selected a time. Approve or decline this request before its temporary reservation expires.',\n      recommendedAction: expired ? 'Recheck the requested time or contact the customer to agree another time.' : 'Review and approve the customer’s selected time.',\n      'metadata.appointmentId': String(appointment._id),\n      'metadata.approvalState': expired ? 'needs_recheck' : 'pending',\n      ...(expired ? { dueAt, resolvedAt: null, acknowledgedAt: null } : {}),\n    },\n  }, { upsert: true, returnDocument: \"after\" })",
           "legacyId": "src/services/scheduling/approvalLifecycle.service.js#ensureApprovalReview#findOneAndUpdate#1"
         },
         {

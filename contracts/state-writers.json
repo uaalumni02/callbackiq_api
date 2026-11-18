@@ -2152,8 +2152,8 @@
         "alertCreateAlertAtomicUpdate"
       ],
       "writerSha256": "224ea76ff0ec451b27dde66d1b4edde4f1a73c914ab0b2442a603a671916f829",
-      "ownerSha256": "cc3e7761d6001df9881f3342e7288fa643dc9e02c7e3095b9d9f1655e1a19c5d",
-      "importSha256": "40e492503d829f886efcca510e055e6be44444c16e282a858c884954757b59fc",
+      "ownerSha256": "400a5e7664f39da37bc9699be555c584909c1d012797796d103ec858219b7144",
+      "importSha256": "0d5fa6d29fa0bd9369d5d4a50828fdbdb05d49a03616f8fdb9842dda21809d65",
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
       "allowedCommand": {
@@ -16269,12 +16269,12 @@
     {
       "id": "src/services/stateTransitions/leadWorkflow.js#recomputeLeadWorkflowFlags#updateOne#1",
       "file": "src/services/stateTransitions/leadWorkflow.js",
-      "line": 33,
+      "line": 39,
       "kind": "updateOne",
       "fields": [],
       "writerSha256": "470a83c94523ed988b0f53f747a644c097e191f177526ba8bd9ab9a62c5f532a",
       "ownerSha256": "06a6cf0f459683da47de04a35aac175b4f4a8a1f812bf81e4e1c7198dbd45ee7",
-      "importSha256": "df9002d605c7dc78b256fcb378e0117196a0905f93f9cf215657838eb8334968",
+      "importSha256": "cab2be12fec2e81ad05b329578453ae20f989acad4511f5d9256aef5fa14881b",
       "predicateSource": "scope",
       "authoritativeRecord": "Lead",
       "allowedCommand": {
@@ -16298,12 +16298,12 @@
     {
       "id": "src/services/stateTransitions/leadWorkflow.js#recomputeLeadWorkflowFlags#updateOne#2",
       "file": "src/services/stateTransitions/leadWorkflow.js",
-      "line": 46,
+      "line": 52,
       "kind": "updateOne",
       "fields": [],
       "writerSha256": "21e42a7a29304ab7c86bfcb745e29671d98ed83bb0d0cd8d8c55b7d46f7b612e",
       "ownerSha256": "06a6cf0f459683da47de04a35aac175b4f4a8a1f812bf81e4e1c7198dbd45ee7",
-      "importSha256": "df9002d605c7dc78b256fcb378e0117196a0905f93f9cf215657838eb8334968",
+      "importSha256": "cab2be12fec2e81ad05b329578453ae20f989acad4511f5d9256aef5fa14881b",
       "predicateSource": "{ ...scope, workflowFlagsRevision: revision }",
       "authoritativeRecord": "Lead",
       "allowedCommand": {
@@ -16327,12 +16327,12 @@
     {
       "id": "src/services/stateTransitions/leadWorkflow.js#recordInboundActivity#updateOne#1",
       "file": "src/services/stateTransitions/leadWorkflow.js",
-      "line": 85,
+      "line": 91,
       "kind": "updateOne",
       "fields": [],
       "writerSha256": "62131cca94b1d7ab3dec0d7d7e5035e7a6ecdc921096c4f82b8989416235a3a3",
       "ownerSha256": "4f7570c06620331d052b66753fa85f4168fe6d550e0ce640473fa7fa82ef38c7",
-      "importSha256": "df9002d605c7dc78b256fcb378e0117196a0905f93f9cf215657838eb8334968",
+      "importSha256": "cab2be12fec2e81ad05b329578453ae20f989acad4511f5d9256aef5fa14881b",
       "predicateSource": "write.filter",
       "authoritativeRecord": "Lead",
       "allowedCommand": {
@@ -16355,16 +16355,45 @@
       }
     },
     {
+      "id": "src/services/stateTransitions/leadWorkflow.js#<callback>#write-capability-reference#1",
+      "file": "src/services/stateTransitions/leadWorkflow.js",
+      "line": 158,
+      "kind": "write-capability-reference",
+      "fields": [
+        "insertMany"
+      ],
+      "writerSha256": "3d2136d1db6814bbe0417dc1c3d1993d5d74c81370cd208b81f08b9d0d5a66d6",
+      "ownerSha256": "dd17fa5adb8784f98a5c189e25639289997bfd82c9b3728d7980f273354cae3b",
+      "importSha256": "cab2be12fec2e81ad05b329578453ae20f989acad4511f5d9256aef5fa14881b",
+      "predicateSource": null,
+      "authoritativeRecord": "DynamicTenantRecord",
+      "allowedCommand": {
+        "module": "src/services/stateTransitions/leadWorkflow.js",
+        "function": "<callback>",
+        "mode": "transition-layer"
+      },
+      "versionOrClaim": {
+        "kind": "source-filter-or-command",
+        "evidence": [],
+        "review": "No explicit version/lease evidence in this owner; do not infer concurrency safety."
+      },
+      "projectionsAndRepair": {
+        "updatedRecords": [],
+        "localRepairCommands": [],
+        "review": "No local repair path established by this scan; review this owner before changing its effects."
+      }
+    },
+    {
       "id": "src/services/stateTransitions/leadWorkflow.js#native#write-capability-reference#1",
       "file": "src/services/stateTransitions/leadWorkflow.js",
-      "line": 144,
+      "line": 169,
       "kind": "write-capability-reference",
       "fields": [
         "bulkWrite"
       ],
       "writerSha256": "527699140ddbb6820a74bb84b8d2720711b7b972f54a853e223f62b499872964",
       "ownerSha256": "b9d256ab284f5d2c3f1142d05c71fff673949829feb321440a445da443373ba1",
-      "importSha256": "df9002d605c7dc78b256fcb378e0117196a0905f93f9cf215657838eb8334968",
+      "importSha256": "cab2be12fec2e81ad05b329578453ae20f989acad4511f5d9256aef5fa14881b",
       "predicateSource": null,
       "authoritativeRecord": "DynamicTenantRecord",
       "allowedCommand": {
@@ -16386,12 +16415,12 @@
     {
       "id": "src/services/stateTransitions/leadWorkflow.js#recordInboundMessageActivities#bulkWrite#1",
       "file": "src/services/stateTransitions/leadWorkflow.js",
-      "line": 220,
+      "line": 247,
       "kind": "bulkWrite",
       "fields": [],
       "writerSha256": "2f4f18bf61250240697b5816e17ca5e21399b98cb0b95685616b3db6998b4d3c",
       "ownerSha256": "c86d2daecb46246136324f06e225026ab40c6b71fca450b6622fd4b4a5c67733",
-      "importSha256": "df9002d605c7dc78b256fcb378e0117196a0905f93f9cf215657838eb8334968",
+      "importSha256": "cab2be12fec2e81ad05b329578453ae20f989acad4511f5d9256aef5fa14881b",
       "predicateSource": null,
       "authoritativeRecord": "Lead",
       "allowedCommand": {
@@ -16413,12 +16442,12 @@
     {
       "id": "src/services/stateTransitions/leadWorkflow.js#archiveInactiveLead#updateOne#1",
       "file": "src/services/stateTransitions/leadWorkflow.js",
-      "line": 252,
+      "line": 279,
       "kind": "updateOne",
       "fields": [],
       "writerSha256": "f970773296fb71a343918ec34466f52b9742c76e7eaddcb561388a23562d3793",
       "ownerSha256": "7c82a27bde4e54c716916b34f797a7ee89075534d706b0b47f6c8cb03f4ae2b6",
-      "importSha256": "df9002d605c7dc78b256fcb378e0117196a0905f93f9cf215657838eb8334968",
+      "importSha256": "cab2be12fec2e81ad05b329578453ae20f989acad4511f5d9256aef5fa14881b",
       "predicateSource": "{\n    _id: lead._id, business: lead.business, ...inactiveScope(cutoff),\n    workflowFlagsRevision: lead.workflowFlagsRevision ?? null,\n  }",
       "authoritativeRecord": "Lead",
       "allowedCommand": {

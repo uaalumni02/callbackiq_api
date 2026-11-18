@@ -1,3 +1,8 @@
+// Saves, inserts and tracked query/bulk mutations refresh the affected leads.
+// The projection writes Inbox flags and last inbound activity. A transactional
+// projection uses the write's session and propagates failure for rollback.
+// Outside a transaction, log projection failures and preserve the write result.
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 import mongoose from 'mongoose';
 import { logOperationalError } from '../../helpers/logging/safeLogger.js';
@@ -13,6 +18,7 @@ const trackedFields = {
   Alert: ['lead', 'resolvedAt', 'type', 'priority', 'metadata', 'actionRequired'],
 };
 const activityModels = new Set(['Message', 'CallLog']);
+const insertSession = new AsyncLocalStorage();
 const bookingStatuses = ['held', 'confirmed'];
 const futureAppointmentStatuses = [...bookingStatuses, 'cancel_pending'];
 const MAX_BATCH = 100;
@@ -85,23 +91,37 @@ async function recordInboundActivity(modelName, record, session) {
   await Lead.collection.updateOne(write.filter, write.update, { session, maxTimeMS: queryBudgetMs() });
 }
 
+function writeSession(model, options) {
+  return Object.hasOwn(options ?? {}, 'session')
+    ? options.session
+    : model.db.base.transactionAsyncLocalStorage?.getStore()?.session;
+}
+
+async function projectAfterWrite(session, project, context) {
+  try {
+    await project();
+  } catch (error) {
+    if (session?.inTransaction()) throw error;
+    logOperationalError('lead.workflow_flags.failed', error, context);
+  }
+}
+
 async function projectRecords(modelName, records, session, activity = false) {
   const targets = new Map();
   for (const record of records) {
     if (!record) continue;
-    if (activity) await recordInboundActivity(modelName, record, session);
+    if (activity) await projectAfterWrite(session, () => recordInboundActivity(modelName, record, session), {
+      modelName, businessId: record.business, leadId: record.lead,
+    });
     const lead = modelName === 'Lead' ? record._id : record.lead;
     if (record.business && lead && !activityModels.has(modelName)) {
       targets.set(`${record.business}:${lead}`, [record.business, lead]);
     }
   }
   for (const [business, lead] of targets.values()) {
-    try {
-      await recomputeLeadWorkflowFlags(business, lead, { session });
-    } catch (error) {
-      if (session?.inTransaction()) throw error;
-      logOperationalError('lead.workflow_flags.failed', error, { businessId: business, leadId: lead });
-    }
+    await projectAfterWrite(session, () => recomputeLeadWorkflowFlags(business, lead, { session }), {
+      businessId: business, leadId: lead,
+    });
   }
 }
 
@@ -132,8 +152,13 @@ export function installLeadWorkflowWriter(schema, modelName) {
   schema.post('init', function (doc) {
     doc.$locals.leadWorkflowReference = { business: doc.business, lead: doc.lead };
   });
+  // Mongoose's insertMany hooks receive only the rows. Scope the options to this
+  // call so concurrent lean and hydrated inserts cannot borrow another session.
+  schema.statics.insertMany = function (docs, options) {
+    return insertSession.run(writeSession(this, options), () => mongoose.Model.insertMany.call(this, docs, options));
+  };
   schema.post('insertMany', async function (docs) {
-    if (this.db.readyState === 1) await projectRecords(modelName, docs, docs[0]?.$session(), true);
+    if (this.db.readyState === 1) await projectRecords(modelName, docs, insertSession.getStore(), true);
   });
 
   installQueryWriters(schema, modelName, inbound, fields);
@@ -144,7 +169,7 @@ export function installLeadWorkflowWriter(schema, modelName) {
       const native = () => mongoose.Model.bulkWrite.call(this, operations, options);
       const updates = operations.map(operation => operation.updateOne).filter(Boolean);
       if (!updates.length || this.db.readyState !== 1) return native();
-      const session = options?.session;
+      const session = writeSession(this, options);
       const before = await this.find({ $or: updates.map(row => row.filter) }).select('business lead')
         .session(session || null).maxTimeMS(queryBudgetMs()).lean();
       const targets = updates.map(row => ({ business: row.filter.business, lead: row.update.$set?.lead }));
@@ -168,7 +193,7 @@ function installQueryWriters(schema, modelName, inbound, fields) {
     const inserting = Boolean(options.upsert);
     const replacing = this.op.toLowerCase().includes('replace');
     if (inbound ? !inserting : !deleting && !inserting && !replacing && !pathsChanged(update, fields)) return;
-    const session = options.session;
+    const session = writeSession(this.model, options);
     const many = this.op.endsWith('Many');
     const before = inbound ? [] : await this.model.find(this.getFilter()).select(selection).sort(options.sort || {})
       .limit(many ? 0 : 1).session(session || null).maxTimeMS(queryBudgetMs()).lean();
@@ -183,20 +208,22 @@ function installQueryWriters(schema, modelName, inbound, fields) {
     const { before, deleting, inserting, session, reload, activity } = this.leadWorkflowWrite;
     if (result?.acknowledged === false || result?.matchedCount === 0 && !result.upsertedId ||
         result?.deletedCount === 0 || result === null && !inserting) return;
-    const insertedId = result?.upsertedId || result?.lastErrorObject?.upserted;
-    if (inbound && result?.business && result?.createdAt) {
-      return recordInboundActivity(modelName, result, session);
-    }
-    const ids = insertedId ? [insertedId] : before.map(record => record._id);
-    if (ids.length === 0 && result?._id) ids.push(result._id);
-    const after = !deleting && (reload || activity) && (ids.length || inserting)
-      ? await this.model.find(ids.length ? { _id: { $in: ids } } : this.getFilter()).select(selection)
-        .limit(ids.length || 1).session(session || null).maxTimeMS(queryBudgetMs()).lean()
-      : [];
-    if (activity || inbound) await projectRecords(modelName, after, session, true);
-    const changedReferences = before.filter(old => !after.some(current =>
-      String(current._id) === String(old._id) && String(current.lead) === String(old.lead)));
-    await projectRecords(modelName, activity || inbound ? changedReferences : [...before, ...after], session);
+    await projectAfterWrite(session, async () => {
+      const insertedId = result?.upsertedId || result?.lastErrorObject?.upserted;
+      if (inbound && result?.business && result?.createdAt) {
+        return projectRecords(modelName, [result], session, true);
+      }
+      const ids = insertedId ? [insertedId] : before.map(record => record._id);
+      if (ids.length === 0 && result?._id) ids.push(result._id);
+      const after = !deleting && (reload || activity) && (ids.length || inserting)
+        ? await this.model.find(ids.length ? { _id: { $in: ids } } : this.getFilter()).select(selection)
+          .limit(ids.length || 1).session(session || null).maxTimeMS(queryBudgetMs()).lean()
+        : [];
+      if (activity || inbound) await projectRecords(modelName, after, session, true);
+      const changedReferences = before.filter(old => !after.some(current =>
+        String(current._id) === String(old._id) && String(current.lead) === String(old.lead)));
+      await projectRecords(modelName, activity || inbound ? changedReferences : [...before, ...after], session);
+    }, { modelName, operation: this.op });
   });
 }
 

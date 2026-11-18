@@ -6,7 +6,7 @@ import "../models/lead.js";
 import "../models/business.js";
 import { isRequestReview, saveRequestReview } from './requestReview.service.js';
 import { staffReviewDueAt, staffReviewSlaMinutes } from "./staffReviewPolicy.service.js";
-import { safeConsole } from "../helpers/logging/safeLogger.js";
+import { logOperationalError, safeConsole } from "../helpers/logging/safeLogger.js";
 import { moneyAmount } from "./valuation/opportunityValue.js";
 // CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1: alerts
 import Alert from "../models/alert.js";
@@ -148,14 +148,14 @@ class AlertService {
       const createdAlert = await insertAlert(payload);
       // The insert already returned this alert, including defaults/timestamps.
       // Populate its refs directly; avoid rereading the same alert for every SMS.
-      const populatedAlert = await populateNewAlert(createdAlert.toObject());
-
-      SocketService.emitAlertCreated(businessId, populatedAlert);
-
-      return {
-        alert: populatedAlert,
-        created: true,
-      };
+      const alert = createdAlert.toObject();
+      const populatedAlert = await populateNewAlert(alert).catch(error => {
+        logOperationalError('alert.hydration.failed', error, { businessId, alertId: alert._id });
+        return alert;
+      });
+      try { SocketService.emitAlertCreated(businessId, populatedAlert); }
+      catch (error) { logOperationalError('alert.realtime.failed', error, { businessId, alertId: alert._id }); }
+      return { alert: populatedAlert, created: true };
     } catch (error) {
       if (error?.code === 11000 && dedupeKey) {
         const existing = await findExistingAlert(businessId, dedupeKey);
