@@ -1,6 +1,6 @@
 # Runtime inputs for the scale deployment
 
-**September 16 update:** follow `docs/SCALE_CAPACITY_RELEASE_2026_09_16.md`. A measured `SCALE_CAPACITY_PLAN` is now mandatory; the sample below omits those required inputs and will not render until supplied. The measured renderer supersedes the historical initial SMS replica count and sizing formula described below.
+**September 16 update:** use the current deployment renderer and capacity inputs. A measured `SCALE_CAPACITY_PLAN` is now mandatory; the sample below omits those required inputs and will not render until supplied. The measured renderer supersedes the historical initial SMS replica count and sizing formula described below.
 
 The renderer creates application workloads and ingress. It does not purchase servers, create Mongo/Redis, provision Twilio numbers, enroll A2P campaigns, set provider quotas, create TLS certificates, or deploy the frontend. Those are externally managed prerequisites.
 

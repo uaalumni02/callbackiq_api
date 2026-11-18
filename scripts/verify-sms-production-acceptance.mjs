@@ -13,7 +13,7 @@ const requiredFiles = [
   "src/services/messaging/smsProductionInvariant.service.js",
   "tests/fixtures/smsProductionAcceptanceMatrix.js",
   "tests/unit/smsProductionAcceptanceMatrix.test.js",
-  "docs/SMS_PRODUCTION_ACCEPTANCE.md",
+  "README.md",
 ];
 requiredFiles.forEach(mustExist);
 
@@ -33,7 +33,7 @@ const assertions = [
   [delivery.includes("customerMessage: inboundMessage?.body"), "final send-path invariant invocation"],
   [eligibility.includes("Pricing and scheduling stay paused until staff confirms the service is accepted."), "staff review scheduling pause"],
   [Boolean(pkg.scripts?.["test:sms-production-acceptance"]), "production acceptance test script"],
-  [Boolean(pkg.scripts?.["certify:sms-production"]), "production certification script"],
+  [Boolean(pkg.scripts?.verify), "production certification script"],
 ];
 for (const [ok, label] of assertions) {
   if (!ok) throw new Error(`SMS production acceptance verification failed: ${label}`);

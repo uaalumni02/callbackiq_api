@@ -79,7 +79,7 @@ const isObviousPlaceholder = (name, rawValue) => {
       "twilio_test_token",
       "callbackiq-twilio-coverage-token",
       "callbackiq-release-twilio-test-token",
-      // Explicit synthetic token documented in docs/VOICE_LOAD_TESTING.md.
+      // Explicit synthetic token used by the voice load harness.
       "callbackiq_voice_load_only_token",
     ].includes(value);
   }

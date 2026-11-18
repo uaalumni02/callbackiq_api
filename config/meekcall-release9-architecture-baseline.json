@@ -57,7 +57,7 @@
       "src/db/db.js",
       "src/db/repositories/tenantRepository.js"
     ],
-    "adr": "docs/architecture/ADR-005-tenant-repositories.md",
+    "adr": "README.md#architecture-contracts",
     "behavioralGate": "maintainability:architecture",
     "reason": "Owner operations bind one required tenant capability; no models or providers added to the facade."
   }

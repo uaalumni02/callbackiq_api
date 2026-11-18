@@ -2,12 +2,12 @@
 import fs from "node:fs";
 
 const evidencePath =
-  process.argv[2] || "docs/pilot-acceptance.evidence.json";
+  process.argv[2] || ".verification/pilot-acceptance.evidence.json";
 
 if (!fs.existsSync(evidencePath)) {
   console.error(`Missing pilot evidence file: ${evidencePath}`);
   console.error(
-    "Copy docs/pilot-acceptance.example.json, fill it with real evidence, then rerun.",
+    "Copy config/pilot-acceptance.example.json, fill it with real evidence, then rerun.",
   );
   process.exit(2);
 }
