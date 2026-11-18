@@ -10,12 +10,35 @@ const filename=fileURLToPath(import.meta.url);
 const root=path.dirname(path.dirname(filename));
 const readJson=file=>JSON.parse(fs.readFileSync(file,'utf8'));
 const quote=value=>`'${String(value).replaceAll("'","'\\''")}'`;
-const requirements={
- callbackiq_frontend:['lint','audit:imports','test:ci','test:coverage','coverage:changed-risk',
-  'test:hardening:remediation','build:certification','verify:built','audit:source-security','audit:runtime-security'],
- callbackiq_api:['lint','contracts:state-writers','audit:imports','test:ordinary','test:coverage','verify:coverage-ratchet',
-  'verify:diff-coverage','test:hardening','release:gate','test:replica-set',
-  'test:production-certification','test:voice-concurrency','build:certification','audit:source-security','audit:runtime-security'],
+const requirements = {
+  "callbackiq_frontend": [
+    "lint",
+    "audit:imports",
+    "test:coverage",
+    "coverage:changed-risk",
+    "test:hardening:remediation",
+    "build:certification",
+    "verify:built",
+    "audit:source-security",
+    "audit:runtime-security"
+  ],
+  "callbackiq_api": [
+    "lint",
+    "contracts:state-writers",
+    "audit:imports",
+    "test:coverage",
+    "verify:coverage-ratchet",
+    "verify:diff-coverage",
+    "test:hardening",
+    "release:gate",
+    "test:replica-set",
+    "test:production-certification",
+    "test:voice-concurrency",
+    "build:certification",
+    "audit:repository-hygiene",
+    "audit:source-security",
+    "audit:runtime-security"
+  ]
 };
 const buildArtifacts={callbackiq_frontend:['build/index.html'],
  callbackiq_api:['build/server.js','build/app.js','build/worker.js']};
@@ -63,11 +86,12 @@ export function pinnedEnvironment(node,base=process.env) {
 }
 export function validatePlan(packageName,plan,aliases) {
  if(!requirements[packageName] || plan.repository!==packageName)throw new Error('Check plan does not match package.json identity.');
- for(const profile of ['check','check:release']) {
-  if(!Array.isArray(plan.profiles?.[profile]) || !plan.profiles[profile].length)throw new Error(`Empty ${profile} profile`);
-  for(const step of plan.profiles[profile])if(typeof aliases[step]!=='string')throw new Error(`Unknown check step: ${step}`);
- }
- for(const required of requirements[packageName])if(!plan.profiles['check:release'].includes(required))throw new Error(`Release profile omits required ${required}`);
+ if(!Array.isArray(plan.gates) || !plan.gates.length)throw new Error('Missing verification gates.');
+ const blocking=plan.gates.flatMap(gate=>gate.steps);
+ const steps=[...blocking,...plan.advisory];
+ if(new Set(steps).size!==steps.length)throw new Error('Duplicate verification step.');
+ for(const step of steps)if(typeof aliases[step]!=='string')throw new Error(`Unknown check step: ${step}`);
+ for(const required of requirements[packageName])if(!blocking.includes(required))throw new Error(`Verification omits required ${required}`);
  return plan;
 }
 function identity(directory) {
@@ -102,15 +126,16 @@ function verifyJest(report) {
 function verifyFresh(file,started) {
  if(!fs.existsSync(file) || fs.statSync(file).mtimeMs<started-1000)throw new Error(`Missing fresh check artifact: ${file}`);
 }
-async function runProfile(profile,{directory,packageName,aliases,plan,env,output,base}) {
+async function runVerification({directory,packageName,aliases,plan,env,output,base}) {
  validatePlan(packageName,plan,aliases);
  env=verificationEnvironment(packageName,env);
- if(!['check','check:release'].includes(profile))throw new Error(`Unknown profile: ${profile}`);
  fs.mkdirSync(output,{recursive:true});
  const source=identity(directory),rows=[];
- if(profile==='check:release' && (!source.head || source.dirty))throw new Error('Release checks require a committed, clean source tree so their evidence identifies an exact commit. Use check while editing.');
- const report={repository:packageName,profile,scope:'local',source,node:process.version,steps:rows,passed:false};
- for(const step of plan.profiles[profile]) {
+ if(!source.head || source.dirty)throw new Error('Verification requires a committed, clean source tree.');
+ const report={repository:packageName,profile:'verify',source,node:process.version,steps:rows,passed:false};
+ const blocking = plan.gates.flatMap(gate=>gate.steps);
+ for(const step of [...blocking,...plan.advisory]) {
+  const advisory = !blocking.includes(step);
   const started=Date.now(),name=step.replaceAll(':','-'),jestReport=path.join(output,`${name}.jest.json`);
   const jestStep=['test:ci','test:coverage','test:ordinary'].includes(step);
   const extra=jestStep?['--json','--outputFile',jestReport]:[];
@@ -120,7 +145,7 @@ async function runProfile(profile,{directory,packageName,aliases,plan,env,output
   if(step==='build:certification')for(const artifact of buildArtifacts[packageName]){
    fs.rmSync(path.join(directory,artifact),{force:true});
   }
-  console.log(`\n[${profile}] ${step}`);
+  console.log(`\n[${advisory ? 'advisory' : 'verify'}] ${step}`);
   let result;
   try {
    result=await execute(aliases[step],{directory,env:{...env,...(base?{DIFF_COVERAGE_BASE:base}:{})},extra,
@@ -134,14 +159,14 @@ async function runProfile(profile,{directory,packageName,aliases,plan,env,output
    if(result.exitCode===0 && step==='build:certification')for(const artifact of buildArtifacts[packageName])verifyFresh(path.join(directory,artifact),started);
    if(/(?:ℹ|#)\s*(?:skipped|todo)\s+[1-9]\d*/.test(result.tail))throw new Error('Skipped/todo Node contracts are forbidden in a release profile.');
   }catch(error){result={exitCode:1,error:error.message};console.error(error.message);}
-  rows.push({step,exitCode:result.exitCode,seconds:(Date.now()-started)/1000,...(result.jest?{jest:result.jest}:{}),...(result.error?{error:result.error}:{})});
+  rows.push({step,...(advisory?{advisory:true}:{}),exitCode:result.exitCode,seconds:(Date.now()-started)/1000,...(result.jest?{jest:result.jest}:{}),...(result.error?{error:result.error}:{})});
   fs.writeFileSync(path.join(output,'results.json'),JSON.stringify(report,null,2)+'\n');
  }
- report.passed=rows.every(row=>row.exitCode===0);
+ report.passed=rows.every(row=>row.advisory||row.exitCode===0);
  report.finishedSource=identity(directory);
  if(JSON.stringify(source)!==JSON.stringify(report.finishedSource)){report.passed=false;report.error='Source changed while checks ran.';}
  fs.writeFileSync(path.join(output,'results.json'),JSON.stringify(report,null,2)+'\n');
- console.log(`${report.passed?'PASS':'FAIL'} ${profile}; results: ${path.join(output,'results.json')}`);
+ console.log(`${report.passed?'PASS':'FAIL'} verify; results: ${path.join(output,'results.json')}`);
  return report.passed?0:1;
 }
 async function main() {
@@ -156,22 +181,19 @@ async function main() {
   if(!requirements[pkg.name])throw new Error(`Unknown repository package: ${pkg.name}`);
   const aliases=readJson(path.join(root,'config/legacy-check-aliases.json'));
   const args=process.argv.slice(2);
-  let profileOverride;
   if(args[0]==='--legacy'){
-   const name=args[1];if(!aliases[name])throw new Error(`Unknown legacy alias ${name}`);
-   console.log(`Legacy alias (${typeof aliases[name]==='string'?'subset':'full profile'}): ${name}. Authoritative profiles: npm run check / npm run check:release.`);
-   if(typeof aliases[name]==='string')return (await execute(aliases[name],{directory:root,env:runtime.env,extra:args.slice(2)})).exitCode;
-   profileOverride=aliases[name].profile;args.splice(0,2,profileOverride);
+   const name=args[1];if(!aliases[name])throw new Error(`Unknown focused command ${name}`);
+   return (await execute(aliases[name],{directory:root,env:runtime.env,extra:args.slice(2)})).exitCode;
   }
-  const profile=args[0] || 'check';let output,base;
-  for(let i=1;i<args.length;i++){
+  let output,base;
+  for(let i=0;i<args.length;i++){
    if(args[i]==='--output' && args[i+1])output=path.resolve(args[++i]);
    else if(args[i]==='--base' && args[i+1])base=args[++i];
    else throw new Error(`Unknown check option ${args[i]}`);
   }
   const stamp=new Date().toISOString().replaceAll(/[:.]/g,'-');
   output ||=path.join(root,'.verification',stamp);
-  return await runProfile(profile,{directory:root,packageName:pkg.name,aliases,
+  return await runVerification({directory:root,packageName:pkg.name,aliases,
    plan:readJson(path.join(root,'config/check-plan.json')),env:runtime.env,output,base});
  }finally{runtime.dispose();}
 }

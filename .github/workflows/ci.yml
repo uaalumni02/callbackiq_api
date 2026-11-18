@@ -67,7 +67,7 @@ jobs:
       - name: Run complete authoritative release gate
         env:
           NODE_OPTIONS: --max-old-space-size=4096 --report-on-fatalerror --report-uncaught-exception --report-directory=ci-diagnostics
-        run: npm run check:release -- --output ci-diagnostics/release
+        run: npm run verify -- --output ci-diagnostics/release
 
       - name: Upload coverage artifact
         if: always()
@@ -79,40 +79,3 @@ jobs:
             ci-diagnostics/
           if-no-files-found: warn
           retention-days: 14
-
-  replica_set:
-    name: Replica-set concurrency guard
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    env:
-      NODE_ENV: test
-      JWT_SECRET: ci-only-jwt-secret-not-for-production-1234567890
-      STRIPE_SECRET_KEY: sk_test_ci_placeholder
-      STRIPE_WEBHOOK_SECRET: whsec_ci_placeholder
-      TWILIO_ACCOUNT_SID: AC00000000000000000000000000000000
-      TWILIO_AUTH_TOKEN: ci-placeholder-token
-      TWILIO_WEBHOOK_BASE_URL: https://ci-api.callbackiq.com
-      PUBLIC_API_URL: https://ci-api.callbackiq.com
-      CLIENT_URL: http://localhost:3001
-      A2P_EVENT_STREAM_USERNAME: ci-a2p-user
-      A2P_EVENT_STREAM_PASSWORD: ci-a2p-pass
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Use pinned Node.js runtime
-        uses: actions/setup-node@v5
-        with:
-          node-version: "24.19.0"
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Resolve static and literal dynamic imports
-        run: npm run audit:imports
-
-      - name: Run replica-set concurrency test
-        run: npm run test:replica-set

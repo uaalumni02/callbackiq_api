@@ -36,9 +36,6 @@
   "ensure:phase0:indexes": "node scripts/ensure-phase0-provider-indexes.js",
   "verify:phase9:structure": "node scripts/verify-phase9-structure.js",
   "test:phase9": "jest tests/unit/conversationRelay.server.test.js tests/unit/sendConfirmationSms.tool.test.js tests/unit/voiceAgent.service.test.js tests/unit/voiceRouting.service.test.js tests/unit/voiceSession.model.test.js tests/unit/voiceSessionFallback.service.test.js tests/unit/voiceSettings.controller.test.js tests/unit/voiceWebhook.controller.test.js tests/unit/voiceBookingStateMachineReuse.test.js tests/unit/safetyAssessmentService.voiceCompatibility.test.js --runInBand",
-  "certify:phase9": {
-    "profile": "check:release"
-  },
   "test:phase9:unit": "jest tests/unit/conversationRelay.server.test.js tests/unit/createAppointment.tool.test.js tests/unit/voiceFailure.service.test.js tests/unit/voiceRouting.service.test.js tests/unit/voiceRoutingPolicy.service.test.js tests/unit/voiceSettings.controller.test.js tests/unit/voiceWebhook.controller.test.js --runInBand",
   "test:phase9:completion": "jest tests/completion/phase9.voice.completion.test.js --runInBand",
   "verify:phase9:live": "node scripts/verify-phase9-live.js",
@@ -59,9 +56,6 @@
   "audit:repository-hygiene": "node scripts/audit-repository-hygiene.mjs --strict",
   "test:production-readiness": "node --test hardening-tests/production-readiness-tailored.test.mjs",
   "test:production-readiness:jest": "jest --runInBand tests/unit/smsDeliveryStatus.service.test.js tests/unit/twilioCallStatus.service.test.js tests/unit/manualSmsPolicy.service.test.js tests/unit/voiceUsage.service.test.js tests/unit/voiceSettings.controller.test.js tests/unit/conversationRelay.server.test.js tests/unit/communicationSafety.voiceRelayLimits.test.js tests/integration/voiceAbandonmentRecovery.integration.test.js",
-  "certify:production-readiness": {
-    "profile": "check:release"
-  },
   "verify:onboarding-readiness": "node scripts/verify-onboarding-readiness-update.mjs",
   "verify:onboarding-regression-v3": "node scripts/verify-onboarding-regression-v3.mjs",
   "test:unit": "jest tests/unit --runInBand",
@@ -71,10 +65,7 @@
   "test:critical": "jest --runInBand tests/routes/stripeSubscriptionStateMatrix.hardening.test.js tests/routes/a2pEvents.hardening.test.js tests/unit/subscriptionIntegrity.ordering.hardening.test.js tests/unit/smsProcessing.worker.hardening.test.js tests/unit/trialLifecycle.worker.hardening.test.js tests/unit/followUpAgent.hardening.test.js tests/unit/qualifyLeadWithAI.hardening.test.js tests/unit/providerPayloadFixtures.contract.test.js tests/integration/trialTelecomRecovery.contract.test.js tests/integration/trialLifecycleWorker.sideEffects.test.js tests/integration/socketTenantIsolation.authenticated.test.js tests/unit/subscriptionIntegrity.matrix.hardening.test.js tests/unit/subscriptionActions.matrix.hardening.test.js tests/controllers/billing.moneyPaths.hardening.test.js",
   "test:replica-set": "jest --runInBand ReplicaSet.concurrency.test.js",
   "test:hardening": "node --test --test-concurrency=1 hardening-tests/*.test.mjs",
-  "test:ci": {
-    "profile": "check:release"
-  },
-  "verify:diff-coverage": "node scripts/run-deterministic-diff-coverage.mjs",
+  "verify:diff-coverage": "node scripts/verify-diff-coverage.mjs",
   "coverage:risk-report": "node scripts/report-coverage-risk.mjs",
   "cleanup:tracked-artifacts": "node scripts/cleanup-tracked-artifacts.mjs",
   "cleanup:tracked-artifacts:apply": "node scripts/cleanup-tracked-artifacts.mjs --apply",
@@ -83,16 +74,10 @@
   "coverage:targets:report": "node scripts/report-coverage-gap.mjs",
   "verify:coverage-targets": "node scripts/verify-coverage-targets.mjs",
   "test:coverage:targets": "npm run test:coverage && npm run verify:coverage-targets",
-  "test:ci:core": {
-    "profile": "check:release"
-  },
   "test:sms-market-readiness": "jest tests/unit/smsTurnPolicy.marketReadiness.test.js --runInBand --no-cache",
   "release:gate": "node scripts/production-release-gate.mjs",
   "metrics:snapshot": "node scripts/production-metrics-snapshot.mjs",
   "test:production-hardening-v1": "node --test hardening-tests/production-hardening-v1.test.mjs",
-  "release:certify": {
-    "profile": "check:release"
-  },
   "test:provider-safety": "jest tests/unit/externalProviderSafety.test.js --runInBand --no-cache --verbose",
   "test:provider-contracts": "node scripts/run-provider-contracts.mjs",
   "test:production-certification": "node scripts/run-production-certification.mjs",
@@ -101,25 +86,13 @@
   "test:scale-hardening": "jest tests/unit/scaleCache.service.test.js --runInBand",
   "voice-load:seed": "node scripts/seed-voice-load-business.mjs",
   "test:voice-concurrency": "jest tests/integration/voiceConcurrency/voiceConcurrency.certification.test.js --runInBand --no-cache",
-  "certify:voice-concurrency": {
-    "profile": "check:release"
-  },
-  "certify:voice-concurrency:load": {
-    "profile": "check:release"
-  },
-  "certify:voice-concurrency:ai": {
-    "profile": "check:release"
-  },
   "test:prepilot-telecom-coverage": "jest --runInBand --no-cache tests/unit/twilioController.targetCoverage.test.js tests/unit/a2pCustomerOnboarding.lifecycle.targetCoverage.test.js tests/unit/communicationUsageReservation.targetCoverage.test.js",
   "verify:sms-conversation-hardening": "node scripts/verify-sms-conversation-hardening.mjs",
   "test:sms-conversation-hardening": "jest tests/unit/smsProductionAcceptanceMatrix.test.js --runInBand --no-cache tests/unit/smsIntentClassifier.production.test.js tests/unit/smsConversationState.production.test.js tests/unit/smsTurnAggregation.production.test.js tests/unit/smsConversationLease.production.test.js tests/unit/smsLifecycleSchema.production.test.js tests/unit/smsConversationFuzz.production.test.js tests/unit/smsGoldenCorpus.production.test.js tests/unit/smsTurnPolicy.marketReadiness.test.js tests/integration/aiBookingConversationMatrix.completion.test.js tests/integration/smsRecovery.fullFlow.test.js tests/unit/smsProcessing.worker.hardening.test.js",
   "test:sms-10of10": "jest tests/integration/sms10of10.adversarial.mongo.test.js --runInBand --no-cache",
   "test:scheduling-production-hardening": "jest --runInBand --no-cache tests/unit/customerSchedulingIntent.production.test.js tests/unit/availabilityLeadTime.production.test.js tests/unit/aiBookingApproval.production.test.js tests/unit/bookingStateMachine.productionScheduling.test.js tests/unit/smsIntentClassifier.production.test.js tests/unit/smsTurnPolicy.marketReadiness.test.js tests/unit/voiceAgent.service.test.js tests/unit/voiceBookingStateMachineReuse.test.js",
   "test:release-hardening": "jest --runInBand --no-cache tests/unit/releaseCommitmentSafety.test.js tests/unit/aiBookingPermission.release.test.js tests/unit/sessionRevocation.release.test.js tests/unit/trustedRequestIp.release.test.js tests/unit/appointmentReplay.release.test.js tests/unit/rescheduleReconciliation.release.test.js",
-  "audit:runtime-security": "npm audit --omit=dev --audit-level=high",
-  "release:certify:ci": {
-    "profile": "check:release"
-  },
+  "audit:runtime-security": "node scripts/audit-dependencies.mjs",
   "verify:pilot-evidence": "node scripts/verify-pilot-acceptance-evidence.mjs",
   "verify:index-manifest": "node scripts/migrate-required-indexes.mjs --check-manifest",
   "verify:realtime-cluster": "node scripts/verify-realtime-cluster.mjs",
@@ -145,9 +118,6 @@
   "prepare:scale-evidence": "node scripts/prepare-scale-evidence.mjs",
   "verify:sms-production-acceptance": "node scripts/verify-sms-production-acceptance.mjs",
   "test:sms-production-acceptance": "jest --runInBand --no-cache tests/unit/smsProductionAcceptanceMatrix.test.js tests/unit/smsGoldenCorpus.production.test.js tests/unit/smsTurnPolicy.marketReadiness.test.js tests/unit/smsTurnPolicy.commitmentSafety.production.test.js tests/unit/recoveryIntake.shared.test.js",
-  "certify:sms-production": {
-    "profile": "check:release"
-  },
   "benchmark:customer-truth": "node scripts/customer-truth-benchmark.mjs",
   "test:multi-trade": "jest --runInBand tests/unit/multiTrade.policy.test.js tests/unit/multiTrade.journeys.test.js tests/services/multiTrade.channels.test.js tests/unit/customerScenarioMatrix.followthrough.test.js tests/integration/smsRecovery.fullFlow.test.js tests/unit/voiceCallback.service.test.js tests/unit/approvalDelivery.release.test.js tests/unit/approvalLifecycle.release.test.js tests/unit/appointmentNotification.deliveryReplay.test.js tests/unit/smsDeliveryStatus.service.test.js tests/unit/smsContactControl.test.js tests/services/smsVoice.productionJourneys.test.js tests/unit/coverageConversation.journey.test.js",
   "verify:multi-trade-pilot": "node scripts/verify-multi-trade-pilot.mjs",
@@ -161,7 +131,6 @@
   "test:ordinary": "jest --maxWorkers=1 --workerIdleMemoryLimit=512MB --watch=false",
   "architecture:invariants": "node scripts/meekcall-architecture-contracts.mjs",
   "build:certification": "node scripts/build-production.mjs",
-  "audit:full-security": "npm audit --audit-level=high",
   "audit:source-security": "node scripts/security-repository-audit.mjs",
   "contracts:state-writers": "node scripts/state-writers.mjs"
 }

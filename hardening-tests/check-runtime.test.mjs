@@ -37,7 +37,7 @@ test('release plans cannot silently omit coverage, imports, or hardening',()=>{
  const aliases=Object.fromEntries(steps.map(step=>[step,'true']));
  for(const omitted of ['test:coverage','audit:imports','test:hardening:remediation','audit:source-security']){
   assert.throws(()=>validatePlan('callbackiq_frontend',{repository:'callbackiq_frontend',
-   profiles:{check:['lint'],'check:release':steps.filter(step=>step!==omitted)}},aliases),/omits required/);
+   gates:[{name:'Required',steps:steps.filter(step=>step!==omitted)}],advisory:[omitted]},aliases),/omits required/);
  }
  assert.throws(()=>validatePlan('renamed-folder',{repository:'callbackiq_frontend',profiles:{}},aliases),/package.json identity/);
 });
@@ -48,12 +48,12 @@ test('a dirty source tree cannot receive a release certificate',t=>{
  const steps=['lint','audit:imports','test:ci','test:coverage','coverage:changed-risk','test:hardening:remediation','build:certification','verify:built','audit:source-security','audit:runtime-security'];
  fs.writeFileSync(path.join(root,'package.json'),JSON.stringify({name:'callbackiq_frontend'}));
  fs.writeFileSync(path.join(root,'.gitignore'),'.verification/\n');
- fs.writeFileSync(path.join(root,'config/check-plan.json'),JSON.stringify({repository:'callbackiq_frontend',profiles:{check:['lint'],'check:release':steps}}));
+ fs.writeFileSync(path.join(root,'config/check-plan.json'),JSON.stringify({repository:'callbackiq_frontend',gates:[{name:'Required',steps}],advisory:[]}));
  fs.writeFileSync(path.join(root,'config/legacy-check-aliases.json'),JSON.stringify(Object.fromEntries(steps.map(step=>[step,'true']))));
  const git=(...args)=>execFileSync('git',args,{cwd:root,stdio:'pipe'});
  git('init','-q');git('config','user.email','fixture@example.invalid');git('config','user.name','Fixture');git('add','.');git('commit','-qm','fixture');
  fs.writeFileSync(path.join(root,'unsafe.js'),'throw new Error("uncommitted");');
- const result=spawnSync(process.execPath,[path.join(root,'scripts/check.mjs'),'check:release'],{encoding:'utf8'});
+ const result=spawnSync(process.execPath,[path.join(root,'scripts/check.mjs') ],{encoding:'utf8'});
  assert.equal(result.status,1);assert.match(result.stderr,/committed, clean source tree/);
 });
 
@@ -66,11 +66,11 @@ test('the CLI executes through a symlinked checkout and still rejects dirty rele
  fs.copyFileSync(fileURLToPath(new URL('../scripts/check.mjs',import.meta.url)),path.join(real,'scripts/check.mjs'));
  fs.writeFileSync(path.join(real,'package.json'),JSON.stringify({name:'callbackiq_frontend'}));
  const steps=['lint','audit:imports','test:ci','test:coverage','coverage:changed-risk','test:hardening:remediation','build:certification','verify:built','audit:source-security','audit:runtime-security'];
- fs.writeFileSync(path.join(real,'config/check-plan.json'),JSON.stringify({repository:'callbackiq_frontend',profiles:{check:['lint'],'check:release':steps}}));
+ fs.writeFileSync(path.join(real,'config/check-plan.json'),JSON.stringify({repository:'callbackiq_frontend',gates:[{name:'Required',steps}],advisory:[]}));
  fs.writeFileSync(path.join(real,'config/legacy-check-aliases.json'),JSON.stringify({...Object.fromEntries(steps.map(step=>[step,'true'])),probe:'node -p process.version'}));
  const alias=path.join(parent,'alias');fs.symlinkSync(real,alias,'dir');
  const probe=spawnSync(process.execPath,[path.join(alias,'scripts/check.mjs'),'--legacy','probe'],{encoding:'utf8'});
  assert.equal(probe.status,0,probe.stderr);assert.match(probe.stdout,/v24\.\d+\.\d+/);
- const release=spawnSync(process.execPath,[path.join(alias,'scripts/check.mjs'),'check:release'],{encoding:'utf8'});
+ const release=spawnSync(process.execPath,[path.join(alias,'scripts/check.mjs') ],{encoding:'utf8'});
  assert.equal(release.status,1);assert.match(release.stderr,/committed, clean source tree/);
 });

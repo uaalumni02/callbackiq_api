@@ -71,10 +71,10 @@ try {
   const plan=JSON.parse(source('config/check-plan.json'));
   validatePlan(JSON.parse(source('package.json')).name,plan,JSON.parse(source('config/legacy-check-aliases.json')));
   checks+=4;
-  if(!workflow.jobs.release.steps.some(step=>/^npm run check:release(?:\s|$)/.test(step.run || '')))
+  if(!workflow.jobs.release.steps.some(step=>/^npm run verify(?:\s|$)/.test(step.run || '')))
     failures.push('CI does not invoke the authoritative release profile');
   for(const required of ['architecture:invariants','test:hardening','build:certification'])
-    if(!plan.profiles['check:release'].includes(required))failures.push(`Release profile omits ${required}`);
+    if(!plan.gates.some(gate=>gate.steps.includes(required)))failures.push(`Release profile omits ${required}`);
 } catch(error){failures.push(`Invalid release wiring: ${error.message}`);}
 requireTokens('.github/workflows/browser-workflows.yml', [
   "inputs.partner_ref || vars.CALLBACKIQ_FRONTEND_REF",

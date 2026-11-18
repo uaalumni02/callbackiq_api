@@ -62,7 +62,7 @@ jobs:
             echo "Dependency files changed; running the complete locked dependency audit."
           fi
           npm ci
-          npm audit --audit-level=high
+          node scripts/audit-dependencies.mjs
       - name: GitHub dependency review
         if: ${{ !github.event.repository.private }}
         uses: actions/dependency-review-action@v4

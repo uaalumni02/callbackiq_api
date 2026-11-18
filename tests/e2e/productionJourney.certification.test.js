@@ -85,12 +85,12 @@ describe("CallBackIQ production certification structure", () => {
       const aliases=JSON.parse(fs.readFileSync('config/legacy-check-aliases.json','utf8'));
       validatePlan(pkg.name,plan,aliases);
       const broken=structuredClone(plan);
-      broken.profiles['check:release']=broken.profiles['check:release'].filter(step=>step!=='test:production-certification');
+      for(const gate of broken.gates) gate.steps=gate.steps.filter(step=>step!=='test:production-certification');
       let rejected=false;
       try{validatePlan(pkg.name,broken,aliases);}catch(error){rejected=error.message.includes('test:production-certification');}
-      console.log(JSON.stringify({productionRequired:rejected,legacyCiStillCertifies:aliases['test:ci'].profile==='check:release'}));
+      console.log(JSON.stringify({productionRequired:rejected}));
     `],{cwd:root,encoding:'utf8'});
-    expect(JSON.parse(proof)).toEqual({productionRequired:true,legacyCiStillCertifies:true});
-    expect(packageJson.scripts?.['check:release']).toBe('node scripts/check.mjs check:release');
+    expect(JSON.parse(proof)).toEqual({productionRequired:true});
+    expect(packageJson.scripts?.verify).toBe('node scripts/check.mjs');
   });
 });

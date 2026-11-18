@@ -1,0 +1,7 @@
+{
+  "GHSA-fc5q-39xc-vjpf": {
+    "owner": "uaalumni02",
+    "expires": "2026-12-18",
+    "reason": "Development dependency only. Latest available picomatch 4.0.7 is within the affected range; review on expiry."
+  }
+}
