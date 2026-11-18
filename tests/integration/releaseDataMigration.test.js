@@ -10,7 +10,7 @@ beforeAll(async () => { uri = await connectTestDB(); }, 60000);
 afterAll(closeTestDB);
 
 const migrate = (...args) => run(process.execPath, ['scripts/migrate-required-indexes.mjs', ...args], {
-  env: { ...process.env, MONGO_URL: uri }, timeout: 45000,
+  env: { ...process.env, MONGODB_URI: uri, MONGO_URL: uri, MONGO_URI: uri }, timeout: 45000,
 });
 
 test('release data check detects missing indexes and historical projections until the same rollout applies both', async () => {
