@@ -26,6 +26,7 @@ import demoRequestRoutes from "./routes/demoRequest.routes.js";
 import passwordResetRoutes from "./routes/passwordReset.routes.js";
 import conversationIntelligenceRoutes from "./routes/conversationIntelligence.routes.js";
 import healthRoutes from "./routes/health.routes.js";
+import HealthController from "./controllers/health.js";
 import appointmentRoutes from "./routes/appointment.routes.js";
 import availabilityRoutes from "./routes/availability.routes.js";
 import integrationRoutes from "./routes/integration.routes.js";
@@ -80,6 +81,7 @@ app.use(
 app.use(cookieParser());
 app.use(csrfOriginGuard);
 app.use("/api/a2p-events", a2pEventsRoutes);
+app.get("/version", HealthController.version);
 app.use("/api/health", healthRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/businesses", businessFactsRoutes);

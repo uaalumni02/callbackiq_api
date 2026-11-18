@@ -60,7 +60,7 @@
     "src/config/cors.js:32"
   ],
   "API_BODY_LIMIT": [
-    "src/app.js:53"
+    "src/app.js:54"
   ],
   "API_INSTANCE_COUNT": [
     "src/services/scaleHealth.service.js:32"
@@ -70,7 +70,7 @@
   ],
   "APP_ENV": [
     "src/config/logger.js:62",
-    "src/controllers/health.js:26",
+    "src/controllers/health.js:34",
     "src/services/securityAlert.service.js:80",
     "src/voice/voiceRouting.service.js:141"
   ],
@@ -258,7 +258,7 @@
     "src/services/demoNotification.service.js:18"
   ],
   "GIT_COMMIT_SHA": [
-    "src/controllers/health.js:15"
+    "src/controllers/health.js:16"
   ],
   "GMAIL_ADDRESS": [
     "src/services/demoNotification.service.js:7"
@@ -433,7 +433,7 @@
     "src/config/logger.js:39",
     "src/config/logger.js:62",
     "src/controllers/auth/context.js:50",
-    "src/controllers/health.js:26",
+    "src/controllers/health.js:34",
     "src/controllers/voiceWebhook/context.js:47",
     "src/helpers/email/mailer.js:11",
     "src/helpers/email/mailer.js:48",
@@ -594,8 +594,8 @@
     "src/server.js:66"
   ],
   "PROCESS_ROLE": [
-    "src/app.js:60",
-    "src/controllers/health.js:52",
+    "src/app.js:61",
+    "src/controllers/health.js:60",
     "src/services/processHeartbeat.service.js:12",
     "src/services/processHeartbeat.service.js:20",
     "src/workers/automation.worker.js:180"
@@ -632,7 +632,7 @@
     "src/services/processHeartbeat.service.js:26"
   ],
   "RENDER_GIT_COMMIT": [
-    "src/controllers/health.js:15"
+    "src/controllers/health.js:16"
   ],
   "RENDER_REPORTING_API_KEY": [
     "src/services/admin/infrastructureExpenses.service.js:58",
@@ -829,7 +829,7 @@
     "src/services/socketSession.service.js:31"
   ],
   "SOURCE_VERSION": [
-    "src/controllers/health.js:15"
+    "src/controllers/health.js:16"
   ],
   "STAFF_APPROVAL_SMS_ENABLED": [
     "src/services/ownerSettings.service.js:92",

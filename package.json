@@ -149,7 +149,6 @@
     "probe:scale-queries": "node scripts/check.mjs --legacy probe:scale-queries",
     "plan:sms-capacity": "node scripts/check.mjs --legacy plan:sms-capacity",
     "test:scale-capacity": "node scripts/check.mjs --legacy test:scale-capacity",
-    "verify:release-ci": "node scripts/check.mjs --legacy verify:release-ci",
     "prepare:scale-evidence": "node scripts/check.mjs --legacy prepare:scale-evidence",
     "verify:sms-production-acceptance": "node scripts/check.mjs --legacy verify:sms-production-acceptance",
     "test:sms-production-acceptance": "node scripts/check.mjs --legacy test:sms-production-acceptance",

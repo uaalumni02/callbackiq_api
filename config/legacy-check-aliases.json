@@ -114,7 +114,6 @@
   "probe:scale-queries": "node scripts/probe-scale-queries.mjs",
   "plan:sms-capacity": "node scripts/scale-sms-sizing.mjs",
   "test:scale-capacity": "node --test hardening-tests/scaleCapacityRelease.test.mjs && jest --runInBand tests/unit/ownerSummary.capacity.test.js",
-  "verify:release-ci": "node scripts/check-release-ci.mjs",
   "prepare:scale-evidence": "node scripts/prepare-scale-evidence.mjs",
   "verify:sms-production-acceptance": "node scripts/verify-sms-production-acceptance.mjs",
   "test:sms-production-acceptance": "jest --runInBand --no-cache tests/unit/smsProductionAcceptanceMatrix.test.js tests/unit/smsGoldenCorpus.production.test.js tests/unit/smsTurnPolicy.marketReadiness.test.js tests/unit/smsTurnPolicy.commitmentSafety.production.test.js tests/unit/recoveryIntake.shared.test.js",

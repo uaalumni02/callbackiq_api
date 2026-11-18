@@ -1,18 +1,22 @@
-import {test} from 'node:test';
+import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import yaml from 'js-yaml';
-test('the actual cross-repository checkout boundary is read-only, pins both trees, and builds before E2E',()=>{
- const workflow=yaml.safeLoad(fs.readFileSync('.github/workflows/browser-workflows.yml','utf8'));
- assert.equal(workflow.permissions.contents,'read');
- const steps=workflow.jobs.browser.steps,checkouts=steps.filter(step=>step.uses?.startsWith('actions/checkout@'));
- assert.equal(checkouts.length,2);
- assert.equal(checkouts[0].with.path,'api');assert.equal(checkouts[0].with['persist-credentials'],false);
- assert.equal(checkouts[1].with.repository,'uaalumni02/callbackiq_frontend');assert.equal(checkouts[1].with.path,'frontend');
- assert.equal(checkouts[1].with['persist-credentials'],false);
- assert.equal(checkouts[1].with.token,'${{ secrets.CALLBACKIQ_CROSS_REPO_READ_TOKEN || github.token }}');
- const record=steps.find(step=>step.name==='Record exact API and frontend revisions');assert.ok(record);
- assert.match(record.run,/git -C api rev-parse HEAD/);assert.match(record.run,/git -C frontend rev-parse HEAD/);
- const build=steps.findIndex(step=>step.run==='npm run build'),e2e=steps.findIndex(step=>step.run==='npm run test:browser');
- assert.ok(build>=0 && e2e>build);assert.equal(steps[build]['working-directory'],'frontend');assert.equal(steps[e2e]['working-directory'],'api');
+
+test('paired release checks out exact commits with a private read-only sibling token', () => {
+  const workflow = yaml.safeLoad(fs.readFileSync('.github/workflows/browser-workflows.yml', 'utf8'));
+  const steps = workflow.jobs.pair.steps;
+  const checkouts = steps.filter(step => step.uses?.startsWith('actions/checkout@'));
+  assert.equal(workflow.permissions.contents, 'read');
+  assert.equal(checkouts.length, 3);
+  assert.equal(checkouts[1].with.ref, '${{ steps.release.outputs.apiSha }}');
+  assert.equal(checkouts[2].with.ref, '${{ steps.release.outputs.frontendSha }}');
+  assert.equal(checkouts[2].with.repository, 'uaalumni02/callbackiq_frontend');
+  assert.equal(checkouts[2].with.token, '${{ secrets.CALLBACKIQ_CROSS_REPO_READ_TOKEN }}');
+  assert.ok(checkouts.every(step => step.with['persist-credentials'] === false));
+  assert.ok(steps.findIndex(step => step.id === 'release') < steps.indexOf(checkouts[2]));
+  assert.match(steps.find(step => step.id === 'release').run, /exit 1/);
+  const runner = fs.readFileSync('scripts/verify-release.mjs', 'utf8');
+  assert.ok(runner.indexOf("'run', 'verify'") < runner.indexOf("'run', 'test:browser'"));
+  assert.match(runner, /'scripts\/migrate-required-indexes\.mjs', '--check'/);
 });

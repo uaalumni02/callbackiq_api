@@ -77,13 +77,12 @@ try {
     if(!plan.gates.some(gate=>gate.steps.includes(required)))failures.push(`Release profile omits ${required}`);
 } catch(error){failures.push(`Invalid release wiring: ${error.message}`);}
 requireTokens('.github/workflows/browser-workflows.yml', [
-  "inputs.partner_ref || vars.CALLBACKIQ_FRONTEND_REF",
-  'CALLBACKIQ_CROSS_REPO_READ_TOKEN',
-  'Checkout partner repository', 'github.token',
+  'release.json', 'CALLBACKIQ_CROSS_REPO_READ_TOKEN', 'steps.release.outputs.apiSha',
+  'steps.release.outputs.frontendSha', 'Verify pinned builds and browser journeys',
 ]);
 requireBefore('.github/workflows/browser-workflows.yml',
-  'Checkout partner repository',
-  'Record exact API and frontend revisions');
+  'Read pins and require private checkout access', 'Checkout pinned frontend');
+requireBefore('scripts/verify-release.mjs', "'run', 'verify'", "'run', 'test:browser'");
 
 if (failures.length) {
   console.error(`FAIL MeekCall API architecture contracts (${failures.length} findings, ${checks} checks):`);

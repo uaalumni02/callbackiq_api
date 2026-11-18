@@ -1,64 +1,93 @@
-name: Customer and staff browser workflows
+name: MeekCall paired release
 on:
+  push:
+    branches: [main, development, "maint/**"]
+    paths: [release.json]
   workflow_dispatch:
     inputs:
-      partner_ref:
-        description: "Exact partner commit or paired branch to verify"
-        required: false
-        type: string
-  pull_request:
-    branches: [main, development, "hardening/**"]
-  push:
-    branches: [main, development, "hardening/**"]
+      confirm_deployed:
+        description: Confirm the deployed pair and check its database after deployment
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
-  browser:
+  pair:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout release manifest
+        uses: actions/checkout@v6
         with:
-          token: ${{ secrets.CALLBACKIQ_CROSS_REPO_READ_TOKEN || github.token }}
-          path: api
           persist-credentials: false
-      # Public sibling repository: use the built-in read-only token by default.
-      # An optional cross-repo read token supports future private visibility.
-      - name: Checkout partner repository
+          sparse-checkout: release.json
+          sparse-checkout-cone-mode: false
+      - name: Read pins and require private checkout access
+        id: release
+        env:
+          CROSS_REPO_READ: ${{ secrets.CALLBACKIQ_CROSS_REPO_READ_TOKEN }}
+        run: |
+          if [ -z "$CROSS_REPO_READ" ]; then
+            echo "::error::Set CALLBACKIQ_CROSS_REPO_READ_TOKEN with Contents read access to callbackiq_frontend."
+            exit 1
+          fi
+          node --input-type=commonjs -e '
+            const release = require("./release.json");
+            for (const name of ["apiSha", "frontendSha"]) {
+              const sha = release[name];
+              if (!/^[a-f0-9]{40}$/.test(sha || "")) throw Error("Invalid pinned " + name);
+              console.log(name + "=" + sha);
+            }
+          ' >> "$GITHUB_OUTPUT"
+      - name: Checkout pinned API
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.release.outputs.apiSha }}
+          path: api
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Checkout pinned frontend
         uses: actions/checkout@v6
         with:
           repository: uaalumni02/callbackiq_frontend
-          token: ${{ secrets.CALLBACKIQ_CROSS_REPO_READ_TOKEN || github.token }}
-          persist-credentials: false
-          ref: ${{ inputs.partner_ref || vars.CALLBACKIQ_FRONTEND_REF || (startsWith(github.head_ref || github.ref_name, 'hardening/') && (github.head_ref || github.ref_name)) || 'main' }}
+          ref: ${{ steps.release.outputs.frontendSha }}
+          token: ${{ secrets.CALLBACKIQ_CROSS_REPO_READ_TOKEN }}
           path: frontend
-      - name: Record exact API and frontend revisions
-        run: |
-          mkdir -p api/browser-results
-          git -C api rev-parse HEAD > api/browser-results/api-commit.txt
-          git -C frontend rev-parse HEAD > api/browser-results/frontend-commit.txt
+          fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-node@v5
         with:
           node-version: "24.19.0"
+          cache: npm
+          cache-dependency-path: |
+            api/package-lock.json
+            frontend/package-lock.json
       - run: npm ci
         working-directory: api
       - run: npm ci
         working-directory: frontend
-      - run: npm run build
-        working-directory: frontend
-        env:
-          CI: true
-          VITE_API_BASE_URL: /api
-          VITE_SOCKET_URL: ""
       - run: npx playwright install --with-deps chromium
         working-directory: api
-      - run: npm run test:browser
+      - name: Verify pinned builds and browser journeys
+        run: node scripts/verify-release.mjs ../frontend ../release.json
         working-directory: api
+      - name: Confirm deployed versions and database rollout
+        if: inputs.confirm_deployed
         env:
-          CALLBACKIQ_FRONTEND_DIR: ${{ github.workspace }}/frontend
-      - uses: actions/upload-artifact@v4
+          MEEKCALL_RELEASE_API_URL: ${{ vars.MEEKCALL_RELEASE_API_URL }}
+          MEEKCALL_RELEASE_FRONTEND_URL: ${{ vars.MEEKCALL_RELEASE_FRONTEND_URL }}
+          MONGO_URL: ${{ secrets.MEEKCALL_RELEASE_MONGO_URL }}
+        run: node scripts/verify-release.mjs --confirm ../release.json
+        working-directory: api
+      - name: Save paired release evidence
         if: always()
+        uses: actions/upload-artifact@v7
         with:
-          name: browser-results
-          path: api/browser-results
-          if-no-files-found: error
+          name: paired-release-${{ github.run_id }}
+          path: |
+            release.json
+            api/.verification
+            api/browser-results
+            frontend/.verification
+          include-hidden-files: true
+          if-no-files-found: warn

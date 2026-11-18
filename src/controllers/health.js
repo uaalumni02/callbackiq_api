@@ -1,3 +1,4 @@
+import buildVersion from '../config/build-version.js';
 import { automationReadiness } from '../services/automationReadiness.service.js';
 import { isDraining, getVoiceSnapshot } from "../services/runtimeState.service.js";
 import { socketRedisReady } from "../services/socketRedisAdapter.service.js";
@@ -17,6 +18,13 @@ const deployedCommit = () => {
 };
 
 class HealthController {
+  static version(_req, res) {
+    return res.set('Cache-Control', 'no-store').json({
+      sha: buildVersion.sha ?? deployedCommit(),
+      builtAt: buildVersion.builtAt,
+    });
+  }
+
   static live(req, res) {
     return res.status(200).json({
       success: true,
