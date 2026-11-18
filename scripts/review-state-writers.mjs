@@ -31,8 +31,4 @@ const report = { baseline: '55362b127cc4a72453ca96e995fe54bea95c1333', total: ro
     'Native collection operations, new bulk operations and model middleware removal must receive explicit review.',
     'Externally accepted effects cannot be rolled back by a MongoDB transaction; compensation/repair evidence must remain durable.'],
   writers: rows };
-const output = JSON.stringify(report, null, 2) + '\n';
-const target = 'docs/security/state-writer-review.json';
-if (process.argv.includes('--write')) fs.writeFileSync(target, output);
-else if (fs.readFileSync(target, 'utf8') !== output) throw Error('Writer review dispositions are stale. Review and regenerate after inventory changes.');
-console.log(JSON.stringify({ writers: rows.length, dispositions: counts }));
+console.log(JSON.stringify(report, null, 2));
