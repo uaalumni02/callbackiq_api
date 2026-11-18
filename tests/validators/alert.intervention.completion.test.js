@@ -6,18 +6,9 @@ import {
 const ID = "507f1f77bcf86cd799439011";
 
 describe("alert intervention validation", () => {
-  test.each([
-    "safety_emergency",
-    "human_requested",
-    "angry_customer",
-    "high_value_lead",
-    "low_ai_confidence",
-    "booking_conflict",
-    "integration_failure",
-    "message_delivery_failure",
-    "unanswered_hot_lead",
-    "appointment_canceled",
-  ])("accepts intervention type %s", (type) => {
+  const allowed = (schema, field) => schema.describe().keys[field].allow;
+
+  test.each(allowed(alertSchema, 'type'))("accepts intervention type %s", (type) => {
     const { error, value } = alertSchema.validate({
       lead: ID,
       conversation: ID,
@@ -40,18 +31,20 @@ describe("alert intervention validation", () => {
     expect(value.type).toBe(type);
   });
 
-  test("accepts resolution fields and rejects invalid assignee IDs", () => {
-    expect(
-      updateAlertSchema.validate({
-        status: "resolved",
-        resolvedAt: "2026-07-28T18:00:00.000Z",
-        resolution: "Customer reached and issue handled.",
-        actionRequired: false,
-      }).error,
-    ).toBeUndefined();
+  test.each(allowed(updateAlertSchema, 'status'))("allows the alert read-state update %s", status => {
+    expect(updateAlertSchema.validate({ status }).error).toBeUndefined();
+  });
 
-    expect(
-      updateAlertSchema.validate({ assignedTo: "not-an-object-id" }).error,
-    ).toBeDefined();
+  test("keeps intervention resolution off the read-state endpoint", () => {
+    const interventionStatuses = allowed(alertSchema, 'status').filter(status =>
+      !allowed(updateAlertSchema, 'status').includes(status));
+    expect(interventionStatuses).toContain("resolved");
+    for (const status of interventionStatuses) {
+      expect(updateAlertSchema.validate({ status }).error).toBeDefined();
+    }
+    expect(updateAlertSchema.validate({ status: "read", resolution: "Resolved" }).error).toBeDefined();
+    expect(alertSchema.validate({
+      title: "Review", message: "Customer needs help", type: "human_requested", assignedTo: "not-an-object-id",
+    }).error?.details[0].path).toEqual(["assignedTo"]);
   });
 });
