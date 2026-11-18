@@ -1,4 +1,4 @@
-import { passwordPolicyError, passwordLengthError } from '../services/security/passwordPolicy.js';
+import { PASSWORD_MAX_LENGTH, passwordPolicyError } from '../services/security/passwordPolicy.js';
 import { BUSINESS_TYPES } from "../helpers/businessTypes.js";
 import Joi from "joi";
 
@@ -48,9 +48,12 @@ const registerSchema = Joi.object({
 const loginSchema = Joi.object({
   login: Joi.string().trim().min(1).max(100).required(),
 
+  // Existing accounts may have passwords created before the signup minimum changed.
   password: Joi.string().custom((value, helpers) => {
-    const message = passwordLengthError(value);
-    return message ? helpers.message({ custom: message }) : value;
+    if (Array.from(value.normalize('NFC')).length > PASSWORD_MAX_LENGTH) {
+      return helpers.message({ custom: `Password must be ${PASSWORD_MAX_LENGTH} characters or fewer.` });
+    }
+    return value;
   }).required(),
 
   securityChallengeToken: Joi.string().trim().max(4096).allow("").optional(),

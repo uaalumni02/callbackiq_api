@@ -1,4 +1,5 @@
 import request from "supertest";
+import bcrypt from "bcrypt";
 
 import app from "../../src/app.js";
 import User from "../../src/models/user.js";
@@ -163,12 +164,31 @@ describe("Auth Routes", () => {
     expect(res.body.data.token).toBeTruthy();
   });
 
+  test("POST /api/auth/login accepts a valid legacy password below the signup minimum", async () => {
+    const password = "OldPassword123";
+    const user = await User.create({
+      email: validRegisterPayload.email,
+      userName: validRegisterPayload.userName,
+      businessName: validRegisterPayload.businessName,
+      role: "owner",
+      password: await bcrypt.hash(password, 4),
+    });
+    const agent = request.agent(app);
+
+    const login = await agent.post("/api/auth/login").send({ login: user.email, password });
+    expect(login.status).toBe(200);
+
+    const session = await agent.get("/api/auth/me");
+    expect(session.status).toBe(200);
+    expect(session.body.data.email).toBe(user.email);
+  });
+
   test("POST /api/auth/login rejects bad password with generic response", async () => {
     await request(app).post("/api/auth/register").send(validRegisterPayload);
 
     const res = await request(app).post("/api/auth/login").send({
       login: "demoowner",
-      password: "WrongFixturePassword",
+      password: "WrongShort123",
     });
 
     expect(res.status).toBe(401);

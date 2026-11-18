@@ -1,13 +1,19 @@
-import { registerSchema, loginSchema } from '../../src/validator/auth.js';
-test('signup and login share Unicode code-point length boundaries, including long astral passwords', () => {
-  const signup = password => registerSchema.validate({ email: 'unicode@example.com', password, businessName: 'Synthetic Unicode', termsAccepted: true, privacyAccepted: true }).error;
-  const login = password => loginSchema.validate({ login: 'unicode@example.com', password }).error;
-  for (const length of [15, 110, 128]) {
-    const password = Array.from({ length }, (_, i) => i % 2 ? '🚀' : '😀').join('');
-    expect(signup(password)).toBeUndefined(); expect(login(password)).toBeUndefined();
-  }
-  for (const length of [14, 129]) {
-    const password = Array.from({ length }, (_, i) => i % 2 ? '🚀' : '😀').join('');
-    expect(signup(password)).toBeTruthy(); expect(login(password)).toBeTruthy();
-  }
+import { loginSchema, registerSchema, resetPasswordSchema } from '../../src/validator/auth.js';
+
+const account = {
+  email: 'unicode@example.com',
+  businessName: 'Synthetic Unicode',
+  termsAccepted: true,
+  privacyAccepted: true,
+};
+
+test.each([1, 14, 15, 110, 128, 129])('validates passwords with %i Unicode code points', length => {
+  const password = Array.from({ length }, (_, i) => i % 2 ? '🚀' : '😀').join('');
+  const login = loginSchema.validate({ login: account.email, password });
+  const signup = registerSchema.validate({ ...account, password });
+  const reset = resetPasswordSchema.validate({ password });
+
+  expect(Boolean(login.error)).toBe(length > 128);
+  expect(Boolean(signup.error)).toBe(length < 15 || length > 128);
+  expect(Boolean(reset.error)).toBe(length < 15 || length > 128);
 });
