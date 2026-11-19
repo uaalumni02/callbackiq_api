@@ -1,5 +1,49 @@
 # MeekCall API
 
+MeekCall helps home service businesses recover unanswered calls through Voice AI and SMS, qualify customer requests, coordinate scheduling and human follow-up, and connect marketing sources to business outcomes.
+
+This repository contains the backend API, provider webhooks, business policies, background workers, and operational data services. The repository retains its original `callbackiq_api` name; the product is MeekCall.
+
+- [Frontend repository](https://github.com/uaalumni02/callbackiq_frontend)
+- [MeekCall website](https://www.meekcall.com)
+
+## Current functionality
+
+| Area | Scope |
+| --- | --- |
+| Voice and SMS recovery | Twilio call and message handling, Voice AI, SMS intake, qualification, callbacks, and human handoff. |
+| Customer operations | Business-scoped leads, conversations, messages, call logs, recovery details, dashboards, and Inbox workflow projections. |
+| Scheduling | Availability, holds, confirmation, decline, cancellation, rescheduling, and provider-change review through centralized booking transitions. |
+| Needs Attention | Intervention assignment, acknowledgement, resolution, and requests requiring human review. |
+| Conversation Intelligence | Conversation analysis, buying intent, urgency, opportunity and risk signals, recommended actions, and staff feedback. |
+| Marketing attribution | Marketing sources, tracking-number provisioning and release, call attribution, bookings, and source-level performance reporting. |
+| Revenue recovery | Recovery funnels, trends, lost opportunities, and estimated versus recorded revenue. |
+| Revenue Rescue | Staff-managed missed calls, unsold estimates, abandoned bookings, customer reactivation, cancellation capacity, and unpaid invoices, with imports, assignments, deadlines, notes, and outcome history. |
+| Internal revenue automation | Internal estimates, jobs, invoices, purpose-specific contact permissions, campaign drafts and scheduling, settings, and delivery attempts. Internal records do not require Jobber. |
+| Follow-up workflows | Configurable recovery workflows, scheduled jobs, message approval, and contact controls. |
+| Accounts and administration | Authentication, email verification, password reset, trials, subscriptions, Stripe billing, business configuration, A2P onboarding, and admin operations. |
+| Connected providers | Google Calendar and Jobber connection flows, synchronization, and webhooks, subject to configuration and business authorization. |
+
+## Workflow and reporting boundaries
+
+- Appointment holds, provider operations, and durable booking confirmation are distinct states.
+- Revenue Rescue actions record staff work; they do not themselves send messages, create appointments, or collect payments.
+- Internal revenue campaigns require documented purpose-specific permission, owner approval, business settings, and a separate server-side sending flag.
+- Importing a contact does not establish messaging permission.
+- Estimated value, recorded revenue, owner-reported payments, and independently verified payment evidence have different meanings.
+- Provider-backed features require configured credentials and an authorized business connection. Availability varies by deployment.
+
+## Technology and source layout
+
+The backend uses Node.js 24, Express 5, MongoDB/Mongoose, Redis, and Socket.IO. Provider integrations include Twilio, OpenAI, Stripe, Google Calendar, and Jobber.
+
+- `src/app.js` and `src/routes/`: HTTP middleware and API endpoints.
+- `src/services/`: business policies, provider coordination, and lifecycle services.
+- `src/worker.js` and `src/workers/`: background execution and reconciliation.
+- `contracts/`: executable interface and ownership contracts.
+- `config/` and `scripts/`: verification plans, inventories, migrations, and release tooling.
+- `tests/`: automated behavior and integration coverage.
+
 ## Run
 
 Use Node 24.19 or newer within Node 24, MongoDB with replica-set support, and Redis for distributed workers and Socket.IO. Copy `.env.example` to `.env`, set the local values, then run `npm ci` and `npm run start:dev`. Use isolated accounts and synthetic tenants for provider testing.
