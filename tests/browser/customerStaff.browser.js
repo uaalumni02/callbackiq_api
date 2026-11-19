@@ -19,6 +19,9 @@ import Message from '../../src/models/message.js';
 import Alert from '../../src/models/alert.js';
 import Appointment from '../../src/models/appointment.js';
 import AppointmentNotificationJob from '../../src/models/appointmentNotificationJob.js';
+import ContactPreference from '../../src/models/contactPreference.js';
+import WebhookWork from '../../src/models/webhookWork.js';
+import ConversationOrchestrator from '../../src/services/conversationOrchestrator.service.js';
 import ServiceOffering from '../../src/models/serviceOffering.js';
 import ServiceArea from '../../src/models/serviceArea.js';
 import SchedulingPolicy from '../../src/models/schedulingPolicy.js';
@@ -30,7 +33,10 @@ import { escalateOverdueInterventions } from '../../src/services/interventionEsc
 import { processTwilioCallStatus } from '../../src/services/twilioCallStatus.service.js';
 import AvailabilityService from '../../src/services/scheduling/availability.service.js';
 import AppointmentService from '../../src/services/scheduling/appointment.service.js';
+import { processNextAppointmentNotification } from '../../src/services/scheduling/appointmentNotification.service.js';
 import { drainSmsProcessingQueueOnce } from '../../src/workers/smsProcessing.worker.js';
+import { claimWebhookWork } from '../../src/services/webhooks/webhookWork.service.js';
+import { drainWebhookWorkOnce } from '../../src/workers/webhookWork.worker.js';
 import { sendSms } from '../../src/services/twilioSmsService.js';
 
 jest.mock('../../src/services/twilioSmsService.js', () => ({ sendSms: jest.fn() }));
@@ -61,7 +67,7 @@ beforeAll(async () => {
   // use the same transaction-capable semantics as Atlas, without a live DB.
   mongo = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: 'wiredTiger' } });
   await mongoose.connect(mongo.getUri());
-  await Promise.all([Alert.init(), CallLog.init(), Message.init(), Appointment.init()]);
+  await Promise.all([Alert.init(), CallLog.init(), Message.init(), Appointment.init(), Lead.init(), WebhookWork.init()]);
   owner = await User.create({ userName: 'Browser Owner', email: 'owner@example.test', password: 'unused-test-hash', businessName: 'Browser HVAC', role: 'owner', emailVerified: true, termsAccepted: true, privacyAccepted: true });
   business = await Business.create({ owner: owner._id, businessName: 'Browser HVAC', businessType: 'hvac', phone: '+14045550199', forwardingPhone: '+14045550198', timezone: 'America/New_York', isActive: true, trackingNumber: { status: 'active' }, messagingCompliance: { smsReady: true, a2pStatus: 'registered', senderAttached: true }, features: { missedCallSmsEnabled: true, aiQualificationEnabled: true, aiBookingEnabled: false } });
   await Subscription.create({ business: business._id, status: 'active', isActive: true, plan: 'pro', currentPeriodEnd: new Date(Date.now()+30*86400000) });
@@ -249,3 +255,146 @@ test('owner cannot read or acknowledge another business intervention', async () 
   expect((await Alert.findById(foreignAlert._id)).acknowledgedAt).toBeNull();
   await visit('/intervention-center'); expect(await page.getByText('Private other business request').count()).toBe(0);
 });
+
+test('release journey: missed call becomes one durable booking across all staff views', async () => {
+  const phone = '+14045550106';
+  const name = 'Release Journey Customer';
+  const callSid = 'CA' + '9'.repeat(32);
+  const webhook = (path, form) => context.request.post(`${base}/api/twilio/${path}`, { form });
+  const call = { From: phone, To: business.phone, CallSid: callSid };
+  const asyncRecovery = process.env.RECOVERY_SMS_ASYNC_ENABLED;
+  process.env.RECOVERY_SMS_ASYNC_ENABLED = 'true';
+  try {
+    expect((await webhook('voice', call)).status()).toBe(200);
+    expect((await webhook('voice', call)).status()).toBe(200);
+  } finally {
+    process.env.RECOVERY_SMS_ASYNC_ENABLED = asyncRecovery;
+  }
+  const abandoned = await claimWebhookWork();
+  expect(abandoned).toMatchObject({ status: 'processing', kind: 'recovery_sms', payload: { callSid } });
+  await drainWebhookWorkOnce();
+  expect((await WebhookWork.findById(abandoned._id).lean()).status).toBe('processing');
+  // Expire the abandoned claim so a restarted worker can recover it without a real-time sleep.
+  await WebhookWork.updateOne({ _id: abandoned._id }, { $set: { leaseUntil: new Date(0) } });
+  const recoveryStarted = performance.now();
+  await drainWebhookWorkOnce();
+  const workerRecoveryMs = Math.round(performance.now() - recoveryStarted);
+  expect(await WebhookWork.findById(abandoned._id).lean()).toMatchObject({ status: 'completed', attempts: 2 });
+  const recoveredCall = await CallLog.findOne({ business: business._id, providerCallId: callSid }).lean();
+  expect(recoveredCall).toMatchObject({ status: 'missed', missedCallTextSent: true });
+  expect(await Message.countDocuments({ conversation: recoveredCall.conversation, direction: 'outbound' })).toBe(1);
+
+  const service = await ServiceOffering.create({
+    business: business._id, name: 'Release HVAC repair', category: 'hvac', active: true,
+    aiCanDiscuss: true, aiCanBook: true, durationMinutes: 60, keywords: ['air conditioner', 'HVAC'],
+  });
+  const scope = { business: business._id };
+  if (!(await ServiceArea.exists(scope))) await ServiceArea.create({ ...scope, zipCodes: ['30324'] });
+  if (!(await SchedulingPolicy.exists(scope))) {
+    await SchedulingPolicy.create({ ...scope, minimumNoticeMinutes: 60, allowSameDayBooking: true });
+  }
+  if (!(await AvailabilityRule.exists(scope))) {
+    await AvailabilityRule.insertMany(Array.from({ length: 7 }, (_, dayOfWeek) => ({
+      ...scope, dayOfWeek, enabled: true, capacity: 1, windows: [{ startTime: '08:00', endTime: '18:00' }],
+    })));
+  }
+  const reply = {
+    From: phone, To: business.phone, MessageSid: sid(),
+    Body: `I'm ${name}. My air conditioner is not cooling at 100 Main Street, Atlanta GA 30324. Can you schedule a repair?`,
+  };
+  const model = jest.spyOn(ConversationOrchestrator, 'process').mockResolvedValueOnce({
+    result: {
+      decision: 'reply', intakeReady: true, messageCategory: 'service_request', reply: 'Thanks for the details.',
+      serviceNeeded: 'HVAC repair - air conditioner not cooling', urgency: 'high',
+      address: '100 Main Street, Atlanta, GA 30324', preferredAppointmentTime: 'Next available appointment', riskFlags: [],
+    },
+  });
+  try {
+    expect((await webhook('sms', reply)).status()).toBe(200);
+    await drainSmsProcessingQueueOnce();
+    expect((await webhook('sms', reply)).status()).toBe(200);
+    await drainSmsProcessingQueueOnce();
+    expect(model).toHaveBeenCalledTimes(1);
+  } finally {
+    model.mockRestore();
+  }
+  const conversationId = recoveredCall.conversation;
+  const leadId = recoveredCall.lead;
+  expect(await Message.countDocuments({ conversation: conversationId, providerMessageId: reply.MessageSid })).toBe(1);
+  expect(await Alert.countDocuments({ lead: leadId, actionRequired: true })).toBe(1);
+
+  await visit(`/intervention-center?leadId=${leadId}`);
+  await page.getByRole('button', { name: 'Accept request & take over' }).first().click();
+  await visible(page.getByText('Request accepted. You own the next action and AI is paused.', { exact: false }));
+  const schedule = page.getByRole('link', { name: 'Review & schedule request' });
+  await visible(schedule);
+  expect((await Conversation.findById(conversationId).lean()).humanTakeover).toBe(true);
+  const sendsDuringTakeover = sendSms.mock.calls.length;
+  expect((await webhook('sms', { ...reply, MessageSid: sid(), Body: 'Thanks, I can wait for your team.' })).status()).toBe(200);
+  await drainSmsProcessingQueueOnce();
+  expect(sendSms.mock.calls.length).toBe(sendsDuringTakeover);
+  await schedule.click();
+
+  await page.getByRole('combobox', { name: /^Service/ }).selectOption(String(service._id));
+  await page.getByLabel('Customer name', { exact: true }).fill(name);
+  const date = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
+  await page.getByLabel('Search from').fill(date);
+  await page.getByLabel('Search through').fill(date);
+  await page.getByRole('button', { name: 'Check availability', exact: true }).click();
+  const slot = page.getByRole('combobox', { name: /^Available appointment time/ });
+  await slot.locator('option').nth(1).waitFor({ state: 'attached' });
+  await slot.selectOption({ index: 1 });
+  await page.getByRole('checkbox', { name: /customer agreed/i }).check();
+  const started = performance.now();
+  await page.getByRole('button', { name: /confirm & notify customer|approve request & book appointment/i }).click();
+  await visible(page.getByRole('button', { name: 'Mark completed' }));
+  const bookingConfirmationMs = Math.round(performance.now() - started);
+  const [appointment] = await Appointment.find({ business: business._id, lead: leadId }).lean();
+  expect(appointment).toMatchObject({ status: 'confirmed', conversation: conversationId });
+  expect(await Appointment.countDocuments({ business: business._id, lead: leadId })).toBe(1);
+  const notice = { business: business._id, appointment: appointment._id, key: 'change_notice:business_approval_confirmed' };
+  expect(await AppointmentNotificationJob.countDocuments(notice)).toBe(1);
+  for (let i = 0; i < 20 && await processNextAppointmentNotification(); i++) {
+    if (await AppointmentNotificationJob.exists({ ...notice, status: 'sent' })) break;
+  }
+  const sent = await AppointmentNotificationJob.findOne(notice).lean();
+  expect(sent).toMatchObject({ status: 'sent', providerMessageId: expect.stringMatching(/^SM/) });
+  const confirmation = await Message.findOne({ business: business._id, conversation: conversationId,
+    providerMessageId: sent.providerMessageId, direction: 'outbound' }).lean();
+  expect(confirmation?.body).toMatch(/confirmed/i);
+  expect((await webhook('status', { MessageSid: sent.providerMessageId, MessageStatus: 'delivered', From: business.phone, To: phone })).status()).toBe(200);
+  expect((await Message.findById(confirmation._id).lean()).deliveryStatus).toBe('delivered');
+  console.log(JSON.stringify({ scenario: 'release journey', fixture: true, bookingConfirmationMs, workerRecoveryMs,
+    confirmationReceiptMs: Date.now() - appointment.confirmedAt.getTime() }));
+
+  await visit('/inbox');
+  await page.locator('select').filter({ has: page.getByRole('option', { name: 'Booked', exact: true }) }).selectOption('booked');
+  const booked = page.getByRole('article').filter({ has: page.locator(`a[href="/leads?leadId=${leadId}"]`) });
+  await visible(booked.getByText(/^Booked ·/));
+  await visit(`/conversations?conversationId=${conversationId}`);
+  await visible(page.getByText(reply.Body, { exact: true }));
+  await visible(page.getByText(confirmation.body, { exact: true }));
+  await visit(`/intervention-center?leadId=${leadId}`);
+  const open = await api(`/interventions?view=requests&leadId=${leadId}`);
+  expect(open.status).toBe(200);
+  const openReview = open.body.data?.find(row => row.type === 'human_requested');
+  if (openReview) {
+    const workflow = await api(`/interventions/${openReview._id}/workflow`);
+    expect(workflow.body.data?.appointment).toMatchObject({ _id: String(appointment._id), status: 'confirmed' });
+    const closed = await api(`/interventions/${openReview._id}/workflow`, {
+      method: 'POST', data: { action: 'outcome', outcome: 'booked', reason: 'Confirmed with the customer',
+        operationId: 'release-journey-booked', version: workflow.body.data.version },
+    });
+    expect(closed.status).toBe(200);
+    await visit(`/intervention-center?leadId=${leadId}`);
+  }
+  await visible(page.getByText('No matching review records for this customer.', { exact: true }));
+  await visit(`/appointments?appointmentId=${appointment._id}`);
+  await visible(page.getByRole('button', { name: 'Mark completed' }));
+
+  const sendsBeforeStop = sendSms.mock.calls.length;
+  expect((await webhook('sms', { ...reply, MessageSid: sid(), Body: 'STOP', OptOutType: 'STOP' })).status()).toBe(200);
+  await drainSmsProcessingQueueOnce();
+  expect(await ContactPreference.findOne({ business: business._id, phone }).lean()).toMatchObject({ smsStatus: 'opted_out' });
+  expect(sendSms.mock.calls.length).toBe(sendsBeforeStop);
+}, 60000);

@@ -1,5 +1,6 @@
 import SocketService from "../../src/services/socket.service.js";
 import request from "supertest";
+import mongoose from "mongoose";
 
 import app from "../../src/app.js";
 import Alert from "../../src/models/alert.js";
@@ -333,6 +334,38 @@ describe("Alert Routes", () => {
       expect(res.body.message).toContain("/api/interventions/:id/workflow");
     }
     expect(await Alert.findById(alert._id).lean()).toEqual(before);
+  });
+
+  test("PATCH /api/alerts/:id cannot attach another tenant or update its alert", async () => {
+    const owner = await registerCreateBusinessAndLead({ createLead: false });
+    const other = await registerCreateBusinessAndLead({
+      userName: "otherowner", email: "other@callbackiq.com", businessPhone: "4045551212", subscriptionSuffix: "456",
+    });
+    const foreignOwner = await Business.findById(other.business._id).select("owner").lean();
+    const [alert, foreignAlert] = await Alert.create([owner.business, other.business].map(business => ({
+      business: business._id, type: "human_requested", title: "Owner request", message: "Review this request",
+    })));
+    const foreignConversation = new mongoose.Types.ObjectId();
+    const foreignAppointment = new mongoose.Types.ObjectId();
+    await mongoose.connection.collection("conversations").insertOne({
+      _id: foreignConversation, business: foreignAlert.business, lead: other.lead._id,
+    });
+    await mongoose.connection.collection("appointments").insertOne({
+      _id: foreignAppointment, business: foreignAlert.business, lead: other.lead._id,
+    });
+    const before = await Alert.find({ _id: { $in: [alert._id, foreignAlert._id] } }).sort({ _id: 1 }).lean();
+    const patch = (id, payload) => request(app).patch(`/api/alerts/${id}`)
+      .set("Authorization", `Bearer ${owner.token}`).send(payload);
+    for (const [field, value] of Object.entries({
+      business: other.business._id, lead: other.lead._id, conversation: foreignConversation,
+      appointment: foreignAppointment, assignedTo: foreignOwner.owner,
+    })) {
+      const response = await patch(alert._id, { status: "read", [field]: String(value) });
+      expect(response.status).toBe(400);
+      expect(response.body.message).toContain("/api/interventions/:id/workflow");
+    }
+    expect((await patch(foreignAlert._id, { status: "read" })).status).toBe(400);
+    expect(await Alert.find({ _id: { $in: [alert._id, foreignAlert._id] } }).sort({ _id: 1 }).lean()).toEqual(before);
   });
 
   test("PATCH /api/alerts/:id/read marks one alert as read", async () => {
