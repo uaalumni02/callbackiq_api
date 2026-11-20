@@ -54,6 +54,7 @@ import {
   assertServerProcessRole,
   normalizeRuntimeEnvironment,
   shouldRunEmbeddedWorkers,
+  shouldServeVoiceRelay,
 } from "./config/runtime-environment.js";
 // CALLBACKIQ_A2P_RECONCILIATION_WORKER
 import {
@@ -102,7 +103,7 @@ const io = new Server(httpServer, {
 });
 
 SocketService.initialize(io);
-const relayEnabled = process.env.VOICE_RELAY_ENABLED !== "false";
+const relayEnabled = shouldServeVoiceRelay();
 const conversationRelayServer = relayEnabled ? initializeConversationRelayServer(httpServer) : { close: async () => {}, beginDrain: () => {} };
 const stopSocketSessions = startSocketSessionMaintenance(io);
 io.use(socketAuth);

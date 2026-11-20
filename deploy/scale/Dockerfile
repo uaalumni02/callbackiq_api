@@ -9,7 +9,7 @@ COPY scripts ./scripts
 COPY config ./config
 RUN npm run build && npm prune --omit=dev
 FROM ${NODE_IMAGE}
-ENV NODE_ENV=production PORT=3000
+ENV NODE_ENV=production PORT=3000 PROCESS_ROLE=api VOICE_RELAY_ENABLED=false
 WORKDIR /app
 COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/build ./build

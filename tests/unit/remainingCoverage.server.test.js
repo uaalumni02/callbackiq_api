@@ -24,7 +24,7 @@ jest.mock("../../src/voice/conversationRelay.server.js",()=>({__esModule:true,in
 jest.mock("../../src/config/env.js",()=>({__esModule:true,validateEnvironment: jest.fn()}));
 jest.mock("../../src/services/runtimeMetrics.service.js",()=>({__esModule:true,startRuntimeMetricsLogging: jest.fn()}));
 jest.mock("../../src/services/scaleCache.service.js",()=>({__esModule:true,closeScaleCache: jest.fn()}));
-jest.mock("../../src/config/runtime-environment.js",()=>({__esModule:true,assertRealtimeScalingConfig: jest.fn(),assertServerProcessRole: jest.fn(),normalizeRuntimeEnvironment: jest.fn(),shouldRunEmbeddedWorkers: jest.fn()}));
+jest.mock("../../src/config/runtime-environment.js",()=>({__esModule:true,assertRealtimeScalingConfig: jest.fn(),assertServerProcessRole: jest.fn(),normalizeRuntimeEnvironment: jest.fn(),shouldRunEmbeddedWorkers: jest.fn(),shouldServeVoiceRelay: jest.fn(() => true)}));
 jest.mock("../../src/workers/a2pReconciliation.worker.js",()=>({__esModule:true,startA2pReconciliationWorker: jest.fn(),stopA2pReconciliationWorker: jest.fn()}));
 jest.mock("../../src/workers/trialLifecycle.worker.js",()=>({__esModule:true,startTrialLifecycleWorker: jest.fn(),stopTrialLifecycleWorker: jest.fn()}));
 

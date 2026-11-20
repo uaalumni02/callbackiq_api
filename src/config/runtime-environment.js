@@ -94,6 +94,10 @@ export const assertServerProcessRole = (env = process.env) => {
   return role;
 };
 
+// A separate voice process owns live ConversationRelay connections.
+export const shouldServeVoiceRelay = (env = process.env) =>
+  getProcessRole(env) === 'voice' && env.VOICE_RELAY_ENABLED !== 'false';
+
 export const shouldRunEmbeddedWorkers = (env = process.env) =>
   getProcessRole(env) === "all";
 
