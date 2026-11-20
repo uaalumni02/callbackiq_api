@@ -49,6 +49,11 @@ SmsProcessingJobSchema.index({ status: 1, leaseExpiresAt: 1 });
 SmsProcessingJobSchema.index({ status: 1, createdAt: 1 });
 SmsProcessingJobSchema.index({ status: 1, 'result.staffReviewAlertRecorded': 1, deadAt: 1, _id: 1 });
 
+
+// Retain terminal dedupe identities for 90 days. Active leases never expire by TTL.
+SmsProcessingJobSchema.index({ completedAt: 1 }, { name: 'sms_completed_retention', expireAfterSeconds: 90 * 24 * 60 * 60, partialFilterExpression: { status: 'completed' } });
+SmsProcessingJobSchema.index({ deadAt: 1 }, { name: 'sms_dead_retention', expireAfterSeconds: 90 * 24 * 60 * 60, partialFilterExpression: { status: 'dead' } });
+
 const SmsProcessingJob =
   mongoose.models.SmsProcessingJob ||
   mongoose.model("SmsProcessingJob", SmsProcessingJobSchema);

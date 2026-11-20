@@ -139,6 +139,10 @@ WebhookEventSchema.index({
 
 WebhookEventSchema.index({ status: 1, leaseExpiresAt: 1 });
 
+
+// Retain terminal dedupe identities for 90 days. Active leases never expire by TTL.
+WebhookEventSchema.index({ completedAt: 1 }, { name: 'twilio_completed_retention', expireAfterSeconds: 90 * 24 * 60 * 60, partialFilterExpression: { status: 'completed' } });
+
 const WebhookEvent =
   mongoose.models.WebhookEvent ||
   mongoose.model("WebhookEvent", WebhookEventSchema);

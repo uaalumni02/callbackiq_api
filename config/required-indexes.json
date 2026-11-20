@@ -2733,6 +2733,32 @@
     "options": {}
   },
   {
+    "collection": "smsprocessingjobs",
+    "key": {
+      "completedAt": 1
+    },
+    "options": {
+      "name": "sms_completed_retention",
+      "expireAfterSeconds": 7776000,
+      "partialFilterExpression": {
+        "status": "completed"
+      }
+    }
+  },
+  {
+    "collection": "smsprocessingjobs",
+    "key": {
+      "deadAt": 1
+    },
+    "options": {
+      "name": "sms_dead_retention",
+      "expireAfterSeconds": 7776000,
+      "partialFilterExpression": {
+        "status": "dead"
+      }
+    }
+  },
+  {
     "collection": "staffnotificationjobs",
     "key": {
       "alert": 1,
@@ -3457,6 +3483,19 @@
     "options": {}
   },
   {
+    "collection": "webhookevents",
+    "key": {
+      "completedAt": 1
+    },
+    "options": {
+      "name": "twilio_completed_retention",
+      "expireAfterSeconds": 7776000,
+      "partialFilterExpression": {
+        "status": "completed"
+      }
+    }
+  },
+  {
     "collection": "webhookworks",
     "key": {
       "status": 1,
@@ -3490,5 +3529,18 @@
       "_id": 1
     },
     "options": {}
+  },
+  {
+    "collection": "webhookworks",
+    "key": {
+      "completedAt": 1
+    },
+    "options": {
+      "name": "webhook_work_completed_retention",
+      "expireAfterSeconds": 7776000,
+      "partialFilterExpression": {
+        "status": "completed"
+      }
+    }
   }
 ]

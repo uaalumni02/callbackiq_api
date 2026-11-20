@@ -18,6 +18,8 @@ schema.index({ status: 1, availableAt: 1, createdAt: 1 });
 schema.index({ status: 1, leaseUntil: 1 });
 schema.index({ status: 1, createdAt: 1 });
 schema.index({ status: 1, staffReviewAlertRecorded: 1, updatedAt: 1, _id: 1 });
-// Completed identities intentionally remain: an old provider replay must not
-// silently resurrect a previously completed customer communication.
+
+// Retain terminal dedupe identities for 90 days. Active leases never expire by TTL.
+schema.index({ completedAt: 1 }, { name: 'webhook_work_completed_retention', expireAfterSeconds: 90 * 24 * 60 * 60, partialFilterExpression: { status: 'completed' } });
+
 export default mongoose.models.WebhookWork || mongoose.model("WebhookWork", schema);
