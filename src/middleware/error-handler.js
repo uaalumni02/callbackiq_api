@@ -1,3 +1,4 @@
+import { captureExternalError } from "../services/errorTracking.service.js";
 import { queryFailure, databaseUnavailable } from "../services/scale/queryBudget.js";
 import MonitoringService from "../services/monitoring.service.js";
 
@@ -7,11 +8,13 @@ const errorHandler = (error, req, res, next) => {
   }
 
   if (databaseUnavailable(error)) {
+    captureExternalError(error);
     MonitoringService.captureError("database_unavailable", error, { requestId: req.context?.requestId || "", method: req.method, path: req.path, statusCode: 503 });
     return res.status(503).set("Retry-After", "2").json({ success: false, code: "DATABASE_UNAVAILABLE",
       message: "Customer data is temporarily unavailable. Please retry. If you submitted a change, verify its status before submitting again.", requestId: req.context?.requestId || "" });
   }
   if (queryFailure(error) || ["CACHE_REFRESH_BUSY", "CACHE_LOADER_TIMEOUT"].includes(error?.code)) {
+    captureExternalError(error);
     return res.status(503).set("Retry-After", "2").json({ success: false,
       code: "QUERY_BUDGET_EXCEEDED", message: "This view is busy. Please retry or narrow your search." });
   }
@@ -33,6 +36,7 @@ const errorHandler = (error, req, res, next) => {
     MonitoringService.captureEvent('api_request_rejected', { ...details, code: error.code || '' },
       [404, 409].includes(statusCode) ? 'info' : 'warn');
   } else {
+    captureExternalError(error);
     MonitoringService.captureError('unhandled_api_error', error, details);
   }
 

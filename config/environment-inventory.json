@@ -1219,5 +1219,11 @@
   ],
   "WORKER_HEALTH_FILE": [
     "src/services/processHeartbeat.service.js:21"
+  ],
+  "SENTRY_DSN": [
+    "src/services/errorTracking.service.js"
+  ],
+  "OPS_ALERT_WEBHOOK_URL": [
+    "src/services/operationsAlert.service.js"
   ]
 }

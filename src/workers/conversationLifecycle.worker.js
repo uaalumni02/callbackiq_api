@@ -1,3 +1,4 @@
+import { captureExternalError } from "../services/errorTracking.service.js";
 import { conversationLifecycleWorkerExpireBookingOfferConversationAtomicUpdate, conversationLifecycleWorkerNudgeAbandonedRecoveryConversationAtomicUpdate, conversationLifecycleWorkerNudgeAbandonedRecoveryConversationUpdateOne, conversationLifecycleWorkerTransitionConversationAtomicUpdate } from '../services/stateTransitions/customerRequest.js';
 import { bookingTransitionFields } from '../services/booking/requestBookingState.js';
 import { maintainStaffReviewRecords } from '../services/staffReviewReconciliation.service.js';
@@ -53,6 +54,7 @@ const saveLifecycleOutbound = async ({ conversation, body, sent, event }) => {
       { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
     );
   } catch (error) {
+    captureExternalError(error);
     if (Number(error?.code) === 11000) return null;
     throw error;
   }
@@ -167,9 +169,11 @@ export const runConversationLifecycleOnce = async ({ now = new Date(), limit = N
   try {
     await recoverFailedSmsStaffReviews({ now, limit });
     await maintainStaffReviewRecords({ now }).catch(error => {
+    captureExternalError(error);
       safeConsole.error("Staff review reconciliation failed:", error);
     });
     await reconcileRecoveryBookingEvidence({ now }).catch(error => {
+    captureExternalError(error);
       safeConsole.error('Recovery booking evidence reconciliation failed:', error);
     });
     await escalateOverdueInterventions({ now, limit });
@@ -195,6 +199,7 @@ export const runConversationLifecycleOnce = async ({ now = new Date(), limit = N
       let outcome;
       try { outcome = await processConversation(conversation, now); }
       catch (error) {
+    captureExternalError(error);
         logOperationalError("sms.lifecycle.conversation_failed", error, { conversationId: conversation._id });
         outcome = "failed";
       }
@@ -212,14 +217,14 @@ export const startConversationLifecycleWorker = () => {
   startStaffNotificationWorker();
   if (timer || String(process.env.SMS_LIFECYCLE_WORKER_ENABLED || "true").toLowerCase() === "false") return timer;
   void runConversationLifecycleOnce().catch((error) =>
-    logOperationalError("sms.lifecycle.initial_failed", error),
+    { captureExternalError(error); return logOperationalError("sms.lifecycle.initial_failed", error); },
   );
   timer = setInterval(() => {
     void runConversationLifecycleOnce()
       .then((result) => {
         if (result.processed) logOperationalEvent("sms.lifecycle.batch", result);
       })
-      .catch((error) => logOperationalError("sms.lifecycle.failed", error));
+      .catch((error) => { captureExternalError(error); return logOperationalError("sms.lifecycle.failed", error); });
   }, intervalMs());
   timer.unref?.();
   return timer;

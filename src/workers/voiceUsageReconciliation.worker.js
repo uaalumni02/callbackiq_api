@@ -1,3 +1,4 @@
+import { captureExternalError } from "../services/errorTracking.service.js";
 import {
   listVoiceUsageReconciliationCandidates,
   reconcileVoiceUsage,
@@ -69,6 +70,7 @@ const processCandidate = async (job) => {
       transferAttempts: job.transferAttempts,
     });
   } catch (error) {
+    captureExternalError(error);
     logOperationalError(
       "voice_usage.reconciliation_worker.job_failed",
       error,
@@ -182,6 +184,7 @@ const scheduleNext = (delayMs = intervalMs()) => {
         );
       }
     } catch (error) {
+    captureExternalError(error);
       logOperationalError(
         "voice_usage.reconciliation_worker.failed",
         error,

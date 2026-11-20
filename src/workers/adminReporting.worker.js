@@ -1,3 +1,4 @@
+import { captureExternalError, trackWorkerFailure } from "../services/errorTracking.service.js";
 import { runProviderBalanceSync } from "../services/admin/providerBalances.service.js";
 import { runCompanyExpenseSync } from "../services/admin/companyExpenses.service.js";
 import crypto from "node:crypto";
@@ -56,7 +57,7 @@ export const runAdminReportingBatch = async ({
       await refreshBusinessReport(report.business, now);
       refreshed++;
     } catch (error) {
-      await AdminBusinessReport.updateOne(
+      await trackWorkerFailure(error, () => AdminBusinessReport.updateOne(
         { _id: report._id, leaseToken: token },
         {
           $set: {
@@ -64,7 +65,7 @@ export const runAdminReportingBatch = async ({
             nextRefreshAt: new Date(+now + 60000),
           },
         },
-      );
+      ));
       safeConsole.error("Admin report refresh failed", {
         business: String(report.business),
         code: error?.code || "REPORT_REFRESH_FAILED",
@@ -90,9 +91,9 @@ export const startAdminReportingWorker = () => {
     if (stopped) return;
     running = runAdminReportingBatch()
       .catch((error) =>
-        safeConsole.error("Admin reporting unavailable", {
+        { captureExternalError(error); return safeConsole.error("Admin reporting unavailable", {
           code: error?.code || "REPORTING_ERROR",
-        }),
+        }); },
       )
       .finally(() => {
         running = null;
@@ -105,8 +106,8 @@ export const startAdminReportingWorker = () => {
   const expenseTick = () => {
     if (stopped) return;
     expenseRunning = runCompanyExpenseSync()
-      .catch(() =>
-        safeConsole.error("Company expense reporting sync unavailable"),
+      .catch((error) =>
+        { captureExternalError(error); return safeConsole.error("Company expense reporting sync unavailable"); },
       )
       .finally(() => {
         expenseRunning = null;
@@ -119,7 +120,7 @@ export const startAdminReportingWorker = () => {
   const balanceTick = () => {
     if (stopped) return;
     balanceRunning = runProviderBalanceSync()
-      .catch(() => safeConsole.error("Provider balance reporting unavailable"))
+      .catch((error) => { captureExternalError(error); return safeConsole.error("Provider balance reporting unavailable"); })
       .finally(() => {
         balanceRunning = null;
         if (!stopped) {

@@ -1,3 +1,4 @@
+import { captureExternalError } from "../services/errorTracking.service.js";
 import {
   reconcileOrphanedInboundSmsJobs,
 } from "../services/messaging/smsProcessingQueue.service.js";
@@ -40,6 +41,7 @@ const scheduleNext = () => {
     try {
       await reconcileSmsIngressOnce();
     } catch (error) {
+    captureExternalError(error);
       logOperationalError(
         "sms.ingress_reconciliation_failed",
         error,

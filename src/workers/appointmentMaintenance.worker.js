@@ -1,3 +1,4 @@
+import { captureExternalError } from "../services/errorTracking.service.js";
 import { sweepLeadWorkflow } from '../services/stateTransitions/leadWorkflow.js';
 import { repairRescheduleCompensations } from '../services/scheduling/rescheduleCompensationRepair.service.js';
 import { reconcileAppointmentCancellations } from '../services/scheduling/appointmentCancellationRecovery.service.js';
@@ -25,6 +26,7 @@ export const runAppointmentMaintenanceOnce = async () => {
     try {
       leadArchiveCursor = await sweepLeadWorkflow({ after: leadArchiveCursor });
     } catch (error) {
+    captureExternalError(error);
       safeConsole.error("Lead workflow maintenance failed:", error);
     }
     return {
@@ -41,11 +43,13 @@ export const startAppointmentMaintenanceWorker = () => {
   if (timer) return timer;
 
   void runAppointmentMaintenanceOnce().catch((error) => {
+    captureExternalError(error);
     safeConsole.error("Appointment maintenance failed:", error);
   });
 
   timer = setInterval(() => {
     void runAppointmentMaintenanceOnce().catch((error) => {
+    captureExternalError(error);
       safeConsole.error("Appointment maintenance failed:", error);
     });
   }, intervalMs());

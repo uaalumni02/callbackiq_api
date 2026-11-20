@@ -1,3 +1,4 @@
+import { captureExternalError, trackWorkerFailure } from "../services/errorTracking.service.js";
 import {
   claimNextSmsDeliveryReconciliationEvent,
   completeSmsDeliveryReconciliationEvent,
@@ -73,11 +74,11 @@ const performDrain = async () => {
         error.code = "SMS_DELIVERY_TARGET_NOT_AVAILABLE";
         throw error;
       } catch (error) {
-        const failed = await failSmsDeliveryReconciliationEvent({
+        const failed = await trackWorkerFailure(error, () => failSmsDeliveryReconciliationEvent({
           event,
           leaseToken: event.leaseToken,
           error,
-        });
+        }));
 
         if (failed?.status === "dead") {
           await AlertService.createSystemAlert({
@@ -118,6 +119,7 @@ const scheduleNext = () => {
         logOperationalEvent("sms.delivery_reconciliation.batch", result);
       }
     } catch (error) {
+    captureExternalError(error);
       logOperationalError("sms.delivery_reconciliation.failed", error);
     } finally {
       if (!stopping) scheduleNext();

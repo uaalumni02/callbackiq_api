@@ -1,3 +1,4 @@
+import { persistAlertAndNotifyOperations } from "./operationsAlert.service.js";
 import { alertCreateAlertAtomicUpdate } from './stateTransitions/reviews.js';
 import { createAwaitedInsertBatch } from './database/awaitedInsertBatch.js';
 import { sameTurnBatch } from "./database/sameTurnBatch.js";
@@ -145,7 +146,7 @@ class AlertService {
      * concurrency-safe source of truth.
      */
     try {
-      const createdAlert = await insertAlert(payload);
+      const createdAlert = await persistAlertAndNotifyOperations(insertAlert, payload);
       // The insert already returned this alert, including defaults/timestamps.
       // Populate its refs directly; avoid rereading the same alert for every SMS.
       const alert = createdAlert.toObject();

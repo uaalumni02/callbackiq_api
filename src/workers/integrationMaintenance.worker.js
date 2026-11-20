@@ -1,3 +1,4 @@
+import { captureExternalError } from "../services/errorTracking.service.js";
 import { safeConsole } from "../helpers/logging/safeLogger.js";
 import IntegrationConnection from "../models/integrationConnection.js";
 import { getJobberSettings } from "../services/integrations/integrationSettings.service.js";
@@ -50,10 +51,12 @@ export const runIntegrationMaintenance = async () => {
 export const startIntegrationMaintenanceWorker = async () => {
   if (process.env.INTEGRATION_WORKER_ENABLED === "false" || timer) return;
   await runIntegrationMaintenance().catch((error) => {
+    captureExternalError(error);
     safeConsole.error("Integration maintenance startup failed:", error.message);
   });
   timer = setInterval(() => {
     void runIntegrationMaintenance().catch((error) => {
+    captureExternalError(error);
       safeConsole.error("Integration maintenance failed:", error.message);
     });
   }, intervalMs);

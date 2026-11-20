@@ -1,3 +1,4 @@
+import { captureExternalError, trackWorkerFailure } from "../services/errorTracking.service.js";
 import { withSmsTenantSlot, recordSmsProcessingDuration, recordSmsTenantDeferral } from "../services/scale/smsTenantFairness.service.js";
 import { withDeadline } from "../services/boundedRedis.service.js";
 import { withDistributedLease, assertDistributedLeaseActive, invalidateDistributedLease, registerDistributedLeaseGuard } from "../services/distributedLease.service.js";
@@ -73,6 +74,7 @@ const processWithHeartbeat = async (job) => {
       if (Date.now() >= jobExpiresAt || (result !== true && result?.matchedCount !== 1)) throw Object.assign(new Error("SMS job lease lost"), { code: "DISTRIBUTED_LEASE_LOST" });
       jobExpiresAt = startedAt + jobTtlMs;
     }).catch((error) => {
+    captureExternalError(error);
       heartbeatError = Object.assign(new Error("SMS job lease could not be renewed"), { code: "DISTRIBUTED_LEASE_LOST", cause: error });
       invalidateDistributedLease("SMS job lease could not be renewed");
       logOperationalError("sms.processing_worker.heartbeat_failed", error, {
@@ -131,11 +133,11 @@ const processConversationJob = async (job) => {
 
 
   } catch (error) {
-    const failed = await failInboundSmsJob({
+    const failed = await trackWorkerFailure(error, () => failInboundSmsJob({
       job,
       leaseToken: job.leaseToken,
       error,
-    });
+    }));
     if (failed?.status === "dead") {
       await AlertService.createSystemAlert({
         businessId: job.business,
@@ -148,6 +150,7 @@ const processConversationJob = async (job) => {
           conversationId: String(job.conversation),
           inboundMessageId: String(job.inboundMessage),
           attempts: failed.attemptCount,
+          errorCode: error.code,
         },
         dedupeKey: `sms_processing_dead:${job._id}`,
       });
@@ -228,6 +231,7 @@ const scheduleNext = (delayMs = intervalMs()) => {
         scheduleNext(saturated ? busyDelayMs() : intervalMs());
       }
     } catch (error) {
+    captureExternalError(error);
       logOperationalError("sms.processing_worker.failed", error);
       if (timer) scheduleNext(intervalMs());
     }

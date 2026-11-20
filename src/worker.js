@@ -1,3 +1,4 @@
+import { captureExternalError, flushExternalErrors } from "./services/errorTracking.service.js";
 import { assertStandaloneRuntime } from "./config/startupAssertions.js";
 import { startAdminReportingWorker, stopAdminReportingWorker } from "./workers/adminReporting.worker.js";
 import { assertScaleProfile } from './config/scaleProfile.js';
@@ -123,6 +124,7 @@ const shutdown = async (signal, exitCode = 0) => {
     try {
       await Promise.resolve(stop());
     } catch (error) {
+    captureExternalError(error);
       safeConsole.error(`Failed stopping ${name} worker:`, error);
       exitCode = 1;
     }
@@ -143,10 +145,12 @@ const shutdown = async (signal, exitCode = 0) => {
   await closeSocketRedisAdapter();
   await closeScaleCache();
   await mongoose.connection.close().catch((error) => {
+    captureExternalError(error);
     safeConsole.error("MongoDB close failed:", error);
     exitCode = 1;
   });
 
+  await flushExternalErrors();
   process.exitCode = exitCode;
 };
 
@@ -193,15 +197,18 @@ if (!workerBootTestMode) {
   process.once("SIGINT", () => void shutdown("SIGINT"));
 
   process.on("unhandledRejection", (error) => {
+    captureExternalError(error);
     safeConsole.error("Unhandled worker rejection:", error);
     void shutdown("unhandledRejection", 1);
   });
   process.on("uncaughtException", (error) => {
+    captureExternalError(error);
     safeConsole.error("Uncaught worker exception:", error);
     void shutdown("uncaughtException", 1);
   });
 
   void startWorkerProcess().catch((error) => {
+    captureExternalError(error);
     safeConsole.error("Worker startup failed:", error);
     void shutdown("startupFailure", 1);
   });

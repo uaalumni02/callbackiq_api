@@ -1,3 +1,5 @@
+import AlertService from "../services/alert.service.js";
+import { captureExternalError } from "../services/errorTracking.service.js";
 import { saveStateDocument } from '../services/stateTransitions/documents.js';
 import ExternalRecordMapping from "../models/externalRecordMapping.js";
 import IntegrationConnection from "../models/integrationConnection.js";
@@ -70,10 +72,17 @@ export const processIntegrationWebhookEvent = async (eventId) => {
     event.processedAt = new Date();
     event.errorMessage = "";
   } catch (error) {
+    captureExternalError(error);
     event.status = "failed";
     event.errorMessage = String(error.message || error).slice(0, 2000);
   }
   await saveStateDocument(event);
+  if (event.status === 'failed' && event.attempts >= 6 && event.business) {
+    await AlertService.createSystemAlert({ businessId: event.business,
+      title: 'Integration job needs review', message: 'An integration operation exhausted its retry budget. Review its status before retrying.',
+      priority: 'high', dedupeKey: `integration_dead:${event._id}`,
+      metadata: { jobId: String(event._id), errorCode: 'INTEGRATION_RETRY_EXHAUSTED' } });
+  }
   return event;
 };
 

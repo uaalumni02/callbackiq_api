@@ -1,3 +1,4 @@
+import { captureExternalError } from "../services/errorTracking.service.js";
 import { withDeadline } from '../services/boundedRedis.service.js';
 import { markAutomationStarted, markAutomationStopped, markAutomationTick } from '../services/automationReadiness.service.js';
 import { safeConsole } from "../helpers/logging/safeLogger.js";
@@ -89,6 +90,7 @@ export const processNextAutomationJob = async () => {
   try {
     return await AutomationService.execute(job);
   } catch (error) {
+    captureExternalError(error);
     safeConsole.error("Automation job execution failed:", {
       jobId: String(job._id),
       error: error.message,
@@ -110,6 +112,7 @@ const maintainGoogleWatches = async () => {
         safeConsole.error("Google Calendar watch renewal failures:", failures);
       }
     } catch (error) {
+    captureExternalError(error);
       safeConsole.error("Google Calendar watch maintenance failed:", error);
     }
   }
@@ -120,6 +123,7 @@ const maintainGoogleWatches = async () => {
       safeConsole.error("Google Calendar orphan sweep failures:", failures);
     }
   } catch (error) {
+    captureExternalError(error);
     safeConsole.error("Google Calendar orphan sweep failed:", error);
   }
 };
@@ -129,10 +133,12 @@ const performTick = async ({ includeIntegrationMaintenance = true } = {}) => {
   running = true;
   try {
     try { await recoverAbandonedWork(); }
-    catch (error) { safeConsole.error("Automation lock recovery failed:", error); }
+    catch (error) {
+    captureExternalError(error); safeConsole.error("Automation lock recovery failed:", error); }
     // A maintenance failure must not prevent already-queued confirmations.
     try { await AppointmentService.releaseExpiredHolds(); }
-    catch (error) { safeConsole.error('Appointment maintenance failed:', error); }
+    catch (error) {
+    captureExternalError(error); safeConsole.error('Appointment maintenance failed:', error); }
     await processDueAppointmentNotifications(
       Math.max(1, Math.min(500, Number(process.env.APPOINTMENT_NOTIFICATION_BATCH_SIZE) || 100)),
       { concurrency: Math.max(1, Math.min(10, Number(process.env.APPOINTMENT_NOTIFICATION_CONCURRENCY) || 3)) },
@@ -142,6 +148,7 @@ const performTick = async ({ includeIntegrationMaintenance = true } = {}) => {
         await scanRevenueRescueDeadlines();
         await runDueRevenueCampaigns(5);
       } catch (error) {
+    captureExternalError(error);
         safeConsole.error('Revenue automation tick failed:', { code: error?.code || 'RECOVERY_TICK_FAILED' });
       }
     }
@@ -150,7 +157,7 @@ const performTick = async ({ includeIntegrationMaintenance = true } = {}) => {
       maintenanceActive = (async () => {
         await processQueuedIntegrationWebhooks(25);
         await maintainGoogleWatches();
-      })().catch(error => safeConsole.error('Integration maintenance failed:', error))
+      })().catch(error => { captureExternalError(error); return safeConsole.error('Integration maintenance failed:', error); })
         .finally(() => { maintenanceActive = null; });
     }
 
@@ -161,6 +168,7 @@ const performTick = async ({ includeIntegrationMaintenance = true } = {}) => {
       processed += 1;
     }
   } catch (error) {
+    captureExternalError(error);
     markAutomationTick(false);
     safeConsole.error("Automation worker tick failed:", error);
   } finally {

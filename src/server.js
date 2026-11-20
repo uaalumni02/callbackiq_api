@@ -1,3 +1,4 @@
+import { captureExternalError, flushExternalErrors } from "./services/errorTracking.service.js";
 import { assertStandaloneRuntime } from "./config/startupAssertions.js";
 import { startAdminReportingWorker, stopAdminReportingWorker } from "./workers/adminReporting.worker.js";
 import { assertScaleProfile } from './config/scaleProfile.js';
@@ -195,8 +196,10 @@ const shutdown = async (signal, exitCode = 0) => {
     }
     clearTimeout(forcedExitTimer);
     safeConsole.log("CallBackIQ API shut down cleanly.");
+    await flushExternalErrors();
     process.exit(exitCode);
   } catch (error) {
+    captureExternalError(error);
     clearTimeout(forcedExitTimer);
     safeConsole.error("Error during graceful shutdown:", error);
     process.exit(1);
@@ -206,10 +209,12 @@ const shutdown = async (signal, exitCode = 0) => {
 process.on("SIGTERM", () => void shutdown("SIGTERM"));
 process.on("SIGINT", () => void shutdown("SIGINT"));
 process.on("unhandledRejection", (error) => {
+    captureExternalError(error);
   safeConsole.error("Unhandled promise rejection:", error);
   void shutdown("unhandledRejection", 1);
 });
 process.on("uncaughtException", (error) => {
+    captureExternalError(error);
   safeConsole.error("Uncaught exception:", error);
   void shutdown("uncaughtException", 1);
 });

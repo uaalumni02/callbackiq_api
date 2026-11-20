@@ -1,3 +1,4 @@
+import { captureExternalError } from "../services/errorTracking.service.js";
 import { reconcileTrackingNumberReleases } from '../services/trackingNumberProvisioning.service.js';
 import { reconcileTrialExtensions } from '../services/trialExtension.service.js';
 import { workerSetting } from '../config/workerSettings.js';
@@ -45,9 +46,11 @@ export const startTrialLifecycleWorker = async () => {
   if (process.env.NODE_ENV === "test" || timer) return;
 
   await runTrialLifecycleOnce().catch((error) => {
+    captureExternalError(error);
     safeConsole.error("Initial trial lifecycle run failed:", error);
   });
   await runSubscriptionIntegrityOnce({ force: true }).catch((error) => {
+    captureExternalError(error);
     safeConsole.error("Initial Stripe billing integrity run failed:", error);
   });
 
@@ -55,9 +58,11 @@ export const startTrialLifecycleWorker = async () => {
 
   timer = setInterval(() => {
     void runTrialLifecycleOnce().catch((error) => {
+    captureExternalError(error);
       safeConsole.error("Trial lifecycle worker failed:", error);
     });
     void runSubscriptionIntegrityOnce().catch((error) => {
+    captureExternalError(error);
       safeConsole.error("Stripe billing integrity worker failed:", error);
     });
   }, intervalMs);

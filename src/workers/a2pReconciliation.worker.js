@@ -1,3 +1,4 @@
+import { captureExternalError } from "../services/errorTracking.service.js";
 import A2pCustomerRegistration from "../models/a2pCustomerRegistration.js";
 import { syncA2pCustomerRegistration } from "../services/a2pCustomerOnboarding.service.js";
 import { withDistributedLease } from "../services/distributedLease.service.js";
@@ -71,6 +72,7 @@ export const runA2pReconciliationCycle = async () => {
       );
         if (String(result?.status || "") !== before) summary.advanced += 1;
       } catch (error) {
+    captureExternalError(error);
         summary.failed += 1;
         logOperationalError("a2p.reconciliation.business_failed", error, {
           businessId: registration.business,
@@ -89,6 +91,7 @@ export const runA2pReconciliationCycle = async () => {
 
 const queueCycle = () => {
   void runA2pReconciliationCycle().catch((error) => {
+    captureExternalError(error);
     logOperationalError("a2p.reconciliation.cycle_failed", error, {});
   });
 };

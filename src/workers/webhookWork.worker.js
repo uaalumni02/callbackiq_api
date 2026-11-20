@@ -1,3 +1,4 @@
+import { captureExternalError } from "../services/errorTracking.service.js";
 import { workerSetting } from '../config/workerSettings.js';
 import WebhookWork from "../models/webhookWork.js";
 import { claimWebhookWork } from "../services/webhooks/webhookWork.service.js";
@@ -12,7 +13,7 @@ export const processWebhookWork = async (job) => {
   const identity = { _id: job._id, status: "processing", leaseToken: job.leaseToken };
   const heartbeat = setInterval(() => {
     void WebhookWork.updateOne(identity, { $set: { leaseUntil: new Date(Date.now() + 120000) } })
-      .catch(error => logOperationalError("webhook_work.heartbeat_failed", error, { jobId: job._id }));
+      .catch(error => { captureExternalError(error); return logOperationalError("webhook_work.heartbeat_failed", error, { jobId: job._id }); });
   }, 30000);
   heartbeat.unref?.();
   try {
@@ -29,6 +30,7 @@ export const processWebhookWork = async (job) => {
     } else throw new Error("Unsupported webhook job type");
     await WebhookWork.updateOne(identity, { $set: { status: "completed", completedAt: new Date() }, $unset: { leaseToken: 1, leaseUntil: 1 } });
   } catch (error) {
+    captureExternalError(error);
     const dead = job.attempts >= 8 || error.deliveryUncertain === true;
     const outcome = await WebhookWork.updateOne(identity, { $set: {
       status: dead ? "dead" : "queued", lastErrorCode: String(error.code || "PROCESSING_FAILED").slice(0, 120),
@@ -36,7 +38,7 @@ export const processWebhookWork = async (job) => {
     }, $unset: { leaseToken: 1, leaseUntil: 1 } });
     if (dead && outcome.matchedCount > 0) await AlertService.createSystemAlert({ businessId: job.business, title: "Customer follow-up needs review",
       message: "A background customer recovery operation could not complete. Review the conversation before sending again.",
-      priority: "high", metadata: { jobId: job._id, kind: job.kind }, dedupeKey: `webhook-work:${job._id}` });
+      priority: "high", metadata: { jobId: job._id, kind: job.kind, errorCode: error.code }, dedupeKey: `webhook-work:${job._id}` });
     logOperationalError("webhook_work.failed", error, { jobId: job._id });
   } finally { clearInterval(heartbeat); }
 };
@@ -57,7 +59,8 @@ export const startWebhookWorkWorker = async () => {
   if (timer) return;
   stopping = false;
   const tick = async () => {
-    try { await drainWebhookWorkOnce(); } catch (error) { logOperationalError("webhook_work.poll_failed", error); }
+    try { await drainWebhookWorkOnce(); } catch (error) {
+    captureExternalError(error); logOperationalError("webhook_work.poll_failed", error); }
     if (!stopping) { timer = setTimeout(tick, 250); timer.unref?.(); }
   };
   timer = setTimeout(tick, 0); timer.unref?.();
