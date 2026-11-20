@@ -1,3 +1,4 @@
+import { assertStandaloneRuntime } from "./config/startupAssertions.js";
 import { startAdminReportingWorker, stopAdminReportingWorker } from "./workers/adminReporting.worker.js";
 import { assertScaleProfile } from './config/scaleProfile.js';
 import { startProcessHeartbeat, stopProcessHeartbeat } from './services/processHeartbeat.service.js';
@@ -158,6 +159,7 @@ export const startWorkerProcess = async ({
     SocketService.initialize(workerIo);
   },
 } = {}) => {
+  assertStandaloneRuntime();
   normalizeRuntimeEnvironment();
   validateEnvironment(process.env, { throwOnError: true });
   assertRealtimeScalingConfig();

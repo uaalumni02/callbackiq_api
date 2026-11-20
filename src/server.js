@@ -1,3 +1,4 @@
+import { assertStandaloneRuntime } from "./config/startupAssertions.js";
 import { startAdminReportingWorker, stopAdminReportingWorker } from "./workers/adminReporting.worker.js";
 import { assertScaleProfile } from './config/scaleProfile.js';
 import { startProcessHeartbeat, stopProcessHeartbeat } from './services/processHeartbeat.service.js';
@@ -214,6 +215,7 @@ process.on("uncaughtException", (error) => {
 });
 
 const startServer = async () => {
+  assertStandaloneRuntime();
     // CALLBACKIQ_STARTUP_HARDENING_V1
   normalizeRuntimeEnvironment();
   validateEnvironment(process.env, { throwOnError: true });
