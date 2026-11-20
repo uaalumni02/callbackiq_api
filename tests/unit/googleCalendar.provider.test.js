@@ -107,7 +107,7 @@ describe("GoogleCalendarProvider", () => {
         method: "POST",
         body: expect.objectContaining({
           summary: "Drain cleaning — Jane",
-          description: expect.stringContaining("CallBackIQ appointment: a1"),
+          description: expect.stringContaining("MeekCall appointment: a1"),
           start: { dateTime: "2026-07-27T17:00:00.000Z", timeZone: "America/New_York" },
           attendees: [{ email: "jane@example.com" }],
         }),

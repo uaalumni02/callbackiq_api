@@ -61,7 +61,7 @@ const requireBusinessCallerId = (value, trackingStatus = "active") => {
   if (!callerId || String(trackingStatus || "") !== "active") {
     throw callError(
       "OWNER_BROWSER_CALL_CALLER_ID_NOT_CONFIGURED",
-      "This business needs an active CallBackIQ tracking number before browser calling can be used.",
+      "This business needs an active MeekCall tracking number before browser calling can be used.",
       409,
     );
   }
@@ -263,7 +263,7 @@ const buildFailureTwiml = () => {
   const response = new twilio.twiml.VoiceResponse();
   response.say(
     { voice: "alice" },
-    "We could not connect this CallBackIQ customer call. Please try again.",
+    "We could not connect this MeekCall customer call. Please try again.",
   );
   response.hangup();
   return response.toString();

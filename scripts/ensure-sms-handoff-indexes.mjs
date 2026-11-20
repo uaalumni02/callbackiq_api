@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-// CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1
 // Creates or verifies the MongoDB indexes required by the production SMS handoff flow.
 
 import process from "node:process";

@@ -64,7 +64,6 @@ const NEW_SERVICE = [
  * with Voice so the same customer wording always reaches the calendar.
  */
 
-// CALLBACKIQ_BOOKING_RECOVERY_FIX_V2: compound turns keep urgency independent from booking intent.
 const extractUrgency = (text) => classifyOperationalUrgency(text);
 
 const BOOKING_REQUEST = /\b(?:book|booking|schedule|scheduling|appointment|availability|available|set up (?:a )?(?:visit|appointment)|come out|service visit)\b/i;

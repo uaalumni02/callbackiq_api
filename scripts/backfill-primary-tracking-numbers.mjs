@@ -1,4 +1,3 @@
-// CALLBACKIQ_MARKETING_ATTRIBUTION_V1
 import "dotenv/config";
 import connectDB from "../src/db/connection.js";
 import Business from "../src/models/business.js";

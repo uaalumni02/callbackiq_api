@@ -20,8 +20,8 @@ export function upsertCallbackReview({ Alert, businessId, canceled, clean, conve
         message: canceled
           ? "The caller canceled before submitting the callback request. Partial details were retained for review."
           : priority === "critical"
-            ? "A caller reported a potential emergency or safety risk. Review immediately, but the caller was told not to wait for a callback or use CallBackIQ instead of emergency services."
-            : `CallBackIQ captured a callback request for ${state.serviceNeeded || "a customer inquiry"}.`,
+            ? "A caller reported a potential emergency or safety risk. Review immediately, but the caller was told not to wait for a callback or use MeekCall instead of emergency services."
+            : `MeekCall captured a callback request for ${state.serviceNeeded || "a customer inquiry"}.`,
         status: "pending",
         priority,
         actionRequired: !canceled,
@@ -144,8 +144,8 @@ export function upsertVoiceHandoffReview({ Alert, alertType, customerMessage, pr
               : "Voice caller needs a person",
           message:
             priority === "critical"
-              ? "A voice caller reported a possible safety emergency. CallBackIQ preserved the context and requested a live handoff without assuming staff accepted it."
-              : "The caller requested a person. CallBackIQ requested a screened live handoff and preserved the context; ownership is not assigned until staff accepts.",
+              ? "A voice caller reported a possible safety emergency. MeekCall preserved the context and requested a live handoff without assuming staff accepted it."
+              : "The caller requested a person. MeekCall requested a screened live handoff and preserved the context; ownership is not assigned until staff accepts.",
           status: "pending",
           priority,
           actionRequired: true,
@@ -196,7 +196,7 @@ export function createVoiceLead({ Lead, business, storedCaller, usableCaller }) 
           valuation: { source: "unknown", basis: "Not estimated" },
           valuationVersion: 0,
           notes: usableCaller
-            ? "Lead created automatically from a CallBackIQ voice session."
+            ? "Lead created automatically from a MeekCall voice session."
             : "Lead created from a blocked or unavailable caller ID. Obtain and confirm a callback number before promising follow-up.",
         }));
 }

@@ -10,7 +10,6 @@ let timer, active;
 const id = crypto.randomUUID();
 export function startProcessHeartbeat() {
   const role = process.env.PROCESS_ROLE || 'all';
-  // CALLBACKIQ_HEARTBEAT_ROLES_V1: emit heartbeat for all deployed worker roles.
   if (timer || (!process.env.SCALE_PROFILE && role !== 'all' && !role.startsWith('worker'))) return;
   const tick = () => {
     if (active) return;

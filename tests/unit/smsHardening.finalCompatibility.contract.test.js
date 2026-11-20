@@ -23,7 +23,7 @@ describe("SMS hardening final compatibility contracts", () => {
   test("full-flow queue coverage supplies a deterministic assessment", () => {
     const source = read("tests/integration/smsRecovery.fullFlow.test.js");
 
-    expect(source).toContain("CALLBACKIQ_FULL_FLOW_GUARDRAIL_DEFAULT");
+    expect(source).not.toContain("CALLBACKIQ_FULL_FLOW_GUARDRAIL_DEFAULT");
     expect(source).toContain('alertPriority: "medium"');
     expect(source).toContain("riskFlags: []");
   });

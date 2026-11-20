@@ -209,7 +209,7 @@ const runMiddleware = (middleware, req) =>
     ).catch(reject);
   });
 
-describe("CallBackIQ SMS 10/10 adversarial Mongo certification", () => {
+describe("MeekCall SMS 10/10 adversarial Mongo certification", () => {
   test("1. stale WebhookEvent owner cannot settle a reclaimed lease", async () => {
     const business = await createBusiness();
     const input = webhookClaimInput(business._id, "SM_STALE_OWNER");

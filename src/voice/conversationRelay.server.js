@@ -39,7 +39,6 @@ export const initializeConversationRelayServer = (
   const cleanupTasks = new Set();
   registerVoiceSnapshot(admissionController.snapshot);
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_FRAME_BYTES });
-  // CALLBACKIQ_PRODUCTION_READINESS: distributed expiring admission leases.
   const upgradeHandler = async (request, socket, head) => {
     let pathname;
     try {

@@ -1,5 +1,4 @@
 import { createAwaitedInsertBatch } from '../database/awaitedInsertBatch.js';
-// CALLBACKIQ_WEBHOOK_SETTLEMENT_V2
 import { settleWebhookEvent } from "./webhookSettlementBatch.service.js";
 import { readOnlySnapshot } from "../database/readOnlySnapshot.js";
 import { sameTurnBatch } from "../database/sameTurnBatch.js";

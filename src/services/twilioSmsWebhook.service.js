@@ -1,5 +1,4 @@
 import { twilioSmsWebhookUpdateConversationLastMessageConversationUpdateById, twilioSmsWebhookHandleInboundSmsWebhookConversationUpdateById } from './stateTransitions/customerRequest.js';
-// CALLBACKIQ_SMS_PERSISTENCE_V2
 import { persistInboundSmsMessage } from "./messaging/smsIngressPersistence.service.js";
 import { readOnlySnapshot } from "./database/readOnlySnapshot.js";
 import { startSingleFlightHeartbeat } from "./webhooks/singleFlightHeartbeat.js";
@@ -9,7 +8,6 @@ import Business from "../models/business.js";
 import Lead from "../models/lead.js";
 import { durableWebhookWorkEnabled, enqueueWebhookWork } from "./webhooks/webhookWork.service.js";
 import { claimRecoveryIntroduction } from "./messaging/recoveryIntroduction.service.js";
-// CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1: webhook
 import { processInlineInboundSmsJob } from "./messaging/inlineSmsProcessing.service.js";
 import CallLog from "../models/callLog.js";
 import Conversation from "../models/conversation.js";
@@ -40,7 +38,7 @@ import { getOrCreateSmsLeadAndConversation } from "./messaging/smsConversation.s
 import { enqueueInboundSmsJob } from "./messaging/smsProcessingQueue.service.js";
 import { processTwilioMessageStatus } from "./messaging/smsDeliveryStatus.service.js";
 import { resolveBusinessByTwilioNumber, resolveBusinessFromWebhookPhones, resolveTwilioNumberContext } from "./twilioBusinessResolver.service.js";
-import { syncLatestAttribution } from "./marketingAttribution.service.js"; // CALLBACKIQ_MARKETING_ATTRIBUTION_V1
+import { syncLatestAttribution } from "./marketingAttribution.service.js";
 import { executeManualSmsOperation } from "./messaging/manualSmsOperation.service.js";
 import { resolveBusinessForTwilioStatus } from "./twilioStatusBusinessResolver.service.js";
 import { processTwilioCallStatus } from "./twilioCallStatus.service.js";
@@ -59,7 +57,7 @@ const routingFailure = (res, receivedNumber, webhook) => {
     to: number,
     code: "TWILIO_NUMBER_NOT_MAPPED",
   });
-  res.set("X-CallBackIQ-Routing-Error", "TWILIO_NUMBER_NOT_MAPPED");
+  res.set("X-MeekCall-Routing-Error", "TWILIO_NUMBER_NOT_MAPPED");
   return sendXml(res, { statusCode: 404 });
 };
 
@@ -322,7 +320,7 @@ export const handleSmsRecoveryVoiceWebhook = async (req, res) => {
           missedCallTextSent: false,
           missedCallTextDelivered: false,
           recovered: false,
-          notes: "Missed call forwarded to CallBackIQ Twilio number.",
+          notes: "Missed call forwarded to MeekCall Twilio number.",
         },
       },
       { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
@@ -369,7 +367,6 @@ export const handleSmsRecoveryVoiceWebhook = async (req, res) => {
     if (failedWrite) throw failedWrite.reason;
 
     const smsFeatureEnabled = isBusinessFeatureEnabled(business, "missedCallSmsEnabled");
-    // CALLBACKIQ_SMS_TAKEOVER_LIFECYCLE
     // Never invite a customer to reply to an automated recovery text while the
     // conversation is intentionally owned by a human or otherwise AI-ineligible.
     const recoveryAutomationEligible =
@@ -420,7 +417,6 @@ export const handleTwilioStatusWebhook = async (req, res) => {
   let webhookEvent = null;
   let webhookLeaseToken = "";
   try {
-    // CALLBACKIQ_PRODUCTION_READINESS: provider record is authoritative.
     const business =
       (await resolveBusinessForTwilioStatus(req.body)) ||
       (await resolveBusinessFromWebhookPhones([
@@ -493,7 +489,6 @@ export const handleInboundSmsWebhook = async (req, res) => {
     const body = String(req.body.Body || "").trim();
     const media = parseInboundTwilioMedia(req.body);
     const providerMessageId = String(req.body.MessageSid || req.body.SmsSid || "").trim();
-    // CALLBACKIQ_TWILIO_OPTOUTTYPE_INGRESS
     const twilioOptOutType = String(req.body.OptOutType || "").trim();
     const commandClassification = body
       ? classifyInboundSmsCommand(body, { twilioOptOutType })
@@ -576,7 +571,6 @@ export const handleInboundSmsWebhook = async (req, res) => {
     const postHandoffStatusEligible =
       conversation.humanTakeover === true &&
       isHumanHandoffStatusQuestion(body);
-    // CALLBACKIQ_DURABLE_PROCESSING_INTENT
     const processingRequired =
       !commandClassification.handled &&
       !mediaOnly &&
@@ -603,7 +597,6 @@ export const handleInboundSmsWebhook = async (req, res) => {
     const inboundMessage = await readOnlySnapshot(Message, persistInboundSmsMessage(
       { business: business._id, providerMessageId },
       {
-        // CALLBACKIQ_DURABLE_MESSAGE_INTENT
         // Refresh processing intent even when a failed webhook reclaims an
         // inbound Message that was already persisted before the failure.
         $set: {
@@ -641,7 +634,6 @@ export const handleInboundSmsWebhook = async (req, res) => {
       inboundSafety: { body, assessment: inboundSafetyAssessment },
     });
 
-    // CALLBACKIQ_IDEMPOTENT_COMMAND_MMS_REPLY
     if (commandClassification.handled) {
       const commandResult = await processInboundSmsCommand({
         businessId: business._id,

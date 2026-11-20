@@ -60,7 +60,7 @@ export const createSmsOutboundDelivery = ({ Message, Conversation, AlertService,
       businessId: business._id,
       title: "SMS delivery needs review",
       message:
-        "An AI reply may have reached the customer, but CallBackIQ could not confirm the provider result. Review the conversation before sending again.",
+        "An AI reply may have reached the customer, but MeekCall could not confirm the provider result. Review the conversation before sending again.",
       priority: "high",
       metadata: {
         conversationId: String(conversation._id),
@@ -250,7 +250,7 @@ export const createSmsOutboundDelivery = ({ Message, Conversation, AlertService,
       await AlertService.createSystemAlert({
         businessId: business._id,
         title: "SMS provider outcome requires reconciliation",
-        message: "CallBackIQ blocked an automatic resend because Twilio may have accepted the reply. Review provider reconciliation before sending again.",
+        message: "MeekCall blocked an automatic resend because Twilio may have accepted the reply. Review provider reconciliation before sending again.",
         priority: "high",
         metadata: {
           conversationId: String(conversation._id),

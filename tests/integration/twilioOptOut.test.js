@@ -161,7 +161,7 @@ describe("Twilio SMS opt-out handling", () => {
     expect(conversationAfterStop.aiEnabled).toBe(false);
 
     /*
-     * Twilio owns the exact STOP keyword confirmation. CallBackIQ persists
+     * Twilio owns the exact STOP keyword confirmation. MeekCall persists
      * the local opt-out but must not send a duplicate confirmation.
      */
     expect(mockTwilioMessageCreate).toHaveBeenCalledTimes(0);
@@ -243,7 +243,7 @@ describe("Twilio SMS opt-out handling", () => {
     expect(generateAIReplyResult).not.toHaveBeenCalled();
 
     /*
-     * Twilio owns the exact HELP keyword response, so CallBackIQ must not
+     * Twilio owns the exact HELP keyword response, so MeekCall must not
      * create a second provider message or persist a duplicate outbound reply.
      */
     expect(mockTwilioMessageCreate).toHaveBeenCalledTimes(0);
@@ -262,8 +262,7 @@ describe("Twilio SMS opt-out handling", () => {
     ).toBe(0);
   });
 
-  test("START after a natural-language opt-out restores SMS and receives a CallBackIQ confirmation", async () => {
-    // CALLBACKIQ_SOFT_OPTOUT_START_REGRESSION
+  test("START after a natural-language opt-out restores SMS and receives a MeekCall confirmation", async () => {
     const business = await createBusiness();
 
     const softStopResponse = await sendSmsWebhook(
@@ -284,7 +283,7 @@ describe("Twilio SMS opt-out handling", () => {
     expect(preference.source).toBe("customer_request");
 
     /*
-     * The soft opt-out is CallBackIQ-managed, so its confirmation is an
+     * The soft opt-out is MeekCall-managed, so its confirmation is an
      * application send rather than a Twilio-owned keyword confirmation.
      */
     expect(mockTwilioMessageCreate).toHaveBeenCalledTimes(1);
@@ -307,7 +306,7 @@ describe("Twilio SMS opt-out handling", () => {
 
     /*
      * Because Twilio never had a STOP block for the natural-language
-     * opt-out, CallBackIQ owns this START confirmation.
+     * opt-out, MeekCall owns this START confirmation.
      */
     expect(mockTwilioMessageCreate).toHaveBeenCalledTimes(2);
 
@@ -398,7 +397,6 @@ describe("Twilio SMS opt-out handling", () => {
 
     expect(criticalAlert).toBeTruthy();
     expect(criticalAlert.priority).toBe("critical");
-    // CALLBACKIQ_SMS_EMERGENCY_ALERT_CONTRACT_V1_0_3
     expect(criticalAlert.type).toBe("safety_emergency");
     expect(criticalAlert.actionRequired).toBe(true);
     expect(criticalAlert.dueAt).toBeTruthy();

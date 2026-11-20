@@ -1,4 +1,3 @@
-// CALLBACKIQ_SCALE_HARDENING_V1
 import "dotenv/config";
 import mongoose from "mongoose";
 

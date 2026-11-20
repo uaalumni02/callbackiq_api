@@ -131,7 +131,7 @@ const createCalendarConflict = async ({ appointment, event, reason }) => {
     type: "booking_conflict",
     title: "Google Calendar change needs review",
     message:
-      "A CallBackIQ appointment was changed directly in Google Calendar and could not be reconciled safely.",
+      "A MeekCall appointment was changed directly in Google Calendar and could not be reconciled safely.",
     priority: "high",
     reason,
     recommendedAction:

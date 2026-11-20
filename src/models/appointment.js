@@ -126,7 +126,6 @@ const AppointmentSchema = new Schema(
       }, { _id: false }), default: null,
     },
 
-    // CALLBACKIQ_MARKETING_ATTRIBUTION_V1: immutable booking attribution snapshot.
     marketingSource: {
       type: Schema.Types.ObjectId,
       ref: "MarketingSource",

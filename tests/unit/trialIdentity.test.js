@@ -19,7 +19,7 @@ describe("trial identity hardening", () => {
     );
   });
 
-  test("uses the forwarding phone instead of the CallBackIQ tracking number", () => {
+  test("uses the forwarding phone instead of the MeekCall tracking number", () => {
     const identity = buildTrialIdentity(
       {
         email: "owner@example.com",

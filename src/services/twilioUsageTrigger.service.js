@@ -20,14 +20,14 @@ export const ensureAccountUsageTriggers = async ({
   const twilioClient = client();
   const requested = [
     {
-      friendlyName: "CallBackIQ daily voice spend guard",
+      friendlyName: "MeekCall daily voice spend guard",
       recurring: "daily",
       triggerBy: "price",
       triggerValue: String(dailyVoiceDollars),
       usageCategory: "calls",
     },
     {
-      friendlyName: "CallBackIQ monthly voice spend guard",
+      friendlyName: "MeekCall monthly voice spend guard",
       recurring: "monthly",
       triggerBy: "price",
       triggerValue: String(monthlyVoiceDollars),

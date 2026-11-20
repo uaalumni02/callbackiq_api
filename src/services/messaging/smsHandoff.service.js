@@ -3,7 +3,6 @@ import { smsContactControlKind } from './smsContactControl.service.js';
 import { confirmationFollowUpReply } from '../booking/confirmationFollowUp.service.js';
 import { respectCustomerConstraints, currentConstraints } from '../conversationCondition.service.js';
 import { isCallbackRequestText } from './customerContactIntent.service.js';
-// CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1
 // Delivery-safe human handoff helpers for production SMS conversations.
 import {
   hasUnverifiedStaffCommitment,
@@ -146,7 +145,7 @@ export const ensureUrgentOperationalResult = ({
     alertPriority: "high",
     alertTitle: "Urgent customer request",
     alertMessage:
-      "Review the latest SMS. CallBackIQ is continuing the customer conversation unless a person explicitly takes over.",
+      "Review the latest SMS. MeekCall is continuing the customer conversation unless a person explicitly takes over.",
   };
 };
 
@@ -242,7 +241,7 @@ export const ensureHumanHandoffResult = ({
       safety ? "Urgent review required" : reason === "intake_complete" ? "Service request ready for team review" : "Customer requested human follow-up",
     alertMessage: reason === "intake_complete"
       ? "Intake is complete. Review the service details and preferred time; automated intake is paused while the request waits for staff."
-      : "Review the latest SMS and take ownership if available. CallBackIQ remains active until a person explicitly takes over.",
+      : "Review the latest SMS and take ownership if available. MeekCall remains active until a person explicitly takes over.",
     guardrail: {
       ...(result?.guardrail || {}),
       skipAI: true,

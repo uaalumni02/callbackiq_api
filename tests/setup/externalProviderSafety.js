@@ -40,7 +40,7 @@ export const isBlockedProviderHost = (hostname) => {
 
 const blockedError = (hostname) => {
   const error = new Error(
-    `External provider network access is blocked during CallBackIQ tests: ${hostname}. ` +
+    `External provider network access is blocked during MeekCall tests: ${hostname}. ` +
       "Mock the provider boundary instead of making a live request.",
   );
   error.code = "EXTERNAL_PROVIDER_NETWORK_BLOCKED";

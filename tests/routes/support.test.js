@@ -55,7 +55,7 @@ const registerAdmin = async ({
     userName,
     email,
     password: "LongFixturePassword123",
-    businessName: "CallBackIQ Admin",
+    businessName: "MeekCall Admin",
     businessPhone: "4045550000",
     businessType: "plumbing",
     smsConsent: true,

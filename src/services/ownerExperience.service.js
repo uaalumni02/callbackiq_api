@@ -17,19 +17,19 @@ const BOOKING_STAGE = {
   },
   collecting_service: {
     label: "Confirming service",
-    description: "CallBackIQ is confirming which service the customer needs.",
+    description: "MeekCall is confirming which service the customer needs.",
   },
   collecting_location: {
     label: "Collecting address",
-    description: "CallBackIQ is collecting the service address.",
+    description: "MeekCall is collecting the service address.",
   },
   collecting_street_address: {
     label: "Collecting address",
-    description: "CallBackIQ is collecting the service address.",
+    description: "MeekCall is collecting the service address.",
   },
   collecting_postal_code: {
     label: "Collecting ZIP code",
-    description: "CallBackIQ is validating the service area.",
+    description: "MeekCall is validating the service area.",
   },
   collecting_preference: {
     label: "Waiting for availability",
@@ -41,11 +41,11 @@ const BOOKING_STAGE = {
   },
   awaiting_confirmation: {
     label: "Waiting for confirmation",
-    description: "The customer selected a time and CallBackIQ is waiting for final confirmation.",
+    description: "The customer selected a time and MeekCall is waiting for final confirmation.",
   },
   booking: {
     label: "Confirming appointment",
-    description: "CallBackIQ is performing the final booking step.",
+    description: "MeekCall is performing the final booking step.",
   },
   pending_business_confirmation: {
     label: "Awaiting business confirmation",
@@ -176,7 +176,6 @@ const bookingEvidence = ({ lead, conversation, appointment }) => {
   };
 };
 
-// CALLBACKIQ_AUTHORITATIVE_OWNER_JOURNEY_V1
 const nextActionFor = ({
   business,
   lead,
@@ -245,7 +244,7 @@ const nextActionFor = ({
       kind: "approval",
       label: "Appointment approval ready",
       detail:
-        "CallBackIQ held a real slot. Review the request and accept or decline it from Appointments.",
+        "MeekCall held a real slot. Review the request and accept or decline it from Appointments.",
       requiresOwner: true,
       actionRequired: true,
     };
@@ -288,7 +287,7 @@ const nextActionFor = ({
       kind: "schedule",
       label: "Ready to schedule",
       detail:
-        "CallBackIQ collected the service, address, urgency context, and customer preference. Check real availability and choose a time.",
+        "MeekCall collected the service, address, urgency context, and customer preference. Check real availability and choose a time.",
       requiresOwner: false,
       actionRequired: true,
     };
@@ -299,7 +298,7 @@ const nextActionFor = ({
       kind: "customer",
       label: "Waiting for customer",
       detail:
-        "Open times were sent. CallBackIQ is waiting for the customer to choose one.",
+        "Open times were sent. MeekCall is waiting for the customer to choose one.",
       requiresOwner: false,
       actionRequired: false,
     };
@@ -310,7 +309,7 @@ const nextActionFor = ({
       kind: "customer",
       label: "Waiting for confirmation",
       detail:
-        "The customer selected a time. CallBackIQ is waiting for their final confirmation.",
+        "The customer selected a time. MeekCall is waiting for their final confirmation.",
       requiresOwner: false,
       actionRequired: false,
     };
@@ -321,7 +320,7 @@ const nextActionFor = ({
       kind: "automation",
       label: "Booking in progress",
       detail:
-        "CallBackIQ is performing the final availability and booking checks.",
+        "MeekCall is performing the final availability and booking checks.",
       requiresOwner: false,
       actionRequired: false,
     };
@@ -338,7 +337,7 @@ const nextActionFor = ({
   ) {
     return {
       kind: "automation",
-      label: "CallBackIQ is working",
+      label: "MeekCall is working",
       detail: stageDetail(evidence.stage),
       requiresOwner: false,
       actionRequired: false,
@@ -349,7 +348,7 @@ const nextActionFor = ({
     return {
       kind: "automation",
       label: "New customer request",
-      detail: "CallBackIQ is beginning recovery and qualification.",
+      detail: "MeekCall is beginning recovery and qualification.",
       requiresOwner: false,
       actionRequired: false,
     };
@@ -358,14 +357,14 @@ const nextActionFor = ({
   return {
     kind: "automation",
     label: "Recovery in progress",
-    detail: "CallBackIQ is continuing the customer conversation.",
+    detail: "MeekCall is continuing the customer conversation.",
     requiresOwner: false,
     actionRequired: false,
   };
 };
 
 const stageDetail = (stage) =>
-  BOOKING_STAGE[stage]?.description || "CallBackIQ is continuing the recovery workflow.";
+  BOOKING_STAGE[stage]?.description || "MeekCall is continuing the recovery workflow.";
 
 const serializeOpportunity = ({
   business,

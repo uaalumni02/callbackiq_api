@@ -165,7 +165,7 @@ const handleRelayMessage = async (raw) => {
 
         runtime.closeTransport(
           1000,
-          "CallBackIQ synthetic load test complete",
+          "MeekCall synthetic load test complete",
         );
 
         return;

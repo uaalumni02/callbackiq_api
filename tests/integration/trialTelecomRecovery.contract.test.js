@@ -266,7 +266,7 @@ describe("trial -> Stripe -> tracking number -> A2P -> missed-call SMS contract"
 
     /*
      * Sender-pool membership is intentionally not treated as carrier readiness.
-     * Exercise the real CallBackIQ A2P Event Streams endpoint with a sanitized
+     * Exercise the real MeekCall A2P Event Streams endpoint with a sanitized
      * Twilio-shaped number-registration.successful fixture before SMS recovery.
      */
     const a2pFixture = JSON.parse(

@@ -21,11 +21,11 @@ static async initial(req, res) {
 
       const business = await findBusiness(fields.to);
       if (!business) {
-        res.set("X-CallBackIQ-Routing-Error", "TWILIO_NUMBER_NOT_MAPPED");
+        res.set("X-MeekCall-Routing-Error", "TWILIO_NUMBER_NOT_MAPPED");
         return sendXml(
           res,
           sayTwiml(
-            "I’m sorry, this number is not configured for CallBackIQ voice handling.",
+            "I’m sorry, this number is not configured for MeekCall voice handling.",
           ),
           404,
         );

@@ -143,7 +143,7 @@ const render = (template, values) =>
 const requestDetails = ({ lead, service, settings }) =>
   [
     settings.defaultRequestDetails,
-    `CallBackIQ lead: ${lead._id}`,
+    `MeekCall lead: ${lead._id}`,
     `Customer: ${lead.customerName || lead.name || "Customer"}`,
     `Phone: ${lead.phone || ""}`,
     `Email: ${lead.email || ""}`,

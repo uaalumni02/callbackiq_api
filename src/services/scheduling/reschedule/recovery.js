@@ -39,8 +39,8 @@ async function recordIntervention({ business, original, replacement, key, handof
       conversationId: replacement.conversation, appointmentId: replacement._id, type: 'integration_failure',
       title: 'Appointment reschedule requires reconciliation',
       message: providerApplied
-        ? 'The calendar provider accepted the new appointment time, but CallBackIQ could not finish all local reschedule writes.'
-        : 'CallBackIQ could not conclusively determine the calendar provider outcome. The replacement slot remains held to prevent a conflicting booking.',
+        ? 'The calendar provider accepted the new appointment time, but MeekCall could not finish all local reschedule writes.'
+        : 'MeekCall could not conclusively determine the calendar provider outcome. The replacement slot remains held to prevent a conflicting booking.',
       priority: 'high', reason: error.message,
       recommendedAction: 'Retry the exact same reschedule operation before making another calendar change.',
       metadata: { provider: original.provider || 'internal', providerApplied,
@@ -65,7 +65,7 @@ export async function recoverReschedule(input, { Appointment, InterventionServic
   await recordIntervention(input, { InterventionService });
   error.statusCode = error.statusCode || 503;
   error.code = handoff?.applied ? 'RESCHEDULE_RECONCILIATION_REQUIRED' : 'RESCHEDULE_PROVIDER_OUTCOME_UNCERTAIN';
-  error.safeCustomerMessage = "I couldn't safely finalize that calendar change. The requested replacement time is being protected while CallBackIQ reconciles the provider outcome.";
+  error.safeCustomerMessage = "I couldn't safely finalize that calendar change. The requested replacement time is being protected while MeekCall reconciles the provider outcome.";
   try { await InterventionService.integrationFailure({ businessId: business._id, leadId: replacement.lead,
     conversationId: replacement.conversation, appointmentId: replacement._id, provider: original.provider || 'internal', error });
   } catch { /* Never mask the reschedule failure with an alerting failure. */ }

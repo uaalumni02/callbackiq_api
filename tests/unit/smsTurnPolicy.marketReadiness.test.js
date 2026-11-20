@@ -4,7 +4,6 @@ import {
   extractServiceNeed,
 } from "../../src/services/messaging/smsTurnPolicy.service.js";
 
-// CALLBACKIQ_RESTORE_SMS_TEST_TIME
 afterEach(() => {
   jest.useRealTimers();
 });

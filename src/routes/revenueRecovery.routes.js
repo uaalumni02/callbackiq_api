@@ -1,4 +1,3 @@
-// CALLBACKIQ_SCALE_HARDENING_V1
 import express from "express";
 import RevenueRecoveryController from "../controllers/revenueRecovery.js";
 import checkAuth from "../middleware/check-auth.js";

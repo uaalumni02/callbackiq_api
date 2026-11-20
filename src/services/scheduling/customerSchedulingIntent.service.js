@@ -1,5 +1,5 @@
 import { detectSafetyHazardType, patternHasAffirmedSafetyMatch, isUrgentPlumbingRequest } from "../../helpers/ai/aiGuardrails.js";
-// CallBackIQ production scheduling language policy.
+// MeekCall production scheduling language policy.
 // Shared by SMS and Voice so customer wording cannot route differently by channel.
 
 const clean = (value) =>
@@ -142,7 +142,6 @@ export const classifyOperationalUrgency = (value) => {
 };
 
 
-// CALLBACKIQ_EXPLICIT_HUMAN_ROUTING_FINAL
 //
 // Explicit requests for HUMAN OWNERSHIP must win even when the same
 // sentence also contains booking/scheduling language.

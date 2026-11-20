@@ -74,7 +74,7 @@ static async register(req, res) {
 
       // Older registration clients may still send the owner's existing
       // routing number. The new trial flow collects it during onboarding. It is
-      // never the CallBackIQ/Twilio tracking number; tracking-number assignment
+      // never the MeekCall/Twilio tracking number; tracking-number assignment
       // remains a post-subscription lifecycle.
       const normalizedForwardingPhone = String(
         forwardingPhone || businessPhone || "",
@@ -107,8 +107,6 @@ static async register(req, res) {
        */
       const smsConsentGiven = Boolean(smsConsent);
 
-      // CALLBACKIQ_REGISTRATION_TRANSACTION_V1
-      // CALLBACKIQ_REGISTRATION_TRANSACTION_V1_1
       let savedUser;
       let savedBusiness;
       let savedSubscription;

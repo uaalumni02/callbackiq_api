@@ -36,7 +36,7 @@ const allowedOrigins = [
 const allowedOriginSet = new Set(allowedOrigins);
 
 /**
- * Determines whether an origin is allowed to access CallBackIQ.
+ * Determines whether an origin is allowed to access MeekCall.
  *
  * Requests without an Origin header are allowed because they may come from
  * server-to-server clients, development tools, mobile applications, same-origin

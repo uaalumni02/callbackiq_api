@@ -292,7 +292,7 @@ export const disconnectJobber = async (businessId) => {
       });
       await response.json().catch(() => ({}));
     } catch {
-      /* Local revocation still completes so CallBackIQ cannot reuse stale tokens. */
+      /* Local revocation still completes so MeekCall cannot reuse stale tokens. */
     }
   }
 

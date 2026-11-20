@@ -60,7 +60,7 @@ const validateCampaign = (campaign = {}) => {
   const privacyPolicyUrl = clean(campaign.privacyPolicyUrl);
   const termsAndConditionsUrl = clean(campaign.termsAndConditionsUrl);
   if (messageFlow.length < 40) {
-    throw new Error("Describe how customers consent to receive CallBackIQ SMS messages (at least 40 characters). ");
+    throw new Error("Describe how customers consent to receive MeekCall SMS messages (at least 40 characters). ");
   }
   if (!isHttpUrl(privacyPolicyUrl)) throw new Error("A valid customer Privacy Policy URL is required.");
   if (!isHttpUrl(termsAndConditionsUrl)) throw new Error("A valid customer Terms & Conditions URL is required.");
@@ -99,7 +99,7 @@ const validateAddress = (address = {}) => {
     throw new Error("Street, city, state/region, and postal code are required.");
   }
   if (!["US", "CA"].includes(result.isoCountry)) {
-    throw new Error("This CallBackIQ A2P onboarding flow currently supports US and Canadian business addresses.");
+    throw new Error("This MeekCall A2P onboarding flow currently supports US and Canadian business addresses.");
   }
   return result;
 };

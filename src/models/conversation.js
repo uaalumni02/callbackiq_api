@@ -2,7 +2,6 @@ import { installLeadWorkflowWriter } from '../services/stateTransitions/leadWork
 import '../helpers/model/tenantContext.js';
 import { installDocumentFence } from '../services/stateTransitions/documentFence.js';
 import { guardTenantReferences } from '../helpers/model/tenantReferences.js';
-// CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1: conversation-model
 import { normalizePhoneToE164 } from "../voice/voicePhone.service.js";
 import mongoose from "mongoose";
 import { customerLifecycleField } from "../helpers/customerLifecycle.js";
@@ -101,7 +100,6 @@ const conversationSchema = new Schema(
     customerPhoneLookup: { type: String, trim: true, default: "" },
     activeRecord: { type: Boolean, default: true },
     customerName: { type: String, trim: true, default: "Customer" },
-    // CALLBACKIQ_MARKETING_ATTRIBUTION_V1: keep replies on the same owned source number that received the inquiry.
     replyFromPhone: { type: String, trim: true, default: "" },
     latestMarketingSource: {
       type: Schema.Types.ObjectId,
@@ -151,7 +149,6 @@ const conversationSchema = new Schema(
       activeVoiceIntakeSession: { type: Schema.Types.ObjectId, ref: "VoiceSession", default: null },
       recoveryIntroOperationKey: { type: String, default: "" },
       recoveryIntroClaimedAt: { type: Date, default: null },
-      // CALLBACKIQ_BOOKING_RECOVERY_FIX_V2: separates historical conversation context from the active missed-call journey.
       recoveryJourneyKey: { type: String, trim: true, maxlength: 160, default: "" },
       recoveryJourneyStartedAt: { type: Date, default: null },
       phase: {

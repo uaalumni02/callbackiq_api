@@ -51,7 +51,7 @@ export function createAppointmentconfirm1Methods(deps) {
         type: "integration_failure",
         title: "Appointment reminders were not scheduled",
         message:
-          "The appointment is confirmed, but CallBackIQ could not schedule its customer reminders.",
+          "The appointment is confirmed, but MeekCall could not schedule its customer reminders.",
         priority: "medium",
         reason: error.message,
         recommendedAction:

@@ -23,7 +23,7 @@ const SAFE_VALIDATION_MESSAGES = new Set([
   "A valid business contact email is required.",
   "A valid business contact phone is required.",
   "Street, city, state/region, and postal code are required.",
-  "This CallBackIQ A2P onboarding flow currently supports US and Canadian business addresses.",
+  "This MeekCall A2P onboarding flow currently supports US and Canadian business addresses.",
   "This automated Standard/Low-Volume Standard flow currently supports U.S. EIN-based businesses only.",
   "A valid 9-digit EIN is required for Standard/Low-Volume Standard A2P registration.",
   "Select a valid legal business type.",
@@ -40,7 +40,7 @@ const isSafeValidationMessage = (message) => {
   return (
     SAFE_VALIDATION_MESSAGES.has(value) ||
     value.startsWith(
-      "Describe how customers consent to receive CallBackIQ SMS messages",
+      "Describe how customers consent to receive MeekCall SMS messages",
     )
   );
 };

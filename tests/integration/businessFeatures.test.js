@@ -204,7 +204,7 @@ describe("Business feature rollout settings", () => {
 
     expect(storedBusiness.businessName).toBe("Atlanta Pro Plumbing");
     // The partial update must not turn the customer's forwarding number
-    // into a CallBackIQ tracking number.
+    // into a MeekCall tracking number.
     expect(storedBusiness.phone).toBeUndefined();
   });
 });

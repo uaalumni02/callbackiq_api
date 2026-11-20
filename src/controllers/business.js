@@ -75,7 +75,7 @@ class BusinessController {
         },
       };
       // phone is a legacy create alias only. Never persist the owner's
-      // existing business number as the CallBackIQ tracking number.
+      // existing business number as the MeekCall tracking number.
       delete businessPayload.phone;
 
       const business = await Db.saveBusiness(Business, businessPayload);

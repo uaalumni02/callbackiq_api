@@ -995,7 +995,7 @@ describe("Billing Routes", () => {
       userName: "platformadmin",
       email: "admin@callbackiq.com",
       role: "admin",
-      businessName: "CallBackIQ Internal",
+      businessName: "MeekCall Internal",
       businessPhone: "6785554321",
     });
 
@@ -1044,7 +1044,7 @@ describe("Billing Routes", () => {
       userName: "platformadmin",
       email: "admin@callbackiq.com",
       role: "admin",
-      businessName: "CallBackIQ Internal",
+      businessName: "MeekCall Internal",
       businessPhone: "6785554321",
     });
 

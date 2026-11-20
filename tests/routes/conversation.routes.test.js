@@ -912,7 +912,7 @@ describe("Conversation Routes", () => {
         userName: "platformadmin",
         email: "platformadmin@callbackiq.com",
         role: "admin",
-        businessName: "CallBackIQ Administration",
+        businessName: "MeekCall Administration",
         businessPhone: "4045555555",
       });
 

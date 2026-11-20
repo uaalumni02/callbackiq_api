@@ -233,7 +233,6 @@ beforeEach(() => {
   Message.findOne.mockImplementation(filter => filter._id ? Message.findById(filter._id) : mockOutboundFindOne(filter));
   Conversation.findOne.mockImplementation(({ _id }) => Conversation.findById(_id));
   Lead.findOne.mockImplementation(({ _id }) => Lead.findById(_id));
-  // CALLBACKIQ_FULL_FLOW_GUARDRAIL_DEFAULT
   evaluateDeterministicInboundGuardrails.mockReturnValue({
     handled: false,
     alertPriority: "medium",
@@ -248,7 +247,6 @@ beforeEach(() => {
   getOrCreateSmsLeadAndConversation.mockResolvedValue({ lead, conversation });
   Message.findOneAndUpdate.mockResolvedValue(inboundMessage);
 
-  // CALLBACKIQ_FULL_FLOW_CLASSIFIER_DEFAULT
   classifyInboundSmsCommand.mockReturnValue({
     handled: false,
     action: "",

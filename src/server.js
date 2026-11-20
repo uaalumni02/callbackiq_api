@@ -56,7 +56,6 @@ import {
   shouldRunEmbeddedWorkers,
   shouldServeVoiceRelay,
 } from "./config/runtime-environment.js";
-// CALLBACKIQ_A2P_RECONCILIATION_WORKER
 import {
   startA2pReconciliationWorker,
   stopA2pReconciliationWorker,
@@ -74,7 +73,6 @@ const shutdownTimeoutMs =
 
 const httpServer = createServer(app);
 
-// CALLBACKIQ_SCALE_HARDENING_V1
 const positiveInteger = (value, fallback) => {
   const parsed = Number.parseInt(value, 10);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
@@ -166,7 +164,7 @@ const shutdown = async (signal, exitCode = 0) => {
   beginDrain();
   await stopProcessHeartbeat();
   conversationRelayServer.beginDrain();
-  safeConsole.log(`${signal} received. Shutting down CallBackIQ API...`);
+  safeConsole.log(`${signal} received. Shutting down MeekCall API...`);
   const forcedExitTimer = setTimeout(() => {
     safeConsole.error("Graceful shutdown timed out. Forcing process exit.");
     process.exit(1);
@@ -196,7 +194,7 @@ const shutdown = async (signal, exitCode = 0) => {
       await mongoose.connection.close();
     }
     clearTimeout(forcedExitTimer);
-    safeConsole.log("CallBackIQ API shut down cleanly.");
+    safeConsole.log("MeekCall API shut down cleanly.");
     await flushExternalErrors();
     process.exit(exitCode);
   } catch (error) {
@@ -222,7 +220,6 @@ process.on("uncaughtException", (error) => {
 
 const startServer = async () => {
   assertStandaloneRuntime();
-    // CALLBACKIQ_STARTUP_HARDENING_V1
   normalizeRuntimeEnvironment();
   validateEnvironment(process.env, { throwOnError: true });
   assertTwilioProductionConfig();

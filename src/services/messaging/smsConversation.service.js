@@ -2,7 +2,6 @@ import { upsertSmsLead, updateSmsLead, reopenSmsConversation, updateSmsConversat
 import { readOnlySnapshot } from "../database/readOnlySnapshot.js";
 import { linkRecentTrackedCalls } from "./trackedCallLink.service.js";
 import { reconcileConversationLead } from "./conversationLeadIdentity.service.js";
-// CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1: conversation-service
 import Lead from "../../models/lead.js";
 import { updateSmsConversationSnapshot } from './smsConversationUpdateBatch.service.js';
 import { createFreshFindOneBatch } from '../database/freshFindOneBatch.js';

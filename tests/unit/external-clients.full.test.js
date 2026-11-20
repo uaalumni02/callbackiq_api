@@ -44,7 +44,7 @@ describe("external client helpers", () => {
       SMTP_PORT: "2525",
       SMTP_USER: "user",
       SMTP_PASS: "pass",
-      EMAIL_FROM: "CallBackIQ <noreply@example.com>",
+      EMAIL_FROM: "MeekCall <noreply@example.com>",
     };
   });
 

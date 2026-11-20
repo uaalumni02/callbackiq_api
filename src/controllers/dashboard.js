@@ -1,5 +1,4 @@
 import { safeConsole } from "../helpers/logging/safeLogger.js";
-// CALLBACKIQ_SCALE_HARDENING_V1
 import Db from "../db/db.js";
 import Business from "../models/business.js";
 import Lead from "../models/lead.js";

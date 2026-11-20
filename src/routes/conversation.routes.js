@@ -10,7 +10,6 @@ const router = express.Router();
 
 // Business owners keep the existing subscription requirement. Admins can
 // perform management actions without needing a customer subscription record.
-// CALLBACKIQ_FRESH_ADMIN_ROUTE_V1
 const checkSubscriptionUnlessAdmin = async (req, res, next) => {
   try {
     if (await isCurrentAdminRequest(req)) return next();

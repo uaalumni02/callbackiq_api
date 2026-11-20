@@ -42,7 +42,7 @@ const getClient = () => {
   if (!accountSid || !authToken) {
     throw provisioningError(
       "TWILIO_PROVISIONING_NOT_CONFIGURED",
-      "TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN are required to provision a CallBackIQ number.",
+      "TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN are required to provision a MeekCall number.",
       503,
     );
   }
@@ -60,7 +60,7 @@ const getWebhookBaseUrl = () => {
   if (!/^https:\/\//i.test(base)) {
     throw provisioningError(
       "TWILIO_WEBHOOK_BASE_URL_REQUIRED",
-      "A public HTTPS TWILIO_WEBHOOK_BASE_URL is required before a CallBackIQ number can be provisioned.",
+      "A public HTTPS TWILIO_WEBHOOK_BASE_URL is required before a MeekCall number can be provisioned.",
       503,
     );
   }
@@ -79,7 +79,7 @@ const requireSubscription = async (businessId) => {
   ) {
     throw provisioningError(
       "SUBSCRIPTION_REQUIRED",
-      "Register and complete CallBackIQ subscription checkout before a tracking number can be assigned.",
+      "Register and complete MeekCall subscription checkout before a tracking number can be assigned.",
       402,
     );
   }
@@ -101,7 +101,6 @@ const areaCodeFromForwardingPhone = (phone) => {
 };
 
 const webhookUrls = () => {
-  // CALLBACKIQ_TWILIO_RELIABILITY_URLS
   return buildTwilioWebhookUrls(getWebhookBaseUrl());
 };
 
@@ -154,7 +153,7 @@ const reconcileExistingTrackingNumberObserved = async function reconcileExisting
   if (!normalized) {
     throw provisioningError(
       "TRACKING_NUMBER_STATE_INCONSISTENT",
-      "A CallBackIQ phone is stored, but it is not a valid E.164 number. Reconcile the business record before provisioning another number.",
+      "A MeekCall phone is stored, but it is not a valid E.164 number. Reconcile the business record before provisioning another number.",
       409,
     );
   }
@@ -163,7 +162,7 @@ const reconcileExistingTrackingNumberObserved = async function reconcileExisting
   if (!incoming?.sid) {
     throw provisioningError(
       "TRACKING_NUMBER_STATE_INCONSISTENT",
-      "A CallBackIQ phone is already stored for this business, but the number could not be verified in the configured Twilio account. No replacement number was purchased.",
+      "A MeekCall phone is already stored for this business, but the number could not be verified in the configured Twilio account. No replacement number was purchased.",
       409,
     );
   }
@@ -256,7 +255,7 @@ const assignTrackingNumberObserved = async function assignTrackingNumber(busines
   if (!initialBusiness.forwardingPhone) {
     throw provisioningError(
       "FORWARDING_PHONE_REQUIRED",
-      "Add the existing business phone used for routing before assigning a CallBackIQ number.",
+      "Add the existing business phone used for routing before assigning a MeekCall number.",
     );
   }
 
@@ -291,7 +290,7 @@ const assignTrackingNumberObserved = async function assignTrackingNumber(busines
     }
 
     if (business.phone) {
-      // A stored phone means CallBackIQ may already own a carrier resource.
+      // A stored phone means MeekCall may already own a carrier resource.
       // Reconcile the provider identity and webhooks before any purchase path.
       // If Twilio cannot verify it, fail closed instead of buying a duplicate.
       return reconcileExistingTrackingNumber({
@@ -344,7 +343,7 @@ const assignTrackingNumberObserved = async function assignTrackingNumber(busines
     const urls = webhookUrls();
     const incoming = await client.incomingPhoneNumbers.create({
       phoneNumber: selected,
-      friendlyName: `CallBackIQ - ${String(
+      friendlyName: `MeekCall - ${String(
         business.businessName || business._id,
       ).slice(0, 45)}`,
       voiceMethod: "POST",
@@ -374,7 +373,7 @@ const assignTrackingNumberObserved = async function assignTrackingNumber(busines
       phoneNumberSid: purchasedProviderSid,
     });
 
-    // A freshly provisioned CallBackIQ number is managed by the automated A2P
+    // A freshly provisioned MeekCall number is managed by the automated A2P
     // lifecycle even when the customer has not submitted its TrustHub details
     // yet. Mark it pending so the shared SMS sender fails closed rather than
     // treating it as a legacy/unmanaged sender.
@@ -464,7 +463,7 @@ const verifyTrackingNumberObserved = async function verifyTrackingNumber(busines
   if (!business.phone || !business.trackingNumber?.providerSid) {
     throw provisioningError(
       "TRACKING_NUMBER_NOT_ASSIGNED",
-      "Assign a CallBackIQ number before verifying it.",
+      "Assign a MeekCall number before verifying it.",
     );
   }
 
@@ -486,7 +485,7 @@ const verifyTrackingNumberObserved = async function verifyTrackingNumber(busines
     if (!phoneMatches) {
       throw provisioningError(
         "TRACKING_NUMBER_PROVIDER_MISMATCH",
-        "The assigned Twilio number no longer matches the CallBackIQ business record.",
+        "The assigned Twilio number no longer matches the MeekCall business record.",
       );
     }
 

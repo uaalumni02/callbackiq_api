@@ -54,7 +54,7 @@ const createUser = async (role) => {
         : "browser-call-owner@example.com",
     password: "LongFixturePassword123",
     role,
-    businessName: role === "admin" ? "CallBackIQ Admin" : "ABC Plumbing",
+    businessName: role === "admin" ? "MeekCall Admin" : "ABC Plumbing",
     businessPhone: "4045551212",
     businessType: "other",
     smsConsent: true,

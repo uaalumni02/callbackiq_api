@@ -271,7 +271,7 @@ const handleAvailabilityProviderFailure = async ({
     businessId: business._id,
     title: "Scheduling availability check failed",
     message:
-      "CallBackIQ could not read the scheduling provider. The customer was not told the business had no openings.",
+      "MeekCall could not read the scheduling provider. The customer was not told the business had no openings.",
     priority: "high",
     metadata: {
       leadId: lead?._id ? String(lead._id) : "",
@@ -329,7 +329,7 @@ const handleBookingReadinessFailure = async ({
     title: "Automatic booking is not ready",
     message:
       firstMissing?.message ||
-      "CallBackIQ blocked an automated booking attempt because required scheduling configuration is incomplete.",
+      "MeekCall blocked an automated booking attempt because required scheduling configuration is incomplete.",
     priority: "high",
     metadata: {
       leadId: lead?._id ? String(lead._id) : "",

@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-// CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1
 // Read-only production SMS flow audit for one business/customer conversation.
 
 import process from "node:process";

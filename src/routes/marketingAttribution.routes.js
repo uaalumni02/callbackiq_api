@@ -1,4 +1,3 @@
-// CALLBACKIQ_MARKETING_ATTRIBUTION_V1
 import express from "express";
 import MarketingAttributionController from "../controllers/marketingAttribution.js";
 import checkAuth from "../middleware/check-auth.js";

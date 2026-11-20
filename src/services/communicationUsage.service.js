@@ -119,7 +119,7 @@ export const getCommunicationLimits = (business) => {
   };
 
   /*
-   * Trial accounts get the real CallBackIQ workflow, but expensive provider
+   * Trial accounts get the real MeekCall workflow, but expensive provider
    * usage is capped below normal paid-account allowances.
    */
   if (plainBusiness?.trialCostControls?.enabled === true) {
@@ -294,7 +294,6 @@ const rollback = async (documents, amount = 1, mongoSession = null) => {
   if (rejected) throw rejected.reason;
 };
 
-// CALLBACKIQ_PRODUCTION_READINESS: reversible provider reservations.
 export const releaseCommunicationUsage = async ({
   reservations = [],
   amount = 1,

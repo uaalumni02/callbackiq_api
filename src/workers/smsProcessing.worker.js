@@ -4,7 +4,6 @@ import { captureExternalError, trackWorkerFailure } from "../services/errorTrack
 import { withSmsTenantSlot, recordSmsProcessingDuration, recordSmsTenantDeferral } from "../services/scale/smsTenantFairness.service.js";
 import { withDeadline } from "../services/boundedRedis.service.js";
 import { withDistributedLease, assertDistributedLeaseActive, invalidateDistributedLease, registerDistributedLeaseGuard } from "../services/distributedLease.service.js";
-// CALLBACKIQ_SCALE_HARDENING_V1
 import {
   claimNextInboundSmsJob,
   completeInboundSmsJob,
@@ -149,7 +148,7 @@ const processConversationJob = async (job) => {
         businessId: job.business,
         title: "SMS response failed permanently",
         message:
-          "CallBackIQ could not process a customer SMS after multiple attempts. Review the conversation and respond manually.",
+          "MeekCall could not process a customer SMS after multiple attempts. Review the conversation and respond manually.",
         priority: "critical",
         metadata: {
           jobId: String(job._id),

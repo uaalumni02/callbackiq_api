@@ -5,7 +5,7 @@ import { ownerTextSuppressionReason } from "./messaging/ownerTextPolicy.service.
 
 
 import Business from "../models/business.js";
-import TrackingNumber from "../models/trackingNumber.js"; // CALLBACKIQ_MARKETING_ATTRIBUTION_V1
+import TrackingNumber from "../models/trackingNumber.js";
 import { getSmsAutomationSuppressionReason } from "./messaging/smsAutomationDispatchPolicy.service.js";
 import { assertDistributedLeaseActive } from "./distributedLease.service.js";
 import normalizePhone from "../helpers/normalizePhone.js";
@@ -133,7 +133,7 @@ export const assertA2pSmsReady = (business) => {
   const state = String(compliance.a2pStatus || "").trim().toLowerCase();
 
   // Preserve existing manually managed/legacy senders that have never entered
-  // CallBackIQ's automated A2P lifecycle. New number provisioning explicitly
+  // MeekCall's automated A2P lifecycle. New number provisioning explicitly
   // moves managed senders to "pending", so every automated-A2P business is
   // fail-closed here until Twilio confirms carrier registration.
   if (!ENFORCED_A2P_STATES.has(state)) return true;

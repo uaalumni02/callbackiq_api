@@ -31,7 +31,7 @@ const requireOperation = async (businessId, operationKey) => {
 
 class JobberProvider extends SchedulingProvider {
   async getAvailability(options) {
-    // CallBackIQ/Google remains the scheduling authority; Jobber receives the operational handoff.
+    // MeekCall/Google remains the scheduling authority; Jobber receives the operational handoff.
     return generateInternalSlots({ ...options, business: this.business });
   }
 

@@ -45,7 +45,7 @@ static async scheduleDemoRequest(req, res) {
       return Response.responseOk(
         res,
         publicDemo(updated),
-        "Your CallBackIQ demo is booked.",
+        "Your MeekCall demo is booked.",
       );
     } catch (error) {
       if (error.isJoi) {
@@ -104,7 +104,7 @@ static async rescheduleDemoRequest(req, res) {
       return Response.responseOk(
         res,
         publicDemo(updated),
-        "Your CallBackIQ demo was rescheduled.",
+        "Your MeekCall demo was rescheduled.",
       );
     } catch (error) {
       if (error.isJoi) {
@@ -160,7 +160,7 @@ static async cancelDemoRequest(req, res) {
       return Response.responseOk(
         res,
         publicDemo(updated),
-        "Your CallBackIQ demo was cancelled.",
+        "Your MeekCall demo was cancelled.",
       );
     } catch (error) {
       if (error.isJoi) {
@@ -188,7 +188,7 @@ static async getCalendarFile(req, res) {
       }
 
       const description = [
-        "CallBackIQ product demo",
+        "MeekCall product demo",
         demo.meetingUrl ? `Join: ${demo.meetingUrl}` : "",
       ]
         .filter(Boolean)
@@ -197,7 +197,7 @@ static async getCalendarFile(req, res) {
       const calendar = [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
-        "PRODID:-//CallBackIQ//Book a Demo//EN",
+        "PRODID:-//MeekCall//Book a Demo//EN",
         "CALSCALE:GREGORIAN",
         "METHOD:PUBLISH",
         "BEGIN:VEVENT",
@@ -205,7 +205,7 @@ static async getCalendarFile(req, res) {
         `DTSTAMP:${toIcsUtc(new Date())}`,
         `DTSTART:${toIcsUtc(demo.scheduledAt)}`,
         `DTEND:${toIcsUtc(demo.scheduledEndAt)}`,
-        `SUMMARY:${escapeIcs("CallBackIQ Demo")}`,
+        `SUMMARY:${escapeIcs("MeekCall Demo")}`,
         `DESCRIPTION:${escapeIcs(description)}`,
         ...(demo.meetingUrl
           ? [`LOCATION:${escapeIcs(demo.meetingUrl)}`]

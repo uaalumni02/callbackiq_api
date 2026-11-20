@@ -27,7 +27,7 @@ describe("DemoBrowserCallService helpers", () => {
     expect(normalizeDemoPhoneToE164("not-a-phone")).toBe("");
   });
 
-  test("uses the configured CallBackIQ caller ID and browser Voice credentials", () => {
+  test("uses the configured MeekCall caller ID and browser Voice credentials", () => {
     configure();
 
     expect(resolveBrowserCallConfig()).toEqual({

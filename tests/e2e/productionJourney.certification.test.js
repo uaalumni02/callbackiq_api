@@ -9,7 +9,7 @@ import {
 const root = process.cwd();
 const exists = (relativePath) => fs.existsSync(path.join(root, relativePath));
 
-describe("CallBackIQ production certification structure", () => {
+describe("MeekCall production certification structure", () => {
   test("every customer-journey stage is backed by real regression suites", () => {
     expect(certificationStages.length).toBeGreaterThanOrEqual(10);
 

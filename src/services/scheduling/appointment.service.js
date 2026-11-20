@@ -35,7 +35,7 @@ import crypto from "crypto";
 import "mongoose";
 import Appointment from "../../models/appointment.js";
 import "../../voice/voicePhone.service.js";
-import "../../models/callLog.js"; // CALLBACKIQ_MARKETING_ATTRIBUTION_V1
+import "../../models/callLog.js";
 import Conversation from "../../models/conversation.js";
 import Lead from "../../models/lead.js";
 import ServiceOffering from "../../models/serviceOffering.js";

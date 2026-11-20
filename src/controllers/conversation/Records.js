@@ -61,7 +61,6 @@ static async getMyConversations(req, res) {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      // CALLBACKIQ_CONVERSATION_CURSOR_PAGINATION_V1
       const page = await getConversationsPage(business._id, req.query);
       const pagination = setPaginationHeaders(res, page);
       const payload = page.items.map((conversation) =>

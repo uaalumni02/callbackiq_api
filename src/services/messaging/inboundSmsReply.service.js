@@ -176,7 +176,7 @@ async function persistHandoffDeliveryFailure({ business, inboundMessage, updated
     businessId: business._id,
     title: "Human handoff acknowledgement failed",
     message:
-      "CallBackIQ could not confirm the customer handoff SMS. The queue will retry; review this conversation immediately.",
+      "MeekCall could not confirm the customer handoff SMS. The queue will retry; review this conversation immediately.",
     priority: "critical",
     metadata: {
       conversationId: String(updatedConversation._id),

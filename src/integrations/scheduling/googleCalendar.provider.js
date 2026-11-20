@@ -157,7 +157,7 @@ export const buildGoogleEvent = ({
     settings.defaultAttendeeEmail,
   ]).map((email) => ({ email }));
   const description = [
-    `CallBackIQ appointment: ${appointment._id}`,
+    `MeekCall appointment: ${appointment._id}`,
     `Customer: ${appointment.customerName || "Customer"}`,
     `Phone: ${appointment.customerPhone || ""}`,
     appointment.customerEmail ? `Email: ${appointment.customerEmail}` : "",
@@ -373,7 +373,7 @@ class GoogleCalendarProvider extends SchedulingProvider {
 
       // Each selected non-booking calendar represents one external resource
       // lane. The booking calendar can contain multiple manually-created jobs,
-      // so count its non-CallBackIQ events individually.
+      // so count its non-MeekCall events individually.
       const otherBusyLanes = otherCalendarIds.filter((calendarId) =>
         (calendarResults[calendarId]?.busy || []).some((interval) =>
           overlaps(slot, interval),
@@ -571,7 +571,7 @@ class GoogleCalendarProvider extends SchedulingProvider {
       await normalizeSettings(businessId);
     const calendarId = appointment.externalCalendarId || bookingCalendarId;
     // Rescheduling moves the existing Google event but transfers ownership of
-    // that event to the replacement CallBackIQ appointment. Normal updates use
+    // that event to the replacement MeekCall appointment. Normal updates use
     // the current appointment for both the provider lookup and event metadata.
     const eventOwner = eventAppointment || appointment;
     const baseAppointment =

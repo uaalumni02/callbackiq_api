@@ -22,7 +22,7 @@ export const createNonBlockingAppointmentSideEffect = ({safeConsole, Interventio
         appointmentId: appointment?._id || null,
         type: "integration_failure",
         title: "Appointment notification follow-up needed",
-        message: `The appointment was saved, but CallBackIQ could not complete the ${label} notification task.`,
+        message: `The appointment was saved, but MeekCall could not complete the ${label} notification task.`,
         priority: "medium",
         reason: error.message,
         recommendedAction:

@@ -189,7 +189,7 @@ export const validateUpdate = (body = {}, currentSettings = {}) => {
   if (Object.hasOwn(body, "recordingEnabled")) {
     if (body.recordingEnabled) {
       throw validationError(
-        "Voice recording is disabled until CallBackIQ has an approved consent, disclosure, access, retention, and deletion policy.",
+        "Voice recording is disabled until MeekCall has an approved consent, disclosure, access, retention, and deletion policy.",
         409,
         "VOICE_RECORDING_NOT_AVAILABLE",
       );
@@ -209,14 +209,14 @@ export const assertNoDialLoops = ({ business, settings }) => {
   const livePhone = normalizePhoneToE164(settings.liveTransferPhone);
   if (staffPhone && trackingPhone && phoneNumbersEqual(staffPhone, trackingPhone)) {
     throw validationError(
-      "The staff-routing phone cannot be the same CallBackIQ tracking number.",
+      "The staff-routing phone cannot be the same MeekCall tracking number.",
       409,
       "VOICE_ROUTING_LOOP",
     );
   }
   if (livePhone && trackingPhone && phoneNumbersEqual(livePhone, trackingPhone)) {
     throw validationError(
-      "The live-transfer phone cannot be the same CallBackIQ tracking number.",
+      "The live-transfer phone cannot be the same MeekCall tracking number.",
       409,
       "VOICE_ROUTING_LOOP",
     );

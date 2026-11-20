@@ -1,6 +1,5 @@
 import { createCacheRefreshCoordinator } from "./scale/cacheRefresh.service.js";
 import { safeConsole } from "../helpers/logging/safeLogger.js";
-// CALLBACKIQ_SCALE_HARDENING_V1
 import { createBoundedRedis } from "./boundedRedis.service.js";
 
 const memory = new Map();

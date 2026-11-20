@@ -186,7 +186,7 @@ export const recoverAbandonedVoiceCall = async ({
       type: "missed_call",
       title: "Abandoned Voice AI call recovered",
       message:
-        "The caller disconnected before booking, callback capture, transfer, or a resolved answer. CallBackIQ preserved the session and started missed-call recovery.",
+        "The caller disconnected before booking, callback capture, transfer, or a resolved answer. MeekCall preserved the session and started missed-call recovery.",
       priority: "high",
       metadata: {
         source: "voice_abandonment_recovery",

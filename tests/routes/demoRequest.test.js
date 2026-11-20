@@ -65,7 +65,7 @@ const registerAdmin = async () => {
     email: "admin@callbackiq.com",
     password: "LongFixturePassword123",
     role: "admin",
-    businessName: "CallBackIQ Admin",
+    businessName: "MeekCall Admin",
     businessPhone: "8882927988",
     businessType: "other",
     smsConsent: true,

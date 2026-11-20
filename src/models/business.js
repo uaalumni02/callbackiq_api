@@ -431,7 +431,7 @@ const BusinessSchema = new Schema(
       validate: [validate.isValidBusinessType, "Invalid business type"],
     },
 
-    // CallBackIQ/Twilio tracking number. This is assigned only after
+    // MeekCall/Twilio tracking number. This is assigned only after
     // registration + subscription; the owner's existing phone is forwardingPhone.
     phone: {
       type: String,
@@ -442,7 +442,7 @@ const BusinessSchema = new Schema(
           if (!value) return true;
           return validate.isValidPhone(value);
         },
-        message: "Please enter a valid CallBackIQ tracking number",
+        message: "Please enter a valid MeekCall tracking number",
       },
     },
     phoneLookup: {

@@ -1,4 +1,3 @@
-// CALLBACKIQ_PRODUCTION_HARDENING_V1
 import "dotenv/config";
 import { validateEnvironment } from "../src/config/env.js";
 import {

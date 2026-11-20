@@ -1,5 +1,4 @@
 import '../helpers/model/tenantContext.js';
-// CALLBACKIQ_MARKETING_ATTRIBUTION_V1
 import mongoose from "mongoose";
 
 const { Schema } = mongoose;

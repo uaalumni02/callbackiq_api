@@ -1,4 +1,3 @@
-// CALLBACKIQ_PRODUCTION_HARDENING_V1_1
 import mongoose from "mongoose";
 
 const TRANSACTION_CAPABLE_TOPOLOGIES = new Set([

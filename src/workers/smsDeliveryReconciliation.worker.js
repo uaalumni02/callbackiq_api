@@ -85,7 +85,7 @@ const performDrain = async () => {
             businessId: event.business,
             title: "SMS delivery status could not be reconciled",
             message:
-              "CallBackIQ received a Twilio delivery update but could not match it to an outbound message after repeated attempts.",
+              "MeekCall received a Twilio delivery update but could not match it to an outbound message after repeated attempts.",
             priority: "critical",
             metadata: {
               reconciliationEventId: String(event._id),

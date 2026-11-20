@@ -226,7 +226,6 @@ const normalizeQualification = (result) => {
   };
 };
 
-// CALLBACKIQ_SMS_RECOVERY_JOURNEY_INNER_GUARDRAILS_V4
 const qualifyLeadWithAI = async ({
   messageBody,
   business,

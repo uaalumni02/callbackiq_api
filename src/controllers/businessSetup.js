@@ -16,7 +16,7 @@ const errorResponse = (res, error) =>
   res.status(error?.statusCode || 500).json({
     success: false,
     code: error?.code || "BUSINESS_SETUP_FAILED",
-    message: error?.message || "Unable to update CallBackIQ setup.",
+    message: error?.message || "Unable to update MeekCall setup.",
     ...(error?.readiness ? { readiness: error.readiness } : {}),
   });
 
@@ -51,7 +51,7 @@ class BusinessSetupController {
       const readiness = await buildBusinessReadiness(updated, { persist: true });
       return res.status(200).json({
         success: true,
-        message: "CallBackIQ number assigned, verified, and activated.",
+        message: "MeekCall number assigned, verified, and activated.",
         data: readiness,
       });
     } catch (error) {
@@ -65,7 +65,7 @@ class BusinessSetupController {
       if (!business) return res.status(404).json({ success: false, message: "Business not found" });
       const updated = await verifyTrackingNumber(business);
       const readiness = await buildBusinessReadiness(updated, { persist: true });
-      return res.status(200).json({ success: true, message: "CallBackIQ number verified.", data: readiness });
+      return res.status(200).json({ success: true, message: "MeekCall number verified.", data: readiness });
     } catch (error) {
       return errorResponse(res, error);
     }
@@ -77,7 +77,7 @@ class BusinessSetupController {
       if (!business) return res.status(404).json({ success: false, message: "Business not found" });
       const updated = await activateTrackingNumber(business);
       const readiness = await buildBusinessReadiness(updated, { persist: true });
-      return res.status(200).json({ success: true, message: "CallBackIQ number activated.", data: readiness });
+      return res.status(200).json({ success: true, message: "MeekCall number activated.", data: readiness });
     } catch (error) {
       return errorResponse(res, error);
     }

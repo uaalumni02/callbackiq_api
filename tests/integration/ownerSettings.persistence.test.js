@@ -79,6 +79,6 @@ test("voice can be enabled with all automatic customer texts off", async () => {
 });
 test("a phone routing loop is rejected without enabling voice", async () => {
   const snapshot = await get();
-  await expect(save("calls", snapshot, { ...snapshot.sections.calls, answerMode: "overflow", transferPhone: business.phone })).rejects.toThrow(/same CallBackIQ/);
+  await expect(save("calls", snapshot, { ...snapshot.sections.calls, answerMode: "overflow", transferPhone: business.phone })).rejects.toThrow(/same MeekCall/);
   expect((await Business.findById(business._id)).features.voiceAiEnabled).toBe(false);
 });

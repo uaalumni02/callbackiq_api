@@ -109,7 +109,6 @@ export async function checkBookingReadiness({ business, lead, activeConversation
     };
   }
 
-  // CALLBACKIQ_BOOKING_RECOVERY_FIX_V2: feature flag alone is insufficient; booking must be operationally ready now.
   let runtimeReadiness;
   try {
     runtimeReadiness = await buildBusinessReadiness(business, {

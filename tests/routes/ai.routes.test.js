@@ -146,7 +146,7 @@ const registerCreateBusinessLeadConversation = async ({
   let business = registerRes.body.data.business;
 
   // Registration captures the customer's real business/forwarding number,
-  // but a CallBackIQ/Twilio tracking number may not be assigned yet.
+  // but a MeekCall/Twilio tracking number may not be assigned yet.
   // These agent-reply tests model an activated messaging business, so assign
   // a unique tracking number explicitly instead of reusing businessPhone.
   business = await Business.findByIdAndUpdate(

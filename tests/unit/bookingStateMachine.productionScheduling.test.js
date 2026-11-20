@@ -162,7 +162,7 @@ describe("production scheduling regression: exact urgent availability journey", 
     expect(lead.preferredAppointmentTime).toBe("");
   });
 
-  test("only after the customer selects a slot does CallBackIQ explain approval", async () => {
+  test("only after the customer selects a slot does MeekCall explain approval", async () => {
     const conversation = makeConversation();
     conversation.bookingState.status = "offering_slots";
     conversation.bookingState.offeredSlots = [

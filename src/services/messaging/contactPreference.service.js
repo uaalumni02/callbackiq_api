@@ -220,11 +220,11 @@ export const processInboundSmsCommand = async ({
      * CALLBACKIQ_SOFT_OPTOUT_START_OWNERSHIP
      *
      * A natural-language opt-out such as "please stop texting me" is stored
-     * locally by CallBackIQ but does not create a Twilio STOP block.
+     * locally by MeekCall but does not create a Twilio STOP block.
      *
      * In that state, a later exact START must:
      *   1. reactivate the local preference, and
-     *   2. receive a CallBackIQ confirmation because Twilio may not reply.
+     *   2. receive a MeekCall confirmation because Twilio may not reply.
      *
      * When the webhook actually contains OptOutType=START, Twilio has already
      * handled the opt-in response and we continue suppressing our duplicate.

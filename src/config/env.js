@@ -189,7 +189,6 @@ export const validateEnvironment = (
     }
   }
 
-  // CALLBACKIQ_RENDER_HARDENING_ENV_V1
   // Reject local/non-TLS auxiliary endpoints without requiring unfinished
   // providers or a frontend to be activated during staging.
   if (["staging", "production"].includes(appEnv)) {
@@ -265,7 +264,7 @@ export const validateEnvironment = (
 
   if (!result.valid && throwOnError) {
     const error = new Error(
-      `Invalid CallBackIQ environment:\n- ${errors.join("\n- ")}`,
+      `Invalid MeekCall environment:\n- ${errors.join("\n- ")}`,
     );
     error.code = "INVALID_ENVIRONMENT";
     error.details = result;

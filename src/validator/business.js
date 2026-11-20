@@ -58,7 +58,7 @@ const businessCreateSchema = Joi.object({
 
 const businessUpdateSchema = Joi.object({
   ...commonBusinessFields,
-  // Tracking number is provisioned by CallBackIQ and cannot be owner-edited.
+  // Tracking number is provisioned by MeekCall and cannot be owner-edited.
   phone: Joi.forbidden(),
 })
   .min(1)

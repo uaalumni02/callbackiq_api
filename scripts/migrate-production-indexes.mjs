@@ -1,4 +1,3 @@
-// CALLBACKIQ_PRODUCTION_HARDENING_V1
 import mongoose from "mongoose";
 import "dotenv/config";
 import connectDB from "../src/db/connection.js";

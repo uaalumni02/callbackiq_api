@@ -94,7 +94,7 @@ class SecurityAlertService {
 
     const headers = {
       "Content-Type": "application/json",
-      "User-Agent": "CallBackIQ-Security-Monitor/1.0",
+      "User-Agent": "MeekCall-Security-Monitor/1.0",
     };
 
     const signature = buildSignature(body);

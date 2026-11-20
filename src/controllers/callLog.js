@@ -220,7 +220,6 @@ class CallLogController {
         missingMessage:"Call log not found",deniedMessage:"You cannot delete this call log"});
       if(!callLog)return undefined;
 
-      // CALLBACKIQ_ATTRIBUTION_10OF10_FULL_V2:
       // Hide the operational record without destroying attribution history.
       const deleted = await updateCallLogForBusiness(
         id,business._id,

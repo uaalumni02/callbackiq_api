@@ -93,7 +93,7 @@ describe("Auth Routes", () => {
     expect(savedBusiness).toBeTruthy();
     expect(savedBusiness.businessName).toBe("Atlanta Pro Plumbing");
     // Registration does not persist the customer-entered forwarding number
-    // as the CallBackIQ/Twilio tracking number.
+    // as the MeekCall/Twilio tracking number.
     expect(savedBusiness.phone).toBeUndefined();
     // Business.isActive is the administrative account switch. Subscription
     // status/aiEnabled control product entitlement after registration.

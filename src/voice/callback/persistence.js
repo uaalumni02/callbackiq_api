@@ -150,8 +150,8 @@ const updateLead = async ({ session, state, canceled = false }) => {
   lead.notes = appendText(
     lead.notes,
     canceled
-      ? `CallBackIQ voice callback capture (${state.reason}) was canceled by the caller at ${new Date().toISOString()}. Partial details were retained.`
-      : `CallBackIQ voice callback capture (${state.reason}) was confirmed at ${new Date().toISOString()}.`,
+      ? `MeekCall voice callback capture (${state.reason}) was canceled by the caller at ${new Date().toISOString()}. Partial details were retained.`
+      : `MeekCall voice callback capture (${state.reason}) was confirmed at ${new Date().toISOString()}.`,
     2000,
   );
   await saveStateDocument(lead);
@@ -191,7 +191,7 @@ const updateConversation = async ({ session, state, canceled = false }) => {
   }
   conversation.lastMessage = canceled
     ? "Caller canceled voice callback capture. Partial details were preserved."
-    : "CallBackIQ captured and flagged a voice callback request for team review.";
+    : "MeekCall captured and flagged a voice callback request for team review.";
   conversation.lastMessageAt = new Date();
   await saveStateDocument(conversation);
   emit("emitConversationUpdated", normalizeId(session.business), conversation);

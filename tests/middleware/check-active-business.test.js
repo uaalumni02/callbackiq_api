@@ -82,7 +82,7 @@ const createAdminToken = async () => {
     email: "admin@callbackiq.com",
     password: hashedPassword,
     role: "admin",
-    businessName: "CallBackIQ Admin",
+    businessName: "MeekCall Admin",
     businessPhone: "4045559999",
     businessType: "other",
   });

@@ -1,4 +1,3 @@
-// CALLBACKIQ_PRODUCTION_HARDENING_V1
 const firstNonBlank = (...values) =>
   values
     .map((value) => (value == null ? "" : String(value).trim()))

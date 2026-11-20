@@ -22,7 +22,6 @@ const ConversionEventSchema = new Schema(
       default: null,
     },
     callLog: { type: Schema.Types.ObjectId, ref: "CallLog", default: null },
-    // CALLBACKIQ_MARKETING_ATTRIBUTION_V1: do not overload the existing source/channel fields.
     marketingSource: {
       type: Schema.Types.ObjectId,
       ref: "MarketingSource",
@@ -81,7 +80,6 @@ ConversionEventSchema.index({ business: 1, lead: 1, createdAt: -1, _id: -1 });
 ConversionEventSchema.index({ business: 1, conversation: 1, createdAt: -1, _id: -1 });
 ConversionEventSchema.index({ business: 1, createdAt: -1, _id: -1 });
 ConversionEventSchema.index({ business: 1, occurredAt: -1, type: 1 });
-// CALLBACKIQ_ATTRIBUTION_10OF10_FULL_V2: equality fields precede the range field.
 ConversionEventSchema.index({ business: 1, type: 1, occurredAt: -1 });
 ConversionEventSchema.index({
   business: 1,

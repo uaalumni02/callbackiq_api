@@ -77,8 +77,6 @@ const LeadSchema = new Schema(
       enum: ["missed_call", "manual", "sms", "voice", "web", "other"],
       default: "manual",
     },
-    // CALLBACKIQ_MARKETING_ATTRIBUTION_V1: source above is operational channel, not marketing attribution.
-    // CALLBACKIQ_ATTRIBUTION_10OF10_FULL_V2:
     // first* fields are immutable acquisition attribution; latest* fields are
     // the most recent attributed interaction for this customer.
     firstMarketingSource: {
@@ -197,7 +195,6 @@ LeadSchema.index({ business: 1, urgency: 1, createdAt: -1 });
 LeadSchema.index({ business: 1, leadQualityScore: -1, createdAt: -1 });
 LeadSchema.index({ business: 1, recovered: 1, bookedAt: -1 });
 LeadSchema.index({ business: 1, appointment: 1 });
-// CALLBACKIQ_ATTRIBUTION_10OF10_FULL_V2: analytics/reporting indexes.
 LeadSchema.index({ business: 1, firstRespondedAt: -1 });
 LeadSchema.index({ business: 1, qualifiedAt: -1 });
 LeadSchema.index({ business: 1, firstMarketingSource: 1, createdAt: -1 });

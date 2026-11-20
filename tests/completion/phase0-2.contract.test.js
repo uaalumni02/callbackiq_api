@@ -36,7 +36,7 @@ const expectConcept = (source, label, alternatives) => {
   }
 };
 
-describe("CallBackIQ Phase 0-2 completion contract", () => {
+describe("MeekCall Phase 0-2 completion contract", () => {
   test("Phase 0 feature controls are represented in the business feature model", () => {
     const source = [
       read("src/models/business.js"),

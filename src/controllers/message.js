@@ -64,7 +64,6 @@ class MessageController {
             "_id business customerPhone customerName status"});
       if(!conversation)return undefined;
 
-      // CALLBACKIQ_MESSAGE_CURSOR_PAGINATION_V1
       const page = await getMessagesPage(
         conversationId,
         req.query,

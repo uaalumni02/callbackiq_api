@@ -22,7 +22,7 @@ export async function sendOpsEvent({ key, action, reason, fetcher = fetch }) {
     method: 'POST', signal: AbortSignal.timeout(10000), headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ routing_key: process.env.PAGERDUTY_ROUTING_KEY, event_action: action,
       dedup_key: `${process.env.SCALE_CACHE_NAMESPACE || 'callbackiq'}:${key}`,
-      ...(action === 'trigger' ? { payload: { summary: `CallBackIQ requires operator review: ${reason}`,
+      ...(action === 'trigger' ? { payload: { summary: `MeekCall requires operator review: ${reason}`,
         source: 'callbackiq', severity: 'critical' } } : {}) }),
   });
   if (response.status !== 202) throw Object.assign(new Error('Operations provider rejected event'), { code: `OPS_HTTP_${response.status}` });

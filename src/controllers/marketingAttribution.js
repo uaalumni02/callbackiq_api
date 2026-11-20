@@ -1,4 +1,3 @@
-// CALLBACKIQ_MARKETING_ATTRIBUTION_V1
 import getOwnedBusiness from "../services/businessScope.service.js";
 import {
   archiveMarketingSource,

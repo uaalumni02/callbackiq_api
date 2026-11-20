@@ -1,4 +1,3 @@
-// CALLBACKIQ_SMS_PRODUCTION_INVARIANT_V1
 // Final customer-facing SMS safety layer. This does not replace the canonical
 // classifier, intake state machine, service-eligibility policy, or booking
 // state machine. It enforces cross-cutting production invariants immediately

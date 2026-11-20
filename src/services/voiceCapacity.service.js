@@ -217,7 +217,7 @@ export const acquireVoiceCapacity = async ({
       await createVoiceCapacityAlert({
         businessId,
         title: "Voice AI concurrency allowance reached",
-        message: `CallBackIQ prevented a new voice AI session because ${maximum} concurrent session${
+        message: `MeekCall prevented a new voice AI session because ${maximum} concurrent session${
           maximum === 1 ? " was" : "s were"
         } already active. The normal configured fallback path was used.`,
         priority: "high",

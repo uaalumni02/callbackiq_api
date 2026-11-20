@@ -12,7 +12,6 @@ export function conversionEventMarkAppointmentBookedLeadUpdateOne({ Lead, appoin
             bookedAt: appointment.confirmedAt || new Date(),
             recovered,
             recoveredBy,
-            // CALLBACKIQ_ATTRIBUTION_10OF10_FULL_V2:
             // the booked service/appointment is the authoritative open value.
 
           },

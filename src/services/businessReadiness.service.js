@@ -107,7 +107,6 @@ export const buildBusinessReadiness = async (
       trackingStatus(business),
     ),
     trackingNumberActive: trackingStatus(business) === "active",
-    // CALLBACKIQ_A2P_ORCHESTRATION_READINESS
     smsMessagingReady: business.messagingCompliance?.smsReady === true,
     servicesConfigured: services.some(
       (service) => Number(service.durationMinutes) > 0,

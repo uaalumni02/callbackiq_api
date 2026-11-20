@@ -81,7 +81,6 @@ const MessageSchema = new Schema(
       default: "",
       trim: true,
     },
-    // CALLBACKIQ_PRODUCTION_READINESS: browser/provider retry identity.
     clientOperationId: { type: String, trim: true, maxlength: 160, default: "" },
 
     status: {

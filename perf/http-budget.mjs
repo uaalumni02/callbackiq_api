@@ -1,4 +1,3 @@
-// CALLBACKIQ_PRODUCTION_HARDENING_V1
 const target =
   process.env.PERF_BUDGET_URL || "http://127.0.0.1:3000/api/health/live";
 const requestCount = Math.max(

@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-// CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1
 // Deletes one explicitly identified SMS test conversation and its dependent records.
 // Dry-run is the default. Nothing is deleted unless --apply is supplied.
 

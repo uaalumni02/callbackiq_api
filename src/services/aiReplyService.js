@@ -176,7 +176,6 @@ const generateReplyResult = async ({
         : {}),
     });
 
-    // CALLBACKIQ_BOOKING_RECOVERY_FIX_V2: urgency is extracted before the booking branch can short-circuit AI qualification.
     const turnClassification = classifySmsIntent({
       customerMessage: latestCustomerMessage,
       business,

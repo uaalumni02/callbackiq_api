@@ -9,8 +9,8 @@ const getConfig = () => {
   return {
     gmailAddress,
     gmailPassword: clean(process.env.GMAIL_PASSWORD),
-    senderName: clean(process.env.EMAIL_SENDER_NAME) || "CallBackIQ",
-    // For the current CallBackIQ setup, the Gmail inbox is also the default
+    senderName: clean(process.env.EMAIL_SENDER_NAME) || "MeekCall",
+    // For the current MeekCall setup, the Gmail inbox is also the default
     // destination for internal demo alerts. This can still be overridden later.
     adminEmail: clean(process.env.DEMO_NOTIFICATION_EMAIL) || gmailAddress,
     publicAppUrl: clean(
@@ -90,7 +90,7 @@ class DemoNotificationService {
 
     return this.send({
       to: adminEmail,
-      subject: `New CallBackIQ demo request — ${demo.businessName}`,
+      subject: `New MeekCall demo request — ${demo.businessName}`,
       html: `
         <h2>New demo request</h2>
         <p><strong>${escapeHtml(demo.businessName)}</strong></p>
@@ -114,9 +114,9 @@ class DemoNotificationService {
 
     const prospect = this.send({
       to: demo.email,
-      subject: "Your CallBackIQ demo is booked",
+      subject: "Your MeekCall demo is booked",
       html: `
-        <h2>Your CallBackIQ demo is booked.</h2>
+        <h2>Your MeekCall demo is booked.</h2>
         <p><strong>${escapeHtml(formatDemoTime(demo))}</strong></p>
         <p>We’ll focus the walkthrough on how Voice AI and SMS recover unanswered calls, qualify opportunities, and move customers toward booking or human follow-up.</p>
         ${
@@ -158,10 +158,10 @@ class DemoNotificationService {
 
     const prospect = this.send({
       to: demo.email,
-      subject: "Your CallBackIQ demo was cancelled",
+      subject: "Your MeekCall demo was cancelled",
       html: `
         <h2>Your demo was cancelled.</h2>
-        <p>If you’d like to choose another time, return to the CallBackIQ Book a Demo page.</p>
+        <p>If you’d like to choose another time, return to the MeekCall Book a Demo page.</p>
       `,
     });
 

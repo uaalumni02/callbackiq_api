@@ -6,7 +6,6 @@ import { smsContactControlKind, canAcknowledgeSmsContactControl } from './smsCon
 import { handleAppointmentReply } from '../scheduling/appointmentReply.service.js';
 import { guardServiceRequest } from '../serviceEligibility/serviceEligibility.service.js';
 import { respectCustomerConstraints } from '../conversationCondition.service.js';
-// CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1: processor
 import { classifySmsIntent } from "./smsIntentClassifier.service.js";
 import { loadCustomerTurn, completeCoalescedJobs } from "./smsTurnAggregation.service.js";
 import Conversation from "../../models/conversation.js";

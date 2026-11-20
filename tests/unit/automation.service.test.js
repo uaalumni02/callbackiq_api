@@ -62,10 +62,10 @@ const doc = (overrides = {}) => ({
   },
   business: {
     _id: "b1",
-    businessName: "CallBackIQ Plumbing",
+    businessName: "MeekCall Plumbing",
     phone: "+14045550101",
     timezone: "UTC",
-    toObject: () => ({ businessName: "CallBackIQ Plumbing", phone: "+14045550101" }),
+    toObject: () => ({ businessName: "MeekCall Plumbing", phone: "+14045550101" }),
   },
   conversation: {
     _id: "c1",
@@ -254,7 +254,7 @@ describe("AutomationService", () => {
         businessId: "b1",
         to: "+14045550100",
         from: "+14045550101",
-        body: "Hello Jane from CallBackIQ Plumbing",
+        body: "Hello Jane from MeekCall Plumbing",
         actorType: "automation",
         source: "automation_workflow",
         usageCategory: "automation",
@@ -263,7 +263,7 @@ describe("AutomationService", () => {
       }),
     );
     expect(Message.findOneAndUpdate).toHaveBeenCalledWith(expect.any(Object), { $setOnInsert: expect.objectContaining({
-      body: "Hello Jane from CallBackIQ Plumbing",
+      body: "Hello Jane from MeekCall Plumbing",
       providerMessageId: "SM1",
       status: "queued",
     }) }, { upsert: true, returnDocument: "after" });

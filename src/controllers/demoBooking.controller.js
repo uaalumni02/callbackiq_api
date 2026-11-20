@@ -80,7 +80,7 @@ class DemoBookingController {
       if (payload.faxNumber) {
         return res.status(201).json({
           success: true,
-          message: "Your CallBackIQ demo is booked.",
+          message: "Your MeekCall demo is booked.",
           data: null,
         });
       }
@@ -116,7 +116,7 @@ class DemoBookingController {
 
       return res.status(201).json({
         success: true,
-        message: "Your CallBackIQ demo is booked.",
+        message: "Your MeekCall demo is booked.",
         data: {
           request: publicDemo(demoRequest),
           bookingToken,

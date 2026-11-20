@@ -9,7 +9,6 @@ import { isRequestReview, saveRequestReview } from './requestReview.service.js';
 import { staffReviewDueAt, staffReviewSlaMinutes } from "./staffReviewPolicy.service.js";
 import { logOperationalError, safeConsole } from "../helpers/logging/safeLogger.js";
 import { moneyAmount } from "./valuation/opportunityValue.js";
-// CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1: alerts
 import Alert from "../models/alert.js";
 import SocketService from "./socket.service.js";
 const insertAlert = createAwaitedInsertBatch(Alert);
@@ -218,7 +217,7 @@ class AlertService {
       leadId,
       type: "missed_call",
       title: "New missed call",
-      message: `${customer} called and did not reach your business. CallBackIQ started the missed-call recovery workflow.`,
+      message: `${customer} called and did not reach your business. MeekCall started the missed-call recovery workflow.`,
       priority: "high",
       metadata: {
         callLogId: callLogId ? String(callLogId) : null,

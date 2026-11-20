@@ -34,7 +34,7 @@ import automationRoutes from "./routes/automation.routes.js";
 import revenueRecoveryRoutes from "./routes/revenueRecovery.routes.js";
 import revenueRescueRoutes from "./routes/revenueRescue.routes.js";
 import revenueAutomationRoutes from "./routes/revenueAutomation.routes.js";
-import marketingAttributionRoutes from "./routes/marketingAttribution.routes.js"; // CALLBACKIQ_MARKETING_ATTRIBUTION_V1
+import marketingAttributionRoutes from "./routes/marketingAttribution.routes.js";
 import interventionRoutes from "./routes/intervention.routes.js";
 import recoveryCoordinatorRoutes from "./routes/recoveryCoordinator.routes.js";
 import ownerExperienceRoutes from "./routes/ownerExperience.routes.js";
@@ -123,7 +123,7 @@ app.use("/api/voice-operations", voiceOperationsRoutes);
 app.get("/", (req, res) => {
   return res.status(200).json({
     success: true,
-    message: "CallBackIQ API is running",
+    message: "MeekCall API is running",
   });
 });
 app.use(notFound);

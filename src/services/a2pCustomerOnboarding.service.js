@@ -101,7 +101,7 @@ const ensureMessagingService = async ({ client, registration, businessName }) =>
   if (registration.messagingServiceSid) return registration.messagingServiceSid;
   const webhookBase = getPublicWebhookBaseUrl();
   const service = await client.messaging.v1.services.create({
-    friendlyName: `${businessName} - CallBackIQ A2P`,
+    friendlyName: `${businessName} - MeekCall A2P`,
     ...(webhookBase ? { inboundRequestUrl: `${webhookBase}/api/twilio/sms` } : {}),
   });
   registration.messagingServiceSid = service.sid;
@@ -212,7 +212,7 @@ const createStandardRegistration = async ({ client, registration, input, common 
   registration.registrationNumberLast4 = ein.slice(-4);
   registration.campaign = {
     description: clean(input.campaign?.description) ||
-      `${common.legalBusinessName} uses CallBackIQ for missed-call recovery and customer-care messaging.`,
+      `${common.legalBusinessName} uses MeekCall for missed-call recovery and customer-care messaging.`,
     messageFlow: common.campaign.messageFlow,
     messageSamples: createMessageSamples(common.legalBusinessName),
     useCase: "CUSTOMER_CARE",
@@ -366,7 +366,7 @@ const createSoleProprietorRegistration = async ({ client, registration, input, c
   registration.mobilePhoneLast4 = mobilePhone.slice(-4);
   registration.campaign = {
     description: clean(input.campaign?.description) ||
-      `${common.legalBusinessName} uses CallBackIQ for missed-call recovery and customer-care messaging.`,
+      `${common.legalBusinessName} uses MeekCall for missed-call recovery and customer-care messaging.`,
     messageFlow: common.campaign.messageFlow,
     messageSamples: createMessageSamples(common.legalBusinessName),
     useCase: "SOLE_PROPRIETOR",

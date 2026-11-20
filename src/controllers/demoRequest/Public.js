@@ -66,7 +66,7 @@ static async bookDemoRequest(req, res) {
       if (payload.faxNumber) {
         return res.status(201).json({
           success: true,
-          message: "Your CallBackIQ demo is booked.",
+          message: "Your MeekCall demo is booked.",
           data: null,
         });
       }
@@ -95,7 +95,7 @@ static async bookDemoRequest(req, res) {
       const publicRequest = publicDemo(demoRequest);
       return res.status(201).json({
         success: true,
-        message: "Your CallBackIQ demo is booked.",
+        message: "Your MeekCall demo is booked.",
         data: {
           ...publicRequest,
           request: publicRequest,

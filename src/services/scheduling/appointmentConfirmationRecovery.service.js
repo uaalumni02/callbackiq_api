@@ -80,7 +80,7 @@ export function createConfirmationRecovery({
       await provider.cancelAppointment({
         appointment: { ...appointment.toObject(), externalAppointmentId: compensation.eventId, externalCalendarId: compensation.calendarId },
         target,
-        reason: 'CallBackIQ rolled back an incomplete confirmation.',
+        reason: 'MeekCall rolled back an incomplete confirmation.',
       });
     } catch (error) {
       await report(appointment, error, compensation);

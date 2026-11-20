@@ -14,7 +14,6 @@ import {
   startConversationLifecycleWorker,
   stopConversationLifecycleWorker,
 } from "./workers/conversationLifecycle.worker.js";
-// CALLBACKIQ_PRODUCTION_HARDENING_V1
 import "dotenv/config";
 import mongoose from "mongoose";
 import connectDB from "./db/connection.js";
@@ -185,7 +184,7 @@ export const startWorkerProcess = async ({
     safeConsole.log(`Started ${name} worker`);
   }
 
-  safeConsole.log(`CallBackIQ worker process ready (${getProcessRole()})`);
+  safeConsole.log(`MeekCall worker process ready (${getProcessRole()})`);
   startProcessHeartbeat();
 };
 

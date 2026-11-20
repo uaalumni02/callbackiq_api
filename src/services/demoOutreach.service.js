@@ -107,7 +107,7 @@ class DemoOutreachService {
     if (!sent) {
       throw contactError(
         "DEMO_OUTREACH_EMAIL_SEND_FAILED",
-        "Email could not be sent. Check the CallBackIQ email configuration and try again.",
+        "Email could not be sent. Check the MeekCall email configuration and try again.",
       );
     }
 

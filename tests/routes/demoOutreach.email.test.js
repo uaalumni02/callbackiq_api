@@ -26,7 +26,7 @@ const createAdmin = async () => {
     email: "demo-email-admin@callbackiq.com",
     password: "LongFixturePassword123",
     role: "admin",
-    businessName: "CallBackIQ Admin",
+    businessName: "MeekCall Admin",
     businessPhone: "4045551212",
     businessType: "other",
     smsConsent: true,
@@ -72,7 +72,7 @@ describe("Demo outreach email sending", () => {
       .post(`/api/demo-requests/${demo._id}/emails`)
       .set("Authorization", `Bearer ${token}`)
       .send({
-        subject: "Your CallBackIQ demo",
+        subject: "Your MeekCall demo",
         body: "Hi John,\n\nLooking forward to speaking with you.",
       });
 
@@ -81,7 +81,7 @@ describe("Demo outreach email sending", () => {
     expect(sendSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         to: "john@example.com",
-        subject: "Your CallBackIQ demo",
+        subject: "Your MeekCall demo",
       }),
     );
     expect(sendSpy.mock.calls[0][0].html).toContain("Hi John,<br /><br />");
@@ -93,7 +93,7 @@ describe("Demo outreach email sending", () => {
       type: "email_sent",
       channel: "email",
       actorEmail: user.email,
-      subject: "Your CallBackIQ demo",
+      subject: "Your MeekCall demo",
     });
   });
 
@@ -106,7 +106,7 @@ describe("Demo outreach email sending", () => {
       .post(`/api/demo-requests/${demo._id}/emails`)
       .set("Authorization", `Bearer ${token}`)
       .send({
-        subject: "Your CallBackIQ demo",
+        subject: "Your MeekCall demo",
         body: "Hi John",
       });
 

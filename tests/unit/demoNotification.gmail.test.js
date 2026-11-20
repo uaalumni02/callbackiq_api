@@ -98,7 +98,7 @@ describe("DemoNotificationService Gmail configuration", () => {
       expect.arrayContaining([
         expect.objectContaining({
           to: "john@example.com",
-          subject: "Your CallBackIQ demo is booked",
+          subject: "Your MeekCall demo is booked",
         }),
         expect.objectContaining({
           to: "admin@example.com",

@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-// CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1
 // Fast, dependency-light verification of the installed SMS handoff patch.
 
 import fs from "node:fs";

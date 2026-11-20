@@ -26,7 +26,7 @@ import {
   normalizePhoneToE164,
 } from "./voicePhone.service.js";
 import VoiceTranscriptService from "./voiceTranscript.service.js";
-import { resolveTrackingNumberContext, syncLatestAttribution } from "../services/marketingAttribution.service.js"; // CALLBACKIQ_ATTRIBUTION_PRODUCTION_HARDENING
+import { resolveTrackingNumberContext, syncLatestAttribution } from "../services/marketingAttribution.service.js";
 const TERMINAL_STATUSES = new Set(["completed", "failed", "canceled"]);
 const TRANSITIONS = Object.freeze({
   routing: new Set(["connecting", "active", "fallback_sms", "failed", "canceled"]),
@@ -242,7 +242,7 @@ class VoiceSessionService {
           missedCallTextSent: false,
           recovered: false,
           notes: usableCaller
-            ? "Call routed through CallBackIQ ConversationRelay."
+            ? "Call routed through MeekCall ConversationRelay."
             : "Call routed through ConversationRelay with anonymous or restricted caller ID.",
         });
         emit("emitCallCreated", business._id, callLog);

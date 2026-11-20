@@ -1,6 +1,5 @@
 import { saveStateDocument } from './stateTransitions/documents.js';
 import { safeConsole } from "../helpers/logging/safeLogger.js";
-// CALLBACKIQ_MARKETING_ATTRIBUTION_V1
 import Business from "../models/business.js";
 import MarketingSource, {
   MARKETING_SOURCE_CHANNELS,
@@ -330,7 +329,7 @@ export const provisionMarketingTrackingNumber = async ({
     const urls = webhookUrls();
     const incoming = await client.incomingPhoneNumbers.create({
       phoneNumber: selected,
-      friendlyName: `CallBackIQ Source - ${String(source.name).slice(0, 40)}`,
+      friendlyName: `MeekCall Source - ${String(source.name).slice(0, 40)}`,
       voiceMethod: "POST",
       voiceUrl: urls.voiceUrl,
       smsMethod: "POST",
@@ -371,7 +370,7 @@ export const provisionMarketingTrackingNumber = async ({
     if (liveCollision) {
       throw sourceError(
         "TRACKING_NUMBER_PHONE_COLLISION",
-        "Twilio returned a phone number that is already assigned inside CallBackIQ. The new provider resource will be released automatically.",
+        "Twilio returned a phone number that is already assigned inside MeekCall. The new provider resource will be released automatically.",
         409,
       );
     }

@@ -16,7 +16,6 @@ static async getMyLeads(req, res) {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      // CALLBACKIQ_LEAD_CURSOR_PAGINATION_V1
       const page = await getLeadsPage(business._id, req.query);
       const pagination = setPaginationHeaders(res, page);
       return Response.responseOk(res, page.items, "Leads fetched", pagination);

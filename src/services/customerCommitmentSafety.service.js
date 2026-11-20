@@ -1,7 +1,6 @@
-// CALLBACKIQ_CUSTOMER_COMMITMENT_SAFETY_V1
 // Shared customer-facing commitment guard used by both SMS and Voice AI.
 //
-// CallBackIQ may truthfully say that it saved, flagged, or sent a request when
+// MeekCall may truthfully say that it saved, flagged, or sent a request when
 // the corresponding durable operation has completed. It must not promise that
 // staff will call, contact, arrive, or respond within an unverified timeframe.
 

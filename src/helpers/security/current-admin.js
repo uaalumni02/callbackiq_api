@@ -1,4 +1,3 @@
-// CALLBACKIQ_PRODUCTION_HARDENING_V1
 import User from "../../models/user.js";
 import { assertAdminSession } from '../../services/security/adminSessionPolicy.js';
 

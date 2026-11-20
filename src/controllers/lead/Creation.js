@@ -66,7 +66,6 @@ static async createLead(req, res) {
         return Response.responseInvalidInput(res, error.message);
       }
 
-      // CALLBACKIQ_SCALE_HARDENING_V1
       // Duplicate/retried customer creation is a conflict, not an internal
       // server failure. Returning 409 prevents retry storms from becoming 5xx
       // storms while the unique tenant/customer identity remains authoritative.

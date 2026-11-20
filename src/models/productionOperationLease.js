@@ -1,4 +1,3 @@
-// CALLBACKIQ_PRODUCTION_HARDENING_V1
 import mongoose from "mongoose";
 
 const productionOperationLeaseSchema = new mongoose.Schema(

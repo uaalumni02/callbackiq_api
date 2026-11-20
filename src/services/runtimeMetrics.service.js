@@ -4,7 +4,6 @@ import { getVoiceSnapshot } from "./runtimeState.service.js";
 import { monitorEventLoopDelay } from "node:perf_hooks";
 const eventLoopDelay = monitorEventLoopDelay({ resolution: 20 });
 eventLoopDelay.enable();
-// CALLBACKIQ_PRODUCTION_HARDENING_V1
 const MAX_SAMPLES = 5000;
 const durationsMs = [];
 const statusCounts = new Map();

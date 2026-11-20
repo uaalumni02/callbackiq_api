@@ -197,7 +197,7 @@ const addDays = (date, amount) =>
 const dateKey = (date) =>
   date.toISOString().slice(0, 10);
 
-describe("CallBackIQ single-customer complete lifecycle", () => {
+describe("MeekCall single-customer complete lifecycle", () => {
   let mongo;
   let business;
   let ownerId;
@@ -403,12 +403,12 @@ describe("CallBackIQ single-customer complete lifecycle", () => {
       /*
        * Deterministic provider-side availability.
        *
-       * CallBackIQ's own availability/business-hours logic remains real.
+       * MeekCall's own availability/business-hours logic remains real.
        * This only replaces the external calendar availability boundary.
        */
       /*
        * Mirror the real scheduling provider contract:
-       * generate CallBackIQ's actual internal business-hours slots,
+       * generate MeekCall's actual internal business-hours slots,
        * while skipping only the external calendar/network boundary.
        */
       getAvailability: jest.fn(async (options = {}) => {

@@ -26,7 +26,6 @@ router.post(
   "/voice",
   validateTwilioSignature,
   twilioVoiceWebhookRateLimit,
-  // CALLBACKIQ_VOICE_P95_MONITOR
   monitorTwilioVoiceWebhookLatency,
   TrackingVoiceController.initial,
   VoiceWebhookController.initial,
@@ -36,7 +35,6 @@ router.post(
   "/voice-fallback",
   validateTwilioSignature,
   twilioVoiceWebhookRateLimit,
-  // CALLBACKIQ_VOICE_P95_MONITOR
   monitorTwilioVoiceWebhookLatency,
   TrackingVoiceController.initial,
   VoiceWebhookController.initial,
@@ -45,7 +43,6 @@ router.post(
   "/tracking-call-complete",
   validateTwilioSignature,
   twilioVoiceWebhookRateLimit,
-  // CALLBACKIQ_VOICE_P95_MONITOR
   monitorTwilioVoiceWebhookLatency,
   TrackingVoiceController.complete,
   VoiceWebhookController.initial,
@@ -55,7 +52,6 @@ router.post(
   "/voice-overflow",
   validateTwilioSignature,
   twilioVoiceWebhookRateLimit,
-  // CALLBACKIQ_VOICE_P95_MONITOR
   monitorTwilioVoiceWebhookLatency,
   VoiceWebhookController.overflow,
 );
@@ -63,7 +59,6 @@ router.post(
   "/voice-complete",
   validateTwilioSignature,
   twilioVoiceWebhookRateLimit,
-  // CALLBACKIQ_VOICE_P95_MONITOR
   monitorTwilioVoiceWebhookLatency,
   VoiceWebhookController.complete,
 );
@@ -71,7 +66,6 @@ router.post(
   "/voice-transfer-complete",
   validateTwilioSignature,
   twilioVoiceWebhookRateLimit,
-  // CALLBACKIQ_VOICE_P95_MONITOR
   monitorTwilioVoiceWebhookLatency,
   VoiceWebhookController.transferComplete,
 );
@@ -80,7 +74,6 @@ router.post(
   "/voice-staff-screen",
   validateTwilioSignature,
   twilioVoiceWebhookRateLimit,
-  // CALLBACKIQ_VOICE_P95_MONITOR
   monitorTwilioVoiceWebhookLatency,
   VoiceWebhookController.staffScreen,
 );
@@ -89,7 +82,6 @@ router.post(
   "/voice-staff-screen-decision",
   validateTwilioSignature,
   twilioVoiceWebhookRateLimit,
-  // CALLBACKIQ_VOICE_P95_MONITOR
   monitorTwilioVoiceWebhookLatency,
   VoiceWebhookController.staffScreenDecision,
 );

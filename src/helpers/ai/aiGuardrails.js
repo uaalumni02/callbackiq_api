@@ -177,7 +177,7 @@ const SAFE_REPLIES = Object.freeze({
 
   hazardousDIY:
     "I cannot provide instructions for hazardous repairs or bypassing safety devices. Contact a qualified professional. If anyone is in immediate danger, call 911. This service does not monitor emergencies or dispatch emergency help. Do not wait for a callback.",
-  help: "CallBackIQ is the business's automated service assistant. Reply with the service you need, or reply STOP to opt out of messages.",
+  help: "MeekCall is the business's automated service assistant. Reply with the service you need, or reply STOP to opt out of messages.",
   optOut:
     "You have been unsubscribed and will no longer receive automated text messages from this business.",
   spam: "I am pausing automated replies because too many or repeated messages were received. The business can review the conversation.",
@@ -470,7 +470,6 @@ export const evaluateConversationAbuse = ({
   const normalizedCurrent = cleanText(customerMessage).toLowerCase();
   const nowMs = now instanceof Date ? now.getTime() : new Date(now).getTime();
 
-  // CALLBACKIQ_SMS_RECOVERY_JOURNEY_SPAM_SCOPE_V1
   // Preserve full history for continuity, but scope abuse counters to the
   // current missed-call recovery journey.
   const activityWindowStartMs = activityWindowStartAt

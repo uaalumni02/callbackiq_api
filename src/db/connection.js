@@ -1,5 +1,4 @@
 import { safeConsole } from "../helpers/logging/safeLogger.js";
-// CALLBACKIQ_SCALE_HARDENING_V1
 import mongoose from "mongoose";
 
 import {

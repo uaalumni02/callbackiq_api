@@ -26,7 +26,6 @@ const CallLogSchema = new Schema(
       default: null,
     },
 
-    // CALLBACKIQ_MARKETING_ATTRIBUTION_V1: attribution is captured when the phone rings, before outcome is known.
     marketingSource: {
       type: Schema.Types.ObjectId,
       ref: "MarketingSource",
@@ -191,7 +190,6 @@ const CallLogSchema = new Schema(
       default: "",
     },
 
-    // CALLBACKIQ_ATTRIBUTION_10OF10_FULL_V2: operational soft deletion.
     // Historical attribution reports intentionally retain these records.
     deletedAt: { type: Date, default: null, index: true },
     deletedBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
@@ -218,7 +216,6 @@ CallLogSchema.index({
   business: 1,
   createdAt: -1,
 });
-// CALLBACKIQ_ATTRIBUTION_10OF10_FULL_V2: operational call-history paging.
 CallLogSchema.index({ business: 1, deletedAt: 1, createdAt: -1 });
 
 /*

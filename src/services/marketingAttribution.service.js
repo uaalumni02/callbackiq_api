@@ -1,7 +1,6 @@
 import { marketingAttributionTransitionLeadUpdateOne, marketingAttributionTransitionLeadUpdateOne2, marketingAttributionSyncLatestAttributionConversationUpdateOne } from './stateTransitions/customerProjections.js';
 import { createHash } from "node:crypto";
 import mongoose from "mongoose";
-// CALLBACKIQ_MARKETING_ATTRIBUTION_V1
 import Business from "../models/business.js";
 import CallLog from "../models/callLog.js";
 import Conversation from "../models/conversation.js";
@@ -101,7 +100,6 @@ export const syncLatestAttribution = async ({
   if (leadId) {
     tasks.push(
       (async () => {
-        // CALLBACKIQ_ATTRIBUTION_10OF10_FULL_V2: first touch is write-once.
         // For pre-upgrade leads, derive it from the earliest attributed CallLog
         // instead of incorrectly treating the newest interaction as acquisition.
         if (trackingNumber?._id) {
@@ -123,7 +121,7 @@ export const syncLatestAttribution = async ({
               .sort({ createdAt: 1, _id: 1 })
               .select("marketingSource trackingNumber attribution")
               .lean();
-
+            // The first touch is write-once so later replies cannot replace the acquisition source.
             await marketingAttributionTransitionLeadUpdateOne({ Lead, attribution, businessId, earliestCall, leadId, marketingSource, trackingNumber });
           }
         }

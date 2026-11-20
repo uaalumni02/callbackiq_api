@@ -19,7 +19,7 @@ const createUncertainAlert = async ({
     businessId,
     title: "SMS delivery needs review",
     message:
-      "A CallBackIQ reply may have reached the customer, but the provider result could not be confirmed. Review the conversation before sending again.",
+      "A MeekCall reply may have reached the customer, but the provider result could not be confirmed. Review the conversation before sending again.",
     priority: "high",
     metadata: {
       conversationId: String(conversationId),

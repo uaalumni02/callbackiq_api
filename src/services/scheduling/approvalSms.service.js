@@ -54,7 +54,7 @@ export async function runApprovalSms({ limit = 100, now = new Date(), send = sen
       if (!['http:', 'https:'].includes(link.protocol)) throw new Error('Invalid application URL');
       link.searchParams.set('appointmentId', String(alert.appointment || alert.metadata.appointmentId));
       const result = await send({ business, to: policy.approvalSmsPhone,
-        body: `CallBackIQ: ${stage === 'expired' ? 'An appointment reservation expired; the request still needs review' : stage === 'overdue' ? 'An appointment request is overdue' : 'An appointment request needs your approval'}. Review and approve securely: ${link}. Sign-in required.`,
+        body: `MeekCall: ${stage === 'expired' ? 'An appointment reservation expired; the request still needs review' : stage === 'overdue' ? 'An appointment request is overdue' : 'An appointment request needs your approval'}. Review and approve securely: ${link}. Sign-in required.`,
         actorType: 'system', source: 'staff_approval_notice', usageCategory: 'sms',
         metadata: { idempotencyKey: `staff-approval:${alert._id}:${stage}` } });
       const state = result?.sid ? 'sent' : result?.suppressed || result?.policyBlocked ? 'blocked' : 'uncertain';

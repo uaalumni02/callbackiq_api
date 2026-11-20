@@ -40,7 +40,7 @@ export async function confirmWithoutRecovery(
             externalAppointmentId: providerResult.externalAppointmentId,
             externalCalendarId: providerResult.externalCalendarId,
           },
-          reason: "CallBackIQ rolled back an incomplete confirmation.",
+          reason: "MeekCall rolled back an incomplete confirmation.",
         });
       } catch (cleanupError) {
         await InterventionService.create({
@@ -51,7 +51,7 @@ export async function confirmWithoutRecovery(
           type: "integration_failure",
           title: "Google Calendar event needs cleanup",
           message:
-            "Google created an event, but CallBackIQ could not persist the matching appointment or remove the event automatically.",
+            "Google created an event, but MeekCall could not persist the matching appointment or remove the event automatically.",
           priority: "high",
           reason: cleanupError.message,
           recommendedAction:

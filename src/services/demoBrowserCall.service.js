@@ -160,7 +160,7 @@ const buildFailureTwiml = () => {
   const response = new twilio.twiml.VoiceResponse();
   response.say(
     { voice: "alice" },
-    "We could not connect this CallBackIQ demo call. Please try again.",
+    "We could not connect this MeekCall demo call. Please try again.",
   );
   response.hangup();
   return response.toString();

@@ -1,4 +1,3 @@
-// CALLBACKIQ_SMS_PRODUCTION_HANDOFF_V1: policy
 import { bookingQuestionReply, isAmbiguousServiceLoss, serviceLossQuestion } from "../booking/conversationQuestions.service.js";
 import { classifySmsIntent, extractService } from "./smsIntentClassifier.service.js";
 import {

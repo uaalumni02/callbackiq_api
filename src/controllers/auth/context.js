@@ -103,12 +103,12 @@ const hasSecurityStateExpired = (lastFailedLoginAt) => {
 
 const trialEligibilityMessage = (eligibility) => {
   if (eligibility?.eligible) {
-    return "Account created successfully. Activate your 14-day trial to start CallBackIQ.";
+    return "Account created successfully. Activate your 14-day trial to start MeekCall.";
   }
   if (eligibility?.reason === "disposable_email") {
-    return "Account created successfully. This email domain is not eligible for a free trial, so choose a paid plan to activate CallBackIQ.";
+    return "Account created successfully. This email domain is not eligible for a free trial, so choose a paid plan to activate MeekCall.";
   }
-  return "Account created successfully. This customer or business identity has already used its lifetime free trial, so choose a paid plan to activate CallBackIQ.";
+  return "Account created successfully. This customer or business identity has already used its lifetime free trial, so choose a paid plan to activate MeekCall.";
 };
 
 const getConsentIp = (req) => getTrustedRequestIp(req);

@@ -64,7 +64,6 @@ async update({ businessId, appointmentId, changes }) {
     await tryRepairAppointmentProjections(appointment);
 
 
-    // CALLBACKIQ_AUTHORITATIVE_OWNER_OUTCOME_V1
     SocketService.emitToBusiness(
       businessId,
       "appointment:updated",

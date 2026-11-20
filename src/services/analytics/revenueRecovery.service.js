@@ -5,7 +5,7 @@ import Appointment from "../../models/appointment.js";
 import CallLog from "../../models/callLog.js";
 import ConversionEvent from "../../models/conversionEvent.js";
 import Lead from "../../models/lead.js";
-import MarketingSource from "../../models/marketingSource.js"; // CALLBACKIQ_MARKETING_ATTRIBUTION_V1
+import MarketingSource from "../../models/marketingSource.js";
 
 const getRange = ({ startDate, endDate }) => {
   const end = endDate ? new Date(endDate) : new Date();
@@ -180,7 +180,6 @@ class RevenueRecoveryService {
   }
 
   static async trends({ businessId, startDate, endDate }) {
-    // CALLBACKIQ_ATTRIBUTION_10OF10_FULL_V2:
     // Return the exact daily contract consumed by RevenueRecovery.js. We use
     // authoritative collections instead of assuming every lifecycle stage has
     // a ConversionEvent.
@@ -318,7 +317,6 @@ class RevenueRecoveryService {
   }
 
   static async marketingSources({ businessId, startDate, endDate }) {
-    // CALLBACKIQ_ATTRIBUTION_10OF10_V1: marketing source revenue reconciliation
     const { start, end } = getRange({ startDate, endDate });
     const dateFilter = { $gte: start, $lte: end };
     const missedStatuses = ["missed", "voicemail", "failed", "busy", "no_answer"];
