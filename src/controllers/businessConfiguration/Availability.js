@@ -1,4 +1,7 @@
-import { AvailabilityException, AvailabilityRule, availabilityRulesSchema, createAvailabilityExceptionSchema, getOwnerBusiness, respondError, respondNotFound, updateAvailabilityExceptionSchema } from './context.js';
+import AvailabilityException from "../../models/availabilityException.js";
+import AvailabilityRule from "../../models/availabilityRule.js";
+import { availabilityRulesSchema, createAvailabilityExceptionSchema, updateAvailabilityExceptionSchema } from "../../validator/businessConfiguration.js";
+import { getOwnerBusiness, respondError, respondNotFound } from "./helpers.js";
 
 export default class BusinessConfigurationAvailabilityController {
 static async getAvailability(req, res) {

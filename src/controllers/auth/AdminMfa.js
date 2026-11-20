@@ -1,5 +1,6 @@
 import { completeAdminChallenge, regenerateAdminRecovery } from '../../services/security/adminMfa.service.js';
-import { cookieOptions, buildAuthToken } from './context.js';
+import "mongoose";
+import { cookieOptions, buildAuthToken } from "./helpers.js";
 function finish(res, result) {
   res.set('Cache-Control', 'no-store');
   res.cookie('token', buildAuthToken(result.user, result.user.sessionVersion, { mfaVerified: true, authTime: Math.floor(Date.now() / 1000) }), cookieOptions);

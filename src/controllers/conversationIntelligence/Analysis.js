@@ -1,7 +1,20 @@
 import {tenantRepository,tenantContext} from '../../db/repositories/tenantRepository.js';
 import { runAiUsageOperation } from '../../services/aiUsageOperation.service.js';
 import {readTenantResource} from '../shared/tenantResource.js';
-import { Business, Conversation, ConversationIntelligence, ConversationIntelligenceService, Db, Lead, Response, SocketService, analysisIdentity, analysisUpdate, analyzeConversationSchema, beginValuation, claimAnalysis, finishValuation, getMessagesForAnalysis, mongoose, safeConsole, updateAnalyzedLead } from './context.js';
+import Business from "../../models/business.js";
+import Conversation from "../../models/conversation.js";
+import ConversationIntelligence from "../../models/conversationIntelligence.js";
+import ConversationIntelligenceService from "../../services/conversationIntelligence.service.js";
+import Db from "../../db/db.js";
+import Lead from "../../models/lead.js";
+import * as Response from "../../helpers/response/response.js";
+import SocketService from "../../services/socket.service.js";
+import { analysisIdentity, analysisUpdate, claimAnalysis, updateAnalyzedLead } from "../../services/conversationIntelligence.persistence.js";
+import { analyzeConversationSchema } from "../../validator/conversationIntelligence.js";
+import { beginValuation, finishValuation } from "../../services/valuation/opportunityValuation.service.js";
+import { getMessagesForAnalysis } from "./helpers.js";
+import mongoose from "mongoose";
+import { safeConsole } from "../../helpers/logging/safeLogger.js";
 export default class ConversationIntelligenceAnalysisController {
 static async analyzeConversation(req, res) {
     try {

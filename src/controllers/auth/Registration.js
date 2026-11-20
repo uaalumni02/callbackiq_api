@@ -1,5 +1,21 @@
 import { saveStateDocument } from '../../services/stateTransitions/documents.js';
-import { Business, Db, Response, User, bcrypt, buildAuthToken, captureSignupSecurity, cookieOptions, createInactiveSubscription, crypto, getConsentIp, getTrialEligibility, issueEmailVerification, normalizeBusinessPhone, registerSchema, runRegistrationTransaction, safeConsole, securityGateEnabled, shouldExposeAuthToken, trialEligibilityMessage, validate, verifyTurnstileToken } from './context.js';
+import "mongoose";
+import Business from "../../models/business.js";
+import Db from "../../db/db.js";
+import * as Response from "../../helpers/response/response.js";
+import User from "../../models/user.js";
+import bcrypt from "../../helpers/bcrypt/bcrypt.js";
+import { buildAuthToken, cookieOptions, getConsentIp, shouldExposeAuthToken, trialEligibilityMessage } from "./helpers.js";
+import { captureSignupSecurity } from "../../services/trialRisk.service.js";
+import { createInactiveSubscription, getTrialEligibility } from "../../helpers/billing/trial.js";
+import crypto from "crypto";
+import { issueEmailVerification, securityGateEnabled } from "../../services/trialIdentityVerification.service.js";
+import { normalizePhoneToE164 as normalizeBusinessPhone } from "../../voice/voicePhone.service.js";
+import { registerSchema } from "../../validator/auth.js";
+import { runRegistrationTransaction } from "../../services/registrationTransaction.service.js";
+import { safeConsole } from "../../helpers/logging/safeLogger.js";
+import * as validate from "../../helpers/model/user.js";
+import { verifyTurnstileToken } from "../../helpers/security/turnstile.js";
 export default class AuthRegistrationController {
 static async register(req, res) {
     const {

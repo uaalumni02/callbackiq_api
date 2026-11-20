@@ -49,7 +49,7 @@
       ]
     },
     {
-      "file": "src/controllers/intervention/context.js",
+      "file": "src/controllers/intervention/helpers.js",
       "baselineAstSha256": "d6a67323facef0d67f821c15cb5622b80e441d17bf1e277584165873731d8d95",
       "commands": [
         {
@@ -57,12 +57,12 @@
           "call": "pauseOwnedReviewConversation({ Conversation, alert, business, normalizeId })",
           "target": "src/services/stateTransitions/reviews.js",
           "expression": "Conversation.findOneAndUpdate({\n      _id: normalizeId(alert.conversation), business: business._id,\n    }, { $set: { humanTakeover: true, aiEnabled: false } }, { returnDocument: 'after' })",
-          "legacyId": "src/controllers/intervention/context.js#pauseOwnedReview#findOneAndUpdate#1"
+          "legacyId": "src/controllers/intervention/helpers.js#pauseOwnedReview#findOneAndUpdate#1"
         }
       ]
     },
     {
-      "file": "src/controllers/voiceWebhook/context.js",
+      "file": "src/controllers/voiceWebhook/helpers.js",
       "baselineAstSha256": "d2427eac4e70c740b271f8fea8cc086b2ac24a23557c9900958683695c2b2440",
       "commands": [
         {
@@ -70,7 +70,7 @@
           "call": "saveStateDocument(session)",
           "target": "src/services/stateTransitions/documents.js",
           "expression": "session.save()",
-          "legacyId": "src/controllers/voiceWebhook/context.js#saveLegacySessionState#save#1"
+          "legacyId": "src/controllers/voiceWebhook/helpers.js#saveLegacySessionState#save#1"
         }
       ]
     },

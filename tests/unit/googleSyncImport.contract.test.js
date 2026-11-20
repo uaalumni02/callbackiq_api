@@ -1,4 +1,4 @@
-import { loadGoogleCalendarSyncService } from '../../src/controllers/integration/context.js';
+import { loadGoogleCalendarSyncService } from "../../src/controllers/integration/helpers.js";
 
 test('the real Google sync lazy loader resolves its operational interface', async () => {
   const service = await loadGoogleCalendarSyncService();

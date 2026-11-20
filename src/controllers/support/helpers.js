@@ -1,10 +1,7 @@
-import mongoose from "mongoose";
 
 import Db from "../../db/db.js";
-
 import Business from "../../models/business.js";
 
-import SupportTicket from "../../models/supportTicket.js";
 
 const validCategories = [
   "billing",
@@ -45,4 +42,5 @@ const getUserBusiness = async (req) => {
 
   return business;
 };
-export { Db, SupportTicket, getUserBusiness, getUserId, validCategories, validPriorities, mongoose, validStatuses };
+
+export { getUserBusiness, getUserId, validCategories, validPriorities, validStatuses };

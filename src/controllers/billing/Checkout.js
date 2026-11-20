@@ -1,4 +1,15 @@
-import { ACCESS_LEVELS, Response, Subscription, assertTrialIdentityVerified, checkoutSchema, createSubscriptionCheckout, enforceTrialActivationRisk, getRequestBusiness, getRequestSubscription, getStripeClient, getSubscriptionAccess, safeConsole, securityGateEnabled, syncCheckoutSession, verifyTurnstileToken } from './context.js';
+import "../../models/trialRedemption.js";
+import { ACCESS_LEVELS, getSubscriptionAccess } from "../../services/subscriptionAccess.service.js";
+import * as Response from "../../helpers/response/response.js";
+import Subscription from "../../models/subscription.js";
+import { assertTrialIdentityVerified, securityGateEnabled } from "../../services/trialIdentityVerification.service.js";
+import { checkoutSchema } from "../../validator/billing.js";
+import { createSubscriptionCheckout, syncCheckoutSession } from "../../services/trialLifecycle.service.js";
+import { enforceTrialActivationRisk } from "../../services/trialRisk.service.js";
+import { getRequestBusiness, getRequestSubscription } from "./helpers.js";
+import { getStripeClient } from "../../helpers/stripe/stripeClient.js";
+import { safeConsole } from "../../helpers/logging/safeLogger.js";
+import { verifyTurnstileToken } from "../../helpers/security/turnstile.js";
 
 export default class BillingCheckoutController {
 static async startFreeTrial(req, res) {

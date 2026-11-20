@@ -1,5 +1,11 @@
 import {readTenantResource} from '../shared/tenantResource.js';
-import {  Lead, Response, getBusinessForOwner, getLeadsOverview, getLeadsPage, mongoose, queryFailure, safeConsole, setPaginationHeaders } from './context.js';
+import Lead from "../../models/lead.js";
+import * as Response from "../../helpers/response/response.js";
+import { getBusinessForOwner } from "./helpers.js";
+import { getLeadsOverview, getLeadsPage, setPaginationHeaders } from "../../services/cursorPagination.service.js";
+import mongoose from "mongoose";
+import { queryFailure } from "../../services/scale/queryBudget.js";
+import { safeConsole } from "../../helpers/logging/safeLogger.js";
 
 export default class LeadReadsController {
 static async getMyLeads(req, res) {

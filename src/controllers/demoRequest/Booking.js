@@ -1,4 +1,10 @@
-import { DemoNotificationService, DemoRequest, DemoSchedulingService, Response, bookingError, emitAdminRefresh, escapeIcs, publicDemo, publicDemoScheduleSchema, publicDemoTokenSchema, requireBookingAccess, safeConsole, toIcsUtc } from './context.js';
+import DemoNotificationService from "../../services/demoNotification.service.js";
+import DemoRequest from "../../models/demoRequest.js";
+import DemoSchedulingService from "../../services/demoScheduling.service.js";
+import * as Response from "../../helpers/response/response.js";
+import { bookingError, emitAdminRefresh, escapeIcs, publicDemo, requireBookingAccess, toIcsUtc } from "./helpers.js";
+import { publicDemoScheduleSchema, publicDemoTokenSchema } from "../../validator/demoRequest.js";
+import { safeConsole } from "../../helpers/logging/safeLogger.js";
 
 export default class DemoRequestBookingController {
 static async scheduleDemoRequest(req, res) {

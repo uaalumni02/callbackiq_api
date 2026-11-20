@@ -126,8 +126,8 @@
       }
     },
     {
-      "id": "src/controllers/intervention/context.js#pauseOwnedReview#transition-command#1",
-      "file": "src/controllers/intervention/context.js",
+      "id": "src/controllers/intervention/helpers.js#pauseOwnedReview#transition-command#1",
+      "file": "src/controllers/intervention/helpers.js",
       "line": 93,
       "kind": "transition-command",
       "fields": [
@@ -139,7 +139,7 @@
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
       "allowedCommand": {
-        "module": "src/controllers/intervention/context.js",
+        "module": "src/controllers/intervention/helpers.js",
         "function": "pauseOwnedReview",
         "mode": "registered-domain-command"
       },
@@ -155,8 +155,8 @@
       }
     },
     {
-      "id": "src/controllers/voiceWebhook/context.js#saveLegacySessionState#transition-command#1",
-      "file": "src/controllers/voiceWebhook/context.js",
+      "id": "src/controllers/voiceWebhook/helpers.js#saveLegacySessionState#transition-command#1",
+      "file": "src/controllers/voiceWebhook/helpers.js",
       "line": 181,
       "kind": "transition-command",
       "fields": [
@@ -168,7 +168,7 @@
       "predicateSource": null,
       "authoritativeRecord": "RegisteredStateRecord",
       "allowedCommand": {
-        "module": "src/controllers/voiceWebhook/context.js",
+        "module": "src/controllers/voiceWebhook/helpers.js",
         "function": "saveLegacySessionState",
         "mode": "registered-domain-command"
       },

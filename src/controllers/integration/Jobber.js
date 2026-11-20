@@ -1,4 +1,9 @@
-import { Business, IntegrationConnection, JobberProvider, buildJobberAuthorizationUrl, disconnectJobber, exchangeJobberAuthorizationCode, frontendBaseUrl, getOwnedBusiness, publicStatus } from './context.js';
+import Business from "../../models/business.js";
+import IntegrationConnection from "../../models/integrationConnection.js";
+import JobberProvider from "../../integrations/scheduling/jobber.provider.js";
+import { buildJobberAuthorizationUrl, disconnectJobber, exchangeJobberAuthorizationCode } from "../../services/integrations/jobberOAuth.service.js";
+import { frontendBaseUrl, publicStatus } from "./helpers.js";
+import getOwnedBusiness from "../../services/businessScope.service.js";
 
 export default class IntegrationJobberController {
 static async jobberConnect(req, res, next) {

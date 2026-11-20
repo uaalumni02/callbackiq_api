@@ -1,5 +1,8 @@
 import {updateSupportTicketAsAdmin} from '../../db/repositories/privileged/supportTickets.js';
-import { Db, SupportTicket, getUserId, mongoose, validCategories, validPriorities, validStatuses } from './context.js';
+import Db from "../../db/db.js";
+import SupportTicket from "../../models/supportTicket.js";
+import { getUserId, validCategories, validPriorities, validStatuses } from "./helpers.js";
+import mongoose from "mongoose";
 
 const getAllTicketsAdmin = async (req, res) => {
   try {

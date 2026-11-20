@@ -7,7 +7,7 @@ const source = (relative) =>
 
 describe("marketing attribution production hardening", () => {
   test("voice webhook resolves any owned Twilio number through the shared resolver", () => {
-    const text = source("src/controllers/voiceWebhook/context.js");
+    const text = source("src/controllers/voiceWebhook/helpers.js");
     expect(text).toContain("resolveTwilioNumberContext");
     expect(text).toContain("numberContext?.business || null");
   });

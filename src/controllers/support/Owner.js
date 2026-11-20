@@ -1,4 +1,7 @@
-import { Db, SupportTicket, getUserBusiness, getUserId, mongoose, validCategories, validPriorities } from './context.js';
+import Db from "../../db/db.js";
+import SupportTicket from "../../models/supportTicket.js";
+import { getUserBusiness, getUserId, validCategories, validPriorities } from "./helpers.js";
+import mongoose from "mongoose";
 
 const createTicket = async (req, res) => {
   try {

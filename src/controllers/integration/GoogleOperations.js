@@ -1,4 +1,7 @@
-import { Business, GoogleCalendarProvider, getOwnedBusiness, loadGoogleCalendarSyncService, publicStatus } from './context.js';
+import Business from "../../models/business.js";
+import GoogleCalendarProvider from "../../integrations/scheduling/googleCalendar.provider.js";
+import getOwnedBusiness from "../../services/businessScope.service.js";
+import { loadGoogleCalendarSyncService, publicStatus } from "./helpers.js";
 
 export default class IntegrationGoogleOperationsController {
 static async googleTest(req, res, next) {

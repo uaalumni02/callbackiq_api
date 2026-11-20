@@ -1,4 +1,7 @@
-import { ServiceOffering, createServiceOfferingSchema, getBusinessConfigurationBootstrap, getOwnerBusiness, respondError, respondNotFound, updateServiceOfferingSchema } from './context.js';
+import ServiceOffering from "../../models/serviceOffering.js";
+import { createServiceOfferingSchema, updateServiceOfferingSchema } from "../../validator/businessConfiguration.js";
+import { getBusinessConfigurationBootstrap } from "../../services/businessConfiguration.service.js";
+import { getOwnerBusiness, respondError, respondNotFound } from "./helpers.js";
 
 export default class BusinessConfigurationCatalogController {
 static async bootstrap(req, res) {

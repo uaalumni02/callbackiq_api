@@ -1,4 +1,11 @@
-import { completeTrialPaymentMethodCheckout, getStripeClient, guardInvoiceAgainstCanonicalSubscription, invoiceSubscriptionId, processStripeEventOnce, safeConsole, sendTrialLifecycleMessage, syncCheckoutSession, syncStripeSubscription } from './context.js';
+import "../../models/trialRedemption.js";
+import { completeTrialPaymentMethodCheckout } from "../../services/subscriptionActions.service.js";
+import { getStripeClient } from "../../helpers/stripe/stripeClient.js";
+import { guardInvoiceAgainstCanonicalSubscription } from "../../services/subscriptionIntegrity.service.js";
+import { invoiceSubscriptionId } from "../../helpers/billing/invoiceSubscriptionId.js";
+import { processStripeEventOnce } from "../../services/billingEvent.service.js";
+import { safeConsole } from "../../helpers/logging/safeLogger.js";
+import { sendTrialLifecycleMessage, syncCheckoutSession, syncStripeSubscription } from "../../services/trialLifecycle.service.js";
 
 export default class BillingWebhooksController {
 static async handleStripeWebhook(req, res, dispatcher = BillingWebhooksController) {

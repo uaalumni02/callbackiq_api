@@ -1,4 +1,7 @@
-import { getOwnedBusiness, getVoiceSettingsContract, listVoiceSettingsVersions, rollbackVoiceSettingsVersion, serialize, validateVoiceSettingsDraft } from './context.js';
+import { getOwnedBusiness } from "../../services/businessScope.service.js";
+import { getVoiceSettingsContract, validateVoiceSettingsDraft } from "../../services/voiceSettingsContract.service.js";
+import { listVoiceSettingsVersions, rollbackVoiceSettingsVersion } from "../../services/voiceSettingsVersion.service.js";
+import { serialize } from "./helpers.js";
 
 export default class VoiceSettingsVersionsController {
 static async schema(req, res, next) {

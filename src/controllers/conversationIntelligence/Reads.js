@@ -1,5 +1,11 @@
 import {readTenantResource} from '../shared/tenantResource.js';
-import { Business, ConversationIntelligence, Db, Response, listQuerySchema, mongoose, opportunityQuerySchema, safeConsole } from './context.js';
+import Business from "../../models/business.js";
+import ConversationIntelligence from "../../models/conversationIntelligence.js";
+import Db from "../../db/db.js";
+import * as Response from "../../helpers/response/response.js";
+import { listQuerySchema, opportunityQuerySchema } from "../../validator/conversationIntelligence.js";
+import mongoose from "mongoose";
+import { safeConsole } from "../../helpers/logging/safeLogger.js";
 
 export default class ConversationIntelligenceReadsController {
 static async getMyConversationIntelligence(req, res) {

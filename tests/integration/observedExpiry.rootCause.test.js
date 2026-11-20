@@ -1,7 +1,8 @@
 import mongoose from 'mongoose';
 import Business from '../../src/models/business.js';
 import Subscription from '../../src/models/subscription.js';
-import { expireTrialIfNeeded } from '../../src/controllers/billing/context.js';
+import "../../src/models/trialRedemption.js";
+import { expireTrialIfNeeded } from "../../src/services/trialExpiry.service.js";
 import { connectTestDB, clearTestDB, closeTestDB } from '../setup/testDb.js';
 
 beforeAll(connectTestDB, 60000);

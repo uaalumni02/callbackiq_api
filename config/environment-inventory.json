@@ -18,22 +18,22 @@
     "src/services/a2pCustomerOnboarding.service.js:648"
   ],
   "A2P_RECONCILIATION_BATCH_LIMIT": [
-    "src/workers/a2pReconciliation.worker.js:26"
+    "src/workers/a2pReconciliation.worker.js:27"
   ],
   "A2P_RECONCILIATION_INITIAL_DELAY_MS": [
-    "src/workers/a2pReconciliation.worker.js:22"
+    "src/workers/a2pReconciliation.worker.js:23"
   ],
   "A2P_RECONCILIATION_INTERVAL_MS": [
-    "src/workers/a2pReconciliation.worker.js:18"
+    "src/workers/a2pReconciliation.worker.js:19"
   ],
   "A2P_RECONCILIATION_LEASE_MS": [
-    "src/workers/a2pReconciliation.worker.js:66"
+    "src/workers/a2pReconciliation.worker.js:67"
   ],
   "A2P_RECONCILIATION_WORKER_ENABLED": [
-    "src/workers/a2pReconciliation.worker.js:98"
+    "src/workers/a2pReconciliation.worker.js:101"
   ],
   "ADMIN_REPORTING_ENABLED": [
-    "src/workers/adminReporting.worker.js:84"
+    "src/workers/adminReporting.worker.js:85"
   ],
   "ADMIN_REPORTING_STRIPE_SYNC": [
     "src/services/admin/billingReporting.service.js:97"
@@ -45,16 +45,16 @@
     "config/numeric-settings.json"
   ],
   "AI_DUPLICATE_MESSAGE_THRESHOLD": [
-    "src/helpers/ai/aiGuardrails.js:507"
+    "src/helpers/ai/aiGuardrails.js:506"
   ],
   "AI_MAX_INBOUND_MESSAGES_PER_MINUTE": [
-    "src/helpers/ai/aiGuardrails.js:486"
+    "src/helpers/ai/aiGuardrails.js:485"
   ],
   "AI_MAX_REPLIES_PER_HOUR": [
-    "src/helpers/ai/aiGuardrails.js:493"
+    "src/helpers/ai/aiGuardrails.js:492"
   ],
   "AI_MAX_TURNS_PER_CONVERSATION": [
-    "src/helpers/ai/aiGuardrails.js:500"
+    "src/helpers/ai/aiGuardrails.js:499"
   ],
   "ALLOWED_ORIGINS": [
     "src/config/cors.js:32"
@@ -75,35 +75,35 @@
     "src/voice/voiceRouting.service.js:141"
   ],
   "APPOINTMENT_MAINTENANCE_INTERVAL_MS": [
-    "src/workers/appointmentMaintenance.worker.js:14"
+    "src/workers/appointmentMaintenance.worker.js:15"
   ],
   "APPOINTMENT_NOTIFICATION_BATCH_SIZE": [
-    "src/workers/automation.worker.js:137"
+    "src/workers/automation.worker.js:143"
   ],
   "APPOINTMENT_NOTIFICATION_CONCURRENCY": [
-    "src/workers/automation.worker.js:138"
+    "src/workers/automation.worker.js:144"
   ],
   "ATTRIBUTION_INCLUDED_SOURCE_NUMBERS": [
-    "src/services/marketingSource.service.js:33"
+    "src/services/marketingSource.service.js:32"
   ],
   "AUTH_COOKIE_SAME_SITE": [
-    "src/controllers/auth/context.js:52",
-    "src/controllers/auth/context.js:52"
+    "src/controllers/auth/helpers.js:23",
+    "src/controllers/auth/helpers.js:23"
   ],
   "AUTH_RATE_LIMIT_FAIL_CLOSED": [
-    "src/middleware/auth-distributed-rate-limits.js:76"
+    "src/middleware/auth-distributed-rate-limits.js:75"
   ],
   "AUTH_RESPONSE_TOKEN_ENABLED": [
-    "src/controllers/auth/context.js:55"
+    "src/controllers/auth/helpers.js:26"
   ],
   "AUTOMATION_STALE_LOCK_MINUTES": [
-    "src/workers/automation.worker.js:24"
+    "src/workers/automation.worker.js:25"
   ],
   "AUTOMATION_WORKER_ENABLED": [
-    "src/workers/automation.worker.js:179"
+    "src/workers/automation.worker.js:187"
   ],
   "AUTOMATION_WORKER_INTERVAL_MS": [
-    "src/workers/automation.worker.js:20"
+    "src/workers/automation.worker.js:21"
   ],
   "BILLING_INTEGRITY_INTERVAL_MS": [
     "config/worker-settings.json"
@@ -112,11 +112,11 @@
     "src/scripts/migrate-tracking-number-separation.mjs:18"
   ],
   "CALLBACKIQ_WORKER_BOOT_TEST": [
-    "src/worker.js:187"
+    "src/worker.js:192"
   ],
   "CLIENT_URL": [
     "src/config/cors.js:30",
-    "src/controllers/billing/context.js:65",
+    "src/controllers/billing/helpers.js:24",
     "src/helpers/email/mailer.js:4",
     "src/services/scheduling/approvalSms.service.js:52",
     "src/services/scheduling/approvalSms.service.js:53",
@@ -132,8 +132,8 @@
     "src/middleware/twilio-webhook-rate-limit.js:68"
   ],
   "COMMUNICATION_USAGE_FAIL_CLOSED": [
-    "src/services/communicationUsage.service.js:365",
-    "src/services/communicationUsage.service.js:366"
+    "src/services/communicationUsage.service.js:364",
+    "src/services/communicationUsage.service.js:365"
   ],
   "CONVERSATION_INTELLIGENCE_MAX_CHARACTERS": [
     "src/services/conversationIntelligence.service.js:63"
@@ -237,10 +237,10 @@
     "src/voice/conversationRelaySignature.js:24"
   ],
   "DISTRIBUTED_AUTH_RATE_LIMIT_ENABLED": [
-    "src/middleware/auth-distributed-rate-limits.js:9"
+    "src/middleware/auth-distributed-rate-limits.js:8"
   ],
   "DUMMY_PASSWORD_HASH": [
-    "src/controllers/auth/context.js:78"
+    "src/controllers/auth/helpers.js:49"
   ],
   "EMAIL_SENDER_NAME": [
     "src/helpers/email/mailer.js:27",
@@ -254,7 +254,7 @@
   ],
   "FRONTEND_URL": [
     "src/config/cors.js:31",
-    "src/controllers/integration/context.js:153",
+    "src/controllers/integration/helpers.js:132",
     "src/services/demoNotification.service.js:18"
   ],
   "GIT_COMMIT_SHA": [
@@ -270,44 +270,44 @@
     "src/integrations/scheduling/googleCalendar.provider.js:42"
   ],
   "GOOGLE_CALENDAR_WEBHOOK_URL": [
-    "src/controllers/integration/GoogleSettings.js:85",
-    "src/controllers/integration/context.js:166",
+    "src/controllers/integration/GoogleSettings.js:90",
+    "src/controllers/integration/helpers.js:145",
     "src/services/integrations/googleCalendarSync.service.js:68",
-    "src/workers/automation.worker.js:105"
+    "src/workers/automation.worker.js:107"
   ],
   "GOOGLE_MAPS_GEOCODING_API_KEY": [
     "src/services/location/postalCodeDistance.service.js:68"
   ],
   "GOOGLE_WATCH_MAINTENANCE_INTERVAL_MS": [
-    "src/workers/automation.worker.js:28"
+    "src/workers/automation.worker.js:29"
   ],
   "HTTP_HEADERS_TIMEOUT_MS": [
-    "src/server.js:86"
+    "src/server.js:87"
   ],
   "HTTP_KEEP_ALIVE_TIMEOUT_MS": [
-    "src/server.js:81"
+    "src/server.js:82"
   ],
   "HTTP_MAX_REQUESTS_PER_SOCKET": [
-    "src/server.js:93"
+    "src/server.js:94"
   ],
   "HTTP_REQUEST_TIMEOUT_MS": [
-    "src/server.js:89"
+    "src/server.js:90"
   ],
   "INSTANCE_ID": [
     "src/services/scheduling/appointmentNotification.service.js:14",
-    "src/workers/automation.worker.js:33"
+    "src/workers/automation.worker.js:34"
   ],
   "INTEGRATION_ENCRYPTION_KEY": [
     "src/services/integrations/tokenEncryption.service.js:12"
   ],
   "INTEGRATION_WORKER_ENABLED": [
-    "src/workers/integrationMaintenance.worker.js:51"
+    "src/workers/integrationMaintenance.worker.js:52"
   ],
   "INTEGRATION_WORKER_INTERVAL_MS": [
-    "src/workers/integrationMaintenance.worker.js:9"
+    "src/workers/integrationMaintenance.worker.js:10"
   ],
   "JEST_WORKER_ID": [
-    "src/controllers/voiceWebhook/context.js:47",
+    "src/controllers/voiceWebhook/helpers.js:24",
     "src/voice/voicePreflight.service.js:14"
   ],
   "JOBBER_API_VERSION": [
@@ -355,7 +355,7 @@
     "src/services/messaging/manualSmsPolicy.service.js:10"
   ],
   "MANUAL_SMS_MAX_SEGMENTS": [
-    "src/services/messaging/smsCompliance.service.js:245"
+    "src/services/messaging/smsCompliance.service.js:244"
   ],
   "MANUAL_SMS_REQUESTS_PER_MINUTE": [
     "src/middleware/twilio-webhook-rate-limit.js:220"
@@ -387,28 +387,28 @@
     "src/services/revenueAutomationEngine.js:16"
   ],
   "MEEKCALL_REVENUE_AUTOMATION_WORKER_ENABLED": [
-    "src/workers/automation.worker.js:140"
+    "src/workers/automation.worker.js:146"
   ],
   "MONGO_CONNECT_TIMEOUT_MS": [
-    "src/db/connection.js:60"
+    "src/db/connection.js:59"
   ],
   "MONGO_MAX_CONNECTING": [
-    "src/db/connection.js:43"
+    "src/db/connection.js:42"
   ],
   "MONGO_MAX_IDLE_TIME_MS": [
-    "src/db/connection.js:72"
+    "src/db/connection.js:71"
   ],
   "MONGO_MAX_POOL_SIZE": [
-    "src/db/connection.js:29"
+    "src/db/connection.js:28"
   ],
   "MONGO_MIN_POOL_SIZE": [
-    "src/db/connection.js:35"
+    "src/db/connection.js:34"
   ],
   "MONGO_SERVER_SELECTION_TIMEOUT_MS": [
-    "src/db/connection.js:56"
+    "src/db/connection.js:55"
   ],
   "MONGO_SOCKET_TIMEOUT_MS": [
-    "src/db/connection.js:64"
+    "src/db/connection.js:63"
   ],
   "MONGO_URI": [
     "src/scripts/backfill-customer-lifecycle.mjs:12",
@@ -419,7 +419,7 @@
     "src/scripts/backfill-trial-redemptions.js:11"
   ],
   "MONGO_WAIT_QUEUE_TIMEOUT_MS": [
-    "src/db/connection.js:68"
+    "src/db/connection.js:67"
   ],
   "MONGODB_URI": [
     "src/scripts/backfill-customer-lifecycle.mjs:11",
@@ -432,9 +432,9 @@
     "src/config/logger.js:36",
     "src/config/logger.js:39",
     "src/config/logger.js:62",
-    "src/controllers/auth/context.js:50",
+    "src/controllers/auth/helpers.js:21",
     "src/controllers/health.js:34",
-    "src/controllers/voiceWebhook/context.js:47",
+    "src/controllers/voiceWebhook/helpers.js:24",
     "src/helpers/email/mailer.js:11",
     "src/helpers/email/mailer.js:48",
     "src/helpers/logging/safeLogger.js:4",
@@ -443,10 +443,10 @@
     "src/middleware/csrf-origin-guard.js:15",
     "src/middleware/security-headers.js:1",
     "src/middleware/validate-twilio-signature.js:4",
-    "src/services/communicationUsage.service.js:367",
+    "src/services/communicationUsage.service.js:366",
     "src/services/communicationUsageReservation.service.js:153",
     "src/services/communicationUsageReservation.service.js:439",
-    "src/services/scaleCache.service.js:23",
+    "src/services/scaleCache.service.js:22",
     "src/services/scheduling/appointmentConfirmationRecovery.service.js:32",
     "src/services/securityAlert.service.js:19",
     "src/services/securityAlert.service.js:80",
@@ -456,8 +456,8 @@
     "src/services/twilioSmsService.js:43",
     "src/services/twilioSmsService.js:118",
     "src/services/twilioSmsService.js:379",
-    "src/services/twilioSmsWebhook.service.js:73",
-    "src/services/twilioSmsWebhook.service.js:718",
+    "src/services/twilioSmsWebhook.service.js:71",
+    "src/services/twilioSmsWebhook.service.js:710",
     "src/services/voiceCapacity.service.js:23",
     "src/services/voiceSettingsVersion.service.js:175",
     "src/services/voiceUsage.service.js:832",
@@ -466,10 +466,10 @@
     "src/voice/relay/Setup.js:153",
     "src/voice/voicePreflight.service.js:13",
     "src/voice/voiceRouting.service.js:141",
-    "src/workers/adminReporting.worker.js:85",
-    "src/workers/smsProcessing.worker.js:45",
-    "src/workers/trialLifecycle.worker.js:45",
-    "src/workers/voiceUsageReconciliation.worker.js:49"
+    "src/workers/adminReporting.worker.js:86",
+    "src/workers/smsProcessing.worker.js:51",
+    "src/workers/trialLifecycle.worker.js:46",
+    "src/workers/voiceUsageReconciliation.worker.js:50"
   ],
   "OAUTH_STATE_SECRET": [
     "src/services/integrations/jobberOAuth.service.js:14"
@@ -510,14 +510,14 @@
     "src/helpers/ai/followUpAgent.js:48"
   ],
   "OPENAI_FOLLOW_UP_MODEL": [
-    "src/helpers/ai/followUpAgent.js:436"
+    "src/helpers/ai/followUpAgent.js:435"
   ],
   "OPENAI_FOLLOW_UP_TIMEOUT_MS": [
     "src/helpers/ai/followUpAgent.js:42"
   ],
   "OPENAI_MODEL": [
-    "src/helpers/ai/followUpAgent.js:438",
-    "src/helpers/ai/qualifyLeadWithAI.js:254",
+    "src/helpers/ai/followUpAgent.js:437",
+    "src/helpers/ai/qualifyLeadWithAI.js:253",
     "src/services/conversationIntelligence.service.js:191",
     "src/services/conversationIntelligence.service.js:227",
     "src/services/safetyAssessmentService.js:343"
@@ -526,14 +526,14 @@
     "src/helpers/ai/qualifyLeadWithAI.js:42"
   ],
   "OPENAI_QUALIFICATION_MODEL": [
-    "src/helpers/ai/qualifyLeadWithAI.js:253",
+    "src/helpers/ai/qualifyLeadWithAI.js:252",
     "src/services/safetyAssessmentService.js:342"
   ],
   "OPENAI_QUALIFICATION_TIMEOUT_MS": [
     "src/helpers/ai/qualifyLeadWithAI.js:36"
   ],
   "OPENAI_REPLY_MODEL": [
-    "src/helpers/ai/followUpAgent.js:437"
+    "src/helpers/ai/followUpAgent.js:436"
   ],
   "OPENAI_SAFETY_EMERGENCY_THRESHOLD": [
     "src/services/safetyAssessmentService.js:254"
@@ -552,6 +552,9 @@
   ],
   "OPENAI_VOICE_CLASSIFIER_TIMEOUT_MS": [
     "src/voice/voiceUnderstanding.service.js:61"
+  ],
+  "OPS_ALERT_WEBHOOK_URL": [
+    "src/services/operationsAlert.service.js:4"
   ],
   "OPS_PAGING_ENABLED": [
     "src/services/opsPaging.service.js:6"
@@ -591,17 +594,17 @@
     "src/middleware/verification-rate-limits.js:48"
   ],
   "PORT": [
-    "src/server.js:66"
+    "src/server.js:68"
   ],
   "PROCESS_ROLE": [
     "src/app.js:61",
-    "src/controllers/health.js:60",
+    "src/controllers/health.js:59",
     "src/services/processHeartbeat.service.js:12",
-    "src/services/processHeartbeat.service.js:20",
-    "src/workers/automation.worker.js:180"
+    "src/services/processHeartbeat.service.js:19",
+    "src/workers/automation.worker.js:188"
   ],
   "PUBLIC_API_URL": [
-    "src/services/marketingSource.service.js:42",
+    "src/services/marketingSource.service.js:41",
     "src/services/trackingNumberProvisioning.service.js:56"
   ],
   "PUBLIC_APP_URL": [
@@ -612,15 +615,15 @@
     "src/middleware/twilio-webhook-rate-limit.js:10"
   ],
   "RECOVERY_SMS_ASYNC_ENABLED": [
-    "src/services/webhooks/webhookWork.service.js:3"
+    "src/services/webhooks/webhookWork.service.js:4"
   ],
   "REDIS_URL": [
     "src/middleware/twilio-webhook-rate-limit.js:9",
     "src/middleware/twilio-webhook-rate-limit.js:10",
-    "src/services/scaleCache.service.js:31",
+    "src/services/scaleCache.service.js:30",
     "src/services/socketRedisAdapter.service.js:9",
     "src/services/voiceAdmission.service.js:5",
-    "src/worker.js:174"
+    "src/worker.js:179"
   ],
   "REGISTER_RATE_LIMIT_MAX": [
     "src/middleware/auth-public-rate-limits.js:50"
@@ -629,7 +632,7 @@
     "src/middleware/auth-public-rate-limits.js:47"
   ],
   "RELEASE_SHA": [
-    "src/services/processHeartbeat.service.js:26"
+    "src/services/processHeartbeat.service.js:25"
   ],
   "RENDER_GIT_COMMIT": [
     "src/controllers/health.js:16"
@@ -639,37 +642,37 @@
     "src/services/admin/infrastructureExpenses.service.js:96"
   ],
   "RUNTIME_METRICS_LOG_ENABLED": [
-    "src/services/runtimeMetrics.service.js:81"
+    "src/services/runtimeMetrics.service.js:80"
   ],
   "RUNTIME_METRICS_LOG_INTERVAL_MS": [
-    "src/services/runtimeMetrics.service.js:90"
+    "src/services/runtimeMetrics.service.js:89"
   ],
   "SCALE_CACHE_ENABLED": [
-    "src/services/scaleCache.service.js:23"
+    "src/services/scaleCache.service.js:22"
   ],
   "SCALE_CACHE_MAX_LOADERS": [
-    "src/services/scaleCache.service.js:112"
+    "src/services/scaleCache.service.js:111"
   ],
   "SCALE_CACHE_MEMORY_MAX_ENTRIES": [
-    "src/services/scaleCache.service.js:37"
+    "src/services/scaleCache.service.js:36"
   ],
   "SCALE_CACHE_NAMESPACE": [
     "src/middleware/twilio-webhook-rate-limit.js:33",
     "src/services/opsPaging.service.js:24",
-    "src/services/scaleCache.service.js:26",
+    "src/services/scaleCache.service.js:25",
     "src/services/voiceAdmission.service.js:18"
   ],
   "SCALE_CACHE_REDIS_URL": [
-    "src/services/scaleCache.service.js:30"
+    "src/services/scaleCache.service.js:29"
   ],
   "SCALE_CAPACITY_PLAN_SHA256": [
-    "src/services/processHeartbeat.service.js:26"
+    "src/services/processHeartbeat.service.js:25"
   ],
   "SCALE_IMAGE_DIGEST": [
-    "src/services/processHeartbeat.service.js:26"
+    "src/services/processHeartbeat.service.js:25"
   ],
   "SCALE_PROFILE": [
-    "src/services/processHeartbeat.service.js:14",
+    "src/services/processHeartbeat.service.js:13",
     "src/services/scaleHealth.service.js:32"
   ],
   "SCALE_SMS_REPLICAS": [
@@ -693,31 +696,37 @@
   "SECURITY_ALERT_WEBHOOK_URL": [
     "src/services/securityAlert.service.js:70"
   ],
+  "SENTRY_DSN": [
+    "src/services/errorTracking.service.js:26",
+    "src/services/errorTracking.service.js:30",
+    "src/services/errorTracking.service.js:33",
+    "src/services/errorTracking.service.js:46"
+  ],
   "SERVICE_ELIGIBILITY_REVIEW_REPAIR_ENABLED": [
     "src/services/staffReviewReconciliation.service.js:112"
   ],
   "SHUTDOWN_TIMEOUT_MS": [
-    "src/server.js:68",
-    "src/server.js:69"
+    "src/server.js:70",
+    "src/server.js:71"
   ],
   "SMS_AI_HISTORY_MESSAGES": [
     "src/services/messaging/smsTurnAggregation.service.js:9"
   ],
   "SMS_CLAIM_MAX_TIME_MS": [
-    "src/services/messaging/smsProcessingQueue.service.js:92"
+    "src/services/messaging/smsProcessingQueue.service.js:95"
   ],
   "SMS_CONVERSATION_LEASE_MS": [
     "src/services/messaging/inlineSmsProcessing.service.js:10",
-    "src/workers/smsProcessing.worker.js:112"
+    "src/workers/smsProcessing.worker.js:119"
   ],
   "SMS_DELIVERY_RECONCILIATION_BATCH_SIZE": [
-    "src/workers/smsDeliveryReconciliation.worker.js:34"
+    "src/workers/smsDeliveryReconciliation.worker.js:35"
   ],
   "SMS_DELIVERY_RECONCILIATION_ENABLED": [
-    "src/workers/smsDeliveryReconciliation.worker.js:133"
+    "src/workers/smsDeliveryReconciliation.worker.js:135"
   ],
   "SMS_DELIVERY_RECONCILIATION_INTERVAL_MS": [
-    "src/workers/smsDeliveryReconciliation.worker.js:26"
+    "src/workers/smsDeliveryReconciliation.worker.js:27"
   ],
   "SMS_DELIVERY_RECONCILIATION_LEASE_MS": [
     "src/services/messaging/smsDeliveryReconciliation.service.js:9"
@@ -738,69 +747,69 @@
     "src/services/smsContactDisclosure.service.js:27"
   ],
   "SMS_HANDOFF_STATUS_REPLY_THROTTLE_MINUTES": [
-    "src/services/messaging/smsHandoff.service.js:36"
+    "src/services/messaging/smsHandoff.service.js:35"
   ],
   "SMS_INGRESS_RECONCILIATION_ENABLED": [
-    "src/workers/smsIngressReconciliation.worker.js:58"
+    "src/workers/smsIngressReconciliation.worker.js:60"
   ],
   "SMS_INGRESS_RECONCILIATION_INTERVAL_MS": [
-    "src/workers/smsIngressReconciliation.worker.js:17"
+    "src/workers/smsIngressReconciliation.worker.js:18"
   ],
   "SMS_LIFECYCLE_BATCH_SIZE": [
-    "src/workers/conversationLifecycle.worker.js:164"
+    "src/workers/conversationLifecycle.worker.js:166"
   ],
   "SMS_LIFECYCLE_CONCURRENCY": [
-    "src/workers/conversationLifecycle.worker.js:191"
+    "src/workers/conversationLifecycle.worker.js:195"
   ],
   "SMS_LIFECYCLE_INTERVAL_MS": [
-    "src/workers/conversationLifecycle.worker.js:25"
+    "src/workers/conversationLifecycle.worker.js:26"
   ],
   "SMS_LIFECYCLE_WORKER_ENABLED": [
-    "src/workers/conversationLifecycle.worker.js:213"
+    "src/workers/conversationLifecycle.worker.js:218"
   ],
   "SMS_MAX_SEGMENTS_PER_MESSAGE": [
     "src/services/twilioSmsService.js:269"
   ],
   "SMS_PROCESSING_BATCH_SIZE": [
-    "src/workers/smsProcessing.worker.js:38"
+    "src/workers/smsProcessing.worker.js:44"
   ],
   "SMS_PROCESSING_BUSY_DELAY_MS": [
-    "src/workers/smsProcessing.worker.js:33"
+    "src/workers/smsProcessing.worker.js:39"
   ],
   "SMS_PROCESSING_CONCURRENCY": [
-    "src/workers/smsProcessing.worker.js:46"
+    "src/workers/smsProcessing.worker.js:52"
   ],
   "SMS_PROCESSING_INTERVAL_MS": [
-    "src/workers/smsProcessing.worker.js:28"
+    "src/workers/smsProcessing.worker.js:34"
   ],
   "SMS_PROCESSING_LEASE_MS": [
     "src/services/messaging/inlineSmsProcessing.service.js:10",
-    "src/services/messaging/smsProcessingQueue.service.js:19",
+    "src/services/messaging/smsProcessingQueue.service.js:20",
     "src/services/scale/smsTenantFairness.service.js:10",
-    "src/workers/smsProcessing.worker.js:55",
-    "src/workers/smsProcessing.worker.js:57",
-    "src/workers/smsProcessing.worker.js:112"
+    "src/workers/smsProcessing.worker.js:61",
+    "src/workers/smsProcessing.worker.js:63",
+    "src/workers/smsProcessing.worker.js:119"
   ],
   "SMS_PROCESSING_MAX_ATTEMPTS": [
-    "src/services/messaging/smsProcessingQueue.service.js:26"
+    "src/services/messaging/smsProcessingQueue.service.js:27"
   ],
   "SMS_PROCESSING_WORKER_ENABLED": [
-    "src/workers/smsProcessing.worker.js:241"
+    "src/workers/smsProcessing.worker.js:255"
   ],
   "SMS_RECOVERY_NUDGE_DELAY_MS": [
-    "src/workers/conversationLifecycle.worker.js:27"
+    "src/workers/conversationLifecycle.worker.js:28"
   ],
   "SMS_SEND_WINDOW_END_HOUR": [
-    "src/services/messaging/smsCompliance.service.js:180"
+    "src/services/messaging/smsCompliance.service.js:179"
   ],
   "SMS_SEND_WINDOW_START_HOUR": [
-    "src/services/messaging/smsCompliance.service.js:174"
+    "src/services/messaging/smsCompliance.service.js:173"
   ],
   "SMS_TENANT_MAX_CONCURRENCY": [
     "src/services/scale/smsTenantFairness.service.js:4"
   ],
   "SMS_TURN_COALESCE_MS": [
-    "src/services/messaging/smsProcessingQueue.service.js:12"
+    "src/services/messaging/smsProcessingQueue.service.js:13"
   ],
   "SMS_TURN_MAX_CHARACTERS": [
     "src/services/messaging/smsTurnAggregation.service.js:11"
@@ -820,10 +829,10 @@
   "SOCKET_REDIS_URL": [
     "src/middleware/twilio-webhook-rate-limit.js:9",
     "src/middleware/twilio-webhook-rate-limit.js:10",
-    "src/services/scaleCache.service.js:32",
+    "src/services/scaleCache.service.js:31",
     "src/services/socketRedisAdapter.service.js:8",
     "src/services/voiceAdmission.service.js:5",
-    "src/worker.js:174"
+    "src/worker.js:179"
   ],
   "SOCKET_REVALIDATE_MS": [
     "src/services/socketSession.service.js:31"
@@ -856,7 +865,7 @@
     "src/helpers/stripe/stripeClient.js:34"
   ],
   "STRIPE_BILLING_PORTAL_CONFIGURATION_ID": [
-    "src/controllers/billing/Reads.js:228"
+    "src/controllers/billing/Reads.js:237"
   ],
   "STRIPE_PRO_PRICE_ID": [
     "src/helpers/stripe/stripeClient.js:33"
@@ -879,7 +888,7 @@
     "src/routes/stripeWebHook.routes.js:21"
   ],
   "STRIPE_WEBHOOK_SECRET": [
-    "src/controllers/billing/Webhooks.js:5"
+    "src/controllers/billing/Webhooks.js:12"
   ],
   "TEST_AUTH_PUBLIC_RATE_LIMITS": [
     "src/middleware/auth-public-rate-limits.js:11"
@@ -951,7 +960,7 @@
     "src/services/voiceUsage.service.js:65"
   ],
   "TRUST_PROXY": [
-    "src/config/runtime-environment.js:45"
+    "src/config/runtime-environment.js:44"
   ],
   "TURNSTILE_EXPECTED_ACTION": [
     "src/helpers/security/turnstile.js:96"
@@ -974,10 +983,10 @@
     "src/services/demoBrowserCall.service.js:54",
     "src/services/ownerBrowserCall.service.js:33",
     "src/services/trackingNumberProvisioning.service.js:40",
-    "src/services/trackingNumberProvisioning.service.js:432",
-    "src/services/trackingNumberProvisioning.service.js:434",
-    "src/services/trackingNumberProvisioning.service.js:567",
-    "src/services/trackingNumberProvisioning.service.js:570",
+    "src/services/trackingNumberProvisioning.service.js:431",
+    "src/services/trackingNumberProvisioning.service.js:433",
+    "src/services/trackingNumberProvisioning.service.js:566",
+    "src/services/trackingNumberProvisioning.service.js:569",
     "src/services/trialIdentityVerification.service.js:33",
     "src/services/twilioSmsService.js:53",
     "src/services/twilioUsageTrigger.service.js:5",
@@ -1007,7 +1016,7 @@
   ],
   "TWILIO_AUTH_TOKEN": [
     "src/controllers/messageMedia.js:36",
-    "src/controllers/voiceSettings/Readiness.js:31",
+    "src/controllers/voiceSettings/Readiness.js:34",
     "src/middleware/validate-twilio-signature.js:26",
     "src/services/admin/companyExpenses.service.js:142",
     "src/services/admin/providerBalances.service.js:85",
@@ -1047,10 +1056,10 @@
     "src/services/admin/providerBalances.service.js:81"
   ],
   "TWILIO_GLOBAL_PROVISIONING_LEASE_MS": [
-    "src/services/trackingNumberProvisioning.service.js:307"
+    "src/services/trackingNumberProvisioning.service.js:306"
   ],
   "TWILIO_GLOBAL_PROVISIONING_WAIT_MS": [
-    "src/services/trackingNumberProvisioning.service.js:314"
+    "src/services/trackingNumberProvisioning.service.js:313"
   ],
   "TWILIO_MESSAGING_SERVICE_SID": [
     "src/services/automation/automation.service.js:58"
@@ -1087,15 +1096,15 @@
     "src/middleware/validate-twilio-signature.js:10",
     "src/services/a2pCustomerOnboarding.service.js:51",
     "src/services/demoBrowserCall.service.js:89",
-    "src/services/marketingSource.service.js:40",
+    "src/services/marketingSource.service.js:39",
     "src/services/ownerBrowserCall.service.js:79",
     "src/services/trackingNumberProvisioning.service.js:54",
     "src/services/twilioSmsService.js:120",
     "src/voice/voiceRouting.service.js:113"
   ],
   "TWILIO_WEBHOOK_LEASE_MS": [
-    "src/services/twilioSmsWebhook.service.js:77",
-    "src/services/webhooks/twilioWebhookEvent.service.js:15"
+    "src/services/twilioSmsWebhook.service.js:75",
+    "src/services/webhooks/twilioWebhookEvent.service.js:14"
   ],
   "VERCEL_BILLING_TEAM_ID": [
     "src/services/admin/infrastructureExpenses.service.js:42",
@@ -1119,8 +1128,8 @@
     "src/services/voiceAdmission.service.js:5"
   ],
   "VOICE_DRAIN_TIMEOUT_MS": [
-    "src/server.js:170",
-    "src/server.js:185"
+    "src/server.js:171",
+    "src/server.js:186"
   ],
   "VOICE_DURATION_WARNING_SECONDS": [
     "src/voice/relay/Timers.js:107"
@@ -1128,7 +1137,7 @@
   "VOICE_HTTP_PUBLIC_URL": [
     "src/services/a2pCustomerOnboarding.service.js:52",
     "src/services/demoBrowserCall.service.js:89",
-    "src/services/marketingSource.service.js:41",
+    "src/services/marketingSource.service.js:40",
     "src/services/ownerBrowserCall.service.js:79",
     "src/services/trackingNumberProvisioning.service.js:55",
     "src/services/twilioSmsService.js:120",
@@ -1153,9 +1162,6 @@
   "VOICE_LOOKUP_LINE_TYPE_ENABLED": [
     "src/voice/voiceLineType.service.js:62"
   ],
-  "VOICE_RELAY_ENABLED": [
-    "src/server.js:103"
-  ],
   "VOICE_STALE_SESSION_MINUTES": [
     "src/voice/voiceSessionMaintenance.service.js:21"
   ],
@@ -1175,22 +1181,22 @@
     "src/services/voiceAdmission.service.js:31"
   ],
   "VOICE_USAGE_RECONCILIATION_BATCH_SIZE": [
-    "src/workers/voiceUsageReconciliation.worker.js:42"
+    "src/workers/voiceUsageReconciliation.worker.js:43"
   ],
   "VOICE_USAGE_RECONCILIATION_BUSY_DELAY_MS": [
-    "src/workers/voiceUsageReconciliation.worker.js:34"
+    "src/workers/voiceUsageReconciliation.worker.js:35"
   ],
   "VOICE_USAGE_RECONCILIATION_CONCURRENCY": [
-    "src/workers/voiceUsageReconciliation.worker.js:52"
+    "src/workers/voiceUsageReconciliation.worker.js:53"
   ],
   "VOICE_USAGE_RECONCILIATION_INTERVAL_MS": [
-    "src/workers/voiceUsageReconciliation.worker.js:26"
+    "src/workers/voiceUsageReconciliation.worker.js:27"
   ],
   "VOICE_USAGE_RECONCILIATION_LEASE_MS": [
     "src/services/voiceUsage.service.js:21"
   ],
   "VOICE_USAGE_RECONCILIATION_WORKER_ENABLED": [
-    "src/workers/voiceUsageReconciliation.worker.js:201"
+    "src/workers/voiceUsageReconciliation.worker.js:204"
   ],
   "VOICE_USAGE_RESERVATION_LEASE_MS": [
     "src/services/voiceUsage.service.js:17"
@@ -1211,20 +1217,14 @@
     "config/worker-settings.json"
   ],
   "WORKER_DRAIN_GRACE_MS": [
-    "src/worker.js:136"
+    "src/worker.js:138"
   ],
   "WORKER_DRAIN_TIMEOUT_MS": [
-    "src/workers/conversationLifecycle.worker.js:233",
-    "src/workers/smsProcessing.worker.js:268"
+    "src/workers/conversationLifecycle.worker.js:238",
+    "src/workers/smsProcessing.worker.js:299"
   ],
   "WORKER_HEALTH_FILE": [
-    "src/services/processHeartbeat.service.js:21"
-  ],
-  "SENTRY_DSN": [
-    "src/services/errorTracking.service.js"
-  ],
-  "OPS_ALERT_WEBHOOK_URL": [
-    "src/services/operationsAlert.service.js"
+    "src/services/processHeartbeat.service.js:20"
   ],
   "WORKER_IDLE_POLL_MAX_MS": [
     "config/worker-settings.json"

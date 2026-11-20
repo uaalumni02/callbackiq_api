@@ -1,5 +1,14 @@
 import {readTenantResource} from '../shared/tenantResource.js';
-import { AlertService, Lead, Response, SocketService, createHotLeadAlertWhenNeeded, deleteLeadForBusiness, getBusinessForOwner, leadValidator, mongoose, queryFailure, safeConsole, updateLeadForBusiness, updateOwnerLead } from './context.js';
+import AlertService from "../../services/alert.service.js";
+import Lead from "../../models/lead.js";
+import * as Response from "../../helpers/response/response.js";
+import SocketService from "../../services/socket.service.js";
+import { createHotLeadAlertWhenNeeded, deleteLeadForBusiness, getBusinessForOwner, updateLeadForBusiness } from "./helpers.js";
+import leadValidator from "../../validator/lead.js";
+import mongoose from "mongoose";
+import { queryFailure } from "../../services/scale/queryBudget.js";
+import { safeConsole } from "../../helpers/logging/safeLogger.js";
+import { updateOwnerLead } from "../../services/valuation/opportunityValuation.service.js";
 
 export default class LeadCommandsController {
 static async updateLead(req, res) {

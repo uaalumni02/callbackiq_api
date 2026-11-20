@@ -12,4 +12,4 @@ class InterventionController {
 
 export default InterventionController;
 
-export { INTERVENTION_TYPES, SEVERITY_RANK, compareInterventions, resolveAssignableUserId } from './intervention/context.js';
+export { INTERVENTION_TYPES, SEVERITY_RANK, compareInterventions, resolveAssignableUserId } from './intervention/helpers.js';

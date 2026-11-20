@@ -1,4 +1,7 @@
-import { Business, buildGoogleAuthorizationUrl, exchangeGoogleAuthorizationCode, frontendBaseUrl, getGoogleConnection, getOwnedBusiness, listGoogleCalendars, publicStatus } from './context.js';
+import Business from "../../models/business.js";
+import { buildGoogleAuthorizationUrl, exchangeGoogleAuthorizationCode, getGoogleConnection, listGoogleCalendars } from "../../services/integrations/googleCalendarConnection.service.js";
+import { frontendBaseUrl, publicStatus } from "./helpers.js";
+import getOwnedBusiness from "../../services/businessScope.service.js";
 
 export default class IntegrationGoogleConnectionController {
 static async googleConnect(req, res, next) {

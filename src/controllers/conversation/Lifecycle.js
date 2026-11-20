@@ -1,5 +1,12 @@
 import {tenantRepository,tenantContext} from '../../db/repositories/tenantRepository.js';
-import { Conversation, Db, Message, Response, SocketService, deleteOptionalConversationRecords, emitConversationUpdated, queryFailure, safeConsole, withConversationPermissions } from './context.js';
+import Conversation from "../../models/conversation.js";
+import Db from "../../db/db.js";
+import Message from "../../models/message.js";
+import * as Response from "../../helpers/response/response.js";
+import SocketService from "../../services/socket.service.js";
+import { deleteOptionalConversationRecords, emitConversationUpdated, withConversationPermissions } from "./helpers.js";
+import { queryFailure } from "../../services/scale/queryBudget.js";
+import { safeConsole } from "../../helpers/logging/safeLogger.js";
 import ConversationAccessController from './Access.js';
 
 export default class ConversationLifecycleController {

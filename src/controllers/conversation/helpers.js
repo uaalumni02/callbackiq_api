@@ -1,33 +1,19 @@
 import {tenantRepository,tenantContext} from '../../db/repositories/tenantRepository.js';
-import { queryFailure } from "../../services/scale/queryBudget.js";
 
-import { safeConsole } from "../../helpers/logging/safeLogger.js";
 
 import mongoose from "mongoose";
-
 import Db from "../../db/db.js";
-
 import Business from "../../models/business.js";
-
 import Conversation from "../../models/conversation.js";
 
-import Message from "../../models/message.js";
 
-import conversationValidator from "../../validator/conversation.js";
 
-import conversationUpdateValidator from "../../validator/conversationUpdate.js";
 
-import { assertTenantReferences } from "../../services/tenantReferences.service.js";
-
-import * as Response from "../../helpers/response/response.js";
 
 import SocketService from "../../services/socket.service.js";
-
 import { normalizePhoneToE164, phoneLookupVariants } from "../../voice/voicePhone.service.js";
 
-import { isCurrentAdminRequest } from "../../helpers/security/current-admin.js";
 
-import { getConversationsPage, setPaginationHeaders } from "../../services/cursorPagination.service.js";
 
 const getBusinessForOwner = async (ownerId) => {
   return typeof Db.getBusinessScopeByOwner === "function"
@@ -141,4 +127,4 @@ const createOrReuseConversation = async ({ businessId, payload }) => {
     : existingConversation;
 };
 
-export { Conversation, Db, Response, getBusinessForOwner, getReferenceId, isCurrentAdminRequest, mongoose, SocketService, assertTenantReferences, conversationValidator, createOrReuseConversation, queryFailure, safeConsole, withConversationPermissions, getConversationsPage, setPaginationHeaders, conversationUpdateValidator, emitConversationUpdated, Message, deleteOptionalConversationRecords };
+export { getBusinessForOwner, getReferenceId, createOrReuseConversation, withConversationPermissions, emitConversationUpdated, deleteOptionalConversationRecords };

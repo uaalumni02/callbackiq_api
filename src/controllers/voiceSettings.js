@@ -2,7 +2,7 @@ import VoiceSettingsVersionsController from './voiceSettings/Versions.js';
 import VoiceSettingsCommandsController from './voiceSettings/Commands.js';
 import VoiceSettingsReadinessController from './voiceSettings/Readiness.js';
 
-export { validateUpdate, assertNoDialLoops } from './voiceSettings/context.js';
+export { validateUpdate, assertNoDialLoops } from './voiceSettings/helpers.js';
 
 class VoiceSettingsController {
   static schema(...args) { return VoiceSettingsVersionsController.schema(...args); }
