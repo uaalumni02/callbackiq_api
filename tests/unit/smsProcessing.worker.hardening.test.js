@@ -256,7 +256,7 @@ describe("smsProcessing.worker hardening", () => {
     expect(jest.getTimerCount()).toBe(0);
   });
 
-  test("saturated scheduled batches use the busy delay and then return to idle polling", async () => {
+  test("saturated batches keep the busy delay and empty polls back off", async () => {
     jest.useFakeTimers();
     process.env.SMS_PROCESSING_BATCH_SIZE = "1";
     process.env.SMS_PROCESSING_BUSY_DELAY_MS = "25";
@@ -270,7 +270,7 @@ describe("smsProcessing.worker hardening", () => {
     expect(mockLogOperationalEvent).toHaveBeenCalledWith("sms.processing_worker.batch", expect.objectContaining({ processed: 1, saturated: true }));
     await jest.advanceTimersByTimeAsync(25);
     expect(mockClaimNextInboundSmsJob).toHaveBeenCalledTimes(3);
-    await jest.advanceTimersByTimeAsync(999);
+    await jest.advanceTimersByTimeAsync(1999);
     expect(mockClaimNextInboundSmsJob).toHaveBeenCalledTimes(3);
     await jest.advanceTimersByTimeAsync(1);
     expect(mockClaimNextInboundSmsJob).toHaveBeenCalledTimes(4);
@@ -320,4 +320,26 @@ describe("smsProcessing.worker hardening", () => {
     await startSmsProcessingWorker();
     expect(mockClaimNextInboundSmsJob).not.toHaveBeenCalled();
   });
+  test("idle polling backs off to its ceiling and a local enqueue wakes it", async () => {
+    const { wakeLocalQueue } = require('../../src/services/localQueueWake.service.js');
+    jest.useFakeTimers();
+    process.env.SMS_PROCESSING_INTERVAL_MS = '1000';
+    process.env.WORKER_IDLE_POLL_MAX_MS = '3000';
+    mockClaimNextInboundSmsJob.mockResolvedValue(null);
+    await startSmsProcessingWorker();
+    await jest.advanceTimersByTimeAsync(1000);
+    expect(mockClaimNextInboundSmsJob).toHaveBeenCalledTimes(2);
+    await jest.advanceTimersByTimeAsync(2000);
+    expect(mockClaimNextInboundSmsJob).toHaveBeenCalledTimes(3);
+    await jest.advanceTimersByTimeAsync(2999);
+    expect(mockClaimNextInboundSmsJob).toHaveBeenCalledTimes(3);
+    wakeLocalQueue('sms');
+    await jest.advanceTimersByTimeAsync(0);
+    expect(mockClaimNextInboundSmsJob).toHaveBeenCalledTimes(4);
+    await stopSmsProcessingWorker();
+    wakeLocalQueue('sms');
+    await jest.advanceTimersByTimeAsync(10000);
+    expect(mockClaimNextInboundSmsJob).toHaveBeenCalledTimes(4);
+  });
+
 });

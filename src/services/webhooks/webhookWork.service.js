@@ -1,3 +1,4 @@
+import { wakeLocalQueue } from "../localQueueWake.service.js";
 import crypto from "crypto";
 import WebhookWork from "../../models/webhookWork.js";
 export const durableWebhookWorkEnabled = () => process.env.RECOVERY_SMS_ASYNC_ENABLED !== "false";
@@ -5,9 +6,11 @@ export const enqueueWebhookWork = async ({ kind, businessId, eventId, payload })
   if (!eventId || !businessId) throw new Error("Durable webhook work requires event and business identity");
   const _id = crypto.createHash("sha256").update(`${kind}:${businessId}:${eventId}`).digest("hex");
   try {
-    return await WebhookWork.findOneAndUpdate({ _id }, { $setOnInsert: {
+    const job = await WebhookWork.findOneAndUpdate({ _id }, { $setOnInsert: {
       kind, business: businessId, payload, status: "queued", availableAt: new Date(),
     } }, { upsert: true, returnDocument: "after", setDefaultsOnInsert: true });
+    wakeLocalQueue('webhook-work');
+    return job;
   } catch (error) {
     if (error.code === 11000) return WebhookWork.findById(_id);
     throw error;

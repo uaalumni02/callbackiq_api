@@ -1,3 +1,5 @@
+import { workerSetting } from "../config/workerSettings.js";
+import { subscribeLocalQueue } from "../services/localQueueWake.service.js";
 import { captureExternalError, trackWorkerFailure } from "../services/errorTracking.service.js";
 import { withSmsTenantSlot, recordSmsProcessingDuration, recordSmsTenantDeferral } from "../services/scale/smsTenantFairness.service.js";
 import { withDeadline } from "../services/boundedRedis.service.js";
@@ -24,6 +26,10 @@ const DEFAULT_CONCURRENCY = 5;
 let timer = null;
 let running = false;
 let stopGeneration = 0;
+let started = false;
+let idleDelay = DEFAULT_INTERVAL_MS;
+let wakePending = false;
+let unsubscribeWake = null;
 
 const intervalMs = () => {
   const value = Number(process.env.SMS_PROCESSING_INTERVAL_MS);
@@ -216,7 +222,10 @@ export const drainSmsProcessingQueueOnce = async () => {
 };
 
 const scheduleNext = (delayMs = intervalMs()) => {
+  clearTimeout(timer);
+  const generation = stopGeneration;
   timer = setTimeout(async () => {
+    wakePending = false;
     try {
       const result = await drainSmsProcessingQueueOnce();
       const saturated = result.processed >= batchSize();
@@ -227,13 +236,15 @@ const scheduleNext = (delayMs = intervalMs()) => {
           concurrency: concurrency(),
         });
       }
-      if (timer) {
-        scheduleNext(saturated ? busyDelayMs() : intervalMs());
+      idleDelay = result.processed ? intervalMs() : Math.min(Math.max(intervalMs(), workerSetting('WORKER_IDLE_POLL_MAX_MS')), idleDelay * 2);
+      if (started && generation === stopGeneration) {
+        scheduleNext(wakePending ? 0 : saturated ? busyDelayMs() : idleDelay);
+        wakePending = false;
       }
     } catch (error) {
     captureExternalError(error);
       logOperationalError("sms.processing_worker.failed", error);
-      if (timer) scheduleNext(intervalMs());
+      if (started && generation === stopGeneration) scheduleNext(intervalMs());
     }
   }, delayMs);
   timer.unref?.();
@@ -241,7 +252,7 @@ const scheduleNext = (delayMs = intervalMs()) => {
 
 export const startSmsProcessingWorker = async () => {
   if (
-    timer ||
+    started ||
     String(process.env.SMS_PROCESSING_WORKER_ENABLED || "true").toLowerCase() ===
       "false"
   ) {
@@ -256,15 +267,32 @@ export const startSmsProcessingWorker = async () => {
   });
 
   const generation = stopGeneration;
-  const initial = await drainSmsProcessingQueueOnce();
-  if (generation !== stopGeneration) return;
-  scheduleNext(
-    initial.processed >= batchSize() ? busyDelayMs() : intervalMs(),
-  );
+  started = true;
+  idleDelay = intervalMs();
+  wakePending = false;
+  unsubscribeWake = subscribeLocalQueue('sms', () => {
+    if (!started || generation !== stopGeneration) return;
+    wakePending = true;
+    if (running) return;
+    clearTimeout(timer);
+    scheduleNext(0);
+  });
+  try {
+    const initial = await drainSmsProcessingQueueOnce();
+    if (generation !== stopGeneration) return;
+    scheduleNext(wakePending ? 0 : initial.processed >= batchSize() ? busyDelayMs() : intervalMs());
+    wakePending = false;
+  } catch (error) {
+    started = false;
+    unsubscribeWake?.(); unsubscribeWake = null;
+    throw error;
+  }
 };
 
 export const stopSmsProcessingWorker = async () => {
   stopGeneration++;
+  started = false;
+  unsubscribeWake?.(); unsubscribeWake = null;
   if (timer) clearTimeout(timer);
   timer = null;
   await withDeadline((async () => {

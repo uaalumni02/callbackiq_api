@@ -1225,5 +1225,8 @@
   ],
   "OPS_ALERT_WEBHOOK_URL": [
     "src/services/operationsAlert.service.js"
+  ],
+  "WORKER_IDLE_POLL_MAX_MS": [
+    "config/worker-settings.json"
   ]
 }

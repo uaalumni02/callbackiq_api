@@ -1,3 +1,4 @@
+import { wakeLocalQueue } from "../localQueueWake.service.js";
 import crypto from "crypto";
 import SmsProcessingJob from "../../models/smsProcessingJob.js";
 import Message from "../../models/message.js";
@@ -40,7 +41,7 @@ export const enqueueInboundSmsJob = async ({
   providerMessageId = "",
   priority = 50,
 }) => {
-  return SmsProcessingJob.findOneAndUpdate(
+  const job = await SmsProcessingJob.findOneAndUpdate(
     { inboundMessage: inboundMessageId },
     {
       $setOnInsert: {
@@ -62,6 +63,8 @@ export const enqueueInboundSmsJob = async ({
       setDefaultsOnInsert: true,
     },
   );
+  wakeLocalQueue('sms');
+  return job;
 };
 
 export const claimNextInboundSmsJob = async ({ now = new Date(), excludeBusinesses = [] } = {}) => {

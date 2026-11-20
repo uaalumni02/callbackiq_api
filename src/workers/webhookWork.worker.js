@@ -1,3 +1,4 @@
+import { subscribeLocalQueue } from "../services/localQueueWake.service.js";
 import { captureExternalError } from "../services/errorTracking.service.js";
 import { workerSetting } from '../config/workerSettings.js';
 import WebhookWork from "../models/webhookWork.js";
@@ -8,6 +9,8 @@ import { logOperationalError } from "../helpers/logging/safeLogger.js";
 let timer = null;
 let stopping = false;
 let current = null;
+let generation = 0;
+let unsubscribeWake = null;
 
 export const processWebhookWork = async (job) => {
   const identity = { _id: job._id, status: "processing", leaseToken: job.leaseToken };
@@ -46,26 +49,52 @@ export const processWebhookWork = async (job) => {
 export const drainWebhookWorkOnce = async () => {
   if (current) return current;
   const concurrency = workerSetting('WEBHOOK_WORK_CONCURRENCY');
+  let processed = 0;
   current = Promise.all(Array.from({ length: concurrency }, async () => {
     for (let n = 0; n < 5 && !stopping; n++) {
       const job = await claimWebhookWork();
       if (!job) break;
+      processed++;
       await processWebhookWork(job);
     }
-  })).finally(() => { current = null; });
+  })).then(() => ({ processed })).finally(() => { current = null; });
   return current;
 };
 export const startWebhookWorkWorker = async () => {
   if (timer) return;
   stopping = false;
+  const startedGeneration = ++generation;
+  const maximum = Math.max(250, workerSetting('WORKER_IDLE_POLL_MAX_MS'));
+  let idleDelay = 250;
+  let wakePending = false;
+  const schedule = delay => { clearTimeout(timer); timer = setTimeout(tick, delay); timer.unref?.(); };
   const tick = async () => {
-    try { await drainWebhookWorkOnce(); } catch (error) {
-    captureExternalError(error); logOperationalError("webhook_work.poll_failed", error); }
-    if (!stopping) { timer = setTimeout(tick, 250); timer.unref?.(); }
+    wakePending = false;
+    try {
+      const result = await drainWebhookWorkOnce();
+      idleDelay = result.processed ? 250 : Math.min(maximum, idleDelay * 2);
+    } catch (error) {
+      captureExternalError(error);
+      logOperationalError("webhook_work.poll_failed", error);
+      idleDelay = Math.min(maximum, idleDelay * 2);
+    }
+    if (!stopping && generation === startedGeneration) {
+      schedule(wakePending ? 0 : idleDelay);
+      wakePending = false;
+    }
   };
-  timer = setTimeout(tick, 0); timer.unref?.();
+  unsubscribeWake = subscribeLocalQueue('webhook-work', () => {
+    if (stopping || generation !== startedGeneration) return;
+    wakePending = true;
+    if (current) return;
+    clearTimeout(timer);
+    schedule(0);
+  });
+  schedule(0);
 };
 export const stopWebhookWorkWorker = async () => {
-  stopping = true; clearTimeout(timer); timer = null;
+  stopping = true; generation++;
+  unsubscribeWake?.(); unsubscribeWake = null;
+  clearTimeout(timer); timer = null;
   if (current) await withDeadline(current, workerSetting('WORKER_DRAIN_TIMEOUT_MS'), "WORKER_DRAIN_TIMEOUT");
 };
