@@ -150,12 +150,10 @@ const SAFE_REPLIES = Object.freeze({
   offTopic:
     "I’m here to help with service requests, service details, and scheduling preferences for this business. What service can the team help you with?",
 
-  /*
-   * Generic emergency response used only when no hazard-specific reply
-   * applies (for example: person trapped, dangerous no-heat situations).
-   */
   emergency:
     "This service does not monitor emergencies or dispatch emergency help. If anyone is in immediate danger, call 911 from a safe location. Do not wait for a business reply or callback.",
+  selfHarmEmergency:
+    "If you're thinking about suicide or hurting yourself, call or text 988 (Suicide & Crisis Lifeline) now. If you're in immediate danger, call 911. This service does not monitor emergencies.",
   medicalEmergency:
     "Call 911 right away for a possible medical emergency. This service does not monitor emergencies or dispatch emergency help. Do not wait for a business reply or callback.",
   structuralEmergency:
@@ -186,6 +184,7 @@ const SAFE_REPLIES = Object.freeze({
 });
 
 const EMERGENCY_REPLY_BY_HAZARD_TYPE = Object.freeze({
+  self_harm: SAFE_REPLIES.selfHarmEmergency,
   medical: SAFE_REPLIES.medicalEmergency,
   gas: SAFE_REPLIES.gasEmergency,
   fire: SAFE_REPLIES.fireEmergency,
@@ -267,6 +266,7 @@ export const SAFETY_HAZARD_TYPES = Object.freeze([
   "flood",
   "sewage",
   "temperature",
+  "self_harm",
   "other",
 ]);
 

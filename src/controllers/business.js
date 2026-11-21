@@ -70,7 +70,7 @@ class BusinessController {
           status: "unassigned",
         },
         setupProgress: {
-          accountRegistered: true,
+          accountRegistered: true, suggestedServicesPending: true,
           forwardingPhoneConfigured: Boolean(forwardingPhone),
           updatedAt: new Date(),
         },
@@ -158,15 +158,15 @@ class BusinessController {
         return Response.responseBadAuth(res, "Not authenticated");
       }
 
-      const payload = await businessUpdateSchema.validateAsync(req.body, {
-        abortEarly: false,
-        stripUnknown: false,
-      });
-
       const currentBusiness = await Db.getBusinessByOwner(Business, ownerId);
       if (!currentBusiness) {
         return Response.responseInvalidInput(res, "Business not found");
       }
+
+      const payload = await businessUpdateSchema.validateAsync(req.body, {
+        abortEarly: false, context: { currentBusinessType: currentBusiness.businessType },
+        stripUnknown: false,
+      });
 
       if (payload.forwardingPhone) {
         const rawForwardingPhone = String(payload.forwardingPhone).trim();
@@ -209,7 +209,7 @@ class BusinessController {
       }
 
       const updates = buildBusinessUpdateDocument(payload);
-
+      if (payload.businessType === currentBusiness.businessType) delete updates.businessType;
       if (Object.prototype.hasOwnProperty.call(payload, "forwardingPhone")) {
         const previousForwardingPhone = normalizeBusinessPhone(
           currentBusiness.forwardingPhone || "",
@@ -242,7 +242,7 @@ class BusinessController {
       if (Object.prototype.hasOwnProperty.call(payload, "businessName")) {
         ownerUpdates.businessName = updatedBusiness.businessName;
       }
-      if (Object.prototype.hasOwnProperty.call(payload, "businessType")) {
+      if (payload.businessType && payload.businessType !== currentBusiness.businessType) {
         ownerUpdates.businessType = updatedBusiness.businessType;
       }
       if (Object.prototype.hasOwnProperty.call(payload, "forwardingPhone")) {

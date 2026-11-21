@@ -3,8 +3,10 @@ import { buildTwilioWebhookUrls } from '../../src/services/twilioWebhookReliabil
 import { buildSmsRecoveryVoicePrompt } from '../../src/voice/smsRecoveryVoicePrompt.service.js';
 
 describe('MeekCall multi-industry and migration safety', () => {
-  test('legacy and new categories are unique and supported', () => {
-    for (const type of ['plumbing','hvac','other','dental','legal','beauty_salon','property_management','auto_repair','restaurant','retail']) expect(BUSINESS_TYPES).toContain(type);
+  test('only supported home-service categories are selectable', () => {
+    for (const type of ['plumbing','hvac','roofing','electrical','restoration','garage_door','locksmith','landscaping','appliance_repair','pest_control','cleaning','other']) expect(BUSINESS_TYPES).toContain(type);
+    expect(BUSINESS_TYPES).toHaveLength(12);
+    expect(BUSINESS_TYPES).not.toContain('dental');
     expect(new Set(BUSINESS_TYPES).size).toBe(BUSINESS_TYPES.length);
   });
   test('fallback gate is opt-in and rejects same-origin fallback', () => {

@@ -1,6 +1,5 @@
 import FeatureSettingsSchema from './schemas/businessFeatures.js';
 import TrackingNumberSchema from './schemas/trackingNumber.js';
-import { BUSINESS_TYPES } from "../helpers/businessTypes.js";
 import { installAccessRevocation } from "../helpers/model/accessRevocation.js";
 import { normalizePhoneToE164 as normalizeVoicePhone } from "../voice/voicePhone.service.js";
 import mongoose from "mongoose";
@@ -324,6 +323,7 @@ const VoiceSettingsSchema = new Schema(
 const SetupProgressSchema = new Schema(
   {
     accountRegistered: { type: Boolean, default: true },
+    suggestedServicesPending: { type: Boolean, default: false },
     subscriptionActivated: { type: Boolean, default: false },
     forwardingPhoneConfigured: { type: Boolean, default: false },
     trackingNumberAssigned: { type: Boolean, default: false },
@@ -386,7 +386,6 @@ const BusinessSchema = new Schema(
 
     businessType: {
       type: String,
-      enum: BUSINESS_TYPES,
       default: "other",
       validate: [validate.isValidBusinessType, "Invalid business type"],
     },

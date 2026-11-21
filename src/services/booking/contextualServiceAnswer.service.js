@@ -14,7 +14,7 @@ export function isContextualSymptomAnswer(text, service) {
   const known = String(service).toLowerCase();
   for (const pattern of Object.values(TRADE_DOMAINS)) {
     const objects = subjectClause.match(new RegExp(pattern.source, 'gi')) || [];
-    if (objects.some(object => !known.includes(object.toLowerCase()))) return false;
+    if (objects.some(object => !/^(?:heat|cooling)$/i.test(object) && !known.includes(object.toLowerCase()))) return false;
   }
   // A stated object/correction is left to the existing service parser. This
   // covers every trade without treating a new named fixture as an old symptom.

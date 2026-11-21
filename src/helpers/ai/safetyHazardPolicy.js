@@ -153,6 +153,7 @@ const SAFETY_HAZARD_PATTERN_GROUPS = [
       /\b(?:heat ?wave|extreme heat|dangerously hot|infant|baby|newborn|elderly)\b[\s\S]*\bno (?:ac|a\/c|air conditioning|cooling)\b/i,
     ],
   },
+  { type: "self_harm", patterns: [/\b(?:suicid(?:e|al)|want to die|kill myself|hurt myself|end my life|end it all)\b/i] },
   /*
    * Generic distress language. Deliberately last: a more specific hazard
    * type should win when both match, but a customer signaling "emergency"
@@ -166,7 +167,6 @@ const SAFETY_HAZARD_PATTERN_GROUPS = [
     type: "other",
     patterns: [
       /\b(?:someone|he|she|they|intruder)\b[^.!?;]{0,30}\b(?:threatening|attacking|breaking in)\b/i,
-      /\b(?:kill myself|hurt myself|end my life|suicide)\b/i,
       /\b(?:call(?:ed|ing)?|dial(?:ed|ing)?) 911\b/i,
       /\b(?:this is|it['\u2019]?s|its|we (?:have|are having)|i (?:have|am having)|having) an emergency\b/i,
       /\bemergency situation\b/i,

@@ -91,6 +91,7 @@ describe("Auth Routes", () => {
     });
 
     expect(savedBusiness).toBeTruthy();
+    expect(savedBusiness.setupProgress.suggestedServicesPending).toBe(true);
     expect(savedBusiness.businessName).toBe("Atlanta Pro Plumbing");
     // Registration does not persist the customer-entered forwarding number
     // as the MeekCall/Twilio tracking number.

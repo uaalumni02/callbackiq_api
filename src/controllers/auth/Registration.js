@@ -167,7 +167,7 @@ static async register(req, res) {
           status: "unassigned",
         },
         setupProgress: {
-          accountRegistered: true,
+          accountRegistered: true, suggestedServicesPending: true,
           forwardingPhoneConfigured: Boolean(normalizedForwardingPhone),
           updatedAt: now,
         },
