@@ -1,3 +1,4 @@
+import { requireJobberBusiness } from '../../services/businessFeatureAccess.service.js';
 import ExternalRecordMapping from "../../models/externalRecordMapping.js";
 import SchedulingProvider from "./schedulingProvider.js";
 import { generateInternalSlots } from "../../services/scheduling/slotGenerator.service.js";
@@ -15,6 +16,7 @@ const getAtPath = (value, path) =>
     .reduce((current, key) => current?.[key], value);
 
 const requireOperation = async (businessId, operationKey) => {
+  await requireJobberBusiness(businessId);
   const connection = await getJobberConnection(businessId);
   const operation = connection?.metadata?.operations?.[operationKey];
   if (!operation?.query || !operation?.resultPath) {

@@ -246,6 +246,7 @@ describe("MarketingAttributionService", () => {
 
     CallLog.findOne.mockReturnValue(query(null));
 const result = await syncLatestAttribution({
+    business: {features:{marketingAttributionEnabled:true}},
       businessId: "business-1",
       callLogId: "507f1f77bcf86cd799439090",
       leadId: "lead-1",
@@ -291,8 +292,8 @@ const result = await syncLatestAttribution({
       },
     };
 
-    await syncLatestAttribution(args);
-    await syncLatestAttribution(args);
+    await syncLatestAttribution({...args,business:{features:{marketingAttributionEnabled:true}}});
+    await syncLatestAttribution({...args,business:{features:{marketingAttributionEnabled:true}}});
 
     expect(AttributionTouch.updateOne).toHaveBeenCalledTimes(2);
 
@@ -308,6 +309,7 @@ const result = await syncLatestAttribution({
 
   test("uses called phone as reply number", async () => {
     await syncLatestAttribution({
+    business: {features:{marketingAttributionEnabled:true}},
       businessId: "business-1",
       conversationId: "conversation-1",
       calledPhone: "(404) 555-0100",
@@ -325,6 +327,7 @@ const result = await syncLatestAttribution({
 
   test("supports sync without lead or conversation", async () => {
     const result = await syncLatestAttribution({
+    business: {features:{marketingAttributionEnabled:true}},
       businessId: "business-1",
       marketingSource: {
         _id: "source-1",

@@ -298,10 +298,10 @@
     "src/services/integrations/tokenEncryption.service.js:12"
   ],
   "INTEGRATION_WORKER_ENABLED": [
-    "src/workers/integrationMaintenance.worker.js:52"
+    "src/workers/integrationMaintenance.worker.js:55"
   ],
   "INTEGRATION_WORKER_INTERVAL_MS": [
-    "src/workers/integrationMaintenance.worker.js:10"
+    "src/workers/integrationMaintenance.worker.js:11"
   ],
   "JEST_WORKER_ID": [
     "src/controllers/voiceWebhook/helpers.js:24",
@@ -317,7 +317,7 @@
     "src/services/integrations/jobberOAuth.service.js:11"
   ],
   "JOBBER_CLIENT_SECRET": [
-    "src/controllers/integrationWebhook.js:93",
+    "src/controllers/integrationWebhook.js:95",
     "src/services/integrations/jobberOAuth.service.js:12"
   ],
   "JOBBER_REDIRECT_URI": [
@@ -378,10 +378,10 @@
     "src/services/recoveryCoordinator/recoveryCoordinator.service.js:23"
   ],
   "MEEKCALL_REVENUE_AUTOMATION_SEND_ENABLED": [
-    "src/routes/revenueAutomation.routes.js:30",
-    "src/routes/revenueAutomation.routes.js:108",
-    "src/routes/revenueAutomation.routes.js:115",
-    "src/services/revenueAutomationEngine.js:16"
+    "src/routes/revenueAutomation.routes.js:31",
+    "src/routes/revenueAutomation.routes.js:109",
+    "src/routes/revenueAutomation.routes.js:116",
+    "src/services/revenueAutomationEngine.js:17"
   ],
   "MEEKCALL_REVENUE_AUTOMATION_WORKER_ENABLED": [
     "src/workers/automation.worker.js:146"

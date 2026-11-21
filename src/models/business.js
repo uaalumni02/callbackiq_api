@@ -1,3 +1,4 @@
+import FeatureSettingsSchema from './schemas/businessFeatures.js';
 import TrackingNumberSchema from './schemas/trackingNumber.js';
 import { BUSINESS_TYPES } from "../helpers/businessTypes.js";
 import { installAccessRevocation } from "../helpers/model/accessRevocation.js";
@@ -6,47 +7,6 @@ import mongoose from "mongoose";
 const { Schema } = mongoose;
 
 import * as validate from "../helpers/model/business.js";
-
-const FeatureSettingsSchema = new Schema(
-  {
-    missedCallSmsEnabled: {
-      type: Boolean,
-      default: true,
-    },
-    aiQualificationEnabled: {
-      type: Boolean,
-      default: true,
-    },
-    aiBookingEnabled: {
-      type: Boolean,
-      default: false,
-    },
-    automatedFollowUpEnabled: {
-      type: Boolean,
-      default: false,
-    },
-    voiceAiEnabled: {
-      type: Boolean,
-      default: false,
-    },
-    revenueTrackingEnabled: {
-      type: Boolean,
-      default: false,
-    },
-    calendarProvider: {
-      type: String,
-      enum: [
-        "internal",
-        "google",
-        "jobber",
-        "housecall_pro",
-        "servicetitan",
-      ],
-      default: "internal",
-    },
-  },
-  { _id: false },
-);
 
 const VerifiedFactSchema = new Schema(
   {

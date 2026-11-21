@@ -1,3 +1,4 @@
+import Business from '../../src/models/business.js';
 import ExternalRecordMapping from "../../src/models/externalRecordMapping.js";
 import JobberProvider from "../../src/integrations/scheduling/jobber.provider.js";
 import { generateInternalSlots } from "../../src/services/scheduling/slotGenerator.service.js";
@@ -22,12 +23,15 @@ jest.mock("../../src/services/integrations/jobberConnection.service.js", () => (
   jobberGraphqlRequest: jest.fn(),
 }));
 
+jest.mock('../../src/models/business.js', () => ({ __esModule:true, default: {findById:jest.fn()} }));
+
 describe("JobberProvider", () => {
   const business = { _id: "b1" };
   let provider;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    Business.findById.mockReturnValue({select:()=>({lean:async()=>({features:{jobberEnabled:true}})})});
     provider = new JobberProvider({ business });
   });
 

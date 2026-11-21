@@ -52,7 +52,7 @@ beforeEach(async () => {
     await Business.collection.insertOne({
       _id:business, owner:userId, businessName:`${label} Test Plumbing`,
       businessType:'plumbing', isActive:true,
-      features:{missedCallSmsEnabled:true,voiceAiEnabled:false},
+      features:{missedCallSmsEnabled:true,voiceAiEnabled:false,revenueRescueEnabled:true},
       trackingNumber:{status:'active'},
     });
     await Subscription.collection.insertOne({

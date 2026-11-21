@@ -1,3 +1,4 @@
+import requireBusinessFeature from '../middleware/require-business-feature.js';
 /** Revenue Rescue V1: owner-scoped operational inbox. No SMS/voice/payment execution. */
 import express from 'express';
 import mongoose from 'mongoose';
@@ -14,7 +15,7 @@ import {
 } from '../services/revenueRescuePolicy.js';
 
 const router = express.Router();
-router.use(checkAuth, checkSubscription);
+router.use(checkAuth, checkSubscription, requireBusinessFeature('revenueRescueEnabled'));
 const wrap = fn => (req,res,next)=> Promise.resolve().then(()=>fn(req,res)).catch(next);
 const bad = (message, statusCode=400) => {const e=new Error(message);e.statusCode=statusCode;return e;};
 const str = (x,n=160) => cleanString(x,n);

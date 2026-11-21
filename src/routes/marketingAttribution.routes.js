@@ -1,10 +1,11 @@
+import requireBusinessFeature from '../middleware/require-business-feature.js';
 import express from "express";
 import MarketingAttributionController from "../controllers/marketingAttribution.js";
 import checkAuth from "../middleware/check-auth.js";
 import checkSubscription from "../middleware/check-subscription.js";
 
 const router = express.Router();
-router.use(checkAuth, checkSubscription);
+router.use(checkAuth, checkSubscription, requireBusinessFeature('marketingAttributionEnabled'));
 
 router.get("/", MarketingAttributionController.list);
 router.get("/report", MarketingAttributionController.report);

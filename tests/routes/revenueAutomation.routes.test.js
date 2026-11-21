@@ -22,8 +22,8 @@ beforeEach(async()=>{
   {_id:ownerB,email:'b@example.com',userName:'owner-b',role:'owner',password:'x',sessionVersion:0},
  ]);
  await Business.collection.insertMany([
-  {_id:bizA,owner:ownerA,businessName:'Plumbing A',businessType:'plumbing',isActive:true,phone:'+16785550100'},
-  {_id:bizB,owner:ownerB,businessName:'Plumbing B',businessType:'plumbing',isActive:true,phone:'+16785550101'},
+  {_id:bizA,owner:ownerA,businessName:'Plumbing A',businessType:'plumbing',features:{revenueAutomationEnabled:true},isActive:true,phone:'+16785550100'},
+  {_id:bizB,owner:ownerB,businessName:'Plumbing B',businessType:'plumbing',features:{revenueAutomationEnabled:true},isActive:true,phone:'+16785550101'},
  ]);
  await Subscription.collection.insertMany([{
   business:bizA,plan:'pro',status:'active',isActive:true,stripeSubscriptionId:'sub_a',priceMonthly:99,
