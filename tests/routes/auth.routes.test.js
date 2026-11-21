@@ -62,9 +62,10 @@ const getUserWithLoginSecurity = async (email = validRegisterPayload.email) => {
 
 describe("Auth Routes", () => {
   test("POST /api/auth/register creates an enabled account with inactive subscription entitlement", async () => {
+    const password = "Fx9#2q";
     const res = await request(app)
       .post("/api/auth/register")
-      .send(validRegisterPayload);
+      .send({ ...validRegisterPayload, password });
 
     expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
@@ -84,7 +85,7 @@ describe("Auth Routes", () => {
 
     expect(savedUser).toBeTruthy();
     expect(savedUser.password).toBeTruthy();
-    expect(savedUser.password).not.toBe("LongFixturePassword123");
+    expect(savedUser.password).not.toBe(password);
 
     const savedBusiness = await Business.findOne({
       owner: savedUser._id,
