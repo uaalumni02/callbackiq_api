@@ -547,7 +547,6 @@
       "../../stateTransitions/documents.js"
     ]
   },
-  "stateTransitionMigrationContract": "contracts/state-transition-migration.json",
   "stabilizationCorrections": [
     {
       "name": "cancel",

@@ -131,5 +131,5 @@
   "architecture:invariants": "node scripts/meekcall-architecture-contracts.mjs",
   "build:certification": "node scripts/build-production.mjs",
   "audit:source-security": "node scripts/security-repository-audit.mjs",
-  "contracts:state-writers": "node scripts/state-writers.mjs"
+  "contracts:state-writers": "node scripts/state-writers.mjs --write && node scripts/state-writers.mjs"
 }

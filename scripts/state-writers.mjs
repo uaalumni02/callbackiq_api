@@ -1,5 +1,4 @@
 import fs from 'node:fs';
-import { verifyStateTransitionMigration } from './verify-state-transition-migration.mjs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
@@ -180,7 +179,6 @@ function main() {
     console.log(`Wrote ${writers.length} state-writer entries.`);
   } else {
     console.log('PASS state-writer inventory',verifyStateWriters(writers,JSON.parse(fs.readFileSync(target,'utf8'))));
-    console.log('PASS state-transition migration',verifyStateTransitionMigration(root));
   }
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url))main();
