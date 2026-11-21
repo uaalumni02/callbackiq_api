@@ -4,24 +4,30 @@ import { normalizeServiceText as normalize } from '../catalog/servicePhrase.serv
 // Business type is deliberately not an input to service matching.
 export const TRADE_PROFILE_VERSION = 1;
 export const TRADE_DOMAINS = Object.freeze({
-  plumbing: /\b(?:plumb(?:er|ing)?|pipe|pipes|faucet|toilet|bathtub|tub|shower|sink|drain|sewer|water heater|hot water heater|sump pump|septic)\b/,
-  hvac: /\b(?:hvac|ac|air conditioner|air conditioning|furnace|heat pump|thermostat|duct|ductwork|no heat|no cooling|refrigerant)\b/,
-  roofing: /\b(?:roof|roofer|roofing|shingles?|flashing|skylight)\b/,
-  electrical: /\b(?:electrician|electrical|outlets?|breakers?|circuits?|wiring|panel|light switch)\b/,
+  plumbing: /\b(?:plumb(?:ers?|ing)?|pipes?|faucets?|toilets?|bathtubs?|tubs?|showers?|sinks?|drains?|sewers?|(?:hot )?water heaters?|sump pumps?|septic|clog(?:s|ged)?|backed up|garbage disposals?|water softeners?|well pumps?|main lines?|gas lines?|tankless)\b/,
+  hvac: /\b(?:hvac|acs?(?: units?)?|air conditioners?|air conditioning|(?:furnace|furnance)s?|heat pumps?|thermostats?|ducts?|ductwork|heat|cooling|refrigerant|boilers?|mini splits?|heaters?|condensers?|compressors?|air handlers?)\b/,
+  roofing: /\b(?:roofs?|roofers?|roofing|shingles?|flashings?|skylights?|gutters?|hail|storm damage)\b/,
+  electrical: /\b(?:electricians?|electrical|outlets?|breakers?|circuits?|wiring|panels?|light switch(?:es)?|flickering lights?|gfci(?:s)?|tripping|generators?|ev chargers?|ceiling fans?|sparks?|power out|lights? out)\b/,
   restoration: /\b(?:restoration|water damage|mold|remediation|drying|smoke damage|fire damage)\b/,
-  garage_door: /\b(?:garage doors?|garage opener|garage spring|torsion spring)\b/,
-  locksmith: /\b(?:locksmith|lockout|locked out|rekey|door lock|deadbolt|key broke|broken key)\b/,
-  landscaping: /\b(?:landscap(?:e|ing)|lawn|mow(?:ing)?|tree|hedge|irrigation|sprinkler|sod)\b/,
-  appliance_repair: /\b(?:appliance|refrigerator|fridge|freezer|dishwasher|washing machine|washer|dryer|oven|stove|cooktop|range hood|microwave)\b/,
+  garage_door: /\b(?:garage doors?|garage (?:door )?openers?|garage springs?|torsion springs?)\b/,
+  locksmith: /\b(?:locksmiths?|lockouts?|locked out|rekey(?:s|ing)?|door locks?|deadbolts?|keys? broke|broken keys?)\b/,
+  landscaping: /\b(?:landscap(?:e|es|ing)|lawns?|mow(?:s|ing)?|trees?|hedges?|irrigation|sprinklers?|sod)\b/,
+  appliance_repair: /\b(?:appliances?|refrigerators?|fridges?|freezers?|dishwashers?|washing machines?|washers?|dryers?|ovens?|stoves?|cooktops?|range hoods?|microwaves?)\b/,
+  pest_control: /\b(?:pest control|pests?|ants?|termites?|roach(?:es)?|cockroach(?:es)?|bed bugs?|mice|rats?|exterminators?)\b/,
+  cleaning: /\b(?:(?:house|home|deep|move out|window|carpet) cleaning|housekeepers?|maids?)\b/,
 });
 const aliases = { plumber:'plumbing', roofer:'roofing', roof:'roofing', electrician:'electrical', 'heating and cooling':'hvac', 'garage door':'garage_door', 'garage doors':'garage_door', 'appliance repair':'appliance_repair', appliances:'appliance_repair', appliance:'appliance_repair' };
 export const canonicalTrade = value => aliases[normalize(value)] || Object.keys(TRADE_DOMAINS).find(key => normalize(key) === normalize(value)) || normalize(value);
 export function detectServiceTrades(value) {
   const text=normalize(value);
-  const found=Object.entries(TRADE_DOMAINS).filter(([,pattern])=>pattern.test(text)).map(([key])=>key);
-  // Loss of cooling and refrigerant belong to appliances too. Do not invent a
-  // second trade when an appliance is named without independent HVAC equipment.
-  if(found.includes('appliance_repair') && !/\b(?:hvac|ac|air conditioner|air conditioning|furnace|heat pump|thermostat|duct)\b/.test(text)) return found.filter(key=>key!=='hvac');
+  let hvacText=text.replace(/\b(?:hot )?water heaters?\b/g,'').replace(/\b(?:car|truck|vehicle|automotive)(?: s)?\s+(?:acs?|air conditioners?|air conditioning)(?: units?)?\b/g,'');
+  if (/\b(?:car|truck|vehicle|automotive)(?: s)?\s+(?:acs?|air condition)/.test(text) && !/\b(?:hvac|acs?|air conditioners?|furnaces?|furnances?|heat pumps?|thermostats?|ducts?|boilers?|mini splits?|air handlers?|house|home)\b/.test(hvacText)) hvacText='';
+  const found=Object.entries(TRADE_DOMAINS).filter(([key,pattern])=>pattern.test(key==='hvac'?hvacText:text)).map(([key])=>key);
+  const roofLeak=/\bleak(?:s|ing)?\b/.test(text) && /\b(?:roofs?|roofing|skylights?|shingles?|ceilings? (?:leak(?:s|ing)? )?(?:after|when it|during) (?:the )?rain)\b/.test(text);
+  if(roofLeak && !found.includes('roofing')) found.push('roofing');
+  if(!roofLeak && /\bleak(?:s|ing)?\b/.test(text) && /\b(?:sinks?|toilets?|pipes?|kitchens?|bathrooms?|basements?|ceilings?|water)\b/.test(text) && !found.includes('plumbing')) found.unshift('plumbing');
+  // Appliance cooling alone does not establish independent HVAC equipment.
+  if(found.includes('appliance_repair') && !/\b(?:hvac|acs?|air conditioners?|air conditioning|furnaces?|furnances?|heat pumps?|thermostats?|ducts?|boilers?|mini splits?|air handlers?)\b/.test(hvacText)) return found.filter(key=>key!=='hvac');
   return found;
 }
 export function offeringTrade(service) {
@@ -37,15 +43,17 @@ export const isBroadOffering = service => {
 // An equipment family is narrower than a trade. A furnace must not match an AC
 // offering; tree removal must not match lawn care, nor rekeying a lockout visit.
 const subjects = [
- ['faucet',/\b(?:faucet|tap)\b/], ['toilet',/\btoilet\b/], ['sink',/\bsink\b/], ['tub',/\b(?:tub|bathtub)\b/], ['shower',/\bshower\b/], ['drain',/\bdrain\b/], ['water_heater',/\bwater heater\b/], ['pipe',/\bpipes?\b/],
- ['ac',/\b(?:ac|air condition(?:er|ing))\b/], ['furnace',/\bfurnace\b/], ['heat_pump',/\bheat pump\b/], ['duct',/\bduct(?:work)?\b/], ['thermostat',/\bthermostat\b/],
- ['roof',/\b(?:roof|roofing|shingles?)\b/], ['skylight',/\bskylight\b/], ['flashing',/\bflashing\b/],
- ['garage_door',/\bgarage doors?\b/], ['opener',/\b(?:garage )?opener\b/], ['spring',/\b(?:torsion )?springs?\b/],
- ['lawn',/\b(?:lawn|grass|mow(?:ing)?)\b/], ['tree',/\btrees?\b/], ['hedge',/\bhedges?\b/], ['irrigation',/\b(?:irrigation|sprinklers?)\b/], ['sod',/\bsod\b/],
- ['fridge',/\b(?:fridge|refrigerator)\b/], ['freezer',/\bfreezer\b/], ['washer',/\b(?:washer|washing machine)\b/], ['dryer',/\bdryer\b/], ['dishwasher',/\bdishwasher\b/], ['oven',/\b(?:oven|stove|cooktop)\b/], ['microwave',/\bmicrowave\b/],
- ['outlet',/\b(?:outlets?|receptacles?)\b/], ['breaker',/\bbreakers?\b/], ['panel',/\b(?:electrical )?panel\b/], ['switch',/\blight switch\b/],
+ ['faucet',/\b(?:faucets?|taps?)\b/], ['toilet',/\btoilets?\b/], ['sink',/\bsinks?\b/], ['tub',/\b(?:tubs?|bathtubs?)\b/], ['shower',/\bshowers?\b/], ['drain',/\bdrains?\b/], ['water_heater',/\b(?:water heaters?|tankless)\b/], ['pipe',/\bpipes?\b/],
+ ['disposal',/\b(?:garbage )?disposals?\b/], ['water_softener',/\bwater softeners?\b/], ['well_pump',/\bwell pumps?\b/], ['main_line',/\b(?:sewers?|main lines?)\b/], ['gas_line',/\bgas lines?\b/], ['sump_pump',/\bsump pumps?\b/],
+ ['ac',/\b(?:acs?|air conditioners?|air conditioning)\b/], ['furnace',/\b(?:furnace|furnance)s?\b/], ['heat_pump',/\bheat pumps?\b/], ['duct',/\bduct(?:s|work)?\b/], ['thermostat',/\bthermostats?\b/],
+ ['boiler',/\bboilers?\b/], ['mini_split',/\bmini splits?\b/], ['condenser',/\bcondensers?\b/], ['compressor',/\bcompressors?\b/], ['air_handler',/\bair handlers?\b/], ['heater',/\b(?<!water )heaters?\b/],
+ ['roof',/\b(?:roofs?|roofing|shingles?)\b/], ['skylight',/\bskylights?\b/], ['flashing',/\bflashings?\b/], ['gutter',/\bgutters?\b/],
+ ['garage_door',/\bgarage doors?\b/], ['opener',/\b(?:garage )?openers?\b/], ['spring',/\b(?:torsion )?springs?\b/],
+ ['lawn',/\b(?:lawns?|grass|mow(?:ing)?)\b/], ['tree',/\btrees?\b/], ['hedge',/\bhedges?\b/], ['irrigation',/\b(?:irrigation|sprinklers?)\b/], ['sod',/\bsod\b/],
+ ['fridge',/\b(?:fridges?|refrigerators?)\b/], ['freezer',/\bfreezers?\b/], ['washer',/\b(?:washers?|washing machines?)\b/], ['dryer',/\bdryers?\b/], ['dishwasher',/\bdishwashers?\b/], ['oven',/\b(?:ovens?|stoves?|cooktops?)\b/], ['microwave',/\bmicrowaves?\b/], ['range_hood',/\brange hoods?\b/],
+ ['outlet',/\b(?:outlets?|receptacles?|gfcis?)\b/], ['breaker',/\bbreakers?\b/], ['panel',/\b(?:electrical )?panels?\b/], ['switch',/\blight switch(?:es)?\b/], ['generator',/\bgenerators?\b/], ['ev_charger',/\bev chargers?\b/], ['ceiling_fan',/\bceiling fans?\b/],
  ['water_damage',/\b(?:water damage|water extraction|water mitigation|drying)\b/], ['mold',/\bmold\b/], ['fire_damage',/\b(?:fire|smoke) damage\b/],
- ['lockout',/\b(?:lockout|locked out)\b/], ['rekey',/\brekey(?:ing)?\b/], ['lock',/\b(?:door lock|deadbolt)\b/],
+ ['lockout',/\b(?:lockouts?|locked out)\b/], ['rekey',/\brekey(?:s|ing)?\b/], ['lock',/\b(?:door locks?|deadbolts?)\b/],
 ];
 export const serviceSubjects = value => subjects.filter(([,pattern])=>pattern.test(normalize(value))).map(([key])=>key);
 const workPatterns = {
@@ -104,7 +112,7 @@ export function leakContext(value) {
  if(/\b(?:(?:gas|propane|fuel|oil|chemical) leaks?|leak(?:ing|s)? (?:gas|propane|fuel|oil|chemical)|substance (?:gas|propane|fuel|oil|chemical))\b/.test(text)) return 'non_water';
  if(/\b(?:roof|roofing|shingle|skylight)\b/.test(text)) return 'roof';
  if(/\b(?:water damage|restoration|basement|ceiling)\b/.test(text)) return 'property';
- if(/\b(?:ac|air conditioner|air conditioning|heat pump|furnace|refrigerator|fridge|freezer)\b/.test(text) && !/\bwater\b/.test(text)) return 'unknown_fluid';
+ if(/\b(?:acs?|air conditioner|air conditioning|heat pump|furnace|refrigerator|fridge|freezer)\b/.test(text) && !/\bwater\b/.test(text)) return 'unknown_fluid';
  return 'water';
 }
 export const tradeLeakQuestion = value => {
