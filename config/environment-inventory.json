@@ -434,8 +434,8 @@
     "src/controllers/voiceWebhook/helpers.js:24",
     "src/helpers/email/mailer.js:11",
     "src/helpers/email/mailer.js:48",
-    "src/helpers/logging/safeLogger.js:4",
-    "src/helpers/logging/safeLogger.js:4",
+    "src/helpers/logging/safeLogger.js:5",
+    "src/helpers/logging/safeLogger.js:5",
     "src/middleware/auth-public-rate-limits.js:10",
     "src/middleware/csrf-origin-guard.js:15",
     "src/middleware/security-headers.js:1",
@@ -692,10 +692,10 @@
     "src/services/securityAlert.service.js:70"
   ],
   "SENTRY_DSN": [
-    "src/services/errorTracking.service.js:26",
-    "src/services/errorTracking.service.js:30",
-    "src/services/errorTracking.service.js:33",
-    "src/services/errorTracking.service.js:46"
+    "src/services/errorTracking.service.js:10",
+    "src/services/errorTracking.service.js:14",
+    "src/services/errorTracking.service.js:17",
+    "src/services/errorTracking.service.js:31"
   ],
   "SERVICE_ELIGIBILITY_REVIEW_REPAIR_ENABLED": [
     "src/services/staffReviewReconciliation.service.js:112"

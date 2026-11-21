@@ -1,3 +1,4 @@
+import { redactErrorMessage, errorType, safeErrorCode } from './redactErrorMessage.js';
 import crypto from "crypto";
 
 const isProduction = () =>
@@ -60,14 +61,14 @@ export const sanitizeLogDetails = (details = {}, depth = 0) => {
   return Object.fromEntries(Object.entries(details).slice(0, 100).map(([key, value]) => [key, sanitizeValue(key, value)]));
 };
 
-export const sanitizeError = (error) => {
+export const sanitizeError = (error, { external = false } = {}) => {
   const message = String(error?.message || "Unknown error");
   return {
-    name: String(error?.name || "Error"),
-    message: isProduction()
+    name: external ? errorType(error) : String(error?.name || "Error"),
+    message: external ? redactErrorMessage(message) : isProduction()
       ? `[redacted:${shortHash(message)}]`
       : message.slice(0, 500),
-    code: error?.code || null,
+    code: external ? safeErrorCode(error?.code) : error?.code || null,
     status: error?.status || error?.statusCode || null,
   };
 };
