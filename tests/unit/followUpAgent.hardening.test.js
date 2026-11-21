@@ -152,6 +152,17 @@ describe("followUpAgent hardening", () => {
     expect(result.shouldAlertOwner).toBe(true);
   });
 
+  test("identifies only as the contractor in customer-agent instructions", async () => {
+    mockResponsesCreate.mockResolvedValueOnce(output(modelResult()));
+    await runFollowUpAgent({ business: { businessName: "Cedar Plumbing", businessType: "plumbing" },
+      customerMessage: "My sink is leaking." });
+    const { instructions } = mockResponsesCreate.mock.calls[0][0];
+    expect(instructions).toContain("Cedar Plumbing");
+    expect(instructions).not.toMatch(/CallBackIQ|MeekCall/i);
+    expect(instructions).toContain("Never mention platform brands, software vendors, or being a third-party service");
+    expect(instructions).toContain("existing disclosure or compliance text");
+  });
+
   test("redacts sensitive content from the model input", async () => {
     mockResponsesCreate.mockResolvedValueOnce(output(modelResult()));
 

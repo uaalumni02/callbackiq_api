@@ -1,3 +1,4 @@
+import { getBusinessFeatures } from '../helpers/businessFeatures.js';
 import { safeConsole } from "../helpers/logging/safeLogger.js";
 
 import mongoose from "mongoose";
@@ -109,7 +110,7 @@ class BusinessController {
         return Response.responseInvalidInput(res, "Business not found");
       }
 
-      return Response.responseOk(res, business, "Business fetched");
+      return Response.responseOk(res, { ...(business.toObject?.() || business), features: getBusinessFeatures(business) }, "Business fetched");
     } catch (error) {
       safeConsole.error("Error in getMyBusiness:", error);
       return Response.responseServerError(res);
@@ -142,7 +143,7 @@ class BusinessController {
         );
       }
 
-      return Response.responseOk(res, business, "Business fetched");
+      return Response.responseOk(res, { ...(business.toObject?.() || business), features: getBusinessFeatures(business) }, "Business fetched");
     } catch (error) {
       safeConsole.error("Error in getBusinessById:", error);
       return Response.responseServerError(res);

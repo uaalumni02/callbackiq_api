@@ -1,3 +1,4 @@
+import Business from '../../src/models/business.js';
 import { loginWithMfa } from '../setup/authenticate.js';
 import request from "supertest";
 import mongoose from "mongoose";
@@ -21,6 +22,7 @@ const register = async (suffix, phone) => {
   });
   expect(response.status).toBe(201);
   const data = response.body.data;
+  await Business.updateOne({_id:data.business._id},{$set:{"features.marketingAttributionEnabled":true}});
   await Subscription.findOneAndUpdate({ business: data.business._id }, {
     $set: { status: "active", isActive: true, currentPeriodStart: new Date(),
       currentPeriodEnd: new Date(Date.now() + 30 * 86400000) },

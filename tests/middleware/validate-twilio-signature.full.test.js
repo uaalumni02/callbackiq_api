@@ -1,3 +1,4 @@
+import { signTwilioRequest } from '../helpers/signTwilioRequest.js';
 import twilio from "twilio";
 import validateTwilioSignature, {
   getWebhookUrl,
@@ -5,8 +6,8 @@ import validateTwilioSignature, {
 
 jest.mock("twilio", () => ({
   __esModule: true,
-  default: {
-    validateRequest: jest.fn(),
+  default: { ...jest.requireActual("twilio"),
+    validateRequest: jest.fn(jest.requireActual("twilio").validateRequest),
   },
 }));
 
@@ -15,10 +16,10 @@ const makeReq = (overrides = {}) => ({
   body: { From: "+14045550100" },
   originalUrl: "/api/twilio/sms",
   protocol: "http",
-  get: jest.fn((name) => {
+  get: jest.fn(function (name) {
     const normalized = String(name).toLowerCase();
     if (normalized === "host") return "localhost:3000";
-    if (normalized === "x-twilio-signature") return overrides.signature;
+    if (normalized === "x-twilio-signature") return this.signature;
     return undefined;
   }),
   ...overrides,
@@ -49,12 +50,14 @@ describe("Twilio signature middleware", () => {
     jest.restoreAllMocks();
   });
 
-  test("bypasses validation automatically in the test environment", () => {
+  test("validates a real signature in the test environment", () => {
     process.env.NODE_ENV = "test";
     const next = jest.fn();
-    validateTwilioSignature(makeReq(), makeRes(), next);
+    const req = makeReq();
+    req.signature = signTwilioRequest({url: getWebhookUrl(req), params: req.body})['X-Twilio-Signature'];
+    validateTwilioSignature(req, makeRes(), next);
     expect(next).toHaveBeenCalledWith();
-    expect(twilio.validateRequest).not.toHaveBeenCalled();
+    expect(twilio.validateRequest).toHaveBeenCalledTimes(1);
   });
 
   test("ignores TWILIO_VALIDATE_WEBHOOKS=false outside test", () => {
@@ -104,13 +107,13 @@ describe("Twilio signature middleware", () => {
   });
 
   test("accepts a valid Twilio signature", () => {
-    twilio.validateRequest.mockReturnValue(true);
-    const req = makeReq({ signature: "valid-signature" });
+    const req = makeReq();
+    req.signature = signTwilioRequest({url: getWebhookUrl(req), params: req.body})['X-Twilio-Signature'];
     const next = jest.fn();
     validateTwilioSignature(req, makeRes(), next);
     expect(twilio.validateRequest).toHaveBeenCalledWith(
       "auth-token",
-      "valid-signature",
+      req.signature,
       getWebhookUrl(req),
       req.body,
     );

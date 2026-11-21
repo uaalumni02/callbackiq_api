@@ -1,3 +1,4 @@
+import { patchBusinessFeatures } from '../controllers/adminBusinessFeatures.js';
 import {
   saveProviderBalance,
   removeProviderBalance,
@@ -22,6 +23,7 @@ import {
 import rateLimit from "express-rate-limit";
 import { readScaleHealth } from '../services/scaleHealth.service.js';
 const router = express.Router();
+router.patch("/businesses/:id/features", checkAuth, requireAdmin, patchBusinessFeatures);
 router.get('/scale-health', checkAuth, requireAdmin, rateLimit({ windowMs: 60000, limit: 30 }), async (req, res, next) => {
   try { res.set('Cache-Control', 'no-store').json({ success: true, data: await readScaleHealth() }); }
   catch (error) { next(error); }

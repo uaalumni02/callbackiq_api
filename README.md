@@ -50,7 +50,7 @@ Use Node 24.19 or newer within Node 24, MongoDB with replica-set support, and Re
 
 Production builds use `npm run build`. Run `node build/server.js` with `PROCESS_ROLE=api` and `node build/worker.js` from the same commit with the configured worker roles. Set the public API and frontend origins, database and Redis connections, signed webhook secrets, billing configuration, and mail credentials in the host secret store. Keep a backed-up, stable `INTEGRATION_ENCRYPTION_KEY` for provider credentials and admin MFA. The startup validator owns required settings. `config/environment-inventory.json` lists the exact environment names and consumers.
 
-Run the HTTP API with `PROCESS_ROLE=api VOICE_RELAY_ENABLED=false node build/server.js`.
+The default `PROCESS_ROLE=all` (including `npm run start:dev`) serves the HTTP API, voice relay, and embedded workers unless `VOICE_RELAY_ENABLED=false`. For a split deployment, run the HTTP API with `PROCESS_ROLE=api VOICE_RELAY_ENABLED=false node build/server.js`.
 Run live calls in a separate service with `PROCESS_ROLE=voice VOICE_RELAY_ENABLED=true node build/server.js`; route `/ws/voice` to that service and configure its public voice URL.
 The existing `deploy/scale/render.mjs` configuration separates these services so an API restart does not terminate voice connections.
 

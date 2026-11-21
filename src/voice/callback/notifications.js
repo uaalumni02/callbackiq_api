@@ -43,7 +43,7 @@ const callbackConfirmationBody = ({ business, state }) => {
     state.preferredTime && !skippedValue(state.preferredTime)
       ? ` Your preferred timing is ${state.preferredTime}.`
       : "";
-  const english = `Hi${state.customerName && !skippedValue(state.customerName) ? ` ${state.customerName}` : ""}, this is ${businessName}. MeekCall received your callback request${service}.${preference} The request has been flagged for the team. A callback time is not guaranteed. Reply STOP to opt out.`;
+  const english = `Hi${state.customerName && !skippedValue(state.customerName) ? ` ${state.customerName}` : ""}, this is ${businessName}. We received your callback request${service}.${preference} The request has been flagged for the team. A callback time is not guaranteed. Reply STOP to opt out.`;
   const spanish = `Hola. ${businessName} recibió su solicitud de devolución de llamada. La solicitud fue enviada al equipo. No se garantiza una hora de devolución de llamada. Responda STOP para no recibir mensajes.`;
   return clean(state.language === "es" ? `${spanish} / ${english}` : english, 1600);
 };

@@ -1,3 +1,5 @@
+import { isBusinessFeatureEnabled } from '../helpers/businessFeatures.js';
+import { preserveConversationReplyNumber } from './stateTransitions/customerProjections.js';
 import { marketingAttributionTransitionLeadUpdateOne, marketingAttributionTransitionLeadUpdateOne2, marketingAttributionSyncLatestAttributionConversationUpdateOne } from './stateTransitions/customerProjections.js';
 import { createHash } from "node:crypto";
 import mongoose from "mongoose";
@@ -77,15 +79,7 @@ const trackingAttributionTouchId = ({ businessId, callLogId }) => {
   return new mongoose.Types.ObjectId(digest);
 };
 
-export const syncLatestAttribution = async ({
-  businessId,
-  leadId = null,
-  conversationId = null,
-  trackingNumber = null,
-  marketingSource = null,
-  calledPhone = "",
-  callLogId = null,
-}) => {
+const inboundAttributionContext = async ({ business, businessId, conversationId, trackingNumber, marketingSource, calledPhone }) => {
   const attribution = buildAttributionSnapshot({
     marketingSource,
     trackingNumber,
@@ -94,6 +88,28 @@ export const syncLatestAttribution = async ({
     trackingNumber?.phoneNumber ||
     normalizePhoneToE164(calledPhone) ||
     "";
+
+  const owner = business || await Business.findById(businessId).select('features').lean();
+  if (!isBusinessFeatureEnabled(owner, 'marketingAttributionEnabled')) {
+    if (conversationId && replyFromPhone) await preserveConversationReplyNumber({ Conversation, businessId, conversationId, replyFromPhone });
+    return null;
+  }
+  return { attribution, replyFromPhone };
+};
+
+export const syncLatestAttribution = async ({
+  business = null,
+  businessId,
+  leadId = null,
+  conversationId = null,
+  trackingNumber = null,
+  marketingSource = null,
+  calledPhone = "",
+  callLogId = null,
+}) => {
+  const context = await inboundAttributionContext({ business, businessId, conversationId, trackingNumber, marketingSource, calledPhone });
+  if (!context) return null;
+  const { attribution, replyFromPhone } = context;
 
   const tasks = [];
 

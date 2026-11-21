@@ -1,3 +1,4 @@
+import { enabledBusinessIds, businessHasFeature } from './businessFeatureAccess.service.js';
 /** Recovery transport is opt-in and fail-closed. Uses MeekCall's existing SMS gateway. */
 import crypto from 'node:crypto';
 import RevenueAutomationCampaign from '../models/revenueAutomationCampaign.js';
@@ -19,7 +20,8 @@ const append=(status,reason)=>({at:new Date(),status,reason});
 export async function recoverStaleRevenueLocks(now=new Date()){
   if(!liveEnabled())return 0;
   // Do not automatically retry a send with an uncertain provider outcome.
-  const r=await RevenueAutomationCampaign.updateMany({state:'processing',lockUntil:{$lt:now}},
+  const businessIds = await enabledBusinessIds('revenueAutomationEnabled');
+  const r=await RevenueAutomationCampaign.updateMany({business:{$in:businessIds},state:'processing',lockUntil:{$lt:now}},
     {$set:{state:'uncertain',lockUntil:null,lockedBy:'',lastStatus:'Expired provider lock; manual reconciliation required'},
      $push:{history:{$each:[append('uncertain','stale_lock')],$slice:-100}}});
   return r.modifiedCount;
@@ -28,11 +30,15 @@ async function markCampaign(campaign,state,reason,extra={}){
  await RevenueAutomationCampaign.updateOne({_id:campaign._id,business:campaign.business,state:'processing',lockedBy:lockId},
  {$set:{state,lockUntil:null,lockedBy:'',lastStatus:reason,...extra},$push:{history:{$each:[append(state,reason)],$slice:-100}}});
 }
-export async function processOneRevenueCampaign({now=new Date(),transport=sendSms}={}){
- if(!liveEnabled())return null;
- const campaign=await RevenueAutomationCampaign.findOneAndUpdate({state:'scheduled',executeAt:{$lte:now},$or:[{lockUntil:null},{lockUntil:{$lte:now}}]},
+async function claimRevenueCampaign(now) {
+ const businessIds = await enabledBusinessIds('revenueAutomationEnabled');
+ return RevenueAutomationCampaign.findOneAndUpdate({business:{$in:businessIds},state:'scheduled',executeAt:{$lte:now},$or:[{lockUntil:null},{lockUntil:{$lte:now}}]},
   {$set:{state:'processing',lockedBy:lockId,lockUntil:new Date(+now+5*60*1000)},$inc:{revision:1}},
   {sort:{executeAt:1,_id:1},returnDocument:'after'});
+}
+export async function processOneRevenueCampaign({now=new Date(),transport=sendSms}={}){
+ if(!liveEnabled())return null;
+ const campaign = await claimRevenueCampaign(now);
  if(!campaign)return null;
  const {business:businessId}=campaign;
  try{
@@ -76,7 +82,8 @@ export async function processOneRevenueCampaign({now=new Date(),transport=sendSm
     const latestOpportunity=await RevenueRescueOpportunity.findOne({_id:campaign.opportunity,business:businessId}).lean();
     const latestRecord=campaign.record?await InternalRevenueRecord.findOne({_id:campaign.record,business:businessId}).lean():null;
     const [latestLead,latestAppointment]=await Promise.all([latestOpportunity?.lead?Lead.findOne({_id:latestOpportunity.lead,business:businessId}).lean():null,latestOpportunity?.appointment?Appointment.findOne({_id:latestOpportunity.appointment,business:businessId}).lean():null]);
-    const secondCheck=contactGate({business,opportunity:latestOpportunity,record:latestRecord,lead:latestLead,appointment:latestAppointment,settings,grant:latestGrant,preference:latestPreference,campaign,now:new Date(),envEnabled:liveEnabled()});
+    const featureEnabled = await businessHasFeature(businessId, 'revenueAutomationEnabled');
+    const secondCheck= !featureEnabled ? 'feature_disabled' : contactGate({business,opportunity:latestOpportunity,record:latestRecord,lead:latestLead,appointment:latestAppointment,settings,grant:latestGrant,preference:latestPreference,campaign,now:new Date(),envEnabled:liveEnabled()});
     if(secondCheck){
       await RevenueAutomationAttempt.updateOne({_id:attempt._id},{$set:{status:'suppressed',failureReason:secondCheck}});
       await markCampaign(campaign,'suppressed',secondCheck);
@@ -113,7 +120,8 @@ export async function processOneRevenueCampaign({now=new Date(),transport=sendSm
 }
 export async function reconcileRevenueDelivery(limit=30){
  if(!liveEnabled())return 0;
- const attempts=await RevenueAutomationAttempt.find({status:'provider_accepted',providerMessageId:{$nin:['',null]}}).sort({createdAt:-1}).limit(limit).lean();
+ const businessIds = await enabledBusinessIds('revenueAutomationEnabled');
+ const attempts=await RevenueAutomationAttempt.find({business:{$in:businessIds},status:'provider_accepted',providerMessageId:{$nin:['',null]}}).sort({createdAt:-1}).limit(limit).lean();
  let changed=0;
  for(const attempt of attempts){
   const msg=await Message.findOne({business:attempt.business,providerMessageId:attempt.providerMessageId}).select('status').lean();

@@ -40,6 +40,7 @@ describe("MeekCall Phase 0-2 completion contract", () => {
   test("Phase 0 feature controls are represented in the business feature model", () => {
     const source = [
       read("src/models/business.js"),
+      read("src/models/schemas/businessFeatures.js"),
       exists("src/models/businessFeatureSettings.js")
         ? read("src/models/businessFeatureSettings.js")
         : "",
@@ -54,6 +55,7 @@ describe("MeekCall Phase 0-2 completion contract", () => {
       "calendarProvider",
     ]) {
       expect(source).toContain(field);
+      expect(Business.schema.path("features").schema.path(field)).toBeDefined();
     }
     expect(source).toMatch(/internal/);
     expect(source).toMatch(/google/);

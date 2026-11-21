@@ -1,3 +1,4 @@
+import requireBusinessFeature from '../middleware/require-business-feature.js';
 import express from "express";
 
 import ConversationIntelligenceController from "../controllers/conversationIntelligence.js";
@@ -16,6 +17,7 @@ const router = express.Router();
 router.use(checkAuth);
 router.use(checkActiveBusiness);
 router.use(checkSubscription);
+router.use(requireBusinessFeature('conversationIntelligenceEnabled'));
 
 /*
 |--------------------------------------------------------------------------

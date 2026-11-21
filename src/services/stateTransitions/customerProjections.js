@@ -140,3 +140,7 @@ export function opportunityValuationUpdateOwnerLeadLeadAtomicUpdate({ Lead, busi
     { returnDocument: "after", runValidators: true }));
 }
 
+
+export function preserveConversationReplyNumber({ Conversation, businessId, conversationId, replyFromPhone }) {
+  return Conversation.updateOne({ _id: conversationId, business: businessId }, { $set: { replyFromPhone } });
+}

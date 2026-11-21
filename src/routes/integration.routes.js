@@ -1,3 +1,4 @@
+import requireBusinessFeature from '../middleware/require-business-feature.js';
 import express from "express";
 
 import IntegrationController from "../controllers/integration.js";
@@ -86,6 +87,8 @@ router.post(
   checkAuth,
   IntegrationController.googleDisconnect,
 );
+
+router.use("/jobber", checkAuth, requireBusinessFeature("jobberEnabled"));
 
 router.get(
   "/jobber/connect",

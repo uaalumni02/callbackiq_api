@@ -1,3 +1,4 @@
+import requireBusinessFeature from '../middleware/require-business-feature.js';
 /** MeekCall-owned records and campaigns; no external Jobber account is required. */
 import express from 'express';
 import mongoose from 'mongoose';
@@ -13,7 +14,7 @@ import RevenueAutomationSettings from '../models/revenueAutomationSettings.js';
 import {prepareInternalRecoveryDraft} from '../services/revenueInternalDraft.service.js';
 import {PURPOSE_BY_TYPE,PURPOSES,VALID_RECORD_STATUSES,validateRecordTransition,clean,cents,validHttpsUrl,httpError} from '../services/revenueAutomationPolicy.js';
 
-const router=express.Router();router.use(checkAuth,checkSubscription);
+const router=express.Router();router.use(checkAuth,checkSubscription,requireBusinessFeature('revenueAutomationEnabled'));
 const wrap=fn=>(req,res,next)=>Promise.resolve().then(()=>fn(req,res)).catch(next);
 const actor=req=>String(req.user?.userId||'unknown');
 const scoped=async(req)=>{const b=await getOwnedBusiness({user:req.user,requestedBusinessId:req.query?.businessId||req.body?.businessId});return b._id;};

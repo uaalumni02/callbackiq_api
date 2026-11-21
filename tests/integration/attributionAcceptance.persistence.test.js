@@ -25,7 +25,7 @@ beforeEach(async () => {
   business = oid(); lead = oid(); conversation = oid();
   source = { _id: oid(), business, name: 'Search campaign', nameKey: 'search campaign', channel: 'google_ads', campaign: 'Fall service', status: 'active', monthlySpend: 200 };
   number = { _id: oid(), business, marketingSource: source._id, phoneNumber: '+14045550123', phoneLookup: '+14045550123', status: 'active', isPrimary: false };
-  await Business.collection.insertOne({ _id: business, isActive: true });
+  await Business.collection.insertOne({ _id: business, isActive: true, features: {marketingAttributionEnabled:true} });
   await MarketingSource.collection.insertOne(source);
   await TrackingNumber.collection.insertOne(number);
   await Lead.collection.insertOne({ _id: lead, business, status: 'booked', leadQualityScore: 85, estimatedValue: 500, valuation: { source: 'owner' }, actualRevenue: 300 });

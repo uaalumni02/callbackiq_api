@@ -1,3 +1,5 @@
+import { businessHasFeature } from '../services/businessFeatureAccess.service.js';
+import { logOperationalEvent } from '../helpers/logging/safeLogger.js';
 import AlertService from "../services/alert.service.js";
 import { captureExternalError } from "../services/errorTracking.service.js";
 import { saveStateDocument } from '../services/stateTransitions/documents.js';
@@ -24,6 +26,11 @@ const processJobber = async (event) => {
     providerAccountId: String(webhook.accountId || ""),
   }).select("+accessTokenEncrypted +refreshTokenEncrypted");
   if (!connection) return;
+  if (!await businessHasFeature(connection.business, 'jobberEnabled')) {
+    event.status = 'ignored';
+    logOperationalEvent('jobber.queued_webhook_dropped', { businessId: connection.business, eventId: event._id });
+    return;
+  }
   event.business = connection.business;
   if (webhook.topic === "APP_DISCONNECT") {
     connection.status = "disconnected";
@@ -68,7 +75,7 @@ export const processIntegrationWebhookEvent = async (eventId) => {
   try {
     if (event.provider === "google_calendar") await processGoogle(event);
     else if (event.provider === "jobber") await processJobber(event);
-    event.status = "processed";
+    if (event.status !== "ignored") event.status = "processed";
     event.processedAt = new Date();
     event.errorMessage = "";
   } catch (error) {

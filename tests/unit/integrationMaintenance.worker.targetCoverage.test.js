@@ -1,3 +1,5 @@
+const mockEnabledBusinessIds = jest.fn();
+jest.mock('../../src/models/business.js', () => ({ __esModule: true, default: {distinct:(...args)=>mockEnabledBusinessIds(...args)} }));
 const mockFindConnections = jest.fn();
 const mockGetJobberSettings = jest.fn();
 const mockRenewGoogle = jest.fn();
@@ -34,6 +36,7 @@ describe("integrationMaintenance.worker target coverage", () => {
     consoleError = jest.spyOn(console, "error").mockImplementation(() => {});
     process.env.INTEGRATION_WORKER_ENABLED = "true";
 
+    mockEnabledBusinessIds.mockResolvedValue(["biz-1", "biz-2", "biz-disabled"]);
     mockProcessWebhooks.mockResolvedValue([{}, null, {}, false]);
     mockFindConnections.mockResolvedValue([]);
     mockRenewGoogle.mockResolvedValue([]);
@@ -81,7 +84,9 @@ describe("integrationMaintenance.worker target coverage", () => {
     });
 
     expect(mockProcessWebhooks).toHaveBeenCalledWith(50);
+    expect(mockEnabledBusinessIds).toHaveBeenCalledWith("_id", {"features.jobberEnabled":true});
     expect(mockFindConnections).toHaveBeenCalledWith({
+      business: {$in:["biz-1", "biz-2", "biz-disabled"]},
       provider: "jobber",
       status: "connected",
     });

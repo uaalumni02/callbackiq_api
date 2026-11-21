@@ -197,3 +197,8 @@ export function updateStripeSubscription({ data, model, stripeSubscriptionId }) 
           runValidators: true,
         }));
 }
+
+export function updateBusinessFeatures({ Business, businessId, features }) {
+  const updates = Object.fromEntries(Object.entries(features).map(([key, value]) => [`features.${key}`, value]));
+  return Business.findByIdAndUpdate(businessId, { $set: updates }, { returnDocument: 'after', runValidators: true });
+}

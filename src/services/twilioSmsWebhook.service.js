@@ -341,7 +341,7 @@ export const handleSmsRecoveryVoiceWebhook = async (req, res) => {
       numberContext?.marketingSource
     ) {
       bookkeeping.push(syncLatestAttribution({
-        businessId: business._id,
+        business, businessId: business._id,
         leadId: lead._id,
         conversationId: conversation._id,
         trackingNumber: numberContext?.trackingNumber || null,
@@ -585,7 +585,7 @@ export const handleInboundSmsWebhook = async (req, res) => {
       numberContext?.marketingSource
     ) {
       await syncLatestAttribution({
-        businessId: business._id,
+        business, businessId: business._id,
         leadId: lead._id,
         conversationId: conversation._id,
         trackingNumber: numberContext?.trackingNumber || null,

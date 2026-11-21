@@ -17,7 +17,7 @@ let fixture;
 beforeAll(connectTestDB,60000);afterAll(closeTestDB);
 beforeEach(async()=>{
  jest.clearAllMocks();
- const {business}=await trackingFixture();
+ const {business}=await trackingFixture({features:{conversationIntelligenceEnabled:true}});
  const owner=await User.create({_id:business.owner,userName:'synthetic-http-owner',email:'owner-http@example.test',password:'synthetic-hash',role:'owner',businessName:'Synthetic owner',businessPhone:business.phone});
  const foreign=await Business.create({owner:new mongoose.Types.ObjectId(),businessName:'FOREIGN-TENANT-SYNTHETIC',businessType:'plumbing',email:'foreign-http@example.test',phone:'+14045550124',forwardingPhone:'+14045550998'});
  const records=async(scope,name)=>{

@@ -112,7 +112,7 @@ class TrackingVoiceController {
       );
 
       await syncLatestAttribution({
-        businessId: context.business._id,
+        business: context.business, businessId: context.business._id,
         marketingSource: context.marketingSource || null,
         trackingNumber: number,
         calledPhone: to,

@@ -1,3 +1,4 @@
+import { enabledBusinessIds } from '../services/businessFeatureAccess.service.js';
 import { captureExternalError } from "../services/errorTracking.service.js";
 import { safeConsole } from "../helpers/logging/safeLogger.js";
 import IntegrationConnection from "../models/integrationConnection.js";
@@ -22,7 +23,9 @@ export const runIntegrationMaintenance = async () => {
     const events = await processQueuedIntegrationWebhooks(50);
     summary.webhooks = events.filter(Boolean).length;
 
+    const businessIds = await enabledBusinessIds("jobberEnabled");
     const connections = await IntegrationConnection.find({
+      business: { $in: businessIds },
       provider: "jobber",
       status: "connected",
     });
