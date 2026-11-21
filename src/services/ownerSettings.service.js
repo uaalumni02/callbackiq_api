@@ -119,7 +119,7 @@ async function saveRows(Model, businessId, rows, removed, session) {
 }
 
 export async function saveOwnerSettings({ ownerId, section, payload, revision }) {
-  const values = await validateOwnerSection(section, payload);
+  let values = section === "business" ? null : await validateOwnerSection(section, payload);
   if (!revision || typeof revision !== "string") throw error("Reload settings before saving.", 409);
   const session = await mongoose.startSession();
   try {
@@ -133,6 +133,7 @@ export async function saveOwnerSettings({ ownerId, section, payload, revision })
       const id = business._id;
       savedBusinessId = id;
       if (section === "business") {
+        values = await validateOwnerSection(section, payload, { currentBusinessType: business.businessType });
         try { new Intl.DateTimeFormat("en", { timeZone: values.timezone }); } catch { throw error("Choose a valid time zone."); }
         business.set(values);
         // Existing per-day timezones follow an explicit business timezone change.

@@ -1,7 +1,8 @@
 import { BUSINESS_TYPES } from "../businessTypes.js";
-const isValidBusinessType = (businessType) => {
-  return BUSINESS_TYPES.includes(businessType);
-};
+function isValidBusinessType(businessType) {
+  return BUSINESS_TYPES.includes(businessType) ||
+    (this?.isNew === false && typeof this.isModified === "function" && !this.isModified("businessType"));
+}
 
 const isValidPhone = (phone) => {
   if (!phone) return true;

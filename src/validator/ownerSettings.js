@@ -30,8 +30,8 @@ export const ownerSettingsSchemas = {
   }),
   team: operationsSettingsSchema.fork(["aiPermissions", "followUpSettings", "serviceEligibilityPolicy"], s => s.forbidden()),
 };
-export const validateOwnerSection = (section, payload) => {
+export const validateOwnerSection = (section, payload, context = {}) => {
   const schema = ownerSettingsSchemas[section];
   if (!schema) { const e = new Error("Unknown settings section."); e.statusCode = 400; throw e; }
-  return schema.validateAsync(payload, { abortEarly: false, convert: false });
+  return schema.validateAsync(payload, { abortEarly: false, convert: false, context });
 };

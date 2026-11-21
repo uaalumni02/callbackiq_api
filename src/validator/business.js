@@ -12,7 +12,7 @@ const ownerEditableFeaturesSchema = Joi.object({
 const commonBusinessFields = {
   businessName: Joi.string().trim().min(2).max(100),
 
-  businessType: Joi.string().valid(...BUSINESS_TYPES),
+  businessType: Joi.string().valid(...BUSINESS_TYPES, Joi.ref("$currentBusinessType")),
 
   // Create-only compatibility alias. Controllers must never persist this
   // owner-entered value into Business.phone.

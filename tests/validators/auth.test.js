@@ -226,12 +226,12 @@ describe("Auth Validator", () => {
       await expect(registerSchema.validateAsync(data)).rejects.toThrow();
     });
 
-    test("register accepts a supported restaurant businessType", async () => {
+    test("register accepts a supported cleaning businessType", async () => {
       const result = await registerSchema.validateAsync({
         ...validRegisterData,
-        businessType: "restaurant",
+        businessType: "cleaning",
       });
-      expect(result.businessType).toBe("restaurant");
+      expect(result.businessType).toBe("cleaning");
     });
 
     test("register rejects an unsupported businessType", async () => {

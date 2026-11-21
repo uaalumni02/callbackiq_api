@@ -1,4 +1,4 @@
-import { BUSINESS_TYPES } from "../helpers/businessTypes.js";
+import { isValidBusinessType } from "../helpers/model/business.js";
 import { installAccessRevocation } from "../helpers/model/accessRevocation.js";
 import mongoose from "mongoose";
 
@@ -65,7 +65,7 @@ const UserSchema = new Schema(
 
     businessType: {
       type: String,
-      enum: BUSINESS_TYPES,
+      validate: [isValidBusinessType, "Invalid business type"],
       default: "other",
     },
 

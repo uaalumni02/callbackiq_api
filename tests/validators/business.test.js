@@ -28,13 +28,13 @@ describe("Business Validator", () => {
     await expect(businessSchema.validateAsync(data)).rejects.toThrow();
   });
 
-  test("business accepts a supported restaurant businessType", async () => {
+  test("business accepts a supported cleaning businessType", async () => {
     const result = await businessSchema.validateAsync({
       businessName: "Restaurant Pilot",
-      businessType: "restaurant",
+      businessType: "cleaning",
       phone: "4045551234",
     });
-    expect(result.businessType).toBe("restaurant");
+    expect(result.businessType).toBe("cleaning");
   });
 
   test("business rejects an unsupported businessType", async () => {
