@@ -1,3 +1,4 @@
+import { signedTwilioPost } from '../helpers/signTwilioRequest.js';
 import request from 'supertest';
 import mongoose from 'mongoose';
 import app from '../../src/app.js';
@@ -35,7 +36,7 @@ test('A2P worker respects a real distributed lease held by another process', asy
 });
 test.each(['voice-complete','voice-transfer-complete','voice-overflow'])('%s cannot fabricate CRM records for an unknown completed call', async endpoint => {
   const owner = await business();
-  const response = await request(app).post(`/api/twilio/${endpoint}`).type('form').send({ To: owner.phone, From: '+14045550129', CallSid: 'CA00000000000000000000000000000009', CallStatus: 'completed' });
+  const response = await signedTwilioPost(app, `/api/twilio/${endpoint}`, { To: owner.phone, From: '+14045550129', CallSid: 'CA00000000000000000000000000000009', CallStatus: 'completed' });
   expect(response.status).toBe(200); expect(await Lead.countDocuments()).toBe(0);
   expect(await Conversation.countDocuments()).toBe(0); expect(await VoiceSession.countDocuments()).toBe(0); expect(await Business.countDocuments()).toBe(1);
 });

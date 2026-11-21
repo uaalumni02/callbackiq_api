@@ -1,3 +1,4 @@
+import { businessHasFeature, requireJobberBusiness } from '../businessFeatureAccess.service.js';
 import Appointment from "../../models/appointment.js";
 import ExternalRecordMapping from "../../models/externalRecordMapping.js";
 import IntegrationConnection from "../../models/integrationConnection.js";
@@ -222,11 +223,16 @@ export const ensureJobberClientForLead = async ({ lead, connection }) => {
   return String(externalId);
 };
 
-export const syncLeadToJobber = async ({ businessId, leadId }) => {
-  const [connection, lead] = await Promise.all([
+const loadJobberLead = async (businessId, leadId) => {
+  await requireJobberBusiness(businessId);
+  return Promise.all([
     IntegrationConnection.findOne({ business: businessId, provider: "jobber" }),
     Lead.findOne({ _id: leadId, business: businessId }),
   ]);
+};
+
+export const syncLeadToJobber = async ({ businessId, leadId }) => {
+  const [connection, lead] = await loadJobberLead(businessId, leadId);
   if (!connection || connection.status !== "connected") {
     const error = new Error("Jobber is not connected.");
     error.statusCode = 409;
@@ -305,6 +311,7 @@ export const syncLeadToJobber = async ({ businessId, leadId }) => {
 };
 
 export const syncPendingQualifiedLeadsToJobber = async ({ businessId, limit = 25 }) => {
+  if (!await businessHasFeature(businessId, "jobberEnabled")) return [];
   const connection = await IntegrationConnection.findOne({
     business: businessId,
     provider: "jobber",

@@ -349,7 +349,7 @@ export const assessInboundSafety = async ({
       temperature: 0,
       max_output_tokens: 300,
       instructions: `
-You are a safety-only classifier for CallBackIQ, a home-service communications platform.
+You are a safety-only classifier for a home-service communications assistant.
 
 Classify whether the latest customer message describes a CURRENT OR IMMINENT situation where a person or animal may be harmed and 911, police, fire, an ambulance, evacuation, or other emergency services may be appropriate.
 

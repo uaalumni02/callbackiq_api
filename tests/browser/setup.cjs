@@ -7,3 +7,6 @@ process.env.RECOVERY_SMS_ASYNC_ENABLED = 'false';
 process.env.SMS_TURN_AGGREGATION_WINDOW_MS = '0';
 
 process.env.INTEGRATION_ENCRYPTION_KEY = 'synthetic-browser-encryption-key-1234567890';
+
+process.env.TWILIO_AUTH_TOKEN = 'synthetic-browser-twilio-auth-token';
+process.env.TWILIO_WEBHOOK_BASE_URL = 'http://127.0.0.1:43771';

@@ -1,3 +1,4 @@
+import { getBusinessFeatures } from '../../helpers/businessFeatures.js';
 export const DAY = 86400000;
 export const WINDOWS = [7, 30, 90];
 export const MISSED_STATUSES = [
@@ -319,3 +320,9 @@ export const actionsFor = (row, now) => {
     );
   return result;
 };
+
+export const businessAccountSummary = business => ({
+  _id: business._id, businessName: business.businessName, businessType: business.businessType,
+  features: getBusinessFeatures(business), isActive: business.isActive,
+  createdAt: business.createdAt, estimatedJobValue: business.estimatedJobValue,
+});

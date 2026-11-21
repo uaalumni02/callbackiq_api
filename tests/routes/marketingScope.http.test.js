@@ -10,6 +10,7 @@ import { createMarketingSource } from "../../src/services/marketingSource.servic
 jest.mock("../../src/middleware/check-auth.js", () => ({ __esModule: true,
   default: (req, res, next) => {
     req.user = { userId: "owner-b", role: req.headers["x-test-role"] || "owner" };
+    req.business = { _id: "66c000000000000000000002", features: { marketingAttributionEnabled: true } };
     next();
   },
 }));

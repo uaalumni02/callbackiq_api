@@ -1,3 +1,4 @@
+import { signedTwilioPost } from '../helpers/signTwilioRequest.js';
 import request from 'supertest';
 import mongoose from 'mongoose';
 import app from '../../src/app.js';
@@ -12,7 +13,10 @@ import * as messageService from '../../src/services/messaging/smsIngressPersiste
 import { connectTestDB, clearTestDB, closeTestDB } from '../setup/testDb.js';
 jest.mock('twilio', () => {
   const provider = jest.fn(() => ({ messages: { create: jest.fn(() => { throw new Error('No outbound sends expected'); }) } }));
-  provider.validateRequest = jest.fn(() => true); return provider;
+  Object.assign(provider, {
+    validateRequest: jest.requireActual("twilio").validateRequest,
+    getExpectedTwilioSignature: jest.requireActual("twilio").getExpectedTwilioSignature,
+  }); return provider;
 });
 beforeAll(async () => {
   process.env.TWILIO_ACCOUNT_SID = 'AC_TEST'; process.env.TWILIO_AUTH_TOKEN = 'AUTH_TEST';
@@ -28,7 +32,7 @@ const seed = async () => {
   await Conversation.create({ business: business._id, lead: lead._id, customerPhone: '+14045550123', aiEnabled: false, humanTakeover: true });
   return business;
 };
-const send = business => request(app).post('/api/twilio/sms').type('form').send({ MessageSid: 'SM_ACK_TEST', From: '+14045550123', To: business.phone, Body: 'The service address is 123 Main Street' });
+const send = business => signedTwilioPost(app, '/api/twilio/sms', { MessageSid: 'SM_ACK_TEST', From: '+14045550123', To: business.phone, Body: 'The service address is 123 Main Street' });
 
 test('HTTP acknowledgement waits for message persistence to settle', async () => {
   const business = await seed();

@@ -173,6 +173,7 @@ const registerAndCreateBusiness = async ({
     );
   }
 
+  await Business.updateOne({_id:business._id},{$set:{"features.conversationIntelligenceEnabled":true}});
   await createActiveSubscription(business._id);
 
   return {

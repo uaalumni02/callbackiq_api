@@ -3,7 +3,7 @@ import { getVoiceWebSocketUrl } from "./voiceRouting.service.js";
 
 export const PATH = "/ws/voice";
 
-const signatureUrlForRequest = (request) => {
+export const signatureUrlForRequest = (request) => {
   const configured = getVoiceWebSocketUrl();
   if (!configured) return "";
   try {
@@ -19,13 +19,6 @@ const signatureUrlForRequest = (request) => {
 };
 
 export const validateConversationRelaySignature = (request) => {
-  if (
-    process.env.NODE_ENV === "test" &&
-    process.env.DISABLE_TWILIO_SIGNATURE_VALIDATION === "true"
-  ) {
-    return true;
-  }
-
   const signature = request.headers?.["x-twilio-signature"];
   const publicUrl = signatureUrlForRequest(request);
 

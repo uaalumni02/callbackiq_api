@@ -1,3 +1,4 @@
+import { signedTwilioPost } from '../helpers/signTwilioRequest.js';
 import ServiceOffering from '../../src/models/serviceOffering.js';
 
 import request from "supertest";
@@ -33,7 +34,10 @@ jest.mock("twilio", () => {
     },
   }));
 
-  twilioMock.validateRequest = jest.fn(() => true);
+  Object.assign(twilioMock, {
+    validateRequest: jest.requireActual("twilio").validateRequest,
+    getExpectedTwilioSignature: jest.requireActual("twilio").getExpectedTwilioSignature,
+  });
 
   return twilioMock;
 });
@@ -130,7 +134,7 @@ const createBusiness = async (overrides = {}) => {
 };
 
 const sendInboundSms = (overrides = {}) => {
-  return request(app).post("/api/twilio/sms").type("form").send({
+  return signedTwilioPost(app, "/api/twilio/sms", {
     From: "4045559999",
     To: "4045551234",
     Body: "I need help with a leaking water heater",
@@ -140,7 +144,7 @@ const sendInboundSms = (overrides = {}) => {
 };
 
 const sendVoiceWebhook = (overrides = {}) => {
-  return request(app).post("/api/twilio/voice").type("form").send({
+  return signedTwilioPost(app, "/api/twilio/voice", {
     From: "4045559999",
     To: "4045551234",
     CallSid: "CA_IDEMPOTENT_123",
@@ -361,15 +365,9 @@ describe("Twilio webhook idempotency", () => {
       MessageStatus: "delivered",
     };
 
-    const first = await request(app)
-      .post("/api/twilio/status")
-      .type("form")
-      .send(payload);
+    const first = await signedTwilioPost(app, "/api/twilio/status", payload);
 
-    const second = await request(app)
-      .post("/api/twilio/status")
-      .type("form")
-      .send(payload);
+    const second = await signedTwilioPost(app, "/api/twilio/status", payload);
 
     expect(first.status).toBe(200);
     expect(second.status).toBe(200);

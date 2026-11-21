@@ -1,3 +1,4 @@
+import { signedTwilioPost } from '../helpers/signTwilioRequest.js';
 import Alert from '../../src/models/alert.js';
 import ServiceOffering from '../../src/models/serviceOffering.js';
 
@@ -102,10 +103,7 @@ describe("Twilio Routes", () => {
     test("creates the inbound workflow and guarded outbound reply", async () => {
       const business = await createBusiness();
 
-      const response = await request(app)
-        .post("/api/twilio/sms")
-        .type("form")
-        .send({
+      const response = await signedTwilioPost(app, "/api/twilio/sms", {
           From: "4045559999",
           To: "4045551234",
           Body: "I need help with a leaking water heater",
@@ -170,10 +168,7 @@ describe("Twilio Routes", () => {
         source: "missed_call",
       });
 
-      const response = await request(app)
-        .post("/api/twilio/sms")
-        .type("form")
-        .send({
+      const response = await signedTwilioPost(app, "/api/twilio/sms", {
           From: "4045559999",
           To: "4045551234",
           Body: "Yes I still need service",
@@ -200,10 +195,7 @@ describe("Twilio Routes", () => {
         source: "manual",
       });
 
-      const response = await request(app)
-        .post("/api/twilio/sms")
-        .type("form")
-        .send({
+      const response = await signedTwilioPost(app, "/api/twilio/sms", {
           From: "4045559999",
           To: "4045551234",
           Body: "Thanks, see you soon",
@@ -244,10 +236,7 @@ describe("Twilio Routes", () => {
         humanTakeover: true,
       });
 
-      const response = await request(app)
-        .post("/api/twilio/sms")
-        .type("form")
-        .send({
+      const response = await signedTwilioPost(app, "/api/twilio/sms", {
           From: "4045559999",
           To: "4045551234",
           Body: body,
@@ -310,10 +299,7 @@ describe("Twilio Routes", () => {
         reply: "",
       });
 
-      const response = await request(app)
-        .post("/api/twilio/sms")
-        .type("form")
-        .send({
+      const response = await signedTwilioPost(app, "/api/twilio/sms", {
           From: "4045559999",
           To: "4045551234",
           Body: "Repeated spam",
@@ -340,10 +326,7 @@ describe("Twilio Routes", () => {
         actionType: "no_reply",
         reply: "",
       });
-      const response = await request(app)
-        .post("/api/twilio/sms")
-        .type("form")
-        .send({
+      const response = await signedTwilioPost(app, "/api/twilio/sms", {
           From: "4045559999",
           To: "4045551234",
           Body: "My water heater needs repair",
@@ -364,10 +347,7 @@ describe("Twilio Routes", () => {
     });
 
     test("returns empty TwiML and creates nothing when no business exists", async () => {
-      const response = await request(app)
-        .post("/api/twilio/sms")
-        .type("form")
-        .send({
+      const response = await signedTwilioPost(app, "/api/twilio/sms", {
           From: "4045559999",
           To: "4045551234",
           Body: "Hello",

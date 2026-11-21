@@ -1,3 +1,4 @@
+import { signedTwilioPost } from '../helpers/signTwilioRequest.js';
 import mongoose from 'mongoose';
 import request from 'supertest';
 import app from '../../src/app.js';
@@ -32,7 +33,7 @@ test('voice recovery acknowledges a durable job without waiting for provider del
   sendSms.mockImplementation(() => new Promise(() => {}));
   try {
     const business = await Business.create({ owner: new mongoose.Types.ObjectId(), businessName: 'Staging plumbing', businessType: 'plumbing', phone: '+14045551234', email: 'staging@example.test', trackingNumber: { provider: 'twilio', status: 'active' }, features: { missedCallSmsEnabled: true, voiceAiEnabled: false }, voiceSettings: { answerMode: 'disabled', routingPolicy: { openHours: 'sms', afterHours: 'sms', voiceFailure: 'sms' } } });
-    const response = await request(app).post('/api/twilio/voice').type('form').send({ From: '+14045559999', To: business.phone, CallSid: 'CA_DURABLE_RECOVERY' });
+    const response = await signedTwilioPost(app, '/api/twilio/voice', { From: '+14045559999', To: business.phone, CallSid: 'CA_DURABLE_RECOVERY' });
     expect(response.status).toBe(200); expect(response.text).toMatch(/recorded/);
     expect(sendSms).not.toHaveBeenCalled();
     expect(await WebhookWork.countDocuments({ business: business._id, kind: 'recovery_sms', status: 'queued' })).toBe(1);

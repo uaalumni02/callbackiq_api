@@ -5,6 +5,11 @@ const BUSINESS_FEATURE_DEFAULTS = Object.freeze({
   automatedFollowUpEnabled: false,
   voiceAiEnabled: false,
   revenueTrackingEnabled: false,
+  revenueRescueEnabled: false,
+  revenueAutomationEnabled: false,
+  conversationIntelligenceEnabled: false,
+  marketingAttributionEnabled: false,
+  jobberEnabled: false,
   calendarProvider: "internal",
 });
 

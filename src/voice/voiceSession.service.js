@@ -257,7 +257,7 @@ class VoiceSessionService {
 
     if (numberContext?.marketingSource && numberContext?.trackingNumber) {
       await syncLatestAttribution({
-      callLogId: callLog?._id || null,
+        business, callLogId: callLog?._id || null,
         businessId: business._id,
         leadId: lead._id,
         conversationId: conversation._id,

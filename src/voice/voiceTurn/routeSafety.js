@@ -59,7 +59,7 @@ const constraintResult = await observeCustomerConstraint({ conversation, lead, c
         sendConfirmationSms: false,
         completionReply:
           safety?.reply ||
-          "If anyone is in immediate danger, hang up and call 911 now. MeekCall flagged this for urgent review, but do not wait for a callback or use this service instead of emergency services.",
+          "If anyone is in immediate danger, hang up and call 911 now. I flagged this for urgent review, but do not wait for a callback or use this service instead of emergency services.",
       }) };
     }
   return { completed: false, context: {  } };

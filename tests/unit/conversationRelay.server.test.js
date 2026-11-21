@@ -1,19 +1,12 @@
+import { signedRelayOptions } from '../helpers/signTwilioRequest.js';
 jest.mock('../../src/services/voiceConversationTurn.service.js', () => ({ runVoiceConversationTurn: ({ operation }) => operation() }));
 import http from "node:http";
-import twilio from "twilio";
 import { WebSocket } from "ws";
 
 import {
   initializeConversationRelayServer,
   validateConversationRelaySignature,
 } from "../../src/voice/conversationRelay.server.js";
-
-jest.mock("twilio", () => ({
-  __esModule: true,
-  default: {
-    validateRequest: jest.fn(),
-  },
-}));
 
 const createRelayInfrastructureStubs = () => ({
   voiceCapacityService: {
@@ -90,10 +83,10 @@ const collectUntil = (socket, predicate, timeoutMs = 1500) =>
 
 test('connection lease outage rejects the actual WebSocket upgrade with HTTP 503',async()=>{
  const acquire=jest.fn().mockRejectedValue(new Error('Synthetic lease outage'));
- const server=await startServer({signatureValidator:()=>true,voiceConnectionLeaseService:{
+ const server=await startServer({voiceConnectionLeaseService:{
   acquireVoiceConnectionLease:acquire,releaseVoiceConnectionLease:jest.fn(),
  }});
- const socket=new WebSocket(server.url);
+ const socket=new WebSocket(server.url, signedRelayOptions(server.url));
  try{
   const status=await new Promise((resolve,reject)=>{
    socket.on('unexpected-response',(_request,response)=>{response.resume();resolve(response.statusCode)});
@@ -122,23 +115,18 @@ describe("ConversationRelay WebSocket signature validation", () => {
   });
 
   test("validates the initial handshake against the exact public WSS URL", () => {
-    twilio.validateRequest.mockReturnValue(true);
     const valid = validateConversationRelaySignature({
-      headers: { "x-twilio-signature": "signature" },
+      headers: { "x-twilio-signature": signedRelayOptions("/ws/voice").headers["X-Twilio-Signature"] },
     });
 
     expect(valid).toBe(true);
-    expect(twilio.validateRequest).toHaveBeenCalledWith(
-      "auth-token",
-      "signature",
-      "wss://api.callbackiq.com/ws/voice",
-      {},
-    );
+    const tampered = validateConversationRelaySignature({ url: '/ws/voice?changed=true',
+      headers: { 'x-twilio-signature': signedRelayOptions('/ws/voice').headers['X-Twilio-Signature'] } });
+    expect(tampered).toBe(false);
   });
 
   test("rejects a handshake when signature inputs are missing", () => {
     expect(validateConversationRelaySignature({ headers: {} })).toBe(false);
-    expect(twilio.validateRequest).not.toHaveBeenCalled();
   });
 });
 
@@ -169,11 +157,10 @@ describe("ConversationRelay failure termination", () => {
       voiceAgentService,
       voiceSessionService,
       voiceTranscriptService,
-      signatureValidator: () => true,
       failureEndDelayMs: 10,
       failureCloseDelayMs: 200,
     });
-    const socket = new WebSocket(server.url);
+    const socket = new WebSocket(server.url, signedRelayOptions(server.url));
 
     try {
       await new Promise((resolve, reject) => {
@@ -264,11 +251,10 @@ describe("ConversationRelay configurable failure recovery", () => {
       voiceSessionService,
       voiceFailureService,
       voiceTranscriptService: { append: jest.fn().mockResolvedValue(undefined) },
-      signatureValidator: () => true,
       failureEndDelayMs: 10,
       failureCloseDelayMs: 200,
     });
-    const socket = new WebSocket(server.url);
+    const socket = new WebSocket(server.url, signedRelayOptions(server.url));
 
     try {
       await new Promise((resolve, reject) => {
@@ -336,7 +322,6 @@ describe("ConversationRelay caller interruption fencing", () => {
     const session = { _id: "voice-barge-in", business: { _id: "business-1" }, status: "active" };
     const commitVoiceOutcome = jest.fn().mockResolvedValue(undefined);
     const server = await startServer({
-      signatureValidator: () => true,
       voiceAgentService: { handlePrompt },
       voiceSessionService: {
         activateFromSetup: jest.fn().mockResolvedValue(session),
@@ -351,7 +336,7 @@ describe("ConversationRelay caller interruption fencing", () => {
       voiceOutcomeService: { commitVoiceOutcome, inferVoiceOutcome: jest.fn().mockReturnValue(null), recoverAbandonedVoiceCall: jest.fn().mockResolvedValue(null) },
       voiceMetricsService: { recordVoiceMetric: jest.fn().mockResolvedValue(undefined) },
     });
-    const socket = new WebSocket(server.url);
+    const socket = new WebSocket(server.url, signedRelayOptions(server.url));
     const received = [];
     socket.on("message", (raw) => received.push(JSON.parse(raw.toString())));
     try {
@@ -391,14 +376,14 @@ describe('caller recovery when submission cannot be verified', () => {
   const session={_id:'voice-write-failure',business:{_id:'business-1'},status:'active'};
   const handlePrompt=jest.fn().mockRejectedValue(new Error(failure));
   const server=await startServer({
-   signatureValidator:()=>true, voiceAgentService:{handlePrompt},
+   voiceAgentService:{handlePrompt},
    voiceSessionService:{activateFromSetup:jest.fn().mockResolvedValue(session),touchActivity:jest.fn(),sendFallbackSms:jest.fn().mockRejectedValue(new Error('recovery unavailable'))},
    voiceTranscriptService:{append:jest.fn().mockResolvedValue(undefined)},
    voiceOutcomeService:{commitVoiceOutcome:jest.fn(),inferVoiceOutcome:jest.fn().mockReturnValue(null),recoverAbandonedVoiceCall:jest.fn().mockResolvedValue(null)},
    voiceMetricsService:{recordVoiceMetric:jest.fn().mockResolvedValue(undefined)},
    failureEndDelayMs:10,failureCloseDelayMs:200,
   });
-  const socket=new WebSocket(server.url);
+  const socket=new WebSocket(server.url, signedRelayOptions(server.url));
   try {
    await new Promise((resolve,reject)=>{socket.once('open',resolve);socket.once('error',reject);});
    const ready=collectUntil(socket,m=>m.type==='callbackiq_setup_ready');

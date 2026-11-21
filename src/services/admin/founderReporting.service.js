@@ -30,6 +30,7 @@ import {
 import { buildBusinessReadiness } from "../businessReadiness.service.js";
 import { getOrLoadScaleCache } from "../scaleCache.service.js";
 import {
+  businessAccountSummary,
   DAY,
   WINDOWS,
   MISSED_STATUSES,
@@ -555,14 +556,7 @@ export const refreshBusinessReport = async (businessId, now = new Date()) => {
     coverage.complete && date(coverage.syncedAt) >= new Date(+now - DAY),
   );
   const row = {
-    business: {
-      _id: business._id,
-      businessName: business.businessName,
-      businessType: business.businessType,
-      isActive: business.isActive,
-      createdAt: business.createdAt,
-      estimatedJobValue: business.estimatedJobValue,
-    },
+    business: businessAccountSummary(business),
     owner,
     subscription: sub
       ? { plan: sub.plan, status: sub.status, aiEnabled: sub.aiEnabled }
@@ -1042,14 +1036,7 @@ export const getSafeCustomerDetails = async (businessId) => {
   const row = report?.payload;
   const w = row?.windows?.[30];
   return {
-    business: {
-      _id: business._id,
-      businessName: business.businessName,
-      businessType: business.businessType,
-      isActive: business.isActive,
-      estimatedJobValue: business.estimatedJobValue,
-      createdAt: business.createdAt,
-    },
+    business: businessAccountSummary(business),
     owner,
     subscription,
     metrics: w

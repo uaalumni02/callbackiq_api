@@ -1,3 +1,4 @@
+import { signedTwilioPost } from '../helpers/signTwilioRequest.js';
 
 import request from "supertest";
 import mongoose from "mongoose";
@@ -31,7 +32,10 @@ jest.mock("twilio", () => {
     },
   }));
 
-  twilioMock.validateRequest = jest.fn(() => true);
+  Object.assign(twilioMock, {
+    validateRequest: jest.requireActual("twilio").validateRequest,
+    getExpectedTwilioSignature: jest.requireActual("twilio").getExpectedTwilioSignature,
+  });
 
   return twilioMock;
 });
@@ -118,7 +122,7 @@ const createBusiness = async (overrides = {}) => {
 };
 
 const sendSmsWebhook = (body, messageSid) => {
-  return request(app).post("/api/twilio/sms").type("form").send({
+  return signedTwilioPost(app, "/api/twilio/sms", {
     From: "4045559999",
     To: "4045551234",
     Body: body,
@@ -127,7 +131,7 @@ const sendSmsWebhook = (body, messageSid) => {
 };
 
 const sendMissedCall = (callSid = "CA_AFTER_STOP_123") => {
-  return request(app).post("/api/twilio/voice").type("form").send({
+  return signedTwilioPost(app, "/api/twilio/voice", {
     From: "4045559999",
     To: "4045551234",
     CallSid: callSid,

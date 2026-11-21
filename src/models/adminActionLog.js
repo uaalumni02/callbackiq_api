@@ -22,6 +22,7 @@ const adminActionLogSchema = new mongoose.Schema(
         "view_customer",
         "update_subscription_status",
         "update_business_status",
+        "update_business_features",
         "update_reporting_profile",
         "update_reporting_cost",
         "update_company_expense",

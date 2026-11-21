@@ -1,3 +1,5 @@
+import { businessHasFeature } from '../services/businessFeatureAccess.service.js';
+import { logOperationalEvent } from '../helpers/logging/safeLogger.js';
 import crypto from "crypto";
 
 import IntegrationConnection from "../models/integrationConnection.js";
@@ -104,6 +106,11 @@ class IntegrationWebhookController {
       const payload = JSON.parse(body.toString("utf8") || "{}");
       const webhook =
         payload?.data?.webHookEvent || payload?.webHookEvent || {};
+      const connection = await IntegrationConnection.findOne({ provider: 'jobber', providerAccountId: String(webhook.accountId || '') });
+      if (!connection || !await businessHasFeature(connection.business, 'jobberEnabled')) {
+        logOperationalEvent('jobber.webhook_dropped', { businessId: connection?.business || null, reason: 'feature_disabled_or_unknown_account' });
+        return res.status(202).json({ success: true });
+      }
       const eventParts = [
         webhook.accountId,
         webhook.topic,
@@ -117,6 +124,7 @@ class IntegrationWebhookController {
         : crypto.createHash("sha256").update(body).digest("hex");
       await enqueue({
         provider: "jobber",
+        business: connection.business,
         eventKey,
         topic: String(webhook.topic || ""),
         externalItemId: String(webhook.itemId || ""),

@@ -3,7 +3,7 @@ import { assertStandaloneRuntime } from "./config/startupAssertions.js";
 import { startAdminReportingWorker, stopAdminReportingWorker } from "./workers/adminReporting.worker.js";
 import { assertScaleProfile } from './config/scaleProfile.js';
 import { startProcessHeartbeat, stopProcessHeartbeat } from './services/processHeartbeat.service.js';
-import { safeConsole } from "./helpers/logging/safeLogger.js";
+import { safeConsole, logOperationalEvent } from "./helpers/logging/safeLogger.js";
 import { startWebhookWorkWorker, stopWebhookWorkWorker } from "./workers/webhookWork.worker.js";
 import { beginDrain } from "./services/runtimeState.service.js";
 import { enforceSocketExpiry, startSocketSessionMaintenance } from "./services/socketSession.service.js";
@@ -223,7 +223,12 @@ const startServer = async () => {
   normalizeRuntimeEnvironment();
   validateEnvironment(process.env, { throwOnError: true });
   assertTwilioProductionConfig();
-  assertServerProcessRole();
+  const role = assertServerProcessRole();
+  const servesVoiceRelay = shouldServeVoiceRelay();
+  logOperationalEvent("runtime.voice_relay", { role, enabled: servesVoiceRelay });
+  if (role === "api" && !servesVoiceRelay) {
+    logOperationalEvent("runtime.route_voice_to_separate_service", { path: "/ws/voice" });
+  }
   assertRealtimeScalingConfig();
   assertScaleProfile();
   startRuntimeMetricsLogging();
