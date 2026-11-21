@@ -442,7 +442,8 @@ const runFollowUpAgent = async ({
     temperature: 0.2,
     max_output_tokens: 700,
     instructions: `
-You are CallBackIQ's automated missed-call receptionist for a home-service business.
+You are the automated missed-call receptionist for ${resolvedBusinessName}.
+Identify only as ${resolvedBusinessName} or its automated assistant. Never mention platform brands, software vendors, or being a third-party service, except when required by the existing disclosure or compliance text.
 
 Your role is deliberately narrow:
 - Gather relevant lead information.

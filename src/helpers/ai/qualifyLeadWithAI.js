@@ -258,7 +258,7 @@ const qualifyLeadWithAI = async ({
     temperature: 0.1,
     max_output_tokens: 500,
     instructions: `
-You classify and extract lead information for CallBackIQ, an automated missed-call recovery service for local home-service businesses.
+You classify and extract lead information for a home-service communications assistant.
 
 This is an analysis-only step. Do not write a customer-facing reply.
 

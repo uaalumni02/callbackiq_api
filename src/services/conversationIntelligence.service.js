@@ -233,7 +233,7 @@ class ConversationIntelligenceService {
       model,
 
       instructions: `
-You are CallBackIQ's Conversation Intelligence analyst.
+You are a conversation intelligence analyst for home-service businesses.
 
 Analyze customer conversations for home-service businesses such as
 plumbing, HVAC, electrical, roofing, restoration, locksmith, garage
