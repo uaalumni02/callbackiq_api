@@ -1,3 +1,4 @@
+import { signedTwilioHeaders } from '../helpers/signTwilioRequest.js';
 /* Real browser + mounted API + ephemeral MongoDB. Only outbound SMS and model
  * understanding are doubled. No purchases, production DB, or live provider calls.
  * Run with npm run test:browser; never included in the hermetic unit tier. */
@@ -128,7 +129,8 @@ test('missed recovery call stays missed after completed and is visible in Call L
 
 test.each(['My electrical panel is sparking', 'The breaker panel smells like it is burning but I see no flames', 'My child is pinned under the garage door', 'My dryer smells like burning and is smoking'])('incoming hazardous SMS creates durable critical review: %s', async hazard => {
   const messageSid=sid();
-  const response=await context.request.post(`${base}/api/twilio/sms`,{form:{From:lead.phone,To:business.phone,Body:hazard,MessageSid:messageSid}});
+  const form = {From:lead.phone,To:business.phone,Body:hazard,MessageSid:messageSid};
+  const response=await context.request.post(`${base}/api/twilio/sms`,{form, headers: signedTwilioHeaders('/api/twilio/sms', form)});
   expect(response.status()).toBe(200);
   const alert=await Alert.findOne({business:business._id,dedupeKey:`human_handoff:${messageSid}`});
   expect(alert).toMatchObject({priority:'critical',actionRequired:true}); expect(alert.dueAt).toBeInstanceOf(Date);
@@ -260,7 +262,7 @@ test('release journey: missed call becomes one durable booking across all staff 
   const phone = '+14045550106';
   const name = 'Release Journey Customer';
   const callSid = 'CA' + '9'.repeat(32);
-  const webhook = (path, form) => context.request.post(`${base}/api/twilio/${path}`, { form });
+  const webhook = (path, form) => context.request.post(`${base}/api/twilio/${path}`, { form, headers: signedTwilioHeaders(`/api/twilio/${path}`, form) });
   const call = { From: phone, To: business.phone, CallSid: callSid };
   const asyncRecovery = process.env.RECOVERY_SMS_ASYNC_ENABLED;
   process.env.RECOVERY_SMS_ASYNC_ENABLED = 'true';

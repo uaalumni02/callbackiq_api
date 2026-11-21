@@ -1,8 +1,6 @@
 import { safeConsole } from "../helpers/logging/safeLogger.js";
 import { validateTwilioRequestWithRotation } from "../services/twilioSignatureRotation.service.js";
 
-const isValidationDisabled = () => process.env.NODE_ENV === 'test';
-
 const getFirstHeaderValue = (value) =>
   typeof value === "string" ? value.split(",")[0].trim() : "";
 
@@ -20,8 +18,6 @@ const getWebhookUrl = (req) => {
 };
 
 const validateTwilioSignature = (req, res, next) => {
-  if (isValidationDisabled()) return next();
-
   const hasAuthToken = [
     process.env.TWILIO_AUTH_TOKEN,
     process.env.TWILIO_AUTH_TOKEN_NEXT,
@@ -55,5 +51,5 @@ const validateTwilioSignature = (req, res, next) => {
   return next();
 };
 
-export { getWebhookUrl, isValidationDisabled };
+export { getWebhookUrl };
 export default validateTwilioSignature;

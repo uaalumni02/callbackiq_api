@@ -1,3 +1,4 @@
+import { signedRelayOptions } from '../helpers/signTwilioRequest.js';
 jest.mock('../../src/services/voiceConversationTurn.service.js', () => ({ runVoiceConversationTurn: ({ operation }) => operation() }));
 import http from "http";
 import { WebSocket } from "ws";
@@ -14,7 +15,6 @@ test("normal caller hangup with no outcome invokes abandonment recovery once", a
   const recoverAbandonedVoiceCall = jest.fn().mockResolvedValue({ recovered: true });
   const server = http.createServer((_req, res) => res.end("ok"));
   const relay = initializeConversationRelayServer(server, {
-    signatureValidator: () => true,
     voiceSessionService: {
       activateFromSetup: jest.fn().mockResolvedValue(session),
       touchActivity: jest.fn(),
@@ -36,7 +36,7 @@ test("normal caller hangup with no outcome invokes abandonment recovery once", a
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address();
-  const ws = new WebSocket(`ws://127.0.0.1:${port}/ws/voice`);
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/ws/voice`, signedRelayOptions(`ws://127.0.0.1:${port}/ws/voice`));
   await new Promise((resolve, reject) => { ws.once("open", resolve); ws.once("error", reject); });
   ws.send(JSON.stringify({ type: "setup", customParameters: { voiceSessionId: "session-1" } }));
   await wait(30);

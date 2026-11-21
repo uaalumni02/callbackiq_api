@@ -1,3 +1,4 @@
+import { signedRelayOptions } from '../helpers/signTwilioRequest.js';
 jest.mock('../../src/services/voiceConversationTurn.service.js', () => ({ runVoiceConversationTurn: ({ operation }) => operation() }));
 import http from "node:http";
 import { WebSocket } from "ws";
@@ -64,7 +65,7 @@ const startServer = async (options) => {
 
 const openSocket = (url) =>
   new Promise((resolve, reject) => {
-    const socket = new WebSocket(url);
+    const socket = new WebSocket(url, signedRelayOptions(url));
     socket.once("open", () => resolve(socket));
     socket.once("error", reject);
   });
@@ -130,7 +131,6 @@ describe("ConversationRelay voice limits", () => {
       voiceSessionService,
       voiceTranscriptService: { append: jest.fn().mockResolvedValue(undefined) },
       voiceCapacityService,
-      signatureValidator: () => true,
       failureEndDelayMs: 5,
       failureCloseDelayMs: 100,
     });
@@ -185,7 +185,6 @@ describe("ConversationRelay voice limits", () => {
       voiceTranscriptService: { append: jest.fn().mockResolvedValue(undefined) },
       voiceCapacityService,
       voiceOutcomeService,
-      signatureValidator: () => true,
       durationLimitMs: 20,
       failureEndDelayMs: 5,
       failureCloseDelayMs: 100,

@@ -1,3 +1,4 @@
+import { signedTwilioPost } from '../helpers/signTwilioRequest.js';
 import { customerAccessForUser } from '../setup/stabilizationFixture.js';
 import jwt from "jsonwebtoken";
 import request from "supertest";
@@ -137,16 +138,13 @@ describe("Demo browser call routes", () => {
     );
   });
 
-  test("serves TwiML to Twilio without admin authentication in test mode", async () => {
+  test("serves TwiML to genuinely signed Twilio requests without admin authentication", async () => {
     const demoId = "507f1f77bcf86cd799439011";
     DemoBrowserCallService.buildTwiml.mockResolvedValue(
       '<Response><Dial callerId="+16785768258">+14045551111</Dial></Response>',
     );
 
-    const res = await request(app)
-      .post("/api/demo-requests/browser-call-twiml")
-      .type("form")
-      .send({
+    const res = await signedTwilioPost(app, "/api/demo-requests/browser-call-twiml", {
         demoRequestId: demoId,
         attemptId: "attempt-1",
         CallSid: "CA11111111111111111111111111111111",
@@ -164,16 +162,11 @@ describe("Demo browser call routes", () => {
     );
   });
 
-  test("accepts signed-provider child-call status callbacks in test mode", async () => {
+  test("accepts genuinely signed provider child-call status callbacks", async () => {
     const demoId = "507f1f77bcf86cd799439011";
     DemoBrowserCallService.applyProspectStatus.mockResolvedValue({ _id: demoId });
 
-    const res = await request(app)
-      .post(
-        `/api/demo-requests/browser-call-status?demoRequestId=${demoId}&attemptId=attempt-1`,
-      )
-      .type("form")
-      .send({
+    const res = await signedTwilioPost(app, `/api/demo-requests/browser-call-status?demoRequestId=${demoId}&attemptId=attempt-1`, {
         CallSid: "CA22222222222222222222222222222222",
         CallStatus: "in-progress",
       });

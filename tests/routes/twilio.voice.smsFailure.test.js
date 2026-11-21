@@ -1,3 +1,4 @@
+import { signedTwilioPost } from '../helpers/signTwilioRequest.js';
 import request from "supertest";
 import mongoose from "mongoose";
 import app from "../../src/app.js";
@@ -64,10 +65,7 @@ describe("POST /api/twilio/voice SMS failure isolation", () => {
       },
     });
 
-    const response = await request(app)
-      .post("/api/twilio/voice")
-      .type("form")
-      .send({
+    const response = await signedTwilioPost(app, "/api/twilio/voice", {
         From: "+14045559999",
         To: "+14045551234",
         CallSid: "CA_SMS_FAILURE_21610",

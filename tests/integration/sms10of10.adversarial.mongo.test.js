@@ -1,3 +1,4 @@
+import { signedTwilioPost } from '../helpers/signTwilioRequest.js';
 import request from "supertest";
 import mongoose from "mongoose";
 
@@ -59,7 +60,10 @@ jest.mock("twilio", () => {
       create: mockTwilioMessageCreate,
     },
   }));
-  twilioMock.validateRequest = jest.fn(() => true);
+  Object.assign(twilioMock, {
+    validateRequest: jest.requireActual("twilio").validateRequest,
+    getExpectedTwilioSignature: jest.requireActual("twilio").getExpectedTwilioSignature,
+  });
   return twilioMock;
 });
 
@@ -301,8 +305,8 @@ describe("MeekCall SMS 10/10 adversarial Mongo certification", () => {
     };
 
     const [primary, fallback] = await Promise.all([
-      request(app).post("/api/twilio/sms").type("form").send(payload),
-      request(app).post("/api/twilio/sms-fallback").type("form").send(payload),
+      signedTwilioPost(app, "/api/twilio/sms", payload),
+      signedTwilioPost(app, "/api/twilio/sms-fallback", payload),
     ]);
 
     expect([200, 503]).toContain(primary.status);
