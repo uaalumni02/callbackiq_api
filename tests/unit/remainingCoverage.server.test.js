@@ -2,7 +2,7 @@ jest.mock('../../src/services/scheduling/rescheduleCompensationRepair.service.js
 // Server orchestration runs with socket, provider and worker boundaries mocked.
 jest.mock('../../src/services/processHeartbeat.service.js', () => ({ startProcessHeartbeat: jest.fn(), stopProcessHeartbeat: jest.fn() }));
 jest.mock("../../src/workers/adminReporting.worker.js",()=>({__esModule:true,startAdminReportingWorker: jest.fn(),stopAdminReportingWorker: jest.fn()}));
-jest.mock("../../src/helpers/logging/safeLogger.js",()=>({__esModule:true,safeConsole: jest.fn()}));
+jest.mock("../../src/helpers/logging/safeLogger.js",()=>({__esModule:true,safeConsole: jest.fn(),logOperationalEvent:jest.fn()}));
 jest.mock("../../src/workers/webhookWork.worker.js",()=>({__esModule:true,startWebhookWorkWorker: jest.fn(),stopWebhookWorkWorker: jest.fn()}));
 jest.mock("../../src/services/runtimeState.service.js",()=>({__esModule:true,beginDrain: jest.fn()}));
 jest.mock("../../src/services/socketSession.service.js",()=>({__esModule:true,enforceSocketExpiry: jest.fn(),startSocketSessionMaintenance: jest.fn()}));
@@ -24,7 +24,7 @@ jest.mock("../../src/voice/conversationRelay.server.js",()=>({__esModule:true,in
 jest.mock("../../src/config/env.js",()=>({__esModule:true,validateEnvironment: jest.fn()}));
 jest.mock("../../src/services/runtimeMetrics.service.js",()=>({__esModule:true,startRuntimeMetricsLogging: jest.fn()}));
 jest.mock("../../src/services/scaleCache.service.js",()=>({__esModule:true,closeScaleCache: jest.fn()}));
-jest.mock("../../src/config/runtime-environment.js",()=>({__esModule:true,assertRealtimeScalingConfig: jest.fn(),assertServerProcessRole: jest.fn(),normalizeRuntimeEnvironment: jest.fn(),shouldRunEmbeddedWorkers: jest.fn(),shouldServeVoiceRelay: jest.fn(() => true)}));
+jest.mock("../../src/config/runtime-environment.js",()=>({__esModule:true,assertRealtimeScalingConfig: jest.fn(),assertServerProcessRole: jest.fn(() => "all"),normalizeRuntimeEnvironment: jest.fn(),shouldRunEmbeddedWorkers: jest.fn(),shouldServeVoiceRelay: jest.fn(() => true)}));
 jest.mock("../../src/workers/a2pReconciliation.worker.js",()=>({__esModule:true,startA2pReconciliationWorker: jest.fn(),stopA2pReconciliationWorker: jest.fn()}));
 jest.mock("../../src/workers/trialLifecycle.worker.js",()=>({__esModule:true,startTrialLifecycleWorker: jest.fn(),stopTrialLifecycleWorker: jest.fn()}));
 
@@ -45,6 +45,7 @@ test('SIGTERM waits for lifecycle shutdown before closing voice and exiting',asy
  try {
   require('../../src/server.js');await new Promise(r=>setImmediate(r));
   expect(require('../../src/services/processHeartbeat.service.js').startProcessHeartbeat).toHaveBeenCalledTimes(1);
+  expect(require('../../src/helpers/logging/safeLogger.js').logOperationalEvent).toHaveBeenCalledWith('runtime.voice_relay',{role:'all',enabled:true});
   handlers.SIGTERM();await new Promise(r=>setImmediate(r));
   expect(lifecycle.stopConversationLifecycleWorker).toHaveBeenCalledTimes(1);expect(relay.close).not.toHaveBeenCalled();expect(exit).not.toHaveBeenCalled();
   release();await new Promise(r=>setImmediate(r));expect(relay.close).toHaveBeenCalledTimes(1);expect(exit).toHaveBeenCalledWith(0);
