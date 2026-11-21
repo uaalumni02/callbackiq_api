@@ -1,9 +1,9 @@
-import { PASSWORD_MAX_LENGTH, passwordPolicyError } from '../services/security/passwordPolicy.js';
+import { PASSWORD_MAX_LENGTH, passwordPolicyError, signupPasswordPolicyError } from '../services/security/passwordPolicy.js';
 import { BUSINESS_TYPES } from "../helpers/businessTypes.js";
 import Joi from "joi";
 
-const newPassword = Joi.string().max(512).custom((value, helpers) => {
-  const message = passwordPolicyError(value);
+const newPassword = (validatePassword) => Joi.string().max(512).custom((value, helpers) => {
+  const message = validatePassword(value);
   return message ? helpers.message({ custom: message }) : value;
 }).required();
 
@@ -18,7 +18,7 @@ const registerSchema = Joi.object({
 
   email: Joi.string().email().min(3).max(100).required(),
 
-  password: newPassword,
+  password: newPassword(signupPasswordPolicyError),
 
   role: Joi.string().valid("owner").default("owner"),
   businessName: Joi.string().min(2).max(100).required(),
@@ -64,7 +64,7 @@ const requestPasswordResetSchema = Joi.object({
 });
 
 const resetPasswordSchema = Joi.object({
-  password: newPassword,
+  password: newPassword(passwordPolicyError),
 });
 
 export {

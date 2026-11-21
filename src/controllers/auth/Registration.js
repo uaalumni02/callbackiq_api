@@ -14,7 +14,6 @@ import { normalizePhoneToE164 as normalizeBusinessPhone } from "../../voice/voic
 import { registerSchema } from "../../validator/auth.js";
 import { runRegistrationTransaction } from "../../services/registrationTransaction.service.js";
 import { safeConsole } from "../../helpers/logging/safeLogger.js";
-import * as validate from "../../helpers/model/user.js";
 import { verifyTurnstileToken } from "../../helpers/security/turnstile.js";
 export default class AuthRegistrationController {
 static async register(req, res) {
@@ -59,10 +58,6 @@ static async register(req, res) {
           .update(normalizedEmail)
           .digest("hex")
           .slice(0, 20)}`;
-
-      if (!validate.isValidPassword(password)) {
-        return Response.responseInvalidInput(res, "Invalid password format");
-      }
 
       /*
        * Legal acceptance (Terms of Service + Privacy Policy) is required to

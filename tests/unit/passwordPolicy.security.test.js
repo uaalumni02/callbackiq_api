@@ -5,11 +5,11 @@ import { registerSchema, resetPasswordSchema } from '../../src/validator/auth.js
 test.each(['123456','passwordpassword','123456789012345','aaaaaaaaaaaaaaaa'])('weak new password is rejected: %s',password=>{
  expect(passwordPolicyError(password)).toBeTruthy();expect(resetPasswordSchema.validate({password}).error).toBeDefined();
 });
-test('spaces, Unicode, long passphrases and valid account registration use the same policy',async()=>{
+test('signup caps password length while reset and hashing support longer passphrases',async()=>{
  const password='A Unicode passphrase 🔑 with spaces';
  expect(passwordPolicyError(password)).toBe('');
  expect(resetPasswordSchema.validate({password}).error).toBeUndefined();
- expect(registerSchema.validate({email:'user@example.com',password,businessName:'Synthetic business',termsAccepted:true,privacyAccepted:true}).error).toBeUndefined();
+ expect(registerSchema.validate({email:'user@example.com',password,businessName:'Synthetic business',termsAccepted:true,privacyAccepted:true}).error).toBeDefined();
  const prefix='a'.repeat(80);const hash=await bcrypt.hashPassword(prefix+'first',4);
  expect(await bcrypt.comparePassword(prefix+'first',hash)).toBe(true);expect(await bcrypt.comparePassword(prefix+'second',hash)).toBe(false);
 });
