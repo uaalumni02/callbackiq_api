@@ -1,9 +1,12 @@
+import mongoose from 'mongoose';
+import Business from '../../models/business.js';
+import ServiceOffering from '../../models/serviceOffering.js';
 import { BUSINESS_TYPES } from '../../helpers/businessTypes.js';
 import { offeringTrade, TRADE_CLARIFICATION, TRADE_PROFILE_VERSION } from './tradeProfiles.service.js';
 import { DETAIL_FIELDS } from './tradeQualification.service.js';
 const servicesByTrade = {
- plumbing:['Drain cleaning','Faucet repair','Toilet repair','Water heater repair'],
- hvac:['AC repair','Furnace repair','Heat pump repair','HVAC maintenance'],
+ plumbing:['Drain cleaning','Faucet repair','Toilet repair','Water heater repair','Garbage disposal repair','Leak repair','Sewer/main line clog'],
+ hvac:['AC repair','Furnace repair','Heat pump repair','HVAC maintenance','Boiler repair','Mini-split repair','AC/furnace replacement estimate'],
  roofing:['Roof repair','Roof inspection','Roof replacement'],
  electrical:['Outlet repair','Breaker repair','Electrical panel inspection'],
  restoration:['Water damage assessment','Mold assessment','Fire damage assessment'],
@@ -11,6 +14,8 @@ const servicesByTrade = {
  locksmith:['Home lockout','Business lockout','Door lock rekeying'],
  landscaping:['Lawn mowing','Hedge trimming','Irrigation repair','Landscape assessment'],
  appliance_repair:['Refrigerator repair','Washer repair','Dryer repair','Dishwasher repair','Oven repair'],
+ pest_control:['Pest control assessment','Termite inspection','Rodent assessment'],
+ cleaning:['House cleaning','Deep cleaning','Move-out cleaning'],
  other:['Property service assessment'],
 };
 const detailLabels={hvac_equipment:'Heating or cooling equipment',appliance_type:'Appliance type',appliance_model:'Appliance brand/model (if known)',electrical_scope:'Area affected by the electrical problem',damage_activity:'Whether damage is still spreading',door_position:'Garage door position',lockout_target:'Home, business, or vehicle lockout',job_frequency:'One-time or recurring yard work'};
@@ -38,4 +43,17 @@ export function getTradeSetup(businessType, services=[], policy={}) {
    ? `Review your same-day policy and staffed response process. Current minimum notice: ${policy.minimumNoticeMinutes ?? 1440} minutes. Same-day booking: ${policy.allowSameDayBooking?'allowed by policy':'off'}. A request never guarantees arrival.`
    : 'Use the calendar for visits your team can commit to. Job completion, recurring contracts, parts, weather, and project duration need separate team assessment.',
  };
+}
+
+export async function activateOnboardingSuggestions(businessId) {
+ await mongoose.connection.transaction(async session => {
+  const business = await Business.findOneAndUpdate(
+   {_id:businessId,'setupProgress.suggestedServicesPending':true},
+   {$set:{'setupProgress.suggestedServicesPending':false}},
+   {session,returnDocument:'before'},
+  );
+  if (!business || await ServiceOffering.exists({business:businessId}).session(session)) return;
+  const services=getTradeSetup(business.businessType).suggestedServices;
+  await ServiceOffering.create(services.map(service=>({...service,business:businessId,active:true})),{session,ordered:true});
+ });
 }

@@ -112,6 +112,7 @@ describe("Business Routes", () => {
       });
 
     expect(response.status).toBe(201);
+    expect(response.body.data.setupProgress.suggestedServicesPending).toBe(true);
     expect(response.body.success).toBe(true);
     expect(response.body.data.businessName).toBe("Atlanta Pro Plumbing");
     expect(response.body.data.features).toEqual(featureDefaults);

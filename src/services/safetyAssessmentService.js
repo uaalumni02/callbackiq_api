@@ -1,7 +1,6 @@
 import { createOpenAIClient } from '../integrations/providerClients.js';
 import { safeConsole } from "../helpers/logging/safeLogger.js";
 
-
 import * as Guardrails from "../helpers/ai/aiGuardrails.js";
 
 const DEFAULT_HAZARD_TYPES = Object.freeze([
@@ -14,6 +13,7 @@ const DEFAULT_HAZARD_TYPES = Object.freeze([
   "flood",
   "sewage",
   "temperature",
+  "self_harm",
   "other",
 ]);
 

@@ -1,3 +1,4 @@
+import { activateOnboardingSuggestions } from "./trades/tradeSetup.service.js";
 import AvailabilityRule from "../models/availabilityRule.js";
 import Business from "../models/business.js";
 import BusinessOperationsSettings from "../models/businessOperationsSettings.js";
@@ -54,11 +55,21 @@ const providerName = (provider) => {
   return "Internal calendar";
 };
 
+async function persistSetupProgress(businessId, setupProgress) {
+  const initialize = Boolean(setupProgress.completedAt && setupProgress.suggestedServicesPending);
+  if (initialize) {
+    await activateOnboardingSuggestions(businessId);
+    setupProgress.suggestedServicesPending = false;
+  }
+  await Business.updateOne({ _id: businessId }, { $set: { setupProgress } });
+  return initialize;
+}
+
 export const buildBusinessReadiness = async (
   businessOrId,
   { persist = true } = {},
 ) => {
-  const business = businessOrId?._id
+  const business = businessOrId?._id && typeof businessOrId.toHexString !== "function"
     ? businessOrId
     : await Business.findById(businessOrId);
 
@@ -331,12 +342,7 @@ export const buildBusinessReadiness = async (
       ? setupProgress.completedAt || new Date()
       : null;
 
-  if (persist) {
-    await Business.updateOne(
-      { _id: businessId },
-      { $set: { setupProgress } },
-    );
-  }
+  if (persist && await persistSetupProgress(businessId, setupProgress)) return buildBusinessReadiness(businessId, { persist });
 
   return {
     businessId,

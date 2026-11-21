@@ -323,6 +323,7 @@ const VoiceSettingsSchema = new Schema(
 const SetupProgressSchema = new Schema(
   {
     accountRegistered: { type: Boolean, default: true },
+    suggestedServicesPending: { type: Boolean, default: false },
     subscriptionActivated: { type: Boolean, default: false },
     forwardingPhoneConfigured: { type: Boolean, default: false },
     trackingNumberAssigned: { type: Boolean, default: false },

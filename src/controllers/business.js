@@ -70,7 +70,7 @@ class BusinessController {
           status: "unassigned",
         },
         setupProgress: {
-          accountRegistered: true,
+          accountRegistered: true, suggestedServicesPending: true,
           forwardingPhoneConfigured: Boolean(forwardingPhone),
           updatedAt: new Date(),
         },
@@ -210,7 +210,6 @@ class BusinessController {
 
       const updates = buildBusinessUpdateDocument(payload);
       if (payload.businessType === currentBusiness.businessType) delete updates.businessType;
-
       if (Object.prototype.hasOwnProperty.call(payload, "forwardingPhone")) {
         const previousForwardingPhone = normalizeBusinessPhone(
           currentBusiness.forwardingPhone || "",

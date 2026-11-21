@@ -1,3 +1,4 @@
+import { getEmergencyReply } from "../../helpers/ai/aiGuardrails.js";
 import { saveStateDocument } from '../../services/stateTransitions/documents.js';
 import { AlertService, assertVoiceTurnActive, captureCallback, captureTurnFacts, classifySmsIntent, observeCustomerConstraint, respectCustomerConstraints } from './context.js';
 export async function routeSafety(context) {
@@ -11,6 +12,7 @@ const constraintResult = await observeCustomerConstraint({ conversation, lead, c
       assertVoiceTurnActive();
       return { completed: true, value: { reply: constraintResult.reply } };
     }
+    if (safety?.hazardType === "self_harm") safety.reply = getEmergencyReply("self_harm");
     if (safety?.reply) safety.reply = respectCustomerConstraints(safety.reply, { conversation, customerMessage: text });
     if (safety?.needsReview || safety?.isEmergency || safety?.shouldSendSafetyReply) {
       const facts = captureTurnFacts({ customerMessage: text, business, lead,
@@ -37,8 +39,7 @@ const constraintResult = await observeCustomerConstraint({ conversation, lead, c
       if (lead) {
         lead.urgency = "emergency";
         lead.notes = `${lead.notes || ""}\nVoice safety escalation: ${text}`
-          .trim()
-          .slice(0, 2000);
+          .trim().slice(0, 2000);
         assertVoiceTurnActive();
         await saveStateDocument(lead);
       }

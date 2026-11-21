@@ -136,7 +136,6 @@ export async function saveOwnerSettings({ ownerId, section, payload, revision })
         values = await validateOwnerSection(section, payload, { currentBusinessType: business.businessType });
         try { new Intl.DateTimeFormat("en", { timeZone: values.timezone }); } catch { throw error("Choose a valid time zone."); }
         business.set(values);
-        // Existing per-day timezones follow an explicit business timezone change.
         if (values.timezone !== before.sections.business.timezone) await AvailabilityRule.updateMany({ business: id }, { $set: { timezone: values.timezone } }, { session });
       }
       if (section === "services") {

@@ -25,7 +25,7 @@ const hazards = [
   ['The furnace has stopped working and we have a newborn', 'temperature'],
   ['The oxygen concentrator has lost power', 'temperature'],
   ['Someone is threatening us', 'other'],
-  ['I want to hurt myself', 'other'],
+  ['I want to hurt myself', 'self_harm'],
 ];
 const routine = [
   'Can you install a carbon monoxide detector?',
@@ -55,8 +55,13 @@ test.each(hazards)('SMS and voice refer current danger without business promises
   expect(sms).toMatchObject({ category: 'emergency', hazardType: type, shouldAlertOwner: true });
   expect(voice.safety).toMatchObject({ isEmergency: true, hazardType: type });
   expect(voice.safety.reply).toBe(sms.reply);
-  expect(sms.reply).toMatch(/does not monitor emergencies or dispatch emergency help/);
-  expect(sms.reply).toMatch(/Do not wait/);
+  if (type === 'self_harm') {
+    expect(sms.reply).toBe(getEmergencyReply('self_harm'));
+    expect(sms.reply).toMatch(/call or text 988/);
+  } else {
+    expect(sms.reply).toMatch(/does not monitor emergencies or dispatch emergency help/);
+    expect(sms.reply).toMatch(/Do not wait/);
+  }
   expect(sms.reply).not.toMatch(/shut off|turn off|on the way|sent help|will call|marked the request/);
   expect(normalizeSmsReply(sms.reply)).toBe(sms.reply);
 });
