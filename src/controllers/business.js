@@ -6,7 +6,8 @@ import mongoose from "mongoose";
 import Db from "../db/db.js";
 import Business from "../models/business.js";
 import User from "../models/user.js";
-import { normalizePhoneToE164 as normalizeBusinessPhone, phoneLookupVariants } from "../voice/voicePhone.service.js";
+import { normalizePhoneToE164 as normalizeBusinessPhone } from "../voice/voicePhone.service.js";
+import { FORWARDING_PHONE_CONFLICT, forwardingPhoneConflictQuery, isForwardingPhoneDuplicate } from "../helpers/forwardingPhonePolicy.js";
 import {
   businessCreateSchema,
   businessUpdateSchema,
@@ -32,6 +33,27 @@ const buildBusinessUpdateDocument = (payload = {}) => {
   return updates;
 };
 
+const buildBusinessCreationPayload = (payload, ownerId, forwardingPhone) => {
+  const businessPayload = {
+    ...payload,
+    forwardingPhone,
+    owner: ownerId,
+    trackingNumber: {
+      provider: "twilio",
+      status: "unassigned",
+    },
+    setupProgress: {
+      accountRegistered: true, suggestedServicesPending: true,
+      forwardingPhoneConfigured: Boolean(forwardingPhone),
+      updatedAt: new Date(),
+    },
+  };
+  // phone is a legacy create alias only. Never persist the owner's
+  // existing business number as the MeekCall tracking number.
+  delete businessPayload.phone;
+  return businessPayload;
+};
+
 class BusinessController {
   static async createBusiness(req, res) {
     try {
@@ -52,32 +74,24 @@ class BusinessController {
       );
 
       if (existingBusiness) {
-        return Response.responseConflict(
-          res,
-          "You already have a business account",
-        );
+        return res.status(409).json({
+          success: false,
+          code: "BUSINESS_ALREADY_EXISTS",
+          message: "Your business account is already saved. Resume setup to continue.",
+          recovery: { action: "resume_setup", path: "/setup" },
+        });
       }
 
       const forwardingPhone = String(
         payload.forwardingPhone || payload.phone || "",
       ).trim();
-      const businessPayload = {
-        ...payload,
-        forwardingPhone,
-        owner: ownerId,
-        trackingNumber: {
-          provider: "twilio",
-          status: "unassigned",
-        },
-        setupProgress: {
-          accountRegistered: true, suggestedServicesPending: true,
-          forwardingPhoneConfigured: Boolean(forwardingPhone),
-          updatedAt: new Date(),
-        },
-      };
-      // phone is a legacy create alias only. Never persist the owner's
-      // existing business number as the MeekCall tracking number.
-      delete businessPayload.phone;
+      if (!normalizeBusinessPhone(forwardingPhone)) {
+        return Response.responseInvalidInput(res, "Please enter a valid forwarding phone number");
+      }
+      if (await Business.exists(forwardingPhoneConflictQuery(forwardingPhone))) {
+        return res.status(409).json(FORWARDING_PHONE_CONFLICT);
+      }
+      const businessPayload = buildBusinessCreationPayload(payload, ownerId, forwardingPhone);
 
       const business = await Db.saveBusiness(Business, businessPayload);
 
@@ -87,6 +101,9 @@ class BusinessController {
         data: business,
       });
     } catch (error) {
+      if (isForwardingPhoneDuplicate(error)) {
+        return res.status(409).json(FORWARDING_PHONE_CONFLICT);
+      }
       if (error.isJoi) {
         return Response.responseInvalidInput(res, error.message);
       }
@@ -177,16 +194,10 @@ class BusinessController {
             "Please enter a valid forwarding phone number",
           );
         }
-        const forwardingPhoneVariants = phoneLookupVariants(rawForwardingPhone);
-        const duplicateForwardingPhone = await Business.exists({
-          _id: { $ne: currentBusiness._id },
-          forwardingPhone: { $in: forwardingPhoneVariants },
-        });
+        const duplicateForwardingPhone = currentBusiness.isActive !== false &&
+          await Business.exists(forwardingPhoneConflictQuery(rawForwardingPhone, currentBusiness._id));
         if (duplicateForwardingPhone) {
-          return Response.responseConflict(
-            res,
-            "This forwarding phone is already registered",
-          );
+          return res.status(409).json(FORWARDING_PHONE_CONFLICT);
         }
         payload.forwardingPhone = normalizedForwardingPhone;
       }
@@ -264,6 +275,9 @@ class BusinessController {
         "Business updated successfully",
       );
     } catch (error) {
+      if (isForwardingPhoneDuplicate(error)) {
+        return res.status(409).json(FORWARDING_PHONE_CONFLICT);
+      }
       if (error.isJoi) {
         return Response.responseInvalidInput(res, error.message);
       }

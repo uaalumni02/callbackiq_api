@@ -11,6 +11,7 @@ import { createInactiveSubscription, getTrialEligibility } from "../../helpers/b
 import crypto from "crypto";
 import { issueEmailVerification, securityGateEnabled } from "../../services/trialIdentityVerification.service.js";
 import { normalizePhoneToE164 as normalizeBusinessPhone } from "../../voice/voicePhone.service.js";
+import { FORWARDING_PHONE_CONFLICT, forwardingPhoneConflictQuery, isForwardingPhoneDuplicate } from "../../helpers/forwardingPhonePolicy.js";
 import { registerSchema } from "../../validator/auth.js";
 import { runRegistrationTransaction } from "../../services/registrationTransaction.service.js";
 import { safeConsole } from "../../helpers/logging/safeLogger.js";
@@ -94,16 +95,12 @@ static async register(req, res) {
         normalizeBusinessPhone(normalizedForwardingPhone) ||
         normalizedForwardingPhone;
       if (normalizedForwardingPhone) {
-        const existingForwardingPhone = await Business.exists({
-          forwardingPhone: {
-            $in: [normalizedForwardingPhone, normalizedForwardingLookup],
-          },
-        });
+        if (!normalizeBusinessPhone(normalizedForwardingPhone)) {
+          return Response.responseInvalidInput(res, "Please enter a valid forwarding phone number");
+        }
+        const existingForwardingPhone = await Business.exists(forwardingPhoneConflictQuery(normalizedForwardingLookup));
         if (existingForwardingPhone) {
-          return Response.responseConflict(
-            res,
-            "This forwarding phone is already registered",
-          );
+          return res.status(409).json(FORWARDING_PHONE_CONFLICT);
         }
       }
 
@@ -239,6 +236,9 @@ if (securityGateEnabled("TRIAL_REQUIRE_EMAIL_VERIFICATION")) {
         trialEligibilityMessage(trialEligibility),
       );
     } catch (error) {
+      if (isForwardingPhoneDuplicate(error)) {
+        return res.status(409).json(FORWARDING_PHONE_CONFLICT);
+      }
       if (error.isJoi) {
         return Response.responseInvalidInput(res, error.message);
       }

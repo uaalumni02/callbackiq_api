@@ -217,7 +217,7 @@ describe("Business Routes", () => {
       });
 
     expect(response.status).toBe(409);
-    expect(response.body.success).toBe(false);
+    expect(response.body).toMatchObject({ success: false, code: "BUSINESS_ALREADY_EXISTS", recovery: { action: "resume_setup", path: "/setup" } });
   });
 
   test("business belongs to the authenticated user", async () => {

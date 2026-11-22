@@ -29,10 +29,10 @@ const responseOk = (res, data = null, message = "Request successful", metadata =
   });
 };
 
-const responseConflict = (res) => {
+const responseConflict = (res, message = "A record with these details already exists.") => {
   return res.status(409).json({
     success: false,
-    message: "user name exist",
+    message,
   });
 };
 

@@ -971,6 +971,22 @@
   {
     "collection": "businesses",
     "key": {
+      "forwardingPhone": 1
+    },
+    "options": {
+      "name": "active_forwarding_phone_unique",
+      "unique": true,
+      "partialFilterExpression": {
+        "isActive": true,
+        "forwardingPhone": {
+          "$gt": ""
+        }
+      }
+    }
+  },
+  {
+    "collection": "businesses",
+    "key": {
       "phone": 1
     },
     "options": {

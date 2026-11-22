@@ -1,4 +1,5 @@
 import FeatureSettingsSchema from './schemas/businessFeatures.js';
+import { FORWARDING_PHONE_INDEX_OPTIONS, normalizeForwardingPhone } from '../helpers/forwardingPhonePolicy.js';
 import TrackingNumberSchema from './schemas/trackingNumber.js';
 import { installAccessRevocation } from "../helpers/model/accessRevocation.js";
 import { normalizePhoneToE164 as normalizeVoicePhone } from "../voice/voicePhone.service.js";
@@ -419,11 +420,12 @@ const BusinessSchema = new Schema(
     forwardingPhone: {
       type: String,
       trim: true,
+      set: normalizeForwardingPhone,
       default: "",
       validate: {
         validator(value) {
           if (!value) return true;
-          return validate.isValidPhone(value);
+          return Boolean(normalizeVoicePhone(value));
         },
         message: "Please enter a valid forwarding phone number",
       },
@@ -597,11 +599,9 @@ const BusinessSchema = new Schema(
 );
 
 BusinessSchema.index({ owner: 1, createdAt: -1 });
+BusinessSchema.index({ forwardingPhone: 1 }, FORWARDING_PHONE_INDEX_OPTIONS);
 BusinessSchema.index({ phone: 1 }, { unique: true, sparse: true });
-BusinessSchema.index(
-  { phoneLookup: 1 },
-  { unique: true, sparse: true },
-);
+BusinessSchema.index({ phoneLookup: 1 }, { unique: true, sparse: true });
 
 const VOICE_DESTINATION_PHONE_PATHS = [
   "forwardingPhone",

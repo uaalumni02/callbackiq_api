@@ -37,3 +37,14 @@ test('voice settings publication and rollback commit matching business and versi
   expect(stored.features.voiceAiEnabled).toBe(false); expect(latest.settings.features.voiceAiEnabled).toBe(false);
   expect(latest.rolledBackFromVersion).toBe(first.version);
 });
+
+
+test('a conflicting phone claim rolls back the newly created owner in production', async () => {
+  await Business.create({ owner: new mongoose.Types.ObjectId(), businessName: 'Existing', forwardingPhone: '+14045551234' });
+  await expect(runRegistrationTransaction(async session => {
+    const [user] = await User.create([{ userName: 'phoneclaim', email: 'claim@example.com', businessName: 'New Business', password: 'synthetic-hash' }], { session });
+    await Business.create([{ owner: user._id, businessName: 'New Business', forwardingPhone: '(404) 555-1234' }], { session });
+  }, { env: { NODE_ENV: 'production' } })).rejects.toMatchObject({ code: 11000 });
+  expect(await User.countDocuments({ email: 'claim@example.com' })).toBe(0);
+  expect(await Business.countDocuments({ businessName: 'New Business' })).toBe(0);
+});

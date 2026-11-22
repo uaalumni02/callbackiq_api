@@ -81,7 +81,7 @@ describe("Trial onboarding registration", () => {
     const business = await Business.findOne({ owner: owner._id });
     expect(business.forwardingPhone).toBe("+14045551234");
   });
-  test("rejects reusing another account's forwarding phone during setup", async () => {
+  test("reports a forwarding-phone conflict for a new business name without changing the account", async () => {
     const first = await request(app).post("/api/auth/register").send(minimalSignup);
     expect(first.status).toBe(201);
 
@@ -102,10 +102,56 @@ describe("Trial onboarding registration", () => {
     const duplicateUpdate = await request(app)
       .patch("/api/businesses/mine")
       .set("Authorization", `Bearer ${second.body.data.token}`)
-      .send({ forwardingPhone: "(404) 555-1234" });
+      .send({
+        businessName: "Previously Unused Setup Name",
+        forwardingPhone: "(404) 555-1234",
+      });
 
     expect(duplicateUpdate.status).toBe(409);
-    expect(duplicateUpdate.body.success).toBe(false);
+    expect(duplicateUpdate.body).toMatchObject({
+      success: false,
+      code: "FORWARDING_PHONE_IN_USE",
+      field: "forwardingPhone",
+    });
+    expect(duplicateUpdate.body.message).toContain("forwarding number");
+    expect(duplicateUpdate.body).not.toHaveProperty("business");
+    expect(duplicateUpdate.body).not.toHaveProperty("owner");
+    const unchangedBusiness = await Business.findById(second.body.data.business._id);
+    expect(unchangedBusiness.businessName).toBe(secondPayload.businessName);
+    expect(unchangedBusiness.forwardingPhone).toBe("");
+    const unchangedOwner = await User.findById(second.body.data.user._id);
+    expect(unchangedOwner.businessName).toBe(secondPayload.businessName);
+    expect(unchangedOwner.businessPhone).toBe("");
+
+    const retryOwnPhone = await request(app)
+      .patch("/api/businesses/mine")
+      .set("Authorization", `Bearer ${first.body.data.token}`)
+      .send({ businessName: "Updated First Business", forwardingPhone: "(404) 555-1234" });
+    expect(retryOwnPhone.status).toBe(200);
+    expect(retryOwnPhone.body.data.businessName).toBe("Updated First Business");
+
+    const uniquePhone = await request(app)
+      .patch("/api/businesses/mine")
+      .set("Authorization", `Bearer ${second.body.data.token}`)
+      .send({ businessName: "Previously Unused Setup Name", forwardingPhone: "4045555678" });
+    expect(uniquePhone.status).toBe(200);
+    expect(uniquePhone.body.data.businessName).toBe("Previously Unused Setup Name");
+    expect(uniquePhone.body.data.forwardingPhone).toBe("+14045555678");
+  });
+
+  test("format-only saves retain verification and a different phone clears it", async () => {
+    const signup = await request(app).post("/api/auth/register").send(minimalSignup);
+    expect(signup.status).toBe(201);
+    const { token, business } = signup.body.data;
+    const verifiedAt = new Date("2026-11-01T12:00:00Z");
+    await Business.updateOne({ _id: business._id }, { $set: {
+      forwardingPhone: "+14045551234", forwardingPhoneVerifiedValue: "+14045551234", forwardingPhoneVerifiedAt: verifiedAt,
+    } });
+    const patch = body => request(app).patch("/api/businesses/mine").set("Authorization", `Bearer ${token}`).send(body);
+    expect((await patch({ forwardingPhone: "(404) 555-1234" })).status).toBe(200);
+    expect(await Business.findById(business._id)).toMatchObject({ forwardingPhoneVerifiedAt: verifiedAt, forwardingPhoneVerifiedValue: "+14045551234" });
+    expect((await patch({ forwardingPhone: "4045555678" })).status).toBe(200);
+    expect(await Business.findById(business._id)).toMatchObject({ forwardingPhoneVerifiedAt: null, forwardingPhoneVerifiedValue: "" });
   });
 
   test("allows pre-trial messaging setup while blocking product changes, missing subscriptions and suspension", async () => {

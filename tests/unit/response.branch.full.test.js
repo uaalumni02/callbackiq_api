@@ -13,6 +13,32 @@ const makeRes = () => ({
 const exportedFunctions = () => Object.entries(Response).filter(([, value]) => typeof value === "function");
 
 describe("response helper branches", () => {
+  test.each([
+    "This forwarding phone is already registered",
+    "You already have a business account",
+    "User with this username or email already exists",
+    "Username, email, or business already exists",
+  ])("returns the actual conflict reason: %s", (message) => {
+    const res = makeRes();
+
+    Response.responseConflict(res, message);
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json).toHaveBeenCalledWith({ success: false, message });
+  });
+
+  test("uses a generic conflict message when no reason is supplied", () => {
+    const res = makeRes();
+
+    Response.responseConflict(res);
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      message: "A record with these details already exists.",
+    });
+  });
+
   test("exports response functions", () => {
     expect(exportedFunctions().length).toBeGreaterThan(0);
   });

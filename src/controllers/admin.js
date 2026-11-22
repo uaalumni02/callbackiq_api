@@ -11,6 +11,7 @@ import {
 
 import { isAdminUser } from "../helpers/model/admin.js";
 import * as Response from "../helpers/response/response.js";
+import { FORWARDING_PHONE_CONFLICT, isForwardingPhoneDuplicate } from "../helpers/forwardingPhonePolicy.js";
 
 const createAdminLog = async (req, payload) => {
   return Db.createAdminActionLog(AdminActionLog, {
@@ -84,6 +85,9 @@ class AdminController {
         return Response.responseInvalidInput(res, error.message);
       }
 
+      if (isForwardingPhoneDuplicate(error)) {
+        return res.status(409).json(FORWARDING_PHONE_CONFLICT);
+      }
       safeConsole.error("Admin business update error:", error);
       return Response.responseServerError(res);
     }
