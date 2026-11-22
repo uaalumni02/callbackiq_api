@@ -6,13 +6,22 @@ const supportTicketSchema = new mongoose.Schema(
     business: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Business",
-      required: true,
+      // Setup help belongs to an authenticated user even before a business exists.
+      required: function () { return this.source !== "setup"; },
     },
 
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
+    },
+
+    source: { type: String, enum: ["account", "setup"], default: "account" },
+
+    setupContext: {
+      businessName: { type: String, trim: true, maxlength: 100 },
+      forwardingPhone: { type: String, trim: true, maxlength: 20 },
+      replyEmail: { type: String, trim: true, maxlength: 254 },
     },
 
     subject: {

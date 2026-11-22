@@ -2,6 +2,7 @@ import Db from "../../db/db.js";
 import SupportTicket from "../../models/supportTicket.js";
 import { getUserBusiness, getUserId, validCategories, validPriorities } from "./helpers.js";
 import mongoose from "mongoose";
+import { notifyAdminSupportQueue } from "../../services/supportNotification.service.js";
 
 const createTicket = async (req, res) => {
   try {
@@ -45,6 +46,7 @@ const createTicket = async (req, res) => {
       message: message.trim(),
     },business._id);
 
+    notifyAdminSupportQueue(ticket);
     return res.status(201).json({
       success: true,
       message: "Support ticket created successfully.",
