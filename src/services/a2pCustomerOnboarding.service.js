@@ -156,6 +156,30 @@ const assignTrustProductObject = async (client, trustProductSid, objectSid) =>
     .trustProducts(trustProductSid)
     .trustProductsEntityAssignments.create({ objectSid });
 
+const ensureAssignment = async (assign, client, bundleSid, objectSid) => {
+  try {
+    await assign(client, bundleSid, objectSid);
+  } catch (error) {
+    // Twilio can report an existing assignment after a partial submission.
+    if (![409, 20409].includes(Number(error?.status || error?.code))) throw error;
+  }
+};
+
+const saveDraftEndUser = async ({ client, registration, sidField, friendlyName, type, attributes }) => {
+  const endUsers = client.trusthub.v1.endUsers;
+  if (registration[sidField]) {
+    await endUsers(registration[sidField]).update({ attributes });
+    return;
+  }
+  const endUser = await endUsers.create({ attributes, friendlyName, type });
+  registration[sidField] = endUser.sid;
+  await saveStateDocument(registration);
+};
+
+const REPRESENTATIVE_POSITIONS = new Set([
+  "Director", "GM", "VP", "CEO", "CFO", "General Counsel", "Other",
+]);
+
 const evaluateCustomerProfile = async (client, profileSid, policySid) => {
   const evaluation = await client.trusthub.v1
     .customerProfiles(profileSid)
@@ -193,13 +217,14 @@ const createStandardRegistration = async ({ client, registration, input, common 
   if (!BUSINESS_TYPES.has(businessType)) throw new Error("Select a valid legal business type.");
   const websiteUrl = clean(input.websiteUrl);
   if (!isHttpUrl(websiteUrl)) throw new Error("A valid business website URL is required.");
+  const jobPosition = clean(input.contact?.jobPosition);
   const rep = {
     firstName: clean(input.contact?.firstName),
     lastName: clean(input.contact?.lastName),
     email: common.contactEmail,
     phone: common.contactPhone,
     businessTitle: clean(input.contact?.businessTitle || "Owner"),
-    jobPosition: clean(input.contact?.jobPosition || "Owner"),
+    jobPosition: REPRESENTATIVE_POSITIONS.has(jobPosition) ? jobPosition : "Other",
   };
   if (!rep.firstName || !rep.lastName) throw new Error("Authorized representative first and last name are required.");
 
@@ -234,8 +259,12 @@ const createStandardRegistration = async ({ client, registration, input, common 
     await saveStateDocument(registration);
   }
 
-  if (!registration.businessEndUserSid) {
-    const endUser = await client.trusthub.v1.endUsers.create({
+  const profileIsDraft = !registration.customerProfileStatus || registration.customerProfileStatus === "draft";
+  if (profileIsDraft) {
+    await saveDraftEndUser({
+      client, registration, sidField: "businessEndUserSid",
+      friendlyName: `${common.legalBusinessName} business information`,
+      type: "customer_profile_business_information",
       attributes: {
         business_name: common.legalBusinessName,
         website_url: websiteUrl,
@@ -244,18 +273,13 @@ const createStandardRegistration = async ({ client, registration, input, common 
         business_registration_identifier: "EIN",
         business_identity: "direct_customer",
         business_industry: registration.businessIndustry,
-        business_registration_number: ein,
+        business_registration_number: `${ein.slice(0, 2)}-${ein.slice(2)}`,
       },
-      friendlyName: `${common.legalBusinessName} business information`,
-      type: "customer_profile_business_information",
     });
-    registration.businessEndUserSid = endUser.sid;
-    await saveStateDocument(registration);
-    await assignCustomerProfileObject(client, registration.customerProfileSid, endUser.sid);
-  }
-
-  if (!registration.authorizedRepresentativeSid) {
-    const representative = await client.trusthub.v1.endUsers.create({
+    await saveDraftEndUser({
+      client, registration, sidField: "authorizedRepresentativeSid",
+      friendlyName: `${common.legalBusinessName} authorized representative`,
+      type: "authorized_representative_1",
       attributes: {
         business_title: rep.businessTitle,
         email: rep.email,
@@ -264,28 +288,16 @@ const createStandardRegistration = async ({ client, registration, input, common 
         last_name: rep.lastName,
         phone_number: rep.phone,
       },
-      friendlyName: `${common.legalBusinessName} authorized representative`,
-      type: "authorized_representative_1",
     });
-    registration.authorizedRepresentativeSid = representative.sid;
-    await saveStateDocument(registration);
-    await assignCustomerProfileObject(client, registration.customerProfileSid, representative.sid);
   }
 
-  const addressWasMissing = !registration.addressDocumentSid;
   await ensureAddressResources({ client, registration, legalBusinessName: common.legalBusinessName, address });
-  if (addressWasMissing) {
-    await assignCustomerProfileObject(client, registration.customerProfileSid, registration.addressDocumentSid);
-  }
 
-  if (!registration.customerProfileStatus || registration.customerProfileStatus === "draft") {
-    // Linking the parent ISV profile is required for a Secondary Customer Profile.
-    try {
-      await assignCustomerProfileObject(client, registration.customerProfileSid, primaryCustomerProfileSid);
-    } catch (error) {
-      // Treat already-assigned responses as idempotent. Twilio codes vary by resource.
-      if (![409, 20409].includes(Number(error?.status || error?.code))) throw error;
-    }
+  if (profileIsDraft) {
+    await ensureAssignment(assignCustomerProfileObject, client, registration.customerProfileSid, registration.businessEndUserSid);
+    await ensureAssignment(assignCustomerProfileObject, client, registration.customerProfileSid, registration.authorizedRepresentativeSid);
+    await ensureAssignment(assignCustomerProfileObject, client, registration.customerProfileSid, registration.addressDocumentSid);
+    await ensureAssignment(assignCustomerProfileObject, client, registration.customerProfileSid, primaryCustomerProfileSid);
     await evaluateCustomerProfile(client, registration.customerProfileSid, STANDARD_CUSTOMER_PROFILE_POLICY_SID);
     const submitted = await client.trusthub.v1
       .customerProfiles(registration.customerProfileSid)
@@ -313,11 +325,11 @@ const createStandardRegistration = async ({ client, registration, input, common 
     });
     registration.messagingProfileEndUserSid = messagingEndUser.sid;
     await saveStateDocument(registration);
-    await assignTrustProductObject(client, registration.trustProductSid, messagingEndUser.sid);
-    await assignTrustProductObject(client, registration.trustProductSid, registration.customerProfileSid);
   }
 
   if (!registration.trustProductStatus || registration.trustProductStatus === "draft") {
+    await ensureAssignment(assignTrustProductObject, client, registration.trustProductSid, registration.messagingProfileEndUserSid);
+    await ensureAssignment(assignTrustProductObject, client, registration.trustProductSid, registration.customerProfileSid);
     await evaluateTrustProduct(client, registration.trustProductSid, STANDARD_A2P_TRUST_POLICY_SID);
     const submittedTrust = await client.trusthub.v1
       .trustProducts(registration.trustProductSid)
@@ -401,21 +413,14 @@ const createSoleProprietorRegistration = async ({ client, registration, input, c
     });
     registration.businessEndUserSid = starterEndUser.sid;
     await saveStateDocument(registration);
-    await assignCustomerProfileObject(client, registration.customerProfileSid, starterEndUser.sid);
   }
 
-  const addressWasMissing = !registration.addressDocumentSid;
   await ensureAddressResources({ client, registration, legalBusinessName: common.legalBusinessName, address });
-  if (addressWasMissing) {
-    await assignCustomerProfileObject(client, registration.customerProfileSid, registration.addressDocumentSid);
-  }
 
   if (!registration.customerProfileStatus || registration.customerProfileStatus === "draft") {
-    try {
-      await assignCustomerProfileObject(client, registration.customerProfileSid, primaryCustomerProfileSid);
-    } catch (error) {
-      if (![409, 20409].includes(Number(error?.status || error?.code))) throw error;
-    }
+    await ensureAssignment(assignCustomerProfileObject, client, registration.customerProfileSid, registration.businessEndUserSid);
+    await ensureAssignment(assignCustomerProfileObject, client, registration.customerProfileSid, registration.addressDocumentSid);
+    await ensureAssignment(assignCustomerProfileObject, client, registration.customerProfileSid, primaryCustomerProfileSid);
     await evaluateCustomerProfile(client, registration.customerProfileSid, SOLE_PROP_CUSTOMER_PROFILE_POLICY_SID);
     const submitted = await client.trusthub.v1
       .customerProfiles(registration.customerProfileSid)
@@ -447,11 +452,11 @@ const createSoleProprietorRegistration = async ({ client, registration, input, c
     });
     registration.messagingProfileEndUserSid = soleEndUser.sid;
     await saveStateDocument(registration);
-    await assignTrustProductObject(client, registration.trustProductSid, soleEndUser.sid);
-    await assignTrustProductObject(client, registration.trustProductSid, registration.customerProfileSid);
   }
 
   if (!registration.trustProductStatus || registration.trustProductStatus === "draft") {
+    await ensureAssignment(assignTrustProductObject, client, registration.trustProductSid, registration.messagingProfileEndUserSid);
+    await ensureAssignment(assignTrustProductObject, client, registration.trustProductSid, registration.customerProfileSid);
     await evaluateTrustProduct(client, registration.trustProductSid, SOLE_PROP_A2P_TRUST_POLICY_SID);
     const submittedTrust = await client.trusthub.v1
       .trustProducts(registration.trustProductSid)
