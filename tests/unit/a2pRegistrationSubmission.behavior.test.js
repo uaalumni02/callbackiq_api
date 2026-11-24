@@ -21,7 +21,9 @@ const inputFor = (registrationType = 'low_volume_standard') => ({
     phone: '+14045550123',
     mobilePhone: '+14045550124',
     firstName: 'Alex',
-    lastName: 'Owner'
+    lastName: 'Owner',
+    businessTitle: 'Owner',
+    jobPosition: 'Owner'
   },
   campaign: {
     messageFlow: 'Customers explicitly consent to missed-call follow-up messages after contacting the business.',
@@ -80,14 +82,15 @@ function fixture(registrationType = 'low_volume_standard') {
         status: 'draft'
       })
     });
-  const endUsers = {
+  const updateEndUser = jest.fn().mockResolvedValue({});
+  const endUsers = Object.assign(jest.fn(() => ({ update: updateEndUser })), {
       create: jest.fn().mockImplementation(async ({
         type
       }) => ({
         sid: `IT-${type}`
       }))
-    },
-    services = Object.assign(jest.fn(), {
+  });
+  const services = Object.assign(jest.fn(), {
       create: jest.fn().mockResolvedValue({
         sid: 'MG-service'
       })
@@ -131,6 +134,7 @@ function fixture(registrationType = 'low_volume_standard') {
     profiles,
     trusts,
     endUsers,
+    updateEndUser,
     services,
     brand
   };
@@ -186,8 +190,12 @@ test.each(['standard', 'low_volume_standard', 'sole_proprietor'])('%s submits co
     expect(f.row.registrationNumberLast4).toBe('6789');
     expect(f.endUsers.create).toHaveBeenCalledWith(expect.objectContaining({
       attributes: expect.objectContaining({
-        business_registration_number: '123456789'
+        business_registration_number: '12-3456789'
       })
+    }));
+    expect(f.endUsers.create).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'authorized_representative_1',
+      attributes: expect.objectContaining({ business_title: 'Owner', job_position: 'Other' })
     }));
     expect(Boolean(f.brand.create.mock.calls[0][0].skipAutomaticSecVet)).toBe(type === 'low_volume_standard');
   }
@@ -207,6 +215,48 @@ test.each(['standard', 'low_volume_standard', 'sole_proprietor'])('%s submits co
   for (const create of [f.profiles.create, f.trusts.create, f.client.addresses.create, f.services.create, f.brand.create]) expect(create).toHaveBeenCalledTimes(1);
   expect(f.profile.customerProfilesEvaluations.create).toHaveBeenCalledTimes(1);
   expect(f.trust.trustProductsEvaluations.create).toHaveBeenCalledTimes(1);
+});
+test.each(['standard', 'sole_proprietor'])('%s retries a failed attachment without recreating its resource', async type => {
+  const f = fixture(type);
+  const submit = () => startA2pCustomerRegistration({
+    businessId: f.row.business, input: inputFor(type), client: f.client
+  });
+  const assignments = f.profile.customerProfilesEntityAssignments.create;
+  assignments.mockRejectedValueOnce(Object.assign(new Error('Temporary provider failure'), { status: 503 }));
+
+  await expect(submit()).rejects.toThrow('Temporary provider failure');
+  const savedSid = f.row.businessEndUserSid;
+  expect(savedSid).toBeTruthy();
+  expect(f.brand.create).not.toHaveBeenCalled();
+
+  await expect(submit()).resolves.toMatchObject({ status: 'brand_pending' });
+  expect(assignments.mock.calls.filter(([input]) => input.objectSid === savedSid)).toHaveLength(2);
+  const resourceType = type === 'standard'
+    ? 'customer_profile_business_information' : 'starter_customer_profile_information';
+  expect(f.endUsers.create.mock.calls.filter(([input]) => input.type === resourceType)).toHaveLength(1);
+  expect(f.brand.create).toHaveBeenCalledTimes(1);
+});
+test('corrects existing draft EIN and representative resources before evaluation', async () => {
+  const f = fixture('standard');
+  Object.assign(f.row, {
+    customerProfileSid: 'BU-profile',
+    customerProfileStatus: 'draft',
+    businessEndUserSid: 'IT-existing-business',
+    authorizedRepresentativeSid: 'IT-existing-representative'
+  });
+
+  await startA2pCustomerRegistration({
+    businessId: f.row.business, input: inputFor('standard'), client: f.client
+  });
+
+  expect(f.endUsers.mock.calls).toEqual([['IT-existing-business'], ['IT-existing-representative']]);
+  expect(f.updateEndUser).toHaveBeenNthCalledWith(1, {
+    attributes: expect.objectContaining({ business_registration_number: '12-3456789' })
+  });
+  expect(f.updateEndUser).toHaveBeenNthCalledWith(2, {
+    attributes: expect.objectContaining({ job_position: 'Other' })
+  });
+  expect(f.endUsers.create.mock.calls.map(([input]) => input.type)).toEqual(['us_a2p_messaging_profile_information']);
 });
 test.each(['standard', 'sole_proprietor'])('%s noncompliant profile blocks the brand and permits a safe retry', async type => {
   const f = fixture(type),
