@@ -54,7 +54,7 @@ static async startFreeTrial(req, res) {
       return Response.responseOk(
         res,
         result,
-        "Stripe trial checkout session created successfully",
+        result.preparing ? result.message : "Stripe trial checkout session created successfully",
       );
     } catch (error) {
       if (error?.statusCode) {

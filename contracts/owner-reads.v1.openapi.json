@@ -490,6 +490,42 @@
               "nextCharge",
               "invoices"
             ]
+          },
+          "trialPreparation": {
+            "type": "object",
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "ready",
+                  "checkout",
+                  "expired"
+                ]
+              },
+              "requestedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "expiresAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "readyAt": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "lastErrorCode": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "state",
+              "requestedAt",
+              "expiresAt"
+            ]
           }
         },
         "required": [

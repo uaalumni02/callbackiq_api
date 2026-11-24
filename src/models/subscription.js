@@ -64,6 +64,17 @@ const SubscriptionSchema = new Schema(
     trialExtensionDaysReserved: { type: Number, default: 0 },
     trialExtensionIntent: { type: Schema.Types.Mixed, default: null },
     provisioningCheckAt: { type: Date, default: null },
+    // Preparation owns telecom resources, never product access or billable time.
+    trialPreparation: {
+      type: new Schema({
+        requestedAt: { type: Date, required: true },
+        expiresAt: { type: Date, required: true },
+        readyAt: { type: Date, default: null },
+        state: { type: String, enum: ['pending', 'ready', 'checkout', 'expired'], default: 'pending' },
+        lastErrorCode: { type: String, default: '' },
+      }, { _id: false }),
+      default: undefined,
+    },
     trialStartedAt: {
       type: Date,
       default: null,
@@ -186,6 +197,7 @@ SubscriptionSchema.index({
 });
 
 SubscriptionSchema.index({ status: 1, provisioningCheckAt: 1, _id: 1 });
+SubscriptionSchema.index({ status: 1, 'trialPreparation.state': 1, _id: 1 });
 SubscriptionSchema.index({ trialNumberReleaseAt: 1, trialUsedAt: 1, _id: 1 });
 
 const Subscription =

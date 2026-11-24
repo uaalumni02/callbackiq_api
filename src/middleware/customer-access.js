@@ -28,7 +28,7 @@ function isTrialSetupRequest(req, path) {
 const subscriptionAccess = requireSubscriptionAccess(undefined, {
   // A seeded subscription identifies onboarding. Missing records and used trials stay blocked.
   allowSetup: (req, subscription) => subscription?.status === 'none' &&
-    subscription.lastPaymentStatus === 'trial_not_activated' && !subscription.trialUsedAt &&
+    ['trial_not_activated', 'trial_preparing'].includes(subscription.lastPaymentStatus) && !subscription.trialUsedAt &&
     subscription.trialCount === 0 && !subscription.stripeSubscriptionId &&
     isTrialSetupRequest(req, requestPath(req)),
 });

@@ -23,15 +23,17 @@ import {
 import { getStripeSubscriptionPriceSnapshot } from "../helpers/billing/stripeSubscriptionPrice.js";
 import {
   provisionTrackingNumber,
-  releaseTrackingNumberWithReceipt,
 } from "./trackingNumberProvisioning.service.js";
 import { getSubscriptionAccess, ACCESS_LEVELS } from "./subscriptionAccess.service.js";
 import {
   assertStripeCustomerHasNoCompetingSubscriptions,
-  findExistingStripeCustomerForBusiness,
   guardCanonicalStripeSubscription,
 } from "./subscriptionIntegrity.service.js";
 import "../helpers/email/mailer.js";
+import { prepareTrialForCheckout, reconcileTrialPreparations } from './trialPreparation.service.js';
+import { assertTrialActivationCapacity } from './trialActivationCapacity.service.js';
+import { releaseExpiredTrialNumber } from './trialNumberCleanup.service.js';
+import { getCheckoutCustomer } from './subscriptionCheckoutCustomer.service.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const RELEASE_GRACE_DAYS = Math.max(
@@ -46,12 +48,6 @@ const releaseGraceMsForStatus = (status) =>
   String(status || "").toLowerCase() === "paused"
     ? NO_PAYMENT_METHOD_RELEASE_GRACE_HOURS * 60 * 60 * 1000
     : RELEASE_GRACE_DAYS * DAY_MS;
-
-const configuredLimit = (name, fallback) => {
-  const value = Number(process.env[name]);
-  if (!Number.isFinite(value) || value < 0) return fallback;
-  return value;
-};
 
 const isTransactionUnsupported = (error) =>
   error?.code === 20 ||
@@ -296,72 +292,6 @@ const denyDuplicateStripeTrial = async ({
 };
 
 
-const assertTrialActivationCapacity = async (now = new Date()) => {
-  const maxNewPerDay = configuredLimit(
-    "TRIAL_MAX_NEW_TRIALS_PER_DAY",
-    10,
-  );
-  const maxConcurrent = configuredLimit(
-    "TRIAL_MAX_CONCURRENT_ACTIVE",
-    25,
-  );
-  const maxTrialNumbersHeld = configuredLimit(
-    "TRIAL_MAX_TRACKING_NUMBERS_HELD",
-    40,
-  );
-
-  const dayStart = new Date(now.getTime() - DAY_MS);
-  const [newTrialActivations, concurrentTrials, graceHeldTrialNumbers] =
-    await Promise.all([
-      maxNewPerDay > 0
-        ? Subscription.countDocuments({
-            trialStartedAt: { $gte: dayStart },
-            trialUsedAt: { $ne: null },
-          })
-        : Promise.resolve(0),
-      maxConcurrent > 0 || maxTrialNumbersHeld > 0
-        ? Subscription.countDocuments({
-            status: "trialing",
-            trialEndsAt: { $gt: now },
-          })
-        : Promise.resolve(0),
-      maxTrialNumbersHeld > 0
-        ? Subscription.countDocuments({
-            trialUsedAt: { $ne: null },
-            trialNumberReleaseAt: { $gt: now },
-            status: { $ne: "active" },
-          })
-        : Promise.resolve(0),
-    ]);
-
-  if (maxNewPerDay > 0 && newTrialActivations >= maxNewPerDay) {
-    throw lifecycleError(
-      "TRIAL_DAILY_CAPACITY_REACHED",
-      "Free-trial activation is temporarily at capacity. Please try again later or choose a paid plan.",
-      503,
-    );
-  }
-
-  if (maxConcurrent > 0 && concurrentTrials >= maxConcurrent) {
-    throw lifecycleError(
-      "TRIAL_CONCURRENT_CAPACITY_REACHED",
-      "Free-trial capacity is temporarily full. Please try again later or choose a paid plan.",
-      503,
-    );
-  }
-
-  if (
-    maxTrialNumbersHeld > 0 &&
-    concurrentTrials + graceHeldTrialNumbers >= maxTrialNumbersHeld
-  ) {
-    throw lifecycleError(
-      "TRIAL_NUMBER_INVENTORY_CAPACITY_REACHED",
-      "Free-trial tracking-number inventory is temporarily at capacity. Please try again later or choose a paid plan.",
-      503,
-    );
-  }
-};
-
 export const createSubscriptionCheckout = async ({
   business,
   ownerId,
@@ -377,7 +307,7 @@ export const createSubscriptionCheckout = async ({
     );
   }
 
-  const existing = await Subscription.findOne({ business: business._id });
+  let existing = await Subscription.findOne({ business: business._id });
   const access = getSubscriptionAccess(existing);
 
   if (access.level === ACCESS_LEVELS.FULL) {
@@ -415,7 +345,7 @@ export const createSubscriptionCheckout = async ({
 
   const offerTrial = requireTrial === true;
   if (offerTrial) {
-    await assertTrialActivationCapacity();
+    await assertTrialActivationCapacity(new Date(), business._id);
   }
 
   const stripe = getStripeClient();
@@ -427,30 +357,13 @@ export const createSubscriptionCheckout = async ({
     );
   }
 
-  let stripeCustomerId = existing?.stripeCustomerId;
-  if (!stripeCustomerId) {
-    const existingStripeCustomer = await findExistingStripeCustomerForBusiness({
-      stripe,
-      businessId: business._id,
-    });
-    stripeCustomerId = existingStripeCustomer?.id || "";
+  if (offerTrial) {
+    const preparation = await prepareTrialForCheckout({ business, ownerId });
+    if (!preparation.ready) return { ...preparation, trialOffered: true };
+    existing = preparation.subscription;
   }
-  if (!stripeCustomerId) {
-    const customer = await stripe.customers.create(
-      {
-        name: business.businessName,
-        email: business.email || undefined,
-        metadata: {
-          ownerId: String(ownerId),
-          businessId: String(business._id),
-        },
-      },
-      {
-        idempotencyKey: `callbackiq:customer:${business._id}`,
-      },
-    );
-    stripeCustomerId = customer.id;
-  }
+
+  const stripeCustomerId = await getCheckoutCustomer({ stripe, business, ownerId, subscription: existing });
   await assertStripeCustomerHasNoCompetingSubscriptions({
     stripe,
     business,
@@ -458,14 +371,12 @@ export const createSubscriptionCheckout = async ({
     stripeCustomerId,
   });
 
-
   const metadata = {
     ownerId: String(ownerId),
     businessId: String(business._id),
     plan,
     trialRequested: offerTrial ? "true" : "false",
   };
-
   const subscriptionData = { metadata };
 
   if (offerTrial) {
@@ -476,7 +387,6 @@ export const createSubscriptionCheckout = async ({
       },
     };
   }
-
   const clientUrl = process.env.CLIENT_URL || "http://localhost:3001";
   const checkoutParams = {
     mode: "subscription",
@@ -496,7 +406,7 @@ export const createSubscriptionCheckout = async ({
   const checkout = await stripe.checkout.sessions.create(
     checkoutParams,
     {
-      idempotencyKey: `callbackiq:checkout:${business._id}:${plan}:${offerTrial ? "trial" : "paid"}:${returnToSetup ? "setup" : "billing"}`,
+      idempotencyKey: `callbackiq:checkout:${business._id}:${plan}:${offerTrial ? "trial" : "paid"}:${returnToSetup ? "setup" : "billing"}${offerTrial && existing?.checkoutSessionId ? `:after:${existing.checkoutSessionId}` : ""}`,
     },
   );
 
@@ -594,7 +504,7 @@ export const syncStripeSubscription = async ({
         Boolean(currentSubscription?.trialUsedAt);
 
       if (!isExistingStripeTrial) {
-        await assertTrialActivationCapacity();
+        await assertTrialActivationCapacity(new Date(), businessId);
       }
 
       const subscription = await consumeTrialTransaction({
@@ -689,9 +599,10 @@ export const sendTrialLifecycleMessage = sendTrialNotice;
 
 export const processTrialLifecycle = async (now = new Date()) => {
   await reconcileTrialNotices();
+  await reconcileTrialPreparations();
   const subscriptions = Subscription.find({ $or: [
     { status: 'trialing', trialEndsAt: { $lte: new Date(now.getTime() + 3 * DAY_MS) } },
-    { trialUsedAt: { $ne: null }, trialNumberReleaseAt: { $lte: now, $ne: null } },
+    { trialNumberReleaseAt: { $lte: now, $ne: null } },
     { status: 'active', $or: [{ provisioningCheckAt: { $lte: now } }, { provisioningCheckAt: null }] },
   ] }).sort({ _id: 1 }).maxTimeMS(5000).cursor({ batchSize: 100 });
 
@@ -761,61 +672,7 @@ export const processTrialLifecycle = async (now = new Date()) => {
       }
     }
 
-    let refreshed = await Subscription.findById(subscription._id);
-    if (
-      refreshed?.trialNumberReleaseAt &&
-      new Date(refreshed.trialNumberReleaseAt) <= now &&
-      getSubscriptionAccess(refreshed, now).level !== ACCESS_LEVELS.FULL
-    ) {
-      // Never release a customer's telecom number based only on stale local
-      // billing state. Reconcile Stripe immediately before the destructive
-      // provider action. If Stripe cannot be reached, postpone release rather
-      // than risk deleting a number for a customer who converted to paid.
-      if (refreshed.stripeSubscriptionId) {
-        try {
-          const stripe = getStripeClient();
-          const remote = await stripe.subscriptions.retrieve(
-            refreshed.stripeSubscriptionId,
-            { expand: ["latest_invoice"] },
-          );
-          await syncStripeSubscription({
-            stripeSubscription: remote,
-            refreshFromStripe: false,
-            observedSubscription: refreshed,
-          });
-          refreshed = await Subscription.findById(refreshed._id);
-        } catch (error) {
-          safeConsole.error("Trial number release reconciliation failed:", error);
-          await conditionalWrite({ model: Subscription,
-            identity: { _id: refreshed._id, business: refreshed.business }, observed: observeTrialState(refreshed),
-            update: { $set: { trialNumberReleaseAt: new Date(now.getTime() + DAY_MS) } } });
-          continue;
-        }
-      }
-
-      if (getSubscriptionAccess(refreshed, now).level === ACCESS_LEVELS.FULL) {
-        continue;
-      }
-
-      const released = await releaseTrackingNumberWithReceipt(refreshed.business, {
-        authorization: { kind: 'trial_expiry', subscription: { subscriptionId: refreshed._id, ...observeTrialState(refreshed) } },
-      }).catch(
-        (error) => {
-          safeConsole.error("Trial number release failed:", error);
-          return null;
-        },
-      );
-
-      if (released && ['released', 'already_released'].includes(released.outcome)) {
-        const completion = await conditionalWrite({ model: Subscription,
-          identity: { _id: refreshed._id, business: refreshed.business }, observed: observeTrialState(refreshed),
-          update: { $set: { trialNumberReleaseAt: null } } });
-        if (completion.applied && released.intentId) {
-          await sendTrialLifecycleMessage(completion.current, 'number_released')
-            .catch(error => safeConsole.error('Trial lifecycle notice failed:', error));
-        }
-      }
-    }
+    await releaseExpiredTrialNumber(subscription._id, now, { syncStripeSubscription, syncCheckoutSession });
   }
 
   return { processed };

@@ -2,8 +2,6 @@ import { withTrackingNumberOperation, completeTrackingState, writeTrackingState 
 import { planUnattachedNumberRelease, releaseTrackingNumberWithReceipt as releaseNumberOperation, reconcileTrackingNumberReleases as reconcileReleaseOperations } from './trackingNumberRelease.service.js';
 import { createTwilioClient } from '../integrations/providerClients.js';
 import { safeConsole } from "../helpers/logging/safeLogger.js";
-
-
 import Business from "../models/business.js";
 import Subscription from "../models/subscription.js";
 import {
@@ -22,6 +20,7 @@ import {
   provisioningBudgetEnabled,
 } from "./trialTelecomGuard.service.js";
 import { securityGateEnabled } from "./trialIdentityVerification.service.js";
+import { hasTrialPreparation } from '../helpers/billing/trialPreparation.js';
 export const TRACKING_NUMBER_STATES = [
   "unassigned",
   "assigned",
@@ -71,6 +70,7 @@ const requireSubscription = async (businessId) => {
   const subscription = await Subscription.findOne({
     business: businessId,
   }).lean();
+  if (hasTrialPreparation(subscription)) return { ...subscription, preparingTrial: true };
 
   if (
     !subscription?.isActive ||
@@ -230,7 +230,7 @@ const assignTrackingNumberObserved = async function assignTrackingNumber(busines
   const subscription = await requireSubscription(initialBusiness._id);
 
   if (
-    subscription?.status === "trialing" &&
+    (subscription?.status === "trialing" || subscription?.preparingTrial) &&
     securityGateEnabled("TRIAL_REQUIRE_PHONE_VERIFICATION")
   ) {
     const currentForwardingPhone = normalizePhoneToE164(
