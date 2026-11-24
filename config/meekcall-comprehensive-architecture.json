@@ -492,7 +492,6 @@
       "tests/routes/message.routes.test.js",
       "tests/routes/conversationIntelligence.routes.test.js",
       "tests/routes/agent.routes.test.js",
-      "tests/routes/ai.routes.test.js",
       "tests/unit/extractedDb.runtimeContracts.test.js",
       "tests/unit/extractedDb.advancedContracts.test.js",
       "tests/unit/extractedDb.remainingBranches.test.js",
