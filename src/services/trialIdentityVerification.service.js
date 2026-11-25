@@ -4,6 +4,7 @@ import crypto from "crypto";
 
 import Business from "../models/business.js";
 import User from "../models/user.js";
+import { trialSetupDestination } from "../helpers/trialSetupProgress.js";
 import { sendEmailVerificationEmail } from "../helpers/email/mailer.js";
 import { normalizePhoneToE164 } from "../voice/voicePhone.service.js";
 
@@ -134,6 +135,7 @@ export const verifyEmailToken = async (token) => {
     );
   }
 
+  const business = await Business.findOne({ owner: user._id });
   const now = new Date();
   await User.updateOne(
     { _id: user._id, emailVerificationTokenHash: tokenHash },
@@ -146,7 +148,11 @@ export const verifyEmailToken = async (token) => {
     },
   );
 
-  return { emailVerified: true, emailVerifiedAt: now };
+  return {
+    emailVerified: true,
+    emailVerifiedAt: now,
+    returnTo: trialSetupDestination(business),
+  };
 };
 
 export const startForwardingPhoneVerification = async ({

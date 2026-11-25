@@ -14,7 +14,7 @@ export const CUSTOMER_ACCESS_EXEMPTIONS = Object.freeze([
   { path: /^\/api\/businesses\/mine\/readiness\/?$/, methods: ['GET'], activeBusiness: true },
   { path: /^\/api\/businesses\/mine\/setup-progress\/?$/, methods: ['PATCH'], activeBusiness: true },
 ]);
-const setupFields = new Set(['businessName', 'businessType', 'forwardingPhone', 'timezone', 'smsTemplate']);
+const setupFields = new Set(['businessName', 'businessType', 'forwardingPhone', 'timezone', 'smsTemplate', 'setupStep']);
 function isTrialSetupRequest(req, path) {
   if (req.method === 'PATCH' && /^\/api\/businesses\/mine\/?$/.test(path)) {
     if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) return false;

@@ -222,6 +222,20 @@ describe("trial identity verification target coverage", () => {
     );
   });
 
+  test.each([
+    [{ setupProgress: { currentStep: "timezone" } }, "/setup?step=timezone"],
+    [{ setupProgress: { currentStep: "message" } }, "/setup?step=message"],
+    [{ setupProgress: { currentStep: "activate" } }, "/setup?step=activate"],
+    [{ setupProgress: { currentStep: "test" } }, "/setup?step=test"],
+    [{ setupProgress: { currentStep: "invalid" } }, "/setup?step=activate"],
+    [{ forwardingPhone: "", setupProgress: {} }, "/setup?step=details"],
+  ])("verification returns only the token owner's saved setup destination %#", async (business, returnTo) => {
+    User.findOne.mockReturnValue(selected(makeUser()));
+    Business.findOne.mockResolvedValue(makeBusiness(business));
+    await expect(verifyEmailToken("valid-looking-token")).resolves.toMatchObject({ returnTo });
+    expect(Business.findOne).toHaveBeenCalledWith({ owner: "owner-1" });
+  });
+
   test("phone verification requires both an owner and business", async () => {
     User.findById.mockResolvedValue(null);
     Business.findOne.mockResolvedValue(makeBusiness());

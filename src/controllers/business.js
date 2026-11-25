@@ -23,6 +23,12 @@ const buildBusinessUpdateDocument = (payload = {}) => {
   const featureUpdates = updates.features || null;
 
   delete updates.features;
+  delete updates.setupStep;
+
+  if (payload.setupStep) {
+    updates["setupProgress.currentStep"] = payload.setupStep;
+    updates["setupProgress.updatedAt"] = new Date();
+  }
 
   if (featureUpdates) {
     Object.entries(featureUpdates).forEach(([key, value]) => {

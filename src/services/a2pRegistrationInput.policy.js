@@ -57,17 +57,14 @@ const createMessageSamples = (brand) => [
 
 const validateCampaign = (campaign = {}) => {
   const messageFlow = clean(campaign.messageFlow);
-  const privacyPolicyUrl = clean(campaign.privacyPolicyUrl);
-  const termsAndConditionsUrl = clean(campaign.termsAndConditionsUrl);
   if (messageFlow.length < 40) {
     throw new Error("Describe how customers consent to receive MeekCall SMS messages (at least 40 characters). ");
   }
-  if (!isHttpUrl(privacyPolicyUrl)) throw new Error("A valid customer Privacy Policy URL is required.");
-  if (!isHttpUrl(termsAndConditionsUrl)) throw new Error("A valid customer Terms & Conditions URL is required.");
   return {
     messageFlow,
-    privacyPolicyUrl,
-    termsAndConditionsUrl,
+    // MeekCall owns its messaging-service policies. Trial customers do not supply them.
+    privacyPolicyUrl: "https://www.meekcall.com/privacy",
+    termsAndConditionsUrl: "https://www.meekcall.com/terms",
     hasEmbeddedLinks: Boolean(campaign.hasEmbeddedLinks),
     hasEmbeddedPhone: Boolean(campaign.hasEmbeddedPhone),
   };

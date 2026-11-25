@@ -26,9 +26,7 @@ const inputFor = (registrationType = 'low_volume_standard') => ({
     jobPosition: 'Owner'
   },
   campaign: {
-    messageFlow: 'Customers explicitly consent to missed-call follow-up messages after contacting the business.',
-    privacyPolicyUrl: 'https://example.com/privacy',
-    termsAndConditionsUrl: 'https://example.com/terms'
+    messageFlow: 'Customers explicitly consent to missed-call follow-up messages after contacting the business.'
   }
 });
 function fixture(registrationType = 'low_volume_standard') {
@@ -203,6 +201,10 @@ test.each(['standard', 'low_volume_standard', 'sole_proprietor'])('%s submits co
     status: 'brand_pending',
     smsReady: false
   });
+  expect(f.row.campaign).toMatchObject({
+    privacyPolicyUrl: 'https://www.meekcall.com/privacy',
+    termsAndConditionsUrl: 'https://www.meekcall.com/terms'
+  });
   expect(result).not.toHaveProperty('brandSid');
   expect(JSON.stringify(result)).not.toContain('123456789');
   const submittedAt = f.row.submittedAt;
@@ -235,6 +237,18 @@ test.each(['standard', 'sole_proprietor'])('%s retries a failed attachment witho
     ? 'customer_profile_business_information' : 'starter_customer_profile_information';
   expect(f.endUsers.create.mock.calls.filter(([input]) => input.type === resourceType)).toHaveLength(1);
   expect(f.brand.create).toHaveBeenCalledTimes(1);
+});
+
+test('MeekCall supplies its policy URLs even when an older client sends business policy values', async () => {
+  const f = fixture('standard');
+  const input = inputFor('standard');
+  input.campaign.privacyPolicyUrl = 'https://legacy-business.example/privacy';
+  input.campaign.termsAndConditionsUrl = 'https://legacy-business.example/terms';
+  await startA2pCustomerRegistration({ businessId: f.row.business, input, client: f.client });
+  expect(f.row.campaign).toMatchObject({
+    privacyPolicyUrl: 'https://www.meekcall.com/privacy',
+    termsAndConditionsUrl: 'https://www.meekcall.com/terms'
+  });
 });
 test('corrects existing draft EIN and representative resources before evaluation', async () => {
   const f = fixture('standard');

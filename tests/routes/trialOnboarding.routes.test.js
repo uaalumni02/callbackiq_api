@@ -5,6 +5,7 @@ import User from "../../src/models/user.js";
 import Business from "../../src/models/business.js";
 import Subscription from "../../src/models/subscription.js";
 import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testDb.js";
+import { issueEmailVerification } from "../../src/services/trialIdentityVerification.service.js";
 
 beforeAll(async () => {
   await connectTestDB();
@@ -27,6 +28,40 @@ const minimalSignup = {
 };
 
 describe("Trial onboarding registration", () => {
+  test("saves setup progress in the database and resumes it after verification without a browser session", async () => {
+    const signup = await request(app).post("/api/auth/register").send(minimalSignup);
+    expect(signup.status).toBe(201);
+    const { token, business, user } = signup.body.data;
+    const verification = await issueEmailVerification({ user: await User.findById(user._id) });
+    for (const setupStep of ["timezone", "message", "activate"]) {
+      const result = await request(app).patch("/api/businesses/mine")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ forwardingPhone: "4045551234", timezone: "America/Chicago", setupStep });
+      expect(result.status).toBe(200);
+      expect(result.body.data.setupProgress.currentStep).toBe(setupStep);
+      const persisted = await Business.findById(business._id);
+      expect(persisted.setupProgress.currentStep).toBe(setupStep);
+    }
+    const verified = await request(app).post("/api/auth/verify-email")
+      .send({ token: verification.verificationToken });
+    expect(verified.status).toBe(200);
+    expect(verified.body.data).toMatchObject({ emailVerified: true, returnTo: "/setup?step=activate" });
+    const reopened = await request(app).get("/api/businesses/mine").set("Authorization", `Bearer ${token}`);
+    expect(reopened.body.data).toMatchObject({ forwardingPhone: "+14045551234", timezone: "America/Chicago", setupProgress: { currentStep: "activate" } });
+    const subscription = await Subscription.findOne({ business: business._id });
+    expect(subscription.status).toBe("none");
+    expect(subscription.trialCount).toBe(0);
+  });
+
+  test("rejects invalid steps and cannot use setup progress to enable messaging", async () => {
+    const signup = await request(app).post("/api/auth/register").send(minimalSignup);
+    const { token, business } = signup.body.data;
+    const patch = body => request(app).patch("/api/businesses/mine").set("Authorization", `Bearer ${token}`).send(body);
+    expect((await patch({ setupStep: "https://elsewhere.test" })).status).toBe(400);
+    expect((await patch({ setupStep: "activate", "messagingCompliance.smsReady": true })).status).toBe(403);
+    expect((await Business.findById(business._id)).setupProgress.currentStep).toBeNull();
+  });
+
   test("creates an account from the minimal trial signup payload without consuming the trial", async () => {
     const res = await request(app).post("/api/auth/register").send(minimalSignup);
 
