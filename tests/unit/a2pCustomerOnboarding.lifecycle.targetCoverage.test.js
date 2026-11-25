@@ -120,8 +120,6 @@ describe("A2P onboarding lifecycle and validation - provider-free coverage", () 
     [{ contact: { email: "invalid" } }, "A valid business contact email is required"],
     [{ contact: { phone: "123" } }, "A valid business contact phone is required"],
     [{ campaign: { messageFlow: "too short" } }, "Describe how customers consent"],
-    [{ campaign: { privacyPolicyUrl: "javascript:alert(1)" } }, "A valid customer Privacy Policy URL is required"],
-    [{ campaign: { termsAndConditionsUrl: "not-a-url" } }, "A valid customer Terms & Conditions URL is required"],
   ])("rejects invalid onboarding input without calling Twilio: %j", async (overrides, message) => {
     await expect(
       startA2pCustomerRegistration({

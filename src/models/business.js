@@ -4,6 +4,7 @@ import TrackingNumberSchema from './schemas/trackingNumber.js';
 import { installAccessRevocation } from "../helpers/model/accessRevocation.js";
 import { normalizePhoneToE164 as normalizeVoicePhone } from "../voice/voicePhone.service.js";
 import mongoose from "mongoose";
+import { TRIAL_SETUP_STEPS } from "../helpers/trialSetupProgress.js";
 const { Schema } = mongoose;
 
 import * as validate from "../helpers/model/business.js";
@@ -323,6 +324,7 @@ const VoiceSettingsSchema = new Schema(
 
 const SetupProgressSchema = new Schema(
   {
+    currentStep: { type: String, enum: TRIAL_SETUP_STEPS, default: null },
     accountRegistered: { type: Boolean, default: true },
     suggestedServicesPending: { type: Boolean, default: false },
     subscriptionActivated: { type: Boolean, default: false },

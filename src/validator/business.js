@@ -1,5 +1,6 @@
 import { BUSINESS_TYPES } from "../helpers/businessTypes.js";
 import Joi from "joi";
+import { TRIAL_SETUP_STEPS } from "../helpers/trialSetupProgress.js";
 
 const phonePattern = /^[0-9+\-().\s]{7,20}$/;
 
@@ -58,6 +59,7 @@ const businessCreateSchema = Joi.object({
 
 const businessUpdateSchema = Joi.object({
   ...commonBusinessFields,
+  setupStep: Joi.string().valid(...TRIAL_SETUP_STEPS),
   // Tracking number is provisioned by MeekCall and cannot be owner-edited.
   phone: Joi.forbidden(),
 })
