@@ -1,3 +1,5 @@
+import {activateCustomerAccess} from '../setup/stabilizationFixture.js';
+import Delivery from '../../src/models/staffNotificationDelivery.js';
 import mongoose from 'mongoose';
 import { connectTestDB, clearTestDB, closeTestDB } from '../setup/testDb.js';
 import Alert from '../../src/models/alert.js';
@@ -11,8 +13,9 @@ beforeAll(async () => { await connectTestDB(); await SmsJob.createIndexes(); }, 
 beforeEach(async () => {
  business=oid(); alert=oid(); phone='+14045550111'; process.env.CLIENT_URL='https://callbackiq.test';
  await Business.collection.insertOne({_id:business,isActive:true});
+ await activateCustomerAccess(business);
  await Policy.collection.insertOne({business,staffSmsEnabled:true,staffSmsPhone:phone});
- await Alert.collection.insertOne({_id:alert,business,lead:oid(),priority:'critical',actionRequired:true,resolvedAt:null,acknowledgedAt:null,dueAt:new Date(Date.now()+60000),metadata:{}});
+ await Alert.collection.insertOne({_id:alert,business,lead:oid(),priority:'high',actionRequired:true,resolvedAt:null,acknowledgedAt:null,dueAt:new Date(Date.now()+60000),metadata:{}});
 });
 afterEach(async () => { await clearTestDB(); delete process.env.CLIENT_URL; });
 afterAll(closeTestDB);
@@ -21,9 +24,9 @@ test('competing workers send one initial text and never acknowledge on provider 
  await Promise.all([runStaffSms({send}),runStaffSms({send})]);
  expect(send).toHaveBeenCalledTimes(1);
  const record=await Alert.findById(alert).lean();
- expect(record.metadata.staffSms.initial).toMatchObject({state:'sent',providerMessageId:'SM-test'});
+ expect(record.metadata.staffSms.initial).toMatchObject({state:'sent'});expect((await Delivery.findOne({business,channel:'sms'}).lean()).providerMessageId).toBe('SM-test');
  expect(record.acknowledgedAt).toBeNull();
- expect(send.mock.calls[0][0].body).toContain('leadId=');
+ expect(send.mock.calls[0][0].body).toContain('alertId=');
  await runStaffSms({send}); expect(send).toHaveBeenCalledTimes(1);
 });
 test('an overdue reminder is sent once; acknowledgment stops subsequent dispatch', async () => {
@@ -39,7 +42,7 @@ test('owner opt-in, tenant scope and approval separation are required', async ()
  const send=jest.fn(); await runStaffSms({send}); expect(send).not.toHaveBeenCalled();
  await Policy.updateOne({business},{$set:{staffSmsEnabled:true}});
  await Alert.updateOne({_id:alert},{$set:{'metadata.approvalRequest':true}});
- await Alert.collection.insertOne({_id:oid(),business:oid(),priority:'critical',actionRequired:true});
+ await Alert.collection.insertOne({_id:oid(),business:oid(),priority:'high',actionRequired:true});
  await runStaffSms({send}); expect(send).not.toHaveBeenCalled();
 });
 test('ambiguous provider acceptance is retained and never replayed as an initial text', async () => {

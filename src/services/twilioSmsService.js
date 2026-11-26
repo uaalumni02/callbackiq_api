@@ -1,3 +1,4 @@
+import {dispatchSmsProvider} from './messaging/smsProviderDispatch.js';
 import { createTwilioClient } from '../integrations/providerClients.js';
 import { resolveSmsUsageClass } from "./messaging/smsUsageClass.service.js";
 import crypto from "node:crypto";
@@ -485,17 +486,8 @@ export const sendSms = async ({
     await markCommunicationProviderDispatch({ reservation: lifecycle?.reservation,
       from: configuredFrom, to: normalizedTo, body: normalizedBody });
     providerDispatchStarted = true;
-    const sent = await client.messages.create({
-      to: normalizedTo,
-      body: normalizedBody,
-      ...(configuredMessagingServiceSid
-        ? { messagingServiceSid: configuredMessagingServiceSid }
-        : {}),
-      ...(forceDirectSender || !configuredMessagingServiceSid
-        ? { from: configuredFrom }
-        : {}),
-      ...(statusCallback ? { statusCallback } : {}),
-    });
+    const sent = await dispatchSmsProvider({client,businessId:resolvedBusinessId,operationKey,segmentCount:segment.segmentCount,
+      normalizedTo,normalizedBody,configuredMessagingServiceSid,configuredFrom,forceDirectSender,statusCallback});
     if (!sent?.sid) {
       throw Object.assign(new Error("SMS provider acceptance could not be verified."), {
         code: "SMS_PROVIDER_OUTCOME_UNCERTAIN", deliveryUncertain: true,
@@ -526,9 +518,9 @@ export const sendSms = async ({
       return result;
     }
     const status = Number(error?.status || error?.statusCode || 0);
-    const conclusivelyRejected = status >= 400 && status < 500 && !error.deliveryUncertain;
-    if (providerAccepted || error.deliveryUncertain || isUncertainProviderFailure(error) ||
-        (providerDispatchStarted && !conclusivelyRejected)) {
+    const conclusivelyRejected = error.providerDispatchNotStarted || status >= 400 && status < 500 && !error.deliveryUncertain;
+    if (providerAccepted || (!error.providerDispatchNotStarted && (error.deliveryUncertain || isUncertainProviderFailure(error) ||
+        (providerDispatchStarted && !conclusivelyRejected)))) {
       error.code = error.code || "SMS_PROVIDER_OUTCOME_UNCERTAIN";
       error.statusCode = error.statusCode || 503;
       error.deliveryUncertain = true;

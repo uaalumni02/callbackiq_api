@@ -30,7 +30,8 @@ describe("Google Calendar production contract", () => {
     const provider = read(
       "src/integrations/scheduling/googleCalendar.provider.js",
     );
-    expect(provider).toContain("availabilityCalendarIds.map");
+    expect(read("src/integrations/scheduling/googleAvailabilitySnapshot.js")).toContain("availabilityCalendarIds.map");
+    expect(read("src/integrations/scheduling/googleFinalAvailability.js")).toContain("forceFresh: true");
     expect(provider).toContain("deterministicEventId");
     expect(provider).toContain('visibility: "private"');
     expect(provider).toContain("callbackiqBusinessId");

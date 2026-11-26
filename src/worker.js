@@ -1,3 +1,5 @@
+import {startPilotPrivacyWorker,stopPilotPrivacyWorker} from './workers/pilotPrivacy.worker.js';
+import {startIntegrationDisconnectWorker,stopIntegrationDisconnectWorker} from './workers/integrationDisconnect.worker.js';
 import { captureExternalError, flushExternalErrors } from "./services/errorTracking.service.js";
 import { assertStandaloneRuntime } from "./config/startupAssertions.js";
 import { startAdminReportingWorker, stopAdminReportingWorker } from "./workers/adminReporting.worker.js";
@@ -60,6 +62,8 @@ import {
 export const roleMap = {
   "worker-ops": [["operations", startOperationsWorker, stopOperationsWorker]],
   worker: [
+    ["pilot-privacy",startPilotPrivacyWorker,stopPilotPrivacyWorker],
+    ["integration-disconnect",startIntegrationDisconnectWorker,stopIntegrationDisconnectWorker],
     ["admin-reporting", startAdminReportingWorker, stopAdminReportingWorker],
     ["a2p", startA2pReconciliationWorker, stopA2pReconciliationWorker],
     [
@@ -99,6 +103,8 @@ export const roleMap = {
   ],
   "worker-voice-usage": [["voice-usage", startVoiceUsageReconciliationWorker, stopVoiceUsageReconciliationWorker]],
   "worker-maintenance": [
+    ["pilot-privacy",startPilotPrivacyWorker,stopPilotPrivacyWorker],
+    ["integration-disconnect",startIntegrationDisconnectWorker,stopIntegrationDisconnectWorker],
     [
       "maintenance",
       startAppointmentMaintenanceWorker,

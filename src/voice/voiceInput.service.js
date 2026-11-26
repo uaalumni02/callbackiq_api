@@ -1,3 +1,4 @@
+import {assessWithdrawalIntent} from '../services/messaging/withdrawalIntent.service.js';
 import { findDateRange, parseTimePreference } from '../services/booking/appointmentPreferenceParser.service.js';
 import { extractService } from '../services/messaging/smsIntentClassifier.service.js';
 import { isCallbackRequestText } from '../services/messaging/customerContactIntent.service.js';
@@ -34,7 +35,6 @@ const WORD_DIGITS = Object.freeze({
 
 const YES_PATTERN = /^(?:yes|yeah|yep|correct|right|that(?:'s| is) correct|sounds good|please do|confirm)(?:\s|[.!])*$/i;
 const NO_PATTERN = /^(?:no|nope|incorrect|wrong|not correct|change it|that(?:'s| is) wrong)(?:\s|[.!])*$/i;
-const CANCEL_PATTERN = /\b(?:never\s*mind|cancel(?:\s+that)?|stop(?:\s+this)?|forget it|do not submit|don't submit|no callback|leave it alone)\b/i;
 const SKIP_PATTERN = /\b(?:skip(?:\s+(?:it|that|this|one))?|rather not say|prefer not to say|do not know|don't know|not sure|unknown|not provided|none)\b/i;
 const REPEAT_PATTERN = /\b(?:repeat that|say that again|what did you say|come again|could you repeat|repeat the question)\b/i;
 
@@ -70,7 +70,7 @@ export const cleanVoiceText = (value, maximum = 2000) =>
 
 export const isYes = (value) => YES_PATTERN.test(cleanVoiceText(value, 120));
 export const isNo = (value) => NO_PATTERN.test(cleanVoiceText(value, 120));
-export const isCancelIntent = (value) => CANCEL_PATTERN.test(cleanVoiceText(value, 300));
+export const isCancelIntent = value => assessWithdrawalIntent(cleanVoiceText(value, 300)).callbackWithdrawal;
 export const isSkipIntent = (value) => SKIP_PATTERN.test(cleanVoiceText(value, 300));
 export const isRepeatIntent = (value) => REPEAT_PATTERN.test(cleanVoiceText(value, 300));
 export const isHumanRequest = (value) =>

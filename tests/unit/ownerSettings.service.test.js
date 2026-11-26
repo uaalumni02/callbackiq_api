@@ -1,3 +1,4 @@
+import Delivery from '../../src/models/staffNotificationDelivery.js';
 jest.mock('../../src/services/scheduling/appointmentNotification.service.js', () => ({ refreshUpcomingAppointmentNotifications: jest.fn().mockResolvedValue({ refreshed: 0 }) }));
 import mongoose from "mongoose";
 import Business from "../../src/models/business.js";
@@ -13,8 +14,9 @@ import { recordVoiceSettingsVersion } from "../../src/services/voiceSettingsVers
 jest.mock("../../src/services/voiceSettingsVersion.service.js", () => ({ recordVoiceSettingsVersion: jest.fn().mockResolvedValue({ version: 1 }) }));
 const models = [ServiceOffering, ServiceArea, AvailabilityRule, AvailabilityException, SchedulingPolicy, BusinessOperationsSettings];
 let business, owner, rows, session;
-const query = value => ({ session: jest.fn().mockReturnThis(), sort: jest.fn().mockReturnThis(), lean: jest.fn().mockResolvedValue(Array.isArray(value) ? value.map(v => v.toObject?.() || v) : value), then: (resolve, reject) => Promise.resolve(value).then(resolve, reject) });
+const query = value => ({limit:jest.fn().mockReturnThis(),select:jest.fn().mockReturnThis(), session: jest.fn().mockReturnThis(), sort: jest.fn().mockReturnThis(), lean: jest.fn().mockResolvedValue(Array.isArray(value) ? value.map(v => v.toObject?.() || v) : value), then: (resolve, reject) => Promise.resolve(value).then(resolve, reject) });
 beforeEach(() => {
+  jest.spyOn(Delivery,"find").mockImplementation(()=>query([]));
   owner = new mongoose.Types.ObjectId();
   business = new Business({ owner, businessName: "Plumbing", businessType: "plumbing", phone: "+14045550101", forwardingPhone: "+14045550102", timezone: "America/New_York" });
   rows = new Map(models.map(m => [m, []]));
@@ -65,12 +67,12 @@ test("saving team contacts does not change booking permission or follow-up polic
   expect(operations.aiPermissions.canBookEligibleServices).toBe(true);
   expect(operations.followUpSettings.maxAttempts).toBe(7);
 });
-test("enabling voice while disabling texts preserves technical limits", async () => {
+test("enabling voice while disabling texts normalizes obsolete owner budgets to the server plan", async () => {
   business.voiceSettings.dailyVoiceMinutes = 321;
   const result = await save("calls", { answerMode: "always", automaticTextsEnabled: false, missedCallSmsEnabled: false });
   expect(result.voiceEnabled).toBe(true);
   expect(business.customerMessaging.automaticTextsEnabled).toBe(false);
-  expect(business.voiceSettings.dailyVoiceMinutes).toBe(321);
+  expect(business.voiceSettings.dailyVoiceMinutes).toBe(30);expect(business.voiceSettings.monthlyVoiceMinutes).toBe(300);expect(business.voiceSettings.voiceHardCapEnabled).toBe(true);expect(business.voiceSettings.voiceOverageEnabled).toBe(false);
 });
 test("stale revision and another owner's request cannot modify settings", async () => {
   const before = await readOwnerSettings(business);
@@ -94,7 +96,7 @@ test.each([undefined, null, {}])("legacy lean records receive read-only defaults
   const before = JSON.stringify([...rows]);
   const snapshot = await readOwnerSettings(business);
   expect(snapshot.sections.services.serviceEligibilityPolicy).toEqual({ catalogComplete: false, excludedServices: [] });
-  expect(snapshot.sections.team.emergencyPolicy).toMatchObject({ enabled: true, afterHoursAction: "escalate", pauseAiOnEmergency: true });
+  expect(snapshot.sections.team.emergencyPolicy).toMatchObject({ emergencyContactPhone:"",emergencyContactEmail:"" });
   expect(snapshot.sections.services.serviceArea).toMatchObject({ type: "radius", centerPostalCode: "30303", zipCodes: [], radiusMiles: 25 });
   expect(snapshot.sections.hours.schedulingPolicy.minimumNoticeMinutes).toBe(1440);
   for (const [section, values] of Object.entries(snapshot.sections)) await expect(validateOwnerSection(section, values)).resolves.toBeTruthy();
@@ -108,6 +110,23 @@ test("partial legacy policies preserve deliberate restrictions and disabled opti
   rows.get(SchedulingPolicy).push({ business: business._id, minimumNoticeMinutes: 0, customerCancellationAllowed: false });
   const snapshot = await readOwnerSettings(business);
   expect(snapshot.sections.services.serviceEligibilityPolicy).toEqual({ catalogComplete: true, excludedServices: ["roof repair"] });
-  expect(snapshot.sections.team.emergencyPolicy).toMatchObject({ enabled: false, pauseAiOnEmergency: false, afterHoursAction: "collect_details" });
+  expect(snapshot.sections.team.emergencyPolicy).toMatchObject({ emergencyContactPhone:"",emergencyContactEmail:"" });
   expect(snapshot.sections.hours.schedulingPolicy).toMatchObject({ minimumNoticeMinutes: 0, customerCancellationAllowed: false });
+});
+
+test('H03 legacy custom routing survives a save with callback-only pilot settings',async()=>{
+ business.features.voiceAiEnabled=true;
+ business.voiceSettings.routingPolicy={openHours:'staff_then_sms',afterHours:'voice_ai',voiceFailure:'staff_then_sms'};
+ business.voiceSettings.routingPolicyVersion=1;
+ const snapshot=await readOwnerSettings(business);
+ const result=await save('calls',{answerMode:'custom'});
+ expect(result.voiceEnabled).toBe(true);expect(result.customRouting).toEqual(snapshot.customRouting);
+ expect(business.voiceSettings.liveTransferEnabled).toBe(false);expect(business.voiceSettings.liveTransferPhone).toBe('');
+});
+test('H03 disabling AI is an explicit owner choice and leaves pilot spend limits intact',async()=>{
+ const result=await save('calls',{answerMode:'disabled'});
+ expect(result.voiceEnabled).toBe(false);expect(business.voiceSettings.monthlyVoiceMinutes).toBe(300);expect(business.voiceSettings.voiceHardCapEnabled).toBe(true);
+});
+test.each([{emergencyContactPhone:'+14045550101'},{emergencyContactEmail:'urgent@example.com'}])('H11 incomplete urgent contact cannot silently discard a channel: %p',async emergencyPolicy=>{
+ await expect(save('team',{emergencyPolicy})).rejects.toThrow(/both/);expect(Business.prototype.save).not.toHaveBeenCalled();
 });

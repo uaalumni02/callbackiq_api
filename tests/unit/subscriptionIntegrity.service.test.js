@@ -63,3 +63,9 @@ describe("subscriptionIntegrity.service", () => {
     });
   });
 });
+test('B07 provider listing errors never look like an empty inventory authorizing another subscription',async()=>{
+ const error=Object.assign(new Error('synthetic Stripe timeout'),{code:'ETIMEDOUT'});
+ const stripe={subscriptions:{list:jest.fn().mockRejectedValue(error)}};
+ await expect(listLiveStripeSubscriptions({stripe,stripeCustomerId:'cus_synthetic'})).rejects.toBe(error);
+ expect(stripe.subscriptions.list).toHaveBeenCalledTimes(1);
+});

@@ -29,9 +29,7 @@ const getPriceIdByPlan = (plan) => {
     .toLowerCase();
 
   const priceMap = {
-    starter: process.env.STRIPE_STARTER_PRICE_ID,
     pro: process.env.STRIPE_PRO_PRICE_ID,
-    agency: process.env.STRIPE_AGENCY_PRICE_ID,
   };
 
   const priceId = priceMap[normalizedPlan];

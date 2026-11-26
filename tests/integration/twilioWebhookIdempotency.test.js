@@ -1,3 +1,4 @@
+import {activateCustomerAccess} from '../setup/stabilizationFixture.js';
 import { signedTwilioPost } from '../helpers/signTwilioRequest.js';
 import ServiceOffering from '../../src/models/serviceOffering.js';
 
@@ -23,7 +24,7 @@ import {
   connectTestDB,
   clearTestDB,
   closeTestDB,
-} from "../setup/testDb.js";
+} from "../setup/testReplicaDb.js";
 
 const mockTwilioMessageCreate = jest.fn();
 
@@ -129,6 +130,7 @@ const createBusiness = async (overrides = {}) => {
     isActive: true,
     ...overrides,
   });
+  await activateCustomerAccess(business._id);
   await ServiceOffering.create({ business: business._id, name: 'Water heater repair', category: 'plumbing', active: true, aiCanDiscuss: true, aiCanBook: true, keywords: ['water heater'] });
   return business;
 };

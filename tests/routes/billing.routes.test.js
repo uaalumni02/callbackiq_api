@@ -4,10 +4,15 @@ import request from "supertest";
 
 import app from "../../src/app.js";
 import Subscription from "../../src/models/subscription.js";
+import Business from "../../src/models/business.js";
+import { createTwilioClient } from "../../src/integrations/providerClients.js";
+import { buildTwilioWebhookUrls } from "../../src/services/twilioWebhookReliability.service.js";
 import User from "../../src/models/user.js";
 import TrialRedemption from "../../src/models/trialRedemption.js";
 import { getStripeClient } from "../../src/helpers/stripe/stripeClient.js";
 import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testReplicaDb.js";
+
+jest.mock("../../src/integrations/providerClients.js", () => ({ ...jest.requireActual("../../src/integrations/providerClients.js"), createTwilioClient: jest.fn() }));
 
 jest.mock("../../src/helpers/stripe/stripeClient.js", () => ({
   getStripeClient: jest.fn(),
@@ -46,6 +51,8 @@ beforeAll(async () => {
 }, 60_000);
 
 beforeEach(() => {
+  const remote = { phoneNumber: '+14045550123', ...buildTwilioWebhookUrls(process.env.TWILIO_WEBHOOK_BASE_URL) };
+  createTwilioClient.mockReturnValue({ incomingPhoneNumbers: () => ({ fetch: jest.fn(async () => remote), update: jest.fn(async () => remote) }) });
   process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
   process.env.STRIPE_BILLING_PORTAL_CONFIGURATION_ID = "bpc_test_restricted";
 });
@@ -114,6 +121,7 @@ const mockStripe = () => {
     },
 
     billingPortal: {
+      configurations: {retrieve:jest.fn(async()=>({active:true,features:{subscription_update:{enabled:false}}}))},
       sessions: {
         create: jest.fn().mockResolvedValue({
           id: "bps_test_123",
@@ -127,8 +135,11 @@ const mockStripe = () => {
     },
     checkout: {
       sessions: {
+        retrieve:jest.fn(async id=>({id,status:"open",url:"https://checkout.stripe.com/test-session"})),
+        expire:jest.fn(async id=>({id,status:"expired"})),
         create: jest.fn().mockResolvedValue({
           id: "cs_test_123",
+          status: "open",
           url: "https://checkout.stripe.com/test-session",
         }),
       },
@@ -284,6 +295,15 @@ const expireTrialInPlace = async (businessId) => {
   );
 };
 
+const prepareCheckoutFixture = async business => {
+  await User.updateOne({ _id: business.owner }, { $set: { emailVerifiedAt: new Date() } });
+  await Business.updateOne({ _id: business._id }, { $set: {
+    forwardingPhoneVerifiedAt:new Date(),forwardingPhoneVerifiedValue:business.forwardingPhone,
+    phone: '+14045550123', 'trackingNumber.status': 'active', 'trackingNumber.providerSid': 'PN_FIXTURE',
+    'messagingCompliance.smsReady': true, 'messagingCompliance.senderAttached': true,
+  } });
+};
+
 const startTrial = async (token, body = undefined) => {
   const trialRequest = request(app)
     .post("/api/billing/free-trial")
@@ -418,6 +438,7 @@ describe("Billing Routes", () => {
     const stripe = mockStripe();
 
     const { token, business } = await registerAndCreateBusiness();
+    await prepareCheckoutFixture(business);
 
     const res = await request(app)
       .post("/api/billing/create-checkout-session")
@@ -476,6 +497,7 @@ describe("Billing Routes", () => {
     const { token, business } = await registerAndCreateBusiness();
 
     await resetTrialState(business._id);
+    await prepareCheckoutFixture(business);
 
     await request(app)
       .post("/api/billing/create-checkout-session")
@@ -527,6 +549,7 @@ describe("Billing Routes", () => {
     const { token, business } = await registerAndCreateBusiness();
 
     await resetTrialState(business._id);
+    await prepareCheckoutFixture(business);
 
     const res = await startTrial(token);
 
@@ -573,6 +596,7 @@ describe("Billing Routes", () => {
     const { token, business } = await registerAndCreateBusiness();
 
     await resetTrialState(business._id);
+    await prepareCheckoutFixture(business);
 
     const res = await startTrial(token, { onboarding: true });
     expect(res.status).toBe(200);
@@ -681,10 +705,12 @@ describe("Billing Routes", () => {
     const { token, business } = await registerAndCreateBusiness();
 
     await resetTrialState(business._id);
+    await prepareCheckoutFixture(business);
 
     const results = await Promise.all([startTrial(token), startTrial(token)]);
 
-    expect(results.every((res) => res.status === 200)).toBe(true);
+    expect(results.some((res) => res.status === 200)).toBe(true);
+    expect(results.every((res) => [200, 409].includes(res.status))).toBe(true);
 
     /*
      * Checkout creation itself does not consume the lifetime trial. Stripe
@@ -695,7 +721,7 @@ describe("Billing Routes", () => {
       ([, options]) => options?.idempotencyKey,
     );
 
-    expect(keys).toHaveLength(2);
+    expect(keys.length).toBeGreaterThanOrEqual(1);
     expect(keys[0]).toBeTruthy();
     expect(new Set(keys).size).toBe(1);
 

@@ -133,4 +133,16 @@ describe("trialLifecycle.worker hardening", () => {
     await jest.advanceTimersByTimeAsync(250);
     expect(mockProcessTrialLifecycle).toHaveBeenCalledTimes(2);
   });
+  test('keeps the worker alive after startup and interval provider outages', async () => {
+    jest.useFakeTimers(); process.env.NODE_ENV = 'development'; process.env.TRIAL_LIFECYCLE_INTERVAL_MS = '250'; process.env.BILLING_INTEGRITY_INTERVAL_MS='250';
+    jest.setSystemTime(new Date('2099-01-01T00:00:00Z'));
+    mockProcessTrialLifecycle.mockRejectedValueOnce(new Error('initial synthetic outage')).mockRejectedValueOnce(new Error('interval synthetic outage')).mockResolvedValue({ processed: 0 });
+    mockReconcileStripeSubscriptionIntegrity.mockRejectedValueOnce(new Error('initial synthetic outage')).mockRejectedValueOnce(new Error('interval synthetic outage')).mockResolvedValue({ processed: 0 });
+    await startTrialLifecycleWorker();
+    await jest.advanceTimersByTimeAsync(250);
+    await jest.advanceTimersByTimeAsync(250);
+    expect(mockProcessTrialLifecycle).toHaveBeenCalledTimes(3);
+    expect(mockReconcileStripeSubscriptionIntegrity).toHaveBeenCalledTimes(3);
+  });
+
 });

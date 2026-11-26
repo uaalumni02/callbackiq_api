@@ -1,3 +1,9 @@
+import Subscription from '../../src/models/subscription.js';
+import mongoose from 'mongoose';
+import Business from '../../src/models/business.js';
+import DisconnectIntent from '../../src/models/integrationDisconnectIntent.js';
+import {modelQuery} from '../helpers/modelQuery.js';
+jest.mock('../../src/models/integrationDisconnectIntent.js',()=>({__esModule:true,default:{exists:jest.fn(),findOneAndUpdate:jest.fn(),updateOne:jest.fn()}}));
 import IntegrationConnection from "../../src/models/integrationConnection.js";
 import {
   buildGoogleAuthorizationUrl,
@@ -35,6 +41,7 @@ const response = ({ ok = true, status = 200, payload = {}, rejectJson = false } 
 
 const makeConnection = (overrides = {}) => ({
   _id: "conn1",
+  $locals:{},
   business: "b1",
   provider: "google_calendar",
   status: "connected",
@@ -70,6 +77,13 @@ describe("googleCalendarConnection.service complete behavior", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.spyOn(mongoose,'startSession').mockResolvedValue({withTransaction:async operation=>operation(),endSession:async()=>{}});
+    jest.spyOn(Business,'findById').mockReturnValue(modelQuery({isActive:true}));
+    jest.spyOn(Subscription,'findOne').mockReturnValue(modelQuery({status:'active',isActive:true,plan:'pro'}));
+    jest.spyOn(Business,'updateOne').mockResolvedValue({modifiedCount:1});
+    DisconnectIntent.exists.mockResolvedValue(false);
+    DisconnectIntent.findOneAndUpdate.mockReturnValue(modelQuery({_id:'intent1',business:'b1',attempts:1}));
+    DisconnectIntent.updateOne.mockResolvedValue({modifiedCount:1});
     jest.useFakeTimers();
     jest.setSystemTime(new Date("2026-07-27T12:00:00.000Z"));
     process.env = { ...originalEnv };
@@ -293,15 +307,16 @@ describe("googleCalendarConnection.service complete behavior", () => {
     global.fetch
       .mockResolvedValueOnce(response({ payload: { access_token: "fresh", expires_in: 3600 } }))
       .mockResolvedValueOnce(response({ payload: { id: "event-id" } }));
-    const { signal } = new AbortController();
+    const controller=new AbortController();const {signal}=controller;
 
     await expect(googleApiRequest({ businessId: "b1", path: "/calendars/calendar/events/event-id", signal }))
       .resolves.toEqual({ id: "event-id" });
 
-    expect(global.fetch).toHaveBeenNthCalledWith(1, expect.stringContaining("oauth2"), expect.objectContaining({ signal }));
+    expect(global.fetch).toHaveBeenNthCalledWith(1, expect.stringContaining("oauth2"), expect.objectContaining({ signal:expect.any(AbortSignal) }));
     expect(global.fetch).toHaveBeenNthCalledWith(2, expect.stringContaining("/events/event-id"), expect.objectContaining({
-      signal, headers: { Authorization: "Bearer fresh" },
+      signal:expect.any(AbortSignal), headers: { Authorization: "Bearer fresh" },
     }));
+    controller.abort();expect(global.fetch.mock.calls.every(([,options])=>options.signal.aborted)).toBe(true);
   });
 
   test("records refresh failure on the connection", async () => {
@@ -333,7 +348,7 @@ describe("googleCalendarConnection.service complete behavior", () => {
       body: JSON.stringify({ summary: "Test" }),
     }));
     expect(IntegrationConnection.updateOne).toHaveBeenCalledWith(
-      { _id: "conn1" },
+      {_id:"conn1",business:"b1",credentialGeneration:0,status:{$ne:"disconnected"}},
       { $set: expect.objectContaining({ status: "connected", lastErrorAt: null, lastErrorMessage: "" }) },
     );
   });
@@ -344,7 +359,7 @@ describe("googleCalendarConnection.service complete behavior", () => {
     global.fetch.mockResolvedValue(response({ ok: false, status, rejectJson: true }));
     await expect(googleApiRequest({ businessId: "b1", path: "/bad" })).rejects.toBeTruthy();
     expect(IntegrationConnection.updateOne).toHaveBeenCalledWith(
-      { _id: "conn1" },
+      {_id:"conn1",business:"b1",credentialGeneration:0,status:{$ne:"disconnected"}},
       { $set: expect.objectContaining({ status: expectedConnectionStatus, lastErrorAt: expect.any(Date) }) },
     );
   });
@@ -400,8 +415,8 @@ describe("googleCalendarConnection.service complete behavior", () => {
     IntegrationConnection.findOneAndUpdate.mockResolvedValue(disconnected);
     await expect(disconnectGoogleCalendar("b1")).resolves.toBe(disconnected);
     expect(IntegrationConnection.findOneAndUpdate).toHaveBeenCalledWith(
-      { business: "b1", provider: "google_calendar" },
-      { $set: {
+      { _id:"conn1",business:"b1" },
+      expect.objectContaining({$set:expect.objectContaining({
         status: "disconnected",
         accessTokenEncrypted: "",
         refreshTokenEncrypted: "",
@@ -409,8 +424,8 @@ describe("googleCalendarConnection.service complete behavior", () => {
         providerCalendarId: "",
         oauthStateHash: "",
         oauthStateExpiresAt: null,
-      } },
-      { returnDocument: "after" },
+      })}),
+      expect.objectContaining({returnDocument:"after",session:expect.any(Object)}),
     );
   });
 });

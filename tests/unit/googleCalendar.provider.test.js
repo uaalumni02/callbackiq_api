@@ -1,3 +1,4 @@
+import ConnectionModel from '../../src/models/integrationConnection.js';
 import GoogleCalendarProvider from "../../src/integrations/scheduling/googleCalendar.provider.js";
 import { generateInternalSlots } from "../../src/services/scheduling/slotGenerator.service.js";
 import {
@@ -15,12 +16,17 @@ jest.mock("../../src/services/integrations/googleCalendarConnection.service.js",
   googleApiRequest: jest.fn(),
 }));
 
+const allowCalendarWrites=payload=>googleApiRequest.mockImplementation(async({path,method,body})=>{
+ if(path==='/freeBusy')return {calendars:Object.fromEntries(body.items.map(({id})=>[id,{busy:[]}]))};
+ if((!method || method==='GET') && path.includes('/events?'))return {items:[]};return payload;
+});
 describe("GoogleCalendarProvider", () => {
   const business = { _id: "b1", timezone: "America/New_York" };
   let provider;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.spyOn(ConnectionModel,"updateOne").mockResolvedValue({modifiedCount:1});
     provider = new GoogleCalendarProvider({ business });
     getGoogleConnection.mockResolvedValue({ providerCalendarId: "calendar@example.com" });
   });
@@ -46,6 +52,7 @@ describe("GoogleCalendarProvider", () => {
       { startAt: "2026-07-27T20:00:00Z", endAt: "2026-07-27T21:00:00Z" },
     ]);
     googleApiRequest.mockResolvedValue({
+      items: [],
       calendars: {
         "calendar@example.com": {
           busy: [
@@ -71,14 +78,14 @@ describe("GoogleCalendarProvider", () => {
     });
   });
 
-  test("handles a freeBusy response without calendar data", async () => {
+  test("fails closed when freeBusy returns no calendar evidence", async () => {
     generateInternalSlots.mockResolvedValue([{ startAt: "2026-07-27T17:00:00Z", endAt: "2026-07-27T18:00:00Z" }]);
-    googleApiRequest.mockResolvedValue({});
-    await expect(provider.getAvailability({})).resolves.toHaveLength(1);
+    googleApiRequest.mockImplementation(async ({path})=>path==="/freeBusy"?{}:{items:[]});
+    await expect(provider.getAvailability({})).rejects.toMatchObject({code:"GOOGLE_AVAILABILITY_CALENDAR_ERROR"});
   });
 
   test("creates a complete Google event", async () => {
-    googleApiRequest.mockResolvedValue({ id: "event-1", htmlLink: "link" });
+    allowCalendarWrites({ id: "event-1", htmlLink: "link" });
     const appointment = {
       _id: "a1",
       lead: "l1",
@@ -116,18 +123,18 @@ describe("GoogleCalendarProvider", () => {
   });
 
   test("uses fallback event labels and business timezone", async () => {
-    googleApiRequest.mockResolvedValue({ id: "event-1" });
+    allowCalendarWrites({id:"event-1"});
     await provider.createAppointment({
       appointment: { _id: "a1", startAt: "2026-07-27T17:00:00Z", endAt: "2026-07-27T18:00:00Z", address: {} },
     });
-    expect(googleApiRequest.mock.calls[0][0].body).toMatchObject({
+    expect(googleApiRequest.mock.calls.find(([request])=>request.method==="POST" && request.path!=="/freeBusy")[0].body).toMatchObject({
       summary: "Service appointment — Customer",
       start: { timeZone: "America/New_York" },
     });
   });
 
   test("updates document and plain-object appointments", async () => {
-    googleApiRequest.mockResolvedValue({ id: "event-2" });
+    allowCalendarWrites({id:"event-2"});
     const documentAppointment = {
       _id: "a1",
       externalAppointmentId: "event old/id",
@@ -149,7 +156,7 @@ describe("GoogleCalendarProvider", () => {
       expect.objectContaining({ path: "/calendars/custom%2Fcalendar/events/event%20old%2Fid?sendUpdates=all" }),
     );
 
-    googleApiRequest.mockResolvedValue({ id: "event-3" });
+    allowCalendarWrites({id:"event-3"});
     await provider.updateAppointment({
       appointment: {
         _id: "a2",
@@ -160,7 +167,7 @@ describe("GoogleCalendarProvider", () => {
       },
       changes: {},
     });
-    expect(googleApiRequest).toHaveBeenCalledTimes(2);
+    expect(googleApiRequest.mock.calls.filter(([request])=>request.method==="PUT")).toHaveLength(2);
   });
 
   test("rejects updates without an event ID", async () => {
@@ -196,3 +203,5 @@ describe("GoogleCalendarProvider", () => {
     });
   });
 });
+
+afterEach(()=>jest.restoreAllMocks());

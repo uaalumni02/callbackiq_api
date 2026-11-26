@@ -325,7 +325,7 @@ export const syncGoogleCalendar = async ({
     await run();
   }
 
-  invalidateGoogleAvailabilityCache(businessId);
+  await invalidateGoogleAvailabilityCache(businessId);
   await saveGoogleMetadata(connection, {
     ...(connection.metadata?.googleCalendar || {}),
     sync: {

@@ -1,3 +1,4 @@
+import {assertProviderEntitlement,withProviderBusiness} from './providerEntitlement.service.js';
 import { voiceConversationTurnOwnsVoiceIntakeConversationAtomicUpdate, voiceConversationTurnOwnsVoiceIntakeConversationFields, voiceConversationTurnOwnsVoiceIntakeConversationFields2 } from './stateTransitions/customerRequest.js';
 import Conversation from '../models/conversation.js';
 import Lead from '../models/lead.js';
@@ -39,6 +40,7 @@ const ownsVoiceIntake = async (session, conversation, businessId) => {
 // SMS workers use this same per-conversation key. Refresh after acquiring it:
 // a populated voice session is a snapshot, not the current shared intake state.
 export const runVoiceConversationTurn = async ({ session, customerMessage, operation, turnId = '' }) => {
+  await assertProviderEntitlement(session.business?._id || session.business, "voice");
   assertVoiceTurnActive();
   const safety = voiceSafetyAssessment(customerMessage);
   if (safety) return voiceSafetyReviewReply({ session, customerMessage, turnId, assessment: safety });
@@ -64,7 +66,7 @@ export const runVoiceConversationTurn = async ({ session, customerMessage, opera
     if (!await ownsVoiceIntake(session, conversation, businessId)) return await voiceSafetyReviewReply({ session, customerMessage, turnId }) ||
       { reply: 'Another call from this number is already handling this request. I cannot change it on this call. Please finish the other call, then call again if you need help with a separate request.' };
     assertDistributedLeaseActive();
-    const result = await operation();
+    const result = await withProviderBusiness(businessId,operation);
     assertDistributedLeaseActive();
     assertVoiceTurnActive();
     const latest = await Conversation.findOne({ _id: conversationId, business: businessId });

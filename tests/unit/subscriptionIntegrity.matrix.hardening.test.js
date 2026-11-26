@@ -174,11 +174,11 @@ describe("subscriptionIntegrity.service adversarial matrix", () => {
     });
   });
 
-  test("listLiveStripeSubscriptions tolerates malformed Stripe list payload", async () => {
+  test("listLiveStripeSubscriptions rejects unverifiable malformed Stripe inventory", async () => {
     const stripe = { subscriptions: { list: jest.fn().mockResolvedValue({ data: null }) } };
     await expect(
       listLiveStripeSubscriptions({ stripe, stripeCustomerId: "cus-1" }),
-    ).resolves.toEqual([]);
+    ).rejects.toMatchObject({code:"STRIPE_INVENTORY_UNVERIFIED"});
   });
 
   test("findExistingStripeCustomerForBusiness returns null when search cannot be performed", async () => {

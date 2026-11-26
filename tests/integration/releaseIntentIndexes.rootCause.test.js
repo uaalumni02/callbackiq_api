@@ -10,9 +10,10 @@ const intent=overrides=>({_id:new mongoose.Types.ObjectId().toHexString(),schema
  authorization:{kind:'administrative'},status:'pending',claimGeneration:0,...overrides});
 test('the required-index gate contains every release-intent index with its safety options',async()=>{
  const actual=await Intent.collection.indexes();
- const entries=manifest.filter(row=>row.collection==='trackingnumberreleaseintents');expect(entries).toHaveLength(3);
+ const entries=manifest.filter(row=>row.collection==='trackingnumberreleaseintents');expect(entries).toHaveLength(4);
  for(const entry of entries)expect(inspectRequiredIndex(actual,entry)).toBe('ok');
- expect(actual.some(index=>index.expireAfterSeconds!==undefined)).toBe(false);
+ expect(actual.filter(index=>index.expireAfterSeconds!==undefined)).toEqual([expect.objectContaining({key:{purgeAt:1},expireAfterSeconds:0})]);
+ expect(Intent.schema.path('purgeAt').defaultValue).toBe(null); // Unresolved receipts have no expiry.
 });
 test('two businesses cannot simultaneously release the same account SID',async()=>{
  const first=await Intent.create(intent());

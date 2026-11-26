@@ -1,3 +1,4 @@
+import {numericSetting} from '../config/numericSettings.js';
 import VoiceSession from "../models/voiceSession.js";
 import {
   logOperationalError,
@@ -8,21 +9,10 @@ import VoiceSessionService, {
 } from "./voiceSession.service.js";
 
 const NON_TERMINAL = { $nin: [...TERMINAL_STATUSES] };
-const safeInteger = (value, fallback, minimum, maximum) => {
-  const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed)
-    ? Math.min(maximum, Math.max(minimum, parsed))
-    : fallback;
-};
 
 class VoiceSessionMaintenanceService {
   static async reapStaleSessions({
-    staleMinutes = safeInteger(
-      process.env.VOICE_STALE_SESSION_MINUTES,
-      15,
-      5,
-      120,
-    ),
+    staleMinutes = numericSetting('VOICE_STALE_SESSION_MINUTES'),
     limit = 100,
     now = new Date(),
   } = {}) {
@@ -84,12 +74,7 @@ class VoiceSessionMaintenanceService {
   }
 
   static async redactExpiredTranscripts({
-    retentionDays = safeInteger(
-      process.env.VOICE_TRANSCRIPT_RETENTION_DAYS,
-      30,
-      1,
-      365,
-    ),
+    retentionDays = numericSetting('VOICE_TRANSCRIPT_RETENTION_DAYS'),
     limit = 500,
     now = new Date(),
   } = {}) {

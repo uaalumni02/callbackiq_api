@@ -1,3 +1,5 @@
+import {disconnectGoogleAccount,assertGoogleReconnectAllowed} from './googleDisconnect.service.js';
+import {googleHttpRequest} from './googleHttpRequest.js';
 import { saveStateDocument } from '../stateTransitions/documents.js';
 import crypto from "crypto";
 import Business from "../../models/business.js";
@@ -6,7 +8,6 @@ import { decryptSecret, encryptSecret } from "./tokenEncryption.service.js";
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
-const GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke";
 const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo";
 const GOOGLE_CALENDAR_API = "https://www.googleapis.com/calendar/v3";
 
@@ -184,7 +185,7 @@ const resolveSelectedQuery = async (query, selection) => {
 
 const getGoogleAccount = async (accessToken) => {
   try {
-    const response = await fetch(GOOGLE_USERINFO_URL, {
+    const response = await googleHttpRequest(GOOGLE_USERINFO_URL, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     const account = await parseProviderResponse(response, "Google account lookup");
@@ -217,6 +218,7 @@ const markReconnectRequired = async (connection, error) => {
 };
 
 export const buildGoogleAuthorizationUrl = async (businessId, ownerId = "") => {
+  await assertGoogleReconnectAllowed(businessId);
   const { clientId, redirectUri, stateSecret } = getGoogleOAuthConfig();
   const nonce = crypto.randomBytes(24).toString("base64url");
   const expiresAt = Date.now() + 10 * 60_000;
@@ -341,7 +343,7 @@ export const exchangeGoogleAuthorizationCode = async ({ code, state }) => {
   connection.oauthStateHash = "";
   connection.oauthStateExpiresAt = null;
 
-  const response = await fetch(GOOGLE_TOKEN_URL, {
+  const response = await googleHttpRequest(GOOGLE_TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -471,7 +473,7 @@ export const getGoogleAccessToken = async (businessId, { signal } = {}) => {
     throw error;
   }
 
-  const response = await fetch(GOOGLE_TOKEN_URL, {
+  const response = await googleHttpRequest(GOOGLE_TOKEN_URL, {
     method: "POST",
     ...(signal ? { signal } : {}),
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -525,6 +527,21 @@ export const getGoogleAccessToken = async (businessId, { signal } = {}) => {
   }
 };
 
+const markGoogleRequestHealthy=async(connection,businessId)=>{
+    await IntegrationConnection.updateOne(
+      { _id: connection._id, business: businessId, credentialGeneration:connection.credentialGeneration || 0, status:{$ne:"disconnected"} },
+      {
+        $set: {
+          status: "connected",
+          lastSuccessfulSyncAt: new Date(),
+          lastErrorAt: null,
+          lastErrorCode: "",
+          lastErrorMessage: "",
+        },
+      },
+    );
+};
+
 export const googleApiRequest = async ({
   businessId,
   path,
@@ -533,8 +550,12 @@ export const googleApiRequest = async ({
   allowStatuses = [],
   signal,
 }) => {
+  if(['POST','PUT','PATCH'].includes(method) && !['/freeBusy','/channels/stop'].includes(path)) {
+    const {assertProviderEntitlement}=await import('../providerEntitlement.service.js');
+    await assertProviderEntitlement(businessId,'google');
+  }
   const { token, connection } = await getGoogleAccessToken(businessId, { signal });
-  const response = await fetch(`${GOOGLE_CALENDAR_API}${path}`, {
+  const response = await googleHttpRequest(`${GOOGLE_CALENDAR_API}${path}`, {
     method,
     ...(signal ? { signal } : {}),
     headers: {
@@ -552,23 +573,12 @@ export const googleApiRequest = async ({
           response,
           `Google Calendar ${method} ${path}`,
         );
-    await IntegrationConnection.updateOne(
-      { _id: connection._id },
-      {
-        $set: {
-          status: "connected",
-          lastSuccessfulSyncAt: new Date(),
-          lastErrorAt: null,
-          lastErrorCode: "",
-          lastErrorMessage: "",
-        },
-      },
-    );
+    await markGoogleRequestHealthy(connection,businessId);
     return payload;
   } catch (error) {
     const authorizationExpired = response.status === 401;
     await IntegrationConnection.updateOne(
-      { _id: connection._id },
+      { _id: connection._id, business: businessId, credentialGeneration:connection.credentialGeneration || 0, status:{$ne:"disconnected"} },
       {
         $set: {
           status: authorizationExpired ? "expired" : "error",
@@ -826,91 +836,5 @@ export const selectGoogleCalendar = async ({
   );
 };
 
-export const disconnectGoogleCalendar = async (businessId) => {
-  const connection = await getGoogleConnection(businessId, true);
-
-  const channel = connection?.metadata?.googleCalendar?.channel || {};
-  if (channel.id && channel.resourceId && connection?.accessTokenEncrypted) {
-    try {
-      await googleApiRequest({
-        businessId,
-        path: "/channels/stop",
-        method: "POST",
-        body: { id: channel.id, resourceId: channel.resourceId },
-      });
-    } catch {
-      // Local disconnection still completes when an old watch already expired.
-    }
-  }
-
-  const tokenToRevoke = connection?.refreshTokenEncrypted
-    ? decryptSecret(connection.refreshTokenEncrypted)
-    : connection?.accessTokenEncrypted
-      ? decryptSecret(connection.accessTokenEncrypted)
-      : "";
-  if (tokenToRevoke) {
-    try {
-      await fetch(GOOGLE_REVOKE_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({ token: tokenToRevoke }),
-      });
-    } catch {
-      // Clearing local credentials is mandatory even if revocation fails.
-    }
-  }
-
-  // Keep the established update contract for existing callers and tests.
-  const disconnected = await IntegrationConnection.findOneAndUpdate(
-    { business: businessId, provider: "google_calendar" },
-    {
-      $set: {
-        status: "disconnected",
-        accessTokenEncrypted: "",
-        refreshTokenEncrypted: "",
-        tokenExpiresAt: null,
-        providerCalendarId: "",
-        oauthStateHash: "",
-        oauthStateExpiresAt: null,
-      },
-    },
-    { returnDocument: "after" },
-  );
-
-  if (!disconnected) return null;
-
-  const googleCalendar = {
-    ...(connection?.metadata?.googleCalendar || {}),
-    bookingCalendarId: "",
-    bookingCalendarName: "",
-    availabilityCalendarIds: [],
-    channel: {},
-    sync: {},
-  };
-  const additionalFields = {
-    providerAccountId: "",
-    providerAccountEmail: "",
-    providerCalendarName: "",
-    availabilityCalendarIds: [],
-    watchChannelId: "",
-    watchResourceId: "",
-    watchExpiresAt: null,
-    syncToken: "",
-    disconnectedAt: new Date(),
-    lastVerifiedAt: null,
-    metadata: {
-      ...(connection?.metadata || disconnected.metadata || {}),
-      googleCalendar,
-    },
-  };
-
-  if (disconnected._id) {
-    await IntegrationConnection.updateOne(
-      { _id: disconnected._id, business: businessId },
-      { $set: additionalFields },
-    );
-  }
-  Object.assign(disconnected, additionalFields);
-  return disconnected;
-};
-
+/** Clears local use immediately and retains durable revocation receipts/retries. */
+export const disconnectGoogleCalendar = async businessId => disconnectGoogleAccount(await getGoogleConnection(businessId,true));

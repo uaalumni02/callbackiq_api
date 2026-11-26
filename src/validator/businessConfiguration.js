@@ -147,17 +147,8 @@ export const operationsSettingsSchema = Joi.object({
   }),
   humanHandoffContacts: Joi.array().items(handoffContactSchema).max(25),
   emergencyPolicy: Joi.object({
-    enabled: Joi.boolean(),
-    emergencyContactPhone: Joi.string().allow("").trim().max(30),
-    emergencyInstructions: Joi.string().allow("").trim().max(1500),
-    customerSafetyMessage: Joi.string().allow("").trim().max(1000),
-    afterHoursAction: Joi.string().valid(
-      "collect_details",
-      "escalate",
-      "handoff",
-      "emergency_only",
-    ),
-    pauseAiOnEmergency: Joi.boolean(),
+    emergencyContactPhone: Joi.string().allow("").pattern(/^\+1\d{10}$/),
+    emergencyContactEmail: Joi.string().allow("").email({tlds:{allow:false}}).max(200),
   }),
   aiPermissions: Joi.object({
     canDiscussServices: Joi.boolean(),

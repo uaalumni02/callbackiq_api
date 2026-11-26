@@ -26,7 +26,7 @@ afterAll(closeTestDB);
 beforeEach(() => {
   jest.clearAllMocks();
   process.env.TWILIO_ACCOUNT_SID = 'AC11111111111111111111111111111111';
-  process.env.TWILIO_AUTH_TOKEN = 'synthetic-test-token';
+  process.env.TWILIO_AUTH_TOKEN = 'test-trial-setup-token';
   const urls = buildTwilioWebhookUrls('https://api.example.test');
   inventory = jest.fn(async () => [{ phoneNumber: '+14045550123' }]);
   purchase = jest.fn(async () => ({ sid: 'PN_PREPARED', phoneNumber: '+14045550123' }));
@@ -35,7 +35,7 @@ beforeEach(() => {
   createTwilioClient.mockReturnValue({ availablePhoneNumbers: () => ({ local: { list: inventory } }), incomingPhoneNumbers });
   stripe = { customers: { create: jest.fn(async () => ({ id: 'cus_prepared' })) },
     subscriptions: { list: jest.fn(async () => ({ data: [] })), retrieve: jest.fn() },
-    checkout: { sessions: { create: jest.fn(async () => ({ id: 'cs_prepared', url: 'https://checkout.stripe.test/prepared' })), retrieve: jest.fn(), expire: jest.fn(async () => ({ id: 'cs_prepared', status: 'expired' })) } } };
+    checkout: { sessions: { create: jest.fn(async () => ({ id: 'cs_prepared', status:'open', url: 'https://checkout.stripe.test/prepared' })), retrieve: jest.fn(), expire: jest.fn(async () => ({ id: 'cs_prepared', status: 'expired' })) } } };
   getStripeClient.mockReturnValue(stripe);
 });
 

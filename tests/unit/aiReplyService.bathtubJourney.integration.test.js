@@ -1,3 +1,5 @@
+// The fake SDK is the provider boundary in this domain-unit suite; entitlement/budget dispatch is verified separately against Mongo.
+jest.mock('../../src/integrations/providerClients.js',()=>({createOpenAIClient:(_purpose,options)=>new (require('openai').default)(options)}));
 jest.mock('../../src/helpers/ai/tools/validateServiceArea.tool.js', () => ({ __esModule: true, default: jest.fn().mockResolvedValue({ supported: true, reason: 'matched' }) }));
 import Operations from '../../src/models/businessOperationsSettings.js';
 jest.mock('../../src/models/businessOperationsSettings.js', () => ({ __esModule: true, default: { findOne: jest.fn() } }));

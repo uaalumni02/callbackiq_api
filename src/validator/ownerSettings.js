@@ -23,7 +23,7 @@ export const ownerSettingsSchemas = {
     transferPhone: Joi.string().allow("").max(30).required(),
     welcomeGreeting: Joi.string().allow("").max(300).required(),
     overflowRingSeconds: Joi.number().integer().min(15).max(25).required(),
-    liveTransferEnabled: Joi.boolean().required(), liveTransferPhone: Joi.string().allow("").max(30).required(),
+    liveTransferEnabled: Joi.boolean().valid(false).default(false), liveTransferPhone: Joi.string().valid("").default(""),
     smsTemplate: Joi.string().trim().max(500).allow("").required(),
     missedCallSmsEnabled: Joi.boolean().required(),
     automaticTextsEnabled: Joi.boolean().required(), voiceTextsEnabled: Joi.boolean().required(), appointmentTextsEnabled: Joi.boolean().required(),

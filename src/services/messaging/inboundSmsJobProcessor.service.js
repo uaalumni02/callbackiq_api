@@ -1,3 +1,4 @@
+import {readProviderEntitlement} from '../providerEntitlement.service.js';
 import { resolveSmsRecords } from './inboundSmsRecords.service.js';
 import { persistStaffFollowUp as persistStaffFollowUpTurn } from './staffFollowUp.service.js';
 import { handleSmsContactControl, handleSmsRequestInterrupt } from "./inboundSmsDeterministicActions.service.js";
@@ -210,6 +211,7 @@ async function skipIneligibleAutomation(context) {
 
 export const processInboundSmsJob = async (job) => {
   const records = await resolveSmsRecords(job);
+  if (!(await readProviderEntitlement(job.business)).allowed) return {decision:"skipped",reason:"subscription_inactive",sent:false};
   const turn = { ...records, customerTurn: await loadNormalizedTurn(records) };
   const appointmentReply = await routeAppointmentReply(turn);
   if (appointmentReply) return appointmentReply;

@@ -1,9 +1,11 @@
+import {capabilityEnvironment} from '../tests/fixtures/capabilityEnvironment.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { validateEnvironment } from '../src/config/env.js';
 import { getMongoUrl, normalizeRuntimeEnvironment } from '../src/config/runtime-environment.js';
 
 const source = () => ({
+  ...capabilityEnvironment(),
   APP_ENV: 'staging',
   NODE_ENV: 'production',
   JWT_SECRET: 'a'.repeat(64),

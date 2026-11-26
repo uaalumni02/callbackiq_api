@@ -1,3 +1,5 @@
+import { applyOwnerCallSettings } from './ownerSettingsVoice.service.js';
+import {readStaffDeliveryState} from './notifications/recipientPolicy.service.js';
 import { saveStateDocument } from './stateTransitions/documents.js';
 import { refreshUpcomingAppointmentNotifications } from './scheduling/appointmentNotification.service.js';
 import { getTradeSetup } from './trades/tradeSetup.service.js';
@@ -11,10 +13,9 @@ import AvailabilityRule from "../models/availabilityRule.js";
 import AvailabilityException from "../models/availabilityException.js";
 import SchedulingPolicy from "../models/schedulingPolicy.js";
 import BusinessOperationsSettings from "../models/businessOperationsSettings.js";
+import {normalizePhoneToE164} from "../voice/voicePhone.service.js";
 import { validateOwnerSection } from "../validator/ownerSettings.js";
-import { validateUpdate, assertNoDialLoops } from "../controllers/voiceSettings.js";
-import { normalizeVoiceSettings, getPresetRoutingPolicy, inferAnswerMode } from "../voice/voiceRouting.service.js";
-import { validateVoiceSettingsDraft } from "./voiceSettingsContract.service.js";
+import { normalizeVoiceSettings } from "../voice/voiceRouting.service.js";
 import { recordVoiceSettingsVersion } from "./voiceSettingsVersion.service.js";
 const plain = value => value?.toObject?.() || value;
 const pick = (object, keys) => Object.fromEntries(keys.filter(key => object?.[key] !== undefined).map(key => [key, object[key]]));
@@ -39,6 +40,9 @@ const withDefaults = (defaults, stored) => {
   }
   return result;
 };
+
+// Delivery-test clocks are operational state; actual settings and consent remain in the optimistic-lock digest.
+const revisionOperations = rows => rows.map(row => Object.fromEntries(Object.entries(row).filter(([key]) => !['notificationTestAt', 'updatedAt'].includes(key))));
 
 // Reads do not create defaults in the database or activate features.
 export async function readOwnerSettings(business, session = null) {
@@ -76,20 +80,21 @@ export async function readOwnerSettings(business, session = null) {
       voiceTextsEnabled: business.customerMessaging?.configured ? business.customerMessaging.voiceTextsEnabled !== false : business.features?.missedCallSmsEnabled !== false,
       appointmentTextsEnabled: business.customerMessaging?.appointmentTextsEnabled !== false,
     },
-    team: { humanHandoffContacts: plain(ops.humanHandoffContacts) || [], emergencyPolicy: plain(ops.emergencyPolicy) },
+    team: { humanHandoffContacts: plain(ops.humanHandoffContacts) || [], emergencyPolicy: pick(plain(ops.emergencyPolicy), ["emergencyContactPhone", "emergencyContactEmail"]) },
   };
   // Include stored records in the revision so edits through older screens are detected too.
-  const revision = hash({ business: pick(business, [...profileKeys, "smsTemplate", "features", "voiceSettings", "customerMessaging", "ownerSettingsRevision"]), services, areas, rules, exceptions, policies, operations });
+  const revision = hash({ business: pick(business, [...profileKeys, "smsTemplate", "features", "voiceSettings", "customerMessaging", "ownerSettingsRevision"]), services, areas, rules, exceptions, policies, operations: revisionOperations(operations) });
   const automated = business.features?.voiceAiEnabled || (sections.calls.automaticTextsEnabled && sections.calls.missedCallSmsEnabled);
   const checklist = [
     { section: "business", label: "Add your business details", complete: Boolean(business.businessName && business.forwardingPhone) },
     ...(automated ? [
       { section: "services", label: "Add your services and service area", complete: services.some(s => s.active) && (area.type === "unrestricted" || area.type === "radius" && Boolean(area.centerPostalCode && area.radiusMiles) || area.type === "zip_codes" && area.zipCodes?.length > 0) },
       { section: "hours", label: "Add your business hours", complete: rules.some(r => r.enabled && r.windows?.length) },
-      { section: "team", label: "Choose who receives customer requests", complete: Boolean(ops.humanHandoffContacts?.some(c => c.active && (c.phone || c.email))) },
+      { section: "team", label: "Choose who receives customer requests", complete: Boolean(ops.humanHandoffContacts?.some(c => c.active && (c.phone || c.email)) && ops.emergencyPolicy?.emergencyContactPhone && ops.emergencyPolicy?.emergencyContactEmail) },
     ] : []),
   ];
-  return JSON.parse(JSON.stringify({ businessId: String(business._id), sections, revision, checklist, tradeSetup: getTradeSetup(business.businessType, services, policy), notificationReadiness: { staffSmsEnabled: process.env.STAFF_NOTIFICATION_SMS_ENABLED !== 'false', smsEnabled: process.env.STAFF_APPROVAL_SMS_ENABLED === 'true', emailEnabled: process.env.STAFF_NOTIFICATION_EMAIL_ENABLED === 'true', warning: process.env.STAFF_NOTIFICATION_EMAIL_ENABLED === 'true' ? 'Approval email requires a verified owner email. Provider acceptance does not prove delivery.' : 'Email alerts are not available yet. Contact support to activate them. Check your customer inbox until delivery is verified.' }, trackingPhone: business.phone || "", voiceEnabled: voice.voiceAiEnabled,
+  const notificationDelivery = session ? [] : await readStaffDeliveryState(business._id);
+  return JSON.parse(JSON.stringify({ notificationDelivery, businessId: String(business._id), sections, revision, checklist, tradeSetup: getTradeSetup(business.businessType, services, policy), notificationReadiness: { staffSmsEnabled: process.env.STAFF_NOTIFICATION_SMS_ENABLED !== 'false', smsEnabled: process.env.STAFF_APPROVAL_SMS_ENABLED === 'true', emailEnabled: process.env.STAFF_NOTIFICATION_EMAIL_ENABLED === 'true', warning: process.env.STAFF_NOTIFICATION_EMAIL_ENABLED === 'true' ? 'Notifications use saved active Team & Urgent Requests contacts. Confirm receipt with a test; acceptance does not prove delivery.' : 'Email alerts are not available yet. Contact support to activate them. Check your customer inbox until delivery is verified.' }, trackingPhone: business.phone || "", voiceEnabled: voice.voiceAiEnabled,
     customRouting: voice.routingPolicy,
     bookingRestrictedServices: services.filter(s => s.active && (!s.aiCanBook || s.requiresHumanReview)).map(s => s.name),
   }));
@@ -118,7 +123,55 @@ async function saveRows(Model, businessId, rows, removed, session) {
   }
 }
 
+const normalizeTeamDestinations=payload=>{
+ const normalize=value=>{if(!value)return '';const result=normalizePhoneToE164(value);if(!/^\+1\d{10}$/.test(result || ''))throw error('Enter a valid US mobile number including its area code.');return result;};
+ return {...payload,humanHandoffContacts:(payload.humanHandoffContacts || []).map(contact=>({...contact,phone:normalize(contact.phone)})),emergencyPolicy:{...payload.emergencyPolicy,emergencyContactPhone:normalize(payload.emergencyPolicy?.emergencyContactPhone)}};
+};
+const saveTeamSettings=async(id,values,ownerId,session)=>{
+ for(const contact of values.humanHandoffContacts || [])if(!contact.phone && !contact.email)throw error("Each team contact needs a phone number or email address.");
+ const urgent=values.emergencyPolicy || {};
+ if(Boolean(urgent.emergencyContactPhone)!==Boolean(urgent.emergencyContactEmail))throw error("Save both a US mobile number (+1…) and an email for your urgent contact.");
+ await saveDocument(BusinessOperationsSettings,id,{...values,notificationConsent:{actor:ownerId,at:new Date()}},session);
+};
+
+async function saveOwnerHours(business, values, session) {
+  const id = business._id;
+  if (values.rules.length !== 7 || new Set(values.rules.map(r => r.dayOfWeek)).size !== 7) throw error("Provide each day of the week once.");
+  for (const rule of values.rules) {
+    if (rule.enabled && !rule.windows.length) throw error("Add opening and closing times for each open day.");
+    validateWindows(rule.windows);
+    if (rule.separateAnsweringHours) {
+      if (rule.answeringEnabled && !rule.answeringWindows?.length) throw error('Add answering hours or mark the office closed.');
+      validateWindows(rule.answeringWindows || []);
+    }
+    await AvailabilityRule.findOneAndUpdate({ business: id, dayOfWeek: rule.dayOfWeek }, { $set: { ...rule, timezone: business.timezone } }, { upsert: true, runValidators: true, session });
+  }
+  for (const exception of values.exceptions) {
+    if (exception.type === 'special_hours' || exception.allDay === false) {
+      if (!exception.windows?.length) throw error('Add hours for the temporary change.');
+      validateWindows(exception.windows);
+    }
+  }
+  await saveRows(AvailabilityException, id, values.exceptions, values.removedExceptionIds, session);
+  if (values.schedulingPolicy.staffSmsEnabled && !/^\+1\d{10}$/.test(values.schedulingPolicy.staffSmsPhone || '')) throw error('Enter a US mobile number including +1 for customer request texts.');
+  if (values.schedulingPolicy.approvalSmsEnabled && !/^\+1\d{10}$/.test(values.schedulingPolicy.approvalSmsPhone || '')) throw error('Enter a US mobile number including +1 for approval texts.');
+  const booking = values.bookingMode !== "callback";
+  await saveDocument(SchedulingPolicy, id, { ...values.schedulingPolicy, automaticConfirmationAuthorized: values.bookingMode === "automatic", aiBookingConfirmationMode: values.bookingMode === "automatic" ? "auto" : "manual" }, session);
+  const ops = await BusinessOperationsSettings.findOne({ business: id }).session(session) || new BusinessOperationsSettings({ business: id });
+  // Translate a deliberate booking choice, while leaving unrelated business permissions intact.
+  ops.set("aiPermissions.canBookEligibleServices", booking);
+  ops.set("aiPermissions.canConfirmAvailability", booking);
+  if (booking) {
+    ops.set("aiPermissions.canCollectAddress", true);
+    ops.set("aiPermissions.canCollectAppointmentPreference", true);
+    ops.set("aiPermissions.canDiscussServices", true);
+  }
+  await saveStateDocument(ops, { session });
+  business.set("features.aiBookingEnabled", booking);
+}
+
 export async function saveOwnerSettings({ ownerId, section, payload, revision }) {
+  if(section==='team')payload=normalizeTeamDestinations(payload);
   let values = section === "business" ? null : await validateOwnerSection(section, payload);
   if (!revision || typeof revision !== "string") throw error("Reload settings before saving.", 409);
   const session = await mongoose.startSession();
@@ -147,62 +200,9 @@ export async function saveOwnerSettings({ ownerId, section, payload, revision })
         const newlyDisclosedFee = values.services.some(service => service.discloseDiagnosticFee && !before.sections.services.services.find(old => String(old._id) === String(service._id))?.discloseDiagnosticFee);
         if (newlyDisclosedFee) { ops.set("aiPermissions.canDiscussDiagnosticFees", true); await saveStateDocument(ops, { session }); }
       }
-      if (section === "hours") {
-        if (values.rules.length !== 7 || new Set(values.rules.map(r => r.dayOfWeek)).size !== 7) throw error("Provide each day of the week once.");
-        for (const rule of values.rules) {
-          if (rule.enabled && !rule.windows.length) throw error("Add opening and closing times for each open day.");
-          validateWindows(rule.windows);
-          if (rule.separateAnsweringHours) {
-            if (rule.answeringEnabled && !rule.answeringWindows?.length) throw error('Add answering hours or mark the office closed.');
-            validateWindows(rule.answeringWindows || []);
-          }
-          await AvailabilityRule.findOneAndUpdate({ business: id, dayOfWeek: rule.dayOfWeek }, { $set: { ...rule, timezone: business.timezone } }, { upsert: true, runValidators: true, session });
-        }
-        for (const exception of values.exceptions) {
-          if (exception.type === 'special_hours' || exception.allDay === false) {
-            if (!exception.windows?.length) throw error('Add hours for the temporary change.');
-            validateWindows(exception.windows);
-          }
-        }
-        await saveRows(AvailabilityException, id, values.exceptions, values.removedExceptionIds, session);
-        if (values.schedulingPolicy.staffSmsEnabled && !/^\+1\d{10}$/.test(values.schedulingPolicy.staffSmsPhone || '')) throw error('Enter a US mobile number including +1 for customer request texts.');
-        if (values.schedulingPolicy.approvalSmsEnabled && !/^\+1\d{10}$/.test(values.schedulingPolicy.approvalSmsPhone || '')) throw error('Enter a US mobile number including +1 for approval texts.');
-        const booking = values.bookingMode !== "callback";
-        await saveDocument(SchedulingPolicy, id, { ...values.schedulingPolicy, automaticConfirmationAuthorized: values.bookingMode === "automatic", aiBookingConfirmationMode: values.bookingMode === "automatic" ? "auto" : "manual" }, session);
-        const ops = await BusinessOperationsSettings.findOne({ business: id }).session(session) || new BusinessOperationsSettings({ business: id });
-        // Translate a deliberate booking choice, while leaving unrelated business permissions intact.
-        ops.set("aiPermissions.canBookEligibleServices", booking);
-        ops.set("aiPermissions.canConfirmAvailability", booking);
-        if (booking) {
-          ops.set("aiPermissions.canCollectAddress", true);
-          ops.set("aiPermissions.canCollectAppointmentPreference", true);
-          ops.set("aiPermissions.canDiscussServices", true);
-        }
-        await saveStateDocument(ops, { session });
-        business.set("features.aiBookingEnabled", booking);
-      }
-      if (section === "team") {
-        for (const contact of values.humanHandoffContacts || []) if (!contact.phone && !contact.email) throw error("Each team contact needs a phone number or email address.");
-        await saveDocument(BusinessOperationsSettings, id, values, session);
-      }
-      if (section === "calls") {
-        const current = normalizeVoiceSettings(business);
-        const voiceInput = pick(values, ["answerMode", "transferPhone", "welcomeGreeting", "overflowRingSeconds", "liveTransferEnabled", "liveTransferPhone"]);
-        const update = validateUpdate(voiceInput, current);
-        const voiceEnabled = values.answerMode === "custom" ? current.voiceAiEnabled : values.answerMode !== "disabled";
-        const routingPolicy = values.answerMode === "custom" ? current.routingPolicy : getPresetRoutingPolicy(values.answerMode);
-        const merged = { ...plain(business.voiceSettings), ...update, routingPolicy, routingPolicyVersion: 1, recordingEnabled: false };
-        merged.answerMode = inferAnswerMode({ voiceAiEnabled: voiceEnabled, routingPolicy });
-        assertNoDialLoops({ business, settings: merged });
-        if (merged.liveTransferEnabled && !merged.liveTransferPhone) throw error("Add a separate answered phone number for live transfers.");
-        const validation = validateVoiceSettingsDraft({ ...current, ...merged, voiceAiEnabled: voiceEnabled }, { currentVoiceName: current.voiceName });
-        if (!validation.valid) throw error(validation.errors.map(e => e.message).join(" "));
-        business.set("voiceSettings", merged);
-        business.set("features.voiceAiEnabled", voiceEnabled);
-        business.set("features.missedCallSmsEnabled", values.missedCallSmsEnabled);
-        business.set("customerMessaging", { ...pick(values, ["automaticTextsEnabled", "voiceTextsEnabled", "appointmentTextsEnabled"]), configured: true });
-        business.set("smsTemplate", values.smsTemplate);
-      }
+      if (section === "hours") await saveOwnerHours(business, values, session);
+      if (section === "team") await saveTeamSettings(id,values,ownerId,session);
+      if (section === "calls") applyOwnerCallSettings({ business, values });
       business.ownerSettingsRevision = (business.ownerSettingsRevision || 0) + 1;
       await saveStateDocument(business, { session });
       if (section === "calls" || section === "hours" && before.sections.hours.bookingMode !== values.bookingMode) {

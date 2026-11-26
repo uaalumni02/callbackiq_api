@@ -134,6 +134,7 @@ describe("Stripe-native trial lifecycle regression", () => {
         sessions: {
           create: jest.fn().mockResolvedValue({
             id: "cs_trial_1",
+            status: "open",
             url: "https://checkout.stripe.test/trial",
           }),
         },

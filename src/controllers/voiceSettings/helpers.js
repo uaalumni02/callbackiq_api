@@ -71,6 +71,8 @@ const cleanGreeting = (value) => {
 };
 
 export const validateUpdate = (body = {}, currentSettings = {}) => {
+  if (["dailyVoiceMinutes","monthlyVoiceMinutes","voiceHardCapEnabled","voiceOverageEnabled"].some(key=>Object.hasOwn(body,key))) throw validationError("Pilot allowances are set by your plan. Contact support for a spending restriction.",403,"PLAN_BUDGET_READ_ONLY");
+  if (body.liveTransferEnabled === true || body.liveTransferPhone) throw Object.assign(new Error("Live transfer is unavailable during the callback-only pilot."),{statusCode:403,code:"PILOT_CALLBACK_ONLY"});
   const update = {};
   for (const key of [
     "voiceAiEnabled",
@@ -149,12 +151,6 @@ export const validateUpdate = (body = {}, currentSettings = {}) => {
     update.transferPhone = normalizeRequiredPhone(
       body.transferPhone,
       "transferPhone",
-    );
-  }
-  if (Object.hasOwn(body, "liveTransferPhone")) {
-    update.liveTransferPhone = normalizeRequiredPhone(
-      body.liveTransferPhone,
-      "liveTransferPhone",
     );
   }
   if (Object.hasOwn(body, "welcomeGreeting")) {

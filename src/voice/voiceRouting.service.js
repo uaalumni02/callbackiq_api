@@ -1,7 +1,7 @@
+import {pilotVoiceLimits} from '../config/pilotBudgets.js';
 import { normalizeEmergencyNumberForSpeech } from "./voiceSpeech.service.js";
 import {
   normalizePhoneToE164,
-  phoneNumbersEqual,
 } from "./voicePhone.service.js";
 
 const escapeXml = (value) =>
@@ -183,14 +183,9 @@ export const normalizeVoiceSettings = (business) => {
   const transferPhone = normalizePhoneToE164(
     raw.transferPhone || business?.forwardingPhone,
   );
-  let liveTransferPhone = normalizePhoneToE164(raw.liveTransferPhone);
-  const trackingPhone = normalizePhoneToE164(business?.phone);
-  const liveTransferLoops = Boolean(
-    liveTransferPhone &&
-      phoneNumbersEqual(liveTransferPhone, trackingPhone),
-  );
-  if (liveTransferLoops) liveTransferPhone = "";
 
+
+  const trackingPhone = normalizePhoneToE164(business?.phone);
   const configuredWelcomeGreeting = cleanGreeting(raw.welcomeGreeting);
   const resolvedWelcomeGreeting =
     configuredWelcomeGreeting || dynamicGreeting(business?.businessName);
@@ -207,8 +202,8 @@ export const normalizeVoiceSettings = (business) => {
     // Preserve the owner's enabled/disabled choice when the dedicated number is
     // merely missing so readiness can report the configuration blocker. Disable
     // only an actual routing loop, which must never be treated as usable.
-    liveTransferEnabled: Boolean(raw.liveTransferEnabled && !liveTransferLoops),
-    liveTransferPhone,
+    liveTransferEnabled: false,
+    liveTransferPhone: "",
     configuredWelcomeGreeting,
     // Backward-compatible public field: callers and existing tests expect the
     // resolved business-identifying greeting here. The frontend uses
@@ -225,20 +220,10 @@ export const normalizeVoiceSettings = (business) => {
       600,
     ),
     maxConcurrentCalls: boundedInteger(raw.maxConcurrentCalls, 25, 1, 100),
-    dailyVoiceMinutes: boundedInteger(
-      raw.dailyVoiceMinutes,
-      240,
-      1,
-      100000,
-    ),
-    monthlyVoiceMinutes: boundedInteger(
-      raw.monthlyVoiceMinutes,
-      4000,
-      1,
-      1000000,
-    ),
-    voiceHardCapEnabled: raw.voiceHardCapEnabled !== false,
-    voiceOverageEnabled: raw.voiceOverageEnabled === true,
+    dailyVoiceMinutes: pilotVoiceLimits().dailySeconds / 60,
+    monthlyVoiceMinutes: pilotVoiceLimits().monthlySeconds / 60,
+    voiceHardCapEnabled: true,
+    voiceOverageEnabled: false,
     voiceUsageWarningThresholds: Array.isArray(
       raw.voiceUsageWarningThresholds,
     )

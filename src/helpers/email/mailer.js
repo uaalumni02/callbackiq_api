@@ -139,13 +139,13 @@ export default sendPasswordResetEmail;
 
 // Notification content deliberately excludes customer text and contact details.
 // Provider acceptance is not proof of inbox delivery or owner acknowledgment.
-export const sendStaffReviewEmail = ({ email, businessName, alertId, appointmentId, stage }) => {
+export const sendStaffReviewEmail = ({ email, businessName, alertId, appointmentId, stage, critical = false }) => {
   const clientUrl = new URL(getClientUrl());
   if (!["https:", "http:"].includes(clientUrl.protocol)) throw new Error("Invalid CLIENT_URL");
   const link = new URL(appointmentId ? "/appointments" : "/intervention-center", clientUrl);
   link.searchParams.set(appointmentId ? "appointmentId" : "alertId", appointmentId || alertId);
   return sendEmail({ to: email,
-    subject: stage === "expired" ? "MeekCall: appointment request needs an availability recheck" : stage === "overdue" ? "MeekCall: staff review is overdue" : "MeekCall: customer request needs review",
-    text: `${businessName || "Your business"} has a customer request requiring staff review.\n\nOpen Needs Attention and acknowledge the request: ${link}\n\nThis email does not confirm that anyone has accepted the request or booked an appointment.`,
+    subject: critical ? "MeekCall: urgent safety concern reported" : stage === "expired" ? "MeekCall: appointment request needs an availability recheck" : stage === "overdue" ? "MeekCall: staff review is overdue" : "MeekCall: customer request needs review",
+    text: critical ? `${businessName || "Your business"} received an urgent safety concern. Review the record immediately: ${link}\n\nA team member may already be responding. MeekCall does not dispatch emergency help.` : `${businessName || "Your business"} has a customer request requiring staff review.\n\nOpen Needs Attention and acknowledge the request: ${link}\n\nThis email does not confirm that anyone has accepted the request or booked an appointment.`,
   });
 };

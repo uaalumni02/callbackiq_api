@@ -36,14 +36,14 @@ const paths = [
   ['jobberEnabled', '/api/integrations/jobber/status'],
 ];
 
-test.each(paths)('%s gates %s and works when explicitly enabled', async (feature, path) => {
+test.each(paths)('%s gates %s and enforces the pilot allowlist', async (feature, path) => {
   const { business, token } = await stabilizationFixture();
   const call = () => request(app).get(path).set('Authorization', `Bearer ${token}`);
   const off = await call();
   expect(off.status).toBe(404);
   expect(off.body).toEqual({success:false, message:'Not found'});
   await Business.updateOne({_id:business._id}, {$set:{[`features.${feature}`]:true}});
-  expect((await call()).status).toBe(200);
+  expect((await call()).status).toBe(feature === 'jobberEnabled' ? 404 : 200);
 });
 test('legacy records merge all five new flags as false and expose them to owners', async () => {
   const { business, token } = await stabilizationFixture();
@@ -75,7 +75,7 @@ test('Jobber authenticates then acknowledges and drops disabled-business ingress
   expect(await IntegrationWebhookEvent.countDocuments()).toBe(0);
   await Business.updateOne({_id:business._id},{$set:{'features.jobberEnabled':true}});
   expect((await call().set(headers).send(body)).status).toBe(202);
-  expect(await IntegrationWebhookEvent.countDocuments()).toBe(1);
+  expect(await IntegrationWebhookEvent.countDocuments()).toBe(0);
   // Allow the existing immediate drain to finish before clearing the database.
   await new Promise(resolve=>setTimeout(resolve,40));
 });
@@ -111,7 +111,8 @@ test('only an administrator with fresh MFA can toggle known boolean features, wi
   expect((await call(admin(901),{jobberEnabled:true})).status).toBe(401);
   expect((await call(admin(0),{jobberEnabled:'true'})).status).toBe(400);
   expect((await call(admin(0),{unknown:true})).status).toBe(400);
-  const features=Object.fromEntries([...new Set(paths.map(([name])=>name))].map(name=>[name,true]));
+  expect((await call(admin(0),{jobberEnabled:true})).status).toBe(403);
+  const features=Object.fromEntries([...new Set(paths.map(([name])=>name))].filter(name=>name!=='jobberEnabled').map(name=>[name,true]));
   const response=await call(admin(0),features);
   expect(response.status).toBe(200);
   expect(response.body.data.features).toMatchObject(features);

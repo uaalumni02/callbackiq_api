@@ -323,6 +323,25 @@
     }
   },
   {
+    "collection": "alerts",
+    "key": {
+      "actionRequired": 1,
+      "resolvedAt": 1,
+      "acknowledgedAt": 1,
+      "_id": 1,
+      "metadata.approvalRequest": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "alerts",
+    "key": {
+      "priority": 1,
+      "_id": 1
+    },
+    "options": {}
+  },
+  {
     "collection": "appointments",
     "key": {
       "customerLifecycleStatus": 1
@@ -1144,6 +1163,15 @@
     }
   },
   {
+    "collection": "checkoutattempts",
+    "key": {
+      "business": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
     "collection": "communicationrouteratelimits",
     "key": {
       "keyHash": 1,
@@ -1694,6 +1722,36 @@
       "status": 1
     },
     "options": {}
+  },
+  {
+    "collection": "integrationdisconnectintents",
+    "key": {
+      "business": 1,
+      "provider": 1,
+      "fingerprint": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "integrationdisconnectintents",
+    "key": {
+      "state": 1,
+      "nextAttemptAt": 1,
+      "leaseUntil": 1,
+      "_id": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "integrationdisconnectintents",
+    "key": {
+      "purgeAt": 1
+    },
+    "options": {
+      "expireAfterSeconds": 0
+    }
   },
   {
     "collection": "integrationwebhookevents",
@@ -2281,6 +2339,33 @@
     }
   },
   {
+    "collection": "providerbudgetcounters",
+    "key": {
+      "purgeAt": 1
+    },
+    "options": {
+      "expireAfterSeconds": 0
+    }
+  },
+  {
+    "collection": "providerbudgetoverrides",
+    "key": {
+      "business": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "providerbudgetreservations",
+    "key": {
+      "purgeAt": 1
+    },
+    "options": {
+      "expireAfterSeconds": 0
+    }
+  },
+  {
     "collection": "recoverycases",
     "key": {
       "business": 1,
@@ -2339,6 +2424,15 @@
     "options": {
       "expireAfterSeconds": 0,
       "name": "expires_at_ttl"
+    }
+  },
+  {
+    "collection": "retainedbillingrecords",
+    "key": {
+      "purgeAt": 1
+    },
+    "options": {
+      "expireAfterSeconds": 0
     }
   },
   {
@@ -2775,6 +2869,34 @@
     }
   },
   {
+    "collection": "staffnotificationdeliveries",
+    "key": {
+      "business": 1,
+      "key": 1,
+      "channel": 1,
+      "recipientHash": 1
+    },
+    "options": {
+      "unique": true
+    }
+  },
+  {
+    "collection": "staffnotificationdeliveries",
+    "key": {
+      "business": 1,
+      "createdAt": -1
+    },
+    "options": {}
+  },
+  {
+    "collection": "staffnotificationdeliveries",
+    "key": {
+      "state": 1,
+      "leaseUntil": 1
+    },
+    "options": {}
+  },
+  {
     "collection": "staffnotificationjobs",
     "key": {
       "alert": 1,
@@ -2867,6 +2989,15 @@
   {
     "collection": "subscriptions",
     "key": {
+      "status": 1,
+      "trialPreparation.state": 1,
+      "_id": 1
+    },
+    "options": {}
+  },
+  {
+    "collection": "subscriptions",
+    "key": {
       "trialNumberReleaseAt": 1,
       "trialUsedAt": 1,
       "_id": 1
@@ -2898,6 +3029,15 @@
       "updatedAt": -1
     },
     "options": {}
+  },
+  {
+    "collection": "tenantdeletionreceipts",
+    "key": {
+      "purgeAt": 1
+    },
+    "options": {
+      "expireAfterSeconds": 0
+    }
   },
   {
     "collection": "trackingnumbers",
@@ -2975,6 +3115,15 @@
       "status": 1
     },
     "options": {}
+  },
+  {
+    "collection": "trackingnumberreleaseintents",
+    "key": {
+      "purgeAt": 1
+    },
+    "options": {
+      "expireAfterSeconds": 0
+    }
   },
   {
     "collection": "trackingnumberreleaseintents",

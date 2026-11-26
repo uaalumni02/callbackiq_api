@@ -1,9 +1,10 @@
-import { ACTIVE_STATUSES } from '../../services/scheduling/appointmentStatePolicy.service.js';
+import {assertGoogleWriteAvailable} from './googleFinalAvailability.js';
+import {googleAvailability} from './googleAvailability.js';
+import {invalidateGoogleAvailabilityCache} from './googleAvailabilitySnapshot.js';
+export {invalidateGoogleAvailabilityCache} from './googleAvailabilitySnapshot.js';
 import { saveStateDocument } from '../../services/stateTransitions/documents.js';
 import crypto from "crypto";
 import SchedulingProvider from "./schedulingProvider.js";
-import Appointment from "../../models/appointment.js";
-import { generateInternalSlots } from "../../services/scheduling/slotGenerator.service.js";
 import {
   getGoogleConnection,
   googleApiRequest,
@@ -12,18 +13,6 @@ import {
 import { getGoogleSettings } from "../../services/integrations/integrationSettings.service.js";
 const encode = encodeURIComponent;
 const confirmationRequest = (request) => googleApiRequest({ ...request, signal: AbortSignal.timeout(15_000) });
-const DEFAULT_CACHE_TTL_MS = 45_000;
-const availabilityCache = new Map();
-
-const overlaps = (slot, busy) =>
-  new Date(slot.startAt) < new Date(busy.end) &&
-  new Date(slot.endAt) > new Date(busy.start);
-
-const eventRange = (event) => ({
-  start: event?.start?.dateTime || event?.start?.date,
-  end: event?.end?.dateTime || event?.end?.date,
-});
-
 const validEmail = (value) =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
 
@@ -34,31 +23,6 @@ const uniqueEmails = (values) => [
       .filter(validEmail),
   ),
 ];
-
-const cacheTtlMs = () =>
-  Math.max(
-    5_000,
-    Math.min(
-      Number(process.env.GOOGLE_AVAILABILITY_CACHE_TTL_MS) ||
-        DEFAULT_CACHE_TTL_MS,
-      5 * 60_000,
-    ),
-  );
-
-const cacheKey = ({ businessId, calendarIds, timeMin, timeMax }) =>
-  [
-    String(businessId),
-    [...calendarIds].sort().join(","),
-    timeMin,
-    timeMax,
-  ].join("|");
-
-export const invalidateGoogleAvailabilityCache = (businessId) => {
-  const prefix = `${String(businessId)}|`;
-  for (const key of availabilityCache.keys()) {
-    if (key.startsWith(prefix)) availabilityCache.delete(key);
-  }
-};
 
 export const deterministicEventId = (appointment) =>
   crypto
@@ -205,192 +169,34 @@ export const buildGoogleEvent = ({
   };
 };
 
-const fetchAvailabilitySnapshot = async ({
-  businessId,
-  bookingCalendarId,
-  availabilityCalendarIds,
-  timeMin,
-  timeMax,
-  timeZone,
-}) => {
-  const key = cacheKey({
-    businessId,
-    calendarIds: availabilityCalendarIds,
-    timeMin,
-    timeMax,
-  });
-  const cached = availabilityCache.get(key);
-  if (cached && cached.expiresAt > Date.now()) return cached.value;
-
-  const [freeBusy, bookingEventsPage] = await Promise.all([
-    googleApiRequest({
-      businessId,
-      path: "/freeBusy",
-      method: "POST",
-      body: {
-        timeMin,
-        timeMax,
-        timeZone,
-        items: availabilityCalendarIds.map((id) => ({ id })),
-      },
-    }),
-    googleApiRequest({
-      businessId,
-      path: `/calendars/${encode(bookingCalendarId)}/events?${new URLSearchParams(
-        {
-          singleEvents: "true",
-          showDeleted: "false",
-          timeMin,
-          timeMax,
-          maxResults: "2500",
-        },
-      ).toString()}`,
-    }),
-  ]);
-
-  const calendarResults = freeBusy?.calendars || {};
-  const failedCalendar = Object.entries(calendarResults).find(
-    ([, result]) => Array.isArray(result?.errors) && result.errors.length,
-  );
-  if (failedCalendar) {
-    const error = new Error(
-      `Google could not read availability from calendar ${failedCalendar[0]}.`,
-    );
-    error.statusCode = 409;
-    error.code = "GOOGLE_AVAILABILITY_CALENDAR_ERROR";
-    throw error;
-  }
-
-  const bookingEventsListed = Array.isArray(bookingEventsPage?.items);
-  const bookingEvents = (bookingEventsPage?.items || []).filter((event) => {
-    if (event.status === "cancelled" || event.transparency === "transparent") {
-      return false;
-    }
-    const range = eventRange(event);
-    return range.start && range.end;
-  });
-  const callbackAppointmentIds = [
-    ...new Set(
-      bookingEvents
-        .map(
-          (event) =>
-            event.extendedProperties?.private?.callbackiqAppointmentId,
-        )
-        .filter(Boolean),
-    ),
-  ];
-  // Google extended properties are user-editable. Ignore malformed appointment
-  // IDs instead of allowing an arbitrary calendar event to trigger a Mongoose
-  // CastError and take the business's availability endpoint down.
-  const queryableAppointmentIds = callbackAppointmentIds.filter((value) =>
-    /^[a-f0-9]{24}$/i.test(String(value)),
-  );
-  const activeMirroredIds = queryableAppointmentIds.length
-    ? new Set(
-        (
-          await Appointment.find({
-            _id: { $in: queryableAppointmentIds },
-            business: businessId,
-            status: { $in: [...ACTIVE_STATUSES] },
-          })
-            .select("_id")
-            .lean()
-        ).map((appointment) => String(appointment._id)),
-      )
-    : new Set();
-
-  const externalBookingEvents = bookingEvents.filter((event) => {
-    const privateProperties = event.extendedProperties?.private || {};
-    const appointmentId = privateProperties.callbackiqAppointmentId;
-    const eventBusinessId = privateProperties.callbackiqBusinessId;
-    return !(
-      appointmentId &&
-      String(eventBusinessId || businessId) === String(businessId) &&
-      activeMirroredIds.has(String(appointmentId))
-    );
-  });
-  const value = {
-    calendarResults,
-    externalBookingEvents,
-    bookingEventsListed,
-  };
-  availabilityCache.set(key, {
-    value,
-    expiresAt: Date.now() + cacheTtlMs(),
-  });
-
-  if (availabilityCache.size > 250) {
-    const oldest = availabilityCache.keys().next().value;
-    if (oldest) availabilityCache.delete(oldest);
-  }
-  return value;
+const updatedGoogleEvent=({appointment,eventAppointment,changes,service,business,settings})=>{
+    const eventOwner = eventAppointment || appointment;
+    const baseAppointment =
+      typeof eventOwner.toObject === "function"
+        ? eventOwner.toObject()
+        : eventOwner;
+    const baseAddress =
+      typeof eventOwner.address?.toObject === "function"
+        ? eventOwner.address.toObject()
+        : eventOwner.address || {};
+    const nextAppointment = {
+      ...baseAppointment,
+      ...changes,
+      address: { ...baseAddress, ...(changes?.address || {}) },
+    };
+    const body = buildGoogleEvent({
+      appointment: nextAppointment,
+      service,
+      business,
+      settings,
+    });
+    delete body.id;
+return {body,nextAppointment};
 };
 
 class GoogleCalendarProvider extends SchedulingProvider {
   async getAvailability(options) {
-    const businessId = this.business._id || this.business.id;
-    const slots = await generateInternalSlots({
-      ...options,
-      business: this.business,
-    });
-
-    // Internal rules are authoritative. When they yield no slots there is no
-    // reason to require or call an external provider.
-    if (Array.isArray(slots) && slots.length === 0) return [];
-
-    const { bookingCalendarId, availabilityCalendarIds } =
-      await normalizeSettings(businessId);
-    if (!Array.isArray(slots) || slots.length === 0) return [];
-
-    const timeMin = new Date(
-      Math.min(...slots.map((slot) => new Date(slot.startAt).getTime())),
-    ).toISOString();
-    const timeMax = new Date(
-      Math.max(...slots.map((slot) => new Date(slot.endAt).getTime())),
-    ).toISOString();
-    const {
-      calendarResults,
-      externalBookingEvents,
-      bookingEventsListed,
-    } = await fetchAvailabilitySnapshot({
-        businessId,
-        bookingCalendarId,
-        availabilityCalendarIds,
-        timeMin,
-        timeMax,
-        timeZone: this.business.timezone || "America/New_York",
-      });
-
-    const otherCalendarIds = availabilityCalendarIds.filter(
-      (id) => id !== bookingCalendarId,
-    );
-    return slots.filter((slot) => {
-      const remainingCapacity = Math.max(
-        0,
-        Number(slot.remainingCapacity ?? slot.capacity ?? 1),
-      );
-      if (remainingCapacity === 0) return false;
-
-      // Each selected non-booking calendar represents one external resource
-      // lane. The booking calendar can contain multiple manually-created jobs,
-      // so count its non-MeekCall events individually.
-      const otherBusyLanes = otherCalendarIds.filter((calendarId) =>
-        (calendarResults[calendarId]?.busy || []).some((interval) =>
-          overlaps(slot, interval),
-        ),
-      ).length;
-      const bookingBusyLanes = bookingEventsListed
-        ? externalBookingEvents.filter(
-            (event) =>
-              event.id !== options.excludeExternalEventId &&
-              overlaps(slot, eventRange(event)),
-          ).length
-        : (calendarResults[bookingCalendarId]?.busy || []).filter((interval) =>
-            overlaps(slot, interval),
-          ).length;
-
-      return otherBusyLanes + bookingBusyLanes < remainingCapacity;
-    });
+    return googleAvailability({business:this.business,options,normalizeSettings});
   }
 
   async prepareConfirmation({ appointment }) {
@@ -455,7 +261,7 @@ class GoogleCalendarProvider extends SchedulingProvider {
 
   async createAppointment({ appointment, service, target }) {
     const businessId = this.business._id || this.business.id;
-    const { bookingCalendarId: configuredCalendarId, settings, connection } =
+    const { bookingCalendarId: configuredCalendarId, settings, connection, availabilityCalendarIds } =
       await normalizeSettings(businessId);
     if (target) this.assertConfirmationAccount(target, connection);
     const bookingCalendarId = target?.calendarId || configuredCalendarId;
@@ -470,6 +276,7 @@ class GoogleCalendarProvider extends SchedulingProvider {
       sendUpdates: settings.sendUpdates || "all",
     });
 
+    await assertGoogleWriteAvailable({business:this.business,appointment,bookingCalendarId,availabilityCalendarIds,connection});
     let event;
     try {
       event = await request({
@@ -496,7 +303,7 @@ class GoogleCalendarProvider extends SchedulingProvider {
       });
     }
     if (target) this.assertConfirmationEvent(appointment, target, event);
-    invalidateGoogleAvailabilityCache(businessId);
+    await invalidateGoogleAvailabilityCache(businessId);
 
     return {
       provider: "google_calendar",
@@ -508,7 +315,7 @@ class GoogleCalendarProvider extends SchedulingProvider {
 
   async restoreAppointment({ appointment, service, changeKey }) {
     const businessId = this.business._id || this.business.id;
-    const { bookingCalendarId, settings } =
+    const { bookingCalendarId, settings, connection, availabilityCalendarIds } =
       await normalizeSettings(businessId);
     const eventBody = buildGoogleEvent({
       appointment,
@@ -520,6 +327,7 @@ class GoogleCalendarProvider extends SchedulingProvider {
     const query = new URLSearchParams({
       sendUpdates: settings.sendUpdates || "all",
     });
+    await assertGoogleWriteAvailable({business:this.business,appointment,bookingCalendarId,availabilityCalendarIds,connection});
     let event;
     try {
       event = await googleApiRequest({
@@ -541,7 +349,7 @@ class GoogleCalendarProvider extends SchedulingProvider {
         path: `/calendars/${encode(bookingCalendarId)}/events/${encode(eventBody.id)}`,
       });
     }
-    invalidateGoogleAvailabilityCache(businessId);
+    await invalidateGoogleAvailabilityCache(businessId);
     return {
       provider: "google_calendar",
       externalAppointmentId: event?.id || eventBody.id,
@@ -567,43 +375,24 @@ class GoogleCalendarProvider extends SchedulingProvider {
     }
 
     const businessId = this.business._id || this.business.id;
-    const { bookingCalendarId, settings } =
+    const { bookingCalendarId, settings, connection, availabilityCalendarIds } =
       await normalizeSettings(businessId);
     const calendarId = appointment.externalCalendarId || bookingCalendarId;
     // Rescheduling moves the existing Google event but transfers ownership of
     // that event to the replacement MeekCall appointment. Normal updates use
     // the current appointment for both the provider lookup and event metadata.
-    const eventOwner = eventAppointment || appointment;
-    const baseAppointment =
-      typeof eventOwner.toObject === "function"
-        ? eventOwner.toObject()
-        : eventOwner;
-    const baseAddress =
-      typeof eventOwner.address?.toObject === "function"
-        ? eventOwner.address.toObject()
-        : eventOwner.address || {};
-    const nextAppointment = {
-      ...baseAppointment,
-      ...changes,
-      address: { ...baseAddress, ...(changes?.address || {}) },
-    };
-    const body = buildGoogleEvent({
-      appointment: nextAppointment,
-      service,
-      business: this.business,
-      settings,
-    });
-    delete body.id;
+    const {body,nextAppointment}=updatedGoogleEvent({appointment,eventAppointment,changes,service,business:this.business,settings});
     const query = new URLSearchParams({
       sendUpdates: settings.sendUpdates || "all",
     });
+    await assertGoogleWriteAvailable({business:this.business,appointment:nextAppointment,bookingCalendarId:calendarId,availabilityCalendarIds,connection});
     const event = await googleApiRequest({
       businessId,
       path: `/calendars/${encode(calendarId)}/events/${encode(eventId)}?${query}`,
       method: "PUT",
       body,
     });
-    invalidateGoogleAvailabilityCache(businessId);
+    await invalidateGoogleAvailabilityCache(businessId);
 
     return {
       provider: "google_calendar",
@@ -636,7 +425,7 @@ class GoogleCalendarProvider extends SchedulingProvider {
     if (target && result?.__providerStatus) {
       await request({ businessId, path: `/calendars/${encode(calendarId)}` });
     }
-    invalidateGoogleAvailabilityCache(businessId);
+    await invalidateGoogleAvailabilityCache(businessId);
 
     return {
       canceled: true,

@@ -1,4 +1,7 @@
 const mockGetGoogleConnection = jest.fn();
+const mockBusinessFindById = jest.fn();
+const mockConnectionUpdateOne = jest.fn();
+jest.mock("../../src/models/business.js", () => ({__esModule:true,default:{findById:(...args)=>mockBusinessFindById(...args)}}));
 const mockGoogleApiRequest = jest.fn();
 const mockGetGoogleSettings = jest.fn();
 const mockConnectionFind = jest.fn();
@@ -15,6 +18,7 @@ jest.mock("../../src/models/integrationConnection.js", () => ({
   __esModule: true,
   default: {
     find: (...args) => mockConnectionFind(...args),
+    updateOne: (...args) => mockConnectionUpdateOne(...args),
   },
 }));
 jest.mock("../../src/services/intervention.service.js", () => ({
@@ -399,4 +403,12 @@ describe("googleCalendarSync target coverage", () => {
       }),
     );
   });
+  test('B02 completed provider synchronization invalidates the tenant availability epoch before its receipt',async()=>{
+    mockGoogleApiRequest.mockReset();
+    const connection=makeConnection();mockGetGoogleConnection.mockResolvedValue(connection);mockBusinessFindById.mockResolvedValue({_id:'biz-1'});mockGoogleApiRequest.mockResolvedValue({items:[],nextSyncToken:'synthetic-next'});mockConnectionUpdateOne.mockResolvedValue({modifiedCount:1});
+    await expect(calendarSync.syncGoogleCalendar({businessId:'biz-1'})).resolves.toMatchObject({seen:0,reconciled:0,nextSyncToken:true});
+    expect(mockConnectionUpdateOne).toHaveBeenCalledWith({business:'biz-1',provider:'google_calendar'},{$inc:{availabilityCacheVersion:1}});
+    expect(connection.metadata.googleCalendar.sync.nextSyncToken).toBe('synthetic-next');
+  });
+
 });

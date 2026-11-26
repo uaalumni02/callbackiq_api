@@ -1,3 +1,5 @@
+// Isolated domain SDK fixture; real provider entitlement, budgets and queued revocation are tested in pilotEntitlement/pilotBudget.
+jest.mock('../../src/integrations/providerClients.js',()=>({createOpenAIClient:(_purpose,options)=>new (require('openai').default)(options)}));
 import OpenAI from 'openai';
 import mongoose from 'mongoose';
 import ServiceOffering from '../../src/models/serviceOffering.js';

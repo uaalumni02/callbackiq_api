@@ -1,13 +1,15 @@
+import {capabilityEnvironment} from '../tests/fixtures/capabilityEnvironment.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { validateEnvironment } from '../src/config/env.js';
 const base=()=>({
+ ...capabilityEnvironment(),
  APP_ENV:'staging', NODE_ENV:'production', MONGODB_URI:'mongodb://127.0.0.1:27017/callbackiq_staging',
  JWT_SECRET:'a'.repeat(64), CLIENT_URL:'https://app.callbackiq.test',
  PUBLIC_API_URL:'https://api.callbackiq.test', ALLOWED_ORIGINS:'https://app.callbackiq.test',
  TWILIO_ACCOUNT_SID:'AC'+'1'.repeat(32), TWILIO_AUTH_TOKEN:'token-for-test-only',
  STRIPE_SECRET_KEY:'sk_test_dummy', STRIPE_WEBHOOK_SECRET:'whsec_dummy', OPENAI_API_KEY:'fake-openai-test-key',
- STAGING_DATABASE_ISOLATED:'true', INTEGRATION_ENCRYPTION_KEY:'configured-non-placeholder-key',
+ STAGING_DATABASE_ISOLATED:'true', INTEGRATION_ENCRYPTION_KEY:'configured-non-placeholder-key-1234567890',
  CALLBACKIQ_API_BASE_URL:'https://api.callbackiq.test',
  VOICE_HTTP_PUBLIC_URL:'https://api.callbackiq.test', VOICE_WEBSOCKET_PUBLIC_URL:'wss://api.example.test/ws/voice',
 });

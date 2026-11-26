@@ -13,5 +13,264 @@
     "zero": "default",
     "unit": "messages",
     "clamp": true
+  },
+  "PILOT_VOICE_MINUTES_DAY": {
+    "default": 30,
+    "min": 1,
+    "max": 30,
+    "zero": "rejected",
+    "unit": "minutes"
+  },
+  "PILOT_VOICE_MINUTES_MONTH": {
+    "default": 300,
+    "min": 1,
+    "max": 300,
+    "zero": "rejected",
+    "unit": "minutes"
+  },
+  "PILOT_FLEET_VOICE_MINUTES_DAY": {
+    "default": 300,
+    "min": 1,
+    "max": 300,
+    "zero": "rejected",
+    "unit": "minutes"
+  },
+  "PILOT_FLEET_VOICE_MINUTES_MONTH": {
+    "default": 3000,
+    "min": 1,
+    "max": 3000,
+    "zero": "rejected",
+    "unit": "minutes"
+  },
+  "PILOT_SMS_SEGMENTS_DAY": {
+    "default": 300,
+    "min": 1,
+    "max": 300,
+    "zero": "rejected",
+    "unit": "segments"
+  },
+  "PILOT_SMS_SEGMENTS_MONTH": {
+    "default": 3000,
+    "min": 1,
+    "max": 3000,
+    "zero": "rejected",
+    "unit": "segments"
+  },
+  "PILOT_FLEET_SMS_SEGMENTS_DAY": {
+    "default": 1500,
+    "min": 1,
+    "max": 1500,
+    "zero": "rejected",
+    "unit": "segments"
+  },
+  "PILOT_FLEET_SMS_SEGMENTS_MONTH": {
+    "default": 15000,
+    "min": 1,
+    "max": 15000,
+    "zero": "rejected",
+    "unit": "segments"
+  },
+  "PILOT_AI_REQUESTS_DAY": {
+    "default": 100,
+    "min": 1,
+    "max": 100,
+    "zero": "rejected",
+    "unit": "requests"
+  },
+  "PILOT_AI_REQUESTS_MONTH": {
+    "default": 1000,
+    "min": 1,
+    "max": 1000,
+    "zero": "rejected",
+    "unit": "requests"
+  },
+  "PILOT_FLEET_AI_REQUESTS_DAY": {
+    "default": 500,
+    "min": 1,
+    "max": 500,
+    "zero": "rejected",
+    "unit": "requests"
+  },
+  "PILOT_FLEET_AI_REQUESTS_MONTH": {
+    "default": 5000,
+    "min": 1,
+    "max": 5000,
+    "zero": "rejected",
+    "unit": "requests"
+  },
+  "PILOT_AI_MAX_OUTPUT_TOKENS": {
+    "default": 700,
+    "min": 1,
+    "max": 700,
+    "zero": "rejected",
+    "unit": "tokens"
+  },
+  "PILOT_CHECKOUT_RETRY_WINDOW_MS": {
+    "default": 72000000,
+    "min": 60000,
+    "max": 82800000,
+    "zero": "rejected",
+    "unit": "milliseconds"
+  },
+  "PILOT_STRIPE_SUBSCRIPTION_SCAN_PAGES": {
+    "default": 10,
+    "min": 1,
+    "max": 10,
+    "zero": "rejected",
+    "unit": "pages"
+  },
+  "PILOT_GOOGLE_EVENT_SCAN_PAGES": {
+    "default": 10,
+    "min": 1,
+    "max": 10,
+    "zero": "rejected",
+    "unit": "pages"
+  },
+  "PILOT_GOOGLE_AVAILABILITY_CACHE_MS": {
+    "default": 45000,
+    "min": 0,
+    "max": 45000,
+    "zero": "default",
+    "unit": "milliseconds"
+  },
+  "PILOT_GOOGLE_REQUEST_TIMEOUT_MS": {
+    "default": 10000,
+    "min": 100,
+    "max": 15000,
+    "zero": "rejected",
+    "unit": "milliseconds"
+  },
+  "PILOT_GOOGLE_DISCONNECT_POLL_MS": {
+    "default": 30000,
+    "min": 1000,
+    "max": 60000,
+    "zero": "rejected",
+    "unit": "milliseconds"
+  },
+  "PILOT_NOTIFICATION_LEASE_MS": {
+    "default": 120000,
+    "min": 60000,
+    "max": 180000,
+    "zero": "rejected",
+    "unit": "milliseconds"
+  },
+  "PILOT_NOTIFICATION_RETRY_MS": {
+    "default": 60000,
+    "min": 10000,
+    "max": 300000,
+    "zero": "rejected",
+    "unit": "milliseconds"
+  },
+  "PILOT_NOTIFICATION_TEST_COOLDOWN_MS": {
+    "default": 60000,
+    "min": 60000,
+    "max": 300000,
+    "zero": "rejected",
+    "unit": "milliseconds"
+  },
+  "PILOT_STAFF_SMS_PAGE_SIZE": {
+    "default": 100,
+    "min": 1,
+    "max": 100,
+    "zero": "rejected",
+    "unit": "alerts"
+  },
+  "PILOT_BILLING_RETENTION_DAYS": {
+    "default": 2557,
+    "min": 2557,
+    "max": 2557,
+    "zero": "rejected",
+    "unit": "days"
+  },
+  "PILOT_ERASURE_RECEIPT_RETENTION_DAYS": {
+    "default": 90,
+    "min": 90,
+    "max": 90,
+    "zero": "rejected",
+    "unit": "days"
+  },
+  "PILOT_PRIVACY_SWEEP_MS": {
+    "default": 60000,
+    "min": 10000,
+    "max": 60000,
+    "zero": "rejected",
+    "unit": "milliseconds"
+  },
+  "PILOT_PRIVACY_LEASE_MS": {
+    "default": 120000,
+    "min": 60000,
+    "max": 180000,
+    "zero": "rejected",
+    "unit": "milliseconds"
+  },
+  "PILOT_PRIVACY_SWEEP_LIMIT": {
+    "default": 100,
+    "min": 1,
+    "max": 100,
+    "zero": "rejected",
+    "unit": "records"
+  },
+  "PILOT_DELETION_SWEEP_LIMIT": {
+    "default": 2,
+    "min": 1,
+    "max": 5,
+    "zero": "rejected",
+    "unit": "businesses"
+  },
+  "VOICE_STALE_SESSION_MINUTES": {
+    "default": 15,
+    "min": 5,
+    "max": 120,
+    "zero": "rejected",
+    "unit": "minutes"
+  },
+  "VOICE_TRANSCRIPT_RETENTION_DAYS": {
+    "default": 30,
+    "min": 1,
+    "max": 365,
+    "zero": "rejected",
+    "unit": "days"
+  },
+  "PILOT_GOOGLE_DISCONNECT_LEASE_MS": {
+    "default": 60000,
+    "min": 60000,
+    "max": 120000,
+    "zero": "rejected",
+    "unit": "milliseconds"
+  },
+  "PILOT_GOOGLE_DISCONNECT_RETRY_MS": {
+    "default": 30000,
+    "min": 10000,
+    "max": 60000,
+    "zero": "rejected",
+    "unit": "milliseconds"
+  },
+  "PILOT_GOOGLE_DISCONNECT_MAX_RETRY_MS": {
+    "default": 3600000,
+    "min": 60000,
+    "max": 3600000,
+    "zero": "rejected",
+    "unit": "milliseconds"
+  },
+  "PILOT_GOOGLE_DISCONNECT_RECEIPT_DAYS": {
+    "default": 90,
+    "min": 1,
+    "max": 90,
+    "zero": "rejected",
+    "unit": "days"
+  },
+  "PILOT_DELETION_NUMBER_BATCH": {
+    "default": 10,
+    "min": 1,
+    "max": 10,
+    "zero": "rejected",
+    "unit": "phone numbers"
+  },
+  "PILOT_PROVIDER_BUDGET_RETENTION_DAYS": {
+    "default": 100,
+    "min": 100,
+    "max": 100,
+    "zero": "rejected",
+    "unit": "days"
   }
 }

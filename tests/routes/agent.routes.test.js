@@ -8,7 +8,7 @@ import Alert from "../../src/models/alert.js";
 import Conversation from "../../src/models/conversation.js";
 import Subscription from "../../src/models/subscription.js";
 import { runFollowUpAgent } from "../../src/helpers/ai/followUpAgent.js";
-import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testDb.js";
+import { connectTestDB, clearTestDB, closeTestDB } from "../setup/testReplicaDb.js";
 
 jest.mock("../../src/helpers/ai/followUpAgent.js", () => ({
   runFollowUpAgent: jest.fn(),

@@ -1,3 +1,4 @@
+import {pilotVoiceLimits} from '../config/pilotBudgets.js';
 const integerField = ({ minimum, maximum, defaultValue, label, help }) => ({
   type: "integer",
   minimum,
@@ -42,15 +43,15 @@ export const getVoiceSettingsSchema = ({ currentVoiceName = "" } = {}) => ({
     }),
     dailyVoiceMinutes: integerField({
       minimum: 1,
-      maximum: 100000,
-      defaultValue: 240,
+      maximum: pilotVoiceLimits().dailySeconds / 60,
+      defaultValue: pilotVoiceLimits().dailySeconds / 60,
       label: "Daily voice allowance",
       help: "AI minutes allowed per UTC day.",
     }),
     monthlyVoiceMinutes: integerField({
       minimum: 1,
-      maximum: 1000000,
-      defaultValue: 4000,
+      maximum: pilotVoiceLimits().monthlySeconds / 60,
+      defaultValue: pilotVoiceLimits().monthlySeconds / 60,
       label: "Monthly voice allowance",
       help: "AI minutes allowed per UTC calendar month.",
     }),

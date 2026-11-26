@@ -1,3 +1,4 @@
+jest.mock('../../src/integrations/providerClients.js',()=>({createOpenAIClient:(_purpose,options)=>new (require('openai').default)(options)}));
 jest.mock('../../src/models/serviceOffering.js', () => ({ __esModule: true, default: { find: jest.fn() } }));
 import EligibilityCatalog from '../../src/models/serviceOffering.js';
 import EligibilityOperations from '../../src/models/businessOperationsSettings.js';

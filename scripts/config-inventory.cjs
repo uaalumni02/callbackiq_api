@@ -8,7 +8,7 @@ function scan(directory) {
     if (item.isDirectory()) { if (!['__tests__', 'node_modules'].includes(item.name)) scan(file); continue; }
     if (!/\.(?:js|jsx|mjs|cjs)$/.test(file) || /\.test\./.test(file)) continue;
     const text = fs.readFileSync(file, 'utf8');
-    for (const match of text.matchAll(/process\.env(?:\.([A-Z][A-Z0-9_]*)|\[['"]([A-Z][A-Z0-9_]*)['"]\])/g)) {
+    for (const match of text.matchAll(/(?:process\.env|source|env)(?:\.([A-Z][A-Z0-9_]*)|\[['"]([A-Z][A-Z0-9_]*)['"]\])/g)) {
       const name = match[1] || match[2];
       const uses = entries.get(name) || [];
       uses.push(`${path.relative(root, file)}:${text.slice(0, match.index).split('\n').length}`);

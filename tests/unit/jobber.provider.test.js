@@ -1,3 +1,6 @@
+// Exercises the dormant adapter contract with an explicit boundary double; the pilot gate remains disabled in production.
+import {requireJobberBusiness} from '../../src/services/businessFeatureAccess.service.js';
+jest.mock('../../src/services/businessFeatureAccess.service.js',()=>({requireJobberBusiness:jest.fn()}));
 import Business from '../../src/models/business.js';
 import ExternalRecordMapping from "../../src/models/externalRecordMapping.js";
 import JobberProvider from "../../src/integrations/scheduling/jobber.provider.js";
@@ -31,6 +34,7 @@ describe("JobberProvider", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    requireJobberBusiness.mockResolvedValue({features:{jobberEnabled:true}});
     Business.findById.mockReturnValue({select:()=>({lean:async()=>({features:{jobberEnabled:true}})})});
     provider = new JobberProvider({ business });
   });
@@ -155,4 +159,8 @@ describe("JobberProvider", () => {
       account: { id: "account-1", name: "Business" },
     });
   });
+});
+
+test('the disabled pilot gate prevents all remote Jobber mutation',async()=>{
+ requireJobberBusiness.mockRejectedValueOnce(Object.assign(new Error('Disabled'),{code:'JOBBER_DISABLED'}));jobberGraphqlRequest.mockClear();await expect(new JobberProvider({business:{_id:'b1'}}).runMutation({operationKey:'createAppointment',variables:{}})).rejects.toMatchObject({code:'JOBBER_DISABLED'});expect(jobberGraphqlRequest).not.toHaveBeenCalled();
 });

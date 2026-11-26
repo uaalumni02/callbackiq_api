@@ -1,3 +1,4 @@
+import {isRequestWithdrawal} from './withdrawalIntent.service.js';
 import { isContextualSymptomAnswer } from '../booking/contextualServiceAnswer.service.js';
 import { classifyLeakActivityAnswer } from '../booking/leakActivityAnswer.service.js';
 import { detectServiceTrades } from '../trades/tradeProfiles.service.js';
@@ -38,11 +39,7 @@ const STATUS = [
   /\b(?:on the way|arrival window|eta)\b/i,
 ];
 
-const CANCEL = [
-  /\b(?:cancel|cancellation)\s+(?:my\s+|the\s+)?(?:appointment|visit|booking)\b/i,
-  /\b(?:don't|do not)\s+come\b/i,
-  /\bno longer need (?:the )?(?:appointment|visit|service)\b/i,
-];
+
 
 const RESCHEDULE = [
   /\b(?:reschedule|move)\s+(?:my\s+|the\s+)?(?:appointment|visit|booking)\b/i,
@@ -146,7 +143,7 @@ export const extractService = (text, { lead = null, conversation = null } = {}) 
       if (!pricedService || !SERVICE_ACTION.test(pricedService) || pricedService.split(/\s+/).length < 2) continue;
       clause = clean(pricedService).replace(/\s+cost$/i, "");
     }
-    if (isCallbackDeclinedText(clause) || any(HUMAN_DIRECT, clause) || isCallbackRequestText(clause) || any(CANCEL, clause) || any(RESCHEDULE, clause) || any(STATUS, clause)) continue;
+    if (isCallbackDeclinedText(clause) || any(HUMAN_DIRECT, clause) || isCallbackRequestText(clause) || isRequestWithdrawal(clause) || any(RESCHEDULE, clause) || any(STATUS, clause)) continue;
     if (/^(?:stop|start|unstop|help|yes|no|okay|ok|thanks?|hello|hi)[!. ]*$/i.test(clause) || /^(?:\d|https?:|[^ ]+@)/i.test(clause)) continue;
     // A request to act on "it" describes an intent, not a replacement job.
     if (/\b(?:fix|repair|replace|inspect|install|service)\s+(?:it|that|this|the same thing)(?=$|[?.!,;]|\s+(?:today|tomorrow|next|on|at|for me|please|and|when|soon|now|instead|rather)\b)/i.test(clause)) continue;
@@ -221,7 +218,7 @@ export const classifySmsIntent = ({
     callback: callbackRequested,
     callbackDeclined,
     status: any(STATUS, text),
-    cancel: any(CANCEL, text),
+    cancel: isRequestWithdrawal(text),
     reschedule: any(RESCHEDULE, text),
     availabilityInquiry,
     waitlist,

@@ -1,3 +1,6 @@
+import VoiceSession from '../models/voiceSession.js';
+import VoiceSessionService from '../voice/voiceSession.service.js';
+import {staffDialResponse,staffAccepted} from './voiceWebhook/helpers.js';
 import CallLog from "../models/callLog.js";
 import TrackingNumber from "../models/trackingNumber.js";
 import { syncLatestAttribution } from "../services/marketingAttribution.service.js";
@@ -7,13 +10,6 @@ import TwilioController from "./twilio.js";
 
 const xml = (body) =>
   `<?xml version="1.0" encoding="UTF-8"?>${body}`;
-
-const esc = (value) =>
-  String(value || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 
 const send = (res, body) =>
   res.type("text/xml").status(200).send(body);
@@ -122,12 +118,8 @@ class TrackingVoiceController {
       const action =
         `/api/twilio/tracking-call-complete?parentCallSid=${encodeURIComponent(callSid)}`;
 
-      return send(
-        res,
-        xml(
-          `<Response><Dial answerOnBridge="true" timeout="30" action="${esc(action)}" method="POST"><Number>${esc(target)}</Number></Dial></Response>`,
-        ),
-      );
+      const session=await VoiceSessionService.ensureContext({business:context.business,from,to,providerCallSid:callSid});
+      return staffDialResponse({res,session,phone:target,timeoutSeconds:30,actionPath:action,purpose:'initialStaff'});
     } catch (error) {
       return next(error);
     }
@@ -160,15 +152,15 @@ class TrackingVoiceController {
         ? await TrackingNumber.findById(log.trackingNumber)
         : null;
 
-      const answered = ["completed", "answered"].includes(
-        dialStatus,
-      );
+      const session=await VoiceSession.findOne({business:log.business,providerCallSid:parentCallSid});
+      const answered=staffAccepted(session,'initialStaff') && ['completed','answered'].includes(dialStatus);
+      const effectiveStatus=!answered && ['completed','answered'].includes(dialStatus)?'no-answer':dialStatus;
 
       await CallLog.findByIdAndUpdate(log._id, {
         $set: {
           providerStatus: dialStatus,
-          status: canonicalStatus(dialStatus),
-          disposition: businessDisposition(dialStatus),
+          status: canonicalStatus(effectiveStatus),
+          disposition: businessDisposition(effectiveStatus),
           destinationCallSid: String(
             req.body.DialCallSid || "",
           ),

@@ -51,6 +51,8 @@ const IntegrationConnectionSchema = new Schema(
     providerCalendarId: { type: String, trim: true, default: "" },
     providerCalendarName: { type: String, trim: true, default: "" },
     availabilityCalendarIds: { type: [String], default: [] },
+    availabilityCacheVersion: {type:Number,default:0},
+    credentialGeneration: {type:Number,default:0},
     apiVersion: { type: String, trim: true, default: "" },
     metadata: { type: Schema.Types.Mixed, default: {} },
 
@@ -91,6 +93,15 @@ IntegrationConnectionSchema.index({
   provider: 1,
   watchExpiresAt: 1,
   status: 1,
+});
+
+// A disconnect fences credentials obtained by an in-flight refresh or authorization request.
+IntegrationConnectionSchema.post('init',document=>{document.$locals.credentialGeneration=document.credentialGeneration || 0;});
+IntegrationConnectionSchema.pre('save',function(){
+ if(!this.isNew && ['accessTokenEncrypted','refreshTokenEncrypted','status'].some(field=>this.isModified(field))) {
+  const generation=this.$locals.credentialGeneration ?? this.credentialGeneration ?? 0;
+  this.$where={...this.$where,...(generation?{credentialGeneration:generation}:{$or:[{credentialGeneration:0},{credentialGeneration:{$exists:false}}]})};
+ }
 });
 
 const IntegrationConnection =

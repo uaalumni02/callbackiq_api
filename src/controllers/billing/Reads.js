@@ -1,3 +1,4 @@
+import {verifiedPilotPortalConfiguration} from '../../services/billing/pilotPortalPolicy.js';
 import "../../models/trialRedemption.js";
 import * as Response from "../../helpers/response/response.js";
 import { TRIAL_PRICE_MONTHLY, getTrialEligibility } from "../../helpers/billing/trial.js";
@@ -233,16 +234,7 @@ static async createBillingPortalSession(req, res) {
         });
       }
 
-      const portalConfigurationId = String(
-        process.env.STRIPE_BILLING_PORTAL_CONFIGURATION_ID || "",
-      ).trim();
-      if (!portalConfigurationId) {
-        return res.status(503).json({
-          success: false,
-          code: "STRIPE_PORTAL_CONFIGURATION_REQUIRED",
-          message: "Restricted Stripe billing portal configuration is not configured.",
-        });
-      }
+      const portalConfigurationId=await verifiedPilotPortalConfiguration(stripe);
       const portalSession = await stripe.billingPortal.sessions.create({
         customer: subscription.stripeCustomerId,
         return_url: `${getClientUrl()}/billing`,

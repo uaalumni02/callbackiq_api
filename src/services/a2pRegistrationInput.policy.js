@@ -103,3 +103,11 @@ const validateAddress = (address = {}) => {
 
 
 export { clean, upper, normalizePhone, normalizeEin, isHttpUrl, formatEvaluationFailure, createMessageSamples, validateCommon, validateAddress, BUSINESS_TYPES };
+
+/** Builds the executed customer-care campaign contract; retains disclosures and consent evidence for submission/retry. */
+export const buildRegistrationCampaign=({input,common,useCase})=>({
+ description:clean(input.campaign?.description) || `${common.legalBusinessName} uses MeekCall for missed-call recovery and customer-care messaging.`,
+ messageFlow:common.campaign.messageFlow,messageSamples:createMessageSamples(common.legalBusinessName),useCase,
+ hasEmbeddedLinks:common.campaign.hasEmbeddedLinks,hasEmbeddedPhone:common.campaign.hasEmbeddedPhone,
+ privacyPolicyUrl:common.campaign.privacyPolicyUrl,termsAndConditionsUrl:common.campaign.termsAndConditionsUrl,
+});

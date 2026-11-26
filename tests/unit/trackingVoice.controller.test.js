@@ -1,3 +1,5 @@
+import VoiceSession from '../../src/models/voiceSession.js';
+import VoiceSessions from '../../src/voice/voiceSession.service.js';
 import CallLog from "../../src/models/callLog.js";
 import TrackingNumber from "../../src/models/trackingNumber.js";
 import { syncLatestAttribution } from "../../src/services/marketingAttribution.service.js";
@@ -6,6 +8,8 @@ import TrackingVoiceController from "../../src/controllers/trackingVoice.control
 import TwilioController from "../../src/controllers/twilio.js";
 import { normalizePhoneToE164 } from "../../src/voice/voicePhone.service.js";
 
+jest.mock('../../src/models/voiceSession.js',()=>({__esModule:true,default:{findOne:jest.fn()}}));
+jest.mock('../../src/voice/voiceSession.service.js',()=>({__esModule:true,TERMINAL_STATUSES:new Set(['completed','failed']),default:{ensureContext:jest.fn(),markConnecting:jest.fn()}}));
 jest.mock("../../src/models/callLog.js", () => ({
   __esModule: true,
   default: {
@@ -73,6 +77,7 @@ const context = (overrides = {}) => ({
 
 const callLog = () => ({
   _id: "507f1f77bcf86cd799439014",
+  business: "507f1f77bcf86cd799439011",
   trackingNumber: "507f1f77bcf86cd799439012",
   providerCallId: "CA_PARENT",
   from: "+14045550999",
@@ -82,6 +87,8 @@ const callLog = () => ({
 describe("TrackingVoiceController", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    VoiceSessions.ensureContext.mockResolvedValue({_id:'session',providerCallSid:'CA_PARENT',status:'routing'});
+    VoiceSession.findOne.mockResolvedValue({metadata:{initialStaffScreenAcceptedAt:new Date().toISOString()}});
     normalizePhoneToE164.mockImplementation(
       (value) => (value ? String(value) : ""),
     );
@@ -286,4 +293,11 @@ describe("TrackingVoiceController", () => {
       TwilioController.voiceWebhook,
     ).not.toHaveBeenCalled();
   });
+});
+
+test('M03 completed voicemail without keypad acceptance must trigger recovery',async()=>{
+ VoiceSession.findOne.mockResolvedValue({metadata:{}});CallLog.findOne.mockResolvedValue(callLog());TrackingNumber.findById.mockResolvedValue({callHandlingMode:'forward',smsRecoveryEnabled:true});
+ await TrackingVoiceController.complete({query:{parentCallSid:'CA_PARENT'},body:{DialCallStatus:'completed'}},makeResponse(),jest.fn());
+ expect(TwilioController.voiceWebhook).toHaveBeenCalledTimes(1);
+ expect(CallLog.findByIdAndUpdate).toHaveBeenCalledWith(expect.anything(),{$set:expect.objectContaining({status:'no_answer',disposition:'no_answer'})});
 });

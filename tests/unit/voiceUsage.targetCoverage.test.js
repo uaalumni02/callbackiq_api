@@ -1,3 +1,5 @@
+// Atomic budget behavior is covered against a replica set in pilotBudget.test.js; these unit fixtures isolate ledger orchestration.
+jest.mock('../../src/services/budgets/providerBudget.service.js',()=>({reserveProviderBudget:jest.fn().mockResolvedValue({}),settleProviderBudget:jest.fn().mockResolvedValue(true)}));
 const mockLedgerFindOneAndUpdate = jest.fn();
 const mockLedgerUpdateOne = jest.fn();
 const mockLedgerUpdateMany = jest.fn();
@@ -331,7 +333,7 @@ describe("voiceUsage reserve target coverage", () => {
     }
   });
 
-  test("overage-enabled reservation omits hard-cap expression", async () => {
+  test("owner overage flag cannot remove the hard-cap expression", async () => {
     arrangeSuccessfulReservation();
     await reserveVoiceUsage({
       business: {
@@ -350,11 +352,11 @@ describe("voiceUsage reserve target coverage", () => {
       ([query]) => query._id,
     );
     for (const [query] of reserveCalls) {
-      expect(query.$expr).toBeUndefined();
+      expect(query.$expr).toBeDefined();
     }
   });
 
-  test("disabled hard cap also omits limit expression", async () => {
+  test("owner hard-cap flag cannot remove the limit expression", async () => {
     arrangeSuccessfulReservation();
     await reserveVoiceUsage({
       business: {
@@ -372,7 +374,7 @@ describe("voiceUsage reserve target coverage", () => {
     const reserveCalls = mockLedgerFindOneAndUpdate.mock.calls.filter(
       ([query]) => query._id,
     );
-    expect(reserveCalls.every(([query]) => !query.$expr)).toBe(true);
+    expect(reserveCalls.every(([query]) => Boolean(query.$expr))).toBe(true);
   });
 
   test.each([
@@ -549,12 +551,12 @@ describe("voiceUsage reserve target coverage", () => {
   test("crossed warning thresholds create deduplicated day/month system alerts", async () => {
     arrangeSuccessfulReservation({
       day: dayLedger({
-        completedSeconds: 45,
+        completedSeconds: 1785,
         reservedSeconds: 15,
         thresholdAlertsSent: [],
       }),
       month: monthLedger({
-        completedSeconds: 45,
+        completedSeconds: 17985,
         reservedSeconds: 15,
         thresholdAlertsSent: [],
       }),
@@ -579,7 +581,7 @@ describe("voiceUsage reserve target coverage", () => {
       now: NOW,
     });
 
-    expect(mockAlert).toHaveBeenCalledTimes(4);
+    expect(mockAlert).toHaveBeenCalledTimes(6);
     expect(mockAlert).toHaveBeenCalledWith(
       expect.objectContaining({
         title: "Voice usage reached 100%",
@@ -587,20 +589,20 @@ describe("voiceUsage reserve target coverage", () => {
         metadata: expect.objectContaining({ threshold: 100 }),
       }),
     );
-    expect(mockLedgerUpdateOne).toHaveBeenCalledTimes(4);
+    expect(mockLedgerUpdateOne).toHaveBeenCalledTimes(6);
   });
 
   test("already-sent threshold is skipped", async () => {
     arrangeSuccessfulReservation({
       day: dayLedger({
-        completedSeconds: 45,
+        completedSeconds: 1785,
         reservedSeconds: 15,
-        thresholdAlertsSent: [50, 100],
+        thresholdAlertsSent: [70, 85, 100],
       }),
       month: monthLedger({
-        completedSeconds: 45,
+        completedSeconds: 17985,
         reservedSeconds: 15,
-        thresholdAlertsSent: [50, 100],
+        thresholdAlertsSent: [70, 85, 100],
       }),
     });
 
@@ -626,7 +628,7 @@ describe("voiceUsage reserve target coverage", () => {
 
   test("alert failure cannot turn an allowed voice reservation into a failure", async () => {
     arrangeSuccessfulReservation({
-      day: dayLedger({ completedSeconds: 59, reservedSeconds: 1 }),
+      day: dayLedger({ completedSeconds: 1799, reservedSeconds: 1, thresholdAlertsSent: [70,85] }),
       month: monthLedger({ completedSeconds: 0, reservedSeconds: 0 }),
     });
     mockAlert.mockRejectedValueOnce(new Error("alert database down"));

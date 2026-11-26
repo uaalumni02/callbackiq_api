@@ -1,3 +1,4 @@
+import Subscription from '../../src/models/subscription.js';
 import crypto from 'node:crypto';
 import mongoose from 'mongoose';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
@@ -41,7 +42,7 @@ beforeEach(async()=>{
  if(mongoose.connection.readyState!==1)throw new Error('Disposable replica set unavailable; do not run against a real database.');
  await Promise.all([Usage.deleteMany({}),Reservation.deleteMany({}),Message.deleteMany({}),Job.deleteMany({}),Appointment.deleteMany({}),Business.deleteMany({})]);
  business={_id:new mongoose.Types.ObjectId(),phone:'+12025550111',isActive:true,communicationLimits:{smsCustomerHourly:4,smsCustomerDaily:120,smsBusinessHourly:300,smsBusinessDaily:3000}};
- await Business.collection.insertOne(business);provider.mockClear();isSmsSuppressed.mockResolvedValue(false);
+ await Business.collection.insertOne(business);await Subscription.create({business:business._id,status:"active",isActive:true,plan:"pro"});provider.mockClear();isSmsSuppressed.mockResolvedValue(false);
 });
 afterAll(async()=>{await mongoose.disconnect();await mongo?.stop();});
 test('same handset receives replies and decline after proactive exhaustion; replays send once',async()=>{

@@ -34,7 +34,7 @@ export function additionalServiceText(text, lead, conversation = null) {
 export function planCustomerTurn({ customerMessage, business, lead, conversation }) {
   const text = clean(customerMessage);
   const classified = classifySmsIntent({ customerMessage: text, business, lead, conversation });
-  const withdrawal = isRequestWithdrawal(text) || classified.intents.cancel;
+  const withdrawal = isRequestWithdrawal(text);
   const callback = classified.intents.human || classified.intents.callback;
   const confirmation = /\b(?:guarantee|guaranteed|confirm|confirmed|confirmation|approve|approved|approval|booked|reserved)\b/i.test(text);
   const additionalRequest = withdrawal ? '' : additionalServiceText(text, lead, conversation);

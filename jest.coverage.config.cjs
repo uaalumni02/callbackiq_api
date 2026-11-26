@@ -17,7 +17,6 @@ module.exports = {
   collectCoverageFrom: [
     "src/**/*.js",
     "!src/server.js",
-    "!src/worker.js",
     "!src/**/__mocks__/**",
   ],
   testPathIgnorePatterns: [

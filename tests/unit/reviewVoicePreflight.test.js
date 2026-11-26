@@ -1,3 +1,5 @@
+import Business from '../../src/models/business.js';
+import Subscription from '../../src/models/subscription.js';
 jest.mock('../../src/services/webhooks/webhookWork.service.js',()=>({enqueueWebhookWork:jest.fn().mockResolvedValue({_id:'safety-job'})}));
 import { runVoiceConversationTurn } from '../../src/services/voiceConversationTurn.service.js';
 import Conversation from '../../src/models/conversation.js';
@@ -10,6 +12,8 @@ jest.mock('../../src/services/distributedLease.service.js',()=>({withDistributed
 let session,conversation,lead,operation;
 beforeEach(()=>{
  jest.clearAllMocks();
+ jest.spyOn(Business,"findById").mockReturnValue({lean:async()=>({isActive:true})});
+ jest.spyOn(Subscription,"findOne").mockReturnValue({lean:async()=>({status:"active",isActive:true,plan:"pro"})});
  conversation={_id:'c',business:'b',lead:'l',status:'open',orchestration:{activeVoiceIntakeSession:'v'},conversationMemory:{recoveryIntake:{address:'SMS-updated address'}}};
  lead={_id:'l',business:'b',address:'SMS-updated address'};
  session={_id:'v',business:{_id:'b'},conversation:{_id:'c'},lead:{_id:'l',address:'stale'}};
@@ -23,3 +27,5 @@ test('an address must not end an ordinary urgent repair call',async()=>{
  expect(r.handoff?.type).not.toBe('end');
  expect(operation).toHaveBeenCalled();
 });
+
+afterEach(()=>jest.restoreAllMocks());

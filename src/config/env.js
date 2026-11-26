@@ -1,3 +1,4 @@
+import {validateCapabilityConfiguration} from './capabilities.js';
 import {validateNumericSettings} from './numericSettings.js';
 import { getMongoUrl } from "./runtime-environment.js";
 
@@ -84,7 +85,7 @@ export const validateEnvironment = (
     source.APP_ENV || source.NODE_ENV || "development",
   ).toLowerCase();
 
-  const errors = [];
+  const errors = validateCapabilityConfiguration(source, appEnv);
   try { validateNumericSettings(source); } catch (error) { errors.push(error.message); }
   const warnings = [];
 

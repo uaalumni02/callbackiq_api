@@ -1,4 +1,4 @@
-import { clean, upper, normalizePhone, normalizeEin, isHttpUrl, formatEvaluationFailure, createMessageSamples, validateCommon, validateAddress, BUSINESS_TYPES } from './a2pRegistrationInput.policy.js';
+import { clean, upper, normalizePhone, normalizeEin, isHttpUrl, formatEvaluationFailure, buildRegistrationCampaign, validateCommon, validateAddress, BUSINESS_TYPES } from './a2pRegistrationInput.policy.js';
 import { saveStateDocument } from './stateTransitions/documents.js';
 import {
   parseEventDate,
@@ -235,17 +235,7 @@ const createStandardRegistration = async ({ client, registration, input, common 
   registration.websiteUrl = websiteUrl;
   registration.contactEmail = common.contactEmail;
   registration.registrationNumberLast4 = ein.slice(-4);
-  registration.campaign = {
-    description: clean(input.campaign?.description) ||
-      `${common.legalBusinessName} uses MeekCall for missed-call recovery and customer-care messaging.`,
-    messageFlow: common.campaign.messageFlow,
-    messageSamples: createMessageSamples(common.legalBusinessName),
-    useCase: "CUSTOMER_CARE",
-    hasEmbeddedLinks: common.campaign.hasEmbeddedLinks,
-    hasEmbeddedPhone: common.campaign.hasEmbeddedPhone,
-    privacyPolicyUrl: common.campaign.privacyPolicyUrl,
-    termsAndConditionsUrl: common.campaign.termsAndConditionsUrl,
-  };
+  registration.campaign = buildRegistrationCampaign({input,common,useCase:"CUSTOMER_CARE"});
   await saveStateDocument(registration);
 
   if (!registration.customerProfileSid) {
@@ -376,17 +366,7 @@ const createSoleProprietorRegistration = async ({ client, registration, input, c
   registration.contactEmail = common.contactEmail;
   registration.registrationNumberLast4 = "";
   registration.mobilePhoneLast4 = mobilePhone.slice(-4);
-  registration.campaign = {
-    description: clean(input.campaign?.description) ||
-      `${common.legalBusinessName} uses MeekCall for missed-call recovery and customer-care messaging.`,
-    messageFlow: common.campaign.messageFlow,
-    messageSamples: createMessageSamples(common.legalBusinessName),
-    useCase: "SOLE_PROPRIETOR",
-    hasEmbeddedLinks: common.campaign.hasEmbeddedLinks,
-    hasEmbeddedPhone: common.campaign.hasEmbeddedPhone,
-    privacyPolicyUrl: common.campaign.privacyPolicyUrl,
-    termsAndConditionsUrl: common.campaign.termsAndConditionsUrl,
-  };
+  registration.campaign = buildRegistrationCampaign({input,common,useCase:"SOLE_PROPRIETOR"});
   await saveStateDocument(registration);
 
   if (!registration.customerProfileSid) {

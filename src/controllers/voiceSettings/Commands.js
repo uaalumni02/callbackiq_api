@@ -1,7 +1,7 @@
+import {withPilotVoiceBudget} from '../../config/pilotBudgets.js';
 import { assertNoDialLoops, serialize, validateUpdate, validationError, voiceSettingsObject } from "./helpers.js";
 import { getOwnedBusiness } from "../../services/businessScope.service.js";
 import { getPresetRoutingPolicy, inferAnswerMode } from "../../voice/voiceRouting.service.js";
-import { normalizePhoneToE164 } from "../../voice/voicePhone.service.js";
 import { publishVoiceSettingsVersion } from "../../services/voiceSettingsVersion.service.js";
 import { validateVoiceSettingsDraft } from "../../services/voiceSettingsContract.service.js";
 
@@ -40,13 +40,13 @@ static async update(req, res, next) {
       }
 
       const answerMode = inferAnswerMode({ voiceAiEnabled, routingPolicy });
-      const merged = {
+      const merged = withPilotVoiceBudget({
         ...voiceSettings,
         answerMode,
         routingPolicyVersion: 1,
         routingPolicy,
         recordingEnabled: false,
-      };
+      });
       for (const key of [
         "overflowRingSeconds",
         "maxCallDurationSeconds",
@@ -68,11 +68,7 @@ static async update(req, res, next) {
       }
 
       assertNoDialLoops({ business, settings: merged });
-      if (merged.liveTransferEnabled && !normalizePhoneToE164(merged.liveTransferPhone)) {
-        throw validationError(
-          "Configure a dedicated live-transfer phone before enabling live transfer.",
-        );
-      }
+      merged.liveTransferEnabled=false;merged.liveTransferPhone="";
 
       business.set("features.voiceAiEnabled", voiceAiEnabled);
       if (Object.hasOwn(update, "aiBookingEnabled")) {

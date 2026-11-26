@@ -65,7 +65,8 @@ const result = spawnSync(
   [
     "jest",
     ...uniqueTests,
-    "--runInBand",
+    "--maxWorkers=1",
+    "--workerIdleMemoryLimit=512MB",
     "--no-cache",
     "--verbose",
   ],

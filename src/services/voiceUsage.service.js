@@ -1,3 +1,6 @@
+import {settleVoiceBudgetReservations} from './budgets/voiceBudgetSettlement.js';
+import {pilotVoiceLimits} from '../config/pilotBudgets.js';
+import {reserveProviderBudget} from './budgets/providerBudget.service.js';
 import crypto from "crypto";
 import mongoose from "mongoose";
 
@@ -42,38 +45,7 @@ const utcKey = (date, type) => {
 const validObjectIdOrNull = (value) =>
   mongoose.isValidObjectId(value) ? value : null;
 
-const limitsFor = (business = {}) => {
-  const settings = business.voiceSettings || {};
-  const limits = {
-    dailySeconds: Math.round(
-      clamp(settings.dailyVoiceMinutes, 240, 1, 100000) * 60,
-    ),
-    monthlySeconds: Math.round(
-      clamp(settings.monthlyVoiceMinutes, 4000, 1, 1000000) * 60,
-    ),
-    hardCapEnabled: settings.voiceHardCapEnabled !== false,
-    overageEnabled: settings.voiceOverageEnabled === true,
-    warningThresholds: Array.isArray(settings.voiceUsageWarningThresholds)
-      ? settings.voiceUsageWarningThresholds
-      : [70, 85, 100],
-  };
-
-  if (business?.trialCostControls?.enabled === true) {
-    const trialDailySeconds =
-      clamp(process.env.TRIAL_VOICE_DAILY_MINUTES, 30, 1, 1440) * 60;
-    const trialMonthlySeconds =
-      clamp(process.env.TRIAL_VOICE_MONTHLY_MINUTES, 300, 1, 10000) * 60;
-    limits.dailySeconds = Math.min(limits.dailySeconds, trialDailySeconds);
-    limits.monthlySeconds = Math.min(
-      limits.monthlySeconds,
-      trialMonthlySeconds,
-    );
-    limits.hardCapEnabled = true;
-    limits.overageEnabled = false;
-  }
-
-  return limits;
-};
+const limitsFor = () => pilotVoiceLimits();
 
 const ensureLedger = ({ businessId, type, now, mongoSession = null }) =>
   VoiceUsageLedger.findOneAndUpdate(
@@ -209,6 +181,16 @@ const buildReservationKey = ({ businessId, sessionId, reservationKey }) =>
     .trim()
     .slice(0, 220);
 
+const reserveUsagePeriod=async({businessId,type,now,mongoSession,requested,limits,enforce,sessionId})=>{
+ const ledger=await ensureLedger({businessId,type,now,mongoSession});
+ const reserved=await reserveLedger({ledger,requested,limitSeconds:type==='day'?limits.dailySeconds:limits.monthlySeconds,enforceLimit:enforce,sessionId,mongoSession});
+ if(!reserved){const reason=type==='day'?'daily_voice_allowance_exhausted':'monthly_voice_allowance_exhausted';throw Object.assign(new Error(reason),{reason,code:'VOICE_USAGE_LIMIT_REACHED'});}
+ return reserved;
+};
+const releaseReservedPeriods=async(reservation,mongoSession=null)=>{
+ for(const periodType of ['day','month'])if(reservation.reservedPeriodTypes.includes(periodType))await releaseLedgerReservation({businessId:reservation.business,periodType,periodKey:periodType==='day'?reservation.dayPeriodKey:reservation.monthPeriodKey,seconds:reservation.requestedSeconds,...(mongoSession?{mongoSession}:{})});
+};
+
 export const reserveVoiceUsage = async ({
   business,
   sessionId,
@@ -285,55 +267,16 @@ export const reserveVoiceUsage = async ({
   const mongoSession = await mongoose.startSession();
   let reservedDaily = null;
   let reservedMonthly = null;
-  let rejectionReason = "";
   try {
     await mongoSession.withTransaction(async () => {
+      await reserveProviderBudget({businessId,metric:"voice",amount:requested,key,mongoSession,now});
       /*
        * MongoDB does not support parallel operations on the same
        * transaction session. Keep ledger initialization sequential
        * while preserving transaction atomicity.
        */
-      const daily = await ensureLedger({
-        businessId,
-        type: "day",
-        now,
-        mongoSession,
-      });
-
-      const monthly = await ensureLedger({
-        businessId,
-        type: "month",
-        now,
-        mongoSession,
-      });
-      reservedDaily = await reserveLedger({
-        ledger: daily,
-        requested,
-        limitSeconds: limits.dailySeconds,
-        enforceLimit: enforce,
-        sessionId,
-        mongoSession,
-      });
-      if (!reservedDaily) {
-        rejectionReason = "daily_voice_allowance_exhausted";
-        const error = new Error(rejectionReason);
-        error.code = "VOICE_USAGE_LIMIT_REACHED";
-        throw error;
-      }
-      reservedMonthly = await reserveLedger({
-        ledger: monthly,
-        requested,
-        limitSeconds: limits.monthlySeconds,
-        enforceLimit: enforce,
-        sessionId,
-        mongoSession,
-      });
-      if (!reservedMonthly) {
-        rejectionReason = "monthly_voice_allowance_exhausted";
-        const error = new Error(rejectionReason);
-        error.code = "VOICE_USAGE_LIMIT_REACHED";
-        throw error;
-      }
+      reservedDaily=await reserveUsagePeriod({businessId,type:'day',now,mongoSession,requested,limits,enforce,sessionId});
+      reservedMonthly=await reserveUsagePeriod({businessId,type:'month',now,mongoSession,requested,limits,enforce,sessionId});
       await VoiceUsageReservation.updateOne(
         { _id: reservation._id, state: "preparing" },
         {
@@ -349,7 +292,7 @@ export const reserveVoiceUsage = async ({
   } catch (error) {
     const reason =
       error?.code === "VOICE_USAGE_LIMIT_REACHED"
-        ? rejectionReason || "voice_allowance_exhausted"
+        ? error.reason || "voice_allowance_exhausted"
         : "voice_usage_atomic_reservation_unavailable";
     await VoiceUsageReservation.updateOne(
       { _id: reservation._id, state: "preparing" },
@@ -429,27 +372,11 @@ const executeReconciliationTransaction = async ({
         business: businessId,
         session: sessionId,
         state: { $in: ["preparing", "active"] },
-      }).session(mongoSession);
+      }).sort({createdAt:1,_id:1}).session(mongoSession);
+      await settleVoiceBudgetReservations({businessId,reservations,actualSeconds,mongoSession});
 
       for (const reservation of reservations) {
-        if (reservation.reservedPeriodTypes.includes("day")) {
-          await releaseLedgerReservation({
-            businessId,
-            periodType: "day",
-            periodKey: reservation.dayPeriodKey,
-            seconds: reservation.requestedSeconds,
-            mongoSession,
-          });
-        }
-        if (reservation.reservedPeriodTypes.includes("month")) {
-          await releaseLedgerReservation({
-            businessId,
-            periodType: "month",
-            periodKey: reservation.monthPeriodKey,
-            seconds: reservation.requestedSeconds,
-            mongoSession,
-          });
-        }
+        await releaseReservedPeriods(reservation,mongoSession);
         releasedSeconds += reservation.requestedSeconds;
       }
 
@@ -757,22 +684,7 @@ export const releaseVoiceUsageReservation = async ({
   if (!claimed) return VoiceUsageReservation.findById(reservationId);
 
   const releaseWithoutTransaction = async () => {
-    if (claimed.reservedPeriodTypes.includes("day")) {
-      await releaseLedgerReservation({
-        businessId: claimed.business,
-        periodType: "day",
-        periodKey: claimed.dayPeriodKey,
-        seconds: claimed.requestedSeconds,
-      });
-    }
-    if (claimed.reservedPeriodTypes.includes("month")) {
-      await releaseLedgerReservation({
-        businessId: claimed.business,
-        periodType: "month",
-        periodKey: claimed.monthPeriodKey,
-        seconds: claimed.requestedSeconds,
-      });
-    }
+    await releaseReservedPeriods(claimed);
     return VoiceUsageReservation.findOneAndUpdate(
       { _id: claimed._id, state: "releasing", ownerToken },
       {
@@ -796,24 +708,8 @@ export const releaseVoiceUsageReservation = async ({
           ownerToken,
         }).session(mongoSession);
         if (!current) return;
-        if (current.reservedPeriodTypes.includes("day")) {
-          await releaseLedgerReservation({
-            businessId: current.business,
-            periodType: "day",
-            periodKey: current.dayPeriodKey,
-            seconds: current.requestedSeconds,
-            mongoSession,
-          });
-        }
-        if (current.reservedPeriodTypes.includes("month")) {
-          await releaseLedgerReservation({
-            businessId: current.business,
-            periodType: "month",
-            periodKey: current.monthPeriodKey,
-            seconds: current.requestedSeconds,
-            mongoSession,
-          });
-        }
+        await settleVoiceBudgetReservations({businessId:current.business,reservations:[current],actualSeconds:0,mongoSession});
+        await releaseReservedPeriods(current,mongoSession);
         await VoiceUsageReservation.updateOne(
           { _id: current._id, state: "releasing", ownerToken },
           {

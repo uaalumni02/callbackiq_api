@@ -1,7 +1,7 @@
 import Joi from "joi";
 
 const checkoutSchema = Joi.object({
-  plan: Joi.string().valid("starter", "pro", "agency").required(),
+  plan: Joi.string().valid("pro").required(),
 });
 
 const webhookSchema = Joi.object({

@@ -1,3 +1,4 @@
+import {readStripeSubscriptionInventory} from './billing/stripeSubscriptionInventory.js';
 import { invoiceSubscriptionId } from "../helpers/billing/invoiceSubscriptionId.js";
 import { safeConsole } from "../helpers/logging/safeLogger.js";
 import Subscription from "../models/subscription.js";
@@ -24,9 +25,7 @@ const lifecycleError = (code, message, statusCode = 409) => {
 
 const stripeId = (value) =>
   typeof value === "string" ? value : String(value?.id || "");
-
 const normalizeStatus = (value) => String(value || "").toLowerCase();
-
 export const isStripeSubscriptionLive = (subscriptionOrStatus) => {
   const status =
     typeof subscriptionOrStatus === "string"
@@ -127,13 +126,8 @@ export const listLiveStripeSubscriptions = async ({
     );
   }
 
-  const subscriptions = await stripe.subscriptions.list({
-    customer: stripeCustomerId,
-    status: "all",
-    limit: 100,
-  });
-
-  return (Array.isArray(subscriptions?.data) ? subscriptions.data : []).filter(
+  const subscriptions = await readStripeSubscriptionInventory(stripe,stripeCustomerId);
+  return subscriptions.filter(
     isStripeSubscriptionLive,
   );
 };

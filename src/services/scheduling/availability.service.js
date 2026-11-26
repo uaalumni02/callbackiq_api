@@ -12,17 +12,26 @@ import {
 import SchedulingProviderFactory from "./schedulingProviderFactory.js";
 import { formatDateKey, formatZonedIso } from "./timezone.service.js";
 
+const providerLookupOptions=({forceFresh=false,serviceOfferingId,startDate,endDate,postalCode,excludeAppointmentId=null,excludeExternalEventId=null})=>{
+    return {
+      ...(forceFresh ? {forceFresh:true} : {}),
+      serviceOfferingId,
+      startDate,
+      endDate,
+      postalCode,
+      excludeAppointmentId,
+      ...(excludeExternalEventId ? { excludeExternalEventId } : {}),
+    };
+};
+
 class AvailabilityService {
-  static async getAvailability({
+  static async getAvailability(options) {
+    const {
     business,
     serviceOfferingId,
-    startDate,
-    endDate,
     postalCode,
-    excludeAppointmentId = null,
     providerNameOverride = null,
-    excludeExternalEventId = null,
-  }) {
+    }=options;
     const businessId = business._id || business.id;
     const [serviceArea, policy, service] = await Promise.all([
       validateServiceArea({ businessId, postalCode }),
@@ -58,14 +67,7 @@ class AvailabilityService {
       business,
       providerNameOverride,
     );
-    const providerOptions = {
-      serviceOfferingId,
-      startDate,
-      endDate,
-      postalCode,
-      excludeAppointmentId,
-      ...(excludeExternalEventId ? { excludeExternalEventId } : {}),
-    };
+    const providerOptions=providerLookupOptions(options);
     const slots = await provider.getAvailability(providerOptions);
     if (!Array.isArray(slots)) {
       const error = new Error('Scheduling provider returned an invalid slot list.');

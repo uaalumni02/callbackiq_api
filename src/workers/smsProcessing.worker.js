@@ -1,3 +1,4 @@
+import {withProviderBusiness} from "../services/providerEntitlement.service.js";
 import { workerSetting } from "../config/workerSettings.js";
 import { subscribeLocalQueue } from "../services/localQueueWake.service.js";
 import { captureExternalError, trackWorkerFailure } from "../services/errorTracking.service.js";
@@ -92,7 +93,7 @@ const processWithHeartbeat = async (job) => {
 
   try {
     assertDistributedLeaseActive();
-    const result = await safelyProcessInboundSmsJob(job);
+    const result = await withProviderBusiness(job.business,()=>safelyProcessInboundSmsJob(job));
     await heartbeatPending;
     if (heartbeatError) throw heartbeatError;
     assertDistributedLeaseActive();

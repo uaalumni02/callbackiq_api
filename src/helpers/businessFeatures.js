@@ -32,6 +32,8 @@ export const getBusinessFeatures = (business) => {
   return {
     ...BUSINESS_FEATURE_DEFAULTS,
     ...features,
+    jobberEnabled: false,
+    calendarProvider: features.calendarProvider === "jobber" ? "internal" : features.calendarProvider || "internal",
   };
 };
 

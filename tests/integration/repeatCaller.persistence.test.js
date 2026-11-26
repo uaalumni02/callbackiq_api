@@ -1,3 +1,4 @@
+import { activateCustomerAccess } from '../setup/stabilizationFixture.js';
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import Business from '../../src/models/business.js';
@@ -39,6 +40,7 @@ beforeEach(async () => {
   jest.clearAllMocks();
   sendSms.mockImplementation(async () => ({ sid: `SM${sendSms.mock.calls.length}`, status: 'queued' }));
   business = await Business.create({ owner: new mongoose.Types.ObjectId(), businessName: 'Repeat Caller Plumbing', businessType: 'plumbing', phone: '+14045550100', forwardingPhone: '+14045550101', isActive: true, features: { missedCallSmsEnabled: true } });
+  await activateCustomerAccess(business);
 });
 
 test.each(['collecting_preference', 'pending_business_confirmation', 'booked'])('repeat missed calls preserve %s beyond the cooldown', async status => {

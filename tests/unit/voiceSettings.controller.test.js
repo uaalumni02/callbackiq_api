@@ -102,7 +102,7 @@ describe("VoiceSettingsController callback-first settings", () => {
     );
   });
 
-  test("saves automatic booking and optional live transfer independently", async () => {
+  test("saves automatic booking independently while the pilot remains callback-only", async () => {
     const business = makeBusiness();
     getOwnedBusiness.mockResolvedValue(business);
     const res = response();
@@ -113,9 +113,9 @@ describe("VoiceSettingsController callback-first settings", () => {
         user: { userId: "owner" },
         body: {
           aiBookingEnabled: true,
-          liveTransferEnabled: true,
+          liveTransferEnabled: false,
           transferPhone: "+14045550109",
-          liveTransferPhone: "+14045550188",
+          liveTransferPhone: "",
         },
       },
       res,
@@ -128,9 +128,9 @@ describe("VoiceSettingsController callback-first settings", () => {
       true,
     );
     expect(business.voiceSettings).toMatchObject({
-      liveTransferEnabled: true,
+      liveTransferEnabled: false,
       transferPhone: "+14045550109",
-      liveTransferPhone: "+14045550188",
+      liveTransferPhone: "",
     });
     expect(publishVoiceSettingsVersion).toHaveBeenCalledWith(
       expect.objectContaining({ business, publishedBy: "owner" }),
@@ -181,7 +181,7 @@ describe("VoiceSettingsController callback-first settings", () => {
     );
   });
 
-  test("requires a dedicated phone when optional live transfer is enabled", async () => {
+  test("ignores an obsolete live-transfer toggle when reporting callback readiness", async () => {
     const business = makeBusiness({
       voiceSettings: {
         answerMode: "always",
@@ -207,14 +207,14 @@ describe("VoiceSettingsController callback-first settings", () => {
     );
 
     const payload = res.json.mock.calls[0][0].data;
-    expect(payload.ready).toBe(false);
-    expect(payload.checks.liveTransferPhoneConfigured).toBe(false);
+    expect(payload.ready).toBe(true);
+    expect(payload.checks.liveTransferPhoneConfigured).toBe(true);
     expect(payload.recoveryPolicy.explicitHumanRequest).toBe(
       "capture_callback",
     );
   });
 
-  test("uses live transfer only when enabled with a dedicated phone", async () => {
+  test("does not advertise live transfer even when a legacy dedicated number exists", async () => {
     const business = makeBusiness({
       voiceSettings: {
         answerMode: "always",
@@ -241,9 +241,9 @@ describe("VoiceSettingsController callback-first settings", () => {
 
     const payload = res.json.mock.calls[0][0].data;
     expect(payload.ready).toBe(true);
-    expect(payload.capabilities.liveTransferEnabled).toBe(true);
+    expect(payload.capabilities.liveTransferEnabled).toBe(false);
     expect(payload.recoveryPolicy.explicitHumanRequest).toBe(
-      "live_transfer_during_open_hours",
+      "capture_callback",
     );
     expect(payload.recoveryPolicy.liveTransferWindow).toBe(
       "configured_business_hours_only",
@@ -265,8 +265,8 @@ describe("VoiceSettingsController callback-first settings", () => {
 
     expect(next).toHaveBeenCalledWith(
       expect.objectContaining({
-        statusCode: 400,
-        message: "Enter a valid live-transfer phone number.",
+        statusCode: 403,
+        code: "PILOT_CALLBACK_ONLY",
       }),
     );
   });
@@ -291,4 +291,8 @@ describe("VoiceSettingsController callback-first settings", () => {
       }),
     );
   });
+});
+
+test('H03 rejects attempts to enable the removed live-transfer feature before saving',async()=>{
+ const business=makeBusiness();getOwnedBusiness.mockResolvedValue(business);const next=jest.fn();await VoiceSettingsController.update({user:{userId:'owner'},body:{liveTransferEnabled:true}},response(),next);expect(next).toHaveBeenCalledWith(expect.objectContaining({code:'PILOT_CALLBACK_ONLY',statusCode:403}));expect(business.set).not.toHaveBeenCalled();
 });

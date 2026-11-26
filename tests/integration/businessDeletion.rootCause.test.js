@@ -1,3 +1,5 @@
+import TrackingNumber from '../../src/models/trackingNumber.js';
+import mongoose from 'mongoose';
 import Business from '../../src/models/business.js';
 import Subscription from '../../src/models/subscription.js';
 import Intent from '../../src/models/trackingNumberReleaseIntent.js';
@@ -36,7 +38,8 @@ test('confirmed cleanup retains its durable intent after deleting the business a
  });
  await deleteBusinessSafely({businessId:business._id});
  expect(await Business.findById(business._id)).toBeNull();expect(await Subscription.findOne({business:business._id})).toBeNull();
- expect((await Intent.findOne({business:business._id})).status).toBe('completed');
+ const retained=await Intent.findOne({status:'completed'}).select('+providerSid +providerAccountSid');
+ expect(retained.status).toBe('completed');expect(String(retained.business)).not.toBe(String(business._id));expect(retained.providerSid).toMatch(/^erased:/);expect(retained.providerAccountSid).toMatch(/^erased:/);
 });
 
 test('deleting an unallocated account without a subscription never calls billing',async()=>{
@@ -62,4 +65,16 @@ test('a provider failure without structured fields retains a stable retryable cl
  const retained=await Business.findById(business._id);
  expect(retained.accountLifecycle.lastError).toBe('BUSINESS_DELETION_CLEANUP_FAILED: Cleanup failed');
  expect(await Subscription.findOne({business:business._id})).not.toBeNull();
+});
+
+test('H04 deletion verifies release of a secondary billable tracking number before erasing it',async()=>{
+ const {business}=await trackingFixture({phone:undefined});const state=providerFixture();state.incoming.sid='PN_EXTRA';createTwilioClient.mockReturnValue(state.client);
+ await TrackingNumber.create({business:business._id,kind:'marketing',phoneNumber:'+14045550129',phoneLookup:'+14045550129',providerSid:'PN_EXTRA',status:'active'});
+ await deleteBusinessSafely({businessId:business._id});expect(state.remove).toHaveBeenCalledTimes(1);expect(await Business.findById(business._id)).toBeNull();expect(await TrackingNumber.countDocuments({business:business._id})).toBe(0);
+});
+test('H04 ambiguous secondary number ownership fails closed without releasing the other tenant resource',async()=>{
+ const {business}=await trackingFixture({phone:undefined});const state=providerFixture();createTwilioClient.mockReturnValue(state.client);
+ await TrackingNumber.create({business:business._id,kind:'marketing',phoneNumber:'+14045550129',phoneLookup:'+14045550129',providerSid:'PN_SHARED',status:'active'});
+ await Business.create({owner:new mongoose.Types.ObjectId(),businessName:'Another synthetic tenant',forwardingPhone:'+14045550888',phone:'+14045550889',trackingNumber:{providerSid:'PN_SHARED',status:'active'}});
+ await expect(deleteBusinessSafely({businessId:business._id})).rejects.toMatchObject({code:'BUSINESS_DELETION_NUMBER_OWNERSHIP_CONFLICT'});expect(state.remove).not.toHaveBeenCalled();expect(await Business.findById(business._id)).not.toBeNull();
 });

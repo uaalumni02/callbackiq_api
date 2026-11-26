@@ -1,3 +1,4 @@
+import { activateCustomerAccess } from '../setup/stabilizationFixture.js';
 import { signedTwilioPost } from '../helpers/signTwilioRequest.js';
 
 import request from "supertest";
@@ -21,7 +22,7 @@ import {
   connectTestDB,
   clearTestDB,
   closeTestDB,
-} from "../setup/testDb.js";
+} from "../setup/testReplicaDb.js";
 
 const mockTwilioMessageCreate = jest.fn();
 
@@ -109,7 +110,7 @@ afterAll(async () => {
 });
 
 const createBusiness = async (overrides = {}) => {
-  return Business.create({
+  const business = await Business.create({
     owner: new mongoose.Types.ObjectId(),
     businessName: "Atlanta Pro Plumbing",
     businessType: "plumbing",
@@ -119,6 +120,8 @@ const createBusiness = async (overrides = {}) => {
     isActive: true,
     ...overrides,
   });
+  await activateCustomerAccess(business);
+  return business;
 };
 
 const sendSmsWebhook = (body, messageSid) => {

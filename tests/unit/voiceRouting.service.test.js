@@ -123,3 +123,7 @@ describe("Phase 9 voice routing settings", () => {
     );
   });
 });
+
+test('B03 missing legacy voice settings still get immutable server-owned pilot spend limits',()=>{
+ const normalized=normalizeVoiceSettings();expect(normalized.dailyVoiceMinutes).toBe(30);expect(normalized.monthlyVoiceMinutes).toBe(300);expect(normalized.voiceOverageEnabled).toBe(false);
+});

@@ -3,11 +3,12 @@ import express from "express";
 import BusinessConfigurationController from "../controllers/businessConfiguration.js";
 import checkAuth from "../middleware/check-auth.js";
 
-import { getOwnerSettings, putOwnerSettings } from "../controllers/ownerSettings.js";
+import { getOwnerSettings, putOwnerSettings, testOwnerNotifications } from "../controllers/ownerSettings.js";
 
 const router = express.Router();
 
 router.use(checkAuth);
+router.post("/owner-settings/test-notifications", testOwnerNotifications);
 router.get("/owner-settings", getOwnerSettings);
 router.put("/owner-settings/:section", putOwnerSettings);
 

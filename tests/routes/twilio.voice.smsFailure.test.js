@@ -1,3 +1,4 @@
+import {activateCustomerAccess} from '../setup/stabilizationFixture.js';
 import { signedTwilioPost } from '../helpers/signTwilioRequest.js';
 import request from "supertest";
 import mongoose from "mongoose";
@@ -12,7 +13,7 @@ import {
   connectTestDB,
   clearTestDB,
   closeTestDB,
-} from "../setup/testDb.js";
+} from "../setup/testReplicaDb.js";
 
 jest.mock("../../src/services/twilioSmsService.js", () => ({
   sendSms: jest.fn(),
@@ -65,6 +66,7 @@ describe("POST /api/twilio/voice SMS failure isolation", () => {
       },
     });
 
+    await activateCustomerAccess(business._id);
     const response = await signedTwilioPost(app, "/api/twilio/voice", {
         From: "+14045559999",
         To: "+14045551234",

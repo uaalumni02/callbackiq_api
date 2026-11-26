@@ -86,7 +86,15 @@ for (const line of diff.split("\n")) {
 
 const lcov = new Map();
 let current = null;
-for (const line of fs.readFileSync(lcovPath, "utf8").split(/\r?\n/)) {
+let lcovText = fs.readFileSync(lcovPath, "utf8");
+if (
+  fs.existsSync(path.join(root, "coverage", "coverage-final.json")) &&
+  fs.existsSync(new URL("./normalizeV8Coverage.cjs", import.meta.url))
+) {
+  const { default: normalization } = await import("./normalizeV8Coverage.cjs");
+  lcovText = normalization.readDistinctBranchLcov(root);
+}
+for (const line of lcovText.split(/\r?\n/)) {
   if (line.startsWith("SF:")) {
     const rawPath = line.slice(3);
     const relative = path.isAbsolute(rawPath)

@@ -83,7 +83,7 @@ beforeAll(async () => {
   shell.get('/{*path}', (req,res) => res.sendFile(path.join(uiDir, 'build/index.html')));
   server = await new Promise((resolve,reject) => { const s=shell.listen(43771,'127.0.0.1',()=>resolve(s)); s.on('error',reject); });
   browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}) });
-  context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  context = await browser.newContext({ viewport: { width: 375, height: 812 } });
   // Confirm the seeded owner can reach protected data before testing UI flows.
   const accessProbe = await api('/calls');
   expect(accessProbe).toMatchObject({ status: 200 });

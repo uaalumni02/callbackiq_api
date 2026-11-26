@@ -248,4 +248,13 @@ describe("socket authentication middleware", () => {
       expect.any(Error),
     );
   });
+  test('a verifier returning no claims fails before any tenant lookup', async () => {
+    Token.verify.mockReturnValue(undefined);
+    const next=jest.fn();
+    await socketAuth(makeSocket({handshake:{auth:{token:'synthetic'},headers:{}}}), next);
+    expect(errorCode(next)).toBe('SOCKET_INVALID_TOKEN');
+    expect(User.findById).not.toHaveBeenCalled();
+    expect(Business.findOne).not.toHaveBeenCalled();
+  });
+
 });

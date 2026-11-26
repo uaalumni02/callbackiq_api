@@ -85,7 +85,7 @@ describe("businessFeatures helper", () => {
           calendarProvider: "jobber",
         },
       }),
-    ).toBe("jobber");
+    ).toBe("internal");
 
     expect(getBusinessCalendarProvider({})).toBe("internal");
   });

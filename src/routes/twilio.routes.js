@@ -1,3 +1,4 @@
+import voiceProviderEntitlement from "../middleware/voice-provider-entitlement.js";
 import express from "express";
 import checkAuth from "../middleware/check-auth.js";
 import checkSubscription from "../middleware/check-subscription.js";
@@ -27,6 +28,7 @@ router.post(
   validateTwilioSignature,
   twilioVoiceWebhookRateLimit,
   monitorTwilioVoiceWebhookLatency,
+  voiceProviderEntitlement,
   TrackingVoiceController.initial,
   VoiceWebhookController.initial,
 );
@@ -36,6 +38,7 @@ router.post(
   validateTwilioSignature,
   twilioVoiceWebhookRateLimit,
   monitorTwilioVoiceWebhookLatency,
+  voiceProviderEntitlement,
   TrackingVoiceController.initial,
   VoiceWebhookController.initial,
 );

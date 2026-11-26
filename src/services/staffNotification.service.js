@@ -2,7 +2,7 @@ import { staffNotificationPublishAlertAtomicUpdate } from './stateTransitions/re
 import crypto from "node:crypto";
 import Alert from "../models/alert.js";
 import Business from "../models/business.js";
-import User from "../models/user.js";
+import {dispatchStaffRecipients,staffAlertDeliveryFilter} from './notifications/recipientPolicy.service.js';
 import Job from "../models/staffNotificationJob.js";
 import { sendStaffReviewEmail } from "../helpers/email/mailer.js";
 import SocketService from "./socket.service.js";
@@ -23,10 +23,11 @@ export async function enqueueStaffNotifications({ now = new Date(), limit = 100 
   if (!enabled()) return;
   for (const stage of ["initial", "overdue", "expired"]) {
     const stageFilter = stage === "expired" ? { "metadata.approvalState": "needs_recheck" } : stage === "overdue" ? { dueAt: { $ne: null, $lte: now } } : { $or: [{ dueAt: null }, { dueAt: { $gt: now } }] };
-    const alerts = await Alert.find({ ...unresolved,  $and: [{ $or: [{ priority: { $in: ["high", "critical"] } }, { "metadata.approvalRequest": true }, { "metadata.serviceEligibilityReason": { $exists: true, $ne: "" } }] }],
-      ...(stage === 'expired' ? {} : { 'metadata.approvalState': { $ne: 'needs_recheck' } }),
-      ...stageFilter, [`metadata.staffNotification.${stage}`]: { $exists: false },
-    }).sort({ createdAt: 1, _id: 1 }).limit(limit).select("_id business").lean();
+    const required=stage==='initial'?{$or:[{priority:'critical'},unresolved]}:unresolved;
+    const due=stage==='initial'?{$or:[{priority:'critical'},{dueAt:null},{dueAt:{$gt:now}}]}:stageFilter;
+    const alerts=await Alert.find({$and:[required,{$or:[{priority:{$in:['high','critical']}},{'metadata.approvalRequest':true},{'metadata.serviceEligibilityReason':{$exists:true,$ne:''}}]},due],
+      ...(stage==='expired'?{}:{'metadata.approvalState':{$ne:'needs_recheck'}}),[`metadata.staffNotification.${stage}`]:{$exists:false},
+    }).sort({createdAt:1,_id:1}).limit(limit).select('_id business').lean();
     for (const alert of alerts) {
       // Insert before marking enqueued: a crash leaves a recoverable idempotent insert.
       let job;
@@ -42,7 +43,7 @@ export async function enqueueStaffNotifications({ now = new Date(), limit = 100 
     }
   }
 }
-export async function runStaffNotificationsOnce({ now = new Date(), limit = 100, send = sendStaffReviewEmail } = {}) {
+export async function runStaffNotificationsOnce({ now = new Date(), limit = 100, send = sendStaffReviewEmail, dispatch = dispatchStaffRecipients } = {}) {
   if (!enabled()) return { disabled: true, processed: 0 };
   limit = Math.max(1, Math.min(100, Number(limit) || 100));
   await enqueueStaffNotifications({ now, limit });
@@ -66,23 +67,21 @@ export async function runStaffNotificationsOnce({ now = new Date(), limit = 100,
     const fence = { _id: job._id, status: "sending", leaseToken: token };
     let status = "failed", errorCode = "", providerMessageId;
     try {
-      const alert = await Alert.findOne({ _id: job.alert, business: job.business, ...unresolved }).lean();
+      const alert = await Alert.findOne(staffAlertDeliveryFilter({alertId:job.alert,businessId:job.business,stage:job.stage})).lean();
       const business = alert && await Business.findOne({ _id: job.business, isActive: true }).select("owner businessName").lean();
-      const owner = business && await User.findById(business.owner).select("email emailVerifiedAt").lean();
+
       if (!alert || !business) status = "canceled";
-      else if (!owner?.email || !owner.emailVerifiedAt) {
-        errorCode = "VERIFIED_OWNER_EMAIL_REQUIRED";
-        status = job.attempts < 3 ? "pending" : "failed";
-      } else {
+      else {
         // Recheck immediately before dispatch; acknowledgment still always remains
         // independent of delivery. An email already in flight cannot be recalled.
-        const stillOpen = await Alert.exists({ _id: alert._id, business: job.business, ...unresolved });
+        const stillOpen = await Alert.exists(staffAlertDeliveryFilter({alertId:alert._id,businessId:job.business,stage:job.stage}));
         if (!stillOpen) status = "canceled";
         else {
-          const result = await send({ email: owner.email, businessName: business.businessName,
-            alertId: String(alert._id), appointmentId: alert.metadata?.approvalRequest ? String(alert.appointment || alert.metadata.appointmentId || "") : null, stage: job.stage });
+          const result = await dispatch({businessId:job.business,channel:"email",critical:alert.priority==="critical",approval:alert.metadata?.approvalRequest===true,key:`alert:${alert._id}:${job.stage}`,send,shouldSend:()=>Alert.exists(staffAlertDeliveryFilter({alertId:alert._id,businessId:job.business,stage:job.stage})),payload:recipient=>({ email: recipient.address, businessName: business.businessName,
+            alertId: String(alert._id), appointmentId: alert.metadata?.approvalRequest ? String(alert.appointment || alert.metadata.appointmentId || "") : null, stage: job.stage,critical:alert.priority==="critical" })});
           providerMessageId = result?.messageId;
-          status = result?.accepted?.length ? "accepted" : "uncertain";
+          status = result.state === "accepted" ? "accepted" : result.state === "blocked" ? job.attempts < 3 ? "pending" : "failed" : ["canceled","failed"].includes(result.state) ? result.state : "uncertain";
+          if (result.state === "blocked") errorCode = result.reason || "RECIPIENT_DELIVERY_BLOCKED";
           if (status === "uncertain") errorCode = "PROVIDER_ACCEPTANCE_UNVERIFIED";
         }
       }

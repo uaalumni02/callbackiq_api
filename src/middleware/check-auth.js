@@ -1,3 +1,4 @@
+import {withProviderBusiness} from "../services/providerEntitlement.service.js";
 import { validAdminSession } from '../services/security/adminSessionPolicy.js';
 import customerAccess from './customer-access.js';
 import Token from "../helpers/jwt/token.js";
@@ -65,7 +66,7 @@ const checkAuth = async (req, res, next) => {
       sessionVersion: currentSessionVersion,
     };
 
-    return customerAccess(req, res, next);
+    return customerAccess(req, res, () => withProviderBusiness(req.business?._id, next));
   } catch (error) {
     // An outage must not invalidate a valid browser session or masquerade as
     // an expired password-reset token. The API error handler returns 503.

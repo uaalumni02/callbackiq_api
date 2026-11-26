@@ -1,3 +1,6 @@
+import {modelQuery} from '../helpers/modelQuery.js';
+// This suite isolates message orchestration with model doubles; canonical entitlement state is an active paid fixture.
+jest.mock('../../src/models/subscription.js',()=>({__esModule:true,default:{findOne:jest.fn(()=>({lean:async()=>({status:'active',isActive:true,plan:'pro'})}))}}));
 const mockOutboundFindOne = jest.fn();
 import { multiTradeCases } from '../fixtures/multiTradeCases.js';
 jest.mock('../../src/helpers/ai/tools/validateServiceArea.tool.js', () => ({ __esModule: true, default: jest.fn().mockResolvedValue({ supported: null, reason: 'service_area_not_configured' }) }));
@@ -194,7 +197,7 @@ const createResponse = () => {
   return res;
 };
 
-const business = {
+const business = {isActive:true,
   _id: "business-1",
   businessName: "Atlanta Pro Plumbing",
   businessType: "plumbing",
@@ -294,7 +297,7 @@ test("missed-call customer reply is acknowledged immediately and queued for dura
 });
 
 test("the queued job generates and persists the AI reply exactly once", async () => {
-  Business.findById.mockResolvedValue(business);
+  Business.findById.mockReturnValue(modelQuery(business));
   Message.findById.mockResolvedValue(inboundMessage);
   Conversation.findById.mockResolvedValue(conversation);
   Lead.findById.mockResolvedValue(lead);
@@ -400,7 +403,7 @@ describe("completed manual intake uses the durable staff handoff", () => {
     activeLead = { ...lead, serviceNeeded: "Kitchen sink clog and dishwasher leak", urgency: "high", address: "123 Main St, Atlanta GA 30303", preferredAppointmentTime: "" };
     activeConversation = { ...conversation, orchestration: {}, bookingState: { status: "not_started" } };
     activeInbound = { ...inboundMessage, direction: "inbound", body: "Wednesday at 9 AM" };
-    Business.findById.mockResolvedValue(business);
+    Business.findById.mockReturnValue(modelQuery(business));
     Lead.findById.mockResolvedValue(activeLead);
     Message.findById.mockResolvedValue(activeInbound);
     Conversation.findById.mockImplementation(async () => activeConversation);
@@ -779,7 +782,7 @@ describe("completed manual intake uses the durable staff handoff", () => {
   });
 
   test("fails a job with missing tenant records before provider work", async () => {
-    Business.findById.mockResolvedValueOnce(null);
+    Business.findById.mockReturnValueOnce(modelQuery(null));
 
     await expect(processInboundSmsJob(job)).rejects.toMatchObject({ code: "SMS_JOB_RECORD_MISSING" });
 
@@ -872,7 +875,7 @@ describe("completed manual intake uses the durable staff handoff", () => {
 
 
   test.each(multiTradeCases)("$trade: callback after completed intake is durable and preserves customer facts", async row => {
-    Business.findById.mockResolvedValue({...business,businessType:row.trade});
+    Business.findById.mockReturnValue(modelQuery({...business,businessType:row.trade}));
     activeLead.serviceNeeded=row.request;activeLead.address="123 Main Street Atlanta GA 30324";activeLead.preferredAppointmentTime="2026-10-06 at 10:00 AM";
     activeConversation.orchestration={handoffReason:"intake_complete",handoffInboundMessage:"previous"};
     activeInbound.body="Please call me";
@@ -896,7 +899,7 @@ describe("completed manual intake uses the durable staff handoff", () => {
   ];
   test.each(tradeCases)("%s: distinguishes a routine follow-up from a safety escalation", async (trade, service, danger, routine) => {
     EligibilityCatalog.find.mockReturnValue(catalogQuery([approvedOffering('service-1', trade, ['smoke detector', 'hedges', 'tap', 'lock repair', 'fence'])]));
-    Business.findById.mockResolvedValue({ ...business, businessType: trade });
+    Business.findById.mockReturnValue(modelQuery({ ...business, businessType: trade }));
     activeLead.serviceNeeded = service; activeLead.urgency = "medium";
     activeLead.preferredAppointmentTime = "2026-09-09 at 14:00";
     activeConversation.orchestration = { handoffReason: "intake_complete", handoffInboundMessage: "previous" };
@@ -912,7 +915,7 @@ describe("completed manual intake uses the durable staff handoff", () => {
   });
   test.each(tradeCases)("%s: urgent follow-up sends fixed safety guidance during staff takeover without AI", async (trade, service, danger) => {
     EligibilityCatalog.find.mockReturnValue(catalogQuery([approvedOffering('service-1', trade, ['smoke detector', 'hedges', 'tap', 'lock repair', 'fence'])]));
-    Business.findById.mockResolvedValue({ ...business, businessType: trade });
+    Business.findById.mockReturnValue(modelQuery({ ...business, businessType: trade }));
     activeLead.serviceNeeded = service; activeLead.urgency = "medium";
     activeLead.preferredAppointmentTime = "2026-09-09 at 14:00";
     activeConversation.humanTakeover = true;

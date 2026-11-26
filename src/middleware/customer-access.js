@@ -26,6 +26,8 @@ function isTrialSetupRequest(req, path) {
 }
 
 const subscriptionAccess = requireSubscriptionAccess(undefined, {
+  allowReadOnly: (req,subscription) => subscription?.status === 'past_due' && ['GET','HEAD'].includes(req.method) &&
+    (/^\/api\/(?:leads|conversations|messages|calls|appointments|dashboard|alerts|customers|voice-operations|owner)(?:\/|$)/.test(requestPath(req)) || /^\/api\/business-configuration\/owner-settings\/?$/.test(requestPath(req))),
   // A seeded subscription identifies onboarding. Missing records and used trials stay blocked.
   allowSetup: (req, subscription) => subscription?.status === 'none' &&
     ['trial_not_activated', 'trial_preparing'].includes(subscription.lastPaymentStatus) && !subscription.trialUsedAt &&

@@ -1,3 +1,4 @@
+import { assertVerificationProviderEntitlement } from './providerEntitlement.service.js';
 import { createTwilioClient } from '../integrations/providerClients.js';
 import crypto from "crypto";
 
@@ -175,6 +176,7 @@ export const startForwardingPhoneVerification = async ({
     : "sms";
   const { client, serviceSid } = getVerifyClient();
 
+  await assertVerificationProviderEntitlement(business._id);
   const verification = await client.verify.v2
     .services(serviceSid)
     .verifications.create({
@@ -213,6 +215,7 @@ export const checkForwardingPhoneVerification = async ({
   }
 
   const { client, serviceSid } = getVerifyClient();
+  await assertVerificationProviderEntitlement(business._id);
   const result = await client.verify.v2
     .services(serviceSid)
     .verificationChecks.create({

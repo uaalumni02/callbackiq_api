@@ -15,3 +15,7 @@ d6345e1f5b6acdfde1d702f8406b7330c9ec96b9:docs/SCALE_QUERY_UPDATE_2026_09_15.md:g
 ffcd67974b7589c3c7f462db25ecc8d154bc2436:scripts/audit-repository-hygiene.mjs:stripe-access-token:99
 # Synthetic test-only encryption key assigned by Jest setup.
 1b766b212b3afeebff262f351c2dac3f5363113e:jest.setup.js:generic-api-key:6
+
+# M01: exact historical synthetic canary source fragment; no future commit/file is ignored.
+a751abba18926916e7511faa32d0c484058d5212:scripts/verify-secret-policy-canaries.mjs:generic-api-key:16
+06bcb5df2911529b12086b8e348b9997604d08d2:scripts/verify-secret-policy-canaries.mjs:generic-api-key:18

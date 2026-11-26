@@ -1,3 +1,4 @@
+import ConnectionModel from '../../src/models/integrationConnection.js';
 jest.mock("../../src/services/integrations/googleCalendarConnection.service.js", () => ({
   getGoogleConnection: jest.fn(),
   googleApiRequest: jest.fn(),
@@ -24,6 +25,7 @@ describe("Google Calendar provider", () => {
 
 
 describe("Google Calendar confirmation recovery", () => {
+  const providerRequest=jest.fn();
   const business = { _id: "507f191e810c19729de860ea" };
   const appointment = {
     _id: "507f1f77bcf86cd799439011", business: business._id, customerName: "Customer",
@@ -34,12 +36,18 @@ describe("Google Calendar confirmation recovery", () => {
   const provider = new GoogleCalendarProvider({ business });
   beforeEach(() => {
     jest.resetAllMocks();
+    jest.spyOn(ConnectionModel,'updateOne').mockResolvedValue({modifiedCount:1});
+    googleApiRequest.mockImplementation(async request=>{
+     if(request.path==='/freeBusy')return {calendars:Object.fromEntries(request.body.items.map(({id})=>[id,{busy:[]}]))};
+     if((!request.method || request.method==='GET') && request.path.includes('/events?'))return {items:[]};
+     return providerRequest(request);
+    });
     getGoogleConnection.mockResolvedValue({ status: "connected", providerAccountId: "account" });
     getGoogleSettings.mockReturnValue({ bookingCalendarId: "new@example.com" });
   });
 
   test("recovers a matching event from the stored calendar after settings change", async () => {
-    googleApiRequest.mockResolvedValueOnce(event);
+    providerRequest.mockResolvedValueOnce(event);
     await expect(provider.findConfirmation({ appointment, target })).resolves.toMatchObject({
       externalAppointmentId: event.id, externalCalendarId: target.calendarId,
     });
@@ -51,14 +59,14 @@ describe("Google Calendar confirmation recovery", () => {
   });
 
   test("checks the original calendar still exists before interpreting a 404 as absence", async () => {
-    googleApiRequest.mockResolvedValueOnce({ __providerStatus: 404 }).mockResolvedValueOnce({ id: target.calendarId });
+    providerRequest.mockResolvedValueOnce({ __providerStatus: 404 }).mockResolvedValueOnce({ id: target.calendarId });
     await expect(provider.findConfirmation({ appointment, target })).resolves.toBeNull();
     expect(googleApiRequest).toHaveBeenLastCalledWith(expect.objectContaining({ path: "/calendars/original%40example.com" }));
   });
 
   test("does not mistake a calendar permission loss for a missing event", async () => {
     const forbidden = Object.assign(new Error("Calendar cannot be read"), { providerStatus: 404 });
-    googleApiRequest.mockResolvedValueOnce({ __providerStatus: 404 }).mockRejectedValueOnce(forbidden);
+    providerRequest.mockResolvedValueOnce({ __providerStatus: 404 }).mockRejectedValueOnce(forbidden);
     await expect(provider.findConfirmation({ appointment, target })).rejects.toBe(forbidden);
   });
 
@@ -66,37 +74,37 @@ describe("Google Calendar confirmation recovery", () => {
     await expect(provider.findConfirmation({ appointment, target: { ...target, accountId: "other" } }))
       .rejects.toMatchObject({ code: "GOOGLE_CONFIRMATION_ACCOUNT_CHANGED" });
     expect(googleApiRequest).not.toHaveBeenCalled();
-    googleApiRequest.mockResolvedValueOnce({ ...event, extendedProperties: { private: { callbackiqBusinessId: "other" } } });
+    providerRequest.mockResolvedValueOnce({ ...event, extendedProperties: { private: { callbackiqBusinessId: "other" } } });
     await expect(provider.findConfirmation({ appointment, target }))
       .rejects.toMatchObject({ code: "GOOGLE_CONFIRMATION_EVENT_MISMATCH" });
-    googleApiRequest.mockResolvedValueOnce({ ...event, status: "cancelled" });
+    providerRequest.mockResolvedValueOnce({ ...event, status: "cancelled" });
     await expect(provider.findConfirmation({ appointment, target }))
       .rejects.toMatchObject({ code: "GOOGLE_CONFIRMATION_EVENT_CANCELED", confirmationRejected: true });
   });
 
   test("uses the concrete primary calendar ID before persisting the target", async () => {
     getGoogleSettings.mockReturnValue({ bookingCalendarId: "primary" });
-    googleApiRequest.mockResolvedValueOnce({ id: target.calendarId });
+    providerRequest.mockResolvedValueOnce({ id: target.calendarId });
     await expect(provider.prepareConfirmation({ appointment })).resolves.toEqual(target);
   });
 
   test("a duplicate event ID must return matching Google event evidence", async () => {
-    googleApiRequest.mockRejectedValueOnce(Object.assign(new Error("already exists"), { providerStatus: 409 }))
+    providerRequest.mockRejectedValueOnce(Object.assign(new Error("already exists"), { providerStatus: 409 }))
       .mockResolvedValueOnce(event);
     await expect(provider.createAppointment({ appointment, target })).resolves.toMatchObject({
       externalAppointmentId: event.id, externalCalendarId: target.calendarId,
     });
-    expect(googleApiRequest).toHaveBeenNthCalledWith(1, expect.objectContaining({
+    expect(googleApiRequest).toHaveBeenCalledWith(expect.objectContaining({
       method: "POST", body: expect.objectContaining({ id: target.eventId }),
     }));
-    googleApiRequest.mockResolvedValueOnce({ id: event.id });
+    providerRequest.mockResolvedValueOnce({ id: event.id });
     await expect(provider.createAppointment({ appointment, target }))
       .rejects.toMatchObject({ code: "GOOGLE_CONFIRMATION_EVENT_MISMATCH" });
   });
 
   test("refuses to guess an unresolved primary calendar and allows a pinned calendar match", async () => {
     getGoogleSettings.mockReturnValue({ bookingCalendarId: "primary" });
-    googleApiRequest.mockResolvedValueOnce({}).mockResolvedValueOnce({ id: target.calendarId });
+    providerRequest.mockResolvedValueOnce({}).mockResolvedValueOnce({ id: target.calendarId });
     await expect(provider.prepareConfirmation({ appointment }))
       .rejects.toThrow("Google did not return the writable calendar ID");
     await expect(provider.assertConfirmationRetryTarget({ appointment, target })).resolves.toBeUndefined();
@@ -104,7 +112,7 @@ describe("Google Calendar confirmation recovery", () => {
 
   test("ordinary create without a recovery target keeps the configured calendar", async () => {
     const legacyProvider = new GoogleCalendarProvider({ business: { id: business._id } });
-    googleApiRequest.mockResolvedValueOnce({ id: event.id });
+    providerRequest.mockResolvedValueOnce({ id: event.id });
 
     await expect(legacyProvider.createAppointment({ appointment })).resolves.toMatchObject({
       externalAppointmentId: event.id, externalCalendarId: "new@example.com",
@@ -119,7 +127,7 @@ describe("Google Calendar confirmation recovery", () => {
     const rejected = Object.assign(new Error("Calendar permission denied"), { providerStatus: 403 });
     const timedOut = new Error("Connection timed out");
     const legacyRejected = Object.assign(new Error("Calendar permission denied"), { providerStatus: 403 });
-    googleApiRequest.mockRejectedValueOnce(rejected).mockRejectedValueOnce(timedOut).mockRejectedValueOnce(legacyRejected);
+    providerRequest.mockRejectedValueOnce(rejected).mockRejectedValueOnce(timedOut).mockRejectedValueOnce(legacyRejected);
 
     await expect(provider.createAppointment({ appointment, target })).rejects.toBe(rejected);
     expect(rejected.confirmationCreateRejected).toBe(true);
@@ -131,7 +139,7 @@ describe("Google Calendar confirmation recovery", () => {
 
   test("compensation verifies a missing event against the pinned calendar and leaves ordinary cancellation unchanged", async () => {
     const canceledAppointment = { ...appointment, externalAppointmentId: event.id, externalCalendarId: target.calendarId };
-    googleApiRequest
+    providerRequest
       .mockResolvedValueOnce({ __providerStatus: 410 }).mockResolvedValueOnce({ id: target.calendarId })
       .mockResolvedValueOnce({}).mockResolvedValueOnce({ __providerStatus: 404 });
 
@@ -149,3 +157,5 @@ describe("Google Calendar confirmation recovery", () => {
   });
 
 });
+
+afterEach(()=>jest.restoreAllMocks());

@@ -1,3 +1,5 @@
+import Business from '../../src/models/business.js';
+import Subscription from '../../src/models/subscription.js';
 jest.mock('../../src/services/webhooks/webhookWork.service.js',()=>({enqueueWebhookWork:jest.fn().mockResolvedValue({_id:'safety-job'})}));
 import { optOutSms } from "../../src/services/messaging/contactPreference.service.js";
 jest.mock("../../src/services/messaging/contactPreference.service.js", () => ({ optOutSms: jest.fn(async () => ({})) }));
@@ -49,7 +51,9 @@ beforeEach(() => {
     customerPhone: lead.phone, customerPhoneLookup: lead.phone, bookingState: { status: 'not_started' },
     orchestration: { recoveryJourneyKey: 'original', recoveryIntroClaimedAt: new Date(0) }, conversationMemory: {},
     save: jest.fn(), set(path, value) { assign(this, { [path]: value }); } };
-  business = { _id: 'b1', businessName: 'HVAC Business', businessType: 'HVAC', timezone: 'America/New_York', features: { aiBookingEnabled: false } };
+  business = { isActive:true,_id: 'b1', businessName: 'HVAC Business', businessType: 'HVAC', timezone: 'America/New_York', features: { aiBookingEnabled: false } };
+  jest.spyOn(Business,'findById').mockReturnValue({lean:async()=>business});
+  jest.spyOn(Subscription,'findOne').mockReturnValue({lean:async()=>({status:'active',isActive:true,plan:'pro'})});
   sessions = ['v1', 'v2', 'v3'].map(_id => ({ _id, business, conversation, lead, status: 'active', metadata: {}, save: jest.fn() }));
   Conversation.findOne.mockImplementation(() => query(conversation));
   Conversation.findByIdAndUpdate.mockImplementation(async (_, update) => assign(conversation, update));
@@ -115,3 +119,5 @@ test('a read-only overlapping caller can still withdraw contact consent and end 
   expect(optOutSms).toHaveBeenCalledWith(expect.objectContaining({ businessId: 'b1', phone: lead.phone }));
   expect(conversation.aiEnabled).toBe(false);
 });
+
+afterEach(()=>jest.restoreAllMocks());

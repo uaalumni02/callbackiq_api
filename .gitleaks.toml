@@ -1,0 +1,26 @@
+[extend]
+useDefault = true
+
+[[rules]]
+id = "generic-api-key"
+
+[[rules.allowlists]]
+description = "M01: paired release commit hashes are public identifiers, not credentials"
+condition = "AND"
+paths = ['(^|/)release\.json$']
+regexTarget = "line"
+regexes = ['^\s*"(?:apiSha|frontendSha)"\s*:\s*"[0-9a-f]{40}"[,]?\s*$']
+
+[[rules.allowlists]]
+description = "M01: exact inert encryption fixtures in offline-only tests, including their local history"
+condition = "AND"
+paths = ['(^|/)tests/(?:fixtures/capabilityEnvironment\.js|integration/pilot(?:Deletion|GoogleDisconnect|GoogleAvailability)\.test\.js)$']
+regexTarget = "secret"
+regexes = ['^pilot-encryption-key-with-at-least-32-characters$', '^synthetic-encryption-key-long-enough-1234567890$']
+
+[[rules.allowlists]]
+description = "M01: the canary generator embeds exact inert scan input and a literal configuration identifier, including historical revisions"
+condition = "AND"
+paths = ['(^|/)scripts/verify-secret-policy-canaries\.mjs$']
+regexTarget = "secret"
+regexes = ['^pilot-encryption-key-with-at-least-32-characters$', '^INTEGRATION_ENCRYPTION_KEY$']

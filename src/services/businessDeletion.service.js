@@ -1,3 +1,5 @@
+import {releaseTenantSecondaryNumbers} from './privacy/tenantNumberCleanup.service.js';
+import {revokeTenantGrants,tenantErasurePlan,eraseTenantChildren} from './privacy/tenantErasure.service.js';
 import {conditionalWrite} from './database/conditionalWrite.js';
 import {logOperationalError} from '../helpers/logging/safeLogger.js';
 import Business from "../models/business.js";
@@ -54,6 +56,7 @@ const cancelStripeSubscription = async (subscription) => {
 
 /** Atomic local cleanup after verified external receipts. Changed observations roll back both deletes. */
 const deleteObservedLocalState = async (business, subscription, now) => {
+    const plan=await tenantErasurePlan(business);
     await Subscription.db.transaction(async session => {
       if (subscription) {
         const removed = await Subscription.deleteOne({_id:subscription._id,business:business._id,
@@ -61,6 +64,7 @@ const deleteObservedLocalState = async (business, subscription, now) => {
           trialEndsAt:subscription.trialEndsAt,__v:subscription.__v},{session});
         if (!removed.deletedCount) throw cleanupError('BUSINESS_DELETION_SUBSCRIPTION_CHANGED','Subscription changed during cleanup.');
       }
+      await eraseTenantChildren({business,subscription,plan,session});
       const removed = await Business.deleteOne({_id:business._id,...observeTrackingState(business),
         'accountLifecycle.status':'deleting','accountLifecycle.deletionStartedAt':now},{session});
       if (!removed.deletedCount) throw cleanupError('BUSINESS_DELETION_RELEASE_CHANGED','Business changed during cleanup.');
@@ -110,6 +114,7 @@ export const deleteBusinessSafely = async ({
 
     const receipt = await releaseTrackingNumberWithReceipt(current, {authorization:{kind:'business_deletion',deletionStartedAt:now}});
     current = receipt.business;
+    await releaseTenantSecondaryNumbers(current);
     if (receipt.outcome === 'superseded' || current?.phone || current?.trackingNumber?.providerSid ||
         await Intent.exists({business:current._id,status:{$in:['pending','dispatching','uncertain']}})) {
       throw cleanupError('BUSINESS_DELETION_RELEASE_CHANGED','Release state changed. Reconcile before deleting the business.');
@@ -121,6 +126,7 @@ export const deleteBusinessSafely = async ({
 
     await cancelStripeSubscription(subscription);
 
+    await revokeTenantGrants(current._id);
     await assertTrackingClaim();
     await deleteObservedLocalState(current, subscription, now);
 

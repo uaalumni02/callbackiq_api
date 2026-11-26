@@ -16,6 +16,7 @@ jest.mock("../../src/models/business.js", () => ({
   __esModule: true,
   default: {
     findOne: jest.fn(),
+    findById: jest.fn(),
     updateOne: jest.fn(),
   },
 }));
@@ -37,6 +38,8 @@ jest.mock("../../src/voice/voicePhone.service.js", () => ({
   normalizePhoneToE164: (...args) => mockNormalizePhoneToE164(...args),
 }));
 
+jest.mock("../../src/models/subscription.js", () => ({ __esModule: true, default: { findOne: jest.fn() } }));
+import Subscription from "../../src/models/subscription.js";
 import Business from "../../src/models/business.js";
 import User from "../../src/models/user.js";
 import {
@@ -63,6 +66,7 @@ const makeUser = (overrides = {}) => ({
 
 const makeBusiness = (overrides = {}) => ({
   _id: "biz-1",
+  isActive: true,
   owner: "owner-1",
   forwardingPhone: "+14045550123",
   forwardingPhoneVerifiedAt: null,
@@ -108,6 +112,8 @@ beforeEach(() => {
   User.updateOne.mockResolvedValue({ modifiedCount: 1 });
   Business.updateOne.mockResolvedValue({ modifiedCount: 1 });
   mockSendEmailVerificationEmail.mockResolvedValue(true);
+  Business.findById.mockReturnValue({lean:jest.fn().mockResolvedValue(makeBusiness())});
+  Subscription.findOne.mockReturnValue({lean:jest.fn().mockResolvedValue({status:"active",isActive:true})});
 });
 
 afterAll(() => {

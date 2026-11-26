@@ -1,3 +1,6 @@
+import Operations from '../../src/models/businessOperationsSettings.js';
+import Subscription from '../../src/models/subscription.js';
+import Delivery from '../../src/models/staffNotificationDelivery.js';
 import Job from '../../src/models/staffNotificationJob.js';
 import Alert from '../../src/models/alert.js';
 import Business from '../../src/models/business.js';
@@ -8,6 +11,11 @@ const chain=value=>({sort:()=>chain(value),limit:()=>chain(value),select:()=>cha
 const job={_id:'job',business:'business',alert:'alert',stage:'initial',attempts:1,revision:1};
 beforeEach(()=>{
  process.env.STAFF_NOTIFICATION_EMAIL_ENABLED='true';
+ jest.spyOn(Operations,'findOne').mockImplementation(()=>chain(null));
+ jest.spyOn(Subscription,'findOne').mockImplementation(()=>chain({status:'active',isActive:true,plan:'pro'}));
+ jest.spyOn(Business,'findById').mockImplementation(()=>chain({isActive:true}));
+ jest.spyOn(Delivery,'updateOne').mockResolvedValue({modifiedCount:1});
+ jest.spyOn(Delivery,'findOneAndUpdate').mockResolvedValue({_id:'delivery',attempts:1});
  jest.spyOn(Alert,'find').mockImplementation(()=>chain([]));
  jest.spyOn(Job,'find').mockImplementation(()=>chain([]));
  jest.spyOn(Job,'findOneAndUpdate').mockResolvedValueOnce(job).mockResolvedValue(null);
@@ -23,7 +31,7 @@ afterEach(()=>{jest.restoreAllMocks();delete process.env.STAFF_NOTIFICATION_EMAI
 const completion=()=>Job.updateOne.mock.calls.find(([filter])=>filter.status==='sending')[1].$set;
 test('successful provider acceptance does not mark staff acknowledgment',async()=>{
  const send=jest.fn().mockResolvedValue({accepted:['owner@example.test'],messageId:'provider-id'});
- await runStaffNotificationsOnce({send});expect(completion()).toMatchObject({status:'accepted',providerMessageId:'provider-id'});
+ await runStaffNotificationsOnce({send});expect(completion()).toMatchObject({status:'accepted'});expect(Delivery.updateOne).toHaveBeenCalledWith(expect.objectContaining({state:'sending'}),expect.objectContaining({$set:expect.objectContaining({providerMessageId:'provider-id',state:'accepted'})}));
  expect(send).toHaveBeenCalledWith(expect.objectContaining({email:'owner@example.test',alertId:'alert'}));
  expect(Alert.findOneAndUpdate.mock.calls.every(([,change])=>!change.$set.acknowledgedAt)).toBe(true);
 });
@@ -37,7 +45,7 @@ test('known connection refusal may retry with a future deadline',async()=>{
 });
 test('unverified owner email is never used as a notification recipient',async()=>{
  User.findById.mockImplementation(()=>chain({email:'owner@example.test'}));const send=jest.fn();
- await runStaffNotificationsOnce({send});expect(send).not.toHaveBeenCalled();expect(completion().lastError).toBe('VERIFIED_OWNER_EMAIL_REQUIRED');
+ await runStaffNotificationsOnce({send});expect(send).not.toHaveBeenCalled();expect(completion().lastError).toBe('NO_SAVED_RECIPIENTS');
 });
 test('acknowledgment before dispatch cancels the notification',async()=>{
  Alert.exists.mockResolvedValue(null);const send=jest.fn();await runStaffNotificationsOnce({send});expect(send).not.toHaveBeenCalled();expect(completion().status).toBe('canceled');

@@ -135,6 +135,7 @@ describe("production Google Calendar integration", () => {
       sendUpdates: "none",
     });
     googleApiRequest.mockResolvedValue({
+      items: [],
       calendars: {
         booking: {
           busy: [

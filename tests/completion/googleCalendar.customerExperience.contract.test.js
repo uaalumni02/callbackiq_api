@@ -17,7 +17,7 @@ describe("Google Calendar customer experience completion contract", () => {
 
     expect(connection).toContain("{ business: 1, provider: 1 }");
     expect(provider).toContain("callbackiqBusinessId");
-    expect(provider).toContain("cacheKey");
+    const snapshot=read("src/integrations/scheduling/googleAvailabilitySnapshot.js");expect(snapshot).toContain("businessId,");expect(snapshot).toContain("epoch");
     expect(sync).toContain("String(eventBusinessId) !== String(businessId)");
     expect(sync).toContain("business: businessId");
   });
@@ -105,9 +105,9 @@ describe("Google Calendar customer experience completion contract", () => {
     );
     const worker = read("src/workers/automation.worker.js");
 
-    expect(provider).toContain("remainingCapacity");
-    expect(provider).toContain("bookingBusyLanes");
-    expect(provider).toContain("otherBusyLanes");
+    const availability=read("src/integrations/scheduling/googleAvailability.js");expect(availability).toContain("remainingCapacity");
+    expect(availability).toContain("const booked");
+    expect(availability).toContain("const other");expect(availability).toContain("other + booked < capacity");
     expect(sync).toContain("sweepOrphanedGoogleEvents");
     expect(worker).toContain("sweepOrphanedGoogleEvents");
   });

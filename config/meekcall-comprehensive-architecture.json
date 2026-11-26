@@ -148,8 +148,10 @@
       "name": "update",
       "module": "src/services/scheduling/commands/update-1.js",
       "kind": "method",
-      "sha": "683b652e27fed801f366573669f7313e7cbdee2285442607d39866b4db54afbe",
-      "preTransitionMigrationSha": "992e70eb9134387e28c5947b0264f4575079634428db8ddf01d26c2db97c32fe"
+      "sha": "33dc20466d8bab5adb3b2912fde44a5542aaec863ba5b184bb236a98f1558e79",
+      "preTransitionMigrationSha": "992e70eb9134387e28c5947b0264f4575079634428db8ddf01d26c2db97c32fe",
+      "prePilotReviewSha": "683b652e27fed801f366573669f7313e7cbdee2285442607d39866b4db54afbe",
+      "review": "M01 review: existing owner-scoped update validates value/status, clears capacity claims only on completed/no_show, and repairs saved completion projections; scheduling lifecycle and owner contract tests retain assertions."
     },
     {
       "name": "cleanStreetAddress",
@@ -185,13 +187,17 @@
       "name": "handleAvailabilityProviderFailure",
       "module": "src/services/booking/inquiry/bookingInquiryOperations.js",
       "kind": "declaration",
-      "sha": "8b2a09f15b81d150786cea71938a3fa623d6a34f7b5b5008941543c5750fe945"
+      "sha": "3a6d1fef04dd31d43811ff6797d3f7ca814de073d2b731445e0b28d24432dd81",
+      "prePilotReviewSha": "8b2a09f15b81d150786cea71938a3fa623d6a34f7b5b5008941543c5750fe945",
+      "review": "M01 review: existing availability/readiness failure paths fence stale voice/distributed leases, create tenant-scoped review alerts and explicitly leave booking unconfirmed; Google failure and SMS/voice booking regressions retain assertions."
     },
     {
       "name": "handleBookingReadinessFailure",
       "module": "src/services/booking/inquiry/bookingInquiryOperations.js",
       "kind": "declaration",
-      "sha": "cc93d612a87f9acb651ff0395e2a880627a497977c66838ab68d52484632c536"
+      "sha": "caac39013cc237307ab199fa426caf46728c22fc6bbec170b072bb35a6ea9f79",
+      "prePilotReviewSha": "cc93d612a87f9acb651ff0395e2a880627a497977c66838ab68d52484632c536",
+      "review": "M01 review: existing availability/readiness failure paths fence stale voice/distributed leases, create tenant-scoped review alerts and explicitly leave booking unconfirmed; Google failure and SMS/voice booking regressions retain assertions."
     }
   ],
   "tenantCapabilityContracts": {

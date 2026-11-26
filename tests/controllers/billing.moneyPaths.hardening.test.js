@@ -209,6 +209,7 @@ const makeStripe = (overrides = {}) => ({
     constructEvent: jest.fn(),
   },
   billingPortal: {
+    configurations:{retrieve:jest.fn().mockResolvedValue({active:true,features:{subscription_update:{enabled:false}}})},
     sessions: {
       create: jest.fn().mockResolvedValue({ url: "https://billing.stripe.test/portal" }),
     },

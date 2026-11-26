@@ -169,3 +169,20 @@ export function runStaffSmsAlertUpdateOne4({ Alert, alert, error, now, path, tok
         state: error.deliveryUncertain ? 'uncertain' : 'failed', at: now, reason: String(error.code || error.message).slice(0, 200),
       } } }));
 }
+
+/** Persists channel receipts only while the same tenant alert remains open; never acknowledges staff work. */
+export function recordStaffSmsDelivery({Alert,filter,path,state,now,result}) {
+  return Alert.updateOne(
+    filter,
+    {
+      $set: {
+        [path]: {
+          state,
+          at: now,
+          recipientCount: result.count,
+          ...(result.reason ? { reason: result.reason } : {}),
+        },
+      },
+    },
+  );
+}

@@ -15,6 +15,7 @@ export async function patchBusinessFeatures(req, res, next) {
   try {
     if (!mongoose.isObjectIdOrHexString(req.params.id)) return res.status(400).json({ success: false, message: 'Invalid business ID' });
     const { features } = await schema.validateAsync(req.body);
+    if(features.jobberEnabled===true)return res.status(403).json({success:false,message:"Jobber is disabled for the supervised pilot."});
     const business = await updateBusinessFeatures({ Business, businessId: req.params.id, features });
     if (!business) return res.status(404).json({ success: false, message: 'Not found' });
     await Db.createAdminActionLog(AdminActionLog, { admin: req.user.userId, targetBusiness: business._id,

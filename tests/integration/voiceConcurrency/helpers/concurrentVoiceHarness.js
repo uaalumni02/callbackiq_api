@@ -1,3 +1,5 @@
+import Subscription from '../../../../src/models/subscription.js';
+import User from '../../../../src/models/user.js';
 import mongoose from "mongoose";
 
 import Business from "../../../../src/models/business.js";
@@ -14,13 +16,16 @@ import {
   TRANSFER_NUMBER,
 } from "./syntheticCallFactory.js";
 
+let fixturePhone = 3000;
 export const createConcurrencyBusiness = async ({ maxConcurrentCalls = 25, phone = BUSINESS_NUMBER } = {}) =>
-  Business.create({
-    owner: new mongoose.Types.ObjectId(),
+  {const ownerId=new mongoose.Types.ObjectId();
+  await User.create({_id:ownerId,userName:`Synthetic owner ${ownerId}`,email:`${ownerId}@example.test`,password:'inert-synthetic-hash',businessName:'Synthetic concurrency',role:'owner',emailVerifiedAt:new Date()});
+  const business=await Business.create({
+    owner: ownerId,
     businessName: `Concurrency Plumbing ${Date.now()}-${Math.random().toString(16).slice(2)}`,
     businessType: "plumbing",
     phone,
-    forwardingPhone: TRANSFER_NUMBER,
+    forwardingPhone: `+1404555${String(++fixturePhone).padStart(4, '0')}`,
     isActive: true,
     features: {
       voiceAiEnabled: true,
@@ -37,6 +42,8 @@ export const createConcurrencyBusiness = async ({ maxConcurrentCalls = 25, phone
       agentConfirmationRequired: true,
     },
   });
+  await Subscription.create({business:business._id,status:'active',isActive:true,plan:'pro'});return business;
+};
 
 export const establishCalls = async ({ business, calls, activate = true }) => {
   const contexts = await Promise.all(

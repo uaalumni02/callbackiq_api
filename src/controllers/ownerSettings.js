@@ -1,3 +1,4 @@
+import {testSavedStaffNotifications} from '../services/notifications/testStaffNotifications.service.js';
 import Business from "../models/business.js";
 import { readOwnerSettings, saveOwnerSettings } from "../services/ownerSettings.service.js";
 const failure = (res, err) => {
@@ -18,4 +19,10 @@ export const putOwnerSettings = async (req, res) => {
     const data = await saveOwnerSettings({ ownerId: req.user.userId, section: req.params.section, payload: req.body.values, revision: req.body.revision });
     return res.json({ success: true, data });
   } catch (err) { return failure(res, err); }
+};
+
+/** Tests saved tenant recipients only; returns safe channel receipts and a human delivery check. */
+export const testOwnerNotifications=async(req,res)=>{
+ try {const business=await Business.findOne({owner:req.user.userId}).select('_id');if(!business)return res.status(404).json({success:false,message:'Business not found.'});return res.json({success:true,data:await testSavedStaffNotifications({businessId:business._id})});}
+ catch(error){return failure(res,error);}
 };

@@ -1,3 +1,4 @@
+import {activateCustomerAccess} from '../setup/stabilizationFixture.js';
 import mongoose from "mongoose";
 import { MongoMemoryServer } from "mongodb-memory-server";
 
@@ -239,6 +240,7 @@ describe("MeekCall single-customer complete lifecycle", () => {
     business =
       await Business.findById(businessId);
 
+    await activateCustomerAccess(business._id);
     await IntegrationConnection.collection.insertOne({
       _id: new mongoose.Types.ObjectId(),
       business: business._id,

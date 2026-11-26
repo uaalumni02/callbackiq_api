@@ -34,23 +34,11 @@ const BusinessOperationsSettingsSchema = new Schema(
       default: [],
     },
     emergencyPolicy: {
-      enabled: { type: Boolean, default: true },
-      emergencyContactPhone: { type: String, trim: true, default: "" },
-      emergencyInstructions: { type: String, trim: true, maxlength: 1500, default: "" },
-      customerSafetyMessage: {
-        type: String,
-        trim: true,
-        maxlength: 1000,
-        default:
-          "If anyone is in immediate danger, contact 911 or the appropriate emergency service now. Move to a safe location when possible.",
-      },
-      afterHoursAction: {
-        type: String,
-        enum: ["collect_details", "escalate", "handoff", "emergency_only"],
-        default: "escalate",
-      },
-      pauseAiOnEmergency: { type: Boolean, default: true },
+      emergencyContactPhone: {type:String,trim:true,default:""},
+      emergencyContactEmail: {type:String,trim:true,lowercase:true,default:""},
     },
+    notificationTestAt: {type:Date,default:null},
+    notificationConsent: {actor:{type:Schema.Types.ObjectId,ref:'User'},at:Date},
     aiPermissions: {
       canDiscussServices: { type: Boolean, default: true },
       canDiscussDiagnosticFees: { type: Boolean, default: false },

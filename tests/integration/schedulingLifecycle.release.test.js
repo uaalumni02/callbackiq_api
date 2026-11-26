@@ -1,3 +1,4 @@
+import {activateCustomerAccess} from '../setup/stabilizationFixture.js';
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import Business from '../../src/models/business.js';
@@ -31,6 +32,7 @@ beforeEach(async()=>{
  owner=new mongoose.Types.ObjectId();
  await User.collection.insertOne({_id:owner,email:'owner@example.com',emailVerifiedAt:new Date()});
  business=await Business.create({owner,businessName:'Test Plumbing',businessType:'plumbing',phone:'+14045550101',forwardingPhone:'+14045550102',timezone:'UTC',isActive:true});
+ await activateCustomerAccess(business._id);
  service=await Service.create({business:business._id,name:'Diagnostic visit',durationMinutes:60,aiCanBook:true,active:true});
  await Area.create({business:business._id,type:'unrestricted'});
  await Policy.create({business:business._id,minimumNoticeMinutes:0,allowSameDayBooking:true});

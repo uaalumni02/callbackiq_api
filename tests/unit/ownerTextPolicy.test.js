@@ -19,3 +19,7 @@ test("voice backup choice is independent of missed-call recovery", () => {
 test("appointment controls include confirmations, reminders and changes", () => {
   for (const source of ["appointment_confirmation", "appointment_reminder", "appointment_change_notice"]) expect(reason({ business: { customerMessaging: { appointmentTextsEnabled: false } }, source })).toBe("appointment_texts_disabled");
 });
+
+test.each(['staff_approval_notice','staff_request_notice'])('H02 saved staff notices use their own consent policy even when customer texts are disabled: %s',source=>{
+ expect(reason({business:{customerMessaging:{automaticTextsEnabled:false}},source})).toBe('');
+});

@@ -1,3 +1,4 @@
+jest.mock('../../src/services/budgets/providerBudget.service.js',()=>({reserveProviderBudget:jest.fn().mockResolvedValue({}),settleProviderBudget:jest.fn().mockResolvedValue(true)}));
 import mongoose from "mongoose";
 
 import VoiceUsageLedger from "../../src/models/voiceUsageLedger.js";
@@ -84,7 +85,6 @@ describe("voice usage hard caps", () => {
 
     VoiceUsageLedger.findOneAndUpdate
       .mockResolvedValueOnce(daily)
-      .mockResolvedValueOnce(monthly)
       .mockResolvedValueOnce(null);
 
     const result = await reserveVoiceUsage({

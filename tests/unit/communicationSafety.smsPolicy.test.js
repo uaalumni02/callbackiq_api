@@ -1,3 +1,5 @@
+// Compliance-unit provider double: preserve SDK request construction; money policy is verified against Mongo in pilotEntitlement/pilotBudget.
+jest.mock('../../src/services/messaging/smsProviderDispatch.js',()=>({dispatchSmsProvider:jest.requireActual('../../src/services/messaging/smsProviderDispatch.js').createSmsProviderDispatcher(async()=>({reserveProviderBudget:jest.fn().mockResolvedValue({}),dispatchEntitledProvider:async({dispatch})=>dispatch()}))}));
 jest.mock("twilio", () => ({
   __esModule: true,
   default: jest.fn(),

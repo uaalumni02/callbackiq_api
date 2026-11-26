@@ -19,6 +19,7 @@ const adminActionLogSchema = new mongoose.Schema(
       required: true,
       enum: [
         "view_dashboard",
+        "update_provider_budget",
         "view_customer",
         "update_subscription_status",
         "update_business_status",

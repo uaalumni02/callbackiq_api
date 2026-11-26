@@ -8,7 +8,7 @@ import * as Mailer from "../../src/helpers/email/mailer.js";
 
 jest.mock("openai", () => ({
   __esModule: true,
-  default: jest.fn().mockImplementation((options) => ({ kind: "openai", options })),
+  default: jest.fn().mockImplementation((options) => ({ kind: "openai", options, responses:{create:jest.fn()} })),
 }));
 
 jest.mock("stripe", () => ({

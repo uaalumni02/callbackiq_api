@@ -13,6 +13,7 @@ export const createExactSlotAvailability = ({ AvailabilityService, withStaffSche
   const dateKey = formatDateKey(startAt, timeZone);
   const lookup = () => AvailabilityService.getAvailability({
     business,
+    forceFresh: true,
     serviceOfferingId,
     startDate: dateKey,
     endDate: dateKey,

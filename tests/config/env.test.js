@@ -1,3 +1,4 @@
+import {capabilityEnvironment} from '../fixtures/capabilityEnvironment.js';
 import {
   resetRuntimeConfigForTests,
   validateEnvironment,
@@ -60,7 +61,7 @@ describe("Phase 1 environment validation", () => {
   });
 });
 
-const production = { ...base, APP_ENV: 'production', NODE_ENV: 'production',
+const production = { ...base,...capabilityEnvironment(), APP_ENV: 'production', NODE_ENV: 'production',
   CLIENT_URL: 'https://callbackiq.com', PUBLIC_API_URL: 'https://api.callbackiq.com', ALLOWED_ORIGINS: 'https://callbackiq.com',
   TWILIO_ACCOUNT_SID: 'AC12345678901234567890123456789012', TWILIO_AUTH_TOKEN: 'non-placeholder-auth-value',
   STRIPE_SECRET_KEY: 'sk_live_valid-key-value', STRIPE_WEBHOOK_SECRET: 'whsec_valid-key-value', OPENAI_API_KEY: 'sk_valid-key-value' };

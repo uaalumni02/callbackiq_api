@@ -1,3 +1,5 @@
+import Business from '../../src/models/business.js';
+import Subscription from '../../src/models/subscription.js';
 jest.mock('../../src/services/webhooks/webhookWork.service.js',()=>({enqueueWebhookWork:jest.fn().mockResolvedValue({_id:'safety-job'})}));
 import { runVoiceConversationTurn } from '../../src/services/voiceConversationTurn.service.js';
 import Conversation from '../../src/models/conversation.js';
@@ -10,6 +12,8 @@ jest.mock('../../src/services/distributedLease.service.js',()=>({withDistributed
 let session,conversation,lead,operation;
 beforeEach(()=>{
  jest.clearAllMocks();
+ jest.spyOn(Business,"findById").mockReturnValue({lean:async()=>({isActive:true})});
+ jest.spyOn(Subscription,"findOne").mockReturnValue({lean:async()=>({status:"active",isActive:true,plan:"pro"})});
  conversation={_id:'c',business:'b',lead:'l',status:'open',orchestration:{activeVoiceIntakeSession:'v'},conversationMemory:{recoveryIntake:{address:'SMS-updated address'}}};
  lead={_id:'l',business:'b',address:'SMS-updated address'};
  session={_id:'v',business:{_id:'b'},conversation:{_id:'c'},lead:{_id:'l',address:'stale'}};
@@ -70,4 +74,13 @@ test('queue failure still gives emergency guidance without a delivery promise',a
  expect(result.reply).toMatch(/911/);expect(result.reply).toMatch(/does not monitor emergencies or dispatch emergency help/i);
  expect(result.reply).not.toMatch(/(?:team|staff) (?:has been|was) (?:notified|alerted)|help is on the way|dispatching/i);
  expect(operation).not.toHaveBeenCalled();
+});
+
+afterEach(()=>jest.restoreAllMocks());
+
+test('B04 serialized voice context still applies entitlement and tenant scoped locks before the next turn',async()=>{
+ session.business='b'; session.conversation='c'; session.lead='l';
+ const result=await runVoiceConversationTurn({session,customerMessage:'tomorrow',operation});
+ expect(result.reply).toBe('SMS-updated address'); expect(withDistributedLease.mock.calls[0][0]).toBe('sms-conversation:c');
+ expect(Conversation.findOne).toHaveBeenCalledWith({_id:'c',business:'b'});
 });

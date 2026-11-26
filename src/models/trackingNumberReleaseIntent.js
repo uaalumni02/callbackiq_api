@@ -34,12 +34,14 @@ const releaseIntentSchema = new Schema({
   dispatchedAt: { type: Date, default: null },
   reconciledAt: { type: Date, default: null },
   completedAt: { type: Date, default: null },
+  purgeAt: {type:Date,default:null},
   providerOutcome: { type: String, default: 'unknown',
     enum: ['unknown', 'removed', 'absent', 'present', 'rejected'] },
   lastErrorCode: { type: String, default: '', maxlength: 100 },
 }, { timestamps: true, collection: 'trackingnumberreleaseintents' });
 
 // New collection only. Never TTL-delete unresolved external outcomes.
+releaseIntentSchema.index({purgeAt:1},{expireAfterSeconds:0});
 releaseIntentSchema.index({ status: 1, claimExpiresAt: 1 });
 releaseIntentSchema.index({ business: 1, createdAt: -1 });
 releaseIntentSchema.index({ providerAccountSid: 1, providerSid: 1 }, { unique: true, name: 'one_unresolved_resource_release',

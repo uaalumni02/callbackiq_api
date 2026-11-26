@@ -130,6 +130,9 @@ AlertSchema.index(
   },
 );
 
+AlertSchema.index({actionRequired:1,resolvedAt:1,acknowledgedAt:1,_id:1,'metadata.approvalRequest':1});
+AlertSchema.index({priority:1,_id:1});
+
 installLeadWorkflowWriter(AlertSchema, 'Alert');
 
 const Alert = mongoose.models.Alert || mongoose.model("Alert", AlertSchema);

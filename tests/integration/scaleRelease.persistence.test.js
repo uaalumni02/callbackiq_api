@@ -1,3 +1,4 @@
+import {activateCustomerAccess} from '../setup/stabilizationFixture.js';
 import mongoose from 'mongoose';
 import { connectTestDB, clearTestDB, closeTestDB } from '../setup/testDb.js';
 import Conversation from '../../src/models/conversation.js';
@@ -48,6 +49,7 @@ async function fixture(){
  await User.collection.insertOne({_id:owner,email:'owner@example.test',emailVerifiedAt:new Date()});
  await Business.collection.insertOne({_id:business,owner,isActive:true,businessName:'Test'});
  await Alert.collection.insertOne({_id:alert,business,type:'human_requested',title:'Review',message:'Review',priority:'high',actionRequired:true,acknowledgedAt:null,resolvedAt:null,createdAt:new Date(),dueAt:new Date(Date.now()+600000)});
+ await activateCustomerAccess(business);
  process.env.STAFF_NOTIFICATION_EMAIL_ENABLED='true';return {business,owner,alert};
 }
 test('parallel workers send one email; replay does not resend or acknowledge staff',async()=>{
